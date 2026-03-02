@@ -4,8 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.omnidev.workspace.data.model.CompletionRequest
-import com.omnidev.workspace.data.model.CompletionResponse
+import com.omnidev.workspace.data.network.CompletionService
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.tools.FileToolManager
@@ -34,16 +33,12 @@ class MainActivity : ComponentActivity() {
         val apiKeyRepository = ApiKeyRepository(applicationContext)
         val toolManager = FileToolManager()
 
-        // Placeholder completion provider — replace with actual API implementation.
-        // request.apiKey contains the resolved key from ApiKeyRepository when available.
-        val completionProvider: suspend (CompletionRequest) -> CompletionResponse = { request ->
-            // TODO: Route to Anthropic/OpenAI/Gemini/Copilot APIs using request.apiKey
-            CompletionResponse(
-                content = "API integration pending. Model: ${request.modelId}" +
-                    if (request.apiKey != null) " (key configured ✓)" else " (no key set)",
-                finishReason = "placeholder"
-            )
-        }
+        // Real HTTP completion provider — routes requests to the appropriate AI provider
+        // endpoint based on the model's provider. Keys are loaded from ApiKeyRepository
+        // by AgentPipeline before each call and injected into CompletionRequest.apiKey.
+        val completionService = CompletionService()
+        val completionProvider: suspend (com.omnidev.workspace.data.model.CompletionRequest) -> com.omnidev.workspace.data.model.CompletionResponse =
+            completionService::invoke
 
         val agentPipeline = AgentPipeline(
             toolManager = toolManager,

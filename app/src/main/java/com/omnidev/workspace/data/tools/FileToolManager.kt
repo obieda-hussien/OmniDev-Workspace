@@ -5,7 +5,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
-import java.util.concurrent.TimeUnit
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 
 /**
  * Production implementation of [ToolManager] providing token-optimized file operations.
@@ -20,6 +22,7 @@ import java.util.concurrent.TimeUnit
  * - `create_file`: Create a new file with content.
  * - `delete_file`: Delete a file.
  * - `run_terminal`: Execute a shell command in the Target Context directory.
+ * - `web_search`: Search the web using DuckDuckGo Lite and return the top results.
  */
 class FileToolManager : ToolManager {
 
@@ -103,6 +106,20 @@ class FileToolManager : ToolManager {
                     required = true
                 )
             )
+        ),
+        ToolDefinition(
+            name = "web_search",
+            description = "Search the web using DuckDuckGo and return the top results with titles, URLs, " +
+                "and snippets. Use this to look up documentation, error messages, library usage, or " +
+                "any information not available in the local codebase.",
+            parameters = listOf(
+                ToolParameter(
+                    name = "query",
+                    type = "string",
+                    description = "The search query (e.g., 'Kotlin coroutines StateFlow example').",
+                    required = true
+                )
+            )
         )
     )
 
@@ -123,6 +140,9 @@ class FileToolManager : ToolManager {
                 "create_file" -> createFile(arguments, scopePath)
                 "delete_file" -> deleteFile(arguments, scopePath)
                 "run_terminal" -> runTerminal(arguments, scopePath)
+                "web_search" -> webSearch(arguments["query"]
+                    ?: return ToolExecutionResult("Missing required argument: query", isError = true)
+                )
                 else -> ToolExecutionResult(
                     output = "Unknown tool: $name",
                     isError = true
@@ -400,10 +420,17 @@ class FileToolManager : ToolManager {
                 }
                 readerThread.start()
 
-                val completed = process.waitFor(TERMINAL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                // API-24-compatible timeout: run process.waitFor() on a wait thread,
+                // then join() with a timeout (Thread.join(millis) has been API 1 since day 1).
+                val waitThread = Thread {
+                    try { process.waitFor() } catch (_: InterruptedException) { /* interrupted during timeout handling */ }
+                }
+                waitThread.start()
+                waitThread.join(TERMINAL_TIMEOUT_SECONDS * 1000L)
 
+                val completed = !waitThread.isAlive
                 if (!completed) {
-                    process.destroyForcibly()
+                    process.destroy() // SIGTERM — process.destroyForcibly() requires API 26
                     readerThread.interrupt()
                     return@withContext ToolExecutionResult(
                         output = "⏱ Command timed out after ${TERMINAL_TIMEOUT_SECONDS}s: $command",
@@ -434,6 +461,112 @@ class FileToolManager : ToolManager {
                 isError = true
             )
         }
+    }
+
+    // ──────────────────────────────────────────────
+    //  web_search
+    // ──────────────────────────────────────────────
+
+    /**
+     * Searches the web via DuckDuckGo Lite and returns the top results.
+     *
+     * Uses the text-only `lite.duckduckgo.com` endpoint — no JavaScript required.
+     * Parses HTML with regex to extract result titles, redirect URLs (decoded from the
+     * `uddg=` parameter), and snippet text.
+     */
+    private suspend fun webSearch(query: String): ToolExecutionResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val encoded = URLEncoder.encode(query, "UTF-8")
+                val url = URL("https://lite.duckduckgo.com/lite/?q=$encoded&kl=us-en")
+
+                val conn = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 15_000
+                    readTimeout    = 15_000
+                    setRequestProperty("User-Agent", "Mozilla/5.0 (Android; OmniDevWorkspace)")
+                    setRequestProperty("Accept", "text/html")
+                }
+
+                val responseCode = conn.responseCode
+                if (responseCode !in 200..299) {
+                    conn.disconnect()
+                    return@withContext ToolExecutionResult(
+                        output = "Search request failed (HTTP $responseCode).",
+                        isError = true
+                    )
+                }
+
+                val html = conn.inputStream.bufferedReader(Charsets.UTF_8).readText()
+                conn.disconnect()
+
+                val results = parseSearchResults(html, query)
+                ToolExecutionResult(output = results)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ToolExecutionResult(
+                    output = "Web search failed: ${e.message}",
+                    isError = true
+                )
+            }
+        }
+
+    /**
+     * Parses DuckDuckGo Lite HTML to extract the top search results.
+     *
+     * The lite page structure contains:
+     *  - `<a class="result-link" href="//duckduckgo.com/l/?uddg=URL_ENCODED...">Title</a>`
+     *  - `<td class="result-snippet">Snippet text</td>`
+     *
+     * **Note:** Regex-based HTML parsing is inherently fragile. If DuckDuckGo changes their
+     * page structure, this method may return fewer results or empty results. The tool will
+     * still succeed (non-error), returning a "No results found" message in that case.
+     */
+    private fun parseSearchResults(html: String, query: String): String {
+        val linkPattern = Regex(
+            """<a[^>]+class="result-link"[^>]+href="([^"]+)"[^>]*>(.*?)</a>""",
+            setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE)
+        )
+        val snippetPattern = Regex(
+            """<td[^>]+class="result-snippet"[^>]*>(.*?)</td>""",
+            setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE)
+        )
+        val uddgPattern = Regex("""uddg=([^&"]+)""")
+
+        val links    = linkPattern.findAll(html).toList()
+        val snippets = snippetPattern.findAll(html).toList()
+
+        if (links.isEmpty()) {
+            return "No results found for: $query"
+        }
+
+        return buildString {
+            appendLine("Web search results for: \"$query\"\n")
+            links.take(5).forEachIndexed { i, match ->
+                val rawHref = match.groupValues[1]
+                val title = match.groupValues[2]
+                    .replace(Regex("<[^>]+>"), "")  // strip any inner HTML tags
+                    .replace("&amp;", "&")
+                    .trim()
+
+                // Decode the actual destination URL from DuckDuckGo's redirect wrapper.
+                // If the pattern isn't found (e.g., structure changed), surface the raw href
+                // with the DDG redirect prefix stripped so the agent still gets something useful.
+                val destUrl = uddgPattern.find(rawHref)?.groupValues?.get(1)
+                    ?.let { java.net.URLDecoder.decode(it, "UTF-8") }
+                    ?: rawHref.substringAfter("uddg=").ifEmpty { rawHref }
+                val snippet = snippets.getOrNull(i)?.groupValues?.get(1)
+                    ?.replace(Regex("<[^>]+>"), "")
+                    ?.replace("&amp;", "&")
+                    ?.trim() ?: ""
+
+                appendLine("${i + 1}. **$title**")
+                appendLine("   $destUrl")
+                if (snippet.isNotEmpty()) appendLine("   $snippet")
+                appendLine()
+            }
+        }.trimEnd()
     }
 
     // ──────────────────────────────────────────────

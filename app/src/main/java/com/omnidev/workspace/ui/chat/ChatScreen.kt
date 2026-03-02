@@ -7,6 +7,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,10 +24,13 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
@@ -38,10 +42,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.InputChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -89,6 +93,24 @@ fun ChatScreen(
                 Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             context.contentResolver.takePersistableUriPermission(uri, flags)
             viewModel.setTargetContextFromUri(context, uri)
+        }
+    }
+
+    // Multi-file attachment picker — accepts any file type
+    val attachmentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            val displayNames = uris.map { uri ->
+                // Try to get the display name from the content resolver; fall back to last
+                // path segment, then a generic label (avoids exposing internal content:// URIs).
+                val cursor = context.contentResolver.query(uri, null, null, null, null)
+                cursor?.use { c ->
+                    val nameCol = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (c.moveToFirst() && nameCol >= 0) c.getString(nameCol) else null
+                } ?: uri.lastPathSegment ?: "Attachment"
+            }
+            viewModel.addAttachments(uris, displayNames)
         }
     }
     val listState = rememberLazyListState()
@@ -223,7 +245,10 @@ fun ChatScreen(
                 inputText = uiState.inputText,
                 onInputChanged = { viewModel.onInputChanged(it) },
                 onSend = { viewModel.sendMessage() },
-                isProcessing = uiState.isProcessing
+                isProcessing = uiState.isProcessing,
+                pendingAttachments = uiState.pendingAttachments,
+                onAttachClick = { attachmentLauncher.launch("*/*") },
+                onRemoveAttachment = { viewModel.removeAttachment(it) }
             )
         }
     }
@@ -309,49 +334,104 @@ private fun MessageBubble(message: ChatMessage) {
 }
 
 /**
- * Chat input bar with text field and send button.
+ * Chat input bar with attach button, pending attachment chips, text field, and send button.
  */
 @Composable
 private fun ChatInputBar(
     inputText: String,
     onInputChanged: (String) -> Unit,
     onSend: () -> Unit,
-    isProcessing: Boolean
+    isProcessing: Boolean,
+    pendingAttachments: List<PendingAttachment> = emptyList(),
+    onAttachClick: () -> Unit = {},
+    onRemoveAttachment: (android.net.Uri) -> Unit = {}
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(12.dp),
-        verticalAlignment = Alignment.Bottom
-    ) {
-        OutlinedTextField(
-            value = inputText,
-            onValueChange = onInputChanged,
-            modifier = Modifier.weight(1f),
-            placeholder = { Text("Ask OmniDev anything...") },
-            shape = RoundedCornerShape(24.dp),
-            maxLines = 5,
-            enabled = !isProcessing
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        FloatingActionButton(
-            onClick = onSend,
-            modifier = Modifier.size(48.dp),
-            containerColor = MaterialTheme.colorScheme.primary,
-            shape = CircleShape
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // Horizontal scrollable row of attachment chips
+        if (pendingAttachments.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                pendingAttachments.forEach { attachment ->
+                    InputChip(
+                        selected = false,
+                        onClick = {},
+                        label = {
+                            Text(
+                                text = attachment.displayName,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        },
+                        trailingIcon = {
+                            IconButton(
+                                onClick = { onRemoveAttachment(attachment.uri) },
+                                modifier = Modifier.size(18.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = "Remove attachment",
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    )
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.Bottom
         ) {
-            if (isProcessing) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp
-                )
-            } else {
+            // Attach button
+            IconButton(
+                onClick = onAttachClick,
+                enabled = !isProcessing,
+                modifier = Modifier.size(48.dp)
+            ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.Send,
-                    contentDescription = "Send",
-                    tint = MaterialTheme.colorScheme.onPrimary
+                    imageVector = Icons.Filled.AttachFile,
+                    contentDescription = "Attach files",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+            OutlinedTextField(
+                value = inputText,
+                onValueChange = onInputChanged,
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Ask OmniDev anything...") },
+                shape = RoundedCornerShape(24.dp),
+                maxLines = 5,
+                enabled = !isProcessing
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            FloatingActionButton(
+                onClick = onSend,
+                modifier = Modifier.size(48.dp),
+                containerColor = MaterialTheme.colorScheme.primary,
+                shape = CircleShape
+            ) {
+                if (isProcessing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Send,
+                        contentDescription = "Send",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
             }
         }
     }

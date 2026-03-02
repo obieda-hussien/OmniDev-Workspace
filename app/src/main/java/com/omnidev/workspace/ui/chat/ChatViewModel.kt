@@ -18,6 +18,14 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
+ * A file the user has selected but not yet sent.
+ *
+ * @property uri The content URI returned by the file picker.
+ * @property displayName The human-readable file name shown in the attachment chip.
+ */
+data class PendingAttachment(val uri: Uri, val displayName: String)
+
+/**
  * UI state for the Omni-Chat interface.
  */
 data class ChatUiState(
@@ -36,7 +44,9 @@ data class ChatUiState(
     /** Error message to display. */
     val errorMessage: String? = null,
     /** Live console entries for the Agent Observability Console ("Glass Brain"). */
-    val consoleEntries: List<AgentConsoleEntry> = emptyList()
+    val consoleEntries: List<AgentConsoleEntry> = emptyList(),
+    /** Files selected by the user, waiting to be included in the next message. */
+    val pendingAttachments: List<PendingAttachment> = emptyList()
 )
 
 /**
@@ -68,6 +78,27 @@ class ChatViewModel(
      */
     fun onInputChanged(text: String) {
         _uiState.update { it.copy(inputText = text) }
+    }
+
+    /**
+     * Adds one or more files to the pending attachment list.
+     * [uris] and [displayNames] must have the same size.
+     */
+    fun addAttachments(uris: List<Uri>, displayNames: List<String>) {
+        require(uris.size == displayNames.size) {
+            "uris and displayNames must have equal size (${uris.size} vs ${displayNames.size})"
+        }
+        val newAttachments = uris.mapIndexed { i, uri ->
+            PendingAttachment(uri = uri, displayName = displayNames[i])
+        }
+        _uiState.update { it.copy(pendingAttachments = it.pendingAttachments + newAttachments) }
+    }
+
+    /** Removes a single pending attachment by its URI. */
+    fun removeAttachment(uri: Uri) {
+        _uiState.update {
+            it.copy(pendingAttachments = it.pendingAttachments.filter { a -> a.uri != uri })
+        }
     }
 
     /**
@@ -127,7 +158,7 @@ class ChatViewModel(
     }
 
     /**
-     * Sends the current input message and triggers the agent pipeline.
+     * Sends the current input message (and any pending attachments) to the agent pipeline.
      */
     fun sendMessage() {
         val input = _uiState.value.inputText.trim()
@@ -139,9 +170,15 @@ class ChatViewModel(
             return
         }
 
+        val attachments = _uiState.value.pendingAttachments
+        // Append attachment file names to the message content so the model is aware of them.
+        val attachmentNote = if (attachments.isNotEmpty()) {
+            "\n\n[Attached files: ${attachments.joinToString(", ") { it.displayName }}]"
+        } else ""
+
         val userMessage = ChatMessage(
             role = MessageRole.USER,
-            content = input
+            content = input + attachmentNote
         )
 
         _uiState.update {
@@ -151,7 +188,8 @@ class ChatViewModel(
                 isProcessing = true,
                 agentStatus = "Starting agent...",
                 errorMessage = null,
-                consoleEntries = emptyList() // fresh console for each run
+                consoleEntries = emptyList(), // fresh console for each run
+                pendingAttachments = emptyList() // clear after send
             )
         }
 
