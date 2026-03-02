@@ -57,7 +57,9 @@ data class ChatUiState(
     /** Whether the history drawer is open. */
     val isDrawerOpen: Boolean = false,
     /** The currently active session ID (null = unsaved new session). */
-    val currentSessionId: Long? = null
+    val currentSessionId: Long? = null,
+    /** Partial text from the current streaming response (null = not streaming). */
+    val streamingContent: String? = null
 )
 
 /**
@@ -131,6 +133,7 @@ class ChatViewModel(
                 pendingAttachments = emptyList(),
                 consoleEntries = emptyList(),
                 errorMessage = null,
+                streamingContent = null,
                 isDrawerOpen = false
             )
         }
@@ -347,6 +350,11 @@ class ChatViewModel(
                             )
                         }
 
+                    is AgentEvent.StreamChunk ->
+                        _uiState.update {
+                            it.copy(streamingContent = (it.streamingContent ?: "") + event.delta)
+                        }
+
                     is AgentEvent.FinalAnswer -> {
                         val assistantMessage = ChatMessage(
                             role = MessageRole.ASSISTANT,
@@ -358,6 +366,7 @@ class ChatViewModel(
                                 messages = it.messages + assistantMessage,
                                 isProcessing = false,
                                 agentStatus = null,
+                                streamingContent = null, // streaming complete
                                 consoleEntries = it.consoleEntries + AgentConsoleEntry.ReplyEntry()
                             )
                         }
@@ -369,6 +378,7 @@ class ChatViewModel(
                                 isProcessing = false,
                                 agentStatus = null,
                                 errorMessage = event.message,
+                                streamingContent = null,
                                 consoleEntries = it.consoleEntries +
                                     AgentConsoleEntry.ErrorEntry(event.message)
                             )

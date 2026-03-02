@@ -1,6 +1,9 @@
 package com.omnidev.workspace.ui.chat
 
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -35,6 +38,8 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderOpen
@@ -154,9 +159,14 @@ fun ChatScreen(
 
     val listState = rememberLazyListState()
 
-    LaunchedEffect(uiState.messages.size) {
-        if (uiState.messages.isNotEmpty()) {
-            listState.animateScrollToItem(uiState.messages.lastIndex)
+    LaunchedEffect(uiState.messages.size, uiState.streamingContent) {
+        if (uiState.messages.isNotEmpty() || uiState.streamingContent != null) {
+            val lastIndex = if (uiState.streamingContent != null) {
+                uiState.messages.size // streaming item is after all messages
+            } else {
+                uiState.messages.lastIndex
+            }
+            if (lastIndex >= 0) listState.animateScrollToItem(lastIndex)
         }
     }
 
@@ -270,6 +280,13 @@ fun ChatScreen(
                     }
                     items(uiState.messages) { message ->
                         MessageBubble(message = message)
+                    }
+                    // Show partial streaming response while the model is still generating
+                    val streamingContent = uiState.streamingContent
+                    if (uiState.isProcessing && streamingContent != null) {
+                        item {
+                            StreamingMessageBubble(content = streamingContent)
+                        }
                     }
                 }
 
@@ -433,6 +450,9 @@ private fun MessageBubble(message: ChatMessage) {
     // Parse assistant messages to extract <thinking> and <tool_code> blocks
     val parsed = if (!isUser) MessageFormatter.parse(message.content) else null
 
+    val context = LocalContext.current
+    val copyText = parsed?.cleanText?.ifBlank { null } ?: message.content
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = alignment
@@ -503,19 +523,43 @@ private fun MessageBubble(message: ChatMessage) {
                 ),
                 colors = CardDefaults.cardColors(containerColor = backgroundColor)
             ) {
-                if (isUser) {
-                    Text(
-                        text = message.content,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                } else {
-                    // Assistant: show only the clean text (tags extracted to expandable blocks)
-                    val displayText = parsed?.cleanText?.ifBlank { null } ?: message.content
-                    MarkdownText(
-                        text = displayText,
-                        modifier = Modifier.padding(12.dp)
-                    )
+                Box {
+                    SelectionContainer {
+                        if (isUser) {
+                            Text(
+                                text = message.content,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(12.dp)
+                            )
+                        } else {
+                            // Assistant: show only the clean text (tags extracted to expandable blocks)
+                            val displayText = parsed?.cleanText?.ifBlank { null } ?: message.content
+                            MarkdownText(
+                                text = displayText,
+                                // Extra end padding reserves space for the 32dp copy button
+                                modifier = Modifier.padding(start = 12.dp, end = 36.dp, top = 12.dp, bottom = 12.dp)
+                            )
+                        }
+                    }
+                    // Copy button — top-right corner of the bubble
+                    IconButton(
+                        onClick = {
+                            val clipboard = context.getSystemService(ClipboardManager::class.java)
+                            clipboard?.setPrimaryClip(ClipData.newPlainText("OmniDev", copyText))
+                            Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .size(32.dp)
+                            .padding(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.ContentCopy,
+                            contentDescription = "Copy message",
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        )
+                    }
                 }
             }
 
@@ -535,6 +579,48 @@ private fun MessageBubble(message: ChatMessage) {
                         modifier = Modifier.size(18.dp)
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Animated bubble showing real-time streaming content from the model.
+ * Displayed while the agent is generating the final answer via SSE.
+ * Once [AgentEvent.FinalAnswer] arrives the full [MessageBubble] replaces this.
+ */
+@Composable
+private fun StreamingMessageBubble(content: String) {
+    Row(
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.Start,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.SmartToy,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Card(
+            modifier = Modifier.widthIn(max = 320.dp),
+            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            SelectionContainer {
+                MarkdownText(
+                    text = content,
+                    modifier = Modifier.padding(12.dp)
+                )
             }
         }
     }

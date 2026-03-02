@@ -80,6 +80,10 @@ data class AgentConfig(
  *
  * @param toolManager The [ToolManager] that provides tool definitions and execution.
  * @param completionProvider A suspend function that calls the AI completion API.
+ * @param streamingCompletionProvider Optional streaming variant of the completion provider.
+ *        When provided, the agent will stream text chunks to the UI in real-time via
+ *        [AgentEvent.StreamChunk] events, giving users a typewriter-style response experience.
+ *        The callback receives each text delta as it arrives from the SSE stream.
  * @param config Behavioral configuration (iteration limits, retry policy, token budget).
  * @param apiKeyRepository Optional key store. When provided, the resolved API key for the
  *        active model's provider is injected into each [CompletionRequest] automatically.
@@ -87,6 +91,7 @@ data class AgentConfig(
 class AgentPipeline(
     private val toolManager: ToolManager,
     private val completionProvider: suspend (CompletionRequest) -> CompletionResponse,
+    private val streamingCompletionProvider: (suspend (CompletionRequest, suspend (String) -> Unit) -> CompletionResponse)? = null,
     private val config: AgentConfig = AgentConfig(),
     private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null,
     private val memoryManager: com.omnidev.workspace.data.tools.MemoryManager? = null
@@ -201,6 +206,14 @@ After each observation, reflect: "Did this achieve the intended result? What's n
             }
             appendLine()
             appendLine()
+            appendLine("## Scope & Path Context")
+            appendLine("Your active Target Context (working directory root) is: `$scopePath`")
+            appendLine("Use this absolute path as the prefix for all file tool arguments.")
+            appendLine("If the user references this path directly, it maps to your scope root `/`.")
+            appendLine("Accepted formats for file paths:")
+            appendLine("  • Full absolute path: `$scopePath/app/src/main/AndroidManifest.xml`")
+            appendLine("  • Bare relative path (no leading /): `app/src/main/AndroidManifest.xml` (auto-prefixed)")
+            appendLine()
             appendLine("## Available Tools")
             appendLine(toolSchemaText)
             if (enableDeepThinking && model.supportsThinking) {
@@ -255,7 +268,9 @@ After each observation, reflect: "Did this achieve the intended result? What's n
             )
 
             // ── API call with retry/backoff ──
-            val response = callWithRetry(request, iteration) { errorMsg ->
+            val response = callWithRetry(request, iteration,
+                onStreamChunk = { delta -> emit(AgentEvent.StreamChunk(delta)) }
+            ) { errorMsg ->
                 emit(AgentEvent.Error(errorMsg))
             } ?: return@flow
 
@@ -353,21 +368,30 @@ After each observation, reflect: "Did this achieve the intended result? What's n
     /**
      * Wraps an API call with exponential backoff retry logic.
      *
+     * When [streamingCompletionProvider] is available, text delta chunks are emitted via
+     * [onStreamChunk] as they arrive, enabling real-time streaming in the UI.
+     *
      * @param request The completion request.
      * @param iteration The current loop iteration number (for error messages).
+     * @param onStreamChunk Called with each streaming text delta (no-op if not streaming).
      * @param onFatalError Called with the error message if all retries are exhausted.
      * @return The [CompletionResponse] on success, or null if all retries failed.
      */
     private suspend fun callWithRetry(
         request: CompletionRequest,
         iteration: Int,
+        onStreamChunk: suspend (String) -> Unit = {},
         onFatalError: suspend (String) -> Unit
     ): CompletionResponse? {
         val maxAttempts = if (config.enableRetry) config.maxRetries + 1 else 1
 
         repeat(maxAttempts) { attempt ->
             try {
-                return completionProvider(request)
+                return if (streamingCompletionProvider != null) {
+                    streamingCompletionProvider.invoke(request, onStreamChunk)
+                } else {
+                    completionProvider(request)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -451,6 +475,9 @@ sealed class AgentEvent {
         val totalTokens: Int,
         val budget: Int?
     ) : AgentEvent()
+
+    /** A streaming text delta chunk from the model's SSE response. */
+    data class StreamChunk(val delta: String) : AgentEvent()
 
     /** The agent has produced a final answer. */
     data class FinalAnswer(

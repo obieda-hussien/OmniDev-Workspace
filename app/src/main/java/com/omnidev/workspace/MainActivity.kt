@@ -53,6 +53,9 @@ class MainActivity : ComponentActivity() {
         val agentPipeline = AgentPipeline(
             toolManager = toolManager,
             completionProvider = completionProvider,
+            streamingCompletionProvider = { request, onChunk ->
+                completionService.stream(request, onChunk)
+            },
             config = AgentConfig.THOROUGH,
             apiKeyRepository = apiKeyRepository,
             memoryManager = memoryManager

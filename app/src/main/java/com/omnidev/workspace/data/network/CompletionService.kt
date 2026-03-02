@@ -32,7 +32,8 @@ private data class AnthropicRequest(
     val model: String,
     @SerialName("max_tokens") val maxTokens: Int,
     val messages: List<AnthropicMessage>,
-    val system: String? = null
+    val system: String? = null,
+    val stream: Boolean = false
 )
 
 @Serializable
@@ -54,6 +55,21 @@ private data class AnthropicUsage(
     @SerialName("output_tokens") val outputTokens: Int = 0
 )
 
+// ─── Anthropic SSE streaming DTOs ────────────────────────────────────────────
+
+@Serializable
+private data class AnthropicStreamEvent(
+    val type: String = "",
+    val delta: AnthropicStreamDelta? = null
+)
+
+@Serializable
+private data class AnthropicStreamDelta(
+    val type: String = "",
+    val text: String? = null,
+    @SerialName("stop_reason") val stopReason: String? = null
+)
+
 // ─── OpenAI-compatible Chat Completions API DTOs ─────────────────────────────
 
 @Serializable
@@ -61,7 +77,8 @@ private data class OpenAiRequest(
     val model: String,
     val messages: List<OpenAiMessage>,
     @SerialName("max_tokens") val maxTokens: Int? = null,
-    val temperature: Double? = null
+    val temperature: Double? = null,
+    val stream: Boolean = false
 )
 
 @Serializable
@@ -88,6 +105,22 @@ private data class OpenAiUsage(
     @SerialName("completion_tokens") val completionTokens: Int = 0,
     @SerialName("total_tokens") val totalTokens: Int = 0
 )
+
+// ─── OpenAI SSE streaming DTOs ────────────────────────────────────────────────
+
+@Serializable
+private data class OpenAiStreamChunk(
+    val choices: List<OpenAiStreamChoice> = emptyList()
+)
+
+@Serializable
+private data class OpenAiStreamChoice(
+    val delta: OpenAiStreamDelta = OpenAiStreamDelta(),
+    @SerialName("finish_reason") val finishReason: String? = null
+)
+
+@Serializable
+private data class OpenAiStreamDelta(val content: String? = null)
 
 // ─── CompletionService ────────────────────────────────────────────────────────
 
@@ -321,6 +354,262 @@ class CompletionService {
                 )
             }
         )
+    }
+
+    // ── Streaming completion (SSE) ────────────────────────────────────────────
+
+    /**
+     * Streams a completion request using Server-Sent Events (SSE).
+     *
+     * Calls the provider with `stream: true`, reads each `data:` line as it arrives,
+     * and invokes [onChunk] with each text delta. Returns the accumulated
+     * [CompletionResponse] once the stream is complete.
+     *
+     * This gives users a real-time typewriter-style response experience instead of
+     * waiting for the entire response to arrive.
+     *
+     * @param request The completion request.
+     * @param onChunk Called for each streamed text delta.
+     * @throws IOException on network failure or non-2xx responses.
+     */
+    suspend fun stream(
+        request: CompletionRequest,
+        onChunk: suspend (String) -> Unit
+    ): CompletionResponse = withContext(Dispatchers.IO) {
+        val model = ModelRegistry.findModelById(request.modelId)
+            ?: throw IOException("Unknown model ID: '${request.modelId}'")
+
+        val apiKey = request.apiKey
+            ?: throw IOException(
+                "No API key configured for ${model.provider.displayName}. " +
+                    "Add one via the Providers screen (Settings → API Keys)."
+            )
+
+        if (model.provider == ModelProvider.ANTHROPIC) {
+            streamAnthropic(request, model.provider, apiKey, onChunk)
+        } else {
+            streamOpenAiCompatible(request, model.provider, apiKey, onChunk)
+        }
+    }
+
+    private suspend fun streamOpenAiCompatible(
+        request: CompletionRequest,
+        provider: ModelProvider,
+        apiKey: String,
+        onChunk: suspend (String) -> Unit
+    ): CompletionResponse {
+        val url = URL("${baseUrlFor(provider)}/chat/completions")
+
+        val messages = buildList {
+            request.systemPrompt?.let { add(OpenAiMessage("system", JsonPrimitive(it))) }
+            addAll(request.messages.map { msg ->
+                val role = when (msg.role) {
+                    MessageRole.SYSTEM    -> "system"
+                    MessageRole.ASSISTANT -> "assistant"
+                    else                  -> "user"
+                }
+                val images = msg.attachments.filter {
+                    it.mediaType == AttachmentMediaType.IMAGE && it.base64Data != null
+                }
+                val content: JsonElement = if (images.isEmpty()) {
+                    JsonPrimitive(msg.content)
+                } else {
+                    buildJsonArray {
+                        images.forEach { img ->
+                            add(buildJsonObject {
+                                put("type", "image_url")
+                                put("image_url", buildJsonObject {
+                                    put("url", "data:${img.mimeType};base64,${img.base64Data!!}")
+                                })
+                            })
+                        }
+                        add(buildJsonObject { put("type", "text"); put("text", msg.content) })
+                    }
+                }
+                OpenAiMessage(role = role, content = content)
+            })
+        }
+
+        val body = json.encodeToString(
+            OpenAiRequest.serializer(),
+            OpenAiRequest(
+                model = request.modelId,
+                messages = messages,
+                maxTokens = request.maxTokens,
+                temperature = request.temperature,
+                stream = true
+            )
+        )
+
+        val extraHeaders: Map<String, String> = if (provider == ModelProvider.GITHUB_COPILOT) {
+            mapOf(
+                "Editor-Version" to "OmniDevWorkspace/1.0",
+                "Copilot-Integration-Id" to "chat-panel"
+            )
+        } else emptyMap()
+
+        val conn = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = CONNECT_TIMEOUT_MS
+            readTimeout    = READ_TIMEOUT_MS
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            setRequestProperty("Accept", "text/event-stream")
+            setRequestProperty("Authorization", "Bearer $apiKey")
+            extraHeaders.forEach { (k, v) -> setRequestProperty(k, v) }
+        }
+
+        conn.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(body) }
+
+        val responseCode = conn.responseCode
+        if (responseCode !in 200..299) {
+            val errorBody = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
+            conn.disconnect()
+            val friendlyMessage = when (responseCode) {
+                401 -> "API key is invalid or expired. Update it in Settings → API Keys."
+                402 -> "Insufficient quota or billing issue. Check your account on the provider's dashboard."
+                403 -> "Access forbidden. Your API key may not have permission to use this model."
+                404 -> "Model not found (${url.host}). The selected model may not be available on your API tier."
+                422 -> "Invalid request format. The provider rejected the payload (unprocessable entity)."
+                429 -> "Rate limit exceeded. The agent will retry automatically after a short delay."
+                500, 502, 503 -> "The provider's server encountered an error ($responseCode). Retrying…"
+                else -> "API error $responseCode from ${url.host}: $errorBody"
+            }
+            throw IOException(friendlyMessage)
+        }
+
+        val fullContent = StringBuilder()
+        var totalTokens: OpenAiUsage? = null
+
+        conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                val l = line!!
+                if (!l.startsWith("data: ")) continue
+                val data = l.removePrefix("data: ").trim()
+                if (data == "[DONE]") break
+                try {
+                    val chunk = json.decodeFromString(OpenAiStreamChunk.serializer(), data)
+                    val delta = chunk.choices.firstOrNull()?.delta?.content
+                    if (!delta.isNullOrEmpty()) {
+                        fullContent.append(delta)
+                        onChunk(delta)
+                    }
+                } catch (_: kotlinx.serialization.SerializationException) { /* skip malformed SSE events */ }
+            }
+        }
+        conn.disconnect()
+
+        return CompletionResponse(
+            content = fullContent.toString(),
+            finishReason = "stop",
+            tokensUsed = totalTokens?.let {
+                TokenUsage(it.promptTokens, it.completionTokens, it.totalTokens)
+            }
+        )
+    }
+
+    private suspend fun streamAnthropic(
+        request: CompletionRequest,
+        provider: ModelProvider,
+        apiKey: String,
+        onChunk: suspend (String) -> Unit
+    ): CompletionResponse {
+        val url = URL("${baseUrlFor(provider)}/v1/messages")
+
+        val messages = request.messages
+            .filter { it.role != MessageRole.SYSTEM }
+            .map { msg ->
+                val role = when (msg.role) {
+                    MessageRole.USER, MessageRole.TOOL -> "user"
+                    else -> "assistant"
+                }
+                val images = msg.attachments.filter {
+                    it.mediaType == AttachmentMediaType.IMAGE && it.base64Data != null
+                }
+                val content: JsonElement = if (images.isEmpty()) {
+                    JsonPrimitive(msg.content)
+                } else {
+                    buildJsonArray {
+                        images.forEach { img ->
+                            add(buildJsonObject {
+                                put("type", "image")
+                                put("source", buildJsonObject {
+                                    put("type", "base64")
+                                    put("media_type", img.mimeType)
+                                    put("data", img.base64Data!!)
+                                })
+                            })
+                        }
+                        add(buildJsonObject { put("type", "text"); put("text", msg.content) })
+                    }
+                }
+                AnthropicMessage(role = role, content = content)
+            }
+
+        val body = json.encodeToString(
+            AnthropicRequest.serializer(),
+            AnthropicRequest(
+                model = request.modelId,
+                maxTokens = request.maxTokens,
+                messages = messages,
+                system = request.systemPrompt,
+                stream = true
+            )
+        )
+
+        val conn = (url.openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = CONNECT_TIMEOUT_MS
+            readTimeout    = READ_TIMEOUT_MS
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json; charset=utf-8")
+            setRequestProperty("Accept", "text/event-stream")
+            setRequestProperty("x-api-key", apiKey)
+            setRequestProperty("anthropic-version", "2023-06-01")
+        }
+
+        conn.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(body) }
+
+        val responseCode = conn.responseCode
+        if (responseCode !in 200..299) {
+            val errorBody = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
+            conn.disconnect()
+            val friendlyMessage = when (responseCode) {
+                401 -> "API key is invalid or expired. Update it in Settings → API Keys."
+                402 -> "Insufficient quota or billing issue. Check your account on the provider's dashboard."
+                403 -> "Access forbidden. Your API key may not have permission to use this model."
+                404 -> "Model not found. The selected model may not be available on your API tier."
+                429 -> "Rate limit exceeded. The agent will retry automatically after a short delay."
+                500, 502, 503 -> "Anthropic server error ($responseCode). Retrying…"
+                else -> "API error $responseCode from ${url.host}: $errorBody"
+            }
+            throw IOException(friendlyMessage)
+        }
+
+        val fullContent = StringBuilder()
+
+        conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+            var line: String?
+            while (reader.readLine().also { line = it } != null) {
+                val l = line!!
+                if (!l.startsWith("data: ")) continue
+                val data = l.removePrefix("data: ").trim()
+                try {
+                    val event = json.decodeFromString(AnthropicStreamEvent.serializer(), data)
+                    if (event.type == "content_block_delta") {
+                        val text = event.delta?.text
+                        if (!text.isNullOrEmpty()) {
+                            fullContent.append(text)
+                            onChunk(text)
+                        }
+                    }
+                } catch (_: kotlinx.serialization.SerializationException) { /* skip malformed SSE events */ }
+            }
+        }
+        conn.disconnect()
+
+        return CompletionResponse(content = fullContent.toString(), finishReason = "end_turn")
     }
 
     // ── Shared HTTP helper ─────────────────────────────────────────────────────

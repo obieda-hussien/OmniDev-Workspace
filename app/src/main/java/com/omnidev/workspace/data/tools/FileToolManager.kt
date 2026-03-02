@@ -166,7 +166,7 @@ class FileToolManager : ToolManager {
      * Never loads more than [MAX_READ_LINES] at once to protect the context window.
      */
     private fun readFileLines(args: Map<String, String>, scopePath: String): ToolExecutionResult {
-        val filePath = requireArg(args, "filePath")
+        val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
         val startLine = requireArg(args, "startLine").toIntOrNull()
             ?: return ToolExecutionResult("startLine must be an integer.", isError = true)
         val endLine = requireArg(args, "endLine").toIntOrNull()
@@ -218,7 +218,7 @@ class FileToolManager : ToolManager {
      * Returns at most [MAX_SEARCH_RESULTS] matches with file path, line number, and snippet.
      */
     private fun searchCodebase(args: Map<String, String>, scopePath: String): ToolExecutionResult {
-        val directory = requireArg(args, "directory")
+        val directory = normalizePath(requireArg(args, "directory"), scopePath)
         val pattern = requireArg(args, "regexPattern")
 
         validateScope(directory, scopePath)
@@ -276,7 +276,7 @@ class FileToolManager : ToolManager {
      * Fails if zero or multiple occurrences are found to prevent ambiguous edits.
      */
     private fun patchFileContent(args: Map<String, String>, scopePath: String): ToolExecutionResult {
-        val filePath = requireArg(args, "filePath")
+        val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
         val searchSnippet = requireArg(args, "searchSnippet")
         val replaceSnippet = requireArg(args, "replaceSnippet")
 
@@ -322,7 +322,7 @@ class FileToolManager : ToolManager {
      * Creates a new file with the specified content. Parent directories are created if needed.
      */
     private fun createFile(args: Map<String, String>, scopePath: String): ToolExecutionResult {
-        val filePath = requireArg(args, "filePath")
+        val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
         val content = requireArg(args, "content")
 
         validateScope(filePath, scopePath)
@@ -353,7 +353,7 @@ class FileToolManager : ToolManager {
      * Deletes a single file. Refuses to delete directories for safety.
      */
     private fun deleteFile(args: Map<String, String>, scopePath: String): ToolExecutionResult {
-        val filePath = requireArg(args, "filePath")
+        val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
 
         validateScope(filePath, scopePath)
 
@@ -570,8 +570,26 @@ class FileToolManager : ToolManager {
     }
 
     // ──────────────────────────────────────────────
-    //  Scope Validation
+    //  Path Normalization & Scope Validation
     // ──────────────────────────────────────────────
+
+    /**
+     * Normalizes a file path argument received from the AI agent.
+     *
+     * The AI is told the scope root absolute path in the system prompt, so it should
+     * use full absolute paths. However, if the AI passes a bare relative path (no
+     * leading `/`, e.g. `app/src/Main.kt`), it is prepended with [scopePath] for
+     * convenience. Paths that already start with [scopePath] are used as-is.
+     * All other paths (absolute paths outside [scopePath]) are left unchanged and
+     * will be rejected by [validateScope].
+     */
+    private fun normalizePath(filePath: String, scopePath: String): String {
+        return when {
+            filePath.startsWith(scopePath) -> filePath  // already absolute and in-scope
+            !filePath.startsWith("/")      -> "$scopePath/$filePath"  // bare relative path
+            else                           -> filePath  // absolute path, validateScope will verify
+        }
+    }
 
     /**
      * Validates that a resolved [filePath] falls within the allowed [scopePath].
