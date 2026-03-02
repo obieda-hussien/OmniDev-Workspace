@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.omnidev.workspace.AgentConfigTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-03-02T15:50:20" hostname="runnervmnay03" time="0.005">
+  <properties/>
+  <testcase name="THOROUGH preset has higher iteration limits than default" classname="com.omnidev.workspace.AgentConfigTest" time="0.002"/>
+  <testcase name="default config has reasonable values" classname="com.omnidev.workspace.AgentConfigTest" time="0.0"/>
+  <testcase name="BUDGET preset has restricted iteration and token limits" classname="com.omnidev.workspace.AgentConfigTest" time="0.001"/>
+  <testcase name="INLINE preset has maxIterations of 1" classname="com.omnidev.workspace.AgentConfigTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

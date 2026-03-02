@@ -34,7 +34,9 @@ data class ChatUiState(
     /** Current agent status text for streaming display. */
     val agentStatus: String? = null,
     /** Error message to display. */
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** Live console entries for the Agent Observability Console ("Glass Brain"). */
+    val consoleEntries: List<AgentConsoleEntry> = emptyList()
 )
 
 /**
@@ -148,7 +150,8 @@ class ChatViewModel(
                 inputText = "",
                 isProcessing = true,
                 agentStatus = "Starting agent...",
-                errorMessage = null
+                errorMessage = null,
+                consoleEntries = emptyList() // fresh console for each run
             )
         }
 
@@ -171,27 +174,54 @@ class ChatViewModel(
                         _uiState.update { it.copy(agentStatus = "Agent started...") }
 
                     is AgentEvent.Thinking ->
-                        _uiState.update { it.copy(agentStatus = "Thinking (iteration ${event.iteration})...") }
-
-                    is AgentEvent.ThinkingBlock ->
-                        _uiState.update { it.copy(agentStatus = "Deep thinking...") }
-
-                    is AgentEvent.ToolExecution ->
-                        _uiState.update {
-                            it.copy(agentStatus = "Executing ${event.toolName}...")
-                        }
-
-                    is AgentEvent.ToolResult ->
                         _uiState.update {
                             it.copy(
-                                agentStatus = if (event.isError) "Tool error: ${event.toolName}"
-                                else "Tool completed: ${event.toolName}"
+                                agentStatus = "Thinking (iteration ${event.iteration})...",
+                                consoleEntries = it.consoleEntries +
+                                    AgentConsoleEntry.ThinkingEntry(event.iteration)
                             )
                         }
 
+                    is AgentEvent.ThinkingBlock ->
+                        _uiState.update {
+                            it.copy(
+                                agentStatus = "Deep thinking...",
+                                consoleEntries = it.consoleEntries +
+                                    AgentConsoleEntry.DeepThinkingEntry(event.content)
+                            )
+                        }
+
+                    is AgentEvent.ToolExecution -> {
+                        val params = event.arguments.entries
+                            .joinToString(", ") { (k, v) -> "$k=${v.toString().take(40)}" }
+                        _uiState.update {
+                            it.copy(
+                                agentStatus = "Executing ${event.toolName}...",
+                                consoleEntries = it.consoleEntries +
+                                    AgentConsoleEntry.ToolEntry(event.toolName, params, event.iteration)
+                            )
+                        }
+                    }
+
+                    is AgentEvent.ToolResult -> {
+                        val snippet = event.output.lines().firstOrNull()?.take(100) ?: ""
+                        _uiState.update {
+                            it.copy(
+                                agentStatus = if (event.isError) "Tool error: ${event.toolName}"
+                                else "Tool completed: ${event.toolName}",
+                                consoleEntries = it.consoleEntries +
+                                    AgentConsoleEntry.ResultEntry(event.toolName, snippet, event.isError)
+                            )
+                        }
+                    }
+
                     is AgentEvent.TokenUsageUpdate ->
                         _uiState.update {
-                            it.copy(agentStatus = "Thinking (${event.totalTokens} tokens used)...")
+                            it.copy(
+                                agentStatus = "Thinking (${event.totalTokens} tokens used)...",
+                                consoleEntries = it.consoleEntries +
+                                    AgentConsoleEntry.TokenEntry(event.totalTokens, event.budget)
+                            )
                         }
 
                     is AgentEvent.FinalAnswer -> {
@@ -203,7 +233,8 @@ class ChatViewModel(
                             it.copy(
                                 messages = it.messages + assistantMessage,
                                 isProcessing = false,
-                                agentStatus = null
+                                agentStatus = null,
+                                consoleEntries = it.consoleEntries + AgentConsoleEntry.ReplyEntry()
                             )
                         }
                     }
@@ -213,7 +244,9 @@ class ChatViewModel(
                             it.copy(
                                 isProcessing = false,
                                 agentStatus = null,
-                                errorMessage = event.message
+                                errorMessage = event.message,
+                                consoleEntries = it.consoleEntries +
+                                    AgentConsoleEntry.ErrorEntry(event.message)
                             )
                         }
                     }

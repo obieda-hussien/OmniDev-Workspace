@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.omnidev.workspace.ModelRegistryTest" tests="20" skipped="0" failures="0" errors="0" timestamp="2026-03-02T15:50:20" hostname="runnervmnay03" time="0.027">
+  <properties/>
+  <testcase name="modelsByTier covers all tiers" classname="com.omnidev.workspace.ModelRegistryTest" time="0.009"/>
+  <testcase name="GitHub Copilot models exist and are routed to GITHUB_COPILOT provider" classname="com.omnidev.workspace.ModelRegistryTest" time="0.0"/>
+  <testcase name="registry has at least 50 models" classname="com.omnidev.workspace.ModelRegistryTest" time="0.0"/>
+  <testcase name="latestByProvider has one entry per provider" classname="com.omnidev.workspace.ModelRegistryTest" time="0.0"/>
+  <testcase name="modelsByProvider groups correctly" classname="com.omnidev.workspace.ModelRegistryTest" time="0.003"/>
+  <testcase name="gemini models support video" classname="com.omnidev.workspace.ModelRegistryTest" time="0.0"/>
+  <testcase name="all model ids are unique" classname="com.omnidev.workspace.ModelRegistryTest" time="0.0"/>
+  <testcase name="swarm orchestrator default is ORCHESTRATOR tier" classname="com.omnidev.workspace.ModelRegistryTest" time="0.002"/>
+  <testcase name="default models are assigned for all roles and in registry" classname="com.omnidev.workspace.ModelRegistryTest" time="0.001"/>
+  <testcase name="getModelById throws for unknown id" classname="com.omnidev.workspace.ModelRegistryTest" time="0.001"/>
+  <testcase name="all models have positive context windows" classname="com.omnidev.workspace.ModelRegistryTest" time="0.0"/>
+  <testcase name="getModelById returns correct model for 2026 flagship" classname="com.omnidev.workspace.ModelRegistryTest" time="0.0"/>
+  <testcase name="getBestModelForTier returns a model for each tier" classname="com.omnidev.workspace.ModelRegistryTest" time="0.0"/>
+  <testcase name="getModelById returns DeepSeek R2" classname="com.omnidev.workspace.ModelRegistryTest" time="0.0"/>
+  <testcase name="allModels contains models from core providers" classname="com.omnidev.workspace.ModelRegistryTest" time="0.0"/>
+  <testcase name="models with speed have positive token rate" classname="com.omnidev.workspace.ModelRegistryTest" time="0.001"/>
+  <testcase name="FAST tier models have speed populated and exceed reasonable threshold" classname="com.omnidev.workspace.ModelRegistryTest" time="0.002"/>
+  <testcase name="findModelById returns null for unknown id" classname="com.omnidev.workspace.ModelRegistryTest" time="0.0"/>
+  <testcase name="getModelById returns Cerebras ultra-fast model" classname="com.omnidev.workspace.ModelRegistryTest" time="0.0"/>
+  <testcase name="models with pricing have positive costs" classname="com.omnidev.workspace.ModelRegistryTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

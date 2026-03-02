@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.omnidev.workspace.FileToolManagerTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-03-02T15:50:20" hostname="runnervmnay03" time="0.384">
+  <properties/>
+  <testcase name="getToolDefinitions returns all 6 tools" classname="com.omnidev.workspace.FileToolManagerTest" time="0.069"/>
+  <testcase name="patch_file_content fails on ambiguous match" classname="com.omnidev.workspace.FileToolManagerTest" time="0.227"/>
+  <testcase name="read_file_lines reads specific line range" classname="com.omnidev.workspace.FileToolManagerTest" time="0.023"/>
+  <testcase name="scope validation blocks traversal attacks" classname="com.omnidev.workspace.FileToolManagerTest" time="0.004"/>
+  <testcase name="delete_file removes file" classname="com.omnidev.workspace.FileToolManagerTest" time="0.005"/>
+  <testcase name="create_file fails if file already exists" classname="com.omnidev.workspace.FileToolManagerTest" time="0.008"/>
+  <testcase name="patch_file_content replaces exact snippet" classname="com.omnidev.workspace.FileToolManagerTest" time="0.004"/>
+  <testcase name="search_codebase finds regex matches" classname="com.omnidev.workspace.FileToolManagerTest" time="0.027"/>
+  <testcase name="create_file creates new file with content" classname="com.omnidev.workspace.FileToolManagerTest" time="0.007"/>
+  <testcase name="read_file_lines rejects path outside scope" classname="com.omnidev.workspace.FileToolManagerTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

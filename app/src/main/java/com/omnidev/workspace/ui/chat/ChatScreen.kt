@@ -163,21 +163,21 @@ fun ChatScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Agent processing indicator
+            // Thin progress bar while the agent is working
             AnimatedVisibility(visible = uiState.isProcessing) {
-                Column {
-                    LinearProgressIndicator(
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    uiState.agentStatus?.let { status ->
-                        Text(
-                            text = status,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                        )
-                    }
-                }
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+
+            // Agent Live Console — visible whenever there are console entries
+            AnimatedVisibility(
+                visible = uiState.consoleEntries.isNotEmpty(),
+                enter = fadeIn() + slideInVertically()
+            ) {
+                AgentLiveConsole(
+                    entries = uiState.consoleEntries,
+                    isRunning = uiState.isProcessing,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
             }
 
             // Messages list

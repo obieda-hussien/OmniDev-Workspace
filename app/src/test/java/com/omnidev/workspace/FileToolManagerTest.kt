@@ -28,15 +28,16 @@ class FileToolManagerTest {
     }
 
     @Test
-    fun `getToolDefinitions returns all 5 tools`() {
+    fun `getToolDefinitions returns all 6 tools`() {
         val tools = toolManager.getToolDefinitions()
-        assertEquals(5, tools.size)
+        assertEquals(6, tools.size)
         val names = tools.map { it.name }
         assertTrue("read_file_lines" in names)
         assertTrue("search_codebase" in names)
         assertTrue("patch_file_content" in names)
         assertTrue("create_file" in names)
         assertTrue("delete_file" in names)
+        assertTrue("run_terminal" in names)
     }
 
     @Test

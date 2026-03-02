@@ -1,7 +1,11 @@
 package com.omnidev.workspace.data.tools
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 /**
  * Production implementation of [ToolManager] providing token-optimized file operations.
@@ -15,6 +19,7 @@ import java.io.IOException
  * - `patch_file_content`: Find-and-replace within a file without rewriting the whole document.
  * - `create_file`: Create a new file with content.
  * - `delete_file`: Delete a file.
+ * - `run_terminal`: Execute a shell command in the Target Context directory.
  */
 class FileToolManager : ToolManager {
 
@@ -27,6 +32,12 @@ class FileToolManager : ToolManager {
 
         /** Maximum file size (in bytes) that can be created via create_file. */
         private const val MAX_CREATE_FILE_SIZE = 1_048_576L // 1 MB
+
+        /** Timeout in seconds for shell commands executed via run_terminal. */
+        private const val TERMINAL_TIMEOUT_SECONDS = 60L
+
+        /** Maximum characters captured from a terminal command's combined stdout/stderr. */
+        private const val MAX_TERMINAL_OUTPUT_CHARS = 8_000
     }
 
     // ──────────────────────────────────────────────
@@ -77,6 +88,21 @@ class FileToolManager : ToolManager {
             parameters = listOf(
                 ToolParameter("filePath", "string", "Absolute path to the file to delete.", required = true)
             )
+        ),
+        ToolDefinition(
+            name = "run_terminal",
+            description = "Execute a shell command inside the project's Target Context directory. " +
+                "Returns combined stdout and stderr with the exit code. " +
+                "Use for builds (./gradlew assembleDebug), tests (./gradlew test), " +
+                "file listing (ls -la), or git operations (git status, git log --oneline -5).",
+            parameters = listOf(
+                ToolParameter(
+                    name = "command",
+                    type = "string",
+                    description = "Shell command to execute (e.g., './gradlew build', 'ls -la', 'git status').",
+                    required = true
+                )
+            )
         )
     )
 
@@ -96,6 +122,7 @@ class FileToolManager : ToolManager {
                 "patch_file_content" -> patchFileContent(arguments, scopePath)
                 "create_file" -> createFile(arguments, scopePath)
                 "delete_file" -> deleteFile(arguments, scopePath)
+                "run_terminal" -> runTerminal(arguments, scopePath)
                 else -> ToolExecutionResult(
                     output = "Unknown tool: $name",
                     isError = true
@@ -319,6 +346,93 @@ class FileToolManager : ToolManager {
             ToolExecutionResult("✅ Deleted file: $filePath")
         } else {
             ToolExecutionResult("Failed to delete file: $filePath", isError = true)
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  run_terminal
+    // ──────────────────────────────────────────────
+
+    /**
+     * Executes a shell command inside the user's active [scopePath] directory.
+     *
+     * Uses [ProcessBuilder] with the working directory pinned to [scopePath] so the AI
+     * agent operates inside the correct project folder. stdout and stderr are merged and
+     * captured. The process is killed if it exceeds [TERMINAL_TIMEOUT_SECONDS].
+     *
+     * Security note: the user explicitly set the Target Context, so executing commands
+     * there is the intended use-case. The working directory is always forced to scopePath
+     * regardless of any `cd` the command contains.
+     */
+    private suspend fun runTerminal(args: Map<String, String>, scopePath: String): ToolExecutionResult {
+        val command = requireArg(args, "command")
+        val workDir = File(scopePath)
+
+        if (!workDir.exists() || !workDir.isDirectory) {
+            return ToolExecutionResult(
+                output = "Target Context directory not found: $scopePath",
+                isError = true
+            )
+        }
+
+        return try {
+            withContext(Dispatchers.IO) {
+                // /bin/sh is always available on Android — intentional for this Android-only app.
+                val process = ProcessBuilder("/bin/sh", "-c", command)
+                    .directory(workDir)
+                    .redirectErrorStream(true) // merge stderr into stdout
+                    .start()
+
+                // Read output on a dedicated thread to prevent pipe-buffer deadlock.
+                // StringBuffer (vs StringBuilder) provides thread safety in case readerThread
+                // is still draining after join() times out.
+                val outputBuffer = StringBuffer()
+                val readerThread = Thread {
+                    try {
+                        process.inputStream.bufferedReader().use { reader ->
+                            reader.lineSequence().forEach { line ->
+                                if (outputBuffer.length < MAX_TERMINAL_OUTPUT_CHARS) {
+                                    outputBuffer.appendLine(line)
+                                }
+                            }
+                        }
+                    } catch (_: Exception) { /* process killed — exit gracefully */ }
+                }
+                readerThread.start()
+
+                val completed = process.waitFor(TERMINAL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+
+                if (!completed) {
+                    process.destroyForcibly()
+                    readerThread.interrupt()
+                    return@withContext ToolExecutionResult(
+                        output = "⏱ Command timed out after ${TERMINAL_TIMEOUT_SECONDS}s: $command",
+                        isError = true
+                    )
+                }
+
+                readerThread.join(2_000L) // wait for reader to drain (max 2s)
+
+                val exitCode = process.exitValue()
+                val output = outputBuffer.toString().trimEnd()
+                val truncationNote =
+                    if (outputBuffer.length >= MAX_TERMINAL_OUTPUT_CHARS) "\n[OUTPUT TRUNCATED]" else ""
+
+                val resultText = buildString {
+                    appendLine("$ $command")
+                    if (output.isNotEmpty()) appendLine(output)
+                    append("[exit: $exitCode]$truncationNote")
+                }
+
+                ToolExecutionResult(output = resultText, isError = exitCode != 0)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            ToolExecutionResult(
+                output = "Failed to execute command '$command': ${e.message}",
+                isError = true
+            )
         }
     }
 
