@@ -137,6 +137,11 @@ class ChatViewModel(
                             )
                         }
 
+                    is AgentEvent.TokenUsageUpdate ->
+                        _uiState.update {
+                            it.copy(agentStatus = "Thinking (${event.totalTokens} tokens used)...")
+                        }
+
                     is AgentEvent.FinalAnswer -> {
                         val assistantMessage = ChatMessage(
                             role = MessageRole.ASSISTANT,

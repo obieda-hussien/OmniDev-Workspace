@@ -319,11 +319,22 @@ private fun ModelRoleCard(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = model.displayName,
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = model.displayName,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                                if (model.isLatest) {
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Text(
+                                                        text = "LATEST",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.primary,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                }
+                                            }
                                             Text(
                                                 text = buildModelCapabilityString(model),
                                                 style = MaterialTheme.typography.bodySmall,
@@ -359,12 +370,47 @@ private fun ModelRoleCard(
             selectedModel?.let { model ->
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
+                    // Tier badge
+                    CapabilityBadge(
+                        text = "${model.tier.badge} ${model.tier.displayName}",
+                        containerAlpha = 0.7f
+                    )
                     CapabilityBadge("${formatContextWindow(model.contextWindow)} ctx")
+                    if (model.isLatest) CapabilityBadge("✨ Latest")
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     if (model.supportsVision) CapabilityBadge("👁 Vision")
                     if (model.supportsVideo) CapabilityBadge("🎥 Video")
                     if (model.supportsThinking) CapabilityBadge("🧠 Thinking")
+                    model.speedTokensPerSecond?.let { CapabilityBadge("⚡ ${it}t/s") }
+                }
+                // Pricing row
+                val inputCost = model.costPer1MInputTokens
+                val outputCost = model.costPer1MOutputTokens
+                if (inputCost != null && outputCost != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "\$${formatCost(inputCost)} in / \$${formatCost(outputCost)} out per 1M tokens",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                // Short description
+                model.shortDescription?.let { desc ->
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = desc,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
@@ -375,11 +421,11 @@ private fun ModelRoleCard(
  * Compact badge chip showing a model capability.
  */
 @Composable
-private fun CapabilityBadge(text: String) {
+private fun CapabilityBadge(text: String, containerAlpha: Float = 0.5f) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = containerAlpha))
             .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
         Text(
@@ -442,6 +488,15 @@ private fun DeepThinkingCard(
 }
 
 /**
+ * Formats a cost value for display (e.g., 0.14 → "0.14", 15.0 → "15.00").
+ */
+private fun formatCost(cost: Double): String = if (cost < 1.0) {
+    String.format("%.2f", cost)
+} else {
+    String.format("%.0f", cost)
+}
+
+/**
  * Formats context window size for display (e.g., 200000 → "200K").
  */
 private fun formatContextWindow(tokens: Int): String = when {
@@ -451,11 +506,13 @@ private fun formatContextWindow(tokens: Int): String = when {
 }
 
 /**
- * Builds a capability summary string for a model.
+ * Builds a capability summary string for a model (used in dropdown items).
  */
 private fun buildModelCapabilityString(model: AIModel): String = buildString {
-    append("${formatContextWindow(model.contextWindow)} ctx")
+    append("${model.tier.badge} ${formatContextWindow(model.contextWindow)} ctx")
     if (model.supportsVision) append(" · Vision")
     if (model.supportsVideo) append(" · Video")
     if (model.supportsThinking) append(" · Thinking")
+    model.speedTokensPerSecond?.let { append(" · ${it}t/s") }
+    model.costPer1MInputTokens?.let { append(" · \$${formatCost(it)}/M") }
 }

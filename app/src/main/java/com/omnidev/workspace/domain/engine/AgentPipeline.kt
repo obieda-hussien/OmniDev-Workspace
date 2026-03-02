@@ -4,61 +4,137 @@ import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
 import com.omnidev.workspace.data.model.MessageRole
-import com.omnidev.workspace.data.model.ModelRole
-import com.omnidev.workspace.data.model.ToolCall
+import com.omnidev.workspace.data.model.ModelTier
 import com.omnidev.workspace.data.model.ToolCallResult
 import com.omnidev.workspace.data.tools.ToolManager
 import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.Serializable
+import kotlin.math.min
+
+/**
+ * Configures the behavior of an [AgentPipeline] run.
+ *
+ * @property maxIterations Maximum ReAct loop iterations before forced termination.
+ * @property enableRetry Whether to retry failed API calls with exponential backoff.
+ * @property maxRetries Maximum number of API retry attempts per iteration.
+ * @property baseRetryDelayMs Initial delay before the first retry (doubles each attempt).
+ * @property tokenBudget Maximum total tokens (input + output) across all iterations.
+ *           Set to null for unlimited.
+ * @property contextWindowBuffer Tokens to reserve as safety margin for system prompts.
+ * @property enableMemoryTrimming Whether to trim old messages when context window fills up.
+ */
+data class AgentConfig(
+    val maxIterations: Int = 25,
+    val enableRetry: Boolean = true,
+    val maxRetries: Int = 3,
+    val baseRetryDelayMs: Long = 500L,
+    val tokenBudget: Int? = null,
+    val contextWindowBuffer: Int = 4_096,
+    val enableMemoryTrimming: Boolean = true
+) {
+    companion object {
+        /** Preset for cost-sensitive runs: fewer iterations, lower token budget. */
+        val BUDGET = AgentConfig(
+            maxIterations = 10,
+            tokenBudget = 50_000,
+            enableRetry = false
+        )
+
+        /** Preset for deep, thorough agentic runs with maximum capability. */
+        val THOROUGH = AgentConfig(
+            maxIterations = 50,
+            maxRetries = 5,
+            baseRetryDelayMs = 1_000L,
+            contextWindowBuffer = 8_192
+        )
+
+        /** Preset for ultra-fast inline completions — single shot only. */
+        val INLINE = AgentConfig(
+            maxIterations = 1,
+            enableRetry = false,
+            tokenBudget = 8_192
+        )
+    }
+}
 
 /**
  * Core ReAct (Reason + Act) agent pipeline that drives autonomous tool-use loops.
  *
+ * ### Architecture
  * The pipeline operates as follows:
  * 1. **Reason**: Send the conversation context + tool schemas to the model.
  * 2. **Act**: If the model returns tool calls, execute them via [ToolManager].
  * 3. **Observe**: Feed tool results back into the conversation and loop.
  * 4. **Terminate**: When the model responds with plain text (no tool calls), emit the final answer.
  *
- * The loop enforces a maximum iteration count to prevent infinite loops and emits
- * [AgentEvent]s as a [Flow] for real-time UI streaming.
+ * ### Reliability Features
+ * - Exponential backoff retry on API failures (configurable via [AgentConfig]).
+ * - Token budget enforcement to prevent runaway cost accumulation.
+ * - Context window memory trimming to avoid hitting provider limits.
+ * - Tier-aware system prompts that adapt to the selected model's capability tier.
  *
  * @param toolManager The [ToolManager] that provides tool definitions and execution.
  * @param completionProvider A suspend function that calls the AI completion API.
- *                           Abstracted to allow swapping between providers.
+ * @param config Behavioral configuration (iteration limits, retry policy, token budget).
  */
 class AgentPipeline(
     private val toolManager: ToolManager,
-    private val completionProvider: suspend (CompletionRequest) -> CompletionResponse
+    private val completionProvider: suspend (CompletionRequest) -> CompletionResponse,
+    private val config: AgentConfig = AgentConfig()
 ) {
 
     companion object {
-        /** Maximum ReAct iterations before the agent is forcibly stopped. */
-        const val MAX_ITERATIONS = 25
+        /** System prompt for ORCHESTRATOR-tier models — complex planning and deep analysis. */
+        private const val ORCHESTRATOR_SYSTEM_PROMPT = """
+You are an elite autonomous coding agent powered by a frontier reasoning model.
 
-        /** System prompt template injected when Deep Thinking mode is enabled. */
-        private const val DEEP_THINKING_PROMPT = """
-You are an expert autonomous coding agent. Before executing any action, think step-by-step 
-inside <thinking> tags. Reason carefully about the user's request, break it into sub-problems, 
-and plan your tool calls before acting. After each tool observation, reflect on the result 
-and decide the next action or whether the goal is complete.
+Your strengths: architectural analysis, complex multi-file refactoring, long-horizon planning.
+Use your full reasoning capacity. Think deeply before each action.
+
+OPERATIONAL RULES:
+1. Operate ONLY within the user's active Target Context scope — never access files outside it.
+2. Use read_file_lines with precise line ranges — reading entire large files wastes context.
+3. Use search_codebase FIRST to understand the codebase structure before editing.
+4. Use patch_file_content for all edits — never rewrite complete files.
+5. Verify every change by reading back the modified lines.
+6. When uncertain, prefer smaller, reversible changes and report your reasoning.
+7. Break complex tasks into explicit steps and validate each step before proceeding.
 """
 
-        /** Base system prompt for the agent with tool-use instructions. */
-        private const val AGENT_SYSTEM_PROMPT = """
-You are an autonomous coding agent with access to file-system tools. You can read files, 
-search codebases, patch files, create files, and delete files within the user's scoped project.
+        /** System prompt for EXECUTOR-tier models — fast, practical code generation. */
+        private const val EXECUTOR_SYSTEM_PROMPT = """
+You are an autonomous coding agent optimized for fast, precise code execution.
 
-IMPORTANT RULES:
-1. Only operate on files within the user's active Target Context scope.
-2. Use read_file_lines to read specific line ranges — NEVER request entire large files.
-3. Use search_codebase to locate code before making edits.
-4. Use patch_file_content for surgical edits — do NOT rewrite entire files.
-5. Validate your changes by reading the modified lines after patching.
-6. If a task requires multiple steps, execute them one at a time and verify each step.
+Your strengths: implementing features, refactoring, bug fixes, code generation.
+Be concise in your reasoning. Act decisively with minimal back-and-forth.
+
+OPERATIONAL RULES:
+1. Operate ONLY within the user's active Target Context scope.
+2. Use read_file_lines for targeted reads — specify exact line ranges.
+3. Use search_codebase to find relevant code before editing.
+4. Use patch_file_content for surgical edits — no full file rewrites.
+5. Verify changes by reading back affected lines.
+6. Complete tasks in as few tool calls as reasonably possible.
+"""
+
+        /** System prompt for FAST-tier models — minimal overhead for quick queries. */
+        private const val FAST_SYSTEM_PROMPT = """
+You are a fast-response coding assistant. Be brief and direct.
+All file operations must stay within the user's Target Context scope.
+Use read_file_lines for targeted reads. Use patch_file_content for edits.
+"""
+
+        /** Extended thinking injection appended when Deep Mode is active. */
+        private const val DEEP_THINKING_SUFFIX = """
+
+DEEP THINKING MODE ACTIVE:
+Before each action, emit your internal reasoning inside <thinking>...</thinking> tags.
+Analyze tradeoffs, consider edge cases, and plan your exact tool call sequence.
+After each observation, reflect: "Did this achieve the intended result? What's next?"
 """
     }
 
@@ -87,7 +163,14 @@ IMPORTANT RULES:
                 return@flow
             }
 
-        // Build the system prompt with tool definitions
+        // Select tier-appropriate system prompt
+        val baseSystemPrompt = when (model.tier) {
+            ModelTier.ORCHESTRATOR -> ORCHESTRATOR_SYSTEM_PROMPT
+            ModelTier.EXECUTOR -> EXECUTOR_SYSTEM_PROMPT
+            ModelTier.FAST -> FAST_SYSTEM_PROMPT
+        }
+
+        // Build the complete system prompt with tool definitions
         val toolDefs = toolManager.getToolDefinitions()
         val toolSchemaText = toolDefs.joinToString("\n\n") { tool ->
             buildString {
@@ -102,47 +185,67 @@ IMPORTANT RULES:
         }
 
         val systemPrompt = buildString {
-            append(AGENT_SYSTEM_PROMPT.trimIndent())
+            append(baseSystemPrompt.trimIndent())
             appendLine()
             appendLine()
             appendLine("## Available Tools")
             appendLine(toolSchemaText)
             if (enableDeepThinking && model.supportsThinking) {
-                appendLine()
-                append(DEEP_THINKING_PROMPT.trimIndent())
+                append(DEEP_THINKING_SUFFIX.trimIndent())
             }
         }
 
-        // Initialize the conversation with the user's message
+        // Initialize the conversation
         val messages = mutableListOf<ChatMessage>().apply {
             addAll(conversationHistory)
             add(ChatMessage(role = MessageRole.USER, content = userMessage))
         }
 
         var iteration = 0
+        var totalTokensUsed = 0
 
         // ── ReAct Loop ──
-        while (iteration < MAX_ITERATIONS) {
+        while (iteration < config.maxIterations) {
             iteration++
             emit(AgentEvent.Thinking(iteration = iteration))
 
+            // Token budget enforcement
+            if (config.tokenBudget != null && totalTokensUsed >= config.tokenBudget) {
+                emit(AgentEvent.Error(
+                    "Token budget of ${config.tokenBudget} tokens exhausted after $iteration iterations."
+                ))
+                return@flow
+            }
+
+            // Context window trimming — drop oldest non-system messages when approaching limit
+            val trimmedMessages = if (config.enableMemoryTrimming) {
+                trimMessagesForContextWindow(messages, model.contextWindow - config.contextWindowBuffer)
+            } else {
+                messages.toList()
+            }
+
             val request = CompletionRequest(
                 modelId = modelId,
-                messages = messages.toList(),
+                messages = trimmedMessages,
                 systemPrompt = systemPrompt,
                 maxTokens = model.maxOutputTokens,
                 enableThinking = enableDeepThinking && model.supportsThinking,
                 targetContext = scopePath
             )
 
-            val response: CompletionResponse
-            try {
-                response = completionProvider(request)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                emit(AgentEvent.Error("API call failed (iteration $iteration): ${e.message}"))
-                return@flow
+            // ── API call with retry/backoff ──
+            val response = callWithRetry(request, iteration) { errorMsg ->
+                emit(AgentEvent.Error(errorMsg))
+            } ?: return@flow
+
+            // Track token usage
+            response.tokensUsed?.let { usage ->
+                totalTokensUsed += usage.totalTokens
+                emit(AgentEvent.TokenUsageUpdate(
+                    iterationTokens = usage.totalTokens,
+                    totalTokens = totalTokensUsed,
+                    budget = config.tokenBudget
+                ))
             }
 
             // ── Emit thinking content if present ──
@@ -162,6 +265,7 @@ IMPORTANT RULES:
                 emit(AgentEvent.FinalAnswer(
                     content = response.content,
                     totalIterations = iteration,
+                    totalTokensUsed = totalTokensUsed,
                     conversationHistory = messages.toList()
                 ))
                 return@flow
@@ -220,9 +324,74 @@ IMPORTANT RULES:
 
         // ── Max iterations reached ──
         emit(AgentEvent.Error(
-            "Agent reached maximum iterations ($MAX_ITERATIONS) without completing. " +
-                "The task may be too complex for a single agent run."
+            "Agent reached maximum iterations (${config.maxIterations}) without completing. " +
+                "Consider using a Swarm run for complex tasks, or increase maxIterations in AgentConfig."
         ))
+    }
+
+    /**
+     * Wraps an API call with exponential backoff retry logic.
+     *
+     * @param request The completion request.
+     * @param iteration The current loop iteration number (for error messages).
+     * @param onFatalError Called with the error message if all retries are exhausted.
+     * @return The [CompletionResponse] on success, or null if all retries failed.
+     */
+    private suspend fun callWithRetry(
+        request: CompletionRequest,
+        iteration: Int,
+        onFatalError: suspend (String) -> Unit
+    ): CompletionResponse? {
+        val maxAttempts = if (config.enableRetry) config.maxRetries + 1 else 1
+
+        repeat(maxAttempts) { attempt ->
+            try {
+                return completionProvider(request)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val isLastAttempt = attempt == maxAttempts - 1
+                if (isLastAttempt) {
+                    onFatalError("API call failed after $maxAttempts attempts (iteration $iteration): ${e.message}")
+                    return null
+                }
+                // Exponential backoff: 500ms, 1s, 2s, 4s, ... (bit-shift for integer powers of 2)
+                val delayMs = config.baseRetryDelayMs * (1L shl attempt)
+                delay(min(delayMs, 30_000L))
+            }
+        }
+        return null
+    }
+
+    /**
+     * Trims the conversation message list to fit within [maxTokens] by removing
+     * the oldest non-system messages first. Always preserves the first (user) message
+     * and the last [RECENT_MESSAGES_TO_PRESERVE] messages to maintain continuity.
+     *
+     * Note: This is a heuristic approach using character counts as a proxy for token counts.
+     * A production implementation would use the provider's tokenizer for exact counts.
+     */
+    private fun trimMessagesForContextWindow(
+        messages: List<ChatMessage>,
+        maxTokens: Int
+    ): List<ChatMessage> {
+        // Rough estimate: 4 characters ≈ 1 token
+        val maxChars = maxTokens * 4
+        val totalChars = messages.sumOf { it.content.length }
+
+        if (totalChars <= maxChars) return messages
+
+        // Keep first message (original task) and recent messages
+        val result = messages.toMutableList()
+        val keepFirst = result.removeFirst()
+
+        // Remove oldest messages (index 0 after removeFirst) until we're within budget
+        while (result.sumOf { it.content.length } + keepFirst.content.length > maxChars && result.size > 2) {
+            result.removeFirst()
+        }
+
+        result.add(0, keepFirst)
+        return result
     }
 }
 
@@ -255,10 +424,18 @@ sealed class AgentEvent {
         val iteration: Int
     ) : AgentEvent()
 
+    /** Token usage stats after an API call. */
+    data class TokenUsageUpdate(
+        val iterationTokens: Int,
+        val totalTokens: Int,
+        val budget: Int?
+    ) : AgentEvent()
+
     /** The agent has produced a final answer. */
     data class FinalAnswer(
         val content: String,
         val totalIterations: Int,
+        val totalTokensUsed: Int,
         val conversationHistory: List<ChatMessage>
     ) : AgentEvent()
 
@@ -282,3 +459,4 @@ data class SwarmTask(
 enum class SwarmTaskStatus {
     PENDING, IN_PROGRESS, COMPLETED, FAILED
 }
+

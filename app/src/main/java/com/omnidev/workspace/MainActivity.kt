@@ -8,6 +8,7 @@ import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.tools.FileToolManager
+import com.omnidev.workspace.domain.engine.AgentConfig
 import com.omnidev.workspace.domain.engine.AgentPipeline
 import com.omnidev.workspace.ui.chat.ChatViewModel
 import com.omnidev.workspace.ui.navigation.AppNavigation
@@ -39,7 +40,11 @@ class MainActivity : ComponentActivity() {
             )
         }
 
-        val agentPipeline = AgentPipeline(toolManager, completionProvider)
+        val agentPipeline = AgentPipeline(
+            toolManager = toolManager,
+            completionProvider = completionProvider,
+            config = AgentConfig.THOROUGH
+        )
 
         val settingsViewModel = AISettingsViewModel(settingsRepository)
         val chatViewModel = ChatViewModel(settingsRepository, agentPipeline)
