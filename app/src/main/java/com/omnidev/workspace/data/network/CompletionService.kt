@@ -185,7 +185,9 @@ class CompletionService {
                                 put("source", buildJsonObject {
                                     put("type", "base64")
                                     put("media_type", img.mimeType)
-                                    put("data", img.base64Data!!)
+                                    put("data", requireNotNull(img.base64Data) {
+                                        "base64Data must be non-null for images filtered into vision payload"
+                                    })
                                 })
                             })
                         }
@@ -266,7 +268,9 @@ class CompletionService {
                             add(buildJsonObject {
                                 put("type", "image_url")
                                 put("image_url", buildJsonObject {
-                                    put("url", "data:${img.mimeType};base64,${img.base64Data!!}")
+                                    put("url", "data:${img.mimeType};base64,${requireNotNull(img.base64Data) {
+                                        "base64Data must be non-null for images filtered into vision payload"
+                                    }}")
                                 })
                             })
                         }
@@ -360,7 +364,7 @@ class CompletionService {
             402 -> "Insufficient quota or billing issue. Check your account on the provider's dashboard."
             403 -> "Access forbidden. Your API key may not have permission to use this model."
             404 -> "Model not found (${url.host}). The selected model may not be available on your API tier."
-            422 -> "Invalid request format. The provider rejected the payload: $errorBody"
+            422 -> "Invalid request format. The provider rejected the payload (unprocessable entity). Check model parameters."
             429 -> "Rate limit exceeded. The agent will retry automatically after a short delay."
             500, 502, 503 -> "The provider's server encountered an error ($responseCode). Retrying…"
             else -> "API error $responseCode from ${url.host}: $errorBody"

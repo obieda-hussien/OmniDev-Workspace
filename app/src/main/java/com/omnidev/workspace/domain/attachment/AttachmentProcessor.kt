@@ -142,6 +142,14 @@ class AttachmentProcessor(private val contentResolver: ContentResolver) {
     }
 
     /**
+     * Returns the MIME type of the file at [uri], or `"application/octet-stream"` if unknown.
+     */
+    fun getMimeType(uri: Uri): String =
+        contentResolver.getType(uri)
+            ?: guessMimeType(uri)
+            ?: "application/octet-stream"
+
+    /**
      * Reads an image attachment and returns it as a Base64-encoded string suitable
      * for inclusion in a vision API request.
      *

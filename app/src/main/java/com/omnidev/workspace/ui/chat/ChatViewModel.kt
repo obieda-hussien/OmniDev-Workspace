@@ -273,9 +273,10 @@ class ChatViewModel(
                     val uri = pending.uri
                     // Read base64 data for image attachments only
                     val base64 = attachmentProcessor?.readImageAsBase64(uri) ?: return@mapNotNull null
+                    val mimeType = attachmentProcessor.getMimeType(uri)
                     AttachmentMeta(
                         uri = uri.toString(),
-                        mimeType = "image/jpeg", // default; refined via MIME type lookup
+                        mimeType = mimeType,
                         fileName = pending.displayName,
                         sizeBytes = 0L,
                         mediaType = AttachmentMediaType.IMAGE,
