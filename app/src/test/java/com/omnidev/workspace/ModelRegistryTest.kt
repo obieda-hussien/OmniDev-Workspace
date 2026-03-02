@@ -204,6 +204,8 @@ class ModelRegistryTest {
                 model.speedTokensPerSecond!! >= 100
             )
         }
+    }
+
     @Test
     fun `GitHub Copilot models exist and are routed to GITHUB_COPILOT provider`() {
         val copilotModels = ModelRegistry.modelsByProvider[ModelProvider.GITHUB_COPILOT]
