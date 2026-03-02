@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "DevSwarm"
+rootProject.name = "OmniDevWorkspace"
 include(":app")

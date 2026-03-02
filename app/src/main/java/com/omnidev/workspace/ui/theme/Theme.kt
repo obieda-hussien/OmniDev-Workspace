@@ -1,4 +1,4 @@
-package com.devswarm.ai.ui.theme
+package com.omnidev.workspace.ui.theme
 
 import android.app.Activity
 import android.os.Build
@@ -12,19 +12,29 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = OmniPrimary,
+    secondary = OmniSecondary,
+    tertiary = OmniTertiary,
+    background = OmniBackgroundDark,
+    surface = OmniSurfaceDark,
+    onBackground = OmniOnSurfaceDark,
+    onSurface = OmniOnSurfaceDark,
+    error = OmniError
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
+    primary = OmniPrimary,
+    secondary = OmniSecondary,
+    tertiary = OmniTertiary,
+    background = OmniBackground,
+    surface = OmniSurface,
+    onBackground = OmniOnSurface,
+    onSurface = OmniOnSurface,
+    error = OmniError
 )
 
 @Composable
-fun DevSwarmTheme(
+fun OmniDevTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit

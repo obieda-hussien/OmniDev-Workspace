@@ -1,0 +1,276 @@
+package com.omnidev.workspace.domain.engine
+
+import com.omnidev.workspace.data.model.ChatMessage
+import com.omnidev.workspace.data.model.CompletionRequest
+import com.omnidev.workspace.data.model.CompletionResponse
+import com.omnidev.workspace.data.model.MessageRole
+import com.omnidev.workspace.data.tools.ToolManager
+import com.omnidev.workspace.registry.ModelRegistry
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.serialization.json.Json
+
+/**
+ * Swarm Orchestrator that decomposes complex user prompts into sub-tasks,
+ * delegates each to Worker agents, and synthesizes the final result.
+ *
+ * The orchestration flow:
+ * 1. **Plan**: The Orchestrator model analyzes the prompt and produces a task breakdown.
+ * 2. **Delegate**: Each sub-task is executed by a Worker [AgentPipeline] instance.
+ * 3. **Synthesize**: Worker results are collected and the Orchestrator produces a final summary.
+ *
+ * @param toolManager Shared [ToolManager] instance for all Worker agents.
+ * @param completionProvider The AI API call abstraction, used for both Orchestrator and Workers.
+ */
+class SwarmOrchestrator(
+    private val toolManager: ToolManager,
+    private val completionProvider: suspend (CompletionRequest) -> CompletionResponse
+) {
+
+    companion object {
+        /** Maximum sub-tasks the orchestrator can generate. */
+        private const val MAX_SUBTASKS = 10
+
+        /** System prompt for the Orchestrator (planner) role. */
+        private const val ORCHESTRATOR_SYSTEM_PROMPT = """
+You are a Swarm Orchestrator — an expert project planner for coding tasks.
+
+Your job is to analyze the user's request and decompose it into a prioritized list of 
+independent or sequential sub-tasks. Each sub-task should be:
+1. Self-contained enough for a single agent to execute
+2. Ordered by dependency (tasks that must complete first should have lower priority numbers)
+3. Clearly described with specific file paths and expected outcomes
+
+Respond with a JSON array of task objects:
+[
+  {"id": "task-1", "description": "...", "priority": 1, "dependencies": []},
+  {"id": "task-2", "description": "...", "priority": 2, "dependencies": ["task-1"]}
+]
+
+Keep task count reasonable (max 10). Merge trivial steps into larger tasks.
+Do NOT include code — just planning and task descriptions.
+"""
+
+        /** System prompt for synthesizing worker results. */
+        private const val SYNTHESIS_PROMPT = """
+You are a Swarm Orchestrator synthesizing the results of your worker agents. 
+Review the completed sub-tasks and their outcomes below.
+
+Produce a concise summary for the user that covers:
+1. What was accomplished
+2. Files created or modified
+3. Any issues encountered
+4. Suggested next steps (if applicable)
+"""
+    }
+
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+
+    /**
+     * Executes the full Swarm workflow: Plan → Delegate → Synthesize.
+     *
+     * @param userMessage The user's original complex request.
+     * @param orchestratorModelId Model ID for the Orchestrator (planning) role.
+     * @param workerModelId Model ID for the Worker (coding) role.
+     * @param scopePath Active Target Context directory.
+     * @param enableDeepThinking Whether workers should use extended thinking.
+     * @return A [Flow] of [SwarmEvent]s for real-time progress updates.
+     */
+    fun execute(
+        userMessage: String,
+        orchestratorModelId: String,
+        workerModelId: String,
+        scopePath: String,
+        enableDeepThinking: Boolean = false
+    ): Flow<SwarmEvent> = flow {
+        emit(SwarmEvent.PlanningStarted)
+
+        // ── Phase 1: Plan ──
+        val orchestratorModel = ModelRegistry.findModelById(orchestratorModelId)
+            ?: run {
+                emit(SwarmEvent.Error("Unknown orchestrator model: $orchestratorModelId"))
+                return@flow
+            }
+
+        val planRequest = CompletionRequest(
+            modelId = orchestratorModelId,
+            messages = listOf(ChatMessage(role = MessageRole.USER, content = userMessage)),
+            systemPrompt = ORCHESTRATOR_SYSTEM_PROMPT.trimIndent(),
+            maxTokens = orchestratorModel.maxOutputTokens,
+            enableThinking = enableDeepThinking && orchestratorModel.supportsThinking,
+            targetContext = scopePath
+        )
+
+        val planResponse: CompletionResponse
+        try {
+            planResponse = completionProvider(planRequest)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emit(SwarmEvent.Error("Planning failed: ${e.message}"))
+            return@flow
+        }
+
+        // Parse sub-tasks from the orchestrator's response
+        val tasks = parseTasks(planResponse.content)
+        if (tasks.isEmpty()) {
+            emit(SwarmEvent.Error("Orchestrator produced no actionable sub-tasks."))
+            return@flow
+        }
+        if (tasks.size > MAX_SUBTASKS) {
+            emit(SwarmEvent.Error("Too many sub-tasks (${tasks.size}). Maximum is $MAX_SUBTASKS."))
+            return@flow
+        }
+
+        emit(SwarmEvent.PlanCompleted(tasks))
+
+        // ── Phase 2: Delegate ──
+        val completedTasks = mutableMapOf<String, String>()
+        val sortedTasks = tasks.sortedBy { it.priority }
+
+        for (task in sortedTasks) {
+            // Check dependencies are met
+            val unmetDeps = task.dependencies.filter { it !in completedTasks }
+            if (unmetDeps.isNotEmpty()) {
+                emit(SwarmEvent.TaskSkipped(task, "Unmet dependencies: $unmetDeps"))
+                continue
+            }
+
+            emit(SwarmEvent.TaskStarted(task))
+
+            // Build context from completed dependencies
+            val dependencyContext = task.dependencies.mapNotNull { depId ->
+                completedTasks[depId]?.let { result -> "[$depId result]: $result" }
+            }.joinToString("\n")
+
+            val workerPrompt = buildString {
+                appendLine("## Sub-Task: ${task.description}")
+                if (dependencyContext.isNotEmpty()) {
+                    appendLine()
+                    appendLine("## Context from prior tasks:")
+                    appendLine(dependencyContext)
+                }
+            }
+
+            // Execute via a Worker AgentPipeline
+            val workerPipeline = AgentPipeline(toolManager, completionProvider)
+            var taskResult = ""
+            var taskError: String? = null
+
+            workerPipeline.execute(
+                userMessage = workerPrompt,
+                modelId = workerModelId,
+                scopePath = scopePath,
+                enableDeepThinking = enableDeepThinking
+            ).collect { event ->
+                when (event) {
+                    is AgentEvent.FinalAnswer -> {
+                        taskResult = event.content
+                    }
+                    is AgentEvent.Error -> {
+                        taskError = event.message
+                    }
+                    is AgentEvent.ToolExecution -> {
+                        emit(SwarmEvent.WorkerToolUse(task, event.toolName, event.arguments))
+                    }
+                    else -> { /* Forward other events as needed */ }
+                }
+            }
+
+            if (taskError != null) {
+                emit(SwarmEvent.TaskFailed(task, taskError!!))
+            } else {
+                completedTasks[task.id] = taskResult
+                emit(SwarmEvent.TaskCompleted(task, taskResult))
+            }
+        }
+
+        // ── Phase 3: Synthesize ──
+        emit(SwarmEvent.SynthesisStarted)
+
+        val summaryContent = completedTasks.entries.joinToString("\n\n") { (id, result) ->
+            "### $id\n$result"
+        }
+
+        val synthesisRequest = CompletionRequest(
+            modelId = orchestratorModelId,
+            messages = listOf(
+                ChatMessage(role = MessageRole.USER, content = userMessage),
+                ChatMessage(
+                    role = MessageRole.ASSISTANT,
+                    content = "Sub-task results:\n\n$summaryContent"
+                ),
+                ChatMessage(
+                    role = MessageRole.USER,
+                    content = "Synthesize these results into a final summary."
+                )
+            ),
+            systemPrompt = SYNTHESIS_PROMPT.trimIndent(),
+            maxTokens = orchestratorModel.maxOutputTokens,
+            targetContext = scopePath
+        )
+
+        val synthesisResponse: CompletionResponse
+        try {
+            synthesisResponse = completionProvider(synthesisRequest)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emit(SwarmEvent.Error("Synthesis failed: ${e.message}"))
+            return@flow
+        }
+
+        emit(SwarmEvent.Completed(
+            summary = synthesisResponse.content,
+            tasksCompleted = completedTasks.size,
+            tasksFailed = sortedTasks.size - completedTasks.size
+        ))
+    }
+
+    /**
+     * Parses the orchestrator's JSON response into a list of [SwarmTask]s.
+     * Handles common formatting issues gracefully.
+     */
+    private fun parseTasks(responseContent: String): List<SwarmTask> {
+        return try {
+            // Extract JSON array from the response (may be wrapped in markdown code blocks)
+            val jsonStr = responseContent
+                .replace("```json", "").replace("```", "")
+                .trim()
+
+            json.decodeFromString<List<SwarmTask>>(jsonStr)
+        } catch (e: Exception) {
+            // If parsing fails, try to create a single task from the response
+            listOf(SwarmTask(
+                id = "task-1",
+                description = responseContent.take(500),
+                priority = 1
+            ))
+        }
+    }
+}
+
+/**
+ * Events emitted by the [SwarmOrchestrator] for real-time UI updates.
+ */
+sealed class SwarmEvent {
+    data object PlanningStarted : SwarmEvent()
+    data class PlanCompleted(val tasks: List<SwarmTask>) : SwarmEvent()
+    data class TaskStarted(val task: SwarmTask) : SwarmEvent()
+    data class TaskCompleted(val task: SwarmTask, val result: String) : SwarmEvent()
+    data class TaskFailed(val task: SwarmTask, val error: String) : SwarmEvent()
+    data class TaskSkipped(val task: SwarmTask, val reason: String) : SwarmEvent()
+    data class WorkerToolUse(
+        val task: SwarmTask,
+        val toolName: String,
+        val arguments: Map<String, String>
+    ) : SwarmEvent()
+    data object SynthesisStarted : SwarmEvent()
+    data class Completed(
+        val summary: String,
+        val tasksCompleted: Int,
+        val tasksFailed: Int
+    ) : SwarmEvent()
+    data class Error(val message: String) : SwarmEvent()
+}
