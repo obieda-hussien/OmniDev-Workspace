@@ -390,11 +390,11 @@ After each observation, reflect: "Did this achieve the intended result? What's n
 
         // Keep first message (original task) and recent messages
         val result = messages.toMutableList()
-        val keepFirst = result.removeFirst()
+        val keepFirst = result.removeAt(0)
 
-        // Remove oldest messages (index 0 after removeFirst) until we're within budget
+        // Remove oldest messages (index 0 after removeAt) until we're within budget
         while (result.sumOf { it.content.length } + keepFirst.content.length > maxChars && result.size > 2) {
-            result.removeFirst()
+            result.removeAt(0)
         }
 
         result.add(0, keepFirst)
