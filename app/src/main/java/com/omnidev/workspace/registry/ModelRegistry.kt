@@ -344,6 +344,170 @@ object ModelRegistry {
             shortDescription = "Best value Gemini for agentic workflows"
         ),
 
+        // ━━━━ GEMINI 3.1 Pro Preview ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "gemini-3.1-pro-preview",
+            displayName = "Gemini 3.1 Pro Preview",
+            provider = ModelProvider.GEMINI,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 2_000_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsVideo = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            costPer1MInputTokens = 7.0,
+            costPer1MOutputTokens = 21.0,
+            shortDescription = "Preview channel of Gemini 3.1 Pro (2M context)"
+        ),
+
+        // ━━━━ GEMINI 3 Pro Preview ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "gemini-3-pro-preview",
+            displayName = "Gemini 3 Pro Preview",
+            provider = ModelProvider.GEMINI,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 2_000_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsVideo = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            costPer1MInputTokens = 5.0,
+            costPer1MOutputTokens = 15.0,
+            shortDescription = "Preview channel of Gemini 3 Pro (2M context)"
+        ),
+
+        // ━━━━ GEMINI 3 Flash Preview ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "gemini-3-flash-preview",
+            displayName = "Gemini 3 Flash Preview",
+            provider = ModelProvider.GEMINI,
+            tier = ModelTier.FAST,
+            contextWindow = 1_000_000,
+            maxOutputTokens = 32_768,
+            supportsVision = true,
+            supportsVideo = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            costPer1MInputTokens = 0.15,
+            costPer1MOutputTokens = 0.6,
+            speedTokensPerSecond = 600,
+            shortDescription = "Preview channel of Gemini 3 Flash"
+        ),
+
+        // ━━━━ GEMINI 2.5 Pro Preview (2025-06-05) ━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "gemini-2.5-pro-preview-06-05",
+            displayName = "Gemini 2.5 Pro Preview (06-05)",
+            provider = ModelProvider.GEMINI,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 1_000_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsVideo = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            costPer1MInputTokens = 1.25,
+            costPer1MOutputTokens = 5.0,
+            shortDescription = "Gemini 2.5 Pro dated preview snapshot (Jun 2025)"
+        ),
+
+        // ━━━━ GEMINI 2.5 Pro Preview (2025-05-06) ━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "gemini-2.5-pro-preview-05-06",
+            displayName = "Gemini 2.5 Pro Preview (05-06)",
+            provider = ModelProvider.GEMINI,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 1_000_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsVideo = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            costPer1MInputTokens = 1.25,
+            costPer1MOutputTokens = 5.0,
+            shortDescription = "Gemini 2.5 Pro dated preview snapshot (May 2025)"
+        ),
+
+        // ━━━━ GEMINI 2.5 Flash Preview (09-2025) ━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "gemini-2.5-flash-preview-09-2025",
+            displayName = "Gemini 2.5 Flash Preview (09-2025)",
+            provider = ModelProvider.GEMINI,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 1_000_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsVideo = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            costPer1MInputTokens = 0.075,
+            costPer1MOutputTokens = 0.3,
+            speedTokensPerSecond = 400,
+            shortDescription = "Gemini 2.5 Flash dated preview snapshot (Sep 2025)"
+        ),
+
+        // ━━━━ GEMINI 2.5 Flash Preview (05-20) ━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "gemini-2.5-flash-preview-05-20",
+            displayName = "Gemini 2.5 Flash Preview (05-20)",
+            provider = ModelProvider.GEMINI,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 1_000_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsVideo = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            costPer1MInputTokens = 0.075,
+            costPer1MOutputTokens = 0.3,
+            speedTokensPerSecond = 400,
+            shortDescription = "Gemini 2.5 Flash dated preview snapshot (May 20)"
+        ),
+
+        // ━━━━ GEMINI 2.5 Flash Preview (04-17) ━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "gemini-2.5-flash-preview-04-17",
+            displayName = "Gemini 2.5 Flash Preview (04-17)",
+            provider = ModelProvider.GEMINI,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 1_000_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsVideo = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            costPer1MInputTokens = 0.075,
+            costPer1MOutputTokens = 0.3,
+            speedTokensPerSecond = 400,
+            shortDescription = "Gemini 2.5 Flash dated preview snapshot (Apr 17)"
+        ),
+
+        // ━━━━ GEMINI 2.5 Flash Lite ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "gemini-2.5-flash-lite",
+            displayName = "Gemini 2.5 Flash Lite",
+            provider = ModelProvider.GEMINI,
+            tier = ModelTier.FAST,
+            contextWindow = 1_000_000,
+            maxOutputTokens = 8_192,
+            supportsVision = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            costPer1MInputTokens = 0.02,
+            costPer1MOutputTokens = 0.08,
+            speedTokensPerSecond = 700,
+            shortDescription = "Smallest, cheapest Gemini 2.5 variant for lightweight tasks"
+        ),
+
         // ━━━━ GEMINI 2.0 Flash ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         AIModel(
             id = "gemini-2.0-flash",
