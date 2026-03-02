@@ -80,6 +80,7 @@ enum class ModelProvider(val displayName: String) {
     FIREWORKS("Fireworks AI"),
     PERPLEXITY("Perplexity AI"),
     NVIDIA("NVIDIA NIM"),
+    GITHUB_COPILOT("GitHub Copilot"),
     OPEN_ROUTER("OpenRouter")
 }
 

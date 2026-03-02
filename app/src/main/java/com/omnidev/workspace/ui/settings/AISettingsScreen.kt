@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Hub
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material.icons.filled.SmartToy
@@ -77,6 +78,7 @@ import com.omnidev.workspace.registry.ModelRegistry
  * - Granular model routing for 4 distinct roles (Chat, Agent, Orchestrator, Worker)
  * - ExposedDropdownMenus grouped by Provider
  * - Deep Thinking mode toggle
+ * - "Manage API Keys" button navigating to ProvidersScreen
  * - Elevated cards with smooth transitions
  * - Large typography following M3 Expressive guidelines
  */
@@ -84,7 +86,8 @@ import com.omnidev.workspace.registry.ModelRegistry
 @Composable
 fun AISettingsScreen(
     viewModel: AISettingsViewModel,
-    onNavigateBack: () -> Unit = {}
+    onNavigateBack: () -> Unit = {},
+    onNavigateToProviders: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -158,6 +161,17 @@ fun AISettingsScreen(
                     onDismiss = { viewModel.dismissDropdown() }
                 )
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // ── Section: Providers & API Keys ──
+            SectionHeader(
+                icon = Icons.Filled.Key,
+                title = "API Keys",
+                subtitle = "Manage credentials for each AI provider"
+            )
+
+            ApiKeysCard(onNavigateToProviders = onNavigateToProviders)
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -483,6 +497,54 @@ private fun DeepThinkingCard(
                     checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
                 )
             )
+        }
+    }
+}
+
+/**
+ * Card that navigates to the API key management screen.
+ */
+@Composable
+private fun ApiKeysCard(onNavigateToProviders: () -> Unit) {
+    Card(
+        onClick = onNavigateToProviders,
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Key,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Manage API Keys",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Add keys for Anthropic, OpenAI, Gemini, and GitHub Copilot.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            androidx.compose.material3.FilledTonalIconButton(
+                onClick = onNavigateToProviders
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Key,
+                    contentDescription = "Open API Keys"
+                )
+            }
         }
     }
 }

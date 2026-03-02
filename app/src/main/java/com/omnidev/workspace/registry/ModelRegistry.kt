@@ -845,6 +845,93 @@ object ModelRegistry {
     )
 
     // ─────────────────────────────────────────────────────────────────
+    //  GITHUB COPILOT — BYOK via api.githubcopilot.com (OpenAI-compatible)
+    //
+    //  Endpoint: https://api.githubcopilot.com/chat/completions
+    //  Auth: GitHub PAT with `copilot` scope OR a Copilot API key.
+    //  The API is OpenAI-compatible: set Authorization: Bearer <token>.
+    // ─────────────────────────────────────────────────────────────────
+
+    private val githubCopilotModels = listOf(
+
+        // ━━━━ GPT-5.3-CODEX via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // OpenAI's flagship code model routed through GitHub Copilot Workspace
+        AIModel(
+            id = "copilot/gpt-5.3-codex",
+            displayName = "GPT-5.3 Codex (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 256_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            shortDescription = "OpenAI's code flagship via GitHub Copilot Workspace",
+            isLatest = true
+        ),
+
+        // ━━━━ CLAUDE SONNET 4.6 via Copilot ━━━━━━━━━━━━━━━━━━━━━━
+        // Anthropic's latest executor tier available through Copilot BYOK
+        AIModel(
+            id = "copilot/claude-sonnet-4-6",
+            displayName = "Claude Sonnet 4.6 (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 200_000,
+            maxOutputTokens = 64_000,
+            supportsVision = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            shortDescription = "Anthropic Sonnet 4.6 accessed via GitHub Copilot token"
+        ),
+
+        // ━━━━ GEMINI 2.5 PRO via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/gemini-2.5-pro",
+            displayName = "Gemini 2.5 Pro (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 1_000_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsVideo = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            shortDescription = "1M-context Gemini Pro via GitHub Copilot Workspace"
+        ),
+
+        // ━━━━ O3-MINI via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/o3-mini",
+            displayName = "o3-mini (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 200_000,
+            maxOutputTokens = 100_000,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            shortDescription = "OpenAI o3-mini reasoning accessed via GitHub Copilot"
+        ),
+
+        // ━━━━ GPT-4O via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // Stable, widely-supported model for Copilot BYOK integrations
+        AIModel(
+            id = "copilot/gpt-4o",
+            displayName = "GPT-4o (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 128_000,
+            maxOutputTokens = 16_384,
+            supportsVision = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            shortDescription = "Reliable GPT-4o via GitHub Copilot — ideal for IDE workflows"
+        )
+    )
+
+    // ─────────────────────────────────────────────────────────────────
     //  OPENROUTER — Unified API gateway for all providers
     // ─────────────────────────────────────────────────────────────────
 
@@ -967,6 +1054,7 @@ object ModelRegistry {
         addAll(cohereModels)
         addAll(fireworksModels)
         addAll(nvidiaModels)
+        addAll(githubCopilotModels)
         addAll(openRouterModels)
     }
 

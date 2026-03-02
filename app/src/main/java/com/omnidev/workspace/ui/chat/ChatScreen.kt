@@ -1,5 +1,8 @@
 package com.omnidev.workspace.ui.chat
 
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
@@ -50,6 +53,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,7 +64,8 @@ import com.omnidev.workspace.data.model.MessageRole
  * Omni-Chat Interface — the primary conversational UI.
  *
  * Features:
- * - Target Context selector with visual scope indicator
+ * - Target Context selector with SAF directory picker (ACTION_OPEN_DOCUMENT_TREE)
+ * - Visual scope indicator in the top bar
  * - Real-time agent status streaming
  * - User/Assistant message bubbles
  * - Auto-scroll to latest messages
@@ -69,10 +74,23 @@ import com.omnidev.workspace.data.model.MessageRole
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel,
-    onNavigateToSettings: () -> Unit = {},
-    onSelectDirectory: () -> Unit = {}
+    onNavigateToSettings: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    // SAF directory picker — uses ACTION_OPEN_DOCUMENT_TREE so the user picks a folder
+    val directoryPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri != null) {
+            // Take persistable permissions so the app can access the dir across reboots
+            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            context.contentResolver.takePersistableUriPermission(uri, flags)
+            viewModel.setTargetContextFromUri(context, uri)
+        }
+    }
     val listState = rememberLazyListState()
 
     // Auto-scroll to bottom when new messages arrive
@@ -92,8 +110,9 @@ fun ChatScreen(
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
-                        // Target Context indicator
-                        uiState.targetContext?.let { path ->
+                        // Target Context indicator — shows folder name from SAF picker
+                        val displayName = uiState.targetContextDisplayName ?: uiState.targetContext
+                        if (displayName != null) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = Icons.Filled.FolderOpen,
@@ -103,22 +122,24 @@ fun ChatScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = path,
+                                    text = displayName,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.primary,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                             }
-                        } ?: Text(
-                            text = "No scope selected",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
+                        } else {
+                            Text(
+                                text = "Tap 📁 to set scope",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 },
                 actions = {
-                    IconButton(onClick = onSelectDirectory) {
+                    IconButton(onClick = { directoryPickerLauncher.launch(null) }) {
                         Icon(
                             imageVector = Icons.Filled.FolderOpen,
                             contentDescription = "Set Target Context"

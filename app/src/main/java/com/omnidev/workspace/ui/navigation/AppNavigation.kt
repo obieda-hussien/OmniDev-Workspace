@@ -6,6 +6,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.omnidev.workspace.ui.chat.ChatScreen
 import com.omnidev.workspace.ui.chat.ChatViewModel
+import com.omnidev.workspace.ui.providers.ProvidersScreen
+import com.omnidev.workspace.ui.providers.ProvidersViewModel
 import com.omnidev.workspace.ui.settings.AISettingsScreen
 import com.omnidev.workspace.ui.settings.AISettingsViewModel
 
@@ -15,6 +17,7 @@ import com.omnidev.workspace.ui.settings.AISettingsViewModel
 object Routes {
     const val CHAT = "chat"
     const val SETTINGS = "settings"
+    const val PROVIDERS = "providers"
 }
 
 /**
@@ -24,7 +27,7 @@ object Routes {
 fun AppNavigation(
     settingsViewModel: AISettingsViewModel,
     chatViewModel: ChatViewModel,
-    onSelectDirectory: () -> Unit = {}
+    providersViewModel: ProvidersViewModel
 ) {
     val navController = rememberNavController()
 
@@ -37,17 +40,22 @@ fun AppNavigation(
                 viewModel = chatViewModel,
                 onNavigateToSettings = {
                     navController.navigate(Routes.SETTINGS)
-                },
-                onSelectDirectory = onSelectDirectory
+                }
             )
         }
 
         composable(Routes.SETTINGS) {
             AISettingsScreen(
                 viewModel = settingsViewModel,
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToProviders = { navController.navigate(Routes.PROVIDERS) }
+            )
+        }
+
+        composable(Routes.PROVIDERS) {
+            ProvidersScreen(
+                viewModel = providersViewModel,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }

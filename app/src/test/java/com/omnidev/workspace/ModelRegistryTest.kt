@@ -25,13 +25,14 @@ class ModelRegistryTest {
         assertTrue("Should have xAI models", ModelProvider.XAI in providers)
         assertTrue("Should have Mistral models", ModelProvider.MISTRAL in providers)
         assertTrue("Should have Cerebras models", ModelProvider.CEREBRAS in providers)
+        assertTrue("Should have GitHub Copilot models", ModelProvider.GITHUB_COPILOT in providers)
     }
 
     @Test
-    fun `registry has at least 40 models`() {
+    fun `registry has at least 50 models`() {
         assertTrue(
-            "Registry should have at least 40 models, got ${ModelRegistry.allModels.size}",
-            ModelRegistry.allModels.size >= 40
+            "Registry should have at least 50 models, got ${ModelRegistry.allModels.size}",
+            ModelRegistry.allModels.size >= 50
         )
     }
 
@@ -202,6 +203,18 @@ class ModelRegistryTest {
                 "FAST model ${model.id} speed ${model.speedTokensPerSecond} should be >= 100 t/s",
                 model.speedTokensPerSecond!! >= 100
             )
+        }
+    @Test
+    fun `GitHub Copilot models exist and are routed to GITHUB_COPILOT provider`() {
+        val copilotModels = ModelRegistry.modelsByProvider[ModelProvider.GITHUB_COPILOT]
+        assertNotNull("Should have GitHub Copilot models", copilotModels)
+        assertTrue("Should have at least 2 GitHub Copilot models", copilotModels!!.size >= 2)
+        copilotModels.forEach { model ->
+            assertTrue(
+                "Copilot model ${model.id} should start with 'copilot/'",
+                model.id.startsWith("copilot/")
+            )
+            assertEquals(ModelProvider.GITHUB_COPILOT, model.provider)
         }
     }
 }

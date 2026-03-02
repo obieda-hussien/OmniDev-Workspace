@@ -61,7 +61,7 @@ enum class AttachmentMediaType {
 
 /**
  * Payload sent to an AI completion endpoint.
- * Structured to support Anthropic, OpenAI, and Gemini API formats.
+ * Structured to support Anthropic, OpenAI, Gemini, and OpenAI-compatible API formats.
  */
 @Serializable
 data class CompletionRequest(
@@ -71,7 +71,9 @@ data class CompletionRequest(
     val maxTokens: Int = 4096,
     val temperature: Double = 0.7,
     val enableThinking: Boolean = false,
-    val targetContext: String? = null
+    val targetContext: String? = null,
+    /** The resolved API key for the target provider. Populated by [AgentPipeline]. */
+    val apiKey: String? = null
 )
 
 /**

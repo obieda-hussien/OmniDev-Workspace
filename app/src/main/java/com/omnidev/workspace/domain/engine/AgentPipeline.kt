@@ -80,11 +80,14 @@ data class AgentConfig(
  * @param toolManager The [ToolManager] that provides tool definitions and execution.
  * @param completionProvider A suspend function that calls the AI completion API.
  * @param config Behavioral configuration (iteration limits, retry policy, token budget).
+ * @param apiKeyRepository Optional key store. When provided, the resolved API key for the
+ *        active model's provider is injected into each [CompletionRequest] automatically.
  */
 class AgentPipeline(
     private val toolManager: ToolManager,
     private val completionProvider: suspend (CompletionRequest) -> CompletionResponse,
-    private val config: AgentConfig = AgentConfig()
+    private val config: AgentConfig = AgentConfig(),
+    private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null
 ) {
 
     companion object {
@@ -201,6 +204,9 @@ After each observation, reflect: "Did this achieve the intended result? What's n
             add(ChatMessage(role = MessageRole.USER, content = userMessage))
         }
 
+        // Resolve the API key for this model's provider (injected into every request)
+        val resolvedApiKey: String? = apiKeyRepository?.getApiKey(model.provider)
+
         var iteration = 0
         var totalTokensUsed = 0
 
@@ -230,7 +236,8 @@ After each observation, reflect: "Did this achieve the intended result? What's n
                 systemPrompt = systemPrompt,
                 maxTokens = model.maxOutputTokens,
                 enableThinking = enableDeepThinking && model.supportsThinking,
-                targetContext = scopePath
+                targetContext = scopePath,
+                apiKey = resolvedApiKey
             )
 
             // ── API call with retry/backoff ──

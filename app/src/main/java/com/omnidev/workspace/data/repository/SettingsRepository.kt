@@ -37,7 +37,10 @@ class SettingsRepository(private val context: Context) {
         val SWARM_ORCHESTRATOR_MODEL_ID = stringPreferencesKey("swarm_orchestrator_model_id")
         val SWARM_WORKER_MODEL_ID = stringPreferencesKey("swarm_worker_model_id")
         val DEEP_THINKING_ENABLED = booleanPreferencesKey("deep_thinking_enabled")
+        /** Legacy string path — used as a fallback display path. */
         val TARGET_CONTEXT_PATH = stringPreferencesKey("target_context_path")
+        /** SAF content:// URI string for the user's chosen directory (persistable permission). */
+        val TARGET_CONTEXT_URI = stringPreferencesKey("target_context_uri")
     }
 
     // ──────────────────────────────────────────────
@@ -113,6 +116,36 @@ class SettingsRepository(private val context: Context) {
         context.settingsDataStore.edit { preferences ->
             if (path != null) {
                 preferences[Keys.TARGET_CONTEXT_PATH] = path
+            } else {
+                preferences.remove(Keys.TARGET_CONTEXT_PATH)
+            }
+        }
+    }
+
+    /**
+     * Observes the persisted SAF content:// URI string for the target context directory.
+     * This URI has persistable read/write permissions taken via [ContentResolver].
+     */
+    fun observeTargetContextUri(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.TARGET_CONTEXT_URI] }
+
+    /**
+     * Stores the SAF [uriString] for the user-selected directory.
+     * Also updates the path key for FileToolManager scope validation.
+     *
+     * @param uriString The `content://` URI string returned by ACTION_OPEN_DOCUMENT_TREE.
+     * @param derivedPath The equivalent filesystem path (e.g. `/storage/emulated/0/MyProjects`),
+     *        used by FileToolManager for scope-path validation.
+     */
+    suspend fun setTargetContextUri(uriString: String?, derivedPath: String?) {
+        context.settingsDataStore.edit { preferences ->
+            if (uriString != null) {
+                preferences[Keys.TARGET_CONTEXT_URI] = uriString
+            } else {
+                preferences.remove(Keys.TARGET_CONTEXT_URI)
+            }
+            if (derivedPath != null) {
+                preferences[Keys.TARGET_CONTEXT_PATH] = derivedPath
             } else {
                 preferences.remove(Keys.TARGET_CONTEXT_PATH)
             }
