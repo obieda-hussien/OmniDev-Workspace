@@ -4,10 +4,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.omnidev.workspace.data.db.OmniDevDatabase
 import com.omnidev.workspace.data.network.CompletionService
 import com.omnidev.workspace.data.repository.ApiKeyRepository
+import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.FileToolManager
+import com.omnidev.workspace.data.tools.MemoryManager
 import com.omnidev.workspace.domain.engine.AgentConfig
 import com.omnidev.workspace.domain.engine.AgentPipeline
 import com.omnidev.workspace.ui.chat.ChatViewModel
@@ -31,11 +35,16 @@ class MainActivity : ComponentActivity() {
         // ── Manual Dependency Injection ──
         val settingsRepository = SettingsRepository(applicationContext)
         val apiKeyRepository = ApiKeyRepository(applicationContext)
-        val toolManager = FileToolManager()
 
-        // Real HTTP completion provider — routes requests to the appropriate AI provider
-        // endpoint based on the model's provider. Keys are loaded from ApiKeyRepository
-        // by AgentPipeline before each call and injected into CompletionRequest.apiKey.
+        // Room database — single instance per process
+        val database = OmniDevDatabase.getInstance(applicationContext)
+        val chatRepository = ChatRepository(database.chatSessionDao(), database.chatMessageDao())
+        val memoryManager = MemoryManager(database.knowledgeDao())
+
+        // Composite tool manager: file tools + long-term memory tools
+        val toolManager = CompositeToolManager(FileToolManager(), memoryManager)
+
+        // Real HTTP completion provider
         val completionService = CompletionService()
         val completionProvider: suspend (com.omnidev.workspace.data.model.CompletionRequest) -> com.omnidev.workspace.data.model.CompletionResponse =
             completionService::invoke
@@ -44,11 +53,12 @@ class MainActivity : ComponentActivity() {
             toolManager = toolManager,
             completionProvider = completionProvider,
             config = AgentConfig.THOROUGH,
-            apiKeyRepository = apiKeyRepository
+            apiKeyRepository = apiKeyRepository,
+            memoryManager = memoryManager
         )
 
         val settingsViewModel = AISettingsViewModel(settingsRepository)
-        val chatViewModel = ChatViewModel(settingsRepository, agentPipeline)
+        val chatViewModel = ChatViewModel(settingsRepository, agentPipeline, chatRepository)
         val providersViewModel = ProvidersViewModel(apiKeyRepository)
 
         setContent {

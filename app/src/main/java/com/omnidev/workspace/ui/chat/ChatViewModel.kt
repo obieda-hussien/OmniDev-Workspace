@@ -5,8 +5,10 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.omnidev.workspace.data.db.entities.ChatSessionEntity
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
+import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.domain.engine.AgentEvent
 import com.omnidev.workspace.domain.engine.AgentPipeline
@@ -46,7 +48,13 @@ data class ChatUiState(
     /** Live console entries for the Agent Observability Console ("Glass Brain"). */
     val consoleEntries: List<AgentConsoleEntry> = emptyList(),
     /** Files selected by the user, waiting to be included in the next message. */
-    val pendingAttachments: List<PendingAttachment> = emptyList()
+    val pendingAttachments: List<PendingAttachment> = emptyList(),
+    /** Past sessions for the navigation drawer. */
+    val sessions: List<ChatSessionEntity> = emptyList(),
+    /** Whether the history drawer is open. */
+    val isDrawerOpen: Boolean = false,
+    /** The currently active session ID (null = unsaved new session). */
+    val currentSessionId: Long? = null
 )
 
 /**
@@ -55,7 +63,8 @@ data class ChatUiState(
  */
 class ChatViewModel(
     private val settingsRepository: SettingsRepository,
-    private val agentPipeline: AgentPipeline
+    private val agentPipeline: AgentPipeline,
+    private val chatRepository: ChatRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -63,6 +72,7 @@ class ChatViewModel(
 
     init {
         loadTargetContext()
+        observeSessions()
     }
 
     private fun loadTargetContext() {
@@ -70,6 +80,53 @@ class ChatViewModel(
             settingsRepository.observeTargetContext().collect { path ->
                 _uiState.update { it.copy(targetContext = path) }
             }
+        }
+    }
+
+    private fun observeSessions() {
+        val repo = chatRepository ?: return
+        viewModelScope.launch {
+            repo.observeSessions().collect { sessions ->
+                _uiState.update { it.copy(sessions = sessions) }
+            }
+        }
+    }
+
+    /** Opens or closes the history drawer. */
+    fun setDrawerOpen(open: Boolean) {
+        _uiState.update { it.copy(isDrawerOpen = open) }
+    }
+
+    /**
+     * Loads a past session's messages and switches the active context to it.
+     */
+    fun loadSession(sessionId: Long) {
+        viewModelScope.launch {
+            val messages = chatRepository?.loadMessages(sessionId) ?: return@launch
+            _uiState.update {
+                it.copy(
+                    currentSessionId = sessionId,
+                    messages = messages,
+                    isDrawerOpen = false,
+                    errorMessage = null,
+                    consoleEntries = emptyList()
+                )
+            }
+        }
+    }
+
+    /** Clears the current conversation and starts a brand-new (unsaved) session. */
+    fun newSession() {
+        _uiState.update {
+            it.copy(
+                currentSessionId = null,
+                messages = emptyList(),
+                inputText = "",
+                pendingAttachments = emptyList(),
+                consoleEntries = emptyList(),
+                errorMessage = null,
+                isDrawerOpen = false
+            )
         }
     }
 
@@ -194,6 +251,10 @@ class ChatViewModel(
         }
 
         viewModelScope.launch {
+            // Ensure the session is persisted before saving any messages
+            val sessionId = ensureSession(input)
+            chatRepository?.saveMessage(sessionId, userMessage)
+
             val modelId = settingsRepository
                 .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.AGENT)
                 .first()
@@ -267,6 +328,7 @@ class ChatViewModel(
                             role = MessageRole.ASSISTANT,
                             content = event.content
                         )
+                        chatRepository?.saveMessage(sessionId, assistantMessage)
                         _uiState.update {
                             it.copy(
                                 messages = it.messages + assistantMessage,
@@ -294,10 +356,24 @@ class ChatViewModel(
     }
 
     /**
+     * Returns the current session ID, creating a new session if none exists.
+     * When [chatRepository] is null (running without DB), returns -1L — all
+     * subsequent `chatRepository?.saveMessage(...)` calls are no-ops due to null-safety.
+     */
+    private suspend fun ensureSession(firstMessage: String): Long {
+        val existing = _uiState.value.currentSessionId
+        if (existing != null) return existing
+
+        val title = firstMessage.take(50).ifBlank { "New conversation" }
+        val newId = chatRepository?.createSession(title) ?: -1L
+        _uiState.update { it.copy(currentSessionId = newId) }
+        return newId
+    }
+
+    /**
      * Clears the error message.
      */
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
     }
 }
-

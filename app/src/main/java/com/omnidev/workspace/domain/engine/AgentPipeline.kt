@@ -87,7 +87,8 @@ class AgentPipeline(
     private val toolManager: ToolManager,
     private val completionProvider: suspend (CompletionRequest) -> CompletionResponse,
     private val config: AgentConfig = AgentConfig(),
-    private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null
+    private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null,
+    private val memoryManager: com.omnidev.workspace.data.tools.MemoryManager? = null
 ) {
 
     companion object {
@@ -189,6 +190,11 @@ After each observation, reflect: "Did this achieve the intended result? What's n
 
         val systemPrompt = buildString {
             append(baseSystemPrompt.trimIndent())
+            // Context hydration — inject long-term knowledge before the first iteration
+            memoryManager?.buildKnowledgeContext()?.let { knowledge ->
+                appendLine()
+                append(knowledge)
+            }
             appendLine()
             appendLine()
             appendLine("## Available Tools")

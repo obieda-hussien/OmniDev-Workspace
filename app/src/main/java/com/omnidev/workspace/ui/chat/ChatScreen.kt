@@ -7,6 +7,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,31 +31,42 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DismissibleDrawerSheet
+import androidx.compose.material3.DismissibleNavigationDrawer
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,18 +74,24 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.omnidev.workspace.data.db.entities.ChatSessionEntity
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Omni-Chat Interface — the primary conversational UI.
  *
  * Features:
- * - Target Context selector with SAF directory picker (ACTION_OPEN_DOCUMENT_TREE)
- * - Visual scope indicator in the top bar
- * - Real-time agent status streaming
- * - User/Assistant message bubbles
- * - Auto-scroll to latest messages
+ * - Navigation drawer with past chat sessions grouped by date
+ * - New session button
+ * - Target Context selector with SAF directory picker
+ * - Real-time agent status streaming with Glass Brain console
+ * - User/Assistant message bubbles with Markdown rendering
+ * - Multi-modal attachment picker
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,13 +101,24 @@ fun ChatScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val drawerState = rememberDrawerState(
+        initialValue = if (uiState.isDrawerOpen) DrawerValue.Open else DrawerValue.Closed
+    )
+    val scope = rememberCoroutineScope()
 
-    // SAF directory picker — uses ACTION_OPEN_DOCUMENT_TREE so the user picks a folder
+    // Sync drawer open state with ViewModel
+    LaunchedEffect(uiState.isDrawerOpen) {
+        if (uiState.isDrawerOpen) drawerState.open() else drawerState.close()
+    }
+    LaunchedEffect(drawerState.currentValue) {
+        viewModel.setDrawerOpen(drawerState.isOpen)
+    }
+
+    // SAF directory picker
     val directoryPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
         if (uri != null) {
-            // Take persistable permissions so the app can access the dir across reboots
             val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
                 Intent.FLAG_GRANT_WRITE_URI_PERMISSION
             context.contentResolver.takePersistableUriPermission(uri, flags)
@@ -96,14 +126,12 @@ fun ChatScreen(
         }
     }
 
-    // Multi-file attachment picker — accepts any file type
+    // Multi-file attachment picker
     val attachmentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris ->
         if (uris.isNotEmpty()) {
             val displayNames = uris.map { uri ->
-                // Try to get the display name from the content resolver; fall back to last
-                // path segment, then a generic label (avoids exposing internal content:// URIs).
                 val cursor = context.contentResolver.query(uri, null, null, null, null)
                 cursor?.use { c ->
                     val nameCol = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
@@ -113,150 +141,274 @@ fun ChatScreen(
             viewModel.addAttachments(uris, displayNames)
         }
     }
+
     val listState = rememberLazyListState()
 
-    // Auto-scroll to bottom when new messages arrive
     LaunchedEffect(uiState.messages.size) {
         if (uiState.messages.isNotEmpty()) {
             listState.animateScrollToItem(uiState.messages.lastIndex)
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = "OmniDev Workspace",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        // Target Context indicator — shows folder name from SAF picker
-                        val displayName = uiState.targetContextDisplayName ?: uiState.targetContext
-                        if (displayName != null) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Filled.FolderOpen,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
+    DismissibleNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            DismissibleDrawerSheet(modifier = Modifier.width(280.dp)) {
+                SessionDrawerContent(
+                    sessions = uiState.sessions,
+                    currentSessionId = uiState.currentSessionId,
+                    onNewSession = { viewModel.newSession() },
+                    onSessionClick = { viewModel.loadSession(it) },
+                    onCloseDrawer = { scope.launch { drawerState.close() } }
+                )
+            }
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text(
+                                text = "OmniDev Workspace",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            val displayName = uiState.targetContextDisplayName ?: uiState.targetContext
+                            if (displayName != null) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Filled.FolderOpen,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = displayName,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            } else {
                                 Text(
-                                    text = displayName,
+                                    text = "Tap 📁 to set scope",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    color = MaterialTheme.colorScheme.error
                                 )
                             }
-                        } else {
-                            Text(
-                                text = "Tap 📁 to set scope",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(
+                                imageVector = Icons.Filled.History,
+                                contentDescription = "Chat History"
                             )
                         }
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { directoryPickerLauncher.launch(null) }) {
-                        Icon(
-                            imageVector = Icons.Filled.FolderOpen,
-                            contentDescription = "Set Target Context"
-                        )
-                    }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(
-                            imageVector = Icons.Filled.Settings,
-                            contentDescription = "AI Settings"
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            // Thin progress bar while the agent is working
-            AnimatedVisibility(visible = uiState.isProcessing) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-
-            // Agent Live Console — visible whenever there are console entries
-            AnimatedVisibility(
-                visible = uiState.consoleEntries.isNotEmpty(),
-                enter = fadeIn() + slideInVertically()
-            ) {
-                AgentLiveConsole(
-                    entries = uiState.consoleEntries,
-                    isRunning = uiState.isProcessing,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    },
+                    actions = {
+                        IconButton(onClick = { directoryPickerLauncher.launch(null) }) {
+                            Icon(
+                                imageVector = Icons.Filled.FolderOpen,
+                                contentDescription = "Set Target Context"
+                            )
+                        }
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(
+                                imageVector = Icons.Filled.Settings,
+                                contentDescription = "AI Settings"
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
                 )
             }
-
-            // Messages list
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
             ) {
-                if (uiState.messages.isEmpty()) {
-                    item {
-                        EmptyStateContent()
-                    }
+                AnimatedVisibility(visible = uiState.isProcessing) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
 
-                items(uiState.messages) { message ->
-                    MessageBubble(message = message)
-                }
-            }
-
-            // Error banner
-            uiState.errorMessage?.let { error ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer
-                    ),
-                    shape = RoundedCornerShape(12.dp)
+                AnimatedVisibility(
+                    visible = uiState.consoleEntries.isNotEmpty(),
+                    enter = fadeIn() + slideInVertically()
                 ) {
-                    Text(
-                        text = error,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(12.dp)
+                    AgentLiveConsole(
+                        entries = uiState.consoleEntries,
+                        isRunning = uiState.isProcessing,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
-            }
 
-            // Input bar
-            ChatInputBar(
-                inputText = uiState.inputText,
-                onInputChanged = { viewModel.onInputChanged(it) },
-                onSend = { viewModel.sendMessage() },
-                isProcessing = uiState.isProcessing,
-                pendingAttachments = uiState.pendingAttachments,
-                onAttachClick = { attachmentLauncher.launch("*/*") },
-                onRemoveAttachment = { viewModel.removeAttachment(it) }
-            )
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (uiState.messages.isEmpty()) {
+                        item { EmptyStateContent() }
+                    }
+                    items(uiState.messages) { message ->
+                        MessageBubble(message = message)
+                    }
+                }
+
+                uiState.errorMessage?.let { error ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            text = error,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                }
+
+                ChatInputBar(
+                    inputText = uiState.inputText,
+                    onInputChanged = { viewModel.onInputChanged(it) },
+                    onSend = { viewModel.sendMessage() },
+                    isProcessing = uiState.isProcessing,
+                    pendingAttachments = uiState.pendingAttachments,
+                    onAttachClick = { attachmentLauncher.launch("*/*") },
+                    onRemoveAttachment = { viewModel.removeAttachment(it) }
+                )
+            }
         }
     }
 }
 
-/**
- * Chat message bubble with role-based styling.
- */
+// ──────────────────────────────────────────────
+//  Session Drawer
+// ──────────────────────────────────────────────
+
+@Composable
+private fun SessionDrawerContent(
+    sessions: List<ChatSessionEntity>,
+    currentSessionId: Long?,
+    onNewSession: () -> Unit,
+    onSessionClick: (Long) -> Unit,
+    onCloseDrawer: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxHeight()
+            .background(MaterialTheme.colorScheme.surface)
+    ) {
+        // Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Chat History",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = onCloseDrawer) {
+                Icon(Icons.Filled.Close, contentDescription = "Close drawer")
+            }
+        }
+        TextButton(
+            onClick = onNewSession,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("New Chat")
+        }
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        if (sessions.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No saved sessions yet",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
+            }
+        } else {
+            val grouped = groupSessionsByDate(sessions)
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                grouped.forEach { (label, items) ->
+                    item {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+                        )
+                    }
+                    items(items) { session ->
+                        NavigationDrawerItem(
+                            label = {
+                                Text(
+                                    text = session.title,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            },
+                            selected = session.id == currentSessionId,
+                            onClick = { onSessionClick(session.id) },
+                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Groups sessions into "Today", "Yesterday", "Previous 7 Days", and "Older". */
+private fun groupSessionsByDate(sessions: List<ChatSessionEntity>): Map<String, List<ChatSessionEntity>> {
+    val now = System.currentTimeMillis()
+    val dayMs = 86_400_000L
+    return linkedMapOf<String, MutableList<ChatSessionEntity>>().apply {
+        sessions.forEach { s ->
+            val diff = now - s.lastUpdated
+            val label = when {
+                diff < dayMs -> "Today"
+                diff < 2 * dayMs -> "Yesterday"
+                diff < 7 * dayMs -> "Previous 7 Days"
+                else -> SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date(s.lastUpdated))
+            }
+            getOrPut(label) { mutableListOf() }.add(s)
+        }
+    }
+}
+
+// ──────────────────────────────────────────────
+//  Message Bubble with Markdown
+// ──────────────────────────────────────────────
+
 @Composable
 private fun MessageBubble(message: ChatMessage) {
     val isUser = message.role == MessageRole.USER
@@ -305,11 +457,19 @@ private fun MessageBubble(message: ChatMessage) {
                 ),
                 colors = CardDefaults.cardColors(containerColor = backgroundColor)
             ) {
-                Text(
-                    text = message.content,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(12.dp)
-                )
+                if (isUser) {
+                    Text(
+                        text = message.content,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                } else {
+                    // Assistant messages rendered with Markdown
+                    MarkdownText(
+                        text = message.content,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
             }
 
             if (isUser) {
@@ -333,9 +493,10 @@ private fun MessageBubble(message: ChatMessage) {
     }
 }
 
-/**
- * Chat input bar with attach button, pending attachment chips, text field, and send button.
- */
+// ──────────────────────────────────────────────
+//  Input Bar
+// ──────────────────────────────────────────────
+
 @Composable
 private fun ChatInputBar(
     inputText: String,
@@ -347,7 +508,6 @@ private fun ChatInputBar(
     onRemoveAttachment: (android.net.Uri) -> Unit = {}
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        // Horizontal scrollable row of attachment chips
         if (pendingAttachments.isNotEmpty()) {
             Row(
                 modifier = Modifier
@@ -391,7 +551,6 @@ private fun ChatInputBar(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom
         ) {
-            // Attach button
             IconButton(
                 onClick = onAttachClick,
                 enabled = !isProcessing,
@@ -437,9 +596,10 @@ private fun ChatInputBar(
     }
 }
 
-/**
- * Empty state shown when no messages exist yet.
- */
+// ──────────────────────────────────────────────
+//  Empty State
+// ──────────────────────────────────────────────
+
 @Composable
 private fun EmptyStateContent() {
     Column(
