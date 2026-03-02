@@ -6,10 +6,13 @@ import android.provider.DocumentsContract
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
+import com.omnidev.workspace.data.model.AttachmentMediaType
+import com.omnidev.workspace.data.model.AttachmentMeta
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.domain.attachment.AttachmentProcessor
 import com.omnidev.workspace.domain.engine.AgentEvent
 import com.omnidev.workspace.domain.engine.AgentPipeline
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,11 +63,14 @@ data class ChatUiState(
 /**
  * ViewModel for the Omni-Chat interface, managing conversation state
  * and agent pipeline execution.
+ *
+ * @param attachmentProcessor Optional processor for reading image bytes for vision models.
  */
 class ChatViewModel(
     private val settingsRepository: SettingsRepository,
     private val agentPipeline: AgentPipeline,
-    private val chatRepository: ChatRepository? = null
+    private val chatRepository: ChatRepository? = null,
+    private val attachmentProcessor: AttachmentProcessor? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -261,12 +267,29 @@ class ChatViewModel(
 
             val deepThinking = settingsRepository.observeDeepThinking().first()
 
+            // Resolve base64 image data for vision-capable attachments
+            val imageAttachments: List<AttachmentMeta> = attachments
+                .mapNotNull { pending ->
+                    val uri = pending.uri
+                    // Read base64 data for image attachments only
+                    val base64 = attachmentProcessor?.readImageAsBase64(uri) ?: return@mapNotNull null
+                    AttachmentMeta(
+                        uri = uri.toString(),
+                        mimeType = "image/jpeg", // default; refined via MIME type lookup
+                        fileName = pending.displayName,
+                        sizeBytes = 0L,
+                        mediaType = AttachmentMediaType.IMAGE,
+                        base64Data = base64
+                    )
+                }
+
             agentPipeline.execute(
                 userMessage = input,
                 conversationHistory = _uiState.value.messages.dropLast(1),
                 modelId = modelId,
                 scopePath = scopePath,
-                enableDeepThinking = deepThinking
+                enableDeepThinking = deepThinking,
+                userAttachments = imageAttachments
             ).collect { event ->
                 when (event) {
                     is AgentEvent.Started ->

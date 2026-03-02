@@ -12,6 +12,7 @@ import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.FileToolManager
 import com.omnidev.workspace.data.tools.MemoryManager
+import com.omnidev.workspace.domain.attachment.AttachmentProcessor
 import com.omnidev.workspace.domain.engine.AgentConfig
 import com.omnidev.workspace.domain.engine.AgentPipeline
 import com.omnidev.workspace.ui.chat.ChatViewModel
@@ -58,7 +59,8 @@ class MainActivity : ComponentActivity() {
         )
 
         val settingsViewModel = AISettingsViewModel(settingsRepository)
-        val chatViewModel = ChatViewModel(settingsRepository, agentPipeline, chatRepository)
+        val attachmentProcessor = AttachmentProcessor(contentResolver)
+        val chatViewModel = ChatViewModel(settingsRepository, agentPipeline, chatRepository, attachmentProcessor)
         val providersViewModel = ProvidersViewModel(apiKeyRepository)
 
         setContent {

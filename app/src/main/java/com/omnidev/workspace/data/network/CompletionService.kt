@@ -1,5 +1,6 @@
 package com.omnidev.workspace.data.network
 
+import com.omnidev.workspace.data.model.AttachmentMediaType
 import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
 import com.omnidev.workspace.data.model.MessageRole
@@ -12,6 +13,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -30,7 +36,7 @@ private data class AnthropicRequest(
 )
 
 @Serializable
-private data class AnthropicMessage(val role: String, val content: String)
+private data class AnthropicMessage(val role: String, val content: JsonElement)
 
 @Serializable
 private data class AnthropicResponse(
@@ -59,7 +65,7 @@ private data class OpenAiRequest(
 )
 
 @Serializable
-private data class OpenAiMessage(val role: String, val content: String)
+private data class OpenAiMessage(val role: String, val content: JsonElement)
 
 @Serializable
 private data class OpenAiResponse(
@@ -69,9 +75,12 @@ private data class OpenAiResponse(
 
 @Serializable
 private data class OpenAiChoice(
-    val message: OpenAiMessage = OpenAiMessage("assistant", ""),
+    val message: OpenAiMessageContent = OpenAiMessageContent("assistant", ""),
     @SerialName("finish_reason") val finishReason: String? = null
 )
+
+@Serializable
+private data class OpenAiMessageContent(val role: String, val content: String = "")
 
 @Serializable
 private data class OpenAiUsage(
@@ -90,8 +99,9 @@ private data class OpenAiUsage(
  *  - **Anthropic** — `api.anthropic.com/v1/messages` (proprietary format)
  *  - **All others** — OpenAI-compatible `chat/completions` endpoint
  *
- * No extra Gradle dependencies needed — uses only the Java standard library
- * and the `kotlinx-serialization-json` library already present in the project.
+ * Vision support: when a message contains image [AttachmentMeta] with [base64Data]
+ * populated, the content is sent as a multi-part content array (images + text)
+ * following the provider's specification.
  */
 class CompletionService {
 
@@ -102,7 +112,6 @@ class CompletionService {
 
     /**
      * Returns the provider's API base URL (no trailing slash).
-     * For GitHub Copilot BYOK the endpoint is the documented `api.githubcopilot.com` path.
      */
     private fun baseUrlFor(provider: ModelProvider): String = when (provider) {
         ModelProvider.ANTHROPIC     -> "https://api.anthropic.com"
@@ -155,18 +164,38 @@ class CompletionService {
     ): CompletionResponse {
         val url = URL("${baseUrlFor(provider)}/v1/messages")
 
-        // Anthropic's messages array must NOT contain a "system" role entry;
-        // the system prompt goes in the top-level "system" field instead.
         val messages = request.messages
             .filter { it.role != MessageRole.SYSTEM }
             .map { msg ->
-                AnthropicMessage(
-                    role = when (msg.role) {
-                        MessageRole.USER, MessageRole.TOOL -> "user"
-                        else -> "assistant"
-                    },
-                    content = msg.content
-                )
+                val role = when (msg.role) {
+                    MessageRole.USER, MessageRole.TOOL -> "user"
+                    else -> "assistant"
+                }
+                // Build multi-part content when the message has inline image attachments
+                val images = msg.attachments.filter {
+                    it.mediaType == AttachmentMediaType.IMAGE && it.base64Data != null
+                }
+                val content: JsonElement = if (images.isEmpty()) {
+                    JsonPrimitive(msg.content)
+                } else {
+                    buildJsonArray {
+                        images.forEach { img ->
+                            add(buildJsonObject {
+                                put("type", "image")
+                                put("source", buildJsonObject {
+                                    put("type", "base64")
+                                    put("media_type", img.mimeType)
+                                    put("data", img.base64Data!!)
+                                })
+                            })
+                        }
+                        add(buildJsonObject {
+                            put("type", "text")
+                            put("text", msg.content)
+                        })
+                    }
+                }
+                AnthropicMessage(role = role, content = content)
             }
 
         val body = json.encodeToString(
@@ -215,18 +244,39 @@ class CompletionService {
     ): CompletionResponse {
         val url = URL("${baseUrlFor(provider)}/chat/completions")
 
-        // OpenAI format uses a "system" role message as the first entry.
         val messages = buildList {
-            request.systemPrompt?.let { add(OpenAiMessage("system", it)) }
+            request.systemPrompt?.let {
+                add(OpenAiMessage("system", JsonPrimitive(it)))
+            }
             addAll(request.messages.map { msg ->
-                OpenAiMessage(
-                    role = when (msg.role) {
-                        MessageRole.SYSTEM    -> "system"
-                        MessageRole.ASSISTANT -> "assistant"
-                        else                  -> "user" // USER and TOOL both map to "user"
-                    },
-                    content = msg.content
-                )
+                val role = when (msg.role) {
+                    MessageRole.SYSTEM    -> "system"
+                    MessageRole.ASSISTANT -> "assistant"
+                    else                  -> "user"
+                }
+                // Build multi-part content when the message has inline image attachments
+                val images = msg.attachments.filter {
+                    it.mediaType == AttachmentMediaType.IMAGE && it.base64Data != null
+                }
+                val content: JsonElement = if (images.isEmpty()) {
+                    JsonPrimitive(msg.content)
+                } else {
+                    buildJsonArray {
+                        images.forEach { img ->
+                            add(buildJsonObject {
+                                put("type", "image_url")
+                                put("image_url", buildJsonObject {
+                                    put("url", "data:${img.mimeType};base64,${img.base64Data!!}")
+                                })
+                            })
+                        }
+                        add(buildJsonObject {
+                            put("type", "text")
+                            put("text", msg.content)
+                        })
+                    }
+                }
+                OpenAiMessage(role = role, content = content)
             })
         }
 
@@ -240,7 +290,6 @@ class CompletionService {
             )
         )
 
-        // GitHub Copilot BYOK requires these additional headers per the official docs.
         val extraHeaders: Map<String, String> = if (provider == ModelProvider.GITHUB_COPILOT) {
             mapOf(
                 "Editor-Version" to "OmniDevWorkspace/1.0",
@@ -275,7 +324,8 @@ class CompletionService {
     /**
      * Makes a POST request with a JSON body and returns the response body string.
      *
-     * @throws IOException on non-2xx responses (error body included in the message).
+     * HTTP error codes are mapped to user-friendly [IOException] messages so the
+     * [AgentPipeline] can surface them directly without exposing raw JSON to the user.
      */
     private fun postJson(
         url: URL,
@@ -295,16 +345,27 @@ class CompletionService {
         conn.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(body) }
 
         val responseCode = conn.responseCode
-        val responseBody = if (responseCode in 200..299) {
-            conn.inputStream.bufferedReader(Charsets.UTF_8).readText()
-        } else {
-            val errorBody = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.readText()
-                ?: "HTTP $responseCode"
+        if (responseCode in 200..299) {
+            val responseBody = conn.inputStream.bufferedReader(Charsets.UTF_8).readText()
             conn.disconnect()
-            throw IOException("API error $responseCode from ${url.host}: $errorBody")
+            return responseBody
         }
 
+        val errorBody = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
         conn.disconnect()
-        return responseBody
+
+        // Map common HTTP error codes to actionable user-facing messages.
+        val friendlyMessage = when (responseCode) {
+            401 -> "API key is invalid or expired. Update it in Settings → API Keys."
+            402 -> "Insufficient quota or billing issue. Check your account on the provider's dashboard."
+            403 -> "Access forbidden. Your API key may not have permission to use this model."
+            404 -> "Model not found (${url.host}). The selected model may not be available on your API tier."
+            422 -> "Invalid request format. The provider rejected the payload: $errorBody"
+            429 -> "Rate limit exceeded. The agent will retry automatically after a short delay."
+            500, 502, 503 -> "The provider's server encountered an error ($responseCode). Retrying…"
+            else -> "API error $responseCode from ${url.host}: $errorBody"
+        }
+        throw IOException(friendlyMessage)
     }
 }
+

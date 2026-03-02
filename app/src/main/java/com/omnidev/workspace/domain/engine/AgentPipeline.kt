@@ -1,5 +1,6 @@
 package com.omnidev.workspace.domain.engine
 
+import com.omnidev.workspace.data.model.AttachmentMeta
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
@@ -150,6 +151,8 @@ After each observation, reflect: "Did this achieve the intended result? What's n
      * @param modelId The AI model ID to use (from the Agent role assignment).
      * @param scopePath The active Target Context directory path.
      * @param enableDeepThinking Whether to inject extended thinking prompts.
+     * @param userAttachments Optional image attachments to include in the first user message.
+     *        Should contain [AttachmentMeta] with [AttachmentMeta.base64Data] populated.
      * @return A [Flow] of [AgentEvent]s representing the agent's progress.
      */
     fun execute(
@@ -157,7 +160,8 @@ After each observation, reflect: "Did this achieve the intended result? What's n
         conversationHistory: List<ChatMessage> = emptyList(),
         modelId: String,
         scopePath: String,
-        enableDeepThinking: Boolean = false
+        enableDeepThinking: Boolean = false,
+        userAttachments: List<AttachmentMeta> = emptyList()
     ): Flow<AgentEvent> = flow {
         emit(AgentEvent.Started)
 
@@ -207,7 +211,11 @@ After each observation, reflect: "Did this achieve the intended result? What's n
         // Initialize the conversation
         val messages = mutableListOf<ChatMessage>().apply {
             addAll(conversationHistory)
-            add(ChatMessage(role = MessageRole.USER, content = userMessage))
+            add(ChatMessage(
+                role = MessageRole.USER,
+                content = userMessage,
+                attachments = userAttachments
+            ))
         }
 
         // Resolve the API key for this model's provider (injected into every request)

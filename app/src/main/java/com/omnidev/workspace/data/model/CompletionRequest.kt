@@ -44,6 +44,10 @@ data class ToolCallResult(
 
 /**
  * Metadata for an attached file (image, PDF, text, video).
+ *
+ * @property base64Data Optional Base64-encoded content of the file, populated for
+ *           image attachments when the target model supports vision input.
+ *           Not persisted to the DB — only used in-memory for the active request.
  */
 @Serializable
 data class AttachmentMeta(
@@ -51,7 +55,8 @@ data class AttachmentMeta(
     val mimeType: String,
     val fileName: String,
     val sizeBytes: Long,
-    val mediaType: AttachmentMediaType
+    val mediaType: AttachmentMediaType,
+    val base64Data: String? = null
 )
 
 @Serializable

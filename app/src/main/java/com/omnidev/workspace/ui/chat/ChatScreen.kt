@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -34,6 +35,8 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Person
@@ -57,6 +60,7 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -66,14 +70,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
@@ -406,7 +416,7 @@ private fun groupSessionsByDate(sessions: List<ChatSessionEntity>): Map<String, 
 }
 
 // ──────────────────────────────────────────────
-//  Message Bubble with Markdown
+//  Message Bubble with Markdown + Parsed Tags
 // ──────────────────────────────────────────────
 
 @Composable
@@ -420,10 +430,46 @@ private fun MessageBubble(message: ChatMessage) {
 
     val icon = if (isUser) Icons.Filled.Person else Icons.Filled.SmartToy
 
+    // Parse assistant messages to extract <thinking> and <tool_code> blocks
+    val parsed = if (!isUser) MessageFormatter.parse(message.content) else null
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = alignment
     ) {
+        // Expandable "🧠 Thought Process" cards (assistant only)
+        if (parsed != null && parsed.thoughtBlocks.isNotEmpty()) {
+            parsed.thoughtBlocks.forEach { thought ->
+                ExpandableBlock(
+                    headerLabel = "🧠 Thought Process",
+                    content = thought,
+                    headerColor = Color(0xFF0D2137)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+        }
+
+        // Expandable "🛠️ Tool Execution" cards (assistant only)
+        if (parsed != null && parsed.toolBlocks.isNotEmpty()) {
+            parsed.toolBlocks.forEach { toolBlock ->
+                ExpandableBlock(
+                    headerLabel = "🛠️ Tool Execution",
+                    content = buildString {
+                        appendLine("```")
+                        appendLine(toolBlock.toolCode)
+                        appendLine("```")
+                        toolBlock.observation?.let {
+                            appendLine()
+                            appendLine("**Output:**")
+                            appendLine(it)
+                        }
+                    },
+                    headerColor = Color(0xFF1A1A2E)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+        }
+
         Row(
             verticalAlignment = Alignment.Top,
             horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
@@ -464,9 +510,10 @@ private fun MessageBubble(message: ChatMessage) {
                         modifier = Modifier.padding(12.dp)
                     )
                 } else {
-                    // Assistant messages rendered with Markdown
+                    // Assistant: show only the clean text (tags extracted to expandable blocks)
+                    val displayText = parsed?.cleanText?.ifBlank { null } ?: message.content
                     MarkdownText(
-                        text = message.content,
+                        text = displayText,
                         modifier = Modifier.padding(12.dp)
                     )
                 }
@@ -488,6 +535,62 @@ private fun MessageBubble(message: ChatMessage) {
                         modifier = Modifier.size(18.dp)
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Collapsible card for displaying extracted LLM internals (thinking blocks, tool calls).
+ * Collapsed by default to keep the chat UI clean.
+ */
+@Composable
+private fun ExpandableBlock(
+    headerLabel: String,
+    content: String,
+    headerColor: Color
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = headerColor,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = headerLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF8BBFD4),
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    tint = Color(0xFF8BBFD4),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            AnimatedVisibility(visible = expanded, enter = fadeIn(), exit = fadeOut()) {
+                Text(
+                    text = content.trim(),
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 11.sp
+                    ),
+                    color = Color(0xFFCDD6E8),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                )
             }
         }
     }

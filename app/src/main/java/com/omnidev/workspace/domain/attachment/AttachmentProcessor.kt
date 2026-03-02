@@ -3,6 +3,7 @@ package com.omnidev.workspace.domain.attachment
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Base64
 import android.webkit.MimeTypeMap
 import com.omnidev.workspace.data.model.AIModel
 import com.omnidev.workspace.data.model.AttachmentMediaType
@@ -135,6 +136,23 @@ class AttachmentProcessor(private val contentResolver: ContentResolver) {
     suspend fun readAttachmentBytes(uri: Uri): ByteArray? = withContext(Dispatchers.IO) {
         try {
             contentResolver.openInputStream(uri)?.use(InputStream::readBytes)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Reads an image attachment and returns it as a Base64-encoded string suitable
+     * for inclusion in a vision API request.
+     *
+     * @param uri The content URI of the image.
+     * @return Base64-encoded image string, or null if the file cannot be read.
+     */
+    suspend fun readImageAsBase64(uri: Uri): String? = withContext(Dispatchers.IO) {
+        try {
+            val bytes = contentResolver.openInputStream(uri)?.use(InputStream::readBytes)
+                ?: return@withContext null
+            Base64.encodeToString(bytes, Base64.NO_WRAP)
         } catch (e: Exception) {
             null
         }
