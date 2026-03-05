@@ -10,6 +10,7 @@ import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.tools.CompositeToolManager
+import com.omnidev.workspace.data.tools.EnvironmentSetupManager
 import com.omnidev.workspace.data.tools.FileToolManager
 import com.omnidev.workspace.data.tools.MemoryManager
 import com.omnidev.workspace.domain.attachment.AttachmentProcessor
@@ -43,9 +44,15 @@ class MainActivity : ComponentActivity() {
         val chatRepository = ChatRepository(database.chatSessionDao(), database.chatMessageDao())
         val memoryManager = MemoryManager(database.knowledgeDao())
 
-        // Composite tool manager: file tools + long-term memory tools
+        // Composite tool manager: file tools + memory + system assistant + build environment
         val fileToolManager = FileToolManager()
-        val toolManager = CompositeToolManager(fileToolManager, memoryManager)
+        val environmentSetupManager = EnvironmentSetupManager(applicationContext)
+        val toolManager = CompositeToolManager(
+            fileToolManager = fileToolManager,
+            memoryManager = memoryManager,
+            context = applicationContext,
+            environmentSetupManager = environmentSetupManager
+        )
 
         // Real HTTP completion provider
         val completionService = CompletionService()
