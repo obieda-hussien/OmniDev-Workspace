@@ -92,6 +92,7 @@ import androidx.compose.ui.unit.sp
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
+import com.omnidev.workspace.domain.engine.OmniMode
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -258,6 +259,13 @@ fun ChatScreen(
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
 
+                // ── Mode Selector (Chat / Agent / Team Agents) ──
+                ModeSelector(
+                    activeMode = uiState.activeMode,
+                    onModeSelected = { viewModel.setMode(it) },
+                    enabled = !uiState.isProcessing
+                )
+
                 AnimatedVisibility(
                     visible = uiState.consoleEntries.isNotEmpty(),
                     enter = fadeIn() + slideInVertically()
@@ -318,6 +326,57 @@ fun ChatScreen(
                     onAttachClick = { attachmentLauncher.launch("*/*") },
                     onRemoveAttachment = { viewModel.removeAttachment(it) }
                 )
+            }
+        }
+    }
+}
+
+// ──────────────────────────────────────────────
+//  Mode Selector (Segmented Buttons)
+// ──────────────────────────────────────────────
+
+@Composable
+private fun ModeSelector(
+    activeMode: OmniMode,
+    onModeSelected: (OmniMode) -> Unit,
+    enabled: Boolean = true
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(0.dp)
+    ) {
+        OmniMode.entries.forEachIndexed { index, mode ->
+            val isSelected = mode == activeMode
+            val shape = when (index) {
+                0 -> RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
+                OmniMode.entries.lastIndex -> RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp)
+                else -> RoundedCornerShape(0.dp)
+            }
+
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(38.dp),
+                shape = shape,
+                color = if (isSelected)
+                    MaterialTheme.colorScheme.primaryContainer
+                else
+                    MaterialTheme.colorScheme.surfaceVariant,
+                onClick = { if (enabled) onModeSelected(mode) }
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = mode.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isSelected)
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

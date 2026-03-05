@@ -10,11 +10,17 @@ import com.omnidev.workspace.data.model.AttachmentMediaType
 import com.omnidev.workspace.data.model.AttachmentMeta
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
+import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.domain.attachment.AttachmentProcessor
+import com.omnidev.workspace.data.model.CompletionRequest
+import com.omnidev.workspace.data.model.CompletionResponse
 import com.omnidev.workspace.domain.engine.AgentEvent
 import com.omnidev.workspace.domain.engine.AgentPipeline
+import com.omnidev.workspace.domain.engine.OmniMode
+import com.omnidev.workspace.domain.engine.SwarmEvent
+import com.omnidev.workspace.domain.engine.SwarmOrchestrator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -59,20 +65,32 @@ data class ChatUiState(
     /** The currently active session ID (null = unsaved new session). */
     val currentSessionId: Long? = null,
     /** Partial text from the current streaming response (null = not streaming). */
-    val streamingContent: String? = null
+    val streamingContent: String? = null,
+    /** The currently active execution mode (Chat / Agent / Swarm). */
+    val activeMode: OmniMode = OmniMode.AGENT
 )
 
 /**
  * ViewModel for the Omni-Chat interface, managing conversation state
  * and agent pipeline execution.
  *
+ * @param settingsRepository User preferences (model IDs, target context, etc.).
+ * @param agentPipeline The ReAct agent engine for AGENT mode.
+ * @param chatRepository Optional persistence layer for chat sessions/messages.
  * @param attachmentProcessor Optional processor for reading image bytes for vision models.
+ * @param completionProvider Direct completion call for CHAT mode (no tools).
+ * @param streamingCompletionProvider Optional streaming variant for CHAT mode.
+ * @param swarmOrchestrator Optional orchestrator engine for SWARM mode.
  */
 class ChatViewModel(
     private val settingsRepository: SettingsRepository,
     private val agentPipeline: AgentPipeline,
     private val chatRepository: ChatRepository? = null,
-    private val attachmentProcessor: AttachmentProcessor? = null
+    private val attachmentProcessor: AttachmentProcessor? = null,
+    private val completionProvider: (suspend (CompletionRequest) -> CompletionResponse)? = null,
+    private val streamingCompletionProvider: (suspend (CompletionRequest, suspend (String) -> Unit) -> CompletionResponse)? = null,
+    private val swarmOrchestrator: SwarmOrchestrator? = null,
+    private val apiKeyRepository: ApiKeyRepository? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -103,6 +121,11 @@ class ChatViewModel(
     /** Opens or closes the history drawer. */
     fun setDrawerOpen(open: Boolean) {
         _uiState.update { it.copy(isDrawerOpen = open) }
+    }
+
+    /** Switches the active execution mode (Chat / Agent / Swarm). */
+    fun setMode(mode: OmniMode) {
+        _uiState.update { it.copy(activeMode = mode) }
     }
 
     /**
@@ -224,14 +247,18 @@ class ChatViewModel(
     }
 
     /**
-     * Sends the current input message (and any pending attachments) to the agent pipeline.
+     * Sends the current input message (and any pending attachments) to the
+     * execution engine selected by the active [OmniMode].
      */
     fun sendMessage() {
         val input = _uiState.value.inputText.trim()
         if (input.isEmpty()) return
 
+        val mode = _uiState.value.activeMode
+
+        // CHAT mode does not require a Target Context scope
         val scopePath = _uiState.value.targetContext
-        if (scopePath == null) {
+        if (mode != OmniMode.CHAT && scopePath == null) {
             _uiState.update { it.copy(errorMessage = "Please set a Target Context before sending messages.") }
             return
         }
@@ -252,7 +279,7 @@ class ChatViewModel(
                 messages = it.messages + userMessage,
                 inputText = "",
                 isProcessing = true,
-                agentStatus = "Starting agent...",
+                agentStatus = "Starting ${mode.label}...",
                 errorMessage = null,
                 consoleEntries = emptyList(), // fresh console for each run
                 pendingAttachments = emptyList() // clear after send
@@ -264,17 +291,10 @@ class ChatViewModel(
             val sessionId = ensureSession(input)
             chatRepository?.saveMessage(sessionId, userMessage)
 
-            val modelId = settingsRepository
-                .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.AGENT)
-                .first()
-
-            val deepThinking = settingsRepository.observeDeepThinking().first()
-
             // Resolve base64 image data for vision-capable attachments
             val imageAttachments: List<AttachmentMeta> = attachments
                 .mapNotNull { pending ->
                     val uri = pending.uri
-                    // Read base64 data for image attachments only
                     val base64 = attachmentProcessor?.readImageAsBase64(uri) ?: return@mapNotNull null
                     val mimeType = attachmentProcessor.getMimeType(uri)
                     AttachmentMeta(
@@ -287,105 +307,388 @@ class ChatViewModel(
                     )
                 }
 
-            agentPipeline.execute(
-                userMessage = input,
-                conversationHistory = _uiState.value.messages.dropLast(1),
-                modelId = modelId,
-                scopePath = scopePath,
-                enableDeepThinking = deepThinking,
-                userAttachments = imageAttachments
-            ).collect { event ->
-                when (event) {
-                    is AgentEvent.Started ->
-                        _uiState.update { it.copy(agentStatus = "Agent started...") }
+            when (mode) {
+                OmniMode.CHAT -> executeChatMode(input, imageAttachments, sessionId)
+                OmniMode.AGENT -> executeAgentMode(input, imageAttachments, sessionId, scopePath!!)
+                OmniMode.SWARM -> executeSwarmMode(input, sessionId, scopePath!!)
+            }
+        }
+    }
 
-                    is AgentEvent.Thinking ->
-                        _uiState.update {
-                            it.copy(
-                                agentStatus = "Thinking (iteration ${event.iteration})...",
-                                consoleEntries = it.consoleEntries +
-                                    AgentConsoleEntry.ThinkingEntry(event.iteration)
-                            )
-                        }
+    // ──────────────────────────────────────────────
+    //  MODE: CHAT — Direct Completion (No Tools)
+    // ──────────────────────────────────────────────
 
-                    is AgentEvent.ThinkingBlock ->
-                        _uiState.update {
-                            it.copy(
-                                agentStatus = "Deep thinking...",
-                                consoleEntries = it.consoleEntries +
-                                    AgentConsoleEntry.DeepThinkingEntry(event.content)
-                            )
-                        }
+    /**
+     * Sends the prompt directly to [CompletionService] without the ReAct loop or tools.
+     * Uses the **Chat Model** preference from [SettingsRepository].
+     */
+    private suspend fun executeChatMode(
+        input: String,
+        imageAttachments: List<AttachmentMeta>,
+        sessionId: Long
+    ) {
+        val modelId = settingsRepository
+            .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.CHAT)
+            .first()
 
-                    is AgentEvent.ToolExecution -> {
-                        val params = event.arguments.entries
-                            .joinToString(", ") { (k, v) -> "$k=${v.toString().take(40)}" }
-                        _uiState.update {
-                            it.copy(
-                                agentStatus = "Executing ${event.toolName}...",
-                                consoleEntries = it.consoleEntries +
-                                    AgentConsoleEntry.ToolEntry(event.toolName, params, event.iteration)
-                            )
-                        }
-                    }
+        val history = _uiState.value.messages.dropLast(1)
 
-                    is AgentEvent.ToolResult -> {
-                        val snippet = event.output.lines().firstOrNull()?.take(100) ?: ""
-                        _uiState.update {
-                            it.copy(
-                                agentStatus = if (event.isError) "Tool error: ${event.toolName}"
-                                else "Tool completed: ${event.toolName}",
-                                consoleEntries = it.consoleEntries +
-                                    AgentConsoleEntry.ResultEntry(event.toolName, snippet, event.isError)
-                            )
-                        }
-                    }
+        val request = CompletionRequest(
+            modelId = modelId,
+            messages = history + ChatMessage(
+                role = MessageRole.USER,
+                content = input,
+                attachments = imageAttachments
+            ),
+            systemPrompt = "You are a helpful coding assistant. Answer questions directly without using tools.",
+            maxTokens = 4096,
+            temperature = 0.7
+        )
 
-                    is AgentEvent.TokenUsageUpdate ->
-                        _uiState.update {
-                            it.copy(
-                                agentStatus = "Thinking (${event.totalTokens} tokens used)...",
-                                consoleEntries = it.consoleEntries +
-                                    AgentConsoleEntry.TokenEntry(event.totalTokens, event.budget)
-                            )
-                        }
+        // Inject API key
+        val model = com.omnidev.workspace.registry.ModelRegistry.findModelById(modelId)
+        val apiKey = model?.let { apiKeyRepository?.getApiKey(it.provider) }
+        val requestWithKey = request.copy(apiKey = apiKey)
 
-                    is AgentEvent.StreamChunk ->
-                        _uiState.update {
-                            it.copy(streamingContent = (it.streamingContent ?: "") + event.delta)
-                        }
-
-                    is AgentEvent.FinalAnswer -> {
-                        val assistantMessage = ChatMessage(
-                            role = MessageRole.ASSISTANT,
-                            content = event.content
-                        )
-                        chatRepository?.saveMessage(sessionId, assistantMessage)
-                        _uiState.update {
-                            it.copy(
-                                messages = it.messages + assistantMessage,
-                                isProcessing = false,
-                                agentStatus = null,
-                                streamingContent = null, // streaming complete
-                                consoleEntries = it.consoleEntries + AgentConsoleEntry.ReplyEntry()
-                            )
-                        }
-                    }
-
-                    is AgentEvent.Error -> {
-                        _uiState.update {
-                            it.copy(
-                                isProcessing = false,
-                                agentStatus = null,
-                                errorMessage = event.message,
-                                streamingContent = null,
-                                consoleEntries = it.consoleEntries +
-                                    AgentConsoleEntry.ErrorEntry(event.message)
-                            )
-                        }
+        val response: CompletionResponse
+        try {
+            response = if (streamingCompletionProvider != null) {
+                streamingCompletionProvider.invoke(requestWithKey) { delta ->
+                    _uiState.update {
+                        it.copy(streamingContent = (it.streamingContent ?: "") + delta)
                     }
                 }
+            } else if (completionProvider != null) {
+                completionProvider.invoke(requestWithKey)
+            } else {
+                _uiState.update {
+                    it.copy(
+                        isProcessing = false,
+                        errorMessage = "Chat mode is not available — no completion provider configured."
+                    )
+                }
+                return
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _uiState.update {
+                it.copy(
+                    isProcessing = false,
+                    agentStatus = null,
+                    streamingContent = null,
+                    errorMessage = e.message ?: "Chat request failed."
+                )
+            }
+            return
+        }
+
+        val assistantMessage = ChatMessage(
+            role = MessageRole.ASSISTANT,
+            content = response.content
+        )
+        chatRepository?.saveMessage(sessionId, assistantMessage)
+        _uiState.update {
+            it.copy(
+                messages = it.messages + assistantMessage,
+                isProcessing = false,
+                agentStatus = null,
+                streamingContent = null
+            )
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  MODE: AGENT — Single ReAct Agent
+    // ──────────────────────────────────────────────
+
+    /**
+     * Routes the prompt through the [AgentPipeline] ReAct loop with full tool access.
+     * Uses the **Agent Model** preference from [SettingsRepository].
+     */
+    private suspend fun executeAgentMode(
+        input: String,
+        imageAttachments: List<AttachmentMeta>,
+        sessionId: Long,
+        scopePath: String
+    ) {
+        val modelId = settingsRepository
+            .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.AGENT)
+            .first()
+
+        val deepThinking = settingsRepository.observeDeepThinking().first()
+
+        agentPipeline.execute(
+            userMessage = input,
+            conversationHistory = _uiState.value.messages.dropLast(1),
+            modelId = modelId,
+            scopePath = scopePath,
+            enableDeepThinking = deepThinking,
+            userAttachments = imageAttachments
+        ).collect { event ->
+            handleAgentEvent(event, sessionId)
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  MODE: SWARM — Team Agents (Orchestrator → Workers)
+    // ──────────────────────────────────────────────
+
+    /**
+     * Routes the prompt through the [SwarmOrchestrator]: an Orchestrator model plans,
+     * then Worker agents execute each sub-task.
+     * Uses the **Swarm Orchestrator Model** for planning and the **Swarm Worker Model** for execution.
+     */
+    private suspend fun executeSwarmMode(
+        input: String,
+        sessionId: Long,
+        scopePath: String
+    ) {
+        val orchestrator = swarmOrchestrator
+        if (orchestrator == null) {
+            _uiState.update {
+                it.copy(
+                    isProcessing = false,
+                    errorMessage = "Swarm mode is not available — no SwarmOrchestrator configured."
+                )
+            }
+            return
+        }
+
+        val orchestratorModelId = settingsRepository
+            .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.SWARM_ORCHESTRATOR)
+            .first()
+        val workerModelId = settingsRepository
+            .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.SWARM_WORKER)
+            .first()
+        val deepThinking = settingsRepository.observeDeepThinking().first()
+
+        orchestrator.execute(
+            userMessage = input,
+            orchestratorModelId = orchestratorModelId,
+            workerModelId = workerModelId,
+            scopePath = scopePath,
+            enableDeepThinking = deepThinking
+        ).collect { event ->
+            handleSwarmEvent(event, sessionId)
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  Event Handlers
+    // ──────────────────────────────────────────────
+
+    /** Maps [AgentEvent]s to UI state updates and console entries. */
+    private fun handleAgentEvent(event: AgentEvent, sessionId: Long) {
+        when (event) {
+            is AgentEvent.Started ->
+                _uiState.update { it.copy(agentStatus = "Agent started...") }
+
+            is AgentEvent.Thinking ->
+                _uiState.update {
+                    it.copy(
+                        agentStatus = "Thinking (iteration ${event.iteration})...",
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.ThinkingEntry(event.iteration)
+                    )
+                }
+
+            is AgentEvent.ThinkingBlock ->
+                _uiState.update {
+                    it.copy(
+                        agentStatus = "Deep thinking...",
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.DeepThinkingEntry(event.content)
+                    )
+                }
+
+            is AgentEvent.ToolExecution -> {
+                val params = event.arguments.entries
+                    .joinToString(", ") { (k, v) -> "$k=${v.toString().take(40)}" }
+                _uiState.update {
+                    it.copy(
+                        agentStatus = "Executing ${event.toolName}...",
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.ToolEntry(event.toolName, params, event.iteration)
+                    )
+                }
+            }
+
+            is AgentEvent.ToolResult -> {
+                val snippet = event.output.lines().firstOrNull()?.take(100) ?: ""
+                _uiState.update {
+                    it.copy(
+                        agentStatus = if (event.isError) "Tool error: ${event.toolName}"
+                        else "Tool completed: ${event.toolName}",
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.ResultEntry(event.toolName, snippet, event.isError)
+                    )
+                }
+            }
+
+            is AgentEvent.TokenUsageUpdate ->
+                _uiState.update {
+                    it.copy(
+                        agentStatus = "Thinking (${event.totalTokens} tokens used)...",
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.TokenEntry(event.totalTokens, event.budget)
+                    )
+                }
+
+            is AgentEvent.StreamChunk ->
+                _uiState.update {
+                    it.copy(streamingContent = (it.streamingContent ?: "") + event.delta)
+                }
+
+            is AgentEvent.FinalAnswer -> {
+                val assistantMessage = ChatMessage(
+                    role = MessageRole.ASSISTANT,
+                    content = event.content
+                )
+                viewModelScope.launch {
+                    chatRepository?.saveMessage(sessionId, assistantMessage)
+                }
+                _uiState.update {
+                    it.copy(
+                        messages = it.messages + assistantMessage,
+                        isProcessing = false,
+                        agentStatus = null,
+                        streamingContent = null,
+                        consoleEntries = it.consoleEntries + AgentConsoleEntry.ReplyEntry()
+                    )
+                }
+            }
+
+            is AgentEvent.Error -> {
+                _uiState.update {
+                    it.copy(
+                        isProcessing = false,
+                        agentStatus = null,
+                        errorMessage = event.message,
+                        streamingContent = null,
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.ErrorEntry(event.message)
+                    )
+                }
+            }
+        }
+    }
+
+    /** Maps [SwarmEvent]s to UI state updates and console entries. */
+    private fun handleSwarmEvent(event: SwarmEvent, sessionId: Long) {
+        when (event) {
+            is SwarmEvent.PlanningStarted ->
+                _uiState.update {
+                    it.copy(
+                        agentStatus = "🧠 Planning sub-tasks...",
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.ThinkingEntry(0)
+                    )
+                }
+
+            is SwarmEvent.PlanCompleted ->
+                _uiState.update {
+                    it.copy(
+                        agentStatus = "Plan: ${event.tasks.size} sub-tasks",
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.DeepThinkingEntry(
+                                "Plan completed — ${event.tasks.size} sub-tasks:\n" +
+                                    event.tasks.joinToString("\n") { "  • [${it.id}] ${it.description}" }
+                            )
+                    )
+                }
+
+            is SwarmEvent.TaskStarted ->
+                _uiState.update {
+                    it.copy(
+                        agentStatus = "⚙️ Worker: ${event.task.id}",
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.ToolEntry(
+                                toolName = "worker:${event.task.id}",
+                                params = event.task.description.take(80),
+                                iteration = event.task.priority
+                            )
+                    )
+                }
+
+            is SwarmEvent.TaskCompleted -> {
+                val snippet = event.result.lines().firstOrNull()?.take(100) ?: ""
+                _uiState.update {
+                    it.copy(
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.ResultEntry(event.task.id, snippet, isError = false)
+                    )
+                }
+            }
+
+            is SwarmEvent.TaskFailed ->
+                _uiState.update {
+                    it.copy(
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.ResultEntry(event.task.id, event.error, isError = true)
+                    )
+                }
+
+            is SwarmEvent.TaskSkipped ->
+                _uiState.update {
+                    it.copy(
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.ResultEntry(event.task.id, "Skipped: ${event.reason}", isError = true)
+                    )
+                }
+
+            is SwarmEvent.WorkerToolUse ->
+                _uiState.update {
+                    val params = event.arguments.entries
+                        .joinToString(", ") { (k, v) -> "$k=${v.take(40)}" }
+                    it.copy(
+                        agentStatus = "Worker ${event.task.id}: ${event.toolName}",
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.ToolEntry(event.toolName, params, event.task.priority)
+                    )
+                }
+
+            is SwarmEvent.SynthesisStarted ->
+                _uiState.update {
+                    it.copy(
+                        agentStatus = "🔗 Synthesizing results...",
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.ThinkingEntry(99)
+                    )
+                }
+
+            is SwarmEvent.Completed -> {
+                val assistantMessage = ChatMessage(
+                    role = MessageRole.ASSISTANT,
+                    content = event.summary
+                )
+                viewModelScope.launch {
+                    chatRepository?.saveMessage(sessionId, assistantMessage)
+                }
+                _uiState.update {
+                    it.copy(
+                        messages = it.messages + assistantMessage,
+                        isProcessing = false,
+                        agentStatus = null,
+                        streamingContent = null,
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.ReplyEntry()
+                    )
+                }
+            }
+
+            is SwarmEvent.Error ->
+                _uiState.update {
+                    it.copy(
+                        isProcessing = false,
+                        agentStatus = null,
+                        errorMessage = event.message,
+                        streamingContent = null,
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.ErrorEntry(event.message)
+                    )
+                }
         }
     }
 

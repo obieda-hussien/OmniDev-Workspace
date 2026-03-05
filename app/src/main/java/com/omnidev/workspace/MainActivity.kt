@@ -15,6 +15,7 @@ import com.omnidev.workspace.data.tools.MemoryManager
 import com.omnidev.workspace.domain.attachment.AttachmentProcessor
 import com.omnidev.workspace.domain.engine.AgentConfig
 import com.omnidev.workspace.domain.engine.AgentPipeline
+import com.omnidev.workspace.domain.engine.SwarmOrchestrator
 import com.omnidev.workspace.ui.chat.ChatViewModel
 import com.omnidev.workspace.ui.navigation.AppNavigation
 import com.omnidev.workspace.ui.providers.ProvidersViewModel
@@ -61,9 +62,26 @@ class MainActivity : ComponentActivity() {
             memoryManager = memoryManager
         )
 
+        // Swarm orchestrator for Team Agents mode
+        val swarmOrchestrator = SwarmOrchestrator(
+            toolManager = toolManager,
+            completionProvider = completionProvider
+        )
+
         val settingsViewModel = AISettingsViewModel(settingsRepository)
         val attachmentProcessor = AttachmentProcessor(contentResolver)
-        val chatViewModel = ChatViewModel(settingsRepository, agentPipeline, chatRepository, attachmentProcessor)
+        val chatViewModel = ChatViewModel(
+            settingsRepository = settingsRepository,
+            agentPipeline = agentPipeline,
+            chatRepository = chatRepository,
+            attachmentProcessor = attachmentProcessor,
+            completionProvider = completionProvider,
+            streamingCompletionProvider = { request, onChunk ->
+                completionService.stream(request, onChunk)
+            },
+            swarmOrchestrator = swarmOrchestrator,
+            apiKeyRepository = apiKeyRepository
+        )
         val providersViewModel = ProvidersViewModel(apiKeyRepository)
 
         setContent {
