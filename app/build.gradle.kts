@@ -76,6 +76,10 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
+    // Shizuku — privileged shell / ADB command execution (power-user tools)
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

@@ -16,10 +16,12 @@ interface ChatSessionDao {
     @Update
     suspend fun update(session: ChatSessionEntity)
 
-    @Query("SELECT * FROM chat_sessions ORDER BY lastUpdated DESC")
+    /** Observe all sessions: pinned first, then newest-first within each group. */
+    @Query("SELECT * FROM chat_sessions ORDER BY isPinned DESC, lastUpdated DESC")
     fun observeAll(): Flow<List<ChatSessionEntity>>
 
-    @Query("SELECT * FROM chat_sessions ORDER BY lastUpdated DESC")
+    /** Snapshot of all sessions: pinned first, then newest-first. */
+    @Query("SELECT * FROM chat_sessions ORDER BY isPinned DESC, lastUpdated DESC")
     suspend fun getAll(): List<ChatSessionEntity>
 
     @Query("SELECT * FROM chat_sessions WHERE id = :id LIMIT 1")
@@ -27,6 +29,12 @@ interface ChatSessionDao {
 
     @Query("UPDATE chat_sessions SET lastUpdated = :timestamp, title = :title WHERE id = :id")
     suspend fun updateTitleAndTimestamp(id: Long, title: String, timestamp: Long)
+
+    @Query("UPDATE chat_sessions SET title = :title WHERE id = :id")
+    suspend fun updateTitle(id: Long, title: String)
+
+    @Query("UPDATE chat_sessions SET isPinned = :pinned WHERE id = :id")
+    suspend fun setPin(id: Long, pinned: Boolean)
 
     @Query("DELETE FROM chat_sessions WHERE id = :id")
     suspend fun deleteById(id: Long)

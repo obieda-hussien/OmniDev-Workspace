@@ -26,6 +26,8 @@ data class AISettingsUiState(
     },
     /** Whether Deep Thinking mode is enabled globally. */
     val deepThinkingEnabled: Boolean = false,
+    /** Whether God Mode (unrestricted file system access) is enabled. */
+    val godModeEnabled: Boolean = false,
     /** Which role's dropdown is currently expanded (null = all collapsed). */
     val expandedDropdownRole: ModelRole? = null,
     /** Whether a save operation is in progress. */
@@ -59,11 +61,13 @@ class AISettingsViewModel(
         viewModelScope.launch {
             combine(
                 settingsRepository.observeAllModelAssignments(),
-                settingsRepository.observeDeepThinking()
-            ) { assignments, deepThinking ->
+                settingsRepository.observeDeepThinking(),
+                settingsRepository.observeGodMode()
+            ) { assignments, deepThinking, godMode ->
                 AISettingsUiState(
                     modelAssignments = assignments,
-                    deepThinkingEnabled = deepThinking
+                    deepThinkingEnabled = deepThinking,
+                    godModeEnabled = godMode
                 )
             }.collect { state ->
                 _uiState.update { state }
@@ -100,6 +104,16 @@ class AISettingsViewModel(
         viewModelScope.launch {
             settingsRepository.setDeepThinking(enabled)
             _uiState.update { it.copy(deepThinkingEnabled = enabled) }
+        }
+    }
+
+    /**
+     * Toggles God Mode on/off.
+     */
+    fun toggleGodMode(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setGodMode(enabled)
+            _uiState.update { it.copy(godModeEnabled = enabled) }
         }
     }
 

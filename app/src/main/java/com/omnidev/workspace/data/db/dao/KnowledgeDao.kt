@@ -3,6 +3,7 @@ package com.omnidev.workspace.data.db.dao
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 import com.omnidev.workspace.data.db.entities.KnowledgeSnippet
 import kotlinx.coroutines.flow.Flow
 
@@ -11,6 +12,9 @@ interface KnowledgeDao {
 
     @Insert
     suspend fun insert(snippet: KnowledgeSnippet): Long
+
+    @Update
+    suspend fun update(snippet: KnowledgeSnippet)
 
     /** Full-text-style search across content and tags using LIKE. */
     @Query(

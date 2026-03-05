@@ -158,6 +158,8 @@ After each observation, reflect: "Did this achieve the intended result? What's n
      * @param enableDeepThinking Whether to inject extended thinking prompts.
      * @param userAttachments Optional image attachments to include in the first user message.
      *        Should contain [AttachmentMeta] with [AttachmentMeta.base64Data] populated.
+     * @param customSystemPrompt When non-null, overrides the default tier-based system prompt.
+     *        This allows users to inject custom personas via the System Prompt Studio.
      * @return A [Flow] of [AgentEvent]s representing the agent's progress.
      */
     fun execute(
@@ -166,7 +168,8 @@ After each observation, reflect: "Did this achieve the intended result? What's n
         modelId: String,
         scopePath: String,
         enableDeepThinking: Boolean = false,
-        userAttachments: List<AttachmentMeta> = emptyList()
+        userAttachments: List<AttachmentMeta> = emptyList(),
+        customSystemPrompt: String? = null
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.Started)
 
@@ -176,12 +179,13 @@ After each observation, reflect: "Did this achieve the intended result? What's n
                 return@channelFlow
             }
 
-        // Select tier-appropriate system prompt
-        val baseSystemPrompt = when (model.tier) {
-            ModelTier.ORCHESTRATOR -> ORCHESTRATOR_SYSTEM_PROMPT
-            ModelTier.EXECUTOR -> EXECUTOR_SYSTEM_PROMPT
-            ModelTier.FAST -> FAST_SYSTEM_PROMPT
-        }
+        // Select tier-appropriate system prompt, or use the custom override
+        val baseSystemPrompt = customSystemPrompt?.takeIf { it.isNotBlank() }
+            ?: when (model.tier) {
+                ModelTier.ORCHESTRATOR -> ORCHESTRATOR_SYSTEM_PROMPT
+                ModelTier.EXECUTOR -> EXECUTOR_SYSTEM_PROMPT
+                ModelTier.FAST -> FAST_SYSTEM_PROMPT
+            }
 
         // Build the complete system prompt with tool definitions
         val toolDefs = toolManager.getToolDefinitions()

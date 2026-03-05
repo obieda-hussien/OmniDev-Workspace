@@ -13,6 +13,7 @@ import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.data.tools.FileToolManager
 import com.omnidev.workspace.domain.attachment.AttachmentProcessor
 import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
@@ -67,7 +68,9 @@ data class ChatUiState(
     /** Partial text from the current streaming response (null = not streaming). */
     val streamingContent: String? = null,
     /** The currently active execution mode (Chat / Agent / Swarm). */
-    val activeMode: OmniMode = OmniMode.AGENT
+    val activeMode: OmniMode = OmniMode.AGENT,
+    /** A privileged action awaiting user approval via [ConfirmationGateDialog]. */
+    val pendingConfirmation: PendingConfirmation? = null
 )
 
 /**
@@ -83,6 +86,7 @@ data class ChatUiState(
  *        The first parameter is the [CompletionRequest]; the second is a `suspend (String) -> Unit`
  *        callback that receives each text-delta chunk as it arrives from the SSE stream.
  * @param swarmOrchestrator Optional orchestrator engine for SWARM mode.
+ * @param fileToolManager Optional reference to the [FileToolManager] for syncing God Mode.
  */
 class ChatViewModel(
     private val settingsRepository: SettingsRepository,
@@ -92,7 +96,8 @@ class ChatViewModel(
     private val completionProvider: (suspend (CompletionRequest) -> CompletionResponse)? = null,
     private val streamingCompletionProvider: (suspend (CompletionRequest, suspend (String) -> Unit) -> CompletionResponse)? = null,
     private val swarmOrchestrator: SwarmOrchestrator? = null,
-    private val apiKeyRepository: ApiKeyRepository? = null
+    private val apiKeyRepository: ApiKeyRepository? = null,
+    private val fileToolManager: FileToolManager? = null
 ) : ViewModel() {
 
     companion object {
@@ -107,6 +112,7 @@ class ChatViewModel(
     init {
         loadTargetContext()
         observeSessions()
+        observeGodMode()
     }
 
     private fun loadTargetContext() {
@@ -124,6 +130,26 @@ class ChatViewModel(
                 _uiState.update { it.copy(sessions = sessions) }
             }
         }
+    }
+
+    /** Syncs the God Mode flag from settings into [FileToolManager] in real-time. */
+    private fun observeGodMode() {
+        val ftm = fileToolManager ?: return
+        viewModelScope.launch {
+            settingsRepository.observeGodMode().collect { enabled ->
+                ftm.godModeEnabled = enabled
+            }
+        }
+    }
+
+    /** Raises a pending confirmation that must be approved by the user before the action executes. */
+    fun showConfirmation(confirmation: PendingConfirmation) {
+        _uiState.update { it.copy(pendingConfirmation = confirmation) }
+    }
+
+    /** Clears the pending confirmation (called after approve or deny). */
+    fun clearConfirmation() {
+        _uiState.update { it.copy(pendingConfirmation = null) }
     }
 
     /** Opens or closes the history drawer. */
@@ -167,6 +193,35 @@ class ChatViewModel(
                 streamingContent = null,
                 isDrawerOpen = false
             )
+        }
+    }
+
+    /** Toggles the pinned state for the given session. */
+    fun togglePinSession(sessionId: Long) {
+        viewModelScope.launch { chatRepository?.togglePin(sessionId) }
+    }
+
+    /** Renames the given session. */
+    fun renameSession(sessionId: Long, newTitle: String) {
+        if (newTitle.isBlank()) return
+        viewModelScope.launch { chatRepository?.renameSession(sessionId, newTitle.trim()) }
+    }
+
+    /** Deletes a session and, if it was the active session, starts a new one. */
+    fun deleteSession(sessionId: Long) {
+        viewModelScope.launch {
+            chatRepository?.deleteSession(sessionId)
+            if (_uiState.value.currentSessionId == sessionId) {
+                _uiState.update {
+                    it.copy(
+                        currentSessionId = null,
+                        messages = emptyList(),
+                        consoleEntries = emptyList(),
+                        errorMessage = null,
+                        streamingContent = null
+                    )
+                }
+            }
         }
     }
 
@@ -432,6 +487,9 @@ class ChatViewModel(
             .first()
 
         val deepThinking = settingsRepository.observeDeepThinking().first()
+        val customPrompt = settingsRepository
+            .observeCustomPrompt(SettingsRepository.PromptRole.AGENT)
+            .first()
 
         agentPipeline.execute(
             userMessage = input,
@@ -439,7 +497,8 @@ class ChatViewModel(
             modelId = modelId,
             scopePath = scopePath,
             enableDeepThinking = deepThinking,
-            userAttachments = imageAttachments
+            userAttachments = imageAttachments,
+            customSystemPrompt = customPrompt
         ).collect { event ->
             handleAgentEvent(event, sessionId)
         }

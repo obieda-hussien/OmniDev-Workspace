@@ -44,7 +44,8 @@ class MainActivity : ComponentActivity() {
         val memoryManager = MemoryManager(database.knowledgeDao())
 
         // Composite tool manager: file tools + long-term memory tools
-        val toolManager = CompositeToolManager(FileToolManager(), memoryManager)
+        val fileToolManager = FileToolManager()
+        val toolManager = CompositeToolManager(fileToolManager, memoryManager)
 
         // Real HTTP completion provider
         val completionService = CompletionService()
@@ -81,7 +82,8 @@ class MainActivity : ComponentActivity() {
                 completionService.stream(request, onChunk)
             },
             swarmOrchestrator = swarmOrchestrator,
-            apiKeyRepository = apiKeyRepository
+            apiKeyRepository = apiKeyRepository,
+            fileToolManager = fileToolManager
         )
         val providersViewModel = ProvidersViewModel(apiKeyRepository)
 
@@ -90,7 +92,9 @@ class MainActivity : ComponentActivity() {
                 AppNavigation(
                     settingsViewModel = settingsViewModel,
                     chatViewModel = chatViewModel,
-                    providersViewModel = providersViewModel
+                    providersViewModel = providersViewModel,
+                    settingsRepository = settingsRepository,
+                    database = database
                 )
             }
         }

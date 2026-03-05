@@ -74,4 +74,15 @@ class ChatRepository(
 
     /** Deletes a session and all its messages (cascade delete handles messages). */
     suspend fun deleteSession(sessionId: Long) = sessionDao.deleteById(sessionId)
+
+    /** Toggles the pinned state for the given session. */
+    suspend fun togglePin(sessionId: Long) {
+        val session = sessionDao.getById(sessionId) ?: return
+        sessionDao.setPin(sessionId, !session.isPinned)
+    }
+
+    /** Renames the given session. */
+    suspend fun renameSession(sessionId: Long, newTitle: String) {
+        sessionDao.updateTitle(sessionId, newTitle)
+    }
 }

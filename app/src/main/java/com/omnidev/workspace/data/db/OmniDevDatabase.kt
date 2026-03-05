@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.omnidev.workspace.data.db.dao.ChatMessageDao
 import com.omnidev.workspace.data.db.dao.ChatSessionDao
 import com.omnidev.workspace.data.db.dao.KnowledgeDao
@@ -15,10 +17,14 @@ import com.omnidev.workspace.data.db.entities.KnowledgeSnippet
  * Single Room database instance for all persisted OmniDev data:
  * - Knowledge snippets (long-term memory)
  * - Chat sessions and their message history
+ *
+ * Version history:
+ *  1 → initial schema
+ *  2 → added `isPinned` column to `chat_sessions`
  */
 @Database(
     entities = [KnowledgeSnippet::class, ChatSessionEntity::class, ChatMessageEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -30,13 +36,24 @@ abstract class OmniDevDatabase : RoomDatabase() {
     companion object {
         @Volatile private var INSTANCE: OmniDevDatabase? = null
 
+        /** Migration from v1 (no isPinned) → v2 (isPinned column added). */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE chat_sessions ADD COLUMN isPinned INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
         fun getInstance(context: Context): OmniDevDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     OmniDevDatabase::class.java,
                     "omnidev_workspace.db"
-                ).build().also { INSTANCE = it }
+                )
+                    .addMigrations(MIGRATION_1_2)
+                    .build().also { INSTANCE = it }
             }
     }
 }

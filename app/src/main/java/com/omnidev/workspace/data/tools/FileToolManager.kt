@@ -24,7 +24,20 @@ import java.net.URLEncoder
  * - `run_terminal`: Execute a shell command in the Target Context directory.
  * - `web_search`: Search the web using DuckDuckGo Lite and return the top results.
  */
-class FileToolManager : ToolManager {
+class FileToolManager(
+    /**
+     * When true, the scope-restriction check in [validateScope] is bypassed.
+     * This enables the agent to read/write anywhere on the filesystem.
+     *
+     * **SAFETY**: God Mode actions must be gated behind
+     * [com.omnidev.workspace.ui.chat.ConfirmationGate] in the agent pipeline —
+     * the agent cannot use God Mode operations without explicit user approval.
+     *
+     * This flag is updated at runtime by [ChatViewModel] when the user toggles
+     * God Mode in Settings.
+     */
+    @Volatile var godModeEnabled: Boolean = false
+) : ToolManager {
 
     companion object {
         /** Maximum lines returned from a single read to guard context window usage. */
@@ -595,9 +608,15 @@ class FileToolManager : ToolManager {
      * Validates that a resolved [filePath] falls within the allowed [scopePath].
      * Uses canonical path resolution to prevent traversal attacks (e.g., ../../etc/passwd).
      *
-     * @throws SecurityException if the file path escapes the scope.
+     * When [godModeEnabled] is true the check is skipped entirely, allowing the agent to
+     * operate on any path. This must only ever be activated after user confirmation via
+     * [com.omnidev.workspace.ui.chat.ConfirmationGate].
+     *
+     * @throws SecurityException if the file path escapes the scope (when God Mode is off).
      */
     private fun validateScope(filePath: String, scopePath: String) {
+        if (godModeEnabled) return  // God Mode: skip scope enforcement
+
         val canonicalFile = File(filePath).canonicalPath
         val canonicalScope = File(scopePath).canonicalPath
 

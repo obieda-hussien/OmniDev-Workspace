@@ -41,6 +41,15 @@ class SettingsRepository(private val context: Context) {
         val TARGET_CONTEXT_PATH = stringPreferencesKey("target_context_path")
         /** SAF content:// URI string for the user's chosen directory (persistable permission). */
         val TARGET_CONTEXT_URI = stringPreferencesKey("target_context_uri")
+        // Custom system prompts (per-mode)
+        val CUSTOM_CHAT_PROMPT = stringPreferencesKey("custom_chat_prompt")
+        val CUSTOM_AGENT_PROMPT = stringPreferencesKey("custom_agent_prompt")
+        val CUSTOM_ORCHESTRATOR_PROMPT = stringPreferencesKey("custom_orchestrator_prompt")
+        // Advanced engine settings
+        val TEMPERATURE = stringPreferencesKey("engine_temperature") // stored as string to avoid float precision issues
+        val MAX_TOKENS = stringPreferencesKey("engine_max_tokens")
+        // God Mode
+        val GOD_MODE_ENABLED = booleanPreferencesKey("god_mode_enabled")
     }
 
     // ──────────────────────────────────────────────
@@ -150,6 +159,65 @@ class SettingsRepository(private val context: Context) {
                 preferences.remove(Keys.TARGET_CONTEXT_PATH)
             }
         }
+    }
+
+    // ──────────────────────────────────────────────
+    //  Custom System Prompts
+    // ──────────────────────────────────────────────
+
+    enum class PromptRole { CHAT, AGENT, ORCHESTRATOR }
+
+    fun observeCustomPrompt(role: PromptRole): Flow<String?> {
+        val key = when (role) {
+            PromptRole.CHAT -> Keys.CUSTOM_CHAT_PROMPT
+            PromptRole.AGENT -> Keys.CUSTOM_AGENT_PROMPT
+            PromptRole.ORCHESTRATOR -> Keys.CUSTOM_ORCHESTRATOR_PROMPT
+        }
+        return context.settingsDataStore.data.map { it[key] }
+    }
+
+    suspend fun setCustomPrompt(role: PromptRole, prompt: String?) {
+        val key = when (role) {
+            PromptRole.CHAT -> Keys.CUSTOM_CHAT_PROMPT
+            PromptRole.AGENT -> Keys.CUSTOM_AGENT_PROMPT
+            PromptRole.ORCHESTRATOR -> Keys.CUSTOM_ORCHESTRATOR_PROMPT
+        }
+        context.settingsDataStore.edit { prefs ->
+            if (prompt.isNullOrBlank()) prefs.remove(key) else prefs[key] = prompt
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  Advanced Engine Settings
+    // ──────────────────────────────────────────────
+
+    /** Observes the generation temperature (0.0–2.0). Default 0.7. */
+    fun observeTemperature(): Flow<Float> =
+        context.settingsDataStore.data.map { (it[Keys.TEMPERATURE]?.toFloatOrNull()) ?: 0.7f }
+
+    suspend fun setTemperature(value: Float) {
+        context.settingsDataStore.edit { it[Keys.TEMPERATURE] = value.toString() }
+    }
+
+    /** Observes the max output tokens override (null = use model default). */
+    fun observeMaxTokens(): Flow<Int?> =
+        context.settingsDataStore.data.map { it[Keys.MAX_TOKENS]?.toIntOrNull() }
+
+    suspend fun setMaxTokens(value: Int?) {
+        context.settingsDataStore.edit { prefs ->
+            if (value == null) prefs.remove(Keys.MAX_TOKENS) else prefs[Keys.MAX_TOKENS] = value.toString()
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  God Mode
+    // ──────────────────────────────────────────────
+
+    fun observeGodMode(): Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.GOD_MODE_ENABLED] ?: false }
+
+    suspend fun setGodMode(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.GOD_MODE_ENABLED] = enabled }
     }
 
     // ──────────────────────────────────────────────

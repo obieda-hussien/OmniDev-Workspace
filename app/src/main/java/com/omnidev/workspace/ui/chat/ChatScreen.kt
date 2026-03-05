@@ -11,7 +11,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,6 +65,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -84,6 +89,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -121,6 +127,22 @@ fun ChatScreen(
         initialValue = if (uiState.isDrawerOpen) DrawerValue.Open else DrawerValue.Closed
     )
     val scope = rememberCoroutineScope()
+
+    // Show the confirmation gate dialog if there's a pending privileged action
+    uiState.pendingConfirmation?.let { confirmation ->
+        ConfirmationGateDialog(
+            confirmation = confirmation.copy(
+                onApprove = {
+                    confirmation.onApprove()
+                    viewModel.clearConfirmation()
+                },
+                onDeny = {
+                    confirmation.onDeny()
+                    viewModel.clearConfirmation()
+                }
+            )
+        )
+    }
 
     // Sync drawer open state with ViewModel
     LaunchedEffect(uiState.isDrawerOpen) {
@@ -180,6 +202,9 @@ fun ChatScreen(
                     currentSessionId = uiState.currentSessionId,
                     onNewSession = { viewModel.newSession() },
                     onSessionClick = { viewModel.loadSession(it) },
+                    onTogglePin = { viewModel.togglePinSession(it) },
+                    onRenameSession = { id, title -> viewModel.renameSession(id, title) },
+                    onDeleteSession = { viewModel.deleteSession(it) },
                     onCloseDrawer = { scope.launch { drawerState.close() } }
                 )
             }
@@ -392,8 +417,60 @@ private fun SessionDrawerContent(
     currentSessionId: Long?,
     onNewSession: () -> Unit,
     onSessionClick: (Long) -> Unit,
+    onTogglePin: (Long) -> Unit,
+    onRenameSession: (Long, String) -> Unit,
+    onDeleteSession: (Long) -> Unit,
     onCloseDrawer: () -> Unit
 ) {
+    // Rename dialog state
+    var renameTarget by remember { mutableStateOf<ChatSessionEntity?>(null) }
+    var renameText by remember { mutableStateOf("") }
+    // Delete confirmation state
+    var deleteTarget by remember { mutableStateOf<ChatSessionEntity?>(null) }
+
+    // Rename dialog
+    if (renameTarget != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text("Rename session") },
+            text = {
+                androidx.compose.material3.OutlinedTextField(
+                    value = renameText,
+                    onValueChange = { renameText = it },
+                    label = { Text("Title") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    renameTarget?.let { onRenameSession(it.id, renameText) }
+                    renameTarget = null
+                }) { Text("Rename") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { renameTarget = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Delete confirmation dialog
+    if (deleteTarget != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete session?") },
+            text = { Text("\"${deleteTarget?.title}\" and all its messages will be permanently removed.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    deleteTarget?.let { onDeleteSession(it.id) }
+                    deleteTarget = null
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { deleteTarget = null }) { Text("Cancel") }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxHeight()
@@ -442,8 +519,36 @@ private fun SessionDrawerContent(
                 )
             }
         } else {
-            val grouped = groupSessionsByDate(sessions)
+            // Pinned sessions always appear at the top, then the rest grouped by date
+            val pinned = sessions.filter { it.isPinned }
+            val unpinned = sessions.filter { !it.isPinned }
+            val grouped = groupSessionsByDate(unpinned)
+
             LazyColumn(modifier = Modifier.weight(1f)) {
+                if (pinned.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "📌 Pinned",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+                        )
+                    }
+                    items(pinned) { session ->
+                        SessionItem(
+                            session = session,
+                            isActive = session.id == currentSessionId,
+                            onClick = { onSessionClick(session.id) },
+                            onPin = { onTogglePin(session.id) },
+                            onRename = {
+                                renameText = session.title
+                                renameTarget = session
+                            },
+                            onDelete = { deleteTarget = session }
+                        )
+                    }
+                    item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
+                }
                 grouped.forEach { (label, items) ->
                     item {
                         Text(
@@ -454,21 +559,94 @@ private fun SessionDrawerContent(
                         )
                     }
                     items(items) { session ->
-                        NavigationDrawerItem(
-                            label = {
-                                Text(
-                                    text = session.title,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            },
-                            selected = session.id == currentSessionId,
+                        SessionItem(
+                            session = session,
+                            isActive = session.id == currentSessionId,
                             onClick = { onSessionClick(session.id) },
-                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            onPin = { onTogglePin(session.id) },
+                            onRename = {
+                                renameText = session.title
+                                renameTarget = session
+                            },
+                            onDelete = { deleteTarget = session }
                         )
                     }
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun SessionItem(
+    session: ChatSessionEntity,
+    isActive: Boolean,
+    onClick: () -> Unit,
+    onPin: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var showContextMenu by remember { mutableStateOf(false) }
+    val view = LocalView.current
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(NavigationDrawerItemDefaults.ItemPadding)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(50))
+                .background(
+                    if (isActive) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surface
+                )
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = {
+                        view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                        showContextMenu = true
+                    }
+                )
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (session.isPinned) {
+                Text(
+                    text = "📌",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(end = 6.dp)
+                )
+            }
+            Text(
+                text = session.title,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
+                        else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        DropdownMenu(
+            expanded = showContextMenu,
+            onDismissRequest = { showContextMenu = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text(if (session.isPinned) "📌 Unpin" else "📌 Pin") },
+                onClick = { onPin(); showContextMenu = false }
+            )
+            DropdownMenuItem(
+                text = { Text("✏️ Rename") },
+                onClick = { onRename(); showContextMenu = false }
+            )
+            DropdownMenuItem(
+                text = { Text("🗑️ Delete", color = MaterialTheme.colorScheme.error) },
+                onClick = { onDelete(); showContextMenu = false }
+            )
         }
     }
 }

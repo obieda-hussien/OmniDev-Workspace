@@ -89,7 +89,9 @@ fun AISettingsScreen(
     viewModel: AISettingsViewModel,
     onNavigateBack: () -> Unit = {},
     onNavigateToProviders: () -> Unit = {},
-    onNavigateToDebug: () -> Unit = {}
+    onNavigateToDebug: () -> Unit = {},
+    onNavigateToSystemPrompt: () -> Unit = {},
+    onNavigateToMemoryExplorer: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -190,8 +192,35 @@ fun AISettingsScreen(
                 onToggle = { viewModel.toggleDeepThinking(it) }
             )
 
+            // God Mode toggle card
+            GodModeCard(
+                enabled = uiState.godModeEnabled,
+                onToggle = { viewModel.toggleGodMode(it) }
+            )
+
             // Debug console card
             DebugConsoleCard(onNavigateToDebug = onNavigateToDebug)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // ── Section: AI Identity & Context Studio ──
+            SectionHeader(
+                icon = Icons.Filled.AutoAwesome,
+                title = "AI Identity & Context",
+                subtitle = "Customize system prompts and manage the knowledge base"
+            )
+
+            SettingsNavCard(
+                title = "System Prompt Studio",
+                subtitle = "Customize the AI's persona with templates or raw prompts",
+                onClick = onNavigateToSystemPrompt
+            )
+
+            SettingsNavCard(
+                title = "Knowledge Base Explorer",
+                subtitle = "Browse, search, edit, and add permanent AI memories",
+                onClick = onNavigateToMemoryExplorer
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
         }
@@ -507,6 +536,69 @@ private fun DeepThinkingCard(
 }
 
 /**
+ * God Mode toggle card — enables unrestricted filesystem access (bypass Target Context scope).
+ * All actions still require explicit user confirmation via the ConfirmationGate.
+ */
+@Composable
+private fun GodModeCard(
+    enabled: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (enabled)
+                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
+            else
+                MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "🔓",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "God Mode (All Files Access)",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (enabled) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = if (enabled)
+                        "⚠️ ACTIVE — AI can read/write anywhere on the filesystem. Every action requires your explicit confirmation."
+                    else
+                        "Bypass the Target Context restriction. Requires MANAGE_EXTERNAL_STORAGE. Every privileged action triggers a confirmation gate.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (enabled) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Switch(
+                checked = enabled,
+                onCheckedChange = onToggle,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = MaterialTheme.colorScheme.error,
+                    checkedTrackColor = MaterialTheme.colorScheme.errorContainer
+                )
+            )
+        }
+    }
+}
+
+/**
  * Card that navigates to the API key management screen.
  */
 @Composable
@@ -631,4 +723,37 @@ private fun buildModelCapabilityString(model: AIModel): String = buildString {
     if (model.supportsThinking) append(" · Thinking")
     model.speedTokensPerSecond?.let { append(" · ${it}t/s") }
     model.costPer1MInputTokens?.let { append(" · \$${formatCost(it)}/M") }
+}
+
+/**
+ * Generic navigation card for settings sections.
+ */
+@Composable
+private fun SettingsNavCard(title: String, subtitle: String, onClick: () -> Unit) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
 }
