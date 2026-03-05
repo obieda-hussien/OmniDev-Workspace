@@ -12,7 +12,7 @@ import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.serialization.Serializable
 import kotlin.math.min
 
@@ -167,13 +167,13 @@ After each observation, reflect: "Did this achieve the intended result? What's n
         scopePath: String,
         enableDeepThinking: Boolean = false,
         userAttachments: List<AttachmentMeta> = emptyList()
-    ): Flow<AgentEvent> = flow {
-        emit(AgentEvent.Started)
+    ): Flow<AgentEvent> = channelFlow {
+        send(AgentEvent.Started)
 
         val model = ModelRegistry.findModelById(modelId)
             ?: run {
-                emit(AgentEvent.Error("Unknown model: $modelId"))
-                return@flow
+                send(AgentEvent.Error("Unknown model: $modelId"))
+                return@channelFlow
             }
 
         // Select tier-appropriate system prompt
@@ -240,14 +240,14 @@ After each observation, reflect: "Did this achieve the intended result? What's n
         // ── ReAct Loop ──
         while (iteration < config.maxIterations) {
             iteration++
-            emit(AgentEvent.Thinking(iteration = iteration))
+            send(AgentEvent.Thinking(iteration = iteration))
 
             // Token budget enforcement
             if (config.tokenBudget != null && totalTokensUsed >= config.tokenBudget) {
-                emit(AgentEvent.Error(
+                send(AgentEvent.Error(
                     "Token budget of ${config.tokenBudget} tokens exhausted after $iteration iterations."
                 ))
-                return@flow
+                return@channelFlow
             }
 
             // Context window trimming — drop oldest non-system messages when approaching limit
@@ -269,15 +269,15 @@ After each observation, reflect: "Did this achieve the intended result? What's n
 
             // ── API call with retry/backoff ──
             val response = callWithRetry(request, iteration,
-                onStreamChunk = { delta -> emit(AgentEvent.StreamChunk(delta)) }
+                onStreamChunk = { delta -> send(AgentEvent.StreamChunk(delta)) }
             ) { errorMsg ->
-                emit(AgentEvent.Error(errorMsg))
-            } ?: return@flow
+                send(AgentEvent.Error(errorMsg))
+            } ?: return@channelFlow
 
             // Track token usage
             response.tokensUsed?.let { usage ->
                 totalTokensUsed += usage.totalTokens
-                emit(AgentEvent.TokenUsageUpdate(
+                send(AgentEvent.TokenUsageUpdate(
                     iterationTokens = usage.totalTokens,
                     totalTokens = totalTokensUsed,
                     budget = config.tokenBudget
@@ -286,7 +286,7 @@ After each observation, reflect: "Did this achieve the intended result? What's n
 
             // ── Emit thinking content if present ──
             response.thinkingContent?.let { thinking ->
-                emit(AgentEvent.ThinkingBlock(thinking))
+                send(AgentEvent.ThinkingBlock(thinking))
             }
 
             // ── No tool calls → Final answer ──
@@ -298,13 +298,13 @@ After each observation, reflect: "Did this achieve the intended result? What's n
                 )
                 messages.add(assistantMessage)
 
-                emit(AgentEvent.FinalAnswer(
+                send(AgentEvent.FinalAnswer(
                     content = response.content,
                     totalIterations = iteration,
                     totalTokensUsed = totalTokensUsed,
                     conversationHistory = messages.toList()
                 ))
-                return@flow
+                return@channelFlow
             }
 
             // ── Tool calls present → Execute and observe ──
@@ -319,7 +319,7 @@ After each observation, reflect: "Did this achieve the intended result? What's n
             val toolResults = mutableListOf<ToolCallResult>()
 
             for (toolCall in response.toolCalls) {
-                emit(AgentEvent.ToolExecution(
+                send(AgentEvent.ToolExecution(
                     toolName = toolCall.name,
                     arguments = toolCall.arguments,
                     iteration = iteration
@@ -339,7 +339,7 @@ After each observation, reflect: "Did this achieve the intended result? What's n
                 )
                 toolResults.add(toolCallResult)
 
-                emit(AgentEvent.ToolResult(
+                send(AgentEvent.ToolResult(
                     toolName = toolCall.name,
                     output = result.output,
                     isError = result.isError,
@@ -359,7 +359,7 @@ After each observation, reflect: "Did this achieve the intended result? What's n
         }
 
         // ── Max iterations reached ──
-        emit(AgentEvent.Error(
+        send(AgentEvent.Error(
             "Agent reached maximum iterations (${config.maxIterations}) without completing. " +
                 "Consider using a Swarm run for complex tasks, or increase maxIterations in AgentConfig."
         ))
