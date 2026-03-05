@@ -15,6 +15,7 @@ import com.omnidev.workspace.ui.providers.ProvidersScreen
 import com.omnidev.workspace.ui.providers.ProvidersViewModel
 import com.omnidev.workspace.ui.settings.AISettingsScreen
 import com.omnidev.workspace.ui.settings.AISettingsViewModel
+import com.omnidev.workspace.ui.settings.IntegrationsScreen
 import com.omnidev.workspace.ui.settings.MemoryExplorerScreen
 import com.omnidev.workspace.ui.settings.SystemPromptEditorScreen
 
@@ -28,6 +29,7 @@ object Routes {
     const val DEBUG = "debug"
     const val SYSTEM_PROMPT = "system_prompt"
     const val MEMORY_EXPLORER = "memory_explorer"
+    const val INTEGRATIONS = "integrations"
 }
 
 /**
@@ -63,7 +65,8 @@ fun AppNavigation(
                 onNavigateToProviders = { navController.navigate(Routes.PROVIDERS) },
                 onNavigateToDebug = { navController.navigate(Routes.DEBUG) },
                 onNavigateToSystemPrompt = { navController.navigate(Routes.SYSTEM_PROMPT) },
-                onNavigateToMemoryExplorer = { navController.navigate(Routes.MEMORY_EXPLORER) }
+                onNavigateToMemoryExplorer = { navController.navigate(Routes.MEMORY_EXPLORER) },
+                onNavigateToIntegrations = { navController.navigate(Routes.INTEGRATIONS) }
             )
         }
 
@@ -92,6 +95,13 @@ fun AppNavigation(
         composable(Routes.MEMORY_EXPLORER) {
             MemoryExplorerScreen(
                 knowledgeDao = database.knowledgeDao(),
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.INTEGRATIONS) {
+            IntegrationsScreen(
+                settingsRepository = settingsRepository,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

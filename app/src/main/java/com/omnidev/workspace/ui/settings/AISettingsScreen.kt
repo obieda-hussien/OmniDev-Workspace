@@ -91,7 +91,8 @@ fun AISettingsScreen(
     onNavigateToProviders: () -> Unit = {},
     onNavigateToDebug: () -> Unit = {},
     onNavigateToSystemPrompt: () -> Unit = {},
-    onNavigateToMemoryExplorer: () -> Unit = {}
+    onNavigateToMemoryExplorer: () -> Unit = {},
+    onNavigateToIntegrations: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -220,6 +221,12 @@ fun AISettingsScreen(
                 title = "Knowledge Base Explorer",
                 subtitle = "Browse, search, edit, and add permanent AI memories",
                 onClick = onNavigateToMemoryExplorer
+            )
+
+            SettingsNavCard(
+                title = "Integrations & Linked Accounts",
+                subtitle = "Connect Telegram, GitHub, and other platforms",
+                onClick = onNavigateToIntegrations
             )
 
             Spacer(modifier = Modifier.height(24.dp))

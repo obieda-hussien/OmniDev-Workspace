@@ -97,7 +97,8 @@ class ChatViewModel(
     private val streamingCompletionProvider: (suspend (CompletionRequest, suspend (String) -> Unit) -> CompletionResponse)? = null,
     private val swarmOrchestrator: SwarmOrchestrator? = null,
     private val apiKeyRepository: ApiKeyRepository? = null,
-    private val fileToolManager: FileToolManager? = null
+    private val fileToolManager: FileToolManager? = null,
+    private val autoHealBuildUseCase: com.omnidev.workspace.domain.engine.AutoHealBuildUseCase? = null
 ) : ViewModel() {
 
     companion object {
@@ -785,5 +786,135 @@ class ChatViewModel(
      */
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null) }
+    }
+
+    /**
+     * Executes an autonomous "Build → Fix → Retry" loop using the [AutoHealBuildUseCase].
+     *
+     * @param buildCommand The Gradle build command (default: `./gradlew assembleDebug`).
+     * @param maxRetries Maximum repair attempts (default: 5).
+     */
+    fun runAutoHealBuild(
+        buildCommand: String = "./gradlew assembleDebug",
+        maxRetries: Int = 5
+    ) {
+        val scopePath = _uiState.value.targetContext
+        if (scopePath == null) {
+            _uiState.update { it.copy(errorMessage = "Please set a Target Context before running Auto-Heal Build.") }
+            return
+        }
+
+        _uiState.update {
+            it.copy(
+                isProcessing = true,
+                agentStatus = "🔨 Auto-Heal Build starting...",
+                consoleEntries = emptyList(),
+                errorMessage = null
+            )
+        }
+
+        viewModelScope.launch {
+            val useCase = autoHealBuildUseCase
+            if (useCase == null) {
+                _uiState.update {
+                    it.copy(
+                        isProcessing = false,
+                        errorMessage = "Auto-Heal Build is not available — missing dependencies."
+                    )
+                }
+                return@launch
+            }
+
+            useCase.execute(
+                scopePath = scopePath,
+                buildCommand = buildCommand,
+                maxRetries = maxRetries
+            ).collect { event ->
+                when (event) {
+                    is com.omnidev.workspace.domain.engine.AutoHealBuildUseCase.BuildEvent.BuildAttempt ->
+                        _uiState.update {
+                            it.copy(
+                                agentStatus = "🔨 Build attempt ${event.attempt}/${event.maxRetries}...",
+                                consoleEntries = it.consoleEntries +
+                                    AgentConsoleEntry.ThinkingEntry(event.attempt)
+                            )
+                        }
+
+                    is com.omnidev.workspace.domain.engine.AutoHealBuildUseCase.BuildEvent.BuildSuccess -> {
+                        val msg = ChatMessage(
+                            role = MessageRole.ASSISTANT,
+                            content = "✅ Build Successful on attempt ${event.attempt}!\n\n${event.output.take(500)}"
+                        )
+                        val sessionId = _uiState.value.currentSessionId ?: ensureSession("Auto-Heal Build")
+                        chatRepository?.saveMessage(sessionId, msg)
+                        _uiState.update {
+                            it.copy(
+                                messages = it.messages + msg,
+                                isProcessing = false,
+                                agentStatus = null,
+                                consoleEntries = it.consoleEntries +
+                                    AgentConsoleEntry.ReplyEntry()
+                            )
+                        }
+                    }
+
+                    is com.omnidev.workspace.domain.engine.AutoHealBuildUseCase.BuildEvent.BuildFailed ->
+                        _uiState.update {
+                            it.copy(
+                                agentStatus = "❌ Build failed (attempt ${event.attempt}), analyzing errors...",
+                                consoleEntries = it.consoleEntries +
+                                    AgentConsoleEntry.ErrorEntry("Build failed: ${event.errors.take(200)}")
+                            )
+                        }
+
+                    is com.omnidev.workspace.domain.engine.AutoHealBuildUseCase.BuildEvent.FixAttempt ->
+                        _uiState.update {
+                            it.copy(
+                                agentStatus = "🔧 Agent applying fix (attempt ${event.attempt})...",
+                                consoleEntries = it.consoleEntries +
+                                    AgentConsoleEntry.ToolEntry("auto_fix", "Fixing build errors", event.attempt)
+                            )
+                        }
+
+                    is com.omnidev.workspace.domain.engine.AutoHealBuildUseCase.BuildEvent.FixApplied ->
+                        _uiState.update {
+                            it.copy(
+                                consoleEntries = it.consoleEntries +
+                                    AgentConsoleEntry.ResultEntry("auto_fix", event.fixSummary.take(100), isError = false)
+                            )
+                        }
+
+                    is com.omnidev.workspace.domain.engine.AutoHealBuildUseCase.BuildEvent.FixFailed ->
+                        _uiState.update {
+                            it.copy(
+                                consoleEntries = it.consoleEntries +
+                                    AgentConsoleEntry.ResultEntry("auto_fix", event.error.take(100), isError = true)
+                            )
+                        }
+
+                    is com.omnidev.workspace.domain.engine.AutoHealBuildUseCase.BuildEvent.LoopExhausted -> {
+                        val msg = ChatMessage(
+                            role = MessageRole.ASSISTANT,
+                            content = "❌ Auto-Heal Build exhausted all ${event.totalAttempts} attempts. " +
+                                "Manual intervention is required."
+                        )
+                        val sessionId = _uiState.value.currentSessionId ?: ensureSession("Auto-Heal Build")
+                        chatRepository?.saveMessage(sessionId, msg)
+                        _uiState.update {
+                            it.copy(
+                                messages = it.messages + msg,
+                                isProcessing = false,
+                                agentStatus = null,
+                                consoleEntries = it.consoleEntries +
+                                    AgentConsoleEntry.ErrorEntry("Build loop exhausted after ${event.totalAttempts} attempts.")
+                            )
+                        }
+                    }
+
+                    is com.omnidev.workspace.domain.engine.AutoHealBuildUseCase.BuildEvent.AgentProgress ->
+                        handleAgentEvent(event.event, _uiState.value.currentSessionId ?: -1L)
+                }
+            }
+        }
     }
 }

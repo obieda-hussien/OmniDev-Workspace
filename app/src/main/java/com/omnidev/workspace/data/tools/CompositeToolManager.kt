@@ -1,6 +1,8 @@
 package com.omnidev.workspace.data.tools
 
 import android.content.Context
+import com.omnidev.workspace.data.repository.SettingsRepository
+import kotlinx.coroutines.flow.first
 
 /**
  * Delegates tool execution to [FileToolManager], [MemoryManager], and the suite of
@@ -13,13 +15,15 @@ import android.content.Context
  * 3. Logcat analyzer and Git manager
  * 4. Environment / advanced terminal tools
  * 5. Notification and task scheduler tools
- * 6. File tools (read, search, patch, create, delete, terminal, web search) — default fallback
+ * 6. Visual inspector, Telegram publisher, GitHub manager
+ * 7. File tools (read, search, patch, create, delete, terminal, web search) — default fallback
  */
 class CompositeToolManager(
     private val fileToolManager: FileToolManager,
     val memoryManager: MemoryManager,
     private val context: Context? = null,
-    private val environmentSetupManager: EnvironmentSetupManager? = null
+    private val environmentSetupManager: EnvironmentSetupManager? = null,
+    private val settingsRepository: SettingsRepository? = null
 ) : ToolManager {
 
     override fun getToolDefinitions(): List<ToolDefinition> = buildList {
@@ -38,6 +42,9 @@ class CompositeToolManager(
         }
         addAll(NotificationCaptureTool.getToolDefinitions())
         addAll(TaskSchedulerTool.getToolDefinitions())
+        addAll(VisualInspectorTool.getToolDefinitions())
+        addAll(TelegramPublisherTool.getToolDefinitions())
+        addAll(GitHubManagerTool.getToolDefinitions())
     }
 
     override suspend fun executeTool(
@@ -129,6 +136,36 @@ class CompositeToolManager(
             // ── Task scheduler tool ──
             "task_scheduler" ->
                 TaskSchedulerTool.executeTool(name, arguments)
+
+            // ── Visual inspector tool ──
+            "visual_inspector" ->
+                VisualInspectorTool.execute()
+
+            // ── Telegram publisher tool ──
+            "telegram_publish" -> {
+                val botToken = settingsRepository?.observeTelegramBotToken()?.first()
+                val chatId = settingsRepository?.observeTelegramChatId()?.first()
+                TelegramPublisherTool.execute(
+                    botToken = botToken,
+                    chatId = chatId,
+                    message = arguments["message"] ?: return missingArg("message"),
+                    parseMode = arguments["parseMode"] ?: "Markdown"
+                )
+            }
+
+            // ── GitHub manager tool ──
+            "github_manager" -> {
+                val pat = settingsRepository?.observeGitHubPat()?.first()
+                GitHubManagerTool.execute(
+                    pat = pat,
+                    action = arguments["action"] ?: return missingArg("action"),
+                    repo = arguments["repo"] ?: return missingArg("repo"),
+                    title = arguments["title"] ?: return missingArg("title"),
+                    body = arguments["body"] ?: return missingArg("body"),
+                    head = arguments["head"],
+                    base = arguments["base"]
+                )
+            }
 
             // ── File tools (default fallback) ──
             else ->

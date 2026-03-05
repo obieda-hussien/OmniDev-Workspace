@@ -51,7 +51,8 @@ class MainActivity : ComponentActivity() {
             fileToolManager = fileToolManager,
             memoryManager = memoryManager,
             context = applicationContext,
-            environmentSetupManager = environmentSetupManager
+            environmentSetupManager = environmentSetupManager,
+            settingsRepository = settingsRepository
         )
 
         // Real HTTP completion provider
@@ -77,6 +78,14 @@ class MainActivity : ComponentActivity() {
             apiKeyRepository = apiKeyRepository
         )
 
+        // Auto-Heal Build Loop
+        val autoHealBuildUseCase = com.omnidev.workspace.domain.engine.AutoHealBuildUseCase(
+            agentPipeline = agentPipeline,
+            settingsRepository = settingsRepository,
+            apiKeyRepository = apiKeyRepository,
+            toolManager = toolManager
+        )
+
         val settingsViewModel = AISettingsViewModel(settingsRepository)
         val attachmentProcessor = AttachmentProcessor(contentResolver)
         val chatViewModel = ChatViewModel(
@@ -90,7 +99,8 @@ class MainActivity : ComponentActivity() {
             },
             swarmOrchestrator = swarmOrchestrator,
             apiKeyRepository = apiKeyRepository,
-            fileToolManager = fileToolManager
+            fileToolManager = fileToolManager,
+            autoHealBuildUseCase = autoHealBuildUseCase
         )
         val providersViewModel = ProvidersViewModel(apiKeyRepository)
 

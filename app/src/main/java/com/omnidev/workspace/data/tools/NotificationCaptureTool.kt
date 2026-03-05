@@ -67,6 +67,27 @@ object NotificationCaptureTool {
         // Intentional no-op — captured notifications are kept for agent queries.
     }
 
+    /**
+     * Simplified callback for receiving notification data without requiring the
+     * full [StatusBarNotification] object. Used by [AgentNotificationService].
+     */
+    fun onNotificationReceived(packageName: String, title: String, text: String, timestamp: Long) {
+        val captured = CapturedNotification(
+            packageName = packageName,
+            title = title.ifBlank { null },
+            text = text.ifBlank { null },
+            timestamp = timestamp,
+            category = null
+        )
+        capturedNotifications.add(captured)
+
+        val excess = capturedNotifications.size - MAX_CAPTURED
+        if (excess > 0) {
+            val toRemove = capturedNotifications.take(excess)
+            capturedNotifications.removeAll(toRemove.toSet())
+        }
+    }
+
     // ── Tool schema ──────────────────────────────────────────────────────
 
     /**

@@ -54,6 +54,10 @@ class SettingsRepository(private val context: Context) {
         val MAX_TOKENS = stringPreferencesKey("engine_max_tokens")
         // God Mode
         val GOD_MODE_ENABLED = booleanPreferencesKey("god_mode_enabled")
+        // Platform Integrations
+        val TELEGRAM_BOT_TOKEN = stringPreferencesKey("telegram_bot_token")
+        val TELEGRAM_CHAT_ID = stringPreferencesKey("telegram_chat_id")
+        val GITHUB_PAT = stringPreferencesKey("github_pat")
     }
 
     // ──────────────────────────────────────────────
@@ -222,6 +226,40 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setGodMode(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.GOD_MODE_ENABLED] = enabled }
+    }
+
+    // ──────────────────────────────────────────────
+    //  Platform Integrations
+    // ──────────────────────────────────────────────
+
+    /** Observes the Telegram Bot Token. */
+    fun observeTelegramBotToken(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.TELEGRAM_BOT_TOKEN] }
+
+    suspend fun setTelegramBotToken(token: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (token.isNullOrBlank()) prefs.remove(Keys.TELEGRAM_BOT_TOKEN) else prefs[Keys.TELEGRAM_BOT_TOKEN] = token
+        }
+    }
+
+    /** Observes the Telegram Chat ID. */
+    fun observeTelegramChatId(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.TELEGRAM_CHAT_ID] }
+
+    suspend fun setTelegramChatId(chatId: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (chatId.isNullOrBlank()) prefs.remove(Keys.TELEGRAM_CHAT_ID) else prefs[Keys.TELEGRAM_CHAT_ID] = chatId
+        }
+    }
+
+    /** Observes the GitHub Personal Access Token. */
+    fun observeGitHubPat(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.GITHUB_PAT] }
+
+    suspend fun setGitHubPat(pat: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (pat.isNullOrBlank()) prefs.remove(Keys.GITHUB_PAT) else prefs[Keys.GITHUB_PAT] = pat
+        }
     }
 
     // ──────────────────────────────────────────────
