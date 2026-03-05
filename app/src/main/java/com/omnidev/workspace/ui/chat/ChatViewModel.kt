@@ -80,6 +80,8 @@ data class ChatUiState(
  * @param attachmentProcessor Optional processor for reading image bytes for vision models.
  * @param completionProvider Direct completion call for CHAT mode (no tools).
  * @param streamingCompletionProvider Optional streaming variant for CHAT mode.
+ *        The first parameter is the [CompletionRequest]; the second is a `suspend (String) -> Unit`
+ *        callback that receives each text-delta chunk as it arrives from the SSE stream.
  * @param swarmOrchestrator Optional orchestrator engine for SWARM mode.
  */
 class ChatViewModel(
@@ -92,6 +94,12 @@ class ChatViewModel(
     private val swarmOrchestrator: SwarmOrchestrator? = null,
     private val apiKeyRepository: ApiKeyRepository? = null
 ) : ViewModel() {
+
+    companion object {
+        /** System prompt for CHAT mode — conversational, no tools. */
+        private const val CHAT_SYSTEM_PROMPT =
+            "You are a helpful coding assistant. Answer questions directly without using tools."
+    }
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
@@ -309,8 +317,14 @@ class ChatViewModel(
 
             when (mode) {
                 OmniMode.CHAT -> executeChatMode(input, imageAttachments, sessionId)
-                OmniMode.AGENT -> executeAgentMode(input, imageAttachments, sessionId, scopePath!!)
-                OmniMode.SWARM -> executeSwarmMode(input, sessionId, scopePath!!)
+                OmniMode.AGENT -> {
+                    val scope = scopePath ?: return@launch
+                    executeAgentMode(input, imageAttachments, sessionId, scope)
+                }
+                OmniMode.SWARM -> {
+                    val scope = scopePath ?: return@launch
+                    executeSwarmMode(input, sessionId, scope)
+                }
             }
         }
     }
@@ -341,7 +355,7 @@ class ChatViewModel(
                 content = input,
                 attachments = imageAttachments
             ),
-            systemPrompt = "You are a helpful coding assistant. Answer questions directly without using tools.",
+            systemPrompt = CHAT_SYSTEM_PROMPT,
             maxTokens = 4096,
             temperature = 0.7
         )
