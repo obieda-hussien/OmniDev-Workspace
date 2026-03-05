@@ -107,7 +107,17 @@ object GitManagerTool {
                     val cmd = mutableListOf("git", "diff")
                     if (!files.isNullOrBlank()) {
                         cmd.add("--")
-                        cmd.addAll(files.split(" ").filter { it.isNotBlank() })
+                        // Validate filenames — reject shell metacharacters to prevent injection
+                        val fileList = files.split(" ").filter { it.isNotBlank() }
+                        for (f in fileList) {
+                            if (f.contains(Regex("[;&|`\$(){}\\[\\]<>!#~]"))) {
+                                return@withContext ToolExecutionResult(
+                                    output = "Invalid file name '$f' — contains shell metacharacters.",
+                                    isError = true
+                                )
+                            }
+                        }
+                        cmd.addAll(fileList)
                     }
                     runGit(cmd, workDir)
                 }
@@ -150,7 +160,16 @@ object GitManagerTool {
 
                 "add" -> {
                     val targets = if (!files.isNullOrBlank()) {
-                        files.split(" ").filter { it.isNotBlank() }
+                        val fileList = files.split(" ").filter { it.isNotBlank() }
+                        for (f in fileList) {
+                            if (f.contains(Regex("[;&|`\$(){}\\[\\]<>!#~]"))) {
+                                return@withContext ToolExecutionResult(
+                                    output = "Invalid file name '$f' — contains shell metacharacters.",
+                                    isError = true
+                                )
+                            }
+                        }
+                        fileList
                     } else {
                         listOf(".")
                     }

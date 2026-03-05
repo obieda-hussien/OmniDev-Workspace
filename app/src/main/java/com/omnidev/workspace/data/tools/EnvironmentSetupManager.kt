@@ -169,7 +169,20 @@ class EnvironmentSetupManager(private val context: Context) {
                         "tar", "xf", jdkTmp.absolutePath,
                         "--strip-components=1", "-C", jdkDest.absolutePath
                     ).redirectErrorStream(true).start()
-                    jdkExtract.waitFor()
+                    // API-24-compatible timeout for extraction (5 min max)
+                    val jdkWaitThread = Thread {
+                        try { jdkExtract.waitFor() } catch (_: InterruptedException) {}
+                    }
+                    jdkWaitThread.start()
+                    jdkWaitThread.join(TERMINAL_TIMEOUT_SECONDS * 1000L)
+                    if (jdkWaitThread.isAlive) {
+                        jdkExtract.destroy()
+                        jdkTmp.delete()
+                        return@withContext ToolExecutionResult(
+                            output = "JDK extraction timed out after ${TERMINAL_TIMEOUT_SECONDS}s.",
+                            isError = true
+                        )
+                    }
                     jdkTmp.delete()
 
                     if (jdkExtract.exitValue() != 0) {
@@ -209,7 +222,20 @@ class EnvironmentSetupManager(private val context: Context) {
                         "unzip", "-o", "-q", sdkTmp.absolutePath,
                         "-d", sdkDest.absolutePath
                     ).redirectErrorStream(true).start()
-                    sdkExtract.waitFor()
+                    // API-24-compatible timeout for extraction (5 min max)
+                    val sdkWaitThread = Thread {
+                        try { sdkExtract.waitFor() } catch (_: InterruptedException) {}
+                    }
+                    sdkWaitThread.start()
+                    sdkWaitThread.join(TERMINAL_TIMEOUT_SECONDS * 1000L)
+                    if (sdkWaitThread.isAlive) {
+                        sdkExtract.destroy()
+                        sdkTmp.delete()
+                        return@withContext ToolExecutionResult(
+                            output = "SDK extraction timed out after ${TERMINAL_TIMEOUT_SECONDS}s.",
+                            isError = true
+                        )
+                    }
                     sdkTmp.delete()
 
                     if (sdkExtract.exitValue() != 0) {

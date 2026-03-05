@@ -50,8 +50,11 @@ object NotificationCaptureTool {
         capturedNotifications.add(captured)
 
         // Trim oldest entries when the list exceeds the cap.
-        while (capturedNotifications.size > MAX_CAPTURED) {
-            capturedNotifications.removeAt(0)
+        // Remove excess items in a single pass to avoid O(n²) on CopyOnWriteArrayList.
+        val excess = capturedNotifications.size - MAX_CAPTURED
+        if (excess > 0) {
+            val toRemove = capturedNotifications.take(excess)
+            capturedNotifications.removeAll(toRemove.toSet())
         }
     }
 

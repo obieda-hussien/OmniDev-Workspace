@@ -158,8 +158,10 @@ object LogcatAnalyzerTool {
             // Sanitize inputs to prevent shell injection — only allow package-name-safe chars.
             val safePackage = packageName.replace(Regex("[^a-zA-Z0-9._]"), "")
             val safeMinutes = lastMinutes.coerceIn(1, 60)
+            // Avoid shell interpolation — use logcat's built-in time filter and grep safely.
+            // Pass the grep pattern as a literal argument rather than through shell expansion.
             val result = ShizukuCommandTool.execute(
-                "logcat -d -v threadtime -t '${safeMinutes}m' | grep '$safePackage'"
+                "logcat -d -v threadtime -t '${safeMinutes}m' | grep -F '$safePackage'"
             )
             if (result is ShizukuResult.Success) {
                 return result.output.lines().filter { it.isNotBlank() }
