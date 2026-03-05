@@ -397,6 +397,7 @@ After each observation, reflect: "Did this achieve the intended result? What's n
             } catch (e: Exception) {
                 val isLastAttempt = attempt == maxAttempts - 1
                 if (isLastAttempt) {
+                    com.omnidev.workspace.data.debug.DebugLogManager.appendError("AgentPipeline", e)
                     onFatalError("API call failed after $maxAttempts attempts (iteration $iteration): ${e.message}")
                     return null
                 }

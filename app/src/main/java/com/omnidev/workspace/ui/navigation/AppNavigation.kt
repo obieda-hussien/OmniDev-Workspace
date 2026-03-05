@@ -1,6 +1,7 @@
 package com.omnidev.workspace.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -64,8 +65,9 @@ fun AppNavigation(
         }
 
         composable(Routes.DEBUG) {
+            val debugViewModel: DebugViewModel = viewModel()
             DebugScreen(
-                viewModel = DebugViewModel(),
+                viewModel = debugViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

@@ -1,5 +1,7 @@
 package com.omnidev.workspace.data.debug
 
+import android.util.Log
+
 /**
  * Global uncaught-exception handler that writes a crash report before the process terminates.
  *
@@ -16,8 +18,9 @@ class CrashHandler private constructor(
         try {
             // Write synchronously — the process is about to die.
             DebugLogManager.writeCrash(throwable)
-        } catch (_: Throwable) {
-            // Never let the crash handler itself crash silently.
+        } catch (e: Throwable) {
+            // If crash reporting itself fails, log to logcat so it is still visible via ADB.
+            Log.e("CrashHandler", "Failed to write crash report", e)
         }
         // Delegate to the original handler so Android can show its own crash UI.
         previousHandler?.uncaughtException(thread, throwable)

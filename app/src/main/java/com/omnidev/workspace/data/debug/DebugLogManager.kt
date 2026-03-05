@@ -41,6 +41,9 @@ object DebugLogManager {
     private const val LOG_DIR = "debug_logs"
     private const val DATE_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS"
     private const val FILE_DATE_FORMAT = "yyyyMMdd_HHmmss_SSS"
+    // Single-thread executor for async log writes. This executor lives for the entire
+    // process lifetime (same as the Application object) and is intentionally not shut
+    // down — the OS reclaims all threads when the process exits.
     private val ioExecutor = Executors.newSingleThreadExecutor()
 
     private lateinit var logDir: File
