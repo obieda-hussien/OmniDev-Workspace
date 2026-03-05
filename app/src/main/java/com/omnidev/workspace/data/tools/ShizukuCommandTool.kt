@@ -42,6 +42,8 @@ object ShizukuCommandTool {
         runCatching {
             // Use reflection to invoke Shizuku.newProcess() — bypasses Kotlin's
             // compile-time visibility constraints while remaining safe at runtime.
+            // Targets Shizuku API 13.1.5; if the method signature changes in a future
+            // version this block will throw a NoSuchMethodException which is caught below.
             val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
             val newProcessMethod = shizukuClass.getMethod(
                 "newProcess",

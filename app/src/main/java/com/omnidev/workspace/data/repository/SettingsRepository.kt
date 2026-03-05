@@ -46,7 +46,11 @@ class SettingsRepository(private val context: Context) {
         val CUSTOM_AGENT_PROMPT = stringPreferencesKey("custom_agent_prompt")
         val CUSTOM_ORCHESTRATOR_PROMPT = stringPreferencesKey("custom_orchestrator_prompt")
         // Advanced engine settings
-        val TEMPERATURE = stringPreferencesKey("engine_temperature") // stored as string to avoid float precision issues
+        /**
+         * Temperature is stored as a String rather than a Float to avoid IEEE 754
+         * precision issues when serialising/deserialising via DataStore's StringPreferencesKey.
+         */
+        val TEMPERATURE = stringPreferencesKey("engine_temperature")
         val MAX_TOKENS = stringPreferencesKey("engine_max_tokens")
         // God Mode
         val GOD_MODE_ENABLED = booleanPreferencesKey("god_mode_enabled")

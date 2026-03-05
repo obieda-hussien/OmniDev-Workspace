@@ -25,7 +25,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -111,7 +110,7 @@ fun ConfirmationGateDialog(confirmation: PendingConfirmation) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF0D1117))
+                            .background(MaterialTheme.colorScheme.inverseSurface)
                             .padding(12.dp)
                             .verticalScroll(rememberScrollState())
                     ) {
@@ -119,7 +118,7 @@ fun ConfirmationGateDialog(confirmation: PendingConfirmation) {
                             text = confirmation.preview,
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontFamily = FontFamily.Monospace,
-                                color = Color(0xFFE6EDF3),
+                                color = MaterialTheme.colorScheme.inverseOnSurface,
                                 lineHeight = 20.sp
                             )
                         )

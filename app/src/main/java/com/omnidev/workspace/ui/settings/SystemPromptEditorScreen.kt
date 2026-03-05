@@ -132,17 +132,11 @@ fun SystemPromptEditorScreen(
                 }
             }
 
-            val (currentText, setCurrentText, personas, promptRole, defaultHint) = when (selectedTab) {
-                0 -> Tuple5(chatText, { v: String -> chatText = v }, CHAT_PERSONAS,
-                    SettingsRepository.PromptRole.CHAT,
-                    "E.g. You are a helpful coding assistant…")
-                1 -> Tuple5(agentText, { v: String -> agentText = v }, AGENT_PERSONAS,
-                    SettingsRepository.PromptRole.AGENT,
-                    "E.g. You are an autonomous AI agent…")
-                else -> Tuple5(orchestratorText, { v: String -> orchestratorText = v }, ORCHESTRATOR_PERSONAS,
-                    SettingsRepository.PromptRole.ORCHESTRATOR,
-                    "E.g. You are an elite autonomous coding agent…")
-            }
+            val currentText = when (selectedTab) { 0 -> chatText; 1 -> agentText; else -> orchestratorText }
+            val setCurrentText: (String) -> Unit = when (selectedTab) { 0 -> ({ chatText = it }); 1 -> ({ agentText = it }); else -> ({ orchestratorText = it }) }
+            val personas = when (selectedTab) { 0 -> CHAT_PERSONAS; 1 -> AGENT_PERSONAS; else -> ORCHESTRATOR_PERSONAS }
+            val promptRole = when (selectedTab) { 0 -> SettingsRepository.PromptRole.CHAT; 1 -> SettingsRepository.PromptRole.AGENT; else -> SettingsRepository.PromptRole.ORCHESTRATOR }
+            val defaultHint = when (selectedTab) { 0 -> "E.g. You are a helpful coding assistant…"; 1 -> "E.g. You are an autonomous AI agent…"; else -> "E.g. You are an elite autonomous coding agent…" }
 
             Spacer(Modifier.height(16.dp))
 
@@ -223,11 +217,4 @@ fun SystemPromptEditorScreen(
     }
 }
 
-// Tiny helper to destructure when() branches uniformly
-private data class Tuple5<A, B, C, D, E>(val a: A, val b: B, val c: C, val d: D, val e: E)
 
-private operator fun <A, B, C, D, E> Tuple5<A, B, C, D, E>.component1() = a
-private operator fun <A, B, C, D, E> Tuple5<A, B, C, D, E>.component2() = b
-private operator fun <A, B, C, D, E> Tuple5<A, B, C, D, E>.component3() = c
-private operator fun <A, B, C, D, E> Tuple5<A, B, C, D, E>.component4() = d
-private operator fun <A, B, C, D, E> Tuple5<A, B, C, D, E>.component5() = e

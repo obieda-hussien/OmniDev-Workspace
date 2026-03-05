@@ -89,12 +89,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
@@ -588,7 +589,7 @@ private fun SessionItem(
     onDelete: () -> Unit
 ) {
     var showContextMenu by remember { mutableStateOf(false) }
-    val view = LocalView.current
+    val haptics = LocalHapticFeedback.current
 
     Box(
         modifier = Modifier
@@ -606,7 +607,7 @@ private fun SessionItem(
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = {
-                        view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         showContextMenu = true
                     }
                 )
