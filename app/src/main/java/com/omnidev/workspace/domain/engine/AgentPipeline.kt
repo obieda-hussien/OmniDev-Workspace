@@ -264,7 +264,8 @@ After each observation, reflect: "Did this achieve the intended result? What's n
                 maxTokens = model.maxOutputTokens,
                 enableThinking = enableDeepThinking && model.supportsThinking,
                 targetContext = scopePath,
-                apiKey = resolvedApiKey
+                apiKey = resolvedApiKey,
+                tools = toolDefs
             )
 
             // ── API call with retry/backoff ──

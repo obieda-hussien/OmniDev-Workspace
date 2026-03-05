@@ -1,5 +1,6 @@
 package com.omnidev.workspace.data.model
 
+import com.omnidev.workspace.data.tools.ToolDefinition
 import kotlinx.serialization.Serializable
 
 /**
@@ -78,7 +79,13 @@ data class CompletionRequest(
     val enableThinking: Boolean = false,
     val targetContext: String? = null,
     /** The resolved API key for the target provider. Populated by [AgentPipeline]. */
-    val apiKey: String? = null
+    val apiKey: String? = null,
+    /**
+     * Native function-calling tool definitions. When non-null, [CompletionService]
+     * includes them in the API request so the model can invoke tools via the provider's
+     * structured tool-call mechanism instead of raw text output.
+     */
+    val tools: List<ToolDefinition>? = null
 )
 
 /**

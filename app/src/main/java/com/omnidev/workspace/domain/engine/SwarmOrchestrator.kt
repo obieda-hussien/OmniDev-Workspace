@@ -22,10 +22,13 @@ import kotlinx.serialization.json.Json
  *
  * @param toolManager Shared [ToolManager] instance for all Worker agents.
  * @param completionProvider The AI API call abstraction, used for both Orchestrator and Workers.
+ * @param apiKeyRepository Optional key store. When provided, the API key for the model's
+ *        provider is injected into each [CompletionRequest] automatically.
  */
 class SwarmOrchestrator(
     private val toolManager: ToolManager,
-    private val completionProvider: suspend (CompletionRequest) -> CompletionResponse
+    private val completionProvider: suspend (CompletionRequest) -> CompletionResponse,
+    private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null
 ) {
 
     companion object {
@@ -93,13 +96,18 @@ Produce a concise summary for the user that covers:
                 return@flow
             }
 
+        val orchestratorApiKey = apiKeyRepository?.getApiKey(orchestratorModel.provider)
+        val workerModel = ModelRegistry.findModelById(workerModelId)
+        val workerApiKey = workerModel?.let { apiKeyRepository?.getApiKey(it.provider) }
+
         val planRequest = CompletionRequest(
             modelId = orchestratorModelId,
             messages = listOf(ChatMessage(role = MessageRole.USER, content = userMessage)),
             systemPrompt = ORCHESTRATOR_SYSTEM_PROMPT.trimIndent(),
             maxTokens = orchestratorModel.maxOutputTokens,
             enableThinking = enableDeepThinking && orchestratorModel.supportsThinking,
-            targetContext = scopePath
+            targetContext = scopePath,
+            apiKey = orchestratorApiKey
         )
 
         val planResponse: CompletionResponse
@@ -154,7 +162,7 @@ Produce a concise summary for the user that covers:
             }
 
             // Execute via a Worker AgentPipeline
-            val workerPipeline = AgentPipeline(toolManager, completionProvider)
+            val workerPipeline = AgentPipeline(toolManager, completionProvider, apiKeyRepository = apiKeyRepository)
             var taskResult = ""
             var taskError: String? = null
 
@@ -208,7 +216,8 @@ Produce a concise summary for the user that covers:
             ),
             systemPrompt = SYNTHESIS_PROMPT.trimIndent(),
             maxTokens = orchestratorModel.maxOutputTokens,
-            targetContext = scopePath
+            targetContext = scopePath,
+            apiKey = orchestratorApiKey
         )
 
         val synthesisResponse: CompletionResponse

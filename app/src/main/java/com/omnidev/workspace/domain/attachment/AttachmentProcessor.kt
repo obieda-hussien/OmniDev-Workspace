@@ -142,12 +142,50 @@ class AttachmentProcessor(private val contentResolver: ContentResolver) {
     }
 
     /**
-     * Returns the MIME type of the file at [uri], or `"application/octet-stream"` if unknown.
+     * Returns a specific, non-wildcard MIME type for the file at [uri].
+     *
+     * Falls back to extension-based detection when Android's [ContentResolver] returns
+     * null or a wildcard type such as "application/star" (where star is the literal
+     * asterisk), which providers (Gemini, Anthropic) reject with HTTP 400.
+     * Explicit overrides are applied for common source-code extensions whose MIME
+     * types are not reliably detected by Android's MIME type map.
      */
-    fun getMimeType(uri: Uri): String =
-        contentResolver.getType(uri)
-            ?: guessMimeType(uri)
-            ?: "application/octet-stream"
+    fun getMimeType(uri: Uri): String {
+        val resolved = contentResolver.getType(uri)
+        // Use resolved type only if it's specific (no wildcards)
+        if (!resolved.isNullOrBlank() && !resolved.contains("*")) {
+            return resolved
+        }
+
+        // Fall back to extension-based detection with explicit code-file overrides
+        val fileName = uri.lastPathSegment ?: ""
+        val ext = fileName.substringAfterLast('.', "").lowercase()
+        return when (ext) {
+            "kt", "kts"          -> "text/plain"
+            "java"               -> "text/plain"
+            "py"                 -> "text/plain"
+            "js", "ts", "jsx", "tsx" -> "text/plain"
+            "xml"                -> "text/xml"
+            "html", "htm"        -> "text/html"
+            "css"                -> "text/css"
+            "json"               -> "application/json"
+            "md", "txt", "csv"   -> "text/plain"
+            "gradle", "toml", "yaml", "yml", "properties", "env" -> "text/plain"
+            "sh", "bash"         -> "text/plain"
+            "c", "cpp", "h", "hpp", "rs", "go", "swift", "rb", "php" -> "text/plain"
+            "pdf"                -> "application/pdf"
+            "zip"                -> "application/zip"
+            "png"                -> "image/png"
+            "jpg", "jpeg"        -> "image/jpeg"
+            "gif"                -> "image/gif"
+            "webp"               -> "image/webp"
+            else -> {
+                // Try the system MimeTypeMap as a last resort
+                MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
+                    ?: "application/octet-stream"
+            }
+        }
+    }
 
     /**
      * Reads an image attachment and returns it as a Base64-encoded string suitable

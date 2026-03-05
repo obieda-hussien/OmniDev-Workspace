@@ -65,7 +65,8 @@ class MainActivity : ComponentActivity() {
         // Swarm orchestrator for Team Agents mode
         val swarmOrchestrator = SwarmOrchestrator(
             toolManager = toolManager,
-            completionProvider = completionProvider
+            completionProvider = completionProvider,
+            apiKeyRepository = apiKeyRepository
         )
 
         val settingsViewModel = AISettingsViewModel(settingsRepository)

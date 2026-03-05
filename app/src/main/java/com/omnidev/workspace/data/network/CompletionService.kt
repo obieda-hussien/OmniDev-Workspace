@@ -5,7 +5,9 @@ import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.ModelProvider
+import com.omnidev.workspace.data.model.ToolCall
 import com.omnidev.workspace.data.model.TokenUsage
+import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -14,10 +16,15 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
@@ -33,7 +40,8 @@ private data class AnthropicRequest(
     @SerialName("max_tokens") val maxTokens: Int,
     val messages: List<AnthropicMessage>,
     val system: String? = null,
-    val stream: Boolean = false
+    val stream: Boolean = false,
+    val tools: List<AnthropicToolDef>? = null
 )
 
 @Serializable
@@ -47,12 +55,28 @@ private data class AnthropicResponse(
 )
 
 @Serializable
-private data class AnthropicContent(val type: String = "text", val text: String = "")
+private data class AnthropicContent(
+    val type: String = "text",
+    val text: String = "",
+    // tool_use fields
+    val id: String? = null,
+    val name: String? = null,
+    val input: JsonElement? = null
+)
 
 @Serializable
 private data class AnthropicUsage(
     @SerialName("input_tokens") val inputTokens: Int = 0,
     @SerialName("output_tokens") val outputTokens: Int = 0
+)
+
+// ─── Anthropic Native Tool Calling DTOs ──────────────────────────────────────
+
+@Serializable
+private data class AnthropicToolDef(
+    val name: String,
+    val description: String,
+    @SerialName("input_schema") val inputSchema: JsonElement
 )
 
 // ─── Anthropic SSE streaming DTOs ────────────────────────────────────────────
@@ -78,7 +102,9 @@ private data class OpenAiRequest(
     val messages: List<OpenAiMessage>,
     @SerialName("max_tokens") val maxTokens: Int? = null,
     val temperature: Double? = null,
-    val stream: Boolean = false
+    val stream: Boolean = false,
+    val tools: List<OpenAiToolDef>? = null,
+    @SerialName("tool_choice") val toolChoice: String? = null
 )
 
 @Serializable
@@ -92,8 +118,15 @@ private data class OpenAiResponse(
 
 @Serializable
 private data class OpenAiChoice(
-    val message: OpenAiMessageContent = OpenAiMessageContent("assistant", ""),
+    val message: OpenAiResponseMessage = OpenAiResponseMessage("assistant"),
     @SerialName("finish_reason") val finishReason: String? = null
+)
+
+@Serializable
+private data class OpenAiResponseMessage(
+    val role: String,
+    val content: String? = null,
+    @SerialName("tool_calls") val toolCalls: List<OpenAiToolCall>? = null
 )
 
 @Serializable
@@ -104,6 +137,34 @@ private data class OpenAiUsage(
     @SerialName("prompt_tokens") val promptTokens: Int = 0,
     @SerialName("completion_tokens") val completionTokens: Int = 0,
     @SerialName("total_tokens") val totalTokens: Int = 0
+)
+
+// ─── OpenAI Native Tool Calling DTOs ─────────────────────────────────────────
+
+@Serializable
+private data class OpenAiToolDef(
+    val type: String = "function",
+    val function: OpenAiFunction
+)
+
+@Serializable
+private data class OpenAiFunction(
+    val name: String,
+    val description: String,
+    val parameters: JsonElement
+)
+
+@Serializable
+private data class OpenAiToolCall(
+    val id: String,
+    val type: String = "function",
+    val function: OpenAiToolCallFunction
+)
+
+@Serializable
+private data class OpenAiToolCallFunction(
+    val name: String,
+    val arguments: String
 )
 
 // ─── OpenAI SSE streaming DTOs ────────────────────────────────────────────────
@@ -233,13 +294,16 @@ class CompletionService {
                 AnthropicMessage(role = role, content = content)
             }
 
+        val anthropicTools = request.tools?.map { it.toAnthropicToolDef() }
+
         val body = json.encodeToString(
             AnthropicRequest.serializer(),
             AnthropicRequest(
                 model = request.modelId,
                 maxTokens = request.maxTokens,
                 messages = messages,
-                system = request.systemPrompt
+                system = request.systemPrompt,
+                tools = anthropicTools
             )
         )
 
@@ -257,8 +321,19 @@ class CompletionService {
             .filter { it.type == "text" }
             .joinToString("") { it.text }
 
+        val toolCalls = parsed.content
+            .filter { it.type == "tool_use" }
+            .mapIndexed { idx, block ->
+                ToolCall(
+                    id = block.id ?: "tool_$idx",
+                    name = block.name ?: "",
+                    arguments = parseJsonElementToStringMap(block.input)
+                )
+            }
+
         return CompletionResponse(
             content = textContent,
+            toolCalls = toolCalls,
             finishReason = parsed.stopReason,
             tokensUsed = parsed.usage?.let {
                 TokenUsage(
@@ -317,13 +392,17 @@ class CompletionService {
             })
         }
 
+        val openAiTools = request.tools?.map { it.toOpenAiToolDef() }
+
         val body = json.encodeToString(
             OpenAiRequest.serializer(),
             OpenAiRequest(
                 model = request.modelId,
                 messages = messages,
                 maxTokens = request.maxTokens,
-                temperature = request.temperature
+                temperature = request.temperature,
+                tools = openAiTools,
+                toolChoice = if (openAiTools != null) "auto" else null
             )
         )
 
@@ -343,8 +422,17 @@ class CompletionService {
         val parsed = json.decodeFromString(OpenAiResponse.serializer(), responseJson)
         val choice = parsed.choices.firstOrNull()
 
+        val toolCalls = choice?.message?.toolCalls?.map { tc ->
+            ToolCall(
+                id = tc.id,
+                name = tc.function.name,
+                arguments = parseJsonStringToStringMap(tc.function.arguments)
+            )
+        } ?: emptyList()
+
         return CompletionResponse(
             content = choice?.message?.content ?: "",
+            toolCalls = toolCalls,
             finishReason = choice?.finishReason,
             tokensUsed = parsed.usage?.let {
                 TokenUsage(
@@ -659,6 +747,85 @@ class CompletionService {
             else -> "API error $responseCode from ${url.host}: $errorBody"
         }
         throw IOException(friendlyMessage)
+    }
+
+    // ── Tool definition conversion helpers ───────────────────────────────────
+
+    /**
+     * Converts a generic [ToolDefinition] to Anthropic's `input_schema` format.
+     */
+    private fun ToolDefinition.toAnthropicToolDef(): AnthropicToolDef {
+        val required = parameters.filter { it.required }.map { it.name }
+        val inputSchema: JsonElement = buildJsonObject {
+            put("type", "object")
+            putJsonObject("properties") {
+                parameters.forEach { param ->
+                    putJsonObject(param.name) {
+                        put("type", param.type.lowercase())
+                        put("description", param.description)
+                    }
+                }
+            }
+            if (required.isNotEmpty()) {
+                putJsonArray("required") { required.forEach { add(JsonPrimitive(it)) } }
+            }
+        }
+        return AnthropicToolDef(name = name, description = description, inputSchema = inputSchema)
+    }
+
+    /**
+     * Converts a generic [ToolDefinition] to OpenAI's function tool format.
+     */
+    private fun ToolDefinition.toOpenAiToolDef(): OpenAiToolDef {
+        val required = parameters.filter { it.required }.map { it.name }
+        val parameters: JsonElement = buildJsonObject {
+            put("type", "object")
+            putJsonObject("properties") {
+                this@toOpenAiToolDef.parameters.forEach { param ->
+                    putJsonObject(param.name) {
+                        put("type", param.type.lowercase())
+                        put("description", param.description)
+                    }
+                }
+            }
+            if (required.isNotEmpty()) {
+                putJsonArray("required") { required.forEach { add(JsonPrimitive(it)) } }
+            }
+        }
+        return OpenAiToolDef(function = OpenAiFunction(
+            name = name,
+            description = description,
+            parameters = parameters
+        ))
+    }
+
+    /**
+     * Parses a [JsonElement] tool `input` (from Anthropic `tool_use` block) into
+     * a flat [Map<String, String>] suitable for [ToolCall.arguments].
+     */
+    private fun parseJsonElementToStringMap(element: JsonElement?): Map<String, String> {
+        if (element == null || element !is JsonObject) return emptyMap()
+        return element.entries.associate { (k, v) ->
+            k to when (v) {
+                is JsonPrimitive -> v.content
+                else -> v.toString()
+            }
+        }
+    }
+
+    /**
+     * Parses an OpenAI tool-call `arguments` JSON string (e.g. `{"path":"foo.kt"}`)
+     * into a flat [Map<String, String>] suitable for [ToolCall.arguments].
+     * Returns an empty map if the string is blank or cannot be parsed.
+     */
+    private fun parseJsonStringToStringMap(argumentsJson: String): Map<String, String> {
+        if (argumentsJson.isBlank()) return emptyMap()
+        return try {
+            val parsed = json.parseToJsonElement(argumentsJson)
+            parseJsonElementToStringMap(parsed)
+        } catch (_: Exception) {
+            emptyMap()
+        }
     }
 }
 
