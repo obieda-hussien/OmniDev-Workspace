@@ -57,7 +57,7 @@ object TelegramPublisherTool {
             conn.connectTimeout = 15_000
             conn.readTimeout = 15_000
 
-            val body = """{"chat_id":"$chatId","text":${escapeJson(message)},"parse_mode":"$parseMode"}"""
+            val body = """{"chat_id":${escapeJson(chatId)},"text":${escapeJson(message)},"parse_mode":${escapeJson(parseMode)}}"""
             conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
 
             val code = conn.responseCode

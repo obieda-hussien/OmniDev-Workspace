@@ -122,10 +122,14 @@ fun IntegrationsScreen(
             Button(
                 onClick = {
                     scope.launch {
-                        settingsRepository.setTelegramBotToken(telegramToken.ifBlank { null })
-                        settingsRepository.setTelegramChatId(telegramChatId.ifBlank { null })
-                        settingsRepository.setGitHubPat(githubPat.ifBlank { null })
-                        saved = true
+                        try {
+                            settingsRepository.setTelegramBotToken(telegramToken.ifBlank { null })
+                            settingsRepository.setTelegramChatId(telegramChatId.ifBlank { null })
+                            settingsRepository.setGitHubPat(githubPat.ifBlank { null })
+                            saved = true
+                        } catch (_: Exception) {
+                            saved = false
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()

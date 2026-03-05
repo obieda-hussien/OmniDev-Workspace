@@ -46,6 +46,14 @@ object GitHubManagerTool {
             )
         }
 
+        // Validate repo format: owner/name (alphanumeric, hyphens, underscores, dots)
+        if (!repo.matches(Regex("^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$"))) {
+            return@withContext ToolExecutionResult(
+                "Invalid repo format: '$repo'. Expected owner/name (e.g., user/repo).",
+                isError = true
+            )
+        }
+
         try {
             when (action) {
                 "create_issue" -> createIssue(pat, repo, title, body)

@@ -2,6 +2,7 @@ package com.omnidev.workspace.data.tools
 
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import androidx.core.app.NotificationCompat
 
 /**
  * System notification listener that captures incoming notifications for the AI agent.
@@ -17,8 +18,8 @@ class AgentNotificationService : NotificationListenerService() {
         sbn ?: return
         try {
             val extras = sbn.notification?.extras ?: return
-            val title = extras.getCharSequence("android.title")?.toString() ?: ""
-            val text = extras.getCharSequence("android.text")?.toString() ?: ""
+            val title = extras.getCharSequence(NotificationCompat.EXTRA_TITLE)?.toString() ?: ""
+            val text = extras.getCharSequence(NotificationCompat.EXTRA_TEXT)?.toString() ?: ""
             val pkg = sbn.packageName ?: ""
             val time = sbn.postTime
 

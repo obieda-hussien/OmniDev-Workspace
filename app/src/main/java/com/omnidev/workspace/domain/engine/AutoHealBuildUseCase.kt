@@ -37,6 +37,8 @@ class AutoHealBuildUseCase(
 ) {
 
     companion object {
+        /** Maximum characters of build error output to include in the LLM repair prompt. */
+        private const val MAX_ERROR_CONTEXT_LENGTH = 4000
         private const val DEFAULT_MAX_RETRIES = 5
         private const val DEFAULT_BUILD_COMMAND = "./gradlew assembleDebug"
     }
@@ -114,7 +116,7 @@ class AutoHealBuildUseCase(
                 appendLine("The build failed with the following errors:")
                 appendLine("```")
                 // Truncate very long error output to stay within context limits
-                appendLine(errors.takeLast(4000))
+                appendLine(errors.takeLast(MAX_ERROR_CONTEXT_LENGTH))
                 appendLine("```")
                 appendLine()
                 appendLine("Please analyze the compilation errors above and use the `patch_file_content` tool " +
