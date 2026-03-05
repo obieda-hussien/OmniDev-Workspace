@@ -193,8 +193,12 @@ class EnvironmentSetupManager(private val context: Context) {
                     }
 
                     // Make binaries executable
-                    ProcessBuilder("chmod", "-R", "+x", File(jdkDest, "bin").absolutePath)
-                        .redirectErrorStream(true).start().waitFor()
+                    try {
+                        ProcessBuilder("chmod", "-R", "+x", File(jdkDest, "bin").absolutePath)
+                            .redirectErrorStream(true).start().waitFor()
+                    } catch (_: Exception) {
+                        // chmod failure is non-fatal — binaries may still work
+                    }
 
                     summary.appendLine("✅ JDK 17 installed at $jdkDest")
                     onProgress("JDK 17 installed.")
@@ -248,14 +252,18 @@ class EnvironmentSetupManager(private val context: Context) {
                     // Make platform-tools and build-tools binaries executable
                     val platformTools = File(sdkDest, "platform-tools")
                     if (platformTools.exists()) {
-                        ProcessBuilder("chmod", "-R", "+x", platformTools.absolutePath)
-                            .redirectErrorStream(true).start().waitFor()
+                        try {
+                            ProcessBuilder("chmod", "-R", "+x", platformTools.absolutePath)
+                                .redirectErrorStream(true).start().waitFor()
+                        } catch (_: Exception) { /* non-fatal */ }
                     }
                     val buildTools = File(sdkDest, "build-tools")
                     if (buildTools.exists()) {
                         buildTools.listFiles()?.forEach { versionDir ->
-                            ProcessBuilder("chmod", "-R", "+x", versionDir.absolutePath)
-                                .redirectErrorStream(true).start().waitFor()
+                            try {
+                                ProcessBuilder("chmod", "-R", "+x", versionDir.absolutePath)
+                                    .redirectErrorStream(true).start().waitFor()
+                            } catch (_: Exception) { /* non-fatal */ }
                         }
                     }
 

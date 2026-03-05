@@ -328,7 +328,8 @@ object LocationTool {
             }
 
             val locationManager = context.getSystemService(Context.LOCATION_SERVICE)
-                as android.location.LocationManager
+                as? android.location.LocationManager
+                ?: return ToolExecutionResult("Location service unavailable.", isError = true)
 
             val providers = locationManager.getProviders(true)
             val location = providers.firstNotNullOfOrNull { provider ->
@@ -420,7 +421,8 @@ object DeviceInfoTool {
     }
 
     private fun getBatteryInfo(context: Context): String {
-        val bm = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+        val bm = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+            ?: return "Battery service unavailable."
         val level = bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
         val charging = bm.isCharging
         return "Level: $level%  |  Charging: $charging"
@@ -447,7 +449,8 @@ object DeviceInfoTool {
     }
 
     private fun getNetworkInfo(context: Context): String {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+            ?: return "Connectivity service unavailable."
         val network = cm.activeNetwork
             ?: return "No active network."
         val caps = cm.getNetworkCapabilities(network)
