@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Hub
@@ -87,7 +88,8 @@ import com.omnidev.workspace.registry.ModelRegistry
 fun AISettingsScreen(
     viewModel: AISettingsViewModel,
     onNavigateBack: () -> Unit = {},
-    onNavigateToProviders: () -> Unit = {}
+    onNavigateToProviders: () -> Unit = {},
+    onNavigateToDebug: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -187,6 +189,9 @@ fun AISettingsScreen(
                 enabled = uiState.deepThinkingEnabled,
                 onToggle = { viewModel.toggleDeepThinking(it) }
             )
+
+            // Debug console card
+            DebugConsoleCard(onNavigateToDebug = onNavigateToDebug)
 
             Spacer(modifier = Modifier.height(24.dp))
         }
@@ -565,6 +570,55 @@ private fun formatContextWindow(tokens: Int): String = when {
     tokens >= 1_000_000 -> "${tokens / 1_000_000}M"
     tokens >= 1_000 -> "${tokens / 1_000}K"
     else -> "$tokens"
+}
+
+/**
+ * Card that navigates to the Debug Console screen.
+ */
+@Composable
+private fun DebugConsoleCard(onNavigateToDebug: () -> Unit) {
+    Card(
+        onClick = onNavigateToDebug,
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.BugReport,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Debug Console",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "View crash reports, error logs, and device diagnostics.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            androidx.compose.material3.FilledTonalIconButton(
+                onClick = onNavigateToDebug
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.BugReport,
+                    contentDescription = "Open Debug Console",
+                    tint = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    }
 }
 
 /**
