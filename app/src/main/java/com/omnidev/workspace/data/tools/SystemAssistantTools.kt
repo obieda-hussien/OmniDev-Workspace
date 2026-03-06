@@ -243,6 +243,11 @@ object HardwareToggleTool {
                     val value = if (enabled) "1" else "0"
                     executeShizuku("settings put global airplane_mode_on $value")
                 }
+                "location" -> {
+                    // mode: 3 = high accuracy (GPS + network), 0 = off
+                    val mode = if (enabled) "3" else "0"
+                    executeShizuku("settings put secure location_mode $mode")
+                }
                 "dnd" -> ToolExecutionResult(
                     output = "DND cannot be toggled via shell. " +
                         "Use NotificationManager.setInterruptionFilter() with " +
@@ -250,7 +255,7 @@ object HardwareToggleTool {
                 )
                 else -> ToolExecutionResult(
                     output = "Unknown setting '$setting'. " +
-                        "Supported: wifi, bluetooth, data, airplane, dnd.",
+                        "Supported: wifi, bluetooth, data, airplane, location, dnd.",
                     isError = true
                 )
             }
@@ -285,7 +290,7 @@ object HardwareToggleTool {
                     name = "setting",
                     type = "string",
                     description = "Setting to toggle: 'wifi', 'bluetooth', 'data', " +
-                        "'airplane', or 'dnd'.",
+                        "'airplane', 'location', or 'dnd'.",
                     required = true
                 ),
                 ToolParameter(
@@ -509,6 +514,10 @@ object AppManagerTool {
                     requirePackage(packageName)
                         ?: getAppInfo(context, packageName!!)
                 }
+                "launch_app" -> {
+                    requirePackage(packageName)
+                        ?: launchApp(context, packageName!!)
+                }
                 "force_stop" -> {
                     requirePackage(packageName)
                         ?: forceStop(packageName!!)
@@ -519,7 +528,7 @@ object AppManagerTool {
                 }
                 else -> ToolExecutionResult(
                     output = "Unknown action '$action'. " +
-                        "Use list_installed, app_info, force_stop, or clear_data.",
+                        "Use list_installed, app_info, launch_app, force_stop, or clear_data.",
                     isError = true
                 )
             }
@@ -558,6 +567,23 @@ object AppManagerTool {
             }
         }.trim()
         return ToolExecutionResult(output = output)
+    }
+
+    private fun launchApp(context: Context, packageName: String): ToolExecutionResult {
+        val pm = context.packageManager
+        val launchIntent = pm.getLaunchIntentForPackage(packageName)
+            ?: return ToolExecutionResult(
+                "No launch intent found for '$packageName'. " +
+                    "The app may not be installed or is a background service.",
+                isError = true
+            )
+        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try {
+            context.startActivity(launchIntent)
+            ToolExecutionResult("✅ Launched $packageName.")
+        } catch (e: Exception) {
+            ToolExecutionResult("Failed to launch $packageName: ${e.message}", isError = true)
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -633,19 +659,20 @@ object AppManagerTool {
         ToolDefinition(
             name = "app_manager_tool",
             description = "Manage installed applications: list them, get details, " +
-                "force-stop, or clear all app data.",
+                "launch, force-stop, or clear all app data. " +
+                "CRITICAL: Use 'launch_app' to open any app by package name.",
             parameters = listOf(
                 ToolParameter(
                     name = "action",
                     type = "string",
                     description = "Action to perform: 'list_installed', 'app_info', " +
-                        "'force_stop', or 'clear_data'.",
+                        "'launch_app', 'force_stop', or 'clear_data'.",
                     required = true
                 ),
                 ToolParameter(
                     name = "packageName",
                     type = "string",
-                    description = "Target package name (required for app_info, " +
+                    description = "Target package name (required for app_info, launch_app, " +
                         "force_stop, clear_data).",
                     required = false
                 )

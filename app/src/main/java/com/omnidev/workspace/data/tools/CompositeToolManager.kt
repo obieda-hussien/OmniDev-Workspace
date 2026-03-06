@@ -59,6 +59,7 @@ class CompositeToolManager(
         }
         if (context != null) {
             addAll(SystemContactsTool.getToolDefinitions())
+            addAll(UIAutomationTool.getToolDefinitions())
         }
     }
 
@@ -209,6 +210,12 @@ class CompositeToolManager(
                     ?: return ToolExecutionResult("Contacts tool requires Android context.", isError = true)
                 val searchName = arguments["searchName"] ?: return missingArg("searchName")
                 SystemContactsTool.execute(ctx, searchName)
+            }
+
+            // ── UI automation tool (Ghost Finger) ──
+            "ui_automation" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                UIAutomationTool.execute(action, arguments)
             }
 
             // ── File tools (default fallback) ──

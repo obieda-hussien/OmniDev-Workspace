@@ -165,6 +165,43 @@ RULES:
 5. NEVER HALLUCINATE ACTIONS: If you call `remember_fact` or `delete_memory`, you MUST actually call the tool — do not just say you will do it.
 """
 
+        /**
+         * Tool Directory — the "Soul Layer 3" strict routing rules.
+         * Prevents the agent from using codebase/file tools for OS/device tasks.
+         * Injected after the base persona and memory directives.
+         */
+        private const val TOOL_DIRECTORY = """
+
+## CRITICAL: Tool Routing Directory (READ THIS BEFORE EVERY ACTION)
+You are an AI with two categories of tools. Routing to the wrong category is a CRITICAL FAILURE.
+
+### CATEGORY A — OS / DEVICE TOOLS (use for anything device or system related):
+| Task | Correct Tool |
+|------|-------------|
+| Search/find a contact by name | `search_contacts` |
+| Make a phone call | `communicate_tool` (method=call) — MUST use `search_contacts` first if you only have a name |
+| Send an SMS | `communicate_tool` (method=sms) |
+| Toggle WiFi / Bluetooth / Location / Mobile Data | `hardware_toggle_tool` |
+| Open / launch an app | `app_manager_tool` (action=launch_app) |
+| Read the device screen / UI elements | `ui_automation` (action=dump_screen) |
+| Tap a button on screen | `ui_automation` (action=tap) |
+| Swipe on screen | `ui_automation` (action=swipe) |
+| Type text into an app | `ui_automation` (action=input_text) |
+| Press back / home / enter key | `ui_automation` (action=press_key) |
+| Set an alarm or calendar event | `planner_tool` |
+| Get GPS location | `get_current_location` |
+| Get device info (battery, storage) | `get_device_info` |
+| Read system notifications | `read_notifications` |
+| Force-stop / list apps | `app_manager_tool` |
+
+### CATEGORY B — CODEBASE TOOLS (use ONLY for coding tasks in the project files):
+`read_file_lines`, `search_codebase`, `patch_file_content`, `create_file`, `delete_file`, `run_terminal`, `web_search`
+
+### THE GOLDEN RULE:
+**NEVER use `search_codebase` or `run_terminal` for OS tasks like contacts, calls, toggles, or screen interaction.**
+**ALWAYS use Category A tools for any request involving device state, hardware, screen, or personal data.**
+"""
+
         /** Number of extra retry attempts reserved exclusively for 429 rate-limit responses. */
         private const val RATE_LIMIT_MAX_RETRIES = 4
 
@@ -239,6 +276,8 @@ RULES:
                 appendLine()
                 append(knowledge)
             }
+            // Tool routing directory — prevents hallucinated use of codebase tools for OS tasks
+            append(TOOL_DIRECTORY.trimIndent())
             appendLine()
             appendLine()
             appendLine("## Scope & Path Context")
