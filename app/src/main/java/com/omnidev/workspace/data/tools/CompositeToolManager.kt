@@ -57,6 +57,9 @@ class CompositeToolManager(
         if (godEyeProfilerTool != null) {
             addAll(godEyeProfilerTool.getToolDefs())
         }
+        if (context != null) {
+            addAll(SystemContactsTool.getToolDefinitions())
+        }
     }
 
     override suspend fun executeTool(
@@ -198,6 +201,14 @@ class CompositeToolManager(
                 val notion = notionPublisherTool
                     ?: return ToolExecutionResult("Notion publisher tool not configured.", isError = true)
                 notion.execute(arguments)
+            }
+
+            // ── System contacts tool ──
+            "search_contacts" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Contacts tool requires Android context.", isError = true)
+                val searchName = arguments["searchName"] ?: return missingArg("searchName")
+                SystemContactsTool.execute(ctx, searchName)
             }
 
             // ── File tools (default fallback) ──

@@ -91,7 +91,9 @@ object CommunicationTool {
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "communicate_tool",
-            description = "Initiate a phone call, send an SMS, or open a WhatsApp conversation.",
+            description = "Initiate a phone call, send an SMS, or open a WhatsApp conversation. " +
+                "Expects a valid phone number in the 'target' field. " +
+                "If you only have a person's name, you MUST use 'search_contacts' first to retrieve their number.",
             parameters = listOf(
                 ToolParameter(
                     name = "method",
@@ -102,7 +104,8 @@ object CommunicationTool {
                 ToolParameter(
                     name = "target",
                     type = "string",
-                    description = "Phone number of the recipient (E.164 or local format).",
+                    description = "Phone number of the recipient (E.164 or local format). " +
+                        "If you only have a name, use 'search_contacts' first.",
                     required = true
                 ),
                 ToolParameter(
