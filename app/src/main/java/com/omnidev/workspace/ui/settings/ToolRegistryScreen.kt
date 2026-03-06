@@ -31,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.omnidev.workspace.data.tools.AppManagerTool
+import com.omnidev.workspace.data.tools.AdvancedRootShellTool
+import com.omnidev.workspace.data.tools.CallLogTool
 import com.omnidev.workspace.data.tools.CommunicationTool
 import com.omnidev.workspace.data.tools.DeviceInfoTool
 import com.omnidev.workspace.data.tools.GitManagerTool
@@ -38,8 +40,12 @@ import com.omnidev.workspace.data.tools.HardwareToggleTool
 import com.omnidev.workspace.data.tools.LocationTool
 import com.omnidev.workspace.data.tools.LogcatAnalyzerTool
 import com.omnidev.workspace.data.tools.NotificationCaptureTool
+import com.omnidev.workspace.data.tools.PackageInstallerTool
 import com.omnidev.workspace.data.tools.PlannerTool
+import com.omnidev.workspace.data.tools.ScreenshotTool
+import com.omnidev.workspace.data.tools.SmsReaderTool
 import com.omnidev.workspace.data.tools.SystemContactsTool
+import com.omnidev.workspace.data.tools.SystemSettingsTool
 import com.omnidev.workspace.data.tools.TaskSchedulerTool
 import com.omnidev.workspace.data.tools.TelegramPublisherTool
 import com.omnidev.workspace.data.tools.ToolDefinition
@@ -70,6 +76,12 @@ private val TOOL_GROUPS: List<ToolGroup> by lazy {
                 addAll(AppManagerTool.getToolDefinitions())
                 addAll(SystemContactsTool.getToolDefinitions())
                 addAll(UIAutomationTool.getToolDefinitions())
+                addAll(CallLogTool.getToolDefinitions())
+                addAll(SmsReaderTool.getToolDefinitions())
+                addAll(ScreenshotTool.getToolDefinitions())
+                addAll(SystemSettingsTool.getToolDefinitions())
+                addAll(PackageInstallerTool.getToolDefinitions())
+                addAll(AdvancedRootShellTool.getToolDefinitions())
             }
         ),
         ToolGroup(

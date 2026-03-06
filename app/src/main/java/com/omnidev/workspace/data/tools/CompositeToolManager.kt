@@ -60,6 +60,12 @@ class CompositeToolManager(
         if (context != null) {
             addAll(SystemContactsTool.getToolDefinitions())
             addAll(UIAutomationTool.getToolDefinitions())
+            addAll(CallLogTool.getToolDefinitions())
+            addAll(SmsReaderTool.getToolDefinitions())
+            addAll(ScreenshotTool.getToolDefinitions())
+            addAll(SystemSettingsTool.getToolDefinitions())
+            addAll(PackageInstallerTool.getToolDefinitions())
+            addAll(AdvancedRootShellTool.getToolDefinitions())
         }
     }
 
@@ -216,6 +222,61 @@ class CompositeToolManager(
             "ui_automation" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 UIAutomationTool.execute(action, arguments)
+            }
+
+            // ── Call log tool ──
+            "call_log_tool" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Call log tool requires Android context.", isError = true)
+                CallLogTool.execute(
+                    context = ctx,
+                    action = arguments["action"] ?: return missingArg("action"),
+                    query = arguments["query"],
+                    limit = arguments["limit"]?.toIntOrNull() ?: 50
+                )
+            }
+
+            // ── SMS reader tool ──
+            "sms_reader_tool" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("SMS tool requires Android context.", isError = true)
+                SmsReaderTool.execute(
+                    context = ctx,
+                    action = arguments["action"] ?: return missingArg("action"),
+                    query = arguments["query"],
+                    limit = arguments["limit"]?.toIntOrNull() ?: 30
+                )
+            }
+
+            // ── Screenshot tool ──
+            "screenshot_tool" -> {
+                ScreenshotTool.execute(filename = arguments["filename"])
+            }
+
+            // ── System settings tool ──
+            "system_settings_tool" -> {
+                SystemSettingsTool.execute(
+                    action = arguments["action"] ?: return missingArg("action"),
+                    namespace = arguments["namespace"] ?: return missingArg("namespace"),
+                    key = arguments["key"] ?: return missingArg("key"),
+                    value = arguments["value"]
+                )
+            }
+
+            // ── Package installer tool ──
+            "package_installer_tool" -> {
+                PackageInstallerTool.execute(
+                    action = arguments["action"] ?: return missingArg("action"),
+                    target = arguments["target"] ?: return missingArg("target"),
+                    extraFlags = arguments["extraFlags"]
+                )
+            }
+
+            // ── Advanced root shell tool ──
+            "root_shell_tool" -> {
+                AdvancedRootShellTool.execute(
+                    command = arguments["command"] ?: return missingArg("command")
+                )
             }
 
             // ── File tools (default fallback) ──

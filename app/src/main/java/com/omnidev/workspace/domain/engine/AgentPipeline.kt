@@ -193,13 +193,19 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 | Get device info (battery, storage) | `get_device_info` |
 | Read system notifications | `read_notifications` |
 | Force-stop / list apps | `app_manager_tool` |
+| Read call history / search calls | `call_log_tool` |
+| Read SMS inbox / sent / search | `sms_reader_tool` |
+| Take a screenshot | `screenshot_tool` |
+| Read or change system settings (brightness, timeout, etc.) | `system_settings_tool` |
+| Install / uninstall APK packages | `package_installer_tool` |
+| Run advanced root/system commands (dumpsys, getprop, wm, etc.) | `root_shell_tool` |
 
 ### CATEGORY B — CODEBASE TOOLS (use ONLY for coding tasks in the project files):
 `read_file_lines`, `search_codebase`, `patch_file_content`, `create_file`, `delete_file`, `run_terminal`, `web_search`
 
 ### THE GOLDEN RULE:
-**NEVER use `search_codebase` or `run_terminal` for OS tasks like contacts, calls, toggles, or screen interaction.**
-**ALWAYS use Category A tools for any request involving device state, hardware, screen, or personal data.**
+**NEVER use `search_codebase` or `run_terminal` for OS tasks like contacts, calls, toggles, SMS, call log, screenshots, system settings, or screen interaction.**
+**ALWAYS use Category A tools for any request involving device state, hardware, screen, personal data, or system commands.**
 """
 
         /** Number of extra retry attempts reserved exclusively for 429 rate-limit responses. */
