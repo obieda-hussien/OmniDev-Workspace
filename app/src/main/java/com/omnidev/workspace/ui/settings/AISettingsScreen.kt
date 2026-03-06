@@ -101,7 +101,8 @@ fun AISettingsScreen(
     onNavigateToDebug: () -> Unit = {},
     onNavigateToSystemPrompt: () -> Unit = {},
     onNavigateToMemoryExplorer: () -> Unit = {},
-    onNavigateToIntegrations: () -> Unit = {}
+    onNavigateToIntegrations: () -> Unit = {},
+    onNavigateToLocalModels: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -239,6 +240,12 @@ fun AISettingsScreen(
                 title = "Integrations & Linked Accounts",
                 subtitle = "Connect Telegram, GitHub, and other platforms",
                 onClick = onNavigateToIntegrations
+            )
+
+            SettingsNavCard(
+                title = "Local Edge Model (BYOM)",
+                subtitle = "Run a quantized GGUF model on-device — no API key or internet required",
+                onClick = onNavigateToLocalModels
             )
 
             Spacer(modifier = Modifier.height(24.dp))

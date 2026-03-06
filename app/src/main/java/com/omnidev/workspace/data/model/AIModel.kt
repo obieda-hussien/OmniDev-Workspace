@@ -81,7 +81,8 @@ enum class ModelProvider(val displayName: String) {
     PERPLEXITY("Perplexity AI"),
     NVIDIA("NVIDIA NIM"),
     GITHUB_COPILOT("GitHub Copilot"),
-    OPEN_ROUTER("OpenRouter")
+    OPEN_ROUTER("OpenRouter"),
+    LOCAL_EDGE("Local Edge Model")
 }
 
 /**

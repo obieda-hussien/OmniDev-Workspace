@@ -223,6 +223,7 @@ class CompletionService {
         ModelProvider.GITHUB_COPILOT -> "https://api.githubcopilot.com"
         ModelProvider.OPEN_ROUTER   -> "https://openrouter.ai/api/v1"
         ModelProvider.PERPLEXITY    -> "https://api.perplexity.ai"
+        ModelProvider.LOCAL_EDGE    -> "http://localhost"
     }
 
     /**

@@ -1220,6 +1220,21 @@ object ModelRegistry {
         addAll(nvidiaModels)
         addAll(githubCopilotModels)
         addAll(openRouterModels)
+        add(
+            AIModel(
+                id = "local-edge-model",
+                displayName = "Local Edge Model (BYOM)",
+                provider = ModelProvider.LOCAL_EDGE,
+                tier = ModelTier.EXECUTOR,
+                contextWindow = 4096,
+                maxOutputTokens = 2048,
+                supportsFunctionCalling = false,
+                costPer1MInputTokens = 0.0,
+                costPer1MOutputTokens = 0.0,
+                shortDescription = "On-device GGUF model via llama.cpp. No internet or API key required.",
+                isLatest = true
+            )
+        )
     }
 
     /** Models grouped by their provider for UI dropdown grouping. */

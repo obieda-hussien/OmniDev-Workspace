@@ -12,7 +12,9 @@ import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.EnvironmentSetupManager
 import com.omnidev.workspace.data.tools.FileToolManager
+import com.omnidev.workspace.data.tools.GodEyeProfilerTool
 import com.omnidev.workspace.data.tools.MemoryManager
+import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.domain.attachment.AttachmentProcessor
 import com.omnidev.workspace.domain.engine.AgentConfig
 import com.omnidev.workspace.domain.engine.AgentPipeline
@@ -47,12 +49,14 @@ class MainActivity : ComponentActivity() {
         // Composite tool manager: file tools + memory + system assistant + build environment
         val fileToolManager = FileToolManager()
         val environmentSetupManager = EnvironmentSetupManager(applicationContext)
+        val godEyeProfilerTool = GodEyeProfilerTool(applicationContext, ShizukuCommandTool)
         val toolManager = CompositeToolManager(
             fileToolManager = fileToolManager,
             memoryManager = memoryManager,
             context = applicationContext,
             environmentSetupManager = environmentSetupManager,
-            settingsRepository = settingsRepository
+            settingsRepository = settingsRepository,
+            godEyeProfilerTool = godEyeProfilerTool
         )
 
         // Real HTTP completion provider

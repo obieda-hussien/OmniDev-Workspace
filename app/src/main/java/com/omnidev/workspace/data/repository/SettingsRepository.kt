@@ -58,6 +58,9 @@ class SettingsRepository(private val context: Context) {
         val TELEGRAM_BOT_TOKEN = stringPreferencesKey("telegram_bot_token")
         val TELEGRAM_CHAT_ID = stringPreferencesKey("telegram_chat_id")
         val GITHUB_PAT = stringPreferencesKey("github_pat")
+        // Local Edge Model
+        val LOCAL_MODEL_URI = stringPreferencesKey("local_model_uri")
+        val LOCAL_MODEL_NAME = stringPreferencesKey("local_model_name")
     }
 
     // ──────────────────────────────────────────────
@@ -259,6 +262,28 @@ class SettingsRepository(private val context: Context) {
     suspend fun setGitHubPat(pat: String?) {
         context.settingsDataStore.edit { prefs ->
             if (pat.isNullOrBlank()) prefs.remove(Keys.GITHUB_PAT) else prefs[Keys.GITHUB_PAT] = pat
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  Local Edge Model
+    // ──────────────────────────────────────────────
+
+    fun observeLocalModelUri(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.LOCAL_MODEL_URI] }
+
+    suspend fun setLocalModelUri(uriString: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (uriString.isNullOrBlank()) prefs.remove(Keys.LOCAL_MODEL_URI) else prefs[Keys.LOCAL_MODEL_URI] = uriString
+        }
+    }
+
+    fun observeLocalModelName(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.LOCAL_MODEL_NAME] }
+
+    suspend fun setLocalModelName(name: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (name.isNullOrBlank()) prefs.remove(Keys.LOCAL_MODEL_NAME) else prefs[Keys.LOCAL_MODEL_NAME] = name
         }
     }
 

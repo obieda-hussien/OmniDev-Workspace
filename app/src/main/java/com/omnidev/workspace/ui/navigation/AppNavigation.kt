@@ -16,6 +16,7 @@ import com.omnidev.workspace.ui.providers.ProvidersViewModel
 import com.omnidev.workspace.ui.settings.AISettingsScreen
 import com.omnidev.workspace.ui.settings.AISettingsViewModel
 import com.omnidev.workspace.ui.settings.IntegrationsScreen
+import com.omnidev.workspace.ui.settings.LocalModelManagerScreen
 import com.omnidev.workspace.ui.settings.MemoryExplorerScreen
 import com.omnidev.workspace.ui.settings.SystemPromptEditorScreen
 
@@ -30,6 +31,7 @@ object Routes {
     const val SYSTEM_PROMPT = "system_prompt"
     const val MEMORY_EXPLORER = "memory_explorer"
     const val INTEGRATIONS = "integrations"
+    const val LOCAL_MODELS = "local_models"
 }
 
 /**
@@ -66,7 +68,8 @@ fun AppNavigation(
                 onNavigateToDebug = { navController.navigate(Routes.DEBUG) },
                 onNavigateToSystemPrompt = { navController.navigate(Routes.SYSTEM_PROMPT) },
                 onNavigateToMemoryExplorer = { navController.navigate(Routes.MEMORY_EXPLORER) },
-                onNavigateToIntegrations = { navController.navigate(Routes.INTEGRATIONS) }
+                onNavigateToIntegrations = { navController.navigate(Routes.INTEGRATIONS) },
+                onNavigateToLocalModels = { navController.navigate(Routes.LOCAL_MODELS) }
             )
         }
 
@@ -101,6 +104,13 @@ fun AppNavigation(
 
         composable(Routes.INTEGRATIONS) {
             IntegrationsScreen(
+                settingsRepository = settingsRepository,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.LOCAL_MODELS) {
+            LocalModelManagerScreen(
                 settingsRepository = settingsRepository,
                 onNavigateBack = { navController.popBackStack() }
             )

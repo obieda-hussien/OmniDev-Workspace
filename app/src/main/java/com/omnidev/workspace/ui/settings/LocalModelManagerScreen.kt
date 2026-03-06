@@ -1,0 +1,307 @@
+package com.omnidev.workspace.ui.settings
+
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import com.omnidev.workspace.data.localllm.LocalEngineHolder
+import com.omnidev.workspace.data.repository.SettingsRepository
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+
+private data class SuggestedModel(
+    val name: String,
+    val size: String,
+    val description: String,
+    val huggingFaceUrl: String
+)
+
+private val SUGGESTED_MODELS = listOf(
+    SuggestedModel(
+        name = "Llama-3.2-1B-Instruct (Q4_K_M)",
+        size = "~0.8 GB",
+        description = "Ultra-compact, fast on-device chat. Best for simple Q&A.",
+        huggingFaceUrl = "https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF"
+    ),
+    SuggestedModel(
+        name = "Llama-3.2-3B-Instruct (Q4_K_M)",
+        size = "~2.0 GB",
+        description = "Balanced quality/speed. Good general coding assistant.",
+        huggingFaceUrl = "https://huggingface.co/bartowski/Llama-3.2-3B-Instruct-GGUF"
+    ),
+    SuggestedModel(
+        name = "DeepSeek-Coder-1.3B (Q4_K_M)",
+        size = "~1.0 GB",
+        description = "Specialized for code generation with very low memory.",
+        huggingFaceUrl = "https://huggingface.co/TheBloke/deepseek-coder-1.3b-instruct-GGUF"
+    ),
+    SuggestedModel(
+        name = "Phi-3.5-mini-instruct (Q4_K_M)",
+        size = "~2.2 GB",
+        description = "Microsoft's efficient model. Excellent reasoning per parameter.",
+        huggingFaceUrl = "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF"
+    )
+)
+
+/**
+ * Screen for managing on-device local LLM models (Bring Your Own Model).
+ *
+ * Provides:
+ * - Section A: Suggested lightweight models with external HuggingFace links
+ * - Section B: File picker to select a local .gguf file with persistable URI permission
+ * - Status display showing loaded model name and inference readiness
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LocalModelManagerScreen(
+    settingsRepository: SettingsRepository,
+    onNavigateBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val engine = LocalEngineHolder.engine
+
+    var loadedModelName by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        loadedModelName = settingsRepository.observeLocalModelName().first()
+        val savedUri = settingsRepository.observeLocalModelUri().first()
+        if (savedUri != null && !engine.isLoaded) {
+            val uri = Uri.parse(savedUri)
+            val result = engine.loadModel(context, uri)
+            loadedModelName = result.getOrNull()
+        }
+    }
+
+    val modelPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {}
+
+            scope.launch {
+                isLoading = true
+                statusMessage = "Loading model…"
+                val result = engine.loadModel(context, uri)
+                isLoading = false
+                if (result.isSuccess) {
+                    val name = result.getOrThrow()
+                    loadedModelName = name
+                    statusMessage = "✅ Model loaded: $name"
+                    settingsRepository.setLocalModelUri(uri.toString())
+                    settingsRepository.setLocalModelName(name)
+                } else {
+                    statusMessage = "❌ Failed to load model: ${result.exceptionOrNull()?.message}"
+                }
+            }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Memory, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Local Edge Model (BYOM)")
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // ── Status Card ──
+            val currentStatus = when {
+                isLoading -> "⏳ Loading model…"
+                engine.isLoaded -> "🟢 Ready — ${loadedModelName ?: "Unknown"}"
+                else -> "⚫ No model loaded"
+            }
+
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (engine.isLoaded)
+                        MaterialTheme.colorScheme.primaryContainer
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Engine Status",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = currentStatus,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    if (statusMessage != null) {
+                        Text(
+                            text = statusMessage!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (engine.isLoaded) {
+                        Spacer(Modifier.height(4.dp))
+                        OutlinedButton(
+                            onClick = {
+                                engine.unloadModel()
+                                loadedModelName = null
+                                statusMessage = "Model unloaded."
+                                scope.launch {
+                                    settingsRepository.setLocalModelUri(null)
+                                    settingsRepository.setLocalModelName(null)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Unload Model")
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider()
+
+            // ── Section A: Suggested Models ──
+            Text(
+                "🤗 Suggested Models",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                "Download a quantized GGUF model from HuggingFace, then pick it below.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            SUGGESTED_MODELS.forEach { model ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(model.name, style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "${model.size} · ${model.description}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(model.huggingFaceUrl))
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(intent)
+                            }
+                        ) {
+                            Icon(Icons.Filled.Download, contentDescription = "Download ${model.name}")
+                        }
+                    }
+                }
+            }
+
+            HorizontalDivider()
+
+            // ── Section B: Model Picker ──
+            Text(
+                "📂 Load Model File",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                "Select a downloaded .gguf file from your device storage.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Button(
+                onClick = { modelPickerLauncher.launch(arrayOf("*/*")) },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isLoading
+            ) {
+                Icon(Icons.Filled.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(if (isLoading) "Loading…" else "Select .gguf Model File")
+            }
+
+            // ── Note on routing ──
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "💡 Once a model is loaded, select \"Local Edge Model\" in the Providers screen to route Agent/Chat requests to this offline engine. No internet or API key required.",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(12.dp)
+                )
+            }
+        }
+    }
+}

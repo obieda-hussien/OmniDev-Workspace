@@ -23,7 +23,8 @@ class CompositeToolManager(
     val memoryManager: MemoryManager,
     private val context: Context? = null,
     private val environmentSetupManager: EnvironmentSetupManager? = null,
-    private val settingsRepository: SettingsRepository? = null
+    private val settingsRepository: SettingsRepository? = null,
+    private val godEyeProfilerTool: GodEyeProfilerTool? = null
 ) : ToolManager {
 
     override fun getToolDefinitions(): List<ToolDefinition> = buildList {
@@ -45,6 +46,9 @@ class CompositeToolManager(
         addAll(VisualInspectorTool.getToolDefinitions())
         addAll(TelegramPublisherTool.getToolDefinitions())
         addAll(GitHubManagerTool.getToolDefinitions())
+        if (godEyeProfilerTool != null) {
+            addAll(godEyeProfilerTool.getToolDefs())
+        }
     }
 
     override suspend fun executeTool(
@@ -165,6 +169,13 @@ class CompositeToolManager(
                     head = arguments["head"],
                     base = arguments["base"]
                 )
+            }
+
+            // ── GodEye profiler tools ──
+            "read_network_log", "read_db_schema", "analyze_anr_trace", "memory_snapshot" -> {
+                val profiler = godEyeProfilerTool
+                    ?: return ToolExecutionResult("GodEye profiler tool not configured.", isError = true)
+                ToolExecutionResult(profiler.execute(name, arguments))
             }
 
             // ── File tools (default fallback) ──
