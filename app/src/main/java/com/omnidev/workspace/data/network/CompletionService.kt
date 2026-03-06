@@ -1,5 +1,6 @@
 package com.omnidev.workspace.data.network
 
+import com.omnidev.workspace.data.localllm.LocalEngineHolder
 import com.omnidev.workspace.data.model.AttachmentMediaType
 import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
@@ -241,6 +242,10 @@ class CompletionService {
             val model = ModelRegistry.findModelById(request.modelId)
                 ?: throw IOException("Unknown model ID: '${request.modelId}'")
 
+            if (model.provider == ModelProvider.LOCAL_EDGE) {
+                return@withContext callLocalEdge(request)
+            }
+
             val apiKey = request.apiKey
                 ?: throw IOException(
                     "No API key configured for ${model.provider.displayName}. " +
@@ -253,6 +258,64 @@ class CompletionService {
                 callOpenAiCompatible(request, model.provider, apiKey)
             }
         }
+
+    // ── Local Edge (on-device GGUF) ───────────────────────────────────────────
+
+    private suspend fun callLocalEdge(request: CompletionRequest): CompletionResponse {
+        val engine = LocalEngineHolder.engine
+        if (!engine.isLoaded) {
+            throw IOException(
+                "No local model loaded. Please load a GGUF model in Settings → Local Edge Model."
+            )
+        }
+        val prompt = buildLocalPrompt(request)
+        val sb = StringBuilder()
+        engine.generateResponse(prompt).collect { token -> sb.append(token) }
+        return CompletionResponse(content = sb.toString())
+    }
+
+    private suspend fun streamLocalEdge(
+        request: CompletionRequest,
+        onChunk: suspend (String) -> Unit
+    ): CompletionResponse {
+        val engine = LocalEngineHolder.engine
+        if (!engine.isLoaded) {
+            throw IOException(
+                "No local model loaded. Please load a GGUF model in Settings → Local Edge Model."
+            )
+        }
+        val prompt = buildLocalPrompt(request)
+        val sb = StringBuilder()
+        engine.generateResponse(prompt).collect { token ->
+            onChunk(token)
+            sb.append(token)
+        }
+        return CompletionResponse(content = sb.toString())
+    }
+
+    /**
+     * Builds a plain-text prompt from the request's system prompt and message history,
+     * suitable for local llama.cpp inference (no JSON/tool-call formatting).
+     */
+    private fun buildLocalPrompt(request: CompletionRequest): String {
+        val sb = StringBuilder()
+        if (!request.systemPrompt.isNullOrBlank()) {
+            sb.append("System: ").append(request.systemPrompt).append("\n\n")
+        }
+        for (msg in request.messages) {
+            val roleLabel = when (msg.role) {
+                MessageRole.USER      -> "User"
+                MessageRole.ASSISTANT -> "Assistant"
+                MessageRole.SYSTEM    -> "System"
+                MessageRole.TOOL      -> "Tool"
+            }
+            if (msg.content.isNotBlank()) {
+                sb.append(roleLabel).append(": ").append(msg.content).append("\n")
+            }
+        }
+        sb.append("Assistant:")
+        return sb.toString()
+    }
 
     // ── Anthropic Messages API ────────────────────────────────────────────────
 
@@ -471,6 +534,10 @@ class CompletionService {
     ): CompletionResponse = withContext(Dispatchers.IO) {
         val model = ModelRegistry.findModelById(request.modelId)
             ?: throw IOException("Unknown model ID: '${request.modelId}'")
+
+        if (model.provider == ModelProvider.LOCAL_EDGE) {
+            return@withContext streamLocalEdge(request, onChunk)
+        }
 
         val apiKey = request.apiKey
             ?: throw IOException(
