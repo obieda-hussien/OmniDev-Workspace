@@ -2,6 +2,9 @@ package com.omnidev.workspace.data.tools
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.CopyOnWriteArrayList
@@ -14,6 +17,9 @@ import java.util.concurrent.CopyOnWriteArrayList
  * tool. A background runner (external to this object) should periodically call
  * [getReadyTasks] and drive their execution lifecycle via [markRunning],
  * [markCompleted], [markFailed], and [rescheduleRepeating].
+ *
+ * The [tasksFlow] [StateFlow] emits the current snapshot whenever the list
+ * is mutated — use it from Compose screens instead of polling.
  */
 object TaskSchedulerTool {
 
@@ -34,6 +40,15 @@ object TaskSchedulerTool {
     )
 
     private val tasks = CopyOnWriteArrayList<ScheduledTask>()
+
+    /** Reactive snapshot of all tasks. Collect this in Compose instead of polling. */
+    private val _tasksFlow = MutableStateFlow<List<ScheduledTask>>(emptyList())
+    val tasksFlow: StateFlow<List<ScheduledTask>> = _tasksFlow.asStateFlow()
+
+    /** Publishes the current list snapshot to [tasksFlow]. Call after any mutation. */
+    private fun notifyChanged() {
+        _tasksFlow.value = tasks.toList()
+    }
 
     // ── Tool schema ──────────────────────────────────────────────────────
 
@@ -146,6 +161,7 @@ object TaskSchedulerTool {
             status = TaskStatus.PENDING
         )
         tasks.add(task)
+        notifyChanged()
 
         val repeatInfo = if (repeatIntervalMinutes != null) {
             "\nRepeat:      every $repeatIntervalMinutes minute(s)"
@@ -196,6 +212,7 @@ object TaskSchedulerTool {
             return ToolExecutionResult(output = "Task not found: $taskId", isError = true)
         }
         tasks[index] = tasks[index].copy(status = TaskStatus.CANCELLED)
+        notifyChanged()
         return ToolExecutionResult(output = "🚫 Task '$taskId' cancelled.")
     }
 
@@ -235,6 +252,7 @@ object TaskSchedulerTool {
         val index = tasks.indexOfFirst { it.id == taskId }
         if (index != -1) {
             tasks[index] = tasks[index].copy(status = TaskStatus.RUNNING)
+            notifyChanged()
         }
     }
 
@@ -243,6 +261,7 @@ object TaskSchedulerTool {
         val index = tasks.indexOfFirst { it.id == taskId }
         if (index != -1) {
             tasks[index] = tasks[index].copy(status = TaskStatus.COMPLETED, lastResult = result)
+            notifyChanged()
         }
     }
 
@@ -251,6 +270,7 @@ object TaskSchedulerTool {
         val index = tasks.indexOfFirst { it.id == taskId }
         if (index != -1) {
             tasks[index] = tasks[index].copy(status = TaskStatus.FAILED, lastResult = error)
+            notifyChanged()
         }
     }
 
@@ -272,6 +292,51 @@ object TaskSchedulerTool {
         tasks.add(newTask)
         // Remove the old completed/failed instance to prevent unbounded accumulation.
         tasks.removeAll { it.id == taskId }
+        notifyChanged()
+    }
+
+    // ── Public list access ───────────────────────────────────────────────
+
+    /** Returns a snapshot of all tasks (any status). Used by the Scheduler Dashboard UI. */
+    fun getAllTasks(): List<ScheduledTask> = tasks.toList()
+
+    /** Cancels a task by ID without removing it from the list (status → CANCELLED). */
+    fun cancelTaskById(taskId: String) {
+        val index = tasks.indexOfFirst { it.id == taskId }
+        if (index != -1) {
+            tasks[index] = tasks[index].copy(status = TaskStatus.CANCELLED)
+            notifyChanged()
+        }
+    }
+
+    /** Permanently removes a task from the list by ID. */
+    fun deleteTask(taskId: String) {
+        tasks.removeAll { it.id == taskId }
+        notifyChanged()
+    }
+
+    /**
+     * Schedules a task directly (bypassing the agent). Called from the Scheduler Dashboard FAB.
+     */
+    fun scheduleTaskDirectly(
+        name: String,
+        prompt: String,
+        delayMinutes: Int,
+        repeatIntervalMinutes: Int?
+    ) {
+        val id = UUID.randomUUID().toString()
+        val scheduledTime = System.currentTimeMillis() + (delayMinutes * 60_000L)
+        tasks.add(
+            ScheduledTask(
+                id = id,
+                name = name,
+                prompt = prompt,
+                scheduledTimeMillis = scheduledTime,
+                repeatIntervalMinutes = repeatIntervalMinutes,
+                status = TaskStatus.PENDING
+            )
+        )
+        notifyChanged()
     }
 
     // ── Agent dispatch ───────────────────────────────────────────────────

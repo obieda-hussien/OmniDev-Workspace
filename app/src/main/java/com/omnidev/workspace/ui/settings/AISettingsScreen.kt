@@ -102,7 +102,9 @@ fun AISettingsScreen(
     onNavigateToSystemPrompt: () -> Unit = {},
     onNavigateToMemoryExplorer: () -> Unit = {},
     onNavigateToIntegrations: () -> Unit = {},
-    onNavigateToLocalModels: () -> Unit = {}
+    onNavigateToLocalModels: () -> Unit = {},
+    onNavigateToScheduledTasks: () -> Unit = {},
+    onNavigateToToolRegistry: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -246,6 +248,18 @@ fun AISettingsScreen(
                 title = "Local Edge Model (BYOM)",
                 subtitle = "Run a quantized GGUF model on-device — no API key or internet required",
                 onClick = onNavigateToLocalModels
+            )
+
+            SettingsNavCard(
+                title = "Scheduler Dashboard",
+                subtitle = "View, cancel, and manually create autonomous background AI tasks",
+                onClick = onNavigateToScheduledTasks
+            )
+
+            SettingsNavCard(
+                title = "Tool Arsenal",
+                subtitle = "Browse all available agent tools and their descriptions",
+                onClick = onNavigateToToolRegistry
             )
 
             Spacer(modifier = Modifier.height(24.dp))

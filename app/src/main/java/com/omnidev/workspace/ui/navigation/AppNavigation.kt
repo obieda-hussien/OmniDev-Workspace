@@ -18,7 +18,9 @@ import com.omnidev.workspace.ui.settings.AISettingsViewModel
 import com.omnidev.workspace.ui.settings.IntegrationsScreen
 import com.omnidev.workspace.ui.settings.LocalModelManagerScreen
 import com.omnidev.workspace.ui.settings.MemoryExplorerScreen
+import com.omnidev.workspace.ui.settings.ScheduledTasksScreen
 import com.omnidev.workspace.ui.settings.SystemPromptEditorScreen
+import com.omnidev.workspace.ui.settings.ToolRegistryScreen
 
 /**
  * Navigation route constants.
@@ -32,6 +34,8 @@ object Routes {
     const val MEMORY_EXPLORER = "memory_explorer"
     const val INTEGRATIONS = "integrations"
     const val LOCAL_MODELS = "local_models"
+    const val SCHEDULED_TASKS = "scheduled_tasks"
+    const val TOOL_REGISTRY = "tool_registry"
 }
 
 /**
@@ -69,7 +73,9 @@ fun AppNavigation(
                 onNavigateToSystemPrompt = { navController.navigate(Routes.SYSTEM_PROMPT) },
                 onNavigateToMemoryExplorer = { navController.navigate(Routes.MEMORY_EXPLORER) },
                 onNavigateToIntegrations = { navController.navigate(Routes.INTEGRATIONS) },
-                onNavigateToLocalModels = { navController.navigate(Routes.LOCAL_MODELS) }
+                onNavigateToLocalModels = { navController.navigate(Routes.LOCAL_MODELS) },
+                onNavigateToScheduledTasks = { navController.navigate(Routes.SCHEDULED_TASKS) },
+                onNavigateToToolRegistry = { navController.navigate(Routes.TOOL_REGISTRY) }
             )
         }
 
@@ -114,6 +120,14 @@ fun AppNavigation(
                 settingsRepository = settingsRepository,
                 onNavigateBack = { navController.popBackStack() }
             )
+        }
+
+        composable(Routes.SCHEDULED_TASKS) {
+            ScheduledTasksScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.TOOL_REGISTRY) {
+            ToolRegistryScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }

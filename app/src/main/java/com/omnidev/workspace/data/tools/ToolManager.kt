@@ -39,7 +39,7 @@ interface ToolManager {
 data class ToolDefinition(
     val name: String,
     val description: String,
-    val parameters: List<ToolParameter>
+    val parameters: List<ToolParameter> = emptyList()
 )
 
 /**

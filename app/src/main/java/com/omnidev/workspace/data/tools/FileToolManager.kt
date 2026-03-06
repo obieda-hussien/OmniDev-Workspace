@@ -545,7 +545,22 @@ class FileToolManager(
      */
     private suspend fun runTerminal(args: Map<String, String>, scopePath: String): ToolExecutionResult {
         val command = requireArg(args, "command")
-        val workDir = File(scopePath)
+
+        // When God Mode is enabled, allow execution from any accessible directory.
+        // Fall back to /data/local/tmp if scopePath is missing or invalid.
+        val workDir = if (godModeEnabled) {
+            val requested = File(scopePath)
+            if (requested.exists() && requested.isDirectory) requested
+            else {
+                // Attempt to create the standard temp dir. If it fails, the existing
+                // `!workDir.exists()` check below will return an informative error.
+                val fallback = File("/data/local/tmp")
+                fallback.mkdirs() // result intentionally ignored — guarded below
+                fallback
+            }
+        } else {
+            File(scopePath)
+        }
 
         if (!workDir.exists() || !workDir.isDirectory) {
             return ToolExecutionResult(
