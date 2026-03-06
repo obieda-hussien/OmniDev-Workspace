@@ -14,6 +14,11 @@ import java.io.IOException
 /**
  * Production [LocalInferenceEngine] backed by llama.cpp via JNI.
  *
+ * This is the **sole** implementation of [LocalInferenceEngine]. It handles both
+ * the full-inference path (when the real `libllama_jni.so` is compiled from the
+ * llama.cpp git submodule) and the unavailable path (when the native library is
+ * missing or only the stub is present) — no mock/fallback class is needed.
+ *
  * Native library: `libllama_jni.so` — built from `app/src/main/cpp/` via CMake.
  *
  * ── Model loading ─────────────────────────────────────────────────────────────
@@ -31,10 +36,13 @@ import java.io.IOException
  * 4. On Flow cancellation, [nativeStopGeneration] sets a stop flag that exits the
  *    native loop cleanly on the next token boundary.
  *
- * ── Fallback ──────────────────────────────────────────────────────────────────
- * If `libllama_jni.so` is absent (e.g. developer build without the llama.cpp
- * submodule), [isNativeAvailable] is false and [LocalEngineHolder] falls back to
- * [MockLocalInferenceEngine] rather than crashing.
+ * ── OOM Protection ───────────────────────────────────────────────────────────
+ * - Native `loadModel` failures (including OOM in llama.cpp allocations) return 0
+ *   and are caught gracefully as `Result.failure`.
+ * - All native calls are wrapped in try-catch for `OutOfMemoryError` / `Error` so
+ *   the app never hard-crashes from a native allocation failure.
+ * - `unloadModel()` always frees native memory via `nativeFreeModel()` and is safe
+ *   to call multiple times.
  */
 class LlamaCppInferenceEngine : LocalInferenceEngine {
 
@@ -50,10 +58,23 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
 
     override suspend fun loadModel(context: Context, modelUri: Uri): Result<String> =
         withContext(Dispatchers.IO) {
+            // ── Guard: native engine must be available ──────────────────────
+            if (!isNativeAvailable) {
+                return@withContext Result.failure(
+                    IllegalStateException(
+                        "On-device inference engine is not compiled into this build. " +
+                        "To enable local inference:\n" +
+                        "1. Run: git submodule update --init --recursive\n" +
+                        "2. Rebuild: ./gradlew assembleDebug\n\n" +
+                        "The model will then run entirely on-device."
+                    )
+                )
+            }
+
             try {
                 // Release any previously-loaded model first
                 if (nativeCtxPtr != 0L) {
-                    nativeFreeModel(nativeCtxPtr)
+                    try { nativeFreeModel(nativeCtxPtr) } catch (_: Throwable) {}
                     nativeCtxPtr = 0L
                     _loadedModelName = null
                 }
@@ -64,6 +85,20 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                     )
 
                 val modelName = resolveDisplayName(context, modelUri)
+
+                // ── OOM pre-check ──────────────────────────────────────────
+                // Estimate whether the device has enough free memory for the model.
+                // GGUF models are mmap'd so this is a rough heuristic, not a hard limit.
+                val fileSizeBytes = try { pfd.statSize } catch (_: Exception) { -1L }
+                if (fileSizeBytes > 0) {
+                    val runtime = Runtime.getRuntime()
+                    val nativeHeapFree = runtime.maxMemory() - (runtime.totalMemory() - runtime.freeMemory())
+                    if (fileSizeBytes > nativeHeapFree * OOM_SAFETY_FACTOR) {
+                        Log.w(TAG,
+                            "Model size (${fileSizeBytes / 1_048_576}MB) may exceed " +
+                            "available memory — proceeding with caution.")
+                    }
+                }
 
                 // /proc/self/fd/{n} is a symbolic link that is readable as a file path by
                 // native code for the duration of this process, avoiding a full file copy.
@@ -86,7 +121,8 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                     return@withContext Result.failure(
                         IOException(
                             "llama.cpp failed to load \"$modelName\". " +
-                            "Ensure the file is a valid, non-corrupted quantized GGUF model."
+                            "Ensure the file is a valid, non-corrupted quantized GGUF model " +
+                            "and that the device has sufficient RAM."
                         )
                     )
                 }
@@ -96,13 +132,30 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 Log.i(TAG, "Model loaded: $modelName (ctx=0x${ctx.toString(16)})")
                 Result.success(modelName)
 
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OOM while loading model — freeing native resources", oom)
+                safeFreeCurrent()
+                Result.failure(IOException(
+                    "Out of memory while loading the model. " +
+                    "Try a smaller quantized model (e.g. Q4_K_S or IQ4_XS) " +
+                    "or close other apps to free RAM."
+                ))
             } catch (e: Exception) {
                 Log.e(TAG, "loadModel failed", e)
+                safeFreeCurrent()
                 Result.failure(e)
             }
         }
 
     override fun generateResponse(prompt: String): Flow<String> = callbackFlow {
+        // ── Guard: native engine must be available ──────────────────────────
+        if (!isNativeAvailable) {
+            trySend("[ERROR] Native inference engine is not available in this build. " +
+                    "Rebuild the app with the llama.cpp submodule initialized.")
+            close()
+            return@callbackFlow
+        }
+
         if (!isLoaded) {
             trySend("[ERROR] No model loaded. Load a GGUF model in Settings → Local Edge Model.")
             close()
@@ -130,6 +183,11 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                     repeatPenalty = 1.10f,
                     callback      = callback
                 )
+            } catch (oom: OutOfMemoryError) {
+                Log.e(TAG, "OOM during inference", oom)
+                trySend("[ERROR] Out of memory during inference. " +
+                        "Try a smaller model or close other apps.")
+                close()
             } catch (e: Exception) {
                 Log.e(TAG, "nativeStartGeneration threw", e)
                 trySend("[ERROR] Inference failed: ${e.message}")
@@ -140,16 +198,23 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
 
         awaitClose {
             // Coroutine cancelled → signal the native loop to exit cleanly
-            nativeStopGeneration(ctx)
+            try { nativeStopGeneration(ctx) } catch (_: Throwable) {}
             generationThread?.join(GENERATION_THREAD_SHUTDOWN_TIMEOUT_MS)
         }
     }.flowOn(Dispatchers.Default)
 
     @Synchronized
     override fun unloadModel() {
+        safeFreeCurrent()
+    }
+
+    /** Safely frees the current native context without throwing. */
+    private fun safeFreeCurrent() {
         val ctx = nativeCtxPtr
         if (ctx != 0L) {
-            nativeFreeModel(ctx)
+            try { nativeFreeModel(ctx) } catch (e: Throwable) {
+                Log.w(TAG, "nativeFreeModel threw during cleanup", e)
+            }
             nativeCtxPtr = 0L
         }
         _loadedModelName = null
@@ -229,6 +294,13 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
         private const val GENERATION_THREAD_SHUTDOWN_TIMEOUT_MS = 2_000L
 
         /**
+         * If the model file is larger than `available_heap × OOM_SAFETY_FACTOR`, emit
+         * a warning before attempting to load.  GGUF files are typically mmap'd by
+         * llama.cpp, so this is a heuristic rather than a strict memory limit.
+         */
+        private const val OOM_SAFETY_FACTOR = 3L
+
+        /**
          * Returns `true` when the stub library (llama.cpp submodule absent) is loaded,
          * `false` for the real inference-capable build.
          * Being `@JvmStatic` avoids allocating a [LlamaCppInferenceEngine] instance just
@@ -243,7 +315,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
          * `true` if `libllama_jni.so` was successfully loaded from the APK AND the
          * library is the real inference build (not the stub).
          * `false` if the native library is absent or the stub was compiled (developer
-         * build without the submodule) — the app falls back to [MockLocalInferenceEngine].
+         * build without the submodule) — `loadModel()` returns a descriptive failure.
          */
         val isNativeAvailable: Boolean
 
@@ -267,7 +339,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 }
             } catch (e: UnsatisfiedLinkError) {
                 Log.w(TAG,
-                    "libllama_jni.so not found — falling back to mock engine. " +
+                    "libllama_jni.so not found — native inference not available. " +
                     "Run `git submodule update --init --recursive` then rebuild to enable " +
                     "real llama.cpp inference.", e)
                 false

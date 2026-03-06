@@ -3,8 +3,10 @@
  * is not present (e.g. fresh clone, CI without submodule init).
  *
  * All functions return failure values so LlamaCppInferenceEngine.loadModel()
- * returns Result.failure with a clear message, and LocalEngineHolder falls
- * back to MockLocalInferenceEngine rather than crashing with UnsatisfiedLinkError.
+ * returns Result.failure with a clear message instead of crashing with
+ * UnsatisfiedLinkError.  The companion's nativeIsStub() returns JNI_TRUE,
+ * causing isNativeAvailable to be false and loadModel() to reject loads
+ * before even reaching the native layer.
  *
  * Activate: this file is compiled automatically by CMakeLists.txt when
  *           app/src/main/cpp/llama.cpp/CMakeLists.txt is absent.

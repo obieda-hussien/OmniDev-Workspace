@@ -244,14 +244,13 @@ fun LocalModelManagerScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = "Native Inference Not Available",
+                            text = "⚠️ Native Inference Engine Not Compiled",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
                         Text(
                             text = "This build does not include the llama.cpp native library. " +
-                                "The model will appear loaded but responses will explain how to " +
-                                "enable real inference.\n\n" +
+                                "Model loading will fail until the app is rebuilt with NDK support.\n\n" +
                                 "To build with real on-device inference:\n" +
                                 "  1. git submodule update --init --recursive\n" +
                                 "  2. ./gradlew assembleDebug  (NDK required)",
