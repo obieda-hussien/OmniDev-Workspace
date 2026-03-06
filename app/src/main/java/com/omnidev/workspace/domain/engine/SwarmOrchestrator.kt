@@ -8,7 +8,7 @@ import com.omnidev.workspace.data.tools.ToolManager
 import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.serialization.json.Json
 
 /**
@@ -55,7 +55,6 @@ Keep task count reasonable (max 10). Merge trivial steps into larger tasks.
 Do NOT include code — just planning and task descriptions.
 """
 
-        /** System prompt for synthesizing worker results. */
         private const val SYNTHESIS_PROMPT = """
 You are a Swarm Orchestrator synthesizing the results of your worker agents. 
 Review the completed sub-tasks and their outcomes below.
@@ -63,8 +62,11 @@ Review the completed sub-tasks and their outcomes below.
 Produce a concise summary for the user that covers:
 1. What was accomplished
 2. Files created or modified
-3. Any issues encountered
+3. Any issues encountered or tasks that failed
 4. Suggested next steps (if applicable)
+
+CRITICAL DIRECTIVE: If any sub-task failed or was skipped, you MUST explicitly state
+what failed and why. Never claim the overall task was successful if sub-tasks failed.
 """
     }
 
@@ -86,19 +88,17 @@ Produce a concise summary for the user that covers:
         workerModelId: String,
         scopePath: String,
         enableDeepThinking: Boolean = false
-    ): Flow<SwarmEvent> = flow {
-        emit(SwarmEvent.PlanningStarted)
+    ): Flow<SwarmEvent> = channelFlow {
+        send(SwarmEvent.PlanningStarted)
 
         // ── Phase 1: Plan ──
         val orchestratorModel = ModelRegistry.findModelById(orchestratorModelId)
             ?: run {
-                emit(SwarmEvent.Error("Unknown orchestrator model: $orchestratorModelId"))
-                return@flow
+                send(SwarmEvent.Error("Unknown orchestrator model: $orchestratorModelId"))
+                return@channelFlow
             }
 
         val orchestratorApiKey = apiKeyRepository?.getApiKey(orchestratorModel.provider)
-        val workerModel = ModelRegistry.findModelById(workerModelId)
-        val workerApiKey = workerModel?.let { apiKeyRepository?.getApiKey(it.provider) }
 
         val planRequest = CompletionRequest(
             modelId = orchestratorModelId,
@@ -116,36 +116,40 @@ Produce a concise summary for the user that covers:
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            emit(SwarmEvent.Error("Planning failed: ${e.message}"))
-            return@flow
+            send(SwarmEvent.Error("Planning failed: ${e.message}"))
+            return@channelFlow
         }
 
         // Parse sub-tasks from the orchestrator's response
         val tasks = parseTasks(planResponse.content)
         if (tasks.isEmpty()) {
-            emit(SwarmEvent.Error("Orchestrator produced no actionable sub-tasks."))
-            return@flow
+            send(SwarmEvent.Error("Orchestrator produced no actionable sub-tasks."))
+            return@channelFlow
         }
         if (tasks.size > MAX_SUBTASKS) {
-            emit(SwarmEvent.Error("Too many sub-tasks (${tasks.size}). Maximum is $MAX_SUBTASKS."))
-            return@flow
+            send(SwarmEvent.Error("Too many sub-tasks (${tasks.size}). Maximum is $MAX_SUBTASKS."))
+            return@channelFlow
         }
 
-        emit(SwarmEvent.PlanCompleted(tasks))
+        send(SwarmEvent.PlanCompleted(tasks))
 
         // ── Phase 2: Delegate ──
         val completedTasks = mutableMapOf<String, String>()
+        val failedTasks = mutableMapOf<String, String>()
+        val skippedTasks = mutableMapOf<String, String>()
         val sortedTasks = tasks.sortedBy { it.priority }
 
         for (task in sortedTasks) {
             // Check dependencies are met
             val unmetDeps = task.dependencies.filter { it !in completedTasks }
             if (unmetDeps.isNotEmpty()) {
-                emit(SwarmEvent.TaskSkipped(task, "Unmet dependencies: $unmetDeps"))
+                val reason = "Unmet dependencies: $unmetDeps"
+                skippedTasks[task.id] = reason
+                send(SwarmEvent.TaskSkipped(task, reason))
                 continue
             }
 
-            emit(SwarmEvent.TaskStarted(task))
+            send(SwarmEvent.TaskStarted(task))
 
             // Build context from completed dependencies
             val dependencyContext = task.dependencies.mapNotNull { depId ->
@@ -180,25 +184,45 @@ Produce a concise summary for the user that covers:
                         taskError = event.message
                     }
                     is AgentEvent.ToolExecution -> {
-                        emit(SwarmEvent.WorkerToolUse(task, event.toolName, event.arguments))
+                        send(SwarmEvent.WorkerToolUse(task, event.toolName, event.arguments))
                     }
                     else -> { /* Forward other events as needed */ }
                 }
             }
 
             if (taskError != null) {
-                emit(SwarmEvent.TaskFailed(task, taskError!!))
+                failedTasks[task.id] = taskError!!
+                send(SwarmEvent.TaskFailed(task, taskError!!))
             } else {
                 completedTasks[task.id] = taskResult
-                emit(SwarmEvent.TaskCompleted(task, taskResult))
+                send(SwarmEvent.TaskCompleted(task, taskResult))
             }
         }
 
         // ── Phase 3: Synthesize ──
-        emit(SwarmEvent.SynthesisStarted)
+        send(SwarmEvent.SynthesisStarted)
 
-        val summaryContent = completedTasks.entries.joinToString("\n\n") { (id, result) ->
-            "### $id\n$result"
+        val summaryContent = buildString {
+            if (completedTasks.isNotEmpty()) {
+                appendLine("## Completed Tasks")
+                appendLine(completedTasks.entries.joinToString("\n\n") { (id, result) ->
+                    "### $id (SUCCESS)\n$result"
+                })
+            }
+            if (failedTasks.isNotEmpty()) {
+                appendLine()
+                appendLine("## Failed Tasks")
+                appendLine(failedTasks.entries.joinToString("\n\n") { (id, error) ->
+                    "### $id (FAILED)\nError: $error"
+                })
+            }
+            if (skippedTasks.isNotEmpty()) {
+                appendLine()
+                appendLine("## Skipped Tasks")
+                appendLine(skippedTasks.entries.joinToString("\n\n") { (id, reason) ->
+                    "### $id (SKIPPED)\nReason: $reason"
+                })
+            }
         }
 
         val synthesisRequest = CompletionRequest(
@@ -226,14 +250,14 @@ Produce a concise summary for the user that covers:
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            emit(SwarmEvent.Error("Synthesis failed: ${e.message}"))
-            return@flow
+            send(SwarmEvent.Error("Synthesis failed: ${e.message}"))
+            return@channelFlow
         }
 
-        emit(SwarmEvent.Completed(
+        send(SwarmEvent.Completed(
             summary = synthesisResponse.content,
             tasksCompleted = completedTasks.size,
-            tasksFailed = sortedTasks.size - completedTasks.size
+            tasksFailed = failedTasks.size + skippedTasks.size
         ))
     }
 

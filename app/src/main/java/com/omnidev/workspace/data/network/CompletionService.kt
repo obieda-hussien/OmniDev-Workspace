@@ -775,6 +775,8 @@ class CompletionService {
 
     /**
      * Converts a generic [ToolDefinition] to OpenAI's function tool format.
+     * Always includes a `required` array (even when empty) to satisfy strict validators
+     * such as the Gemini OpenAI-compatibility endpoint.
      */
     private fun ToolDefinition.toOpenAiToolDef(): OpenAiToolDef {
         val required = parameters.filter { it.required }.map { it.name }
@@ -788,9 +790,9 @@ class CompletionService {
                     }
                 }
             }
-            if (required.isNotEmpty()) {
-                putJsonArray("required") { required.forEach { add(JsonPrimitive(it)) } }
-            }
+            // Always include 'required' — even as an empty array — to satisfy
+            // strict OpenAPI validators (required by Gemini's OpenAI-compatible endpoint).
+            putJsonArray("required") { required.forEach { add(JsonPrimitive(it)) } }
         }
         return OpenAiToolDef(function = OpenAiFunction(
             name = name,

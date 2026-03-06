@@ -353,11 +353,24 @@ After each observation, reflect: "Did this achieve the intended result? What's n
             }
 
             // Add tool results as a TOOL message for the next iteration
+            val hasToolErrors = toolResults.any { it.isError }
+            val toolContent = buildString {
+                append(toolResults.joinToString("\n\n") { r ->
+                    "[${r.toolName}] ${if (r.isError) "ERROR: " else ""}${r.output}"
+                })
+                if (hasToolErrors) {
+                    appendLine()
+                    appendLine()
+                    append(
+                        "CRITICAL DIRECTIVE: One or more tools above returned an error. " +
+                        "You MUST explicitly report each failure to the user in your final response. " +
+                        "NEVER claim a task succeeded when its tool observation shows an error or exception."
+                    )
+                }
+            }
             val toolMessage = ChatMessage(
                 role = MessageRole.TOOL,
-                content = toolResults.joinToString("\n\n") { r ->
-                    "[${r.toolName}] ${if (r.isError) "ERROR: " else ""}${r.output}"
-                },
+                content = toolContent,
                 toolResults = toolResults
             )
             messages.add(toolMessage)
