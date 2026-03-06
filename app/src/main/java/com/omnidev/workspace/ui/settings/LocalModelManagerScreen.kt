@@ -124,7 +124,9 @@ fun LocalModelManagerScreen(
                     uri,
                     Intent.FLAG_GRANT_READ_URI_PERMISSION
                 )
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                statusMessage = "⚠️ Could not take persistent permission: ${e.message}"
+            }
 
             scope.launch {
                 isLoading = true
@@ -196,9 +198,9 @@ fun LocalModelManagerScreen(
                         text = currentStatus,
                         style = MaterialTheme.typography.bodyLarge
                     )
-                    if (statusMessage != null) {
+                    statusMessage?.let { msg ->
                         Text(
-                            text = statusMessage!!,
+                            text = msg,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
