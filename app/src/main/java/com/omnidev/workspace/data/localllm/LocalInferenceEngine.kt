@@ -99,8 +99,22 @@ class MockLocalInferenceEngine : LocalInferenceEngine {
     }
 }
 
-/** Singleton accessor for the local inference engine. */
+/**
+ * Singleton accessor for the local inference engine.
+ *
+ * Preference order:
+ *  1. [LlamaCppInferenceEngine] — real on-device inference via `libllama_jni.so`.
+ *     Requires the `app/src/main/cpp/llama.cpp` git submodule to be initialised
+ *     and the app to be built with the NDK.
+ *  2. [MockLocalInferenceEngine] — fallback when the native library is absent
+ *     (developer build without the submodule, or CI without NDK). The mock
+ *     returns a clearly-labelled placeholder message so the rest of the pipeline
+ *     can be developed and tested without native code.
+ */
 object LocalEngineHolder {
-    val engine: LocalInferenceEngine = MockLocalInferenceEngine()
+    val engine: LocalInferenceEngine =
+        if (LlamaCppInferenceEngine.isNativeAvailable) LlamaCppInferenceEngine()
+        else MockLocalInferenceEngine()
+
     const val LOCAL_EDGE_MODEL_ID = "local-edge-model"
 }
