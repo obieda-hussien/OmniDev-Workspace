@@ -229,17 +229,42 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
         private const val GENERATION_THREAD_SHUTDOWN_TIMEOUT_MS = 2_000L
 
         /**
-         * `true` if `libllama_jni.so` was successfully loaded from the APK.
-         * `false` if the native library is absent (developer build without the
-         * llama.cpp submodule) — the app falls back to [MockLocalInferenceEngine].
+         * Returns `true` when the stub library (llama.cpp submodule absent) is loaded,
+         * `false` for the real inference-capable build.
+         * Being `@JvmStatic` avoids allocating a [LlamaCppInferenceEngine] instance just
+         * to perform this check during [Companion.init].
+         *
+         * JNI function: `Java_…_LlamaCppInferenceEngine_nativeIsStub`
+         */
+        @JvmStatic
+        private external fun nativeIsStub(): Boolean
+
+        /**
+         * `true` if `libllama_jni.so` was successfully loaded from the APK AND the
+         * library is the real inference build (not the stub).
+         * `false` if the native library is absent or the stub was compiled (developer
+         * build without the submodule) — the app falls back to [MockLocalInferenceEngine].
          */
         val isNativeAvailable: Boolean
 
         init {
             isNativeAvailable = try {
                 System.loadLibrary("llama_jni")
-                Log.i(TAG, "libllama_jni.so loaded — real on-device inference enabled")
-                true
+                // Distinguish between the real library and the stub compiled when the
+                // llama.cpp submodule is absent.  The stub's nativeIsStub() returns true;
+                // the real library's returns false.
+                val stub = nativeIsStub()
+                if (stub) {
+                    Log.w(TAG,
+                        "libllama_jni.so loaded but is the STUB build — " +
+                        "real inference is not available. " +
+                        "Run `git submodule update --init --recursive` then rebuild to " +
+                        "enable on-device llama.cpp inference.")
+                    false
+                } else {
+                    Log.i(TAG, "libllama_jni.so loaded — real on-device inference enabled")
+                    true
+                }
             } catch (e: UnsatisfiedLinkError) {
                 Log.w(TAG,
                     "libllama_jni.so not found — falling back to mock engine. " +

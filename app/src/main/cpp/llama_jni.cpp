@@ -69,6 +69,16 @@ static std::string jstring_to_str(JNIEnv* env, jstring js) {
 
 extern "C" {
 
+// ─── nativeIsStub ───────────────────────────────────────────────────────────
+// Returns JNI_FALSE — this is the REAL llama.cpp library, not the stub.
+// The stub counterpart in llama_jni_stub.cpp returns JNI_TRUE.
+JNIEXPORT jboolean JNICALL
+Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeIsStub(
+        JNIEnv*, jclass)
+{
+    return JNI_FALSE;
+}
+
 // ─── nativeLoadModel ────────────────────────────────────────────────────────
 JNIEXPORT jlong JNICALL
 Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeLoadModel(

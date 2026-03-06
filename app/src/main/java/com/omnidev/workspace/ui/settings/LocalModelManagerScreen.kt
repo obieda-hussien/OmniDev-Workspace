@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.omnidev.workspace.data.localllm.LlamaCppInferenceEngine
 import com.omnidev.workspace.data.localllm.LocalEngineHolder
 import com.omnidev.workspace.data.repository.SettingsRepository
 import kotlinx.coroutines.flow.first
@@ -228,6 +229,35 @@ fun LocalModelManagerScreen(
                         ) {
                             Text("Unload Model")
                         }
+                    }
+                }
+            }
+
+            // ── Stub-build notice ──
+            // Shown when the APK was built without the llama.cpp native library.
+            if (!LlamaCppInferenceEngine.isNativeAvailable) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "Native Inference Not Available",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                        Text(
+                            text = "This build does not include the llama.cpp native library. " +
+                                "The model will appear loaded but responses will explain how to " +
+                                "enable real inference.\n\n" +
+                                "To build with real on-device inference:\n" +
+                                "  1. git submodule update --init --recursive\n" +
+                                "  2. ./gradlew assembleDebug  (NDK required)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
                     }
                 }
             }

@@ -20,6 +20,13 @@
 
 extern "C" {
 
+JNIEXPORT jboolean JNICALL
+Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeIsStub(
+        JNIEnv*, jclass)
+{
+    return JNI_TRUE; // stub build — real llama.cpp not compiled in
+}
+
 JNIEXPORT jlong JNICALL
 Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeLoadModel(
         JNIEnv*, jobject, jstring, jint, jint, jint, jboolean)

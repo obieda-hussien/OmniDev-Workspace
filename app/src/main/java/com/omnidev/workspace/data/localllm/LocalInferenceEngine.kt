@@ -3,7 +3,6 @@ package com.omnidev.workspace.data.localllm
 import android.content.Context
 import android.net.Uri
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -37,15 +36,13 @@ interface LocalInferenceEngine {
 }
 
 /**
- * Mock implementation of [LocalInferenceEngine].
+ * Mock implementation of [LocalInferenceEngine] used when the native llama.cpp
+ * library is absent (stub build or no NDK build).
  *
- * This class mirrors the real JNI call contract:
- *   - `nativeLoadModel(filePath: String): Long`  — returns a native context pointer
- *   - `nativeGenerate(ctx: Long, prompt: String): String` — returns next token
- *   - `nativeFreeModel(ctx: Long)`
- *
- * The mock simulates a realistic streaming response so the rest of the pipeline
- * can be developed and tested without the native libraries.
+ * `loadModel()` accepts any GGUF URI and records the filename so the UI shows
+ * the correct "loaded" state.  `generateResponse()` emits a single clear message
+ * explaining why real inference is unavailable instead of confusing the user
+ * with a fake response.
  */
 class MockLocalInferenceEngine : LocalInferenceEngine {
 
@@ -55,9 +52,7 @@ class MockLocalInferenceEngine : LocalInferenceEngine {
 
     override suspend fun loadModel(context: Context, modelUri: Uri): Result<String> {
         return try {
-            // In production: nativeLoadModel(resolveFilePath(context, modelUri))
             val modelName = resolveDisplayName(context, modelUri)
-            delay(500) // Simulate model loading time
             loadedModelName = modelName
             Result.success(modelName)
         } catch (e: Exception) {
@@ -70,19 +65,18 @@ class MockLocalInferenceEngine : LocalInferenceEngine {
             emit("[ERROR] No model loaded. Please select a model in Local Model Manager.")
             return@flow
         }
-        // Mock streaming: emit a simulated response word-by-word
-        // In production this would call nativeGenerate() in a loop
-        val mockResponse = "I am running locally on your device using the ${loadedModelName} model. " +
-                "This is a mock response demonstrating the streaming token output. " +
-                "In production, this would use llama.cpp JNI bindings to run actual inference."
-        for (word in mockResponse.split(" ")) {
-            emit("$word ")
-            delay(50) // Simulate token generation latency
-        }
+        emit(
+            "⚠️ On-device inference is not available in this build.\n\n" +
+            "This APK was compiled without the llama.cpp native library. " +
+            "To enable real local inference:\n\n" +
+            "1. Run `git submodule update --init --recursive` (pulls ggerganov/llama.cpp)\n" +
+            "2. Rebuild the app with the Android NDK (`./gradlew assembleDebug`)\n\n" +
+            "Once built with the native library, the model \"${loadedModelName}\" " +
+            "will run entirely on-device with no internet connection required."
+        )
     }.flowOn(Dispatchers.Default)
 
     override fun unloadModel() {
-        // In production: nativeFreeModel(nativeCtxPointer)
         loadedModelName = null
     }
 
