@@ -5,17 +5,56 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# ── Preserve line numbers in stack traces for crash debugging ─────────────────
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# ── kotlinx.serialization ─────────────────────────────────────────────────────
+# Keep serializable classes and their companions intact so JSON encode/decode works.
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.AnnotationsKt
+-keepclassmembers class kotlinx.serialization.json.** { *** Companion; }
+-keepclasseswithmembers class * {
+    @kotlinx.serialization.Serializable <methods>;
+}
+-keep,includedescriptorclasses class com.omnidev.workspace.**$$serializer { *; }
+-keepclassmembers class com.omnidev.workspace.** {
+    *** Companion;
+}
+-keepclasseswithmembers class com.omnidev.workspace.** {
+    kotlinx.serialization.KSerializer serializer(...);
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# ── Room Database ─────────────────────────────────────────────────────────────
+-keep class * extends androidx.room.RoomDatabase
+-keep @androidx.room.Entity class *
+-keep @androidx.room.Dao interface *
+-keepclassmembers class * extends androidx.room.RoomDatabase {
+    abstract *;
+}
+
+# ── JNI / native methods (llama.cpp bridge) ───────────────────────────────────
+# Keep all native method declarations so ProGuard doesn't rename or remove them.
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+-keep class com.omnidev.workspace.data.localllm.LlamaCppInferenceEngine { *; }
+-keep class com.omnidev.workspace.data.localllm.LlamaCppInferenceEngine$* { *; }
+
+# ── Shizuku ──────────────────────────────────────────────────────────────────
+-keep class rikka.shizuku.** { *; }
+-keep interface rikka.shizuku.** { *; }
+
+# ── Kotlin Coroutines / Flow ──────────────────────────────────────────────────
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-keepclassmembernames class kotlinx.** {
+    volatile <fields>;
+}
+
+# ── OkHttp / Ktor (if used for HTTP) ─────────────────────────────────────────
+-dontwarn okhttp3.**
+-dontwarn okio.**
+
+# ── DataStore ─────────────────────────────────────────────────────────────────
+-keep class * extends com.google.protobuf.GeneratedMessageLite { *; }
