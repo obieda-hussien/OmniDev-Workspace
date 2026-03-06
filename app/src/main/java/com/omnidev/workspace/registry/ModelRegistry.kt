@@ -1229,8 +1229,8 @@ object ModelRegistry {
                 contextWindow = 4096,
                 maxOutputTokens = 2048,
                 supportsFunctionCalling = false,
-                costPer1MInputTokens = 0.0,
-                costPer1MOutputTokens = 0.0,
+                costPer1MInputTokens = null,
+                costPer1MOutputTokens = null,
                 shortDescription = "On-device GGUF model via llama.cpp. No internet or API key required.",
                 isLatest = true
             )
