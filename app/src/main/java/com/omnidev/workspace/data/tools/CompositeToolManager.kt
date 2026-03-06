@@ -66,7 +66,7 @@ class CompositeToolManager(
     ): ToolExecutionResult {
         return when (name) {
             // ── Memory tools ──
-            "remember_fact", "search_knowledge" ->
+            "remember_fact", "search_knowledge", "update_memory", "delete_memory" ->
                 memoryManager.executeTool(name, arguments)
 
             // ── Communication tool ──

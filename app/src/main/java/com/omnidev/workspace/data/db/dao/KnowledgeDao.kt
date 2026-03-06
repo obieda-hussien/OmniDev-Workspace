@@ -25,6 +25,10 @@ interface KnowledgeDao {
     )
     suspend fun search(query: String): List<KnowledgeSnippet>
 
+    /** Load a single snippet by its primary key. */
+    @Query("SELECT * FROM knowledge_snippets WHERE id = :id LIMIT 1")
+    suspend fun findById(id: Long): KnowledgeSnippet?
+
     /** Load all snippets for a given category (used for context hydration). */
     @Query("SELECT * FROM knowledge_snippets WHERE category = :category ORDER BY createdAt DESC")
     suspend fun findByCategory(category: String): List<KnowledgeSnippet>

@@ -146,6 +146,33 @@ Before each action, emit your internal reasoning inside <thinking>...</thinking>
 Analyze tradeoffs, consider edge cases, and plan your exact tool call sequence.
 After each observation, reflect: "Did this achieve the intended result? What's next?"
 """
+
+        /**
+         * Autonomous memory management directive injected into every system prompt.
+         * Instructs the agent to behave like MemGPT — proactively reading and writing
+         * long-term memory without waiting for explicit user instructions.
+         */
+        private const val MEMORY_DIRECTIVE = """
+
+## Autonomous Memory Management (MANDATORY)
+You have long-term memory tools. You MUST use them autonomously — do NOT wait for the user to tell you to save or search.
+
+RULES:
+1. SEARCH FIRST: At the start of any task, call `search_knowledge` to retrieve any relevant context before acting.
+2. SAVE PROACTIVELY: Whenever the user mentions a preference, a project rule, an architecture decision, or any fact that will be useful in future sessions, IMMEDIATELY call `remember_fact` to store it.
+3. UPDATE STALE FACTS: If a stored memory (shown in the injected context above) is now outdated or incorrect, call `update_memory` with its ID to correct it.
+4. DELETE IRRELEVANT FACTS: If a stored memory is no longer relevant, call `delete_memory` with its ID.
+5. NEVER HALLUCINATE ACTIONS: If you call `remember_fact` or `delete_memory`, you MUST actually call the tool — do not just say you will do it.
+"""
+
+        /** Number of extra retry attempts reserved exclusively for 429 rate-limit responses. */
+        private const val RATE_LIMIT_MAX_RETRIES = 4
+
+        /** Base delay (ms) per rate-limit retry attempt; multiplied linearly by attempt number. */
+        private const val RATE_LIMIT_BASE_DELAY_MS = 15_000L
+
+        /** Hard cap on the delay applied between rate-limit retries (60 s). */
+        private const val RATE_LIMIT_MAX_DELAY_MS = 60_000L
     }
 
     /**
@@ -203,6 +230,10 @@ After each observation, reflect: "Did this achieve the intended result? What's n
 
         val systemPrompt = buildString {
             append(baseSystemPrompt.trimIndent())
+            // Autonomous memory directive — always injected so the agent proactively manages memory
+            if (memoryManager != null) {
+                append(MEMORY_DIRECTIVE.trimIndent())
+            }
             // Context hydration — inject long-term knowledge before the first iteration
             memoryManager?.buildKnowledgeContext()?.let { knowledge ->
                 appendLine()
@@ -386,6 +417,10 @@ After each observation, reflect: "Did this achieve the intended result? What's n
     /**
      * Wraps an API call with exponential backoff retry logic.
      *
+     * Rate-limit (429) errors receive special treatment: they use a much longer initial
+     * delay ([RATE_LIMIT_BASE_DELAY_MS]) and up to [RATE_LIMIT_MAX_RETRIES] extra attempts
+     * beyond the normal retry budget, because 429s typically require waiting 30–60 seconds.
+     *
      * When [streamingCompletionProvider] is available, text delta chunks are emitted via
      * [onStreamChunk] as they arrive, enabling real-time streaming in the UI.
      *
@@ -401,9 +436,13 @@ After each observation, reflect: "Did this achieve the intended result? What's n
         onStreamChunk: suspend (String) -> Unit = {},
         onFatalError: suspend (String) -> Unit
     ): CompletionResponse? {
-        val maxAttempts = if (config.enableRetry) config.maxRetries + 1 else 1
+        val normalMaxAttempts = if (config.enableRetry) config.maxRetries + 1 else 1
+        // Rate-limit retries run in a separate budget: up to RATE_LIMIT_MAX_RETRIES extra attempts
+        // with a much longer base delay so the 429 window has time to expire.
+        var rateLimitAttemptsRemaining = if (config.enableRetry) RATE_LIMIT_MAX_RETRIES else 0
+        var normalAttempt = 0
 
-        repeat(maxAttempts) { attempt ->
+        while (true) {
             try {
                 return if (streamingCompletionProvider != null) {
                     streamingCompletionProvider.invoke(request, onStreamChunk)
@@ -413,18 +452,30 @@ After each observation, reflect: "Did this achieve the intended result? What's n
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                val isLastAttempt = attempt == maxAttempts - 1
-                if (isLastAttempt) {
+                val isRateLimit = e.message?.contains("Rate limit exceeded", ignoreCase = true) == true
+
+                if (isRateLimit && rateLimitAttemptsRemaining > 0) {
+                    // Rate-limit path: long fixed delay then retry (don't consume normal retry budget)
+                    rateLimitAttemptsRemaining--
+                    val retryNum = RATE_LIMIT_MAX_RETRIES - rateLimitAttemptsRemaining
+                    val delayMs = min(RATE_LIMIT_BASE_DELAY_MS * retryNum, RATE_LIMIT_MAX_DELAY_MS)
+                    delay(delayMs)
+                    continue
+                }
+
+                // Normal error path: consume normal retry budget with exponential backoff
+                val isLastNormalAttempt = normalAttempt >= normalMaxAttempts - 1
+                if (isLastNormalAttempt) {
                     com.omnidev.workspace.data.debug.DebugLogManager.appendError("AgentPipeline", e)
-                    onFatalError("API call failed after $maxAttempts attempts (iteration $iteration): ${e.message}")
+                    onFatalError("API call failed after $normalMaxAttempts attempt(s) (iteration $iteration): ${e.message}")
                     return null
                 }
                 // Exponential backoff: 500ms, 1s, 2s, 4s, ... (bit-shift for integer powers of 2)
-                val delayMs = config.baseRetryDelayMs * (1L shl attempt)
+                val delayMs = config.baseRetryDelayMs * (1L shl normalAttempt)
                 delay(min(delayMs, 30_000L))
+                normalAttempt++
             }
         }
-        return null
     }
 
     /**

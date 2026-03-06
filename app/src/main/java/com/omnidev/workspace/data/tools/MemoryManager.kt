@@ -25,8 +25,10 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
         ToolDefinition(
             name = "remember_fact",
             description = "Store a new fact, preference, or rule in long-term memory. " +
-                "Use this to persist important user preferences, project architecture decisions, " +
-                "coding style rules, or frequently referenced information across sessions.",
+                "Use this proactively to persist important user preferences, project architecture decisions, " +
+                "coding style rules, or frequently referenced information across sessions. " +
+                "You MUST call this autonomously whenever the user states a preference, you learn something " +
+                "important about the project, or you want to remember a decision for future sessions.",
             parameters = listOf(
                 ToolParameter("content", "string", "The fact or rule to remember.", required = true),
                 ToolParameter(
@@ -44,13 +46,43 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
         ToolDefinition(
             name = "search_knowledge",
             description = "Search your long-term memory for stored facts, preferences, and rules. " +
-                "Returns the most relevant entries matching the query.",
+                "Returns the most relevant entries matching the query. " +
+                "You MUST call this at the START of any new task to retrieve relevant context before acting.",
             parameters = listOf(
                 ToolParameter(
                     "query", "string",
                     "Natural-language or keyword query to search in stored knowledge.",
                     required = true
                 )
+            )
+        ),
+        ToolDefinition(
+            name = "update_memory",
+            description = "Update the content of an existing memory entry by its ID. " +
+                "Use this when a previously stored fact becomes outdated or needs correction. " +
+                "First use search_knowledge to find the ID of the entry, then call this to update it.",
+            parameters = listOf(
+                ToolParameter("id", "string", "The numeric ID of the memory entry to update.", required = true),
+                ToolParameter("content", "string", "The new content to replace the old fact.", required = true),
+                ToolParameter(
+                    "category", "string",
+                    "Updated category (optional, keep existing if omitted).",
+                    required = false
+                ),
+                ToolParameter(
+                    "tags", "string",
+                    "Updated comma-separated tags (optional, keep existing if omitted).",
+                    required = false
+                )
+            )
+        ),
+        ToolDefinition(
+            name = "delete_memory",
+            description = "Permanently delete a memory entry by its ID. " +
+                "Use this to remove outdated, incorrect, or irrelevant facts from long-term memory. " +
+                "First use search_knowledge to find the ID of the entry to delete.",
+            parameters = listOf(
+                ToolParameter("id", "string", "The numeric ID of the memory entry to delete.", required = true)
             )
         )
     )
@@ -66,6 +98,8 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
         when (name) {
             "remember_fact" -> rememberFact(arguments)
             "search_knowledge" -> searchKnowledge(arguments)
+            "update_memory" -> updateMemory(arguments)
+            "delete_memory" -> deleteMemory(arguments)
             else -> ToolExecutionResult("Unknown memory tool: $name", isError = true)
         }
     }
@@ -93,6 +127,32 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
         return ToolExecutionResult("Found ${results.size} result(s):\n\n$formatted")
     }
 
+    private suspend fun updateMemory(args: Map<String, String>): ToolExecutionResult {
+        val id = args["id"]?.toLongOrNull()
+            ?: return ToolExecutionResult("Missing or invalid argument: id (must be a number)", isError = true)
+        val newContent = args["content"]
+            ?: return ToolExecutionResult("Missing required argument: content", isError = true)
+
+        // Load the existing snippet so we can preserve unchanged fields
+        val existing = knowledgeDao.findById(id)
+            ?: return ToolExecutionResult("No memory entry found with id=$id", isError = true)
+
+        val updated = existing.copy(
+            content = newContent,
+            category = args["category"]?.takeIf { it.isNotBlank() } ?: existing.category,
+            tags = args["tags"] ?: existing.tags
+        )
+        knowledgeDao.update(updated)
+        return ToolExecutionResult("Memory entry id=$id updated successfully.")
+    }
+
+    private suspend fun deleteMemory(args: Map<String, String>): ToolExecutionResult {
+        val id = args["id"]?.toLongOrNull()
+            ?: return ToolExecutionResult("Missing or invalid argument: id (must be a number)", isError = true)
+        knowledgeDao.deleteById(id)
+        return ToolExecutionResult("Memory entry id=$id deleted successfully.")
+    }
+
     // ──────────────────────────────────────────────
     //  Context Hydration
     // ──────────────────────────────────────────────
@@ -107,23 +167,28 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
         val projectRules = knowledgeDao.findByCategory("project_rule")
         val userPrefs = knowledgeDao.findByCategory("user_preference")
         val archNotes = knowledgeDao.findByCategory("architecture")
+        val generalFacts = knowledgeDao.findByCategory("general")
 
-        val all = projectRules + userPrefs + archNotes
+        val all = projectRules + userPrefs + archNotes + generalFacts
         if (all.isEmpty()) return@withContext null
 
         buildString {
             appendLine("\n--- LONG-TERM MEMORY (Auto-Injected) ---")
             if (projectRules.isNotEmpty()) {
                 appendLine("\nProject Rules:")
-                projectRules.forEach { appendLine("• ${it.content}") }
+                projectRules.forEach { appendLine("• [${it.id}] ${it.content}") }
             }
             if (userPrefs.isNotEmpty()) {
                 appendLine("\nUser Preferences:")
-                userPrefs.forEach { appendLine("• ${it.content}") }
+                userPrefs.forEach { appendLine("• [${it.id}] ${it.content}") }
             }
             if (archNotes.isNotEmpty()) {
                 appendLine("\nArchitecture Notes:")
-                archNotes.forEach { appendLine("• ${it.content}") }
+                archNotes.forEach { appendLine("• [${it.id}] ${it.content}") }
+            }
+            if (generalFacts.isNotEmpty()) {
+                appendLine("\nGeneral Knowledge:")
+                generalFacts.forEach { appendLine("• [${it.id}] ${it.content}") }
             }
             appendLine("--- END MEMORY ---")
         }
