@@ -118,7 +118,7 @@ fun IntegrationsScreen(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Connected ✓",
+                        text = "Connected to GitHub ✓",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary
                     )

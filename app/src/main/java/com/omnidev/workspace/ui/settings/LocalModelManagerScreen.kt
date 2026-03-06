@@ -119,6 +119,13 @@ fun LocalModelManagerScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
+            // Validate that the selected file has a .gguf extension
+            val fileName = uri.lastPathSegment?.lowercase() ?: ""
+            if (!fileName.endsWith(".gguf") && !fileName.contains(".gguf")) {
+                statusMessage = "❌ Selected file does not appear to be a .gguf model. Please select a valid GGUF file."
+                return@rememberLauncherForActivityResult
+            }
+
             try {
                 context.contentResolver.takePersistableUriPermission(
                     uri,

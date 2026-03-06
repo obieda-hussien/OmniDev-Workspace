@@ -91,7 +91,7 @@ class GodEyeProfilerTool(
         val safePackage = packageName.replace(Regex("[^a-zA-Z0-9._]"), "")
         if (safePackage.isEmpty()) return "Error: Invalid package name"
         val result = shizukuCommandTool.execute(
-            "logcat -d -t $lines -v time | grep -E '(OkHttp|$safePackage)' | tail -n $lines"
+            "logcat -d -t $lines -v time | grep -F '$safePackage' | tail -n $lines"
         ).toDisplayString()
         return if (result.isBlank()) "No network log entries found for $safePackage" else result
     }

@@ -57,7 +57,8 @@ class DiscordPublisherTool(private val settingsRepository: SettingsRepository) {
                 embed.put("description", message)
                 val colorHex = params["color"]?.replace("#", "")
                 if (!colorHex.isNullOrBlank()) {
-                    val colorInt = colorHex.toLongOrNull(16)?.toInt()
+                    // Discord embed colors are 24-bit (0x000000–0xFFFFFF); mask to stay in range
+                    val colorInt = colorHex.toLongOrNull(16)?.and(0xFFFFFFL)?.toInt()
                     if (colorInt != null) embed.put("color", colorInt)
                     // Invalid hex values are silently skipped — the embed is still sent without a color
                 }
