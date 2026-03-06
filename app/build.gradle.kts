@@ -66,6 +66,39 @@ android {
     }
 }
 
+// ── Auto-initialise llama.cpp git submodule before native build ──────────────
+// If the submodule directory is empty (fresh clone, CI without --recursive),
+// run `git submodule update` automatically so CMake finds the real llama.cpp
+// source and compiles the inference-capable library instead of the stub.
+val initLlamaCppSubmodule by tasks.registering {
+    val marker = file("src/main/cpp/llama.cpp/CMakeLists.txt")
+    onlyIf { !marker.exists() }
+    doLast {
+        try {
+            exec {
+                workingDir = rootProject.rootDir
+                commandLine("git", "submodule", "update", "--init", "--recursive", "--depth", "1")
+            }
+            logger.lifecycle("llama.cpp submodule initialised — real native inference will be compiled.")
+        } catch (e: Exception) {
+            logger.warn(
+                "Could not auto-init llama.cpp submodule (${e.message}). " +
+                "The stub library will be compiled — on-device inference will not be available. " +
+                "To fix: run `git submodule update --init --recursive` manually."
+            )
+        }
+    }
+}
+
+// Hook into every task that configures or runs the CMake / native build.
+tasks.configureEach {
+    if (name.startsWith("configureCMake") ||
+        name.startsWith("buildCMake") ||
+        name.startsWith("externalNativeBuild")) {
+        dependsOn(initLlamaCppSubmodule)
+    }
+}
+
 dependencies {
     // Core
     implementation(libs.androidx.core.ktx)
