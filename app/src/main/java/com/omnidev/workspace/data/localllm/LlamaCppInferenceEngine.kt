@@ -74,7 +74,9 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
             try {
                 // Release any previously-loaded model first
                 if (nativeCtxPtr != 0L) {
-                    try { nativeFreeModel(nativeCtxPtr) } catch (_: Throwable) {}
+                    try { nativeFreeModel(nativeCtxPtr) } catch (e: Throwable) {
+                        Log.w(TAG, "nativeFreeModel threw while releasing previous model", e)
+                    }
                     nativeCtxPtr = 0L
                     _loadedModelName = null
                 }
@@ -87,16 +89,16 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 val modelName = resolveDisplayName(context, modelUri)
 
                 // ── OOM pre-check ──────────────────────────────────────────
-                // Estimate whether the device has enough free memory for the model.
+                // Estimate whether the device has enough free native memory for the model.
                 // GGUF models are mmap'd so this is a rough heuristic, not a hard limit.
                 val fileSizeBytes = try { pfd.statSize } catch (_: Exception) { -1L }
                 if (fileSizeBytes > 0) {
-                    val runtime = Runtime.getRuntime()
-                    val nativeHeapFree = runtime.maxMemory() - (runtime.totalMemory() - runtime.freeMemory())
-                    if (fileSizeBytes > nativeHeapFree * OOM_SAFETY_FACTOR) {
+                    val nativeHeapFree = android.os.Debug.getNativeHeapSize() -
+                            android.os.Debug.getNativeHeapAllocatedSize()
+                    if (fileSizeBytes > nativeHeapFree * OOM_HEADROOM_FACTOR) {
                         Log.w(TAG,
                             "Model size (${fileSizeBytes / 1_048_576}MB) may exceed " +
-                            "available memory — proceeding with caution.")
+                            "available native memory — proceeding with caution.")
                     }
                 }
 
@@ -294,11 +296,11 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
         private const val GENERATION_THREAD_SHUTDOWN_TIMEOUT_MS = 2_000L
 
         /**
-         * If the model file is larger than `available_heap × OOM_SAFETY_FACTOR`, emit
-         * a warning before attempting to load.  GGUF files are typically mmap'd by
+         * If the model file is larger than `available_native_heap × OOM_HEADROOM_FACTOR`,
+         * emit a warning before attempting to load.  GGUF files are typically mmap'd by
          * llama.cpp, so this is a heuristic rather than a strict memory limit.
          */
-        private const val OOM_SAFETY_FACTOR = 3L
+        private const val OOM_HEADROOM_FACTOR = 3L
 
         /**
          * Returns `true` when the stub library (llama.cpp submodule absent) is loaded,
