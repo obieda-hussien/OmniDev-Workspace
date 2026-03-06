@@ -12,6 +12,8 @@ import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -141,9 +143,10 @@ private data class OpenAiUsage(
 
 // ─── OpenAI Native Tool Calling DTOs ─────────────────────────────────────────
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 private data class OpenAiToolDef(
-    val type: String = "function",
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS) val type: String = "function",
     val function: OpenAiFunction
 )
 
@@ -154,10 +157,11 @@ private data class OpenAiFunction(
     val parameters: JsonElement
 )
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 private data class OpenAiToolCall(
     val id: String,
-    val type: String = "function",
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS) val type: String = "function",
     val function: OpenAiToolCallFunction
 )
 
