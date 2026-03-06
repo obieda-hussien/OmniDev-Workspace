@@ -24,7 +24,9 @@ class CompositeToolManager(
     private val context: Context? = null,
     private val environmentSetupManager: EnvironmentSetupManager? = null,
     private val settingsRepository: SettingsRepository? = null,
-    private val godEyeProfilerTool: GodEyeProfilerTool? = null
+    private val godEyeProfilerTool: GodEyeProfilerTool? = null,
+    private val discordPublisherTool: DiscordPublisherTool? = null,
+    private val notionPublisherTool: NotionPublisherTool? = null
 ) : ToolManager {
 
     override fun getToolDefinitions(): List<ToolDefinition> = buildList {
@@ -46,6 +48,12 @@ class CompositeToolManager(
         addAll(VisualInspectorTool.getToolDefinitions())
         addAll(TelegramPublisherTool.getToolDefinitions())
         addAll(GitHubManagerTool.getToolDefinitions())
+        if (discordPublisherTool != null) {
+            addAll(DiscordPublisherTool.getToolDefinitions())
+        }
+        if (notionPublisherTool != null) {
+            addAll(NotionPublisherTool.getToolDefinitions())
+        }
         if (godEyeProfilerTool != null) {
             addAll(godEyeProfilerTool.getToolDefs())
         }
@@ -176,6 +184,20 @@ class CompositeToolManager(
                 val profiler = godEyeProfilerTool
                     ?: return ToolExecutionResult("GodEye profiler tool not configured.", isError = true)
                 ToolExecutionResult(profiler.execute(name, arguments))
+            }
+
+            // ── Discord publisher tool ──
+            "publish_to_discord" -> {
+                val discord = discordPublisherTool
+                    ?: return ToolExecutionResult("Discord publisher tool not configured.", isError = true)
+                discord.execute(arguments)
+            }
+
+            // ── Notion publisher tool ──
+            "create_notion_page" -> {
+                val notion = notionPublisherTool
+                    ?: return ToolExecutionResult("Notion publisher tool not configured.", isError = true)
+                notion.execute(arguments)
             }
 
             // ── File tools (default fallback) ──

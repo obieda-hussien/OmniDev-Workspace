@@ -43,6 +43,13 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- OAuth 2.0 deep link callback: omnidev://oauth/callback -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="omnidev" android:host="oauth" />
+            </intent-filter>
         </activity>
 
         <!-- Notification Listener Service for notification interception -->

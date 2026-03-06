@@ -18,6 +18,7 @@ kotlinSerialization = "2.0.21"
 room = "2.6.1"
 ksp = "2.0.21-1.0.28"
 shizuku = "13.1.5"
+browser = "1.8.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -47,6 +48,7 @@ androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = 
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
 shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
+androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

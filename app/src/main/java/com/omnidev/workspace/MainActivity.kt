@@ -1,9 +1,12 @@
 package com.omnidev.workspace
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.omnidev.workspace.data.auth.OAuthManager
 import com.omnidev.workspace.data.db.OmniDevDatabase
 import com.omnidev.workspace.data.network.CompletionService
 import com.omnidev.workspace.data.repository.ApiKeyRepository
@@ -24,6 +27,7 @@ import com.omnidev.workspace.ui.navigation.AppNavigation
 import com.omnidev.workspace.ui.providers.ProvidersViewModel
 import com.omnidev.workspace.ui.settings.AISettingsViewModel
 import com.omnidev.workspace.ui.theme.OmniDevTheme
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * Main entry point for OmniDev Workspace.
@@ -32,6 +36,11 @@ import com.omnidev.workspace.ui.theme.OmniDevTheme
  * the Compose navigation host.
  */
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        /** Emits the OAuth authorization code received via deep link callback. */
+        val pendingOAuthCode: MutableStateFlow<String?> = MutableStateFlow(null)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,13 +59,17 @@ class MainActivity : ComponentActivity() {
         val fileToolManager = FileToolManager()
         val environmentSetupManager = EnvironmentSetupManager(applicationContext)
         val godEyeProfilerTool = GodEyeProfilerTool(applicationContext, ShizukuCommandTool)
+        val discordPublisherTool = com.omnidev.workspace.data.tools.DiscordPublisherTool(settingsRepository)
+        val notionPublisherTool = com.omnidev.workspace.data.tools.NotionPublisherTool(settingsRepository)
         val toolManager = CompositeToolManager(
             fileToolManager = fileToolManager,
             memoryManager = memoryManager,
             context = applicationContext,
             environmentSetupManager = environmentSetupManager,
             settingsRepository = settingsRepository,
-            godEyeProfilerTool = godEyeProfilerTool
+            godEyeProfilerTool = godEyeProfilerTool,
+            discordPublisherTool = discordPublisherTool,
+            notionPublisherTool = notionPublisherTool
         )
 
         // Real HTTP completion provider
@@ -119,5 +132,19 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+
+        // Handle OAuth deep link delivered with the launch intent
+        handleOAuthCallback(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleOAuthCallback(intent)
+    }
+
+    private fun handleOAuthCallback(intent: Intent) {
+        val data: Uri = intent.data ?: return
+        val code = OAuthManager.extractCodeFromCallback(data) ?: return
+        pendingOAuthCode.value = code
     }
 }

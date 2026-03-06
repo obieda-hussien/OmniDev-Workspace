@@ -58,6 +58,10 @@ class SettingsRepository(private val context: Context) {
         val TELEGRAM_BOT_TOKEN = stringPreferencesKey("telegram_bot_token")
         val TELEGRAM_CHAT_ID = stringPreferencesKey("telegram_chat_id")
         val GITHUB_PAT = stringPreferencesKey("github_pat")
+        val GITHUB_OAUTH_TOKEN = stringPreferencesKey("github_oauth_token")
+        val DISCORD_WEBHOOK_URL = stringPreferencesKey("discord_webhook_url")
+        val NOTION_API_KEY = stringPreferencesKey("notion_api_key")
+        val NOTION_DATABASE_ID = stringPreferencesKey("notion_database_id")
         // Local Edge Model
         val LOCAL_MODEL_URI = stringPreferencesKey("local_model_uri")
         val LOCAL_MODEL_NAME = stringPreferencesKey("local_model_name")
@@ -262,6 +266,45 @@ class SettingsRepository(private val context: Context) {
     suspend fun setGitHubPat(pat: String?) {
         context.settingsDataStore.edit { prefs ->
             if (pat.isNullOrBlank()) prefs.remove(Keys.GITHUB_PAT) else prefs[Keys.GITHUB_PAT] = pat
+        }
+    }
+
+    // GitHub OAuth Token (from OAuth flow, not manual PAT)
+    fun observeGitHubOAuthToken(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.GITHUB_OAUTH_TOKEN] }
+
+    suspend fun setGitHubOAuthToken(token: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (token.isNullOrBlank()) prefs.remove(Keys.GITHUB_OAUTH_TOKEN) else prefs[Keys.GITHUB_OAUTH_TOKEN] = token
+        }
+    }
+
+    // Discord
+    fun observeDiscordWebhookUrl(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.DISCORD_WEBHOOK_URL] }
+
+    suspend fun setDiscordWebhookUrl(url: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (url.isNullOrBlank()) prefs.remove(Keys.DISCORD_WEBHOOK_URL) else prefs[Keys.DISCORD_WEBHOOK_URL] = url
+        }
+    }
+
+    // Notion
+    fun observeNotionApiKey(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.NOTION_API_KEY] }
+
+    suspend fun setNotionApiKey(key: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (key.isNullOrBlank()) prefs.remove(Keys.NOTION_API_KEY) else prefs[Keys.NOTION_API_KEY] = key
+        }
+    }
+
+    fun observeNotionDatabaseId(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.NOTION_DATABASE_ID] }
+
+    suspend fun setNotionDatabaseId(id: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (id.isNullOrBlank()) prefs.remove(Keys.NOTION_DATABASE_ID) else prefs[Keys.NOTION_DATABASE_ID] = id
         }
     }
 

@@ -80,6 +80,9 @@ dependencies {
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
 
+    // Chrome Custom Tabs — used for OAuth 2.0 browser-based auth flows
+    implementation(libs.androidx.browser)
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
