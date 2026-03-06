@@ -414,7 +414,7 @@ object SystemSettingsTool {
                     )
                 }
                 // Sanitize value: only allow alphanumeric, underscore, dot, dash, and space
-                val safeValue = value.replace(Regex("[^a-zA-Z0-9_.\\- ]"), "")
+                val safeValue = value.replace(Regex("[^a-zA-Z0-9_. -]"), "")
                 val result = ShizukuCommandTool.execute(
                     "settings put $safeNamespace $safeKey $safeValue"
                 )
@@ -496,7 +496,7 @@ object PackageInstallerTool {
             }
             "list_packages" -> {
                 val filter = target.replace(Regex("[^a-zA-Z0-9._]"), "")
-                val cmd = if (filter.isNotEmpty()) "pm list packages | grep -F '$filter'" else "pm list packages"
+                val cmd = if (filter.isNotEmpty()) "pm list packages | grep -F $filter" else "pm list packages"
                 executeShizuku(cmd)
             }
             else -> ToolExecutionResult(
