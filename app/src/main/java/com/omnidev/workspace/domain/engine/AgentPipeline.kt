@@ -224,6 +224,9 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
      *        Should contain [AttachmentMeta] with [AttachmentMeta.base64Data] populated.
      * @param customSystemPrompt When non-null, overrides the default tier-based system prompt.
      *        This allows users to inject custom personas via the System Prompt Studio.
+     * @param workerPersona When non-null and non-blank, prepended to the tier-based system prompt
+     *        to give this agent instance a dynamic role (e.g. "Senior Web Researcher").
+     *        Used by the SwarmOrchestrator to assign domain-specific personas to workers.
      * @return A [Flow] of [AgentEvent]s representing the agent's progress.
      */
     fun execute(
@@ -233,7 +236,8 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
         scopePath: String,
         enableDeepThinking: Boolean = false,
         userAttachments: List<AttachmentMeta> = emptyList(),
-        customSystemPrompt: String? = null
+        customSystemPrompt: String? = null,
+        workerPersona: String? = null
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.Started)
 
@@ -251,6 +255,14 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
                 ModelTier.FAST -> FAST_SYSTEM_PROMPT
             }
 
+        // If a specific worker persona is assigned (e.g. by the SwarmOrchestrator), prepend it
+        // so the agent adopts the correct domain role before applying operational rules.
+        val effectiveBasePrompt = if (!workerPersona.isNullOrBlank()) {
+            "You are $workerPersona.\n\n${baseSystemPrompt.trimIndent()}"
+        } else {
+            baseSystemPrompt.trimIndent()
+        }
+
         // Build the complete system prompt with tool definitions
         val toolDefs = toolManager.getToolDefinitions()
         val toolSchemaText = toolDefs.joinToString("\n\n") { tool ->
@@ -266,7 +278,7 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
         }
 
         val systemPrompt = buildString {
-            append(baseSystemPrompt.trimIndent())
+            append(effectiveBasePrompt)
             // Autonomous memory directive — always injected so the agent proactively manages memory
             if (memoryManager != null) {
                 append(MEMORY_DIRECTIVE.trimIndent())
@@ -609,7 +621,9 @@ data class SwarmTask(
     val description: String,
     val priority: Int = 0,
     val dependencies: List<String> = emptyList(),
-    val status: SwarmTaskStatus = SwarmTaskStatus.PENDING
+    val status: SwarmTaskStatus = SwarmTaskStatus.PENDING,
+    /** Persona the worker agent should adopt for this sub-task (e.g. "Senior Web Researcher"). */
+    val requiredPersona: String = ""
 )
 
 @Serializable

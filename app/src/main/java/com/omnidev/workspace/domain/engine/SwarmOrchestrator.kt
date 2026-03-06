@@ -37,36 +37,44 @@ class SwarmOrchestrator(
 
         /** System prompt for the Orchestrator (planner) role. */
         private const val ORCHESTRATOR_SYSTEM_PROMPT = """
-You are a Swarm Orchestrator — an expert project planner for coding tasks.
+You are Omni-Orchestrator, a Universal AI Manager.
 
-Your job is to analyze the user's request and decompose it into a prioritized list of 
-independent or sequential sub-tasks. Each sub-task should be:
-1. Self-contained enough for a single agent to execute
-2. Ordered by dependency (tasks that must complete first should have lower priority numbers)
-3. Clearly described with specific file paths and expected outcomes
+Your job is to:
+1. Analyze the user's request and determine the DOMAIN: Coding, Web Research, System/OS Control, or General Assistance.
+2. Decompose the request into a prioritized list of independent or sequential sub-tasks.
+3. For EACH sub-task, assign the most appropriate specialist worker persona.
+
+Worker persona examples (choose the best fit per task):
+- "Senior Android/Kotlin Developer" — for code, build, debugging tasks
+- "Senior Web Researcher and News Analyst" — for search, research, summarization
+- "System Administrator and DevOps Engineer" — for OS control, shell, deployment
+- "General Assistant" — for writing, planning, Q&A, creative tasks
+- "Data Analyst" — for processing data, creating reports
+- "Security Engineer" — for vulnerability analysis, penetration testing concepts
 
 Respond with a JSON array of task objects:
 [
-  {"id": "task-1", "description": "...", "priority": 1, "dependencies": []},
-  {"id": "task-2", "description": "...", "priority": 2, "dependencies": ["task-1"]}
+  {"id": "task-1", "description": "...", "priority": 1, "dependencies": [], "requiredPersona": "Senior Web Researcher and News Analyst"},
+  {"id": "task-2", "description": "...", "priority": 2, "dependencies": ["task-1"], "requiredPersona": "Senior Android/Kotlin Developer"}
 ]
 
 Keep task count reasonable (max 10). Merge trivial steps into larger tasks.
-Do NOT include code — just planning and task descriptions.
+Do NOT include code — just planning, task descriptions, and persona assignments.
 """
 
         private const val SYNTHESIS_PROMPT = """
-You are a Swarm Orchestrator synthesizing the results of your worker agents. 
+You are Omni-Orchestrator synthesizing the results of your specialist worker agents.
 Review the completed sub-tasks and their outcomes below.
 
-Produce a concise summary for the user that covers:
-1. What was accomplished
-2. Files created or modified
-3. Any issues encountered or tasks that failed
-4. Suggested next steps (if applicable)
-
-CRITICAL DIRECTIVE: If any sub-task failed or was skipped, you MUST explicitly state
-what failed and why. Never claim the overall task was successful if sub-tasks failed.
+CRITICAL INSTRUCTIONS:
+1. Format your response based ENTIRELY on the user's original intent and domain:
+   - Web research / news → Present findings as a clear summary with key points.
+   - Coding task → Describe changes made, files modified, and next steps.
+   - OS/system task → Confirm actions taken (toggles, app launches, etc.).
+   - General Q&A → Provide a direct, natural conversational answer.
+2. Do NOT use a coding-specific template (e.g., "Files Created or Modified: None") for non-coding tasks.
+3. If any sub-task failed or was skipped, you MUST explicitly state what failed and why.
+4. Never claim overall success if sub-tasks failed.
 """
     }
 
@@ -174,7 +182,8 @@ what failed and why. Never claim the overall task was successful if sub-tasks fa
                 userMessage = workerPrompt,
                 modelId = workerModelId,
                 scopePath = scopePath,
-                enableDeepThinking = enableDeepThinking
+                enableDeepThinking = enableDeepThinking,
+                workerPersona = task.requiredPersona.takeIf { it.isNotBlank() }
             ).collect { event ->
                 when (event) {
                     is AgentEvent.FinalAnswer -> {
@@ -235,7 +244,8 @@ what failed and why. Never claim the overall task was successful if sub-tasks fa
                 ),
                 ChatMessage(
                     role = MessageRole.USER,
-                    content = "Synthesize these results into a final summary."
+                    // Truncate to 500 chars to limit prompt-injection surface from crafted input
+                    content = "The user's original request was: \"${userMessage.take(500)}\"\n\nSynthesize these results into a final response formatted appropriately for the domain of that request."
                 )
             ),
             systemPrompt = SYNTHESIS_PROMPT.trimIndent(),
