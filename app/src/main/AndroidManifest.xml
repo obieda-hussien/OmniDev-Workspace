@@ -20,6 +20,8 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Required for the Omni-Bubble floating overlay (TYPE_APPLICATION_OVERLAY) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:name=".OmniDevApp"
@@ -62,6 +64,11 @@
             android:multiprocess="false"
             android:permission="android.permission.INTERACT_ACROSS_USERS_FULL"
             tools:ignore="ExportedContentProvider" />
+
+        <!-- Omni-Bubble: system-wide floating AI assistant overlay -->
+        <service
+            android:name=".ui.overlay.OmniBubbleService"
+            android:exported="false" />
     </application>
 
 </manifest>

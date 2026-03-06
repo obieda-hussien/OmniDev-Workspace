@@ -23,6 +23,10 @@ import java.net.URLEncoder
  * - `delete_file`: Delete a file.
  * - `run_terminal`: Execute a shell command in the Target Context directory.
  * - `web_search`: Search the web using DuckDuckGo Lite and return the top results.
+ *
+ * File-modifying operations (`patch_file_content`, `create_file`, `delete_file`) generate a
+ * human-readable preview and, when [confirmationGate] is set, suspend until the user approves
+ * or denies the change. This enables the Visual Code Diff Viewer confirmation flow.
  */
 class FileToolManager(
     /**
@@ -38,6 +42,19 @@ class FileToolManager(
      */
     @Volatile var godModeEnabled: Boolean = false
 ) : ToolManager {
+
+    /**
+     * Optional gate for file-modifying operations.
+     *
+     * When set, `patch_file_content`, `create_file`, and `delete_file` will suspend and
+     * call this lambda with a human-readable [preview] string and an optional [diffContent]
+     * unified-diff string (null for deletions). The lambda must return `true` to approve
+     * the change or `false` to deny it (in which case the tool returns an error result).
+     *
+     * This is wired from [ChatViewModel] using a [kotlinx.coroutines.CompletableDeferred]
+     * to bridge the coroutine suspension to the Compose confirmation dialog.
+     */
+    @Volatile var confirmationGate: (suspend (preview: String, diffContent: String?) -> Boolean)? = null
 
     companion object {
         /** Maximum lines returned from a single read to guard context window usage. */
@@ -171,6 +188,70 @@ class FileToolManager(
     }
 
     // ──────────────────────────────────────────────
+    //  Unified diff generation helper
+    // ──────────────────────────────────────────────
+
+    /**
+     * Produces a minimal unified-diff string between [oldText] and [newText].
+     *
+     * The implementation uses a simple LCS-based approach: it finds the first
+     * changed line and the last changed line, then emits a single hunk covering
+     * that range with 3 lines of context on either side (like `diff -u`).
+     *
+     * For very large files where only a small section changes this keeps the
+     * diff short enough to display in the confirmation dialog without scrolling
+     * excessively. If the files are identical the method returns an empty string.
+     */
+    private fun generateUnifiedDiff(filePath: String, oldText: String, newText: String): String {
+        val oldLines = oldText.lines()
+        val newLines = newText.lines()
+
+        // Find first and last differing line (0-indexed)
+        var firstDiff = -1
+        for (i in 0 until minOf(oldLines.size, newLines.size)) {
+            if (oldLines[i] != newLines[i]) { firstDiff = i; break }
+        }
+        if (firstDiff == -1 && oldLines.size == newLines.size) return "" // identical
+        if (firstDiff == -1) firstDiff = minOf(oldLines.size, newLines.size)
+
+        var lastDiffOld = oldLines.size - 1
+        var lastDiffNew = newLines.size - 1
+        while (lastDiffOld > firstDiff && lastDiffNew > firstDiff &&
+            oldLines[lastDiffOld] == newLines[lastDiffNew]) {
+            lastDiffOld--; lastDiffNew--
+        }
+
+        val ctx = 3
+        val oldStart = maxOf(0, firstDiff - ctx)
+        val oldEnd   = minOf(oldLines.lastIndex, lastDiffOld + ctx)
+        val newStart = maxOf(0, firstDiff - ctx)
+        val newEnd   = minOf(newLines.lastIndex, lastDiffNew + ctx)
+
+        val oldCount = oldEnd - oldStart + 1
+        val newCount = newEnd - newStart + 1
+
+        // Use only the filename for the header (matches standard git diff output)
+        val fileName = filePath.substringAfterLast('/').ifEmpty { filePath }
+
+        return buildString {
+            appendLine("--- a/$fileName")
+            appendLine("+++ b/$fileName")
+            appendLine("@@ -${oldStart + 1},$oldCount +${newStart + 1},$newCount @@")
+
+            // Context before
+            for (i in oldStart until firstDiff) appendLine(" ${oldLines[i]}")
+            // Deletions
+            for (i in firstDiff..lastDiffOld) appendLine("-${oldLines[i]}")
+            // Additions
+            for (i in firstDiff..lastDiffNew) appendLine("+${newLines[i]}")
+            // Context after — taken from newLines to show the post-change state
+            for (i in (lastDiffNew + 1)..minOf(newLines.lastIndex, lastDiffNew + ctx)) {
+                appendLine(" ${newLines[i]}")
+            }
+        }.trimEnd()
+    }
+
+    // ──────────────────────────────────────────────
     //  read_file_lines
     // ──────────────────────────────────────────────
 
@@ -287,8 +368,11 @@ class FileToolManager(
     /**
      * Replaces exactly one occurrence of [searchSnippet] in the file with [replaceSnippet].
      * Fails if zero or multiple occurrences are found to prevent ambiguous edits.
+     *
+     * When [confirmationGate] is set, a unified diff is generated and the gate is
+     * suspended until the user approves or denies the change.
      */
-    private fun patchFileContent(args: Map<String, String>, scopePath: String): ToolExecutionResult {
+    private suspend fun patchFileContent(args: Map<String, String>, scopePath: String): ToolExecutionResult {
         val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
         val searchSnippet = requireArg(args, "searchSnippet")
         val replaceSnippet = requireArg(args, "replaceSnippet")
@@ -315,6 +399,23 @@ class FileToolManager(
             )
             else -> {
                 val newContent = content.replaceFirst(searchSnippet, replaceSnippet)
+
+                // Ask for confirmation via diff viewer if a gate is registered
+                val gate = confirmationGate
+                if (gate != null) {
+                    val diff = generateUnifiedDiff(filePath, content, newContent)
+                    val preview = "File: $filePath"
+                    // Pass the diff (may be empty if identical, though that can't happen here
+                    // since occurrences == 1 guarantees content != newContent)
+                    val approved = gate.invoke(preview, diff.ifEmpty { null })
+                    if (!approved) {
+                        return ToolExecutionResult(
+                            output = "User cancelled the file modification for $filePath.",
+                            isError = true
+                        )
+                    }
+                }
+
                 file.writeText(newContent)
 
                 // Calculate affected line range for the response
@@ -333,8 +434,11 @@ class FileToolManager(
 
     /**
      * Creates a new file with the specified content. Parent directories are created if needed.
+     *
+     * When [confirmationGate] is set, a diff-style preview of the new file content is shown
+     * (all lines prefixed with `+`) and the gate suspends until the user approves.
      */
-    private fun createFile(args: Map<String, String>, scopePath: String): ToolExecutionResult {
+    private suspend fun createFile(args: Map<String, String>, scopePath: String): ToolExecutionResult {
         val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
         val content = requireArg(args, "content")
 
@@ -352,6 +456,25 @@ class FileToolManager(
             return ToolExecutionResult("File already exists: $filePath. Use patch_file_content to modify.", isError = true)
         }
 
+        // Ask for confirmation via diff viewer if a gate is registered
+        val gate = confirmationGate
+        if (gate != null) {
+            val diffPreview = buildString {
+                appendLine("--- /dev/null")
+                appendLine("+++ b/${filePath.substringAfterLast('/')}")
+                appendLine("@@ -0,0 +1,${content.lines().size} @@")
+                content.lines().forEach { line -> appendLine("+$line") }
+            }.trimEnd()
+            val preview = "New file: $filePath"
+            val approved = gate.invoke(preview, diffPreview)
+            if (!approved) {
+                return ToolExecutionResult(
+                    output = "User cancelled the file creation for $filePath.",
+                    isError = true
+                )
+            }
+        }
+
         file.parentFile?.mkdirs()
         file.writeText(content)
 
@@ -364,8 +487,11 @@ class FileToolManager(
 
     /**
      * Deletes a single file. Refuses to delete directories for safety.
+     *
+     * When [confirmationGate] is set, a diff-style preview showing all lines being removed
+     * (prefixed with `-`) is shown and the gate suspends until the user approves.
      */
-    private fun deleteFile(args: Map<String, String>, scopePath: String): ToolExecutionResult {
+    private suspend fun deleteFile(args: Map<String, String>, scopePath: String): ToolExecutionResult {
         val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
 
         validateScope(filePath, scopePath)
@@ -373,6 +499,26 @@ class FileToolManager(
         val file = File(filePath)
         if (!file.exists()) return ToolExecutionResult("File not found: $filePath", isError = true)
         if (file.isDirectory) return ToolExecutionResult("Cannot delete directory: $filePath", isError = true)
+
+        // Ask for confirmation if a gate is registered
+        val gate = confirmationGate
+        if (gate != null) {
+            val existingContent = try { file.readText() } catch (_: Exception) { "" }
+            val diffPreview = buildString {
+                appendLine("--- a/${filePath.substringAfterLast('/')}")
+                appendLine("+++ /dev/null")
+                appendLine("@@ -1,${existingContent.lines().size} +0,0 @@")
+                existingContent.lines().forEach { line -> appendLine("-$line") }
+            }.trimEnd()
+            val preview = "Delete file: $filePath"
+            val approved = gate.invoke(preview, diffPreview)
+            if (!approved) {
+                return ToolExecutionResult(
+                    output = "User cancelled the file deletion for $filePath.",
+                    isError = true
+                )
+            }
+        }
 
         val deleted = file.delete()
         return if (deleted) {

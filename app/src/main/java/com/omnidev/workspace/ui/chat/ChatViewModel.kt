@@ -22,12 +22,14 @@ import com.omnidev.workspace.domain.engine.AgentPipeline
 import com.omnidev.workspace.domain.engine.OmniMode
 import com.omnidev.workspace.domain.engine.SwarmEvent
 import com.omnidev.workspace.domain.engine.SwarmOrchestrator
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 /**
  * A file the user has selected but not yet sent.
@@ -114,6 +116,7 @@ class ChatViewModel(
         loadTargetContext()
         observeSessions()
         observeGodMode()
+        wireFileConfirmationGate()
     }
 
     private fun loadTargetContext() {
@@ -140,6 +143,37 @@ class ChatViewModel(
             settingsRepository.observeGodMode().collect { enabled ->
                 ftm.godModeEnabled = enabled
             }
+        }
+    }
+
+    /**
+     * Wires [FileToolManager.confirmationGate] so that `patch_file_content`, `create_file`,
+     * and `delete_file` suspend and show a [ConfirmationGateDialog] with a visual diff
+     * before executing.
+     *
+     * Uses a [CompletableDeferred] to bridge the coroutine suspension point in
+     * [FileToolManager] to the Compose-driven confirmation dialog in [ChatScreen].
+     */
+    private fun wireFileConfirmationGate() {
+        val ftm = fileToolManager ?: return
+        ftm.confirmationGate = { preview, diffContent ->
+            val deferred = CompletableDeferred<Boolean>()
+            val confirmationType = if (diffContent != null)
+                ConfirmationType.GOD_MODE_FILE_PATCH
+            else
+                ConfirmationType.GOD_MODE_FILE_DELETE
+
+            showConfirmation(
+                PendingConfirmation(
+                    id = UUID.randomUUID().toString(),
+                    type = confirmationType,
+                    preview = preview,
+                    diffContent = diffContent,
+                    onApprove = { deferred.complete(true) },
+                    onDeny = { deferred.complete(false) }
+                )
+            )
+            deferred.await()
         }
     }
 
