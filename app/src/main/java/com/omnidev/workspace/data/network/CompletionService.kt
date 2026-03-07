@@ -207,7 +207,89 @@ class CompletionService {
     companion object {
         private const val CONNECT_TIMEOUT_MS = 30_000
         private const val READ_TIMEOUT_MS    = 120_000
+
+        private const val COPILOT_TOKEN_EXCHANGE_URL =
+            "https://api.github.com/copilot_internal/v2/token"
     }
+
+    // ── GitHub Copilot session token cache ────────────────────────────────────
+    // The Device Flow gives us an OAuth token; Copilot requires exchanging it
+    // for a short-lived session token before calling api.githubcopilot.com.
+
+    @Volatile private var copilotSessionToken: String? = null
+    @Volatile private var copilotTokenExpiresAt: Long = 0L
+
+    /**
+     * Exchanges a GitHub OAuth token for a short-lived Copilot session token.
+     *
+     * Endpoint: GET https://api.github.com/copilot_internal/v2/token
+     * Header:   Authorization: Bearer <github_oauth_token>
+     * Response: { "token": "tid=...", "refresh_in": 1800, "expires_at": "...", ... }
+     *
+     * The resulting token is cached until 60 seconds before its expiry so that
+     * back-to-back requests reuse the same token without extra round-trips.
+     *
+     * @param oauthToken The raw GitHub OAuth token from Device Flow.
+     * @return The Copilot session token (use as Bearer for api.githubcopilot.com calls).
+     * @throws IOException if the exchange fails or the response is malformed.
+     */
+    private fun getCopilotSessionToken(oauthToken: String): String {
+        // Fast path: return cached token if still valid (with 60-second buffer).
+        val cached = copilotSessionToken
+        if (cached != null && System.currentTimeMillis() < copilotTokenExpiresAt - 60_000L) {
+            return cached
+        }
+
+        // Slow path: exchange under a lock to avoid redundant concurrent requests.
+        synchronized(this) {
+            // Re-check inside the lock in case another thread already refreshed.
+            val recheck = copilotSessionToken
+            if (recheck != null && System.currentTimeMillis() < copilotTokenExpiresAt - 60_000L) {
+                return recheck
+            }
+
+            val url = URL(COPILOT_TOKEN_EXCHANGE_URL)
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = CONNECT_TIMEOUT_MS
+                readTimeout = CONNECT_TIMEOUT_MS
+                setRequestProperty("Authorization", "Bearer $oauthToken")
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("Editor-Version", "OmniDevWorkspace/1.0")
+            }
+
+            val responseCode = conn.responseCode
+            if (responseCode !in 200..299) {
+                val errorBody = conn.errorStream?.bufferedReader()?.readText() ?: ""
+                conn.disconnect()
+                throw IOException(
+                    "Copilot token exchange failed ($responseCode). " +
+                        "Make sure you authorized via GitHub Copilot sub-mode: $errorBody"
+                )
+            }
+
+            val responseBody = conn.inputStream.bufferedReader(Charsets.UTF_8).readText()
+            conn.disconnect()
+
+            val responseJson = json.parseToJsonElement(responseBody).jsonObject
+            val token = responseJson["token"]?.jsonPrimitive?.content
+                ?: throw IOException("Copilot token exchange: missing 'token' field in response")
+
+            // refresh_in is the recommended refresh interval in seconds (default 1800 = 30 min).
+            val refreshInMs = (responseJson["refresh_in"]?.jsonPrimitive?.content?.toLongOrNull() ?: 1800L) * 1000L
+            copilotSessionToken = token
+            copilotTokenExpiresAt = System.currentTimeMillis() + refreshInMs
+            return token
+        }
+    }
+
+    /**
+     * Returns the effective API key for a request.
+     * For GITHUB_COPILOT the raw OAuth token is exchanged for a short-lived session token.
+     * For all other providers the key is returned as-is.
+     */
+    private fun resolveApiKey(provider: ModelProvider, rawKey: String): String =
+        if (provider == ModelProvider.GITHUB_COPILOT) getCopilotSessionToken(rawKey) else rawKey
 
     /**
      * Returns the provider's API base URL (no trailing slash).
@@ -498,7 +580,7 @@ class CompletionService {
         val responseJson = postJson(
             url = url,
             body = body,
-            headers = mapOf("Authorization" to "Bearer $apiKey") + extraHeaders
+            headers = mapOf("Authorization" to "Bearer ${resolveApiKey(provider, apiKey)}") + extraHeaders
         )
 
         val parsed = json.decodeFromString(OpenAiResponse.serializer(), responseJson)
@@ -642,7 +724,7 @@ class CompletionService {
             doOutput = true
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
             setRequestProperty("Accept", "text/event-stream")
-            setRequestProperty("Authorization", "Bearer $apiKey")
+            setRequestProperty("Authorization", "Bearer ${resolveApiKey(provider, apiKey)}")
             extraHeaders.forEach { (k, v) -> setRequestProperty(k, v) }
         }
 

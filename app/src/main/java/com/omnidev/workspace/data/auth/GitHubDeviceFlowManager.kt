@@ -22,8 +22,10 @@ import javax.net.ssl.HttpsURLConnection
  *  - [SubMode.COPILOT]  — uses the public opencode Client ID (Ov23li8tweQw6odWQebz), which
  *    works with any GitHub Copilot subscription (Individual, Business, Enterprise).
  *    Zero registration required — this is the same Client ID used by VS Code and
- *    opencode (github.com/anomalyco/opencode). The resulting token is stored under
- *    [ModelProvider.GITHUB_COPILOT] and targets api.githubcopilot.com.
+ *    opencode (github.com/anomalyco/opencode). The resulting OAuth token is stored under
+ *    [ModelProvider.GITHUB_COPILOT]. [CompletionService] then exchanges it for a short-lived
+ *    Copilot session token via GET https://api.github.com/copilot_internal/v2/token before
+ *    each call to api.githubcopilot.com.
  *
  *  - [SubMode.MODELS]   — requires the user's own OAuth App Client ID.
  *    Stores the token under [ModelProvider.GITHUB_MODELS] and targets
@@ -182,7 +184,11 @@ object GitHubDeviceFlowManager {
                                 // Store for GitHub Repos integration (GitHubManagerTool)
                                 settingsRepository.setGitHubOAuthToken(token)
                                 settingsRepository.setGitHubPat(token)
-                                // Store under the correct AI provider key
+                                // Store the raw OAuth token under the correct AI provider key.
+                                // For COPILOT: CompletionService exchanges this token for a
+                                // short-lived Copilot session token on each API call
+                                // (GET https://api.github.com/copilot_internal/v2/token).
+                                // For MODELS: the OAuth token is used directly as Bearer.
                                 val provider = if (subMode == SubMode.COPILOT)
                                     ModelProvider.GITHUB_COPILOT
                                 else
