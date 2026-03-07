@@ -694,6 +694,7 @@ class ChatViewModel(
                     )
                 }
                 autoSpeakIfActive(event.content)
+            }
 
             is AgentEvent.Error -> {
                 _uiState.update {
