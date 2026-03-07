@@ -8,9 +8,9 @@ import kotlinx.coroutines.flow.Flow
  * Abstraction for an on-device local LLM engine that can load a quantized GGUF model
  * and generate responses without any network connectivity.
  *
- * Two production implementations are provided:
- * - [LlamaCppInferenceEngine] — backed by llama.cpp, the de-facto standard for GGUF models.
- * - [BitnetInferenceEngine]   — backed by BitNet.cpp, optimised for 1-bit BitNet models.
+ * The sole production implementation is [LlamaCppInferenceEngine], backed by llama.cpp.
+ * It supports all standard GGUF quantisation formats (Q4_K_M, Q8_0, IQ4_XS, …) as well
+ * as BitNet i2_s quantized GGUF models — no separate BitNet engine is required.
  */
 interface LocalInferenceEngine {
     /** True if a model is currently loaded and ready to accept prompts. */
@@ -33,47 +33,32 @@ interface LocalInferenceEngine {
 }
 
 /**
- * Singleton accessor for the active local inference engine.
+ * Singleton accessor for the local inference engine (llama.cpp).
  *
- * The active engine is determined by [activeEngineType] and can be switched at
- * runtime via [setActiveEngine].  Model state (loaded model, weights in native
- * memory) is NOT automatically transferred — callers must reload the model after
- * switching engines.
+ * All GGUF model formats — including BitNet i2_s quantized models — are handled
+ * by the single llama.cpp backend. [activeEngineType] is always [LocalEngineType.LLAMA_CPP].
  */
 object LocalEngineHolder {
 
     /** Stable model-selector ID used to route agent/chat requests to the local engine. */
     const val LOCAL_EDGE_MODEL_ID = "local-edge-model"
 
-    private val llamaEngine  = LlamaCppInferenceEngine()
-    private val bitnetEngine = BitnetInferenceEngine()
+    private val llamaEngine = LlamaCppInferenceEngine()
 
-    @Volatile
-    private var _activeType: LocalEngineType = LocalEngineType.LLAMA_CPP
+    /** The active engine type — always [LocalEngineType.LLAMA_CPP]. */
+    val activeEngineType: LocalEngineType get() = LocalEngineType.LLAMA_CPP
 
-    /** The currently-active engine type. */
-    val activeEngineType: LocalEngineType get() = _activeType
-
-    /** The currently-active engine instance. */
-    val engine: LocalInferenceEngine
-        get() = when (_activeType) {
-            LocalEngineType.LLAMA_CPP -> llamaEngine
-            LocalEngineType.BITNET    -> bitnetEngine
-        }
+    /** The active inference engine instance. */
+    val engine: LocalInferenceEngine get() = llamaEngine
 
     /**
-     * Switches the active engine to [type].
-     *
-     * The previously-active engine's model (if any) is **not** automatically unloaded;
-     * the caller is responsible for unloading before switching if desired.
+     * No-op compatibility shim. Provided so callers that previously called
+     * [setActiveEngine] continue to compile without error. The engine is
+     * always llama.cpp; the [type] parameter is ignored.
      */
-    fun setActiveEngine(type: LocalEngineType) {
-        _activeType = type
-    }
+    @Suppress("UNUSED_PARAMETER")
+    fun setActiveEngine(type: LocalEngineType) { /* single engine — no-op */ }
 
-    /** Convenience accessor — returns the [LlamaCppInferenceEngine] instance directly. */
+    /** Direct accessor for the [LlamaCppInferenceEngine] instance. */
     val llamaCppEngine: LlamaCppInferenceEngine get() = llamaEngine
-
-    /** Convenience accessor — returns the [BitnetInferenceEngine] instance directly. */
-    val bitnetCppEngine: BitnetInferenceEngine get() = bitnetEngine
 }

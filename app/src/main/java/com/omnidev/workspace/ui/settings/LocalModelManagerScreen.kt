@@ -15,8 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -32,7 +30,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -45,13 +42,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.omnidev.workspace.data.localllm.BitnetInferenceEngine
 import com.omnidev.workspace.data.localllm.LlamaCppInferenceEngine
 import com.omnidev.workspace.data.localllm.LocalEngineHolder
-import com.omnidev.workspace.data.localllm.LocalEngineType
 import com.omnidev.workspace.data.repository.SettingsRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -61,10 +55,10 @@ private data class SuggestedModel(
     val size: String,
     val description: String,
     val huggingFaceUrl: String,
-    val engineType: LocalEngineType = LocalEngineType.LLAMA_CPP
+    val isBitNet: Boolean = false
 )
 
-private val SUGGESTED_LLAMA_MODELS = listOf(
+private val SUGGESTED_MODELS = listOf(
     SuggestedModel(
         name = "Llama-3.2-1B-Instruct (Q4_K_M)",
         size = "~0.8 GB",
@@ -88,23 +82,20 @@ private val SUGGESTED_LLAMA_MODELS = listOf(
         size = "~2.2 GB",
         description = "Microsoft's efficient model. Excellent reasoning per parameter.",
         huggingFaceUrl = "https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF"
-    )
-)
-
-private val SUGGESTED_BITNET_MODELS = listOf(
-    SuggestedModel(
-        name = "BitNet-b1.58-2B-4T (GGUF)",
-        size = "~0.4 GB",
-        description = "1-bit Microsoft model. ~70% less RAM vs float16. ARM-optimised.",
-        huggingFaceUrl = "https://huggingface.co/microsoft/bitnet_b1_58-2B-4T-gguf",
-        engineType = LocalEngineType.BITNET
     ),
     SuggestedModel(
-        name = "BitNet-b1.58-Large (GGUF)",
+        name = "BitNet-b1.58-2B-4T (i2_s)",
+        size = "~0.4 GB",
+        description = "1-bit Microsoft model. ~70% less RAM vs float16. Compatible with llama.cpp.",
+        huggingFaceUrl = "https://huggingface.co/microsoft/bitnet_b1_58-2B-4T-gguf",
+        isBitNet = true
+    ),
+    SuggestedModel(
+        name = "BitNet-b1.58-Large (i2_s)",
         size = "~0.7 GB",
-        description = "Larger 1-bit model with stronger reasoning. ARM TL2 kernels.",
+        description = "Larger 1-bit model with stronger reasoning. Compatible with llama.cpp.",
         huggingFaceUrl = "https://huggingface.co/1bitLLM/bitnet_b1_58-large",
-        engineType = LocalEngineType.BITNET
+        isBitNet = true
     )
 )
 
@@ -112,8 +103,8 @@ private val SUGGESTED_BITNET_MODELS = listOf(
  * Screen for managing on-device local LLM models (Bring Your Own Model).
  *
  * Provides:
- * - Engine Selector: toggle between llama.cpp and BitNet.cpp
  * - Section A: Suggested lightweight models with external HuggingFace links
+ *   (includes standard GGUF models and BitNet i2_s GGUF models — all run via llama.cpp)
  * - Section B: File picker to select a local .gguf file with persistable URI permission
  * - Status display showing loaded model name and inference readiness
  */
@@ -126,18 +117,11 @@ fun LocalModelManagerScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    var selectedEngineType by remember { mutableStateOf(LocalEngineHolder.activeEngineType) }
     var loadedModelName by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        // Restore persisted engine selection
-        val savedEngineTypeName = settingsRepository.observeLocalEngineType().first()
-        val restoredType = LocalEngineType.fromName(savedEngineTypeName)
-        selectedEngineType = restoredType
-        LocalEngineHolder.setActiveEngine(restoredType)
-
         loadedModelName = settingsRepository.observeLocalModelName().first()
         val savedUri = settingsRepository.observeLocalModelUri().first()
         if (savedUri != null && !LocalEngineHolder.engine.isLoaded) {
@@ -211,88 +195,8 @@ fun LocalModelManagerScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
-            // ── Engine Selector ──
-            Text(
-                "⚙️ Inference Engine",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                "Choose which native engine to use for on-device inference.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier
-                        .selectableGroup()
-                        .padding(8.dp)
-                ) {
-                    LocalEngineType.entries.forEach { engineType ->
-                        val isNativeAvailable = when (engineType) {
-                            LocalEngineType.LLAMA_CPP -> LlamaCppInferenceEngine.isNativeAvailable
-                            LocalEngineType.BITNET    -> BitnetInferenceEngine.isNativeAvailable
-                        }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .selectable(
-                                    selected = selectedEngineType == engineType,
-                                    onClick = {
-                                        selectedEngineType = engineType
-                                        // Unload current model when switching engines
-                                        LocalEngineHolder.engine.unloadModel()
-                                        LocalEngineHolder.setActiveEngine(engineType)
-                                        loadedModelName = null
-                                        statusMessage = "Switched to ${engineType.displayName}. Reload your model."
-                                        scope.launch {
-                                            settingsRepository.setLocalEngineType(engineType.name)
-                                            settingsRepository.setLocalModelName(null)
-                                        }
-                                    },
-                                    role = Role.RadioButton
-                                )
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selectedEngineType == engineType,
-                                onClick = null
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = engineType.displayName,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    if (!isNativeAvailable) {
-                                        Spacer(Modifier.width(6.dp))
-                                        Text(
-                                            text = "STUB",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.error
-                                        )
-                                    }
-                                }
-                                Text(
-                                    text = engineType.description,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ── Stub-build notice for selected engine ──
-            val selectedEngineAvailable = when (selectedEngineType) {
-                LocalEngineType.LLAMA_CPP -> LlamaCppInferenceEngine.isNativeAvailable
-                LocalEngineType.BITNET    -> BitnetInferenceEngine.isNativeAvailable
-            }
-            if (!selectedEngineAvailable) {
+            // ── Stub-build notice ──
+            if (!LlamaCppInferenceEngine.isNativeAvailable) {
                 Card(
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer
@@ -301,16 +205,12 @@ fun LocalModelManagerScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            text = "⚠️ ${selectedEngineType.displayName} Not Compiled",
+                            text = "⚠️ llama.cpp Not Compiled",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.onErrorContainer
                         )
-                        val submodule = when (selectedEngineType) {
-                            LocalEngineType.LLAMA_CPP -> "llama.cpp"
-                            LocalEngineType.BITNET    -> "bitnet"
-                        }
                         Text(
-                            text = "This build does not include the $submodule native library. " +
+                            text = "This build does not include the llama.cpp native library. " +
                                 "Model loading will fail until the app is rebuilt with NDK support.\n\n" +
                                 "To build with real on-device inference:\n" +
                                 "  1. git submodule update --init --recursive\n" +
@@ -325,8 +225,8 @@ fun LocalModelManagerScreen(
             // ── Status Card ──
             val currentStatus = when {
                 isLoading -> "⏳ Loading model…"
-                LocalEngineHolder.engine.isLoaded -> "🟢 ${selectedEngineType.displayName} — ${loadedModelName ?: "Unknown"}"
-                else -> "⚫ No model loaded (${selectedEngineType.displayName})"
+                LocalEngineHolder.engine.isLoaded -> "🟢 llama.cpp — ${loadedModelName ?: "Unknown"}"
+                else -> "⚫ No model loaded"
             }
 
             Card(
@@ -378,23 +278,19 @@ fun LocalModelManagerScreen(
             HorizontalDivider()
 
             // ── Section A: Suggested Models ──
-            val suggestedModels = when (selectedEngineType) {
-                LocalEngineType.LLAMA_CPP -> SUGGESTED_LLAMA_MODELS
-                LocalEngineType.BITNET    -> SUGGESTED_BITNET_MODELS
-            }
-
             Text(
-                "🤗 Suggested Models (${selectedEngineType.displayName})",
+                "🤗 Suggested Models",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                "Download a compatible GGUF model from HuggingFace, then pick it below.",
+                "All models run via llama.cpp — including BitNet i2_s quantized GGUF models. " +
+                    "Download from HuggingFace, then pick the file below.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            suggestedModels.forEach { model ->
+            SUGGESTED_MODELS.forEach { model ->
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier
@@ -404,7 +300,17 @@ fun LocalModelManagerScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(model.name, style = MaterialTheme.typography.bodyMedium)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(model.name, style = MaterialTheme.typography.bodyMedium)
+                                if (model.isBitNet) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        text = "BitNet",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.tertiary
+                                    )
+                                }
+                            }
                             Text(
                                 "${model.size} · ${model.description}",
                                 style = MaterialTheme.typography.bodySmall,
@@ -462,3 +368,4 @@ fun LocalModelManagerScreen(
         }
     }
 }
+

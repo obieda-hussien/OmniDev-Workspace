@@ -3,27 +3,18 @@ package com.omnidev.workspace.data.localllm
 /**
  * Identifies which on-device inference engine to use for local model inference.
  *
- * @property displayName  Human-readable label shown in the UI.
- * @property description  Short description of the engine's strengths.
+ * Only [LLAMA_CPP] is supported. It handles all standard GGUF quantisation formats
+ * (Q4_K_M, Q5_K_S, IQ4_XS, …) as well as BitNet i2_s quantized GGUF models —
+ * no separate BitNet engine is required.
  */
 enum class LocalEngineType(val displayName: String, val description: String) {
     /**
      * llama.cpp — the de-facto standard for GGUF model inference on mobile.
-     * Supports a wide range of quantised models (Q4_K_M, Q5_K_S, IQ4_XS, …).
+     * Supports Q4, Q8, IQ4 and BitNet i2_s quantised GGUF models natively.
      */
     LLAMA_CPP(
         displayName = "llama.cpp",
-        description = "Broad GGUF model support. Best for general-purpose models."
-    ),
-
-    /**
-     * BitNet.cpp — Microsoft's inference engine for 1-bit (BitNet b1.58) models.
-     * Delivers dramatically lower memory usage and faster inference on ARM devices
-     * when used with compatible BitNet-quantised GGUF models.
-     */
-    BITNET(
-        displayName = "BitNet.cpp",
-        description = "Optimised for 1-bit BitNet models. Lower RAM, faster on ARM."
+        description = "Supports all GGUF formats including BitNet i2_s quantized models."
     );
 
     companion object {

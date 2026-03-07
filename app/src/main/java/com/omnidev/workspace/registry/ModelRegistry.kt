@@ -1418,7 +1418,7 @@ object ModelRegistry {
                 supportsFunctionCalling = false,
                 costPer1MInputTokens = null,
                 costPer1MOutputTokens = null,
-                shortDescription = "On-device GGUF model via llama.cpp or BitNet.cpp. No internet or API key required.",
+                shortDescription = "Supports all GGUF formats including BitNet i2_s quantized models. No internet or API key required.",
                 isLatest = true
             )
         )

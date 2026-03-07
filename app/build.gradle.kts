@@ -92,38 +92,12 @@ val initLlamaCppSubmodule by tasks.registering {
     }
 }
 
-// ── Auto-initialise BitNet.cpp git submodule before native build ─────────────
-// Similar to the llama.cpp task above.  If the BitNet submodule is absent the
-// CMakeLists.txt will compile the stub libbitnet_jni.so automatically, so this
-// task is best-effort (no build failure if the submodule is unavailable).
-val initBitnetSubmodule by tasks.registering {
-    val marker = file("src/main/cpp/bitnet/CMakeLists.txt")
-    onlyIf { !marker.exists() }
-    doLast {
-        try {
-            exec {
-                workingDir = rootProject.rootDir
-                commandLine("git", "submodule", "update", "--init",
-                    "app/src/main/cpp/bitnet", "--depth", "1")
-            }
-            logger.lifecycle("BitNet.cpp submodule initialised — real BitNet inference will be compiled.")
-        } catch (e: Exception) {
-            logger.warn(
-                "Could not auto-init BitNet.cpp submodule (${e.message}). " +
-                "The stub libbitnet_jni.so will be compiled — BitNet inference will not be available. " +
-                "To fix: run `git submodule update --init --recursive` manually."
-            )
-        }
-    }
-}
-
 // Hook into every task that configures or runs the CMake / native build.
 tasks.configureEach {
     if (name.startsWith("configureCMake") ||
         name.startsWith("buildCMake") ||
         name.startsWith("externalNativeBuild")) {
         dependsOn(initLlamaCppSubmodule)
-        dependsOn(initBitnetSubmodule)
     }
 }
 
