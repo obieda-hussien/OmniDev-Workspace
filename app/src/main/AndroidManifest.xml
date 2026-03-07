@@ -52,6 +52,39 @@
     <!-- Physical activity recognition -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
 
+    <!-- ═══ THE SENSES (Multimodal Ready) ═══ -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- Camera is used but not required on non-camera devices -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- ═══ SYSTEM & NETWORK DOMINANCE ═══ -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!-- ═══ GOD-MODE WAKELOCKS & EXECUTION ═══ -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" />
+
+    <!-- ═══ DEEP ROOT/SHIZUKU ANALYTICS ═══ -->
+    <uses-permission android:name="android.permission.DUMP"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.REBOOT"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS_FULL"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- ═══ ANDROID 14+ FOREGROUND SERVICE TYPES ═══ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
     <application
         android:name=".OmniDevApp"
         android:allowBackup="true"
@@ -104,7 +137,18 @@
         <!-- Omni-Bubble: system-wide floating AI assistant overlay -->
         <service
             android:name=".ui.overlay.OmniBubbleService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="omni_bubble_overlay" />
+        </service>
+
+        <!-- VoiceAssistantService: always-on wake word daemon + duplex STT/TTS -->
+        <service
+            android:name=".data.voice.VoiceAssistantService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- OmniAccessibilityService: Semantic UI tree reader and interaction engine -->
         <service

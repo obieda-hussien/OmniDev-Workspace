@@ -78,3 +78,9 @@
 
 # ── DataStore ─────────────────────────────────────────────────────────────────
 -keep class * extends com.google.protobuf.GeneratedMessageLite { *; }
+
+# ── Voice Mode (VoiceManager + VoiceAssistantService) ──────────────────────────
+-keep class com.omnidev.workspace.data.voice.VoiceManager { *; }
+-keep class com.omnidev.workspace.data.voice.VoiceAssistantService { *; }
+-keep enum com.omnidev.workspace.data.voice.VoiceManager$* { *; }
+-keep enum com.omnidev.workspace.data.voice.VoiceAssistantService$* { *; }

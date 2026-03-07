@@ -54,6 +54,9 @@ class SettingsRepository(private val context: Context) {
         val MAX_TOKENS = stringPreferencesKey("engine_max_tokens")
         // God Mode
         val GOD_MODE_ENABLED = booleanPreferencesKey("god_mode_enabled")
+        // Voice Mode
+        val VOICE_MODE_ENABLED = booleanPreferencesKey("voice_mode_enabled")
+        val VOICE_TTS_ENABLED = booleanPreferencesKey("voice_tts_enabled")
         // Platform Integrations
         val TELEGRAM_BOT_TOKEN = stringPreferencesKey("telegram_bot_token")
         val TELEGRAM_CHAT_ID = stringPreferencesKey("telegram_chat_id")
@@ -339,5 +342,23 @@ class SettingsRepository(private val context: Context) {
         ModelRole.AGENT -> Keys.AGENT_MODEL_ID
         ModelRole.SWARM_ORCHESTRATOR -> Keys.SWARM_ORCHESTRATOR_MODEL_ID
         ModelRole.SWARM_WORKER -> Keys.SWARM_WORKER_MODEL_ID
+    }
+
+    // ──────────────────────────────────────────────
+    //  Voice Mode
+    // ──────────────────────────────────────────────
+
+    fun observeVoiceMode(): Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.VOICE_MODE_ENABLED] ?: false }
+
+    suspend fun setVoiceMode(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.VOICE_MODE_ENABLED] = enabled }
+    }
+
+    fun observeTtsEnabled(): Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.VOICE_TTS_ENABLED] ?: true }
+
+    suspend fun setTtsEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.VOICE_TTS_ENABLED] = enabled }
     }
 }

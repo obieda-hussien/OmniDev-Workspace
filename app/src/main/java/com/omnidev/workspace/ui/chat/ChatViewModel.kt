@@ -14,6 +14,7 @@ import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.tools.FileToolManager
+import com.omnidev.workspace.data.voice.VoiceManager
 import com.omnidev.workspace.domain.attachment.AttachmentProcessor
 import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
@@ -74,7 +75,13 @@ data class ChatUiState(
     /** A privileged action awaiting user approval via [ConfirmationGateDialog]. */
     val pendingConfirmation: PendingConfirmation? = null,
     /** Whether God Mode is enabled — hides scope selection when true. */
-    val isGodModeEnabled: Boolean = false
+    val isGodModeEnabled: Boolean = false,
+    /** Whether voice mode (mic button active) is enabled. */
+    val isVoiceModeEnabled: Boolean = false,
+    /** Whether the STT mic is actively capturing speech. */
+    val isListening: Boolean = false,
+    /** Latest partial STT transcript shown as hint while speaking. */
+    val partialTranscript: String? = null
 )
 
 /**
@@ -113,6 +120,9 @@ class ChatViewModel(
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+
+    /** Lazily initialised on first voice use — requires a [Context] to be passed in. */
+    private var voiceManager: VoiceManager? = null
 
     init {
         loadTargetContext()
@@ -952,5 +962,77 @@ class ChatViewModel(
                 }
             }
         }
+    }
+
+    // ──────────────────────────────────────────────
+    //  Voice Mode
+    // ──────────────────────────────────────────────
+
+    /**
+     * Initialises the [VoiceManager] (STT + TTS) with the given [context].
+     * Must be called from a composable that has a [Context] reference (e.g. [LocalContext]).
+     * Safe to call multiple times — subsequent calls are no-ops.
+     */
+    fun initVoice(context: Context) {
+        if (voiceManager != null) return
+        val vm = VoiceManager(context)
+        vm.init()
+        vm.onTranscriptReady = { text ->
+            // Auto-submit the transcribed text into the agent pipeline
+            onInputChanged(text)
+            sendMessage()
+        }
+        voiceManager = vm
+
+        // Observe partial transcript updates for real-time hint display
+        viewModelScope.launch {
+            vm.partialTranscript.collect { partial ->
+                _uiState.update { it.copy(partialTranscript = partial) }
+            }
+        }
+        // Observe STT state to keep isListening in sync
+        viewModelScope.launch {
+            vm.sttState.collect { state ->
+                _uiState.update {
+                    it.copy(isListening = state == VoiceManager.SttState.LISTENING || state == VoiceManager.SttState.PARTIAL)
+                }
+            }
+        }
+    }
+
+    /** Starts capturing the user's speech via STT. */
+    fun startListening() {
+        voiceManager?.startListening()
+        // State update comes via the sttState flow collector
+    }
+
+    /** Stops the current STT session without submitting. */
+    fun stopListening() {
+        voiceManager?.stopListening()
+        // State update comes via the sttState flow collector
+    }
+
+    /**
+     * Synthesises [text] using TTS — call after agent generates a response when voice mode is ON
+     * and TTS is enabled in settings.
+     */
+    fun speak(text: String) {
+        voiceManager?.speak(text)
+    }
+
+    /** Stops any ongoing TTS utterance. */
+    fun stopSpeaking() {
+        voiceManager?.stopSpeaking()
+    }
+
+    /** Toggles the voice mode UI flag. */
+    fun toggleVoiceMode() {
+        _uiState.update { it.copy(isVoiceModeEnabled = !it.isVoiceModeEnabled) }
+    }
+
+    override fun onCleared() {
+        voiceManager?.destroy()
+        voiceManager = null
+        super.onCleared()
     }
 }
