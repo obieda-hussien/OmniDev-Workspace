@@ -40,6 +40,10 @@
 }
 -keep class com.omnidev.workspace.data.localllm.LlamaCppInferenceEngine { *; }
 -keep class com.omnidev.workspace.data.localllm.LlamaCppInferenceEngine$* { *; }
+-keep class com.omnidev.workspace.data.localllm.BitnetInferenceEngine { *; }
+-keep class com.omnidev.workspace.data.localllm.BitnetInferenceEngine$* { *; }
+-keep class com.omnidev.workspace.data.localllm.LocalEngineType { *; }
+-keep class com.omnidev.workspace.data.localllm.LocalEngineHolder { *; }
 
 # ── Shizuku ──────────────────────────────────────────────────────────────────
 -keep class rikka.shizuku.** { *; }

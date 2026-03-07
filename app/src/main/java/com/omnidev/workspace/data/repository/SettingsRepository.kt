@@ -68,6 +68,8 @@ class SettingsRepository(private val context: Context) {
         // Local Edge Model
         val LOCAL_MODEL_URI = stringPreferencesKey("local_model_uri")
         val LOCAL_MODEL_NAME = stringPreferencesKey("local_model_name")
+        // Local Engine Selection (llama.cpp vs BitNet.cpp)
+        val LOCAL_ENGINE_TYPE = stringPreferencesKey("local_engine_type")
     }
 
     // ──────────────────────────────────────────────
@@ -330,6 +332,15 @@ class SettingsRepository(private val context: Context) {
     suspend fun setLocalModelName(name: String?) {
         context.settingsDataStore.edit { prefs ->
             if (name.isNullOrBlank()) prefs.remove(Keys.LOCAL_MODEL_NAME) else prefs[Keys.LOCAL_MODEL_NAME] = name
+        }
+    }
+
+    fun observeLocalEngineType(): Flow<String> =
+        context.settingsDataStore.data.map { it[Keys.LOCAL_ENGINE_TYPE] ?: com.omnidev.workspace.data.localllm.LocalEngineType.LLAMA_CPP.name }
+
+    suspend fun setLocalEngineType(engineType: String) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[Keys.LOCAL_ENGINE_TYPE] = engineType
         }
     }
 

@@ -2,3 +2,8 @@
 	path = app/src/main/cpp/llama.cpp
 	url = https://github.com/ggerganov/llama.cpp.git
 	shallow = true
+
+[submodule "app/src/main/cpp/bitnet"]
+	path = app/src/main/cpp/bitnet
+	url = https://github.com/microsoft/BitNet.git
+	shallow = true
