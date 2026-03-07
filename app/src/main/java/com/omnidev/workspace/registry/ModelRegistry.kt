@@ -1105,7 +1105,7 @@ object ModelRegistry {
     private val githubModels = listOf(
         // ── OpenAI flagship models ──
         AIModel(
-            id = "gpt-4o",
+            id = "github/gpt-4o",
             displayName = "GPT-4o (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.ORCHESTRATOR,
@@ -1118,7 +1118,7 @@ object ModelRegistry {
             isLatest = true
         ),
         AIModel(
-            id = "gpt-4o-mini",
+            id = "github/gpt-4o-mini",
             displayName = "GPT-4o Mini (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.FAST,
@@ -1129,7 +1129,7 @@ object ModelRegistry {
             shortDescription = "Fast and cheap GPT-4o Mini via GitHub Models"
         ),
         AIModel(
-            id = "gpt-4.1",
+            id = "github/gpt-4.1",
             displayName = "GPT-4.1 (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.ORCHESTRATOR,
@@ -1140,7 +1140,7 @@ object ModelRegistry {
             shortDescription = "OpenAI's latest GPT-4.1 with 1M context via GitHub Models"
         ),
         AIModel(
-            id = "gpt-4.1-mini",
+            id = "github/gpt-4.1-mini",
             displayName = "GPT-4.1 Mini (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.EXECUTOR,
@@ -1151,7 +1151,7 @@ object ModelRegistry {
             shortDescription = "GPT-4.1 Mini — efficient and affordable via GitHub Models"
         ),
         AIModel(
-            id = "o1",
+            id = "github/o1",
             displayName = "o1 (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.ORCHESTRATOR,
@@ -1162,7 +1162,7 @@ object ModelRegistry {
             shortDescription = "OpenAI o1 reasoning model via GitHub Models"
         ),
         AIModel(
-            id = "o1-mini",
+            id = "github/o1-mini",
             displayName = "o1-mini (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.EXECUTOR,
@@ -1173,7 +1173,7 @@ object ModelRegistry {
             shortDescription = "Lightweight o1-mini reasoning via GitHub Models"
         ),
         AIModel(
-            id = "o3-mini",
+            id = "github/o3-mini",
             displayName = "o3-mini (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.ORCHESTRATOR,
@@ -1185,7 +1185,7 @@ object ModelRegistry {
         ),
         // ── Meta Llama models ──
         AIModel(
-            id = "meta-llama/Llama-3.3-70B-Instruct",
+            id = "github/meta-llama/Llama-3.3-70B-Instruct",
             displayName = "Llama 3.3 70B (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.EXECUTOR,
@@ -1195,7 +1195,7 @@ object ModelRegistry {
             shortDescription = "Meta Llama 3.3 70B via GitHub Models — strong open-source model"
         ),
         AIModel(
-            id = "meta-llama/Meta-Llama-3.1-405B-Instruct",
+            id = "github/meta-llama/Meta-Llama-3.1-405B-Instruct",
             displayName = "Llama 3.1 405B (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.ORCHESTRATOR,
@@ -1206,7 +1206,7 @@ object ModelRegistry {
         ),
         // ── Microsoft Phi models ──
         AIModel(
-            id = "Phi-4",
+            id = "github/Phi-4",
             displayName = "Phi-4 (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.EXECUTOR,
@@ -1216,7 +1216,7 @@ object ModelRegistry {
             shortDescription = "Microsoft Phi-4 — small but capable reasoning model via GitHub Models"
         ),
         AIModel(
-            id = "Phi-3.5-MoE-instruct",
+            id = "github/Phi-3.5-MoE-instruct",
             displayName = "Phi-3.5 MoE (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.FAST,
@@ -1227,7 +1227,7 @@ object ModelRegistry {
         ),
         // ── Mistral models ──
         AIModel(
-            id = "Mistral-large",
+            id = "github/Mistral-large",
             displayName = "Mistral Large (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.ORCHESTRATOR,
@@ -1237,7 +1237,7 @@ object ModelRegistry {
             shortDescription = "Mistral's flagship large model via GitHub Models"
         ),
         AIModel(
-            id = "mistral-small",
+            id = "github/mistral-small",
             displayName = "Mistral Small (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.FAST,
@@ -1248,7 +1248,7 @@ object ModelRegistry {
         ),
         // ── DeepSeek models ──
         AIModel(
-            id = "DeepSeek-R1",
+            id = "github/DeepSeek-R1",
             displayName = "DeepSeek R1 (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.ORCHESTRATOR,
@@ -1259,7 +1259,7 @@ object ModelRegistry {
             shortDescription = "DeepSeek R1 reasoning model via GitHub Models"
         ),
         AIModel(
-            id = "DeepSeek-V3-0324",
+            id = "github/DeepSeek-V3-0324",
             displayName = "DeepSeek V3 (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.EXECUTOR,
@@ -1270,7 +1270,7 @@ object ModelRegistry {
         ),
         // ── Cohere models ──
         AIModel(
-            id = "Cohere-command-r-plus-08-2024",
+            id = "github/Cohere-command-r-plus-08-2024",
             displayName = "Command R+ (GitHub Models)",
             provider = ModelProvider.GITHUB_MODELS,
             tier = ModelTier.ORCHESTRATOR,

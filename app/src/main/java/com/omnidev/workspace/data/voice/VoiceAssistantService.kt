@@ -9,84 +9,156 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
+import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import androidx.core.app.NotificationCompat
 import com.omnidev.workspace.MainActivity
 import com.omnidev.workspace.R
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.Locale
+import java.util.UUID
 
 /**
- * Always-on background service that continuously listens for a wake phrase using Android's
- * [SpeechRecognizer]. Runs as a Foreground Service with [ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE]
- * so Android allows microphone access from the background (Android 10+ requirement).
+ * Full on-device voice controller — zero API keys, zero cloud dependencies.
+ * Combines:
+ *  - **Wake-word loop** (always-on, continuous [SpeechRecognizer] listening for "Hey Omni")
+ *  - **Main STT** ([startListening] / [stopListening] for user queries)
+ *  - **TTS output** ([speak] / [stopSpeaking] for agent responses)
  *
- * **Wake phrases:** Any utterance containing "hey omni" or "wake up" triggers the voice session.
+ * All three engines run on-device using Android's built-in APIs:
+ *  - STT: `android.speech.SpeechRecognizer` (Google on-device model, pre-installed)
+ *  - TTS: `android.speech.tts.TextToSpeech` (Android TTS engine, pre-installed)
  *
- * **Flow:**
- * 1. Service starts and calls [startWakeWordLoop].
- * 2. Continuous [SpeechRecognizer] session polls for speech.
- * 3. On wake phrase detection: vibrate, stop wake loop, emit [WakeState.TRIGGERED].
- * 4. Caller (e.g. ChatViewModel) starts a [VoiceManager] STT session for the real query.
- * 5. After the session completes, call [resumeWakeWordLoop] to restart listening.
+ * Runs as a Foreground Service with [ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE].
+ *
+ * **State model:** [voiceState] is the authoritative state emitted as a [StateFlow].
+ * [transcriptFlow] emits finalized transcript strings; [partialFlow] emits live partial results.
  *
  * Start: `startService(Intent(context, VoiceAssistantService::class.java))`
  * Stop:  `stopService(Intent(context, VoiceAssistantService::class.java))`
  */
 class VoiceAssistantService : Service() {
 
-    // ── State ─────────────────────────────────────────────────────────────────────────────────────
+    // ── VoiceState ────────────────────────────────────────────────────────────────────────────────
 
+    sealed class VoiceState {
+        /** Mic and TTS both idle. */
+        data object Idle : VoiceState()
+        /** Mic is open, waiting for speech. */
+        data object Listening : VoiceState()
+        /** Partial STT result available while user is still speaking. */
+        data class PartialResult(val text: String) : VoiceState()
+        /** STT finished; transcript delivered to pipeline. */
+        data object Processing : VoiceState()
+        /** TTS is currently synthesizing and playing the agent response. */
+        data class Speaking(val text: String) : VoiceState()
+        /** An error occurred; [message] describes what went wrong. */
+        data class Error(val message: String) : VoiceState()
+    }
+
+    // Legacy wake state (kept for callers that still observe it)
     enum class WakeState { IDLE, LISTENING, TRIGGERED }
 
+    // ── Instance flows ────────────────────────────────────────────────────────────────────────────
+
+    private val _voiceState = MutableStateFlow<VoiceState>(VoiceState.Idle)
+    private val _transcriptFlow = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    private val _partialFlow = MutableSharedFlow<String>(extraBufferCapacity = 16)
     private val _wakeState = MutableStateFlow(WakeState.IDLE)
 
+    // ── Companion (static access for UI / ViewModel) ──────────────────────────────────────────────
+
     companion object {
-        val wakeState: StateFlow<WakeState>
-            get() = instance?._wakeState?.asStateFlow() ?: MutableStateFlow(WakeState.IDLE).asStateFlow()
 
         private var instance: VoiceAssistantService? = null
 
-        /** Resume the wake-word loop after a voice session completes. */
-        fun resumeWakeWordLoop() {
-            instance?.startWakeWordLoop()
-        }
+        val isRunning: Boolean get() = instance != null
 
-        val isRunning: Boolean
-            get() = instance != null
+        /** Current voice controller state. */
+        val voiceState: StateFlow<VoiceState>
+            get() = instance?._voiceState?.asStateFlow()
+                ?: MutableStateFlow(VoiceState.Idle).asStateFlow()
+
+        /** Emits the final STT transcript each time the user finishes speaking. */
+        val transcriptFlow: SharedFlow<String>
+            get() = instance?._transcriptFlow?.asSharedFlow()
+                ?: MutableSharedFlow()
+
+        /** Emits live partial STT results while the user is speaking. */
+        val partialFlow: SharedFlow<String>
+            get() = instance?._partialFlow?.asSharedFlow()
+                ?: MutableSharedFlow()
+
+        /** Legacy wake state. */
+        val wakeState: StateFlow<WakeState>
+            get() = instance?._wakeState?.asStateFlow()
+                ?: MutableStateFlow(WakeState.IDLE).asStateFlow()
+
+        // ── Static action APIs ──────────────────────────────────────────────────────────────────
+
+        /** Start capturing main-query speech. */
+        fun startListening() { instance?.startMainListening() }
+
+        /** Stop and discard the current STT session. */
+        fun stopListening() { instance?.stopMainListening() }
+
+        /** Synthesise [text] via on-device TTS. */
+        fun speak(text: String) { instance?.speakText(text) }
+
+        /** Interrupt any ongoing TTS utterance. */
+        fun stopSpeaking() { instance?.stopTts() }
+
+        /** Resume the wake-word loop after a voice session completes. */
+        fun resumeWakeWordLoop() { instance?.startWakeWordLoop() }
+
+        // ── Constants ───────────────────────────────────────────────────────────────────────────
 
         private val WAKE_PHRASES = listOf("hey omni", "wake up", "هيي أومني", "استيقظ")
 
         private const val NOTIFICATION_ID = 8001
         private const val CHANNEL_ID = "omni_voice_channel"
-        private const val CHANNEL_NAME = "Omni Voice Daemon"
+        private const val CHANNEL_NAME = "Omni Voice"
 
-        /** Delay between SpeechRecognizer sessions (ms) — avoids tight loops on error. */
         private const val RESTART_DELAY_MS = 500L
     }
 
+    // ── Recognizers & TTS ─────────────────────────────────────────────────────────────────────────
+
+    /** Dedicated recognizer for the always-on wake-word loop. */
     private var wakeRecognizer: SpeechRecognizer? = null
+
+    /** Dedicated recognizer for main user queries (started on demand). */
+    private var queryRecognizer: SpeechRecognizer? = null
+
+    /** On-device TTS for agent responses. */
+    private var tts: TextToSpeech? = null
+
     private val handler = Handler(Looper.getMainLooper())
     private var isDestroyed = false
 
-    // ── Service lifecycle ────────────────────────────────────────────────────────────────────────
+    // ── Service lifecycle ─────────────────────────────────────────────────────────────────────────
 
     override fun onCreate() {
         super.onCreate()
         instance = this
         createNotificationChannel()
         startForeground()
+        initTts()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -100,21 +172,159 @@ class VoiceAssistantService : Service() {
         isDestroyed = true
         instance = null
         stopWakeWordLoop()
+        stopMainListening()
+        tts?.stop()
+        tts?.shutdown()
+        tts = null
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    // ── Foreground notification ──────────────────────────────────────────────────────────────────
+    // ── TTS initialisation ────────────────────────────────────────────────────────────────────────
+
+    private fun initTts() {
+        tts = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts?.setLanguage(Locale.getDefault())
+                tts?.setSpeechRate(1.0f)
+                tts?.setPitch(1.0f)
+                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {
+                        // state already set in speakText()
+                    }
+                    override fun onDone(utteranceId: String?) {
+                        if (_voiceState.value is VoiceState.Speaking) {
+                            _voiceState.value = VoiceState.Idle
+                        }
+                    }
+                    @Deprecated("Deprecated in Java")
+                    override fun onError(utteranceId: String?) {
+                        if (_voiceState.value is VoiceState.Speaking) {
+                            _voiceState.value = VoiceState.Idle
+                        }
+                    }
+                    override fun onError(utteranceId: String?, errorCode: Int) {
+                        if (_voiceState.value is VoiceState.Speaking) {
+                            _voiceState.value = VoiceState.Idle
+                        }
+                    }
+                })
+            }
+        }
+    }
+
+    // ── Main-query STT ────────────────────────────────────────────────────────────────────────────
+
+    private fun startMainListening() {
+        if (isDestroyed) return
+        if (_voiceState.value is VoiceState.Listening) return
+
+        // Pause wake-word loop while main query is active
+        stopWakeWordLoop()
+
+        queryRecognizer?.destroy()
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            _voiceState.value = VoiceState.Error("Speech recognition not available on this device")
+            return
+        }
+
+        queryRecognizer = SpeechRecognizer.createSpeechRecognizer(this).also { sr ->
+            sr.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) {
+                    _voiceState.value = VoiceState.Listening
+                }
+
+                override fun onPartialResults(partialResults: Bundle?) {
+                    val partial = partialResults
+                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        ?.firstOrNull()
+                    if (!partial.isNullOrBlank()) {
+                        _voiceState.value = VoiceState.PartialResult(partial)
+                        _partialFlow.tryEmit(partial)
+                    }
+                }
+
+                override fun onResults(results: Bundle?) {
+                    val text = results
+                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        ?.firstOrNull()
+                    queryRecognizer?.destroy()
+                    queryRecognizer = null
+                    if (!text.isNullOrBlank()) {
+                        _voiceState.value = VoiceState.Processing
+                        _transcriptFlow.tryEmit(text)
+                    } else {
+                        _voiceState.value = VoiceState.Idle
+                        startWakeWordLoop()
+                    }
+                }
+
+                override fun onError(error: Int) {
+                    queryRecognizer?.destroy()
+                    queryRecognizer = null
+                    val msg = when (error) {
+                        SpeechRecognizer.ERROR_NO_MATCH -> "No speech detected"
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "Listening timed out"
+                        SpeechRecognizer.ERROR_AUDIO -> "Audio recording error"
+                        SpeechRecognizer.ERROR_NETWORK -> "Network error"
+                        else -> "Speech error ($error)"
+                    }
+                    _voiceState.value = VoiceState.Error(msg)
+                    startWakeWordLoop()
+                }
+
+                override fun onBeginningOfSpeech() {}
+                override fun onRmsChanged(rmsdB: Float) {}
+                override fun onBufferReceived(buffer: ByteArray?) {}
+                override fun onEndOfSpeech() {}
+                override fun onEvent(eventType: Int, params: Bundle?) {}
+            })
+        }
+
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+        }
+        queryRecognizer?.startListening(intent)
+    }
+
+    private fun stopMainListening() {
+        queryRecognizer?.stopListening()
+        queryRecognizer?.destroy()
+        queryRecognizer = null
+        if (_voiceState.value is VoiceState.Listening || _voiceState.value is VoiceState.PartialResult) {
+            _voiceState.value = VoiceState.Idle
+        }
+    }
+
+    // ── TTS output ────────────────────────────────────────────────────────────────────────────────
+
+    private fun speakText(text: String) {
+        if (isDestroyed || tts == null) return
+        tts?.stop()
+        _voiceState.value = VoiceState.Speaking(text)
+        val utteranceId = UUID.randomUUID().toString()
+        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+    }
+
+    private fun stopTts() {
+        tts?.stop()
+        if (_voiceState.value is VoiceState.Speaking) {
+            _voiceState.value = VoiceState.Idle
+        }
+    }
+
+    // ── Foreground notification ───────────────────────────────────────────────────────────────────
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_LOW
+                CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Omni wake-word listener"
+                description = "Omni voice controller"
                 setShowBadge(false)
             }
             (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
@@ -124,12 +334,10 @@ class VoiceAssistantService : Service() {
 
     private fun startForeground() {
         val pendingIntent = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE
+            this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE
         )
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Omni Voice Daemon")
+            .setContentTitle("Omni Voice")
             .setContentText("Listening for \"Hey Omni\"…")
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
@@ -144,24 +352,24 @@ class VoiceAssistantService : Service() {
         }
     }
 
-    // ── Wake word loop ───────────────────────────────────────────────────────────────────────────
+    // ── Wake-word loop ────────────────────────────────────────────────────────────────────────────
 
     fun startWakeWordLoop() {
         if (isDestroyed) return
         _wakeState.value = WakeState.LISTENING
-        handler.post { launchSession() }
+        handler.post { launchWakeSession() }
     }
 
     private fun stopWakeWordLoop() {
+        handler.removeCallbacksAndMessages(null)
         wakeRecognizer?.destroy()
         wakeRecognizer = null
         _wakeState.value = WakeState.IDLE
     }
 
-    private fun launchSession() {
+    private fun launchWakeSession() {
         if (isDestroyed || _wakeState.value == WakeState.TRIGGERED) return
         wakeRecognizer?.destroy()
-
         if (!SpeechRecognizer.isRecognitionAvailable(this)) return
 
         wakeRecognizer = SpeechRecognizer.createSpeechRecognizer(this).also { sr ->
@@ -169,19 +377,11 @@ class VoiceAssistantService : Service() {
                 override fun onResults(results: Bundle?) {
                     val heard = results
                         ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.joinToString(" ")
-                        ?.lowercase(Locale.getDefault()) ?: ""
-                    if (WAKE_PHRASES.any { heard.contains(it) }) {
-                        triggerWake()
-                    } else {
-                        scheduleRestart()
-                    }
+                        ?.joinToString(" ")?.lowercase(Locale.getDefault()) ?: ""
+                    if (WAKE_PHRASES.any { heard.contains(it) }) triggerWake()
+                    else scheduleWakeRestart()
                 }
-
-                override fun onError(error: Int) {
-                    scheduleRestart()
-                }
-
+                override fun onError(error: Int) { scheduleWakeRestart() }
                 override fun onReadyForSpeech(params: Bundle?) {}
                 override fun onBeginningOfSpeech() {}
                 override fun onRmsChanged(rmsdB: Float) {}
@@ -197,16 +397,15 @@ class VoiceAssistantService : Service() {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            // Shorter silence timeout keeps the loop responsive
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
         }
         wakeRecognizer?.startListening(intent)
     }
 
-    private fun scheduleRestart() {
+    private fun scheduleWakeRestart() {
         if (isDestroyed || _wakeState.value == WakeState.TRIGGERED) return
-        handler.postDelayed({ launchSession() }, RESTART_DELAY_MS)
+        handler.postDelayed({ launchWakeSession() }, RESTART_DELAY_MS)
     }
 
     private fun triggerWake() {
@@ -214,10 +413,9 @@ class VoiceAssistantService : Service() {
         wakeRecognizer?.destroy()
         wakeRecognizer = null
         vibrate()
-        // Notify the running instance observer (ChatViewModel will call resumeWakeWordLoop after query)
     }
 
-    // ── Haptic feedback ──────────────────────────────────────────────────────────────────────────
+    // ── Haptic feedback ───────────────────────────────────────────────────────────────────────────
 
     private fun vibrate() {
         try {

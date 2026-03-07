@@ -463,10 +463,17 @@ class CompletionService {
 
         val openAiTools = request.tools?.map { it.toOpenAiToolDef() }
 
+        // GitHub Models uses a "github/" prefix in registry IDs for uniqueness;
+        // strip it before sending to the Azure inference endpoint.
+        val apiModelId = if (provider == ModelProvider.GITHUB_MODELS)
+            request.modelId.removePrefix("github/")
+        else
+            request.modelId
+
         val body = json.encodeToString(
             OpenAiRequest.serializer(),
             OpenAiRequest(
-                model = request.modelId,
+                model = apiModelId,
                 messages = messages,
                 maxTokens = request.maxTokens,
                 temperature = request.temperature,
@@ -595,10 +602,17 @@ class CompletionService {
             })
         }
 
+        // GitHub Models uses a "github/" prefix in registry IDs for uniqueness;
+        // strip it before sending to the Azure inference endpoint.
+        val apiModelIdStream = if (provider == ModelProvider.GITHUB_MODELS)
+            request.modelId.removePrefix("github/")
+        else
+            request.modelId
+
         val body = json.encodeToString(
             OpenAiRequest.serializer(),
             OpenAiRequest(
-                model = request.modelId,
+                model = apiModelIdStream,
                 messages = messages,
                 maxTokens = request.maxTokens,
                 temperature = request.temperature,

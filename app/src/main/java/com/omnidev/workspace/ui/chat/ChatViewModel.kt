@@ -14,6 +14,7 @@ import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.tools.FileToolManager
+import com.omnidev.workspace.data.voice.VoiceAssistantService
 import com.omnidev.workspace.data.voice.VoiceManager
 import com.omnidev.workspace.domain.attachment.AttachmentProcessor
 import com.omnidev.workspace.data.model.CompletionRequest
@@ -78,8 +79,12 @@ data class ChatUiState(
     val isGodModeEnabled: Boolean = false,
     /** Whether voice mode (mic button active) is enabled. */
     val isVoiceModeEnabled: Boolean = false,
+    /** Whether TTS output is enabled (speaks agent responses aloud). */
+    val isTtsEnabled: Boolean = true,
     /** Whether the STT mic is actively capturing speech. */
     val isListening: Boolean = false,
+    /** Whether TTS is currently speaking an agent response. */
+    val isSpeaking: Boolean = false,
     /** Latest partial STT transcript shown as hint while speaking. */
     val partialTranscript: String? = null
 )
@@ -128,6 +133,7 @@ class ChatViewModel(
         loadTargetContext()
         observeSessions()
         observeGodMode()
+        observeTtsEnabled()
         wireFileConfirmationGate()
     }
 
@@ -154,6 +160,14 @@ class ChatViewModel(
             settingsRepository.observeGodMode().collect { enabled ->
                 fileToolManager?.let { it.godModeEnabled = enabled }
                 _uiState.update { it.copy(isGodModeEnabled = enabled) }
+            }
+        }
+    }
+
+    private fun observeTtsEnabled() {
+        viewModelScope.launch {
+            settingsRepository.observeTtsEnabled().collect { enabled ->
+                _uiState.update { it.copy(isTtsEnabled = enabled) }
             }
         }
     }
@@ -513,6 +527,7 @@ class ChatViewModel(
                 streamingContent = null
             )
         }
+        autoSpeakIfActive(response.content)
     }
 
     // ──────────────────────────────────────────────
@@ -678,7 +693,7 @@ class ChatViewModel(
                         consoleEntries = it.consoleEntries + AgentConsoleEntry.ReplyEntry()
                     )
                 }
-            }
+                autoSpeakIfActive(event.content)
 
             is AgentEvent.Error -> {
                 _uiState.update {
@@ -796,6 +811,7 @@ class ChatViewModel(
                             AgentConsoleEntry.ReplyEntry()
                     )
                 }
+                autoSpeakIfActive(event.summary)
             }
 
             is SwarmEvent.Error ->
@@ -902,6 +918,7 @@ class ChatViewModel(
                                     AgentConsoleEntry.ReplyEntry()
                             )
                         }
+                        autoSpeakIfActive(msg.content)
                     }
 
                     is com.omnidev.workspace.domain.engine.AutoHealBuildUseCase.BuildEvent.BuildFailed ->
@@ -970,6 +987,7 @@ class ChatViewModel(
 
     /**
      * Initialises the [VoiceManager] (STT + TTS) with the given [context].
+     * Also wires up [VoiceAssistantService] state flows when the service is running.
      * Must be called from a composable that has a [Context] reference (e.g. [LocalContext]).
      * Safe to call multiple times — subsequent calls are no-ops.
      */
@@ -998,31 +1016,86 @@ class ChatViewModel(
                 }
             }
         }
+        // Observe TTS state to keep isSpeaking in sync
+        viewModelScope.launch {
+            vm.ttsState.collect { state ->
+                _uiState.update { it.copy(isSpeaking = state == VoiceManager.TtsState.SPEAKING) }
+            }
+        }
+        // Also wire VoiceAssistantService flows (service may or may not be running)
+        viewModelScope.launch {
+            VoiceAssistantService.transcriptFlow.collect { text ->
+                if (_uiState.value.isVoiceModeEnabled) {
+                    onInputChanged(text)
+                    sendMessage()
+                }
+            }
+        }
+        viewModelScope.launch {
+            VoiceAssistantService.voiceState.collect { state ->
+                _uiState.update {
+                    it.copy(
+                        isListening = state is VoiceAssistantService.VoiceState.Listening ||
+                            state is VoiceAssistantService.VoiceState.PartialResult,
+                        isSpeaking = state is VoiceAssistantService.VoiceState.Speaking,
+                        partialTranscript = if (state is VoiceAssistantService.VoiceState.PartialResult)
+                            state.text else it.partialTranscript
+                    )
+                }
+            }
+        }
     }
 
-    /** Starts capturing the user's speech via STT. */
+    /** Starts capturing the user's speech via STT (uses service if running, else VoiceManager). */
     fun startListening() {
-        voiceManager?.startListening()
-        // State update comes via the sttState flow collector
+        if (VoiceAssistantService.isRunning) {
+            VoiceAssistantService.startListening()
+        } else {
+            voiceManager?.startListening()
+        }
+        // State update comes via the state flow collectors
     }
 
     /** Stops the current STT session without submitting. */
     fun stopListening() {
-        voiceManager?.stopListening()
-        // State update comes via the sttState flow collector
+        if (VoiceAssistantService.isRunning) {
+            VoiceAssistantService.stopListening()
+        } else {
+            voiceManager?.stopListening()
+        }
+        // State update comes via the state flow collectors
     }
 
     /**
-     * Synthesises [text] using TTS — call after agent generates a response when voice mode is ON
-     * and TTS is enabled in settings.
+     * Synthesises [text] using TTS — called after agent generates a response when voice mode
+     * is ON and TTS is enabled. Uses [VoiceAssistantService] if running, else [VoiceManager].
      */
     fun speak(text: String) {
-        voiceManager?.speak(text)
+        if (VoiceAssistantService.isRunning) {
+            VoiceAssistantService.speak(text)
+        } else {
+            voiceManager?.speak(text)
+        }
     }
 
     /** Stops any ongoing TTS utterance. */
     fun stopSpeaking() {
-        voiceManager?.stopSpeaking()
+        if (VoiceAssistantService.isRunning) {
+            VoiceAssistantService.stopSpeaking()
+        } else {
+            voiceManager?.stopSpeaking()
+        }
+    }
+
+    /**
+     * Auto-speaks [text] aloud if voice mode is active and TTS is enabled.
+     * Call this after any final agent response is ready.
+     */
+    private fun autoSpeakIfActive(text: String) {
+        val state = _uiState.value
+        if (state.isVoiceModeEnabled && state.isTtsEnabled && text.isNotBlank()) {
+            speak(text)
+        }
     }
 
     /** Toggles the voice mode UI flag. */

@@ -7,6 +7,11 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -89,6 +94,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -1069,9 +1075,22 @@ private fun ChatInputBar(
             // Mic button — toggles STT capture when voice mode is enabled
             if (isVoiceModeEnabled) {
                 Spacer(modifier = Modifier.width(4.dp))
+                // Pulsing scale animation while actively listening
+                val infiniteTransition = rememberInfiniteTransition(label = "mic_pulse")
+                val pulseScale by infiniteTransition.animateFloat(
+                    initialValue = 1f,
+                    targetValue = if (isListening) 1.18f else 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = 600),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "pulse_scale"
+                )
                 FloatingActionButton(
                     onClick = if (isListening) onMicRelease else onMicClick,
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier
+                        .size(48.dp)
+                        .scale(pulseScale),
                     containerColor = if (isListening)
                         MaterialTheme.colorScheme.error
                     else
