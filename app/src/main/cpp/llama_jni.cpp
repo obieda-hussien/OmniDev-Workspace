@@ -7,7 +7,7 @@
  * git submodule update --init --recursive
  *
  * This file uses the llama.cpp C API (llama.h / ggml.h).
- * Tested against llama.cpp tag b5050+ (sampler-chain API).
+ * Tested against llama.cpp tag b8233 (ggml-org/llama.cpp).
  */
 
 #include <jni.h>
@@ -105,9 +105,9 @@ Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeLoadModel
     cparams.n_threads      = (uint32_t)nThreads;
     cparams.n_threads_batch = (uint32_t)nThreads;
 
-    llama_context* ctx = llama_new_context_with_model(model, cparams);
+    llama_context* ctx = llama_init_from_model(model, cparams);
     if (!ctx) {
-        LOGE("llama_new_context_with_model failed");
+        LOGE("llama_init_from_model failed");
         llama_model_free(model);
         return 0;
     }
@@ -136,9 +136,8 @@ Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeStartGene
     // Without this, subsequent calls fail because the KV cache is full from the
     // previous generation — positions 0..n_prompt-1 still hold stale data,
     // causing llama_decode to either fail or produce empty/garbage output.
-    // Note: llama_kv_self_clear is deprecated in favor of llama_memory_clear()
-    // but is confirmed present in llama.cpp b5695; migrate when upgrading further.
-    llama_kv_self_clear(llamaCtx->ctx);
+    // In llama.cpp b8233+, KV cache is accessed via the memory abstraction.
+    llama_memory_clear(llama_get_memory(llamaCtx->ctx), true);
 
     // ── Resolve callback method ID ──────────────────────────────────────────
     jclass  cbClass  = env->GetObjectClass(callback);
@@ -217,7 +216,7 @@ Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeStartGene
     for (int i = 0; i < maxNewTokens && !llamaCtx->stop; ++i) {
         llama_token new_token = llama_sampler_sample(smpl, llamaCtx->ctx, -1);
 
-        bool is_eog  = llama_token_is_eog(vocab, new_token);
+        bool is_eog  = llama_vocab_is_eog(vocab, new_token);
         bool is_last = is_eog || (i == maxNewTokens - 1) || (bool)llamaCtx->stop;
 
         // Decode token → UTF-8 piece
