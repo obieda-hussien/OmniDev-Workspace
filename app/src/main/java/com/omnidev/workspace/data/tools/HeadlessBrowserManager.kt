@@ -32,14 +32,16 @@ class HeadlessBrowserManager(context: Context) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var webView: WebView? = null
 
-    /** Navigation timeout in milliseconds. */
-    private val NAVIGATE_TIMEOUT_MS = 30_000L
+    companion object {
+        /** Navigation timeout in milliseconds. */
+        private const val NAVIGATE_TIMEOUT_MS = 30_000L
 
-    /** JS evaluation timeout in milliseconds. */
-    private val JS_TIMEOUT_MS = 10_000L
+        /** JS evaluation timeout in milliseconds. */
+        private const val JS_TIMEOUT_MS = 10_000L
 
-    /** Maximum output characters from JS evaluation. */
-    private val MAX_JS_OUTPUT = 8_000
+        /** Maximum output characters from JS evaluation. */
+        private const val MAX_JS_OUTPUT = 8_000
+    }
 
     /**
      * Lazily initializes the WebView on the main thread.
