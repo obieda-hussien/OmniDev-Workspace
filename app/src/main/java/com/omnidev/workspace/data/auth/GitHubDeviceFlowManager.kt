@@ -3,6 +3,7 @@ package com.omnidev.workspace.data.auth
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.IOException
 import java.net.URL
 import javax.net.ssl.HttpsURLConnection
 
@@ -68,6 +70,11 @@ object GitHubDeviceFlowManager {
     private const val DEVICE_CODE_URL  = "https://github.com/login/device/code"
     private const val TOKEN_URL        = "https://github.com/login/oauth/access_token"
     private const val VERIFICATION_URL = "https://github.com/login/device"
+
+    private const val TAG = "GitHubDeviceFlow"
+
+    /** Timeout (ms) for each HTTP request to GitHub's OAuth endpoints. */
+    private const val HTTP_TIMEOUT_MS = 30_000
 
     /** Scope for Copilot: only read:user is needed. */
     private const val COPILOT_SCOPE = "read:user"
@@ -201,8 +208,15 @@ object GitHubDeviceFlowManager {
                     }
                 }
             }.onFailure { e ->
-                emit(DeviceFlowState.Error("Polling error: ${e.message}"))
-                return@flow
+                // Network timeouts (IOException, including SocketTimeoutException) during
+                // polling are transient — log and wait for the next interval instead of
+                // aborting the entire flow.
+                if (e is IOException) {
+                    Log.w(TAG, "Polling network error (will retry in ${currentInterval}s): ${e.message}")
+                } else {
+                    emit(DeviceFlowState.Error("Polling error: ${e.message}"))
+                    return@flow
+                }
             }
         }
 
@@ -226,6 +240,8 @@ object GitHubDeviceFlowManager {
         val url = URL(DEVICE_CODE_URL)
         val conn = url.openConnection() as HttpsURLConnection
         conn.requestMethod = "POST"
+        conn.connectTimeout = HTTP_TIMEOUT_MS
+        conn.readTimeout    = HTTP_TIMEOUT_MS
         conn.setRequestProperty("Accept", "application/json")
         conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
         conn.doOutput = true
@@ -242,6 +258,8 @@ object GitHubDeviceFlowManager {
         val url = URL(TOKEN_URL)
         val conn = url.openConnection() as HttpsURLConnection
         conn.requestMethod = "POST"
+        conn.connectTimeout = HTTP_TIMEOUT_MS
+        conn.readTimeout    = HTTP_TIMEOUT_MS
         conn.setRequestProperty("Accept", "application/json")
         conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
         conn.doOutput = true

@@ -52,6 +52,12 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
     /** Display name of the currently-loaded model file (e.g. "Llama-3.2-1B.gguf"). */
     @Volatile private var _loadedModelName: String? = null
 
+    /**
+     * Temporary copy of the model in `cacheDir`, created when the source URI is a
+     * SAF `content://` URI.  Deleted on [unloadModel] / [safeFreeCurrent].
+     */
+    @Volatile private var tempModelFile: java.io.File? = null
+
     override val isLoaded: Boolean get() = nativeCtxPtr != 0L
 
     // ── Public API ──────────────────────────────────────────────────────────
@@ -102,14 +108,45 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                     }
                 }
 
-                // /proc/self/fd/{n} is a symbolic link that is readable as a file path by
-                // native code for the duration of this process, avoiding a full file copy.
-                val procPath = "/proc/self/fd/${pfd.fd}"
+                // For SAF (content://) URIs the native layer may not be able to resolve
+                // /proc/self/fd symlinks reliably for all GGUF variants on Android.
+                // Copy the model to cacheDir and pass the absolute path instead.
+                // For non-content URIs (file://) we keep the symlink approach to avoid
+                // copying multi-GB files unnecessarily.
+                val newTempFile: java.io.File?
+                val modelPath: String
+                if (modelUri.scheme == "content") {
+                    val dest = java.io.File(context.cacheDir, "llm_active_model.gguf")
+                    try {
+                        context.contentResolver.openInputStream(modelUri)?.use { input ->
+                            dest.outputStream().use { output -> input.copyTo(output) }
+                        } ?: run {
+                            pfd.close()
+                            return@withContext Result.failure(
+                                IOException("Cannot open input stream for model URI: $modelUri")
+                            )
+                        }
+                        newTempFile = dest
+                        modelPath   = dest.absolutePath
+                        Log.i(TAG, "Model cached to ${dest.absolutePath} (${dest.length() / 1_048_576} MB)")
+                    } catch (e: IOException) {
+                        pfd.close()
+                        dest.delete()
+                        return@withContext Result.failure(
+                            IOException("Failed to cache model to internal storage: ${e.message}")
+                        )
+                    }
+                } else {
+                    // /proc/self/fd/{n} is a symbolic link readable by native code for the
+                    // duration of this process, avoiding a full file copy for file:// URIs.
+                    newTempFile = null
+                    modelPath   = "/proc/self/fd/${pfd.fd}"
+                }
 
                 val cpuCores = Runtime.getRuntime().availableProcessors()
                     .coerceAtMost(MAX_INFERENCE_THREADS)
                 val ctx = nativeLoadModel(
-                    modelPath   = procPath,
+                    modelPath   = modelPath,
                     nThreads    = cpuCores,
                     contextSize = 4096,
                     batchSize   = 512,
@@ -120,6 +157,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 pfd.close()
 
                 if (ctx == 0L) {
+                    newTempFile?.delete()
                     val hint = if (modelName.contains("i2_s", ignoreCase = true))
                         "BitNet i2_s models require at least $MIN_I2S_RAM_GB GB free RAM. " +
                         "Ensure the file is from microsoft/bitnet_b1_58-2B-4T-gguf on " +
@@ -134,6 +172,9 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
 
                 nativeCtxPtr = ctx
                 _loadedModelName = modelName
+                // Swap in the new temp file; old one (if any) is deleted first.
+                tempModelFile?.delete()
+                tempModelFile = newTempFile
                 Log.i(TAG, "Model loaded: $modelName (ctx=0x${ctx.toString(16)})")
                 Result.success(modelName)
 
@@ -223,6 +264,9 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
             nativeCtxPtr = 0L
         }
         _loadedModelName = null
+        // Delete the cached model copy (if we made one from a content:// URI)
+        tempModelFile?.delete()
+        tempModelFile = null
     }
 
     // ── JNI Declarations ────────────────────────────────────────────────────
