@@ -219,6 +219,11 @@ fun AISettingsScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Accessibility Service card (Semantic UI)
+            AccessibilityServiceCard()
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             // ── Section: AI Identity & Context Studio ──
             SectionHeader(
                 icon = Icons.Filled.AutoAwesome,
@@ -720,6 +725,82 @@ private fun OmniBubbleCard() {
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Accessibility Service card — shows whether the OmniAccessibilityService is enabled
+ * and provides a button to open Android's Accessibility Settings to toggle it.
+ */
+@Composable
+private fun AccessibilityServiceCard() {
+    val context = LocalContext.current
+    val isConnected by com.omnidev.workspace.data.accessibility.AccessibilityStateManager
+        .isServiceConnected.collectAsState()
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Psychology,
+                contentDescription = null,
+                tint = if (isConnected) MaterialTheme.colorScheme.primary
+                       else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Semantic UI Engine",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = if (isConnected)
+                        "Active — AI can read and interact with any app's UI semantically."
+                    else
+                        "Disabled — Enable Accessibility Service for semantic UI control.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isConnected) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            if (isConnected) {
+                Icon(
+                    imageVector = Icons.Filled.Check,
+                    contentDescription = "Active",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            } else {
+                Card(
+                    onClick = {
+                        val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                    },
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Text(
+                        text = "Enable",
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }

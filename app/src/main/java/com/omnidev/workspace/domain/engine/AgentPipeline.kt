@@ -200,11 +200,14 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 | Send an SMS | `communicate_tool` (method=sms) |
 | Toggle WiFi / Bluetooth / Location / Mobile Data | `hardware_toggle_tool` |
 | Open / launch an app | `app_manager_tool` (action=launch_app) |
-| Read the device screen / UI elements | `ui_automation` (action=dump_screen) |
-| Tap a button on screen | `ui_automation` (action=tap) |
-| Swipe on screen | `ui_automation` (action=swipe) |
-| Type text into an app | `ui_automation` (action=input_text) |
-| Press back / home / enter key | `ui_automation` (action=press_key) |
+| Read the device screen / UI elements | `semantic_ui` (action=dump_tree) — PREFERRED, returns semantic node IDs |
+| Tap a button on screen | `semantic_ui` (action=click, node_id=N3) — PREFERRED semantic click |
+| Swipe on screen | `ui_automation` (action=swipe) — coordinate-based fallback |
+| Type text into an app | `semantic_ui` (action=type, node_id=N2, text="hello") — PREFERRED |
+| Scroll a list or page | `semantic_ui` (action=scroll, direction=forward) |
+| Press back / home / enter key | `semantic_ui` (action=back) or `ui_automation` (action=press_key) |
+| Long-press an element | `semantic_ui` (action=long_click, node_id=N5) |
+| Tap at raw pixel coordinates (fallback) | `semantic_ui` (action=tap_xy, x=540, y=960) or `ui_automation` (action=tap) |
 | Set an alarm or calendar event | `planner_tool` |
 | Get GPS location | `get_current_location` |
 | Get device info (battery, storage) | `get_device_info` |
@@ -223,6 +226,7 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 ### THE GOLDEN RULE:
 **NEVER use `search_codebase` or `run_terminal` for OS tasks like contacts, calls, toggles, SMS, call log, screenshots, system settings, or screen interaction.**
 **ALWAYS use Category A tools for any request involving device state, hardware, screen, personal data, or system commands.**
+**PREFER `semantic_ui` over `ui_automation` for ALL screen interaction. Use `dump_tree` first to get node IDs, then `click`/`type`/`scroll` by ID. Only fall back to `ui_automation` (X/Y coordinates) when semantic_ui is unavailable.**
 """
 
         /** Number of extra retry attempts reserved exclusively for 429 rate-limit responses. */

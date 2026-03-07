@@ -52,6 +52,12 @@
     volatile <fields>;
 }
 
+# ── Accessibility Service (Semantic UI) ───────────────────────────────────────
+-keep class com.omnidev.workspace.data.accessibility.OmniAccessibilityService { *; }
+-keep class com.omnidev.workspace.data.accessibility.AccessibilityStateManager { *; }
+-keep class com.omnidev.workspace.data.accessibility.SemanticTreeParser { *; }
+-keep class com.omnidev.workspace.data.accessibility.SemanticUITool { *; }
+
 # ── OkHttp / Ktor (if used for HTTP) ─────────────────────────────────────────
 -dontwarn okhttp3.**
 -dontwarn okio.**

@@ -105,6 +105,19 @@
         <service
             android:name=".ui.overlay.OmniBubbleService"
             android:exported="false" />
+
+        <!-- OmniAccessibilityService: Semantic UI tree reader and interaction engine -->
+        <service
+            android:name=".data.accessibility.OmniAccessibilityService"
+            android:exported="false"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
     </application>
 
 </manifest>

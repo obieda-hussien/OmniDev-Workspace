@@ -1,6 +1,7 @@
 package com.omnidev.workspace.data.tools
 
 import android.content.Context
+import com.omnidev.workspace.data.accessibility.SemanticUITool
 import com.omnidev.workspace.data.repository.SettingsRepository
 import kotlinx.coroutines.flow.first
 
@@ -60,6 +61,7 @@ class CompositeToolManager(
         if (context != null) {
             addAll(SystemContactsTool.getToolDefinitions())
             addAll(UIAutomationTool.getToolDefinitions())
+            addAll(SemanticUITool.getToolDefinitions())
             addAll(CallLogTool.getToolDefinitions())
             addAll(SmsReaderTool.getToolDefinitions())
             addAll(ScreenshotTool.getToolDefinitions())
@@ -222,6 +224,12 @@ class CompositeToolManager(
             "ui_automation" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 UIAutomationTool.execute(action, arguments)
+            }
+
+            // ── Semantic UI tool (Accessibility Service) ──
+            "semantic_ui" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                SemanticUITool.execute(action, arguments)
             }
 
             // ── Call log tool ──

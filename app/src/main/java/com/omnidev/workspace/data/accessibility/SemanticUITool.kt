@@ -1,0 +1,346 @@
+package com.omnidev.workspace.data.accessibility
+
+import android.view.accessibility.AccessibilityNodeInfo
+import com.omnidev.workspace.data.tools.ToolDefinition
+import com.omnidev.workspace.data.tools.ToolExecutionResult
+import com.omnidev.workspace.data.tools.ToolParameter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
+/**
+ * SemanticUITool — The Agent's semantic hand for interacting with any Android app.
+ *
+ * Replaces brittle X/Y coordinate-based [UIAutomationTool] with semantic node-based
+ * interactions powered by [OmniAccessibilityService].
+ *
+ * Actions:
+ * - `dump_tree`   — Returns the token-optimized semantic UI tree with node IDs
+ * - `click`       — Clicks a node by its semantic ID (e.g., "N3")
+ * - `long_click`  — Long-clicks a node by its semantic ID
+ * - `type`        — Types text into an editable node by its semantic ID
+ * - `scroll`      — Scrolls a scrollable node (forward or backward)
+ * - `back`        — Presses the global BACK button
+ * - `home`        — Presses the global HOME button
+ * - `tap_xy`      — Fallback: taps at raw X/Y coordinates via gesture dispatch
+ *
+ * The node IDs (e.g., "N1", "N2") are ephemeral — they are regenerated on every
+ * `dump_tree` call. The agent MUST call `dump_tree` first, then reference the
+ * returned node IDs in subsequent actions.
+ */
+object SemanticUITool {
+
+    /**
+     * Holds the latest parse result from [SemanticTreeParser].
+     * Populated by `dump_tree`; consumed by `click`, `type`, `scroll`.
+     * Volatile for visibility across coroutines.
+     */
+    @Volatile
+    private var lastParseResult: SemanticTreeParser.ParseResult? = null
+
+    fun getToolDefinitions(): List<ToolDefinition> = listOf(
+        ToolDefinition(
+            name = "semantic_ui",
+            description = "PREFERRED UI tool. Reads and interacts with the Android screen using " +
+                "semantic node IDs instead of raw pixel coordinates. ALWAYS call 'dump_tree' " +
+                "first to get the current UI tree with node IDs ([N1], [N2], ...), then use " +
+                "'click', 'type', or 'scroll' with those IDs. " +
+                "Actions: 'dump_tree' (get semantic UI tree), 'click' (click node by ID), " +
+                "'long_click' (long-press node), 'type' (type text into editable node), " +
+                "'scroll' (scroll node forward/backward), 'back' (press BACK), " +
+                "'home' (press HOME), 'tap_xy' (fallback: tap raw coordinates).",
+            parameters = listOf(
+                ToolParameter(
+                    name = "action",
+                    type = "string",
+                    description = "Action: 'dump_tree', 'click', 'long_click', 'type', " +
+                        "'scroll', 'back', 'home', or 'tap_xy'.",
+                    required = true
+                ),
+                ToolParameter(
+                    name = "node_id",
+                    type = "string",
+                    description = "Semantic node ID from dump_tree output (e.g., 'N3'). " +
+                        "Required for 'click', 'long_click', 'type', 'scroll'.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "text",
+                    type = "string",
+                    description = "Text to type. Required for 'type' action.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "direction",
+                    type = "string",
+                    description = "Scroll direction: 'forward' (down) or 'backward' (up). " +
+                        "Default: 'forward'. Used with 'scroll'.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "x",
+                    type = "string",
+                    description = "X coordinate (pixels). Used with 'tap_xy' fallback.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "y",
+                    type = "string",
+                    description = "Y coordinate (pixels). Used with 'tap_xy' fallback.",
+                    required = false
+                )
+            )
+        )
+    )
+
+    suspend fun execute(action: String, params: Map<String, String>): ToolExecutionResult =
+        withContext(Dispatchers.Main) {
+            // Check if accessibility service is connected
+            if (!AccessibilityStateManager.isServiceConnected.value) {
+                return@withContext ToolExecutionResult(
+                    "⚠️ Accessibility Service is not enabled. " +
+                        "Go to Settings → Accessibility → OmniDev Workspace and enable it. " +
+                        "This is required for semantic UI interaction.",
+                    isError = true
+                )
+            }
+
+            when (action.lowercase()) {
+                "dump_tree" -> dumpTree()
+                "click" -> clickNode(params["node_id"])
+                "long_click" -> longClickNode(params["node_id"])
+                "type" -> typeText(params["node_id"], params["text"])
+                "scroll" -> scrollNode(params["node_id"], params["direction"])
+                "back" -> pressBack()
+                "home" -> pressHome()
+                "tap_xy" -> tapXY(params["x"], params["y"])
+                else -> ToolExecutionResult(
+                    "Unknown semantic_ui action: '$action'. " +
+                        "Supported: dump_tree, click, long_click, type, scroll, back, home, tap_xy.",
+                    isError = true
+                )
+            }
+        }
+
+    // ── Action implementations ──
+
+    private fun dumpTree(): ToolExecutionResult {
+        val root = AccessibilityStateManager.rootNode.value
+            ?: return ToolExecutionResult(
+                "No UI tree available. The screen may be off or no window is focused.",
+                isError = true
+            )
+
+        return try {
+            val result = SemanticTreeParser.parse(
+                root = root,
+                packageName = AccessibilityStateManager.activePackage.value,
+                activityName = AccessibilityStateManager.activeActivity.value
+            )
+            lastParseResult = result
+
+            val summary = "\n${result.semanticTree}\n\n" +
+                "── Stats: ${result.extractedNodes} semantic nodes extracted " +
+                "from ${result.totalRawNodes} raw nodes ──"
+
+            ToolExecutionResult(
+                output = summary,
+                truncated = result.extractedNodes >= 120
+            )
+        } catch (e: Exception) {
+            ToolExecutionResult(
+                "Failed to parse UI tree: ${e.message}",
+                isError = true
+            )
+        }
+    }
+
+    private fun clickNode(nodeId: String?): ToolExecutionResult {
+        if (nodeId.isNullOrBlank()) {
+            return ToolExecutionResult("Missing 'node_id' for click action.", isError = true)
+        }
+
+        val parseResult = lastParseResult
+            ?: return ToolExecutionResult(
+                "No UI tree cached. Call 'dump_tree' first to get node IDs.",
+                isError = true
+            )
+
+        val node = parseResult.nodeMap[nodeId.uppercase()]
+            ?: return ToolExecutionResult(
+                "Node '$nodeId' not found. Available: ${parseResult.nodeMap.keys.sorted().joinToString()}. " +
+                    "Call 'dump_tree' to refresh.",
+                isError = true
+            )
+
+        val service = OmniAccessibilityService.instance
+            ?: return ToolExecutionResult("Accessibility service not running.", isError = true)
+
+        return if (service.clickNode(node)) {
+            ToolExecutionResult("✅ Clicked [$nodeId]")
+        } else {
+            ToolExecutionResult("❌ Click failed on [$nodeId] — node may not be clickable.", isError = true)
+        }
+    }
+
+    private fun longClickNode(nodeId: String?): ToolExecutionResult {
+        if (nodeId.isNullOrBlank()) {
+            return ToolExecutionResult("Missing 'node_id' for long_click action.", isError = true)
+        }
+
+        val parseResult = lastParseResult
+            ?: return ToolExecutionResult(
+                "No UI tree cached. Call 'dump_tree' first.",
+                isError = true
+            )
+
+        val node = parseResult.nodeMap[nodeId.uppercase()]
+            ?: return ToolExecutionResult(
+                "Node '$nodeId' not found. Call 'dump_tree' to refresh.",
+                isError = true
+            )
+
+        val service = OmniAccessibilityService.instance
+            ?: return ToolExecutionResult("Accessibility service not running.", isError = true)
+
+        return if (service.longClickNode(node)) {
+            ToolExecutionResult("✅ Long-clicked [$nodeId]")
+        } else {
+            ToolExecutionResult("❌ Long-click failed on [$nodeId].", isError = true)
+        }
+    }
+
+    private fun typeText(nodeId: String?, text: String?): ToolExecutionResult {
+        if (nodeId.isNullOrBlank()) {
+            return ToolExecutionResult("Missing 'node_id' for type action.", isError = true)
+        }
+        if (text == null) {
+            return ToolExecutionResult("Missing 'text' for type action.", isError = true)
+        }
+
+        val parseResult = lastParseResult
+            ?: return ToolExecutionResult(
+                "No UI tree cached. Call 'dump_tree' first.",
+                isError = true
+            )
+
+        val node = parseResult.nodeMap[nodeId.uppercase()]
+            ?: return ToolExecutionResult(
+                "Node '$nodeId' not found. Call 'dump_tree' to refresh.",
+                isError = true
+            )
+
+        val service = OmniAccessibilityService.instance
+            ?: return ToolExecutionResult("Accessibility service not running.", isError = true)
+
+        return if (service.typeIntoNode(node, text)) {
+            ToolExecutionResult("✅ Typed into [$nodeId]: \"$text\"")
+        } else {
+            ToolExecutionResult("❌ Type failed on [$nodeId] — node may not be editable.", isError = true)
+        }
+    }
+
+    private fun scrollNode(nodeId: String?, direction: String?): ToolExecutionResult {
+        val forward = direction?.lowercase() != "backward"
+
+        // If node_id is provided, scroll that specific node
+        if (!nodeId.isNullOrBlank()) {
+            val parseResult = lastParseResult
+                ?: return ToolExecutionResult(
+                    "No UI tree cached. Call 'dump_tree' first.",
+                    isError = true
+                )
+
+            val node = parseResult.nodeMap[nodeId.uppercase()]
+                ?: return ToolExecutionResult(
+                    "Node '$nodeId' not found. Call 'dump_tree' to refresh.",
+                    isError = true
+                )
+
+            val service = OmniAccessibilityService.instance
+                ?: return ToolExecutionResult("Accessibility service not running.", isError = true)
+
+            return if (service.scrollNode(node, forward)) {
+                val dir = if (forward) "forward" else "backward"
+                ToolExecutionResult("✅ Scrolled [$nodeId] $dir")
+            } else {
+                ToolExecutionResult(
+                    "❌ Scroll failed on [$nodeId] — node may not be scrollable.",
+                    isError = true
+                )
+            }
+        }
+
+        // No node_id: try to find the first scrollable node in the tree
+        val root = AccessibilityStateManager.rootNode.value
+            ?: return ToolExecutionResult("No UI tree available.", isError = true)
+
+        val scrollable = findFirstScrollable(root)
+            ?: return ToolExecutionResult(
+                "No scrollable element found on screen. Provide a specific 'node_id'.",
+                isError = true
+            )
+
+        val service = OmniAccessibilityService.instance
+            ?: return ToolExecutionResult("Accessibility service not running.", isError = true)
+
+        return if (service.scrollNode(scrollable, forward)) {
+            val dir = if (forward) "forward" else "backward"
+            ToolExecutionResult("✅ Scrolled $dir (auto-detected scrollable)")
+        } else {
+            ToolExecutionResult("❌ Scroll failed.", isError = true)
+        }
+    }
+
+    private fun pressBack(): ToolExecutionResult {
+        val service = OmniAccessibilityService.instance
+            ?: return ToolExecutionResult("Accessibility service not running.", isError = true)
+
+        return if (service.pressBack()) {
+            ToolExecutionResult("✅ Pressed BACK")
+        } else {
+            ToolExecutionResult("❌ BACK action failed.", isError = true)
+        }
+    }
+
+    private fun pressHome(): ToolExecutionResult {
+        val service = OmniAccessibilityService.instance
+            ?: return ToolExecutionResult("Accessibility service not running.", isError = true)
+
+        return if (service.pressHome()) {
+            ToolExecutionResult("✅ Pressed HOME")
+        } else {
+            ToolExecutionResult("❌ HOME action failed.", isError = true)
+        }
+    }
+
+    private fun tapXY(x: String?, y: String?): ToolExecutionResult {
+        val xVal = x?.toFloatOrNull()
+            ?: return ToolExecutionResult("Missing or invalid 'x' for tap_xy.", isError = true)
+        val yVal = y?.toFloatOrNull()
+            ?: return ToolExecutionResult("Missing or invalid 'y' for tap_xy.", isError = true)
+
+        val service = OmniAccessibilityService.instance
+            ?: return ToolExecutionResult("Accessibility service not running.", isError = true)
+
+        return if (service.tapAtCoordinates(xVal, yVal)) {
+            ToolExecutionResult("✅ Tapped at ($xVal, $yVal)")
+        } else {
+            ToolExecutionResult("❌ Tap gesture dispatch failed.", isError = true)
+        }
+    }
+
+    // ── Helpers ──
+
+    /**
+     * Recursively finds the first scrollable node in the tree.
+     */
+    private fun findFirstScrollable(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        if (node.isScrollable) return node
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val result = findFirstScrollable(child)
+            if (result != null) return result
+        }
+        return null
+    }
+}
