@@ -45,7 +45,6 @@ else()
     FetchContent_Declare(
         llama_cpp
         URL "https://github.com/ggerganov/llama.cpp/archive/refs/tags/b5695.tar.gz"
-        DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     )
     # FetchContent_MakeAvailable configures llama.cpp's own CMakeLists.txt,
     # which defines the `llama` and `ggml` targets we link against below.
