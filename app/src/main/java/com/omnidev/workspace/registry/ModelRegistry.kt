@@ -1018,25 +1018,53 @@ object ModelRegistry {
 
     private val githubCopilotModels = listOf(
 
-        // ━━━━ GPT-5.3-CODEX via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // OpenAI's flagship code model routed through GitHub Copilot Workspace
+        // ══════════════════════════════════════════════════════════════
+        //  Tier: Fast and cost-efficient
+        // ══════════════════════════════════════════════════════════════
+
+        // ━━━━ GPT-5 MINI ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         AIModel(
-            id = "copilot/gpt-5.3-codex",
-            displayName = "GPT-5.3 Codex (Copilot)",
+            id = "copilot/gpt-5-mini",
+            displayName = "GPT-5 mini (Copilot)",
             provider = ModelProvider.GITHUB_COPILOT,
-            tier = ModelTier.ORCHESTRATOR,
-            contextWindow = 256_000,
-            maxOutputTokens = 65_536,
-            supportsVision = true,
-            supportsThinking = true,
+            tier = ModelTier.FAST,
+            contextWindow = 128_000,
+            maxOutputTokens = 16_384,
             supportsFunctionCalling = true,
             supportsStructuredOutput = true,
-            shortDescription = "OpenAI's code flagship via GitHub Copilot Workspace",
-            isLatest = true
+            shortDescription = "Fast and cost-efficient GPT-5 mini via GitHub Copilot"
         ),
 
-        // ━━━━ CLAUDE SONNET 4.6 via Copilot ━━━━━━━━━━━━━━━━━━━━━━
-        // Anthropic's latest executor tier available through Copilot BYOK
+        // ━━━━ GROK CODE FAST 1 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/grok-code-fast-1",
+            displayName = "Grok Code Fast 1 (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.FAST,
+            contextWindow = 131_072,
+            maxOutputTokens = 16_384,
+            supportsFunctionCalling = true,
+            shortDescription = "xAI's fast code-optimised model via GitHub Copilot"
+        ),
+
+        // ━━━━ GEMINI 3 FLASH (PREVIEW) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/gemini-3-flash",
+            displayName = "Gemini 3 Flash (Copilot) [Preview]",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.FAST,
+            contextWindow = 1_000_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsFunctionCalling = true,
+            shortDescription = "Google's blazing-fast Gemini 3 Flash — 1M context, PREVIEW"
+        ),
+
+        // ══════════════════════════════════════════════════════════════
+        //  Tier: Versatile and highly intelligent
+        // ══════════════════════════════════════════════════════════════
+
+        // ━━━━ CLAUDE SONNET 4.6 via Copilot ━━━━━━━━━━━━━━━━━━━━━━━
         AIModel(
             id = "copilot/claude-sonnet-4-6",
             displayName = "Claude Sonnet 4.6 (Copilot)",
@@ -1048,7 +1076,172 @@ object ModelRegistry {
             supportsThinking = true,
             supportsFunctionCalling = true,
             supportsStructuredOutput = true,
-            shortDescription = "Anthropic Sonnet 4.6 accessed via GitHub Copilot token"
+            shortDescription = "Anthropic Sonnet 4.6 — vision + extended thinking via Copilot",
+            isLatest = true
+        ),
+
+        // ━━━━ CLAUDE SONNET 4.5 via Copilot ━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/claude-sonnet-4-5",
+            displayName = "Claude Sonnet 4.5 (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 200_000,
+            maxOutputTokens = 64_000,
+            supportsVision = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            shortDescription = "Anthropic Sonnet 4.5 — vision + extended thinking via Copilot"
+        ),
+
+        // ━━━━ CLAUDE SONNET 4 via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/claude-sonnet-4",
+            displayName = "Claude Sonnet 4 (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 200_000,
+            maxOutputTokens = 64_000,
+            supportsVision = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            shortDescription = "Anthropic Sonnet 4 — vision support via GitHub Copilot"
+        ),
+
+        // ━━━━ CLAUDE HAIKU 4.5 via Copilot ━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/claude-haiku-4-5",
+            displayName = "Claude Haiku 4.5 (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.FAST,
+            contextWindow = 200_000,
+            maxOutputTokens = 16_384,
+            supportsVision = true,
+            supportsFunctionCalling = true,
+            shortDescription = "Anthropic's fastest Haiku 4.5 — vision support via Copilot"
+        ),
+
+        // ━━━━ GPT-5.1 via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/gpt-5.1",
+            displayName = "GPT-5.1 (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 256_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            shortDescription = "OpenAI GPT-5.1 — vision + thinking via GitHub Copilot"
+        ),
+
+        // ━━━━ GPT-5.2 via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/gpt-5.2",
+            displayName = "GPT-5.2 (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 256_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            shortDescription = "OpenAI GPT-5.2 — vision + thinking via GitHub Copilot"
+        ),
+
+        // ━━━━ GPT-4.1 via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/gpt-4.1",
+            displayName = "GPT-4.1 (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.FAST,
+            contextWindow = 128_000,
+            maxOutputTokens = 16_384,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            shortDescription = "OpenAI GPT-4.1 fast model via GitHub Copilot"
+        ),
+
+        // ━━━━ GPT-4O via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/gpt-4o",
+            displayName = "GPT-4o (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 128_000,
+            maxOutputTokens = 16_384,
+            supportsVision = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            shortDescription = "Reliable GPT-4o with vision via GitHub Copilot"
+        ),
+
+        // ══════════════════════════════════════════════════════════════
+        //  Tier: Most powerful at complex tasks
+        // ══════════════════════════════════════════════════════════════
+
+        // ━━━━ CLAUDE OPUS 4.6 via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/claude-opus-4-6",
+            displayName = "Claude Opus 4.6 (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 200_000,
+            maxOutputTokens = 64_000,
+            supportsVision = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            shortDescription = "Anthropic's most powerful Opus 4.6 — vision + thinking via Copilot",
+            isLatest = true
+        ),
+
+        // ━━━━ CLAUDE OPUS 4.5 via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/claude-opus-4-5",
+            displayName = "Claude Opus 4.5 (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 200_000,
+            maxOutputTokens = 64_000,
+            supportsVision = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            shortDescription = "Anthropic Opus 4.5 — vision + thinking via GitHub Copilot"
+        ),
+
+        // ━━━━ GEMINI 3.1 PRO (PREVIEW) ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/gemini-3.1-pro",
+            displayName = "Gemini 3.1 Pro (Copilot) [Preview]",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 2_000_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsVideo = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            shortDescription = "Google Gemini 3.1 Pro — 2M context, vision, thinking. PREVIEW"
+        ),
+
+        // ━━━━ GEMINI 3 PRO (PREVIEW) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/gemini-3-pro",
+            displayName = "Gemini 3 Pro (Copilot) [Preview]",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 2_000_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsVideo = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            shortDescription = "Google Gemini 3 Pro — 2M context, vision, thinking. PREVIEW"
         ),
 
         // ━━━━ GEMINI 2.5 PRO via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1063,35 +1256,67 @@ object ModelRegistry {
             supportsVideo = true,
             supportsThinking = true,
             supportsFunctionCalling = true,
-            shortDescription = "1M-context Gemini Pro via GitHub Copilot Workspace"
+            shortDescription = "1M-context Gemini 2.5 Pro — vision + thinking via Copilot"
         ),
 
-        // ━━━━ O3-MINI via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        // ━━━━ GPT-5.2 CODEX via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━━
         AIModel(
-            id = "copilot/o3-mini",
-            displayName = "o3-mini (Copilot)",
+            id = "copilot/gpt-5.2-codex",
+            displayName = "GPT-5.2 Codex (Copilot)",
             provider = ModelProvider.GITHUB_COPILOT,
-            tier = ModelTier.EXECUTOR,
-            contextWindow = 200_000,
-            maxOutputTokens = 100_000,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 256_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
             supportsThinking = true,
             supportsFunctionCalling = true,
-            shortDescription = "OpenAI o3-mini reasoning accessed via GitHub Copilot"
+            supportsStructuredOutput = true,
+            shortDescription = "OpenAI GPT-5.2 Codex — code flagship, vision + thinking via Copilot"
         ),
 
-        // ━━━━ GPT-4O via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-        // Stable, widely-supported model for Copilot BYOK integrations
+        // ━━━━ GPT-5.3 CODEX via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━━
         AIModel(
-            id = "copilot/gpt-4o",
-            displayName = "GPT-4o (Copilot)",
+            id = "copilot/gpt-5.3-codex",
+            displayName = "GPT-5.3 Codex (Copilot)",
             provider = ModelProvider.GITHUB_COPILOT,
-            tier = ModelTier.EXECUTOR,
-            contextWindow = 128_000,
-            maxOutputTokens = 16_384,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 256_000,
+            maxOutputTokens = 65_536,
             supportsVision = true,
+            supportsThinking = true,
             supportsFunctionCalling = true,
             supportsStructuredOutput = true,
-            shortDescription = "Reliable GPT-4o via GitHub Copilot — ideal for IDE workflows"
+            shortDescription = "OpenAI GPT-5.3 Codex — code flagship via GitHub Copilot Workspace"
+        ),
+
+        // ━━━━ GPT-5.4 via Copilot ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/gpt-5.4",
+            displayName = "GPT-5.4 (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 256_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            shortDescription = "OpenAI GPT-5.4 — most powerful GPT, vision + thinking via Copilot"
+        ),
+
+        // ━━━━ GPT-5.1 CODEX MAX via Copilot ━━━━━━━━━━━━━━━━━━━━━━
+        AIModel(
+            id = "copilot/gpt-5.1-codex-max",
+            displayName = "GPT-5.1 Codex Max (Copilot)",
+            provider = ModelProvider.GITHUB_COPILOT,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 256_000,
+            maxOutputTokens = 65_536,
+            supportsVision = true,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            shortDescription = "OpenAI GPT-5.1 Codex Max — maximum capability code model via Copilot"
         )
     )
 
