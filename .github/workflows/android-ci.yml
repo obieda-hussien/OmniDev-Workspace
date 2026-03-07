@@ -34,7 +34,7 @@ jobs:
           path: |
             app/.cxx
             ~/.cmake
-          key: cmake-fetchcontent-${{ runner.os }}-llama-b5695
+          key: cmake-fetchcontent-${{ runner.os }}-llama-b8233
           restore-keys: cmake-fetchcontent-${{ runner.os }}-
 
       - name: Grant execute permission for gradlew

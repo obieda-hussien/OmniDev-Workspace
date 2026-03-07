@@ -47,7 +47,7 @@ else()
     include(FetchContent)
     FetchContent_Declare(
         llama_cpp
-        URL "https://github.com/ggerganov/llama.cpp/archive/refs/tags/b5695.tar.gz"
+        URL "https://github.com/ggml-org/llama.cpp/archive/refs/tags/b8233.tar.gz"
     )
     FetchContent_MakeAvailable(llama_cpp)
     set(LLAMA_CPP_SRC "${llama_cpp_SOURCE_DIR}")
