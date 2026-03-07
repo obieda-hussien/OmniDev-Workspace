@@ -523,8 +523,22 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
                 // Normal error path: consume normal retry budget with exponential backoff
                 val isLastNormalAttempt = normalAttempt >= normalMaxAttempts - 1
                 if (isLastNormalAttempt) {
-                    com.omnidev.workspace.data.debug.DebugLogManager.appendError("AgentPipeline", e)
-                    onFatalError("API call failed after $normalMaxAttempts attempt(s) (iteration $iteration): ${e.message}")
+                    if (isRateLimit) {
+                        // Rate limits are expected — log as warning, not error, since they
+                        // are normal API behaviour and not a code defect.
+                        com.omnidev.workspace.data.debug.DebugLogManager.appendWarning(
+                            "AgentPipeline",
+                            "Rate limit exhausted after all retries (iteration $iteration). " +
+                            "Please wait a few minutes before sending another message."
+                        )
+                        onFatalError(
+                            "Rate limit reached. All retry attempts have been exhausted " +
+                            "(iteration $iteration). Please wait a few minutes and try again."
+                        )
+                    } else {
+                        com.omnidev.workspace.data.debug.DebugLogManager.appendError("AgentPipeline", e)
+                        onFatalError("API call failed after $normalMaxAttempts attempt(s) (iteration $iteration): ${e.message}")
+                    }
                     return null
                 }
                 // Exponential backoff: 500ms, 1s, 2s, 4s, ... (bit-shift for integer powers of 2)

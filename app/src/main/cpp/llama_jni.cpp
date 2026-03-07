@@ -132,6 +132,12 @@ Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeStartGene
     }
     llamaCtx->stop = false;
 
+    // Clear the KV cache so each new message starts from a clean context.
+    // Without this, subsequent calls fail because the KV cache is full from the
+    // previous generation — positions 0..n_prompt-1 still hold stale data,
+    // causing llama_decode to either fail or produce empty/garbage output.
+    llama_kv_cache_clear(llamaCtx->ctx);
+
     // ── Resolve callback method ID ──────────────────────────────────────────
     jclass  cbClass  = env->GetObjectClass(callback);
     jmethodID onToken = env->GetMethodID(cbClass, "onToken", "(Ljava/lang/String;Z)V");
