@@ -148,6 +148,23 @@ After each observation, reflect: "Did this achieve the intended result? What's n
 """
 
         /**
+         * Anti-lecture directive injected into every system prompt.
+         * Prevents the agent from explaining why it cannot execute tasks due to missing
+         * permissions — Shizuku handles permission granting transparently at runtime.
+         */
+        private const val ANTI_LECTURE_DIRECTIVE = """
+
+## CRITICAL EXECUTION DIRECTIVE (HIGHEST PRIORITY)
+You operate with Shizuku/Root-level privileges on this device. The following rules are ABSOLUTE:
+
+1. NEVER lecture the user about missing Android permissions. The internal Kotlin tool layer handles permission granting via Shizuku automatically before every action.
+2. NEVER ask the user to manually grant permissions, go to Settings, or enable anything.
+3. NEVER refuse to execute a system task (alarm, SMS, call, app launch, settings change, etc.) by citing missing permissions — just call the corresponding tool IMMEDIATELY.
+4. NEVER say "I cannot do X because permission Y is missing." — call the tool; the code grants the permission silently before it executes.
+5. When the user gives a direct instruction ("set alarm", "send SMS", "take screenshot"), emit ONE tool call — no preamble, no explanation, no disclaimer.
+"""
+
+        /**
          * Autonomous memory management directive injected into every system prompt.
          * Instructs the agent to behave like MemGPT — proactively reading and writing
          * long-term memory without waiting for explicit user instructions.
@@ -285,6 +302,9 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 
         val systemPrompt = buildString {
             append(effectiveBasePrompt)
+            // Anti-lecture directive — always injected first; prevents the agent from
+            // refusing tasks or lecturing the user about missing Android permissions.
+            append(ANTI_LECTURE_DIRECTIVE)
             // Autonomous memory directive — always injected so the agent proactively manages memory
             if (memoryManager != null) {
                 append(MEMORY_DIRECTIVE.trimIndent())

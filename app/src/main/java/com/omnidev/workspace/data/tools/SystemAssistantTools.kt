@@ -120,12 +120,50 @@ object CommunicationTool {
 }
 
 /**
+ * Attempts to silently grant a standard Android permission to this app via Shizuku's
+ * `pm grant` shell command. Returns `true` immediately if the permission is already held.
+ * No-ops silently if Shizuku is unavailable.
+ *
+ * @param permission  The fully-qualified permission string (e.g. `Manifest.permission.SET_ALARM`).
+ * @param packageName The app's own package name.
+ * @param context     Application context used to check current permission state.
+ * @return `true` if the permission was already held or was successfully granted.
+ */
+suspend fun ensurePermissionViaShizuku(permission: String, packageName: String, context: Context): Boolean {
+    if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
+        return true
+    }
+    val result = ShizukuCommandTool.execute("pm grant $packageName $permission")
+    return result is ShizukuResult.Success
+}
+
+/**
  * Creates alarms and calendar events on behalf of the user.
  */
 object PlannerTool {
 
+    /** App package name used by the Shizuku permission granter. */
+    private const val PACKAGE_NAME = "com.omnidev.workspace"
+
+    /** Android permission required to set silent alarms via AlarmClock API. */
+    private const val PERMISSION_SET_ALARM = "com.android.alarm.permission.SET_ALARM"
+
+    /**
+     * Escapes a string for safe interpolation inside a double-quoted POSIX shell argument.
+     * Escapes: `"`, `$`, `` ` ``, `\`.
+     */
+    private fun shellEscape(value: String): String =
+        value.replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("$", "\\$")
+            .replace("`", "\\`")
+
     /**
      * Schedules an alarm or inserts a calendar event.
+     *
+     * Auto-grants required permissions via Shizuku when available, then fires the standard
+     * Android Intent. If the Intent fails (e.g. no alarm app installed, permission still
+     * denied), falls back to an ADB shell `am start` command executed via Shizuku.
      *
      * @param context   Application context.
      * @param action    `"alarm"` or `"calendar"`.
@@ -133,31 +171,64 @@ object PlannerTool {
      * @param timeMillis Epoch milliseconds representing the target time.
      * @return [ToolExecutionResult] describing success or failure.
      */
-    fun execute(
+    suspend fun execute(
         context: Context,
         action: String,
         title: String,
         timeMillis: Long
     ): ToolExecutionResult {
-        return runCatching {
-            when (action.lowercase()) {
-                "alarm" -> {
-                    val cal = Calendar.getInstance().apply { this.timeInMillis = timeMillis }
-                    val hour = cal.get(Calendar.HOUR_OF_DAY)
-                    val minute = cal.get(Calendar.MINUTE)
+        when (action.lowercase()) {
+            "alarm" -> {
+                val cal = Calendar.getInstance().apply { this.timeInMillis = timeMillis }
+                val hour = cal.get(Calendar.HOUR_OF_DAY)
+                val minute = cal.get(Calendar.MINUTE)
+
+                // Auto-grant SET_ALARM permission via Shizuku if not already held
+                ensurePermissionViaShizuku(PERMISSION_SET_ALARM, PACKAGE_NAME, context)
+
+                // Try standard Intent first
+                val intentResult = runCatching {
                     val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
                         putExtra(AlarmClock.EXTRA_HOUR, hour)
                         putExtra(AlarmClock.EXTRA_MINUTES, minute)
                         putExtra(AlarmClock.EXTRA_MESSAGE, title)
-                        putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+                        putExtra(AlarmClock.EXTRA_SKIP_UI, true)
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     context.startActivity(intent)
-                    ToolExecutionResult(
+                    true
+                }.getOrDefault(false)
+
+                if (intentResult) {
+                    return ToolExecutionResult(
                         output = "✅ Alarm set for %02d:%02d — \"%s\".".format(hour, minute, title)
                     )
                 }
-                "calendar" -> {
+
+                // Fallback: force the alarm via Shizuku ADB shell
+                val safeTitle = shellEscape(title)
+                val adbCmd = "am start -a android.intent.action.SET_ALARM" +
+                        " --ei android.intent.extra.alarm.HOUR $hour" +
+                        " --ei android.intent.extra.alarm.MINUTES $minute" +
+                        " --es android.intent.extra.alarm.MESSAGE \"$safeTitle\"" +
+                        " --ez android.intent.extra.alarm.SKIP_UI true"
+                return when (val r = ShizukuCommandTool.execute(adbCmd)) {
+                    is ShizukuResult.Success ->
+                        ToolExecutionResult(output = "✅ Alarm set for %02d:%02d via ADB — \"%s\".".format(hour, minute, title))
+                    is ShizukuResult.Failure ->
+                        ToolExecutionResult(output = "Failed to set alarm: ${r.reason}", isError = true)
+                    is ShizukuResult.PermissionRequired ->
+                        ToolExecutionResult(output = "Shizuku permission required: ${r.message}", isError = true)
+                    is ShizukuResult.Unavailable ->
+                        ToolExecutionResult(output = "Could not set alarm — Intent failed and Shizuku is unavailable.", isError = true)
+                }
+            }
+            "calendar" -> {
+                // Auto-grant READ/WRITE_CALENDAR via Shizuku if not already held
+                ensurePermissionViaShizuku(android.Manifest.permission.READ_CALENDAR, PACKAGE_NAME, context)
+                ensurePermissionViaShizuku(android.Manifest.permission.WRITE_CALENDAR, PACKAGE_NAME, context)
+
+                val intentResult = runCatching {
                     val intent = Intent(Intent.ACTION_INSERT).apply {
                         data = CalendarContract.Events.CONTENT_URI
                         putExtra(CalendarContract.Events.TITLE, title)
@@ -165,18 +236,20 @@ object PlannerTool {
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     context.startActivity(intent)
+                    true
+                }.getOrDefault(false)
+
+                return if (intentResult) {
+                    ToolExecutionResult(output = "✅ Calendar event created: \"$title\".")
+                } else {
                     ToolExecutionResult(
-                        output = "✅ Calendar event created: \"$title\"."
+                        output = "Failed to open calendar. Ensure a calendar app is installed.",
+                        isError = true
                     )
                 }
-                else -> ToolExecutionResult(
-                    output = "Unknown planner action '$action'. Use 'alarm' or 'calendar'.",
-                    isError = true
-                )
             }
-        }.getOrElse { e ->
-            ToolExecutionResult(
-                output = "Failed to execute planner action '$action': ${e.message}",
+            else -> return ToolExecutionResult(
+                output = "Unknown planner action '$action'. Use 'alarm' or 'calendar'.",
                 isError = true
             )
         }
