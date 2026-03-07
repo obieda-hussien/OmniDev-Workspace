@@ -191,7 +191,7 @@ object AppManifestAnalyzerTool {
                     val launch = Intent().apply {
                         setClassName(packageName, activity.name)
                     }
-                    val canLaunch = pm.resolveActivity(launch, 0) != null
+                    val canLaunch = pm.resolveActivity(launch, PackageManager.MATCH_DEFAULT_ONLY) != null
                     if (canLaunch) {
                         sb.appendLine("      am start -n $packageName/${activity.name}")
                     }

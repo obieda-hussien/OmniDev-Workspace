@@ -37,7 +37,7 @@ interface KnowledgeDao {
     @Query("SELECT * FROM knowledge_snippets ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<KnowledgeSnippet>>
 
-    /** Load all snippets (used by VectorMemoryManager for TF-IDF corpus). */
+    /** Load all snippets as a one-time snapshot (used by VectorMemoryManager for TF-IDF corpus). */
     @Query("SELECT * FROM knowledge_snippets ORDER BY createdAt DESC")
     suspend fun getAll(): List<KnowledgeSnippet>
 

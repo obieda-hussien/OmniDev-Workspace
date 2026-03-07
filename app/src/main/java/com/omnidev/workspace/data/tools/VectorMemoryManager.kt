@@ -4,6 +4,7 @@ import com.omnidev.workspace.data.db.dao.KnowledgeDao
 import com.omnidev.workspace.data.db.entities.KnowledgeSnippet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.math.ln
 import kotlin.math.sqrt
 
 /**
@@ -210,7 +211,7 @@ class VectorMemoryManager(private val knowledgeDao: KnowledgeDao) {
         val idf = mutableMapOf<String, Double>()
         for (term in vocabulary) {
             val docFreq = allTokenized.count { term in it } + if (term in queryTokens) 1 else 0
-            idf[term] = Math.log((totalDocs.toDouble() + 1) / (docFreq.toDouble() + 1)) + 1.0
+            idf[term] = ln((totalDocs.toDouble() + 1) / (docFreq.toDouble() + 1)) + 1.0
         }
 
         // Compute TF-IDF vectors and cosine similarity

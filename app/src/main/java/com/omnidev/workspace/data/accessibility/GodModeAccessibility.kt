@@ -22,8 +22,7 @@ import com.omnidev.workspace.data.tools.ShizukuResult
 object GodModeAccessibility {
 
     private const val TAG = "GodModeA11y"
-    private const val PACKAGE = "com.omnidev.workspace"
-    private const val SERVICE_CLASS = "$PACKAGE/.data.accessibility.OmniAccessibilityService"
+    private const val SERVICE_CLASS = "com.omnidev.workspace/.data.accessibility.OmniAccessibilityService"
 
     /**
      * Auto-enables [OmniAccessibilityService] via Shizuku without user interaction.
