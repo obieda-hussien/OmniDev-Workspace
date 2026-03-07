@@ -226,6 +226,7 @@ class CompletionService {
         ModelProvider.FIREWORKS     -> "https://api.fireworks.ai/inference/v1"
         ModelProvider.NVIDIA        -> "https://integrate.api.nvidia.com/v1"
         ModelProvider.GITHUB_COPILOT -> "https://api.githubcopilot.com"
+        ModelProvider.GITHUB_MODELS  -> "https://models.inference.ai.azure.com"
         ModelProvider.OPEN_ROUTER   -> "https://openrouter.ai/api/v1"
         ModelProvider.PERPLEXITY    -> "https://api.perplexity.ai"
         ModelProvider.LOCAL_EDGE    -> "http://localhost"
@@ -474,12 +475,16 @@ class CompletionService {
             )
         )
 
-        val extraHeaders: Map<String, String> = if (provider == ModelProvider.GITHUB_COPILOT) {
-            mapOf(
+        val extraHeaders: Map<String, String> = when (provider) {
+            ModelProvider.GITHUB_COPILOT -> mapOf(
                 "Editor-Version" to "OmniDevWorkspace/1.0",
                 "Copilot-Integration-Id" to "chat-panel"
             )
-        } else emptyMap()
+            ModelProvider.GITHUB_MODELS -> mapOf(
+                "X-GitHub-Api-Version" to "2022-11-28"
+            )
+            else -> emptyMap()
+        }
 
         val responseJson = postJson(
             url = url,
@@ -601,12 +606,16 @@ class CompletionService {
             )
         )
 
-        val extraHeaders: Map<String, String> = if (provider == ModelProvider.GITHUB_COPILOT) {
-            mapOf(
+        val extraHeaders: Map<String, String> = when (provider) {
+            ModelProvider.GITHUB_COPILOT -> mapOf(
                 "Editor-Version" to "OmniDevWorkspace/1.0",
                 "Copilot-Integration-Id" to "chat-panel"
             )
-        } else emptyMap()
+            ModelProvider.GITHUB_MODELS -> mapOf(
+                "X-GitHub-Api-Version" to "2022-11-28"
+            )
+            else -> emptyMap()
+        }
 
         val conn = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"

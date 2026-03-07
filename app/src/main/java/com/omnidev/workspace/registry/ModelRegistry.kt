@@ -1096,6 +1096,192 @@ object ModelRegistry {
     )
 
     // ─────────────────────────────────────────────────────────────────
+    //  GITHUB MODELS — Marketplace AI via models.inference.ai.azure.com
+    //  Auth: GitHub token (Device Flow) stored under ModelProvider.GITHUB_MODELS
+    //  Endpoint: https://models.inference.ai.azure.com/chat/completions
+    //  All models use the OpenAI-compatible format.
+    // ─────────────────────────────────────────────────────────────────
+
+    private val githubModels = listOf(
+        // ── OpenAI flagship models ──
+        AIModel(
+            id = "gpt-4o",
+            displayName = "GPT-4o (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 128_000,
+            maxOutputTokens = 16_384,
+            supportsVision = true,
+            supportsFunctionCalling = true,
+            supportsStructuredOutput = true,
+            shortDescription = "OpenAI GPT-4o via GitHub Models Marketplace — free with GitHub account",
+            isLatest = true
+        ),
+        AIModel(
+            id = "gpt-4o-mini",
+            displayName = "GPT-4o Mini (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.FAST,
+            contextWindow = 128_000,
+            maxOutputTokens = 16_384,
+            supportsVision = true,
+            supportsFunctionCalling = true,
+            shortDescription = "Fast and cheap GPT-4o Mini via GitHub Models"
+        ),
+        AIModel(
+            id = "gpt-4.1",
+            displayName = "GPT-4.1 (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 1_047_576,
+            maxOutputTokens = 32_768,
+            supportsVision = true,
+            supportsFunctionCalling = true,
+            shortDescription = "OpenAI's latest GPT-4.1 with 1M context via GitHub Models"
+        ),
+        AIModel(
+            id = "gpt-4.1-mini",
+            displayName = "GPT-4.1 Mini (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 1_047_576,
+            maxOutputTokens = 32_768,
+            supportsVision = true,
+            supportsFunctionCalling = true,
+            shortDescription = "GPT-4.1 Mini — efficient and affordable via GitHub Models"
+        ),
+        AIModel(
+            id = "o1",
+            displayName = "o1 (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 200_000,
+            maxOutputTokens = 100_000,
+            supportsThinking = true,
+            supportsFunctionCalling = false,
+            shortDescription = "OpenAI o1 reasoning model via GitHub Models"
+        ),
+        AIModel(
+            id = "o1-mini",
+            displayName = "o1-mini (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 128_000,
+            maxOutputTokens = 65_536,
+            supportsThinking = true,
+            supportsFunctionCalling = false,
+            shortDescription = "Lightweight o1-mini reasoning via GitHub Models"
+        ),
+        AIModel(
+            id = "o3-mini",
+            displayName = "o3-mini (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 200_000,
+            maxOutputTokens = 100_000,
+            supportsThinking = true,
+            supportsFunctionCalling = true,
+            shortDescription = "OpenAI o3-mini reasoning model via GitHub Models"
+        ),
+        // ── Meta Llama models ──
+        AIModel(
+            id = "meta-llama/Llama-3.3-70B-Instruct",
+            displayName = "Llama 3.3 70B (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 128_000,
+            maxOutputTokens = 4096,
+            supportsFunctionCalling = true,
+            shortDescription = "Meta Llama 3.3 70B via GitHub Models — strong open-source model"
+        ),
+        AIModel(
+            id = "meta-llama/Meta-Llama-3.1-405B-Instruct",
+            displayName = "Llama 3.1 405B (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 128_000,
+            maxOutputTokens = 4096,
+            supportsFunctionCalling = true,
+            shortDescription = "Meta's largest open model — 405B via GitHub Models"
+        ),
+        // ── Microsoft Phi models ──
+        AIModel(
+            id = "Phi-4",
+            displayName = "Phi-4 (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 16_384,
+            maxOutputTokens = 4096,
+            supportsFunctionCalling = false,
+            shortDescription = "Microsoft Phi-4 — small but capable reasoning model via GitHub Models"
+        ),
+        AIModel(
+            id = "Phi-3.5-MoE-instruct",
+            displayName = "Phi-3.5 MoE (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.FAST,
+            contextWindow = 128_000,
+            maxOutputTokens = 4096,
+            supportsFunctionCalling = false,
+            shortDescription = "Microsoft Phi-3.5 Mixture-of-Experts — fast and lean via GitHub Models"
+        ),
+        // ── Mistral models ──
+        AIModel(
+            id = "Mistral-large",
+            displayName = "Mistral Large (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 128_000,
+            maxOutputTokens = 4096,
+            supportsFunctionCalling = true,
+            shortDescription = "Mistral's flagship large model via GitHub Models"
+        ),
+        AIModel(
+            id = "mistral-small",
+            displayName = "Mistral Small (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.FAST,
+            contextWindow = 32_000,
+            maxOutputTokens = 4096,
+            supportsFunctionCalling = true,
+            shortDescription = "Efficient Mistral Small via GitHub Models"
+        ),
+        // ── DeepSeek models ──
+        AIModel(
+            id = "DeepSeek-R1",
+            displayName = "DeepSeek R1 (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 65_536,
+            maxOutputTokens = 16_384,
+            supportsThinking = true,
+            supportsFunctionCalling = false,
+            shortDescription = "DeepSeek R1 reasoning model via GitHub Models"
+        ),
+        AIModel(
+            id = "DeepSeek-V3-0324",
+            displayName = "DeepSeek V3 (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.EXECUTOR,
+            contextWindow = 65_536,
+            maxOutputTokens = 8192,
+            supportsFunctionCalling = true,
+            shortDescription = "DeepSeek V3 chat model via GitHub Models"
+        ),
+        // ── Cohere models ──
+        AIModel(
+            id = "Cohere-command-r-plus-08-2024",
+            displayName = "Command R+ (GitHub Models)",
+            provider = ModelProvider.GITHUB_MODELS,
+            tier = ModelTier.ORCHESTRATOR,
+            contextWindow = 128_000,
+            maxOutputTokens = 4096,
+            supportsFunctionCalling = true,
+            shortDescription = "Cohere Command R+ via GitHub Models — strong RAG model"
+        )
+    )
+
+    // ─────────────────────────────────────────────────────────────────
     //  OPENROUTER — Unified API gateway for all providers
     // ─────────────────────────────────────────────────────────────────
 
@@ -1219,6 +1405,7 @@ object ModelRegistry {
         addAll(fireworksModels)
         addAll(nvidiaModels)
         addAll(githubCopilotModels)
+        addAll(githubModels)
         addAll(openRouterModels)
         add(
             AIModel(

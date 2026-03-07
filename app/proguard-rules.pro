@@ -88,3 +88,8 @@
 -keep class com.omnidev.workspace.data.voice.VoiceAssistantService { *; }
 -keep enum com.omnidev.workspace.data.voice.VoiceManager$* { *; }
 -keep enum com.omnidev.workspace.data.voice.VoiceAssistantService$* { *; }
+
+# ── GitHub Device Flow & GitHub AI Models ─────────────────────────────────────
+-keep class com.omnidev.workspace.data.auth.GitHubDeviceFlowManager { *; }
+-keep class com.omnidev.workspace.data.auth.GitHubDeviceFlowManager$DeviceFlowState { *; }
+-keep class com.omnidev.workspace.data.auth.GitHubDeviceFlowManager$DeviceFlowState$* { *; }

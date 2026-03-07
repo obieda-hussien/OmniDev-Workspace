@@ -1,7 +1,10 @@
 package com.omnidev.workspace.ui.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -10,18 +13,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.omnidev.workspace.MainActivity
-import com.omnidev.workspace.data.auth.OAuthManager
+import androidx.compose.ui.unit.sp
+import com.omnidev.workspace.data.auth.GitHubDeviceFlowManager
+import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
  * Settings screen for configuring external platform integrations:
- * - GitHub OAuth 2.0 (Connect with GitHub button / disconnect)
+ * - GitHub Device Flow (RFC 8628) — shows XXXX-XXXX code, polls for token
  * - Telegram Bot Token & Chat ID
  * - Discord Webhook URL
  * - Notion API Key & Database ID
@@ -32,13 +39,28 @@ import kotlinx.coroutines.launch
 @Composable
 fun IntegrationsScreen(
     settingsRepository: SettingsRepository,
+    /**
+     * Optional — if null, a new instance is created from the local context.
+     * Safe because Android's DataStore uses per-name file singletons; multiple
+     * [ApiKeyRepository] instances pointing to the same DataStore name are backed
+     * by the same file and serialize reads/writes atomically.
+     */
+    apiKeyRepository: ApiKeyRepository? = null,
     onNavigateBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
 
-    // GitHub OAuth state
+    // GitHub auth state
     var githubOAuthToken by remember { mutableStateOf<String?>(null) }
+
+    // Device Flow state
+    var deviceFlowUserCode by remember { mutableStateOf<String?>(null) }
+    var deviceFlowVerificationUri by remember { mutableStateOf("https://github.com/login/device") }
+    var deviceFlowPolling by remember { mutableStateOf(false) }
+    var deviceFlowError by remember { mutableStateOf<String?>(null) }
+    var deviceFlowInProgress by remember { mutableStateOf(false) }
 
     // Telegram
     var telegramToken by remember { mutableStateOf("") }
@@ -63,23 +85,6 @@ fun IntegrationsScreen(
         notionDatabaseId = settingsRepository.observeNotionDatabaseId().first() ?: ""
     }
 
-    // Observe pending OAuth code delivered by MainActivity deep link handling.
-    // NOTE: The authorization code must be exchanged for an access token on a backend server
-    // that holds the client_secret securely. If you have configured a backend, call
-    // OAuthManager.handleGitHubCallback(code, clientSecret, settingsRepository) here.
-    // Until a backend is wired up, the code is intentionally NOT stored — the user will see
-    // the "Connect with GitHub" button again.
-    val pendingCode by MainActivity.pendingOAuthCode.collectAsState()
-    LaunchedEffect(pendingCode) {
-        val code = pendingCode ?: return@LaunchedEffect
-        MainActivity.pendingOAuthCode.value = null
-        // Backend token exchange would happen here. Example (with your own endpoint):
-        //   val result = OAuthManager.handleGitHubCallback(code, BuildConfig.GITHUB_CLIENT_SECRET, settingsRepository)
-        //   result.onSuccess { githubOAuthToken = it }
-        // Refresh the UI state after any potential external exchange
-        githubOAuthToken = settingsRepository.observeGitHubOAuthToken().first()
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -100,7 +105,7 @@ fun IntegrationsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ── GitHub OAuth Section ──
+            // ── GitHub Device Flow Section ──
             Text(
                 text = "🐙 GitHub",
                 style = MaterialTheme.typography.titleMedium,
@@ -108,6 +113,7 @@ fun IntegrationsScreen(
             )
 
             if (githubOAuthToken != null) {
+                // Connected state
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -123,12 +129,21 @@ fun IntegrationsScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
+                Text(
+                    text = "GitHub Repos integration and GitHub AI Models are both active.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 OutlinedButton(
                     onClick = {
                         scope.launch {
                             settingsRepository.setGitHubOAuthToken(null)
                             settingsRepository.setGitHubPat(null)
                             githubOAuthToken = null
+                            deviceFlowUserCode = null
+                            deviceFlowPolling = false
+                            deviceFlowError = null
+                            deviceFlowInProgress = false
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -136,16 +151,161 @@ fun IntegrationsScreen(
                     Text("Log Out of GitHub")
                 }
             } else {
+                // Not yet connected
                 Text(
-                    text = "Connect your GitHub account to let the AI create issues and pull requests on your behalf.",
+                    text = "Connect your GitHub account to enable GitHub Repos and GitHub AI Models (GPT-4o, Llama, DeepSeek, Phi and more — free with your GitHub account).",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Button(
-                    onClick = { OAuthManager.launchGitHubAuth(context) },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Connect with GitHub")
+
+                if (deviceFlowUserCode != null) {
+                    // ── Device Flow active: show the code ──
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = "Step 1: Copy this code",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                        // Large monospace code display
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    MaterialTheme.colorScheme.surfaceVariant,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outline,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = deviceFlowUserCode!!,
+                                style = MaterialTheme.typography.headlineMedium.copy(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 28.sp,
+                                    letterSpacing = 4.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        OutlinedButton(
+                            onClick = { clipboard.setText(AnnotatedString(deviceFlowUserCode!!)) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("📋 Copy Code")
+                        }
+
+                        Text(
+                            text = "Step 2: Open GitHub and enter the code",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                        Button(
+                            onClick = {
+                                GitHubDeviceFlowManager.openVerificationPage(
+                                    context, deviceFlowVerificationUri
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Open GitHub (${deviceFlowVerificationUri})")
+                        }
+
+                        if (deviceFlowPolling) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                                Text(
+                                    text = "Waiting for authorization...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        if (deviceFlowError != null) {
+                            Text(
+                                text = "⚠️ ${deviceFlowError}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                deviceFlowUserCode = null
+                                deviceFlowPolling = false
+                                deviceFlowError = null
+                                deviceFlowInProgress = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Cancel")
+                        }
+                    }
+                } else {
+                    // ── Start Device Flow button ──
+                    if (deviceFlowError != null) {
+                        Text(
+                            text = "⚠️ ${deviceFlowError}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Button(
+                        onClick = {
+                            deviceFlowError = null
+                            deviceFlowInProgress = true
+                            scope.launch {
+                                val repoArg = apiKeyRepository
+                                    ?: ApiKeyRepository(context)
+                                GitHubDeviceFlowManager.startDeviceFlowAndPoll(
+                                    settingsRepository, repoArg
+                                ).collect { state ->
+                                    when (state) {
+                                        is GitHubDeviceFlowManager.DeviceFlowState.AwaitingUserCode -> {
+                                            deviceFlowUserCode = state.userCode
+                                            deviceFlowVerificationUri = state.verificationUri
+                                            deviceFlowPolling = false
+                                        }
+                                        is GitHubDeviceFlowManager.DeviceFlowState.Polling -> {
+                                            deviceFlowPolling = true
+                                        }
+                                        is GitHubDeviceFlowManager.DeviceFlowState.Success -> {
+                                            githubOAuthToken = state.token
+                                            deviceFlowUserCode = null
+                                            deviceFlowPolling = false
+                                            deviceFlowInProgress = false
+                                        }
+                                        is GitHubDeviceFlowManager.DeviceFlowState.Error -> {
+                                            deviceFlowError = state.message
+                                            deviceFlowUserCode = null
+                                            deviceFlowPolling = false
+                                            deviceFlowInProgress = false
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        enabled = !deviceFlowInProgress,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        if (deviceFlowInProgress) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                                Text("Connecting...")
+                            }
+                        } else {
+                            Text("Connect with GitHub")
+                        }
+                    }
                 }
             }
 
@@ -259,3 +419,4 @@ fun IntegrationsScreen(
         }
     }
 }
+
