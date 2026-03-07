@@ -19,6 +19,7 @@ room = "2.6.1"
 ksp = "2.0.21-1.0.28"
 shizuku = "13.1.5"
 browser = "1.8.0"
+jsoup = "1.17.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -49,6 +50,7 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", vers
 shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
 shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
 androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
+jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -221,30 +221,40 @@ fun ChatScreen(
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
-                            val displayName = uiState.targetContextDisplayName ?: uiState.targetContext
-                            if (displayName != null) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Filled.FolderOpen,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
+                            if (uiState.isGodModeEnabled) {
+                                Text(
+                                    text = "⚡ God Mode — Full Root Access",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            } else {
+                                val displayName = uiState.targetContextDisplayName ?: uiState.targetContext
+                                if (displayName != null) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Filled.FolderOpen,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = displayName,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                } else {
                                     Text(
-                                        text = displayName,
+                                        text = "Tap 📁 to set scope",
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        color = MaterialTheme.colorScheme.error
                                     )
                                 }
-                            } else {
-                                Text(
-                                    text = "Tap 📁 to set scope",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error
-                                )
                             }
                         }
                     },
@@ -257,11 +267,14 @@ fun ChatScreen(
                         }
                     },
                     actions = {
-                        IconButton(onClick = { directoryPickerLauncher.launch(null) }) {
-                            Icon(
-                                imageVector = Icons.Filled.FolderOpen,
-                                contentDescription = "Set Target Context"
-                            )
+                        // Hide folder/scope picker when God Mode is enabled — root has access to /
+                        if (!uiState.isGodModeEnabled) {
+                            IconButton(onClick = { directoryPickerLauncher.launch(null) }) {
+                                Icon(
+                                    imageVector = Icons.Filled.FolderOpen,
+                                    contentDescription = "Set Target Context"
+                                )
+                            }
                         }
                         IconButton(onClick = onNavigateToSettings) {
                             Icon(

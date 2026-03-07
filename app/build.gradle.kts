@@ -143,6 +143,9 @@ dependencies {
     // Chrome Custom Tabs — used for OAuth 2.0 browser-based auth flows
     implementation(libs.androidx.browser)
 
+    // Jsoup — HTML parsing for web scraper tool (HTML → token-optimized Markdown)
+    implementation(libs.jsoup)
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

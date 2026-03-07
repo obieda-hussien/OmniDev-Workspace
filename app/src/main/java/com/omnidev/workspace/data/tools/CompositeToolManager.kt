@@ -28,7 +28,8 @@ class CompositeToolManager(
     private val godEyeProfilerTool: GodEyeProfilerTool? = null,
     private val discordPublisherTool: DiscordPublisherTool? = null,
     private val notionPublisherTool: NotionPublisherTool? = null,
-    val vectorMemoryManager: VectorMemoryManager? = null
+    val vectorMemoryManager: VectorMemoryManager? = null,
+    val headlessBrowserManager: HeadlessBrowserManager? = null
 ) : ToolManager {
 
     override fun getToolDefinitions(): List<ToolDefinition> = buildList {
@@ -70,6 +71,11 @@ class CompositeToolManager(
             addAll(PackageInstallerTool.getToolDefinitions())
             addAll(AdvancedRootShellTool.getToolDefinitions())
             addAll(AppManifestAnalyzerTool.getToolDefinitions())
+            addAll(WebScraperTool.getToolDefinitions())
+            addAll(AdvancedFileTools.getToolDefinitions())
+        }
+        if (headlessBrowserManager != null) {
+            addAll(headlessBrowserManager.getToolDefinitions())
         }
         if (vectorMemoryManager != null) {
             addAll(vectorMemoryManager.getToolDefinitions())
@@ -308,6 +314,36 @@ class CompositeToolManager(
                 val vmm = vectorMemoryManager
                     ?: return ToolExecutionResult("Vector memory manager not configured.", isError = true)
                 vmm.executeTool(name, arguments)
+            }
+
+            // ── Web scraper tool (Deep Research) ──
+            "web_scraper" -> {
+                WebScraperTool.execute(
+                    url = arguments["url"] ?: return missingArg("url"),
+                    selector = arguments["selector"]
+                )
+            }
+
+            // ── Headless browser tools (Ghost Browser) ──
+            "browser_navigate" -> {
+                val browser = headlessBrowserManager
+                    ?: return ToolExecutionResult("Headless browser not configured.", isError = true)
+                browser.navigate(url = arguments["url"] ?: return missingArg("url"))
+            }
+            "browser_execute_js" -> {
+                val browser = headlessBrowserManager
+                    ?: return ToolExecutionResult("Headless browser not configured.", isError = true)
+                browser.executeJs(jsCode = arguments["js_code"] ?: return missingArg("js_code"))
+            }
+            "browser_get_dom" -> {
+                val browser = headlessBrowserManager
+                    ?: return ToolExecutionResult("Headless browser not configured.", isError = true)
+                browser.getDom()
+            }
+
+            // ── Advanced root file tools ──
+            "grep_search", "find_files", "file_permissions", "disk_usage", "archive_tool" -> {
+                AdvancedFileTools.executeTool(name, arguments)
             }
 
             // ── File tools (default fallback) ──

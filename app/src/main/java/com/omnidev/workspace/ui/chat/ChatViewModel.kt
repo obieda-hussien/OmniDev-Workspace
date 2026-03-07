@@ -72,7 +72,9 @@ data class ChatUiState(
     /** The currently active execution mode (Chat / Agent / Swarm). */
     val activeMode: OmniMode = OmniMode.AGENT,
     /** A privileged action awaiting user approval via [ConfirmationGateDialog]. */
-    val pendingConfirmation: PendingConfirmation? = null
+    val pendingConfirmation: PendingConfirmation? = null,
+    /** Whether God Mode is enabled — hides scope selection when true. */
+    val isGodModeEnabled: Boolean = false
 )
 
 /**
@@ -136,12 +138,12 @@ class ChatViewModel(
         }
     }
 
-    /** Syncs the God Mode flag from settings into [FileToolManager] in real-time. */
+    /** Syncs the God Mode flag from settings into [FileToolManager] and UI state in real-time. */
     private fun observeGodMode() {
-        val ftm = fileToolManager ?: return
         viewModelScope.launch {
             settingsRepository.observeGodMode().collect { enabled ->
-                ftm.godModeEnabled = enabled
+                fileToolManager?.let { it.godModeEnabled = enabled }
+                _uiState.update { it.copy(isGodModeEnabled = enabled) }
             }
         }
     }

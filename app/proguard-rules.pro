@@ -63,6 +63,15 @@
 -keep class com.omnidev.workspace.data.tools.AppManifestAnalyzerTool { *; }
 -keep class com.omnidev.workspace.data.tools.VectorMemoryManager { *; }
 
+# ── Deep Research & Advanced Tools ─────────────────────────────────────────────
+-keep class com.omnidev.workspace.data.tools.WebScraperTool { *; }
+-keep class com.omnidev.workspace.data.tools.HeadlessBrowserManager { *; }
+-keep class com.omnidev.workspace.data.tools.AdvancedFileTools { *; }
+
+# ── Jsoup (HTML parser) ──────────────────────────────────────────────────────
+-dontwarn org.jsoup.**
+-keep class org.jsoup.** { *; }
+
 # ── OkHttp / Ktor (if used for HTTP) ─────────────────────────────────────────
 -dontwarn okhttp3.**
 -dontwarn okio.**

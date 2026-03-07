@@ -574,25 +574,35 @@ class FileToolManager(
                 // /bin/sh is always available on Android — intentional for this Android-only app.
                 val process = ProcessBuilder("/bin/sh", "-c", command)
                     .directory(workDir)
-                    .redirectErrorStream(true) // merge stderr into stdout
-                    .start()
+                    .start() // separate stdout and stderr for structured output
 
-                // Read output on a dedicated thread to prevent pipe-buffer deadlock.
-                // StringBuffer (vs StringBuilder) provides thread safety in case readerThread
-                // is still draining after join() times out.
-                val outputBuffer = StringBuffer()
-                val readerThread = Thread {
+                // Read stdout on a dedicated thread to prevent pipe-buffer deadlock.
+                val stdoutBuffer = StringBuffer()
+                val stderrBuffer = StringBuffer()
+                val stdoutThread = Thread {
                     try {
                         process.inputStream.bufferedReader().use { reader ->
                             reader.lineSequence().forEach { line ->
-                                if (outputBuffer.length < MAX_TERMINAL_OUTPUT_CHARS) {
-                                    outputBuffer.appendLine(line)
+                                if (stdoutBuffer.length < MAX_TERMINAL_OUTPUT_CHARS) {
+                                    stdoutBuffer.appendLine(line)
                                 }
                             }
                         }
                     } catch (_: Exception) { /* process killed — exit gracefully */ }
                 }
-                readerThread.start()
+                val stderrThread = Thread {
+                    try {
+                        process.errorStream.bufferedReader().use { reader ->
+                            reader.lineSequence().forEach { line ->
+                                if (stderrBuffer.length < MAX_TERMINAL_OUTPUT_CHARS) {
+                                    stderrBuffer.appendLine(line)
+                                }
+                            }
+                        }
+                    } catch (_: Exception) { /* process killed — exit gracefully */ }
+                }
+                stdoutThread.start()
+                stderrThread.start()
 
                 // API-24-compatible timeout: run process.waitFor() on a wait thread,
                 // then join() with a timeout (Thread.join(millis) has been API 1 since day 1).
@@ -605,24 +615,33 @@ class FileToolManager(
                 val completed = !waitThread.isAlive
                 if (!completed) {
                     process.destroy() // SIGTERM — process.destroyForcibly() requires API 26
-                    readerThread.interrupt()
+                    stdoutThread.interrupt()
+                    stderrThread.interrupt()
                     return@withContext ToolExecutionResult(
                         output = "⏱ Command timed out after ${TERMINAL_TIMEOUT_SECONDS}s: $command",
                         isError = true
                     )
                 }
 
-                readerThread.join(2_000L) // wait for reader to drain (max 2s)
+                stdoutThread.join(2_000L) // wait for reader to drain (max 2s)
+                stderrThread.join(2_000L)
 
                 val exitCode = process.exitValue()
-                val output = outputBuffer.toString().trimEnd()
-                val truncationNote =
-                    if (outputBuffer.length >= MAX_TERMINAL_OUTPUT_CHARS) "\n[OUTPUT TRUNCATED]" else ""
+                val stdout = stdoutBuffer.toString().trimEnd()
+                val stderr = stderrBuffer.toString().trimEnd()
+                val stdoutTruncated = stdoutBuffer.length >= MAX_TERMINAL_OUTPUT_CHARS
+                val stderrTruncated = stderrBuffer.length >= MAX_TERMINAL_OUTPUT_CHARS
 
+                // Structured output: exitCode + stdout + stderr for self-verification
                 val resultText = buildString {
                     appendLine("$ $command")
-                    if (output.isNotEmpty()) appendLine(output)
-                    append("[exit: $exitCode]$truncationNote")
+                    appendLine("[exit_code: $exitCode]")
+                    appendLine("[stdout]")
+                    if (stdout.isNotEmpty()) appendLine(stdout) else appendLine("(empty)")
+                    if (stdoutTruncated) appendLine("[STDOUT TRUNCATED]")
+                    appendLine("[stderr]")
+                    if (stderr.isNotEmpty()) appendLine(stderr) else appendLine("(empty)")
+                    if (stderrTruncated) appendLine("[STDERR TRUNCATED]")
                 }
 
                 ToolExecutionResult(output = resultText, isError = exitCode != 0)

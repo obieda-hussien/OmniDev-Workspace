@@ -165,6 +165,24 @@ You operate with Shizuku/Root-level privileges on this device. The following rul
 """
 
         /**
+         * Self-verification directive injected into every system prompt.
+         * Forces the agent to act like a Senior Linux Sysadmin — always verify
+         * command results by checking exit codes, reading back file changes,
+         * and never blindly assuming success.
+         */
+        private const val SELF_VERIFY_DIRECTIVE = """
+
+## SELF-VERIFICATION PROTOCOL (MANDATORY)
+You are a Senior Linux Sysadmin. NEVER blindly assume a command succeeded. Follow this protocol:
+
+1. CHECK EXIT CODES: After every `run_terminal` call, inspect `[exit_code: N]` in the output. If N != 0, the command FAILED — read the `[stderr]` section to diagnose and self-correct.
+2. READ BACK CHANGES: After creating or patching a file, call `read_file_lines` on that file to confirm the content is correct. Do NOT say "I've updated the file" without verifying.
+3. LIST AFTER CREATE: After creating a file or directory, run `ls -la <path>` via `run_terminal` to verify it exists.
+4. INSPECT STDERR: When a command returns a non-zero exit code, read the `[stderr]` output — it contains the actual error message. Use it to fix the issue and retry.
+5. NEVER SAY "Done" WITHOUT PROOF: Do not tell the user a task is complete unless you have output from a verification step (read_file_lines, ls, cat, etc.) confirming it.
+"""
+
+        /**
          * Autonomous memory management directive injected into every system prompt.
          * Instructs the agent to behave like MemGPT — proactively reading and writing
          * long-term memory without waiting for explicit user instructions.
@@ -226,6 +244,15 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 | Store a fact in semantic vector memory | `vector_store` (content="user prefers dark mode") |
 | Search semantic memory by meaning | `vector_search` (query="user's UI preferences") |
 | Find similar memories | `vector_similar` (id=42) |
+| Read a web page / article / documentation | `web_scraper` (url="https://...") — converts HTML to clean Markdown |
+| Navigate headless browser to a dynamic page | `browser_navigate` (url="https://...") — loads with JS execution |
+| Execute JavaScript on a loaded page | `browser_execute_js` (js_code="document.querySelector(...)") |
+| Read current page DOM text | `browser_get_dom` — text snapshot of browser content |
+| Recursive grep search across filesystem | `grep_search` (directory="/sdcard", pattern="TODO") — root access |
+| Find files by pattern/size/date | `find_files` (directory="/data", name_pattern="*.db") — root access |
+| Change file permissions (chmod/chown) | `file_permissions` (path="/data/file", action="chmod", value="755") |
+| Analyze disk usage | `disk_usage` (path="/sdcard") — shows directory sizes |
+| Create/extract archives (tar/zip) | `archive_tool` (action="create", archive_path="...", target_path="...") |
 
 ### CATEGORY B — CODEBASE TOOLS (use ONLY for coding tasks in the project files):
 `read_file_lines`, `search_codebase`, `patch_file_content`, `create_file`, `delete_file`, `run_terminal`, `web_search`
@@ -237,6 +264,9 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 **Use `force_click` / `force_long_click` when a normal `click` fails — these use Shizuku hardware taps that bypass app restrictions.**
 **Use `app_manifest_analyzer` to reverse-engineer any app's entry points before attempting `am start` commands.**
 **Use `vector_store` and `vector_search` for semantic RAG memory — these understand meaning, not just exact keywords.**
+**Use `web_scraper` to read web pages and convert them to clean Markdown for deep research.**
+**Use `browser_navigate` + `browser_execute_js` for dynamic/SPA pages that require JavaScript execution.**
+**Use `grep_search` and `find_files` for filesystem-wide searches with root access (not limited to project scope).**
 """
 
         /** Number of extra retry attempts reserved exclusively for 429 rate-limit responses. */
@@ -319,6 +349,9 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
             // Anti-lecture directive — always injected first; prevents the agent from
             // refusing tasks or lecturing the user about missing Android permissions.
             append(ANTI_LECTURE_DIRECTIVE)
+            // Self-verification directive — forces the agent to verify results, check exit codes,
+            // and read back changes instead of blindly assuming success.
+            append(SELF_VERIFY_DIRECTIVE)
             // Autonomous memory directive — always injected so the agent proactively manages memory
             if (memoryManager != null) {
                 append(MEMORY_DIRECTIVE.trimIndent())
