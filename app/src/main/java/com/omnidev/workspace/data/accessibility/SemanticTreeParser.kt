@@ -29,6 +29,12 @@ object SemanticTreeParser {
     /** Maximum tree depth to traverse. */
     private const val MAX_DEPTH = 25
 
+    /** Maximum character length for text/contentDescription to be considered relevant. */
+    private const val MAX_TEXT_LENGTH = 200
+
+    /** Maximum display length for text in the semantic tree output. */
+    private const val MAX_DISPLAY_LENGTH = 60
+
     /**
      * Parsed result containing the semantic summary string and the node-ID-to-node mapping.
      */
@@ -129,14 +135,20 @@ object SemanticTreeParser {
 
         // Include nodes with meaningful text
         val text = node.text?.toString()?.trim()
-        if (!text.isNullOrEmpty() && text.length <= 200) return true
+        if (!text.isNullOrEmpty() && text.length <= MAX_TEXT_LENGTH) return true
 
         // Include nodes with content description (accessibility labels)
         val desc = node.contentDescription?.toString()?.trim()
-        if (!desc.isNullOrEmpty() && desc.length <= 200) return true
+        if (!desc.isNullOrEmpty() && desc.length <= MAX_TEXT_LENGTH) return true
 
         return false
     }
+
+    /**
+     * Truncates [text] to [MAX_DISPLAY_LENGTH], appending "..." if truncated.
+     */
+    private fun truncate(text: String): String =
+        if (text.length > MAX_DISPLAY_LENGTH) text.take(MAX_DISPLAY_LENGTH - 3) + "..." else text
 
     /**
      * Builds a single-line representation of a node for the semantic tree output.
@@ -155,15 +167,13 @@ object SemanticTreeParser {
         // Text content
         val text = node.text?.toString()?.trim()
         if (!text.isNullOrEmpty()) {
-            val truncatedText = if (text.length > 60) text.take(57) + "..." else text
-            append(": \"$truncatedText\"")
+            append(": \"${truncate(text)}\"")
         }
 
         // Content description (accessibility label)
         val desc = node.contentDescription?.toString()?.trim()
         if (!desc.isNullOrEmpty() && desc != text) {
-            val truncatedDesc = if (desc.length > 60) desc.take(57) + "..." else desc
-            append(" [desc: \"$truncatedDesc\"]")
+            append(" [desc: \"${truncate(desc)}\"]")
         }
 
         // Capability flags

@@ -28,6 +28,9 @@ class OmniAccessibilityService : AccessibilityService() {
     companion object {
         private const val TAG = "OmniA11yService"
 
+        /** Duration in milliseconds for a single tap gesture dispatch. */
+        private const val TAP_DURATION_MS = 50L
+
         /**
          * Live reference to the running service instance.
          * Used by [SemanticUITool] to invoke actions (click, type, scroll, gesture).
@@ -179,7 +182,7 @@ class OmniAccessibilityService : AccessibilityService() {
     fun tapAtCoordinates(x: Float, y: Float): Boolean {
         val path = Path().apply { moveTo(x, y) }
         val gesture = GestureDescription.Builder()
-            .addStroke(GestureDescription.StrokeDescription(path, 0L, 50L))
+            .addStroke(GestureDescription.StrokeDescription(path, 0L, TAP_DURATION_MS))
             .build()
         return dispatchGesture(gesture, null, null)
     }
