@@ -92,9 +92,9 @@ Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeLoadModel
     llama_model_params mparams = llama_model_default_params();
     mparams.n_gpu_layers = useGpu ? GPU_ALL_LAYERS : 0;
 
-    llama_model* model = llama_load_model_from_file(modelPath.c_str(), mparams);
+    llama_model* model = llama_model_load_from_file(modelPath.c_str(), mparams);
     if (!model) {
-        LOGE("llama_load_model_from_file failed: %s", modelPath.c_str());
+        LOGE("llama_model_load_from_file failed: %s", modelPath.c_str());
         return 0;
     }
 
@@ -108,7 +108,7 @@ Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeLoadModel
     llama_context* ctx = llama_new_context_with_model(model, cparams);
     if (!ctx) {
         LOGE("llama_new_context_with_model failed");
-        llama_free_model(model);
+        llama_model_free(model);
         return 0;
     }
 
@@ -136,7 +136,9 @@ Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeStartGene
     // Without this, subsequent calls fail because the KV cache is full from the
     // previous generation — positions 0..n_prompt-1 still hold stale data,
     // causing llama_decode to either fail or produce empty/garbage output.
-    llama_kv_cache_clear(llamaCtx->ctx);
+    // Note: llama_kv_self_clear is deprecated in favor of llama_memory_clear()
+    // but is confirmed present in llama.cpp b5695; migrate when upgrading further.
+    llama_kv_self_clear(llamaCtx->ctx);
 
     // ── Resolve callback method ID ──────────────────────────────────────────
     jclass  cbClass  = env->GetObjectClass(callback);
@@ -281,7 +283,7 @@ Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeFreeModel
         LOGI("Freeing model context %p", (void*)llamaCtx);
         llamaCtx->stop = true;
         if (llamaCtx->ctx)   llama_free(llamaCtx->ctx);
-        if (llamaCtx->model) llama_free_model(llamaCtx->model);
+        if (llamaCtx->model) llama_model_free(llamaCtx->model);
         delete llamaCtx;
     }
 }
