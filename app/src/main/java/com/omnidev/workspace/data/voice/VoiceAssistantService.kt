@@ -3,6 +3,7 @@ package com.omnidev.workspace.data.voice
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.util.Log
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
@@ -13,6 +14,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -126,6 +128,40 @@ class VoiceAssistantService : Service() {
         /** Resume the wake-word loop after a voice session completes. */
         fun resumeWakeWordLoop() { instance?.startWakeWordLoop() }
 
+        /**
+         * Requests the user to whitelist this app from battery optimization.
+         *
+         * Android's "doze" and app standby modes kill background mic listeners.
+         * This prompts the system dialog that lets the user tap "Allow" once,
+         * making the wake-word daemon behave like an OS-level service.
+         *
+         * Requires [android.Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS]
+         * declared in AndroidManifest.xml.
+         */
+        fun requestBatteryOptimizationBypass(context: Context) {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (!pm.isIgnoringBatteryOptimizations(context.packageName)) {
+                val intent = Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = android.net.Uri.parse("package:${context.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                try {
+                    context.startActivity(intent)
+                } catch (e: Exception) {
+                    Log.w("VoiceAssistantService", "Could not show battery optimisation dialog: ${e.message}")
+                    // Fallback: open the generic battery optimization settings screen
+                    val fallback = Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    try {
+                        context.startActivity(fallback)
+                    } catch (e2: Exception) {
+                        Log.e("VoiceAssistantService", "Could not open battery settings: ${e2.message}")
+                    }
+                }
+            }
+        }
+
         // ── Constants ───────────────────────────────────────────────────────────────────────────
 
         private val WAKE_PHRASES = listOf("hey omni", "wake up", "هيي أومني", "استيقظ")
@@ -148,6 +184,12 @@ class VoiceAssistantService : Service() {
     /** On-device TTS for agent responses. */
     private var tts: TextToSpeech? = null
 
+    /**
+     * Keeps the CPU running even when the screen is off, so the wake-word loop
+     * keeps listening (same mechanism used by music-playback and navigation apps).
+     */
+    private var wakeLock: PowerManager.WakeLock? = null
+
     private val handler = Handler(Looper.getMainLooper())
     private var isDestroyed = false
 
@@ -156,6 +198,7 @@ class VoiceAssistantService : Service() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        acquireWakeLock()
         createNotificationChannel()
         startForeground()
         initTts()
@@ -176,6 +219,7 @@ class VoiceAssistantService : Service() {
         tts?.stop()
         tts?.shutdown()
         tts = null
+        releaseWakeLock()
         super.onDestroy()
     }
 
@@ -413,6 +457,30 @@ class VoiceAssistantService : Service() {
         wakeRecognizer?.destroy()
         wakeRecognizer = null
         vibrate()
+    }
+
+    // ── WakeLock ──────────────────────────────────────────────────────────────────────────────────
+
+    private fun acquireWakeLock() {
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "OmniDev:VoiceAssistantWakeLock"
+        ).apply {
+            setReferenceCounted(false)
+            // 12-hour safety timeout — prevents indefinite hold if onDestroy is never called.
+            // In normal operation the service releases the lock explicitly in onDestroy().
+            acquire(12 * 60 * 60 * 1000L)
+        }
+    }
+
+    private fun releaseWakeLock() {
+        try {
+            if (wakeLock?.isHeld == true) wakeLock?.release()
+        } catch (e: Exception) {
+            Log.w("VoiceAssistantService", "Failed to release wake lock: ${e.message}")
+        }
+        wakeLock = null
     }
 
     // ── Haptic feedback ───────────────────────────────────────────────────────────────────────────

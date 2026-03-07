@@ -53,6 +53,7 @@ class HeadlessBrowserManager(context: Context) {
             val wv = WebView(appContext).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
+                settings.databaseEnabled = true
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
                 settings.blockNetworkImage = true // faster loading
@@ -150,15 +151,30 @@ class HeadlessBrowserManager(context: Context) {
 
         return try {
             withTimeout(JS_TIMEOUT_MS) {
-                val result = suspendCancellableCoroutine<String> { continuation ->
+                val result = suspendCancellableCoroutine<String?> { continuation ->
                     mainHandler.post {
-                        wv.evaluateJavascript(jsCode) { value ->
-                            val output = value ?: "null"
+                        try {
+                            wv.evaluateJavascript(jsCode) { value ->
+                                if (continuation.isActive) {
+                                    continuation.resume(value)
+                                }
+                            }
+                        } catch (e: Exception) {
                             if (continuation.isActive) {
-                                continuation.resume(output)
+                                continuation.resumeWithException(e)
                             }
                         }
                     }
+                }
+
+                if (result == null) {
+                    return@withTimeout ToolExecutionResult(
+                        output = "JS ERROR: evaluateJavascript returned null. " +
+                            "Possible causes: JS is disabled, page context was destroyed, " +
+                            "or the script threw an uncaught exception. " +
+                            "Re-check your code for syntax errors and ensure the page is fully loaded.",
+                        isError = true
+                    )
                 }
 
                 val truncated = result.length > MAX_JS_OUTPUT
@@ -171,7 +187,11 @@ class HeadlessBrowserManager(context: Context) {
                 ToolExecutionResult(output = "JS Result:\n$output")
             }
         } catch (e: Exception) {
-            ToolExecutionResult("Failed to execute JS: ${e.message}", isError = true)
+            ToolExecutionResult(
+                output = "JS ERROR: ${e.message ?: e.javaClass.simpleName}. " +
+                    "Fix your JS code and retry.",
+                isError = true
+            )
         }
     }
 
