@@ -36,8 +36,13 @@ data class ParsedMessage(
  */
 object MessageFormatter {
 
+    /**
+     * Matches both `<thinking>…</thinking>` (Anthropic / extended-thinking) and
+     * `<think>…</think>` (DeepSeek-R1 / o1) in a single pass.
+     * Using alternation avoids scanning large responses twice.
+     */
     private val THINKING_RE = Regex(
-        """<thinking>(.*?)</thinking>""",
+        """<(?:thinking|think)>(.*?)</(?:thinking|think)>""",
         setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE)
     )
     private val TOOL_CODE_RE = Regex(
@@ -54,6 +59,11 @@ object MessageFormatter {
      *
      * If the input contains no recognised tags, the result has an empty thought/tool list
      * and [ParsedMessage.cleanText] equals the trimmed input — zero overhead for plain replies.
+     *
+     * Both `<thinking>…</thinking>` (Anthropic / extended-thinking style) and
+     * `<think>…</think>` (DeepSeek-R1 / o1 style) are treated as reasoning blocks and
+     * collapsed into the same "🧠 Thought Process" expandable card so the raw tags are
+     * never shown in the chat bubble.
      */
     fun parse(raw: String): ParsedMessage {
         val thoughtBlocks = THINKING_RE.findAll(raw)

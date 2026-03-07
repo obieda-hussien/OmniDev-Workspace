@@ -277,6 +277,13 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 
         /** Hard cap on the delay applied between rate-limit retries (60 s). */
         private const val RATE_LIMIT_MAX_DELAY_MS = 60_000L
+
+        /**
+         * Minimum pause between consecutive LLM API calls inside the ReAct loop.
+         * Prevents burst-firing requests when tools resolve instantly (e.g. file reads)
+         * and helps stay within rate-limit windows on free-tier providers (e.g. GitHub Models).
+         */
+        private const val INTER_CALL_DELAY_MS = 500L
     }
 
     /**
@@ -399,6 +406,9 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
         // ── ReAct Loop ──
         while (iteration < config.maxIterations) {
             iteration++
+            // Brief pause between iterations to avoid bursting free-tier rate limits
+            // (e.g. GitHub Models / Azure inference). Skipped on the very first call.
+            if (iteration > 1) delay(INTER_CALL_DELAY_MS)
             send(AgentEvent.Thinking(iteration = iteration))
 
             // Token budget enforcement
