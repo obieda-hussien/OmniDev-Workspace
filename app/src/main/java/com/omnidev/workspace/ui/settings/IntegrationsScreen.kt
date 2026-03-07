@@ -21,6 +21,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.omnidev.workspace.data.auth.GitHubDeviceFlowManager
+import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
 import kotlinx.coroutines.flow.first
@@ -60,12 +61,16 @@ fun IntegrationsScreen(
     // Which sub-mode the currently stored token belongs to (loaded from DataStore)
     var connectedSubMode by remember { mutableStateOf<GitHubDeviceFlowManager.SubMode?>(null) }
 
-    // Device Flow state
+    // Device Flow state (Copilot only)
     var deviceFlowUserCode by remember { mutableStateOf<String?>(null) }
     var deviceFlowVerificationUri by remember { mutableStateOf("https://github.com/login/device") }
     var deviceFlowPolling by remember { mutableStateOf(false) }
     var deviceFlowError by remember { mutableStateOf<String?>(null) }
     var deviceFlowInProgress by remember { mutableStateOf(false) }
+
+    // GitHub Models PAT (Personal Access Token) — used instead of Device Flow for Models
+    var githubModelsPat by remember { mutableStateOf("") }
+    var githubModelsPatError by remember { mutableStateOf<String?>(null) }
 
     // Telegram
     var telegramToken by remember { mutableStateOf("") }
@@ -92,6 +97,9 @@ fun IntegrationsScreen(
         } else {
             selectedSubMode = mode
         }
+        // Load saved GitHub Models PAT
+        val repo = apiKeyRepository ?: ApiKeyRepository(context)
+        githubModelsPat = repo.getApiKey(ModelProvider.GITHUB_MODELS) ?: ""
         telegramToken = settingsRepository.observeTelegramBotToken().first() ?: ""
         telegramChatId = settingsRepository.observeTelegramChatId().first() ?: ""
         discordWebhookUrl = settingsRepository.observeDiscordWebhookUrl().first() ?: ""
@@ -159,8 +167,24 @@ fun IntegrationsScreen(
                         scope.launch {
                             settingsRepository.setGitHubOAuthToken(null)
                             settingsRepository.setGitHubPat(null)
+                            // Clear only the key for the active sub-mode
+                            val repo = apiKeyRepository ?: ApiKeyRepository(context)
+                            when (connectedSubMode) {
+                                GitHubDeviceFlowManager.SubMode.COPILOT ->
+                                    repo.clearApiKey(ModelProvider.GITHUB_COPILOT)
+                                GitHubDeviceFlowManager.SubMode.MODELS -> {
+                                    repo.clearApiKey(ModelProvider.GITHUB_MODELS)
+                                    githubModelsPat = ""
+                                }
+                                null -> {
+                                    repo.clearApiKey(ModelProvider.GITHUB_COPILOT)
+                                    repo.clearApiKey(ModelProvider.GITHUB_MODELS)
+                                    githubModelsPat = ""
+                                }
+                            }
                             githubOAuthToken = null
                             connectedSubMode = null
+                            githubModelsPatError = null
                             deviceFlowUserCode = null
                             deviceFlowPolling = false
                             deviceFlowError = null
@@ -221,7 +245,7 @@ fun IntegrationsScreen(
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Text(
-                                text = "Requires your own OAuth App · Free AI marketplace · GPT-4o, Llama, DeepSeek, Phi and more",
+                                text = "Enter your GitHub PAT · Free AI marketplace · GPT-4o, Llama, DeepSeek, Phi and more",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -319,64 +343,123 @@ fun IntegrationsScreen(
                         }
                     }
                 } else {
-                    // ── Start Device Flow button ─────────────────────────────
-                    if (deviceFlowError != null) {
+                    if (selectedSubMode == GitHubDeviceFlowManager.SubMode.MODELS) {
+                        // ── GitHub Models: PAT input ─────────────────────────
                         Text(
-                            text = "⚠️ ${deviceFlowError}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
+                            text = "Enter your GitHub Personal Access Token",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-                    Button(
-                        onClick = {
-                            deviceFlowError = null
-                            deviceFlowInProgress = true
-                            val chosenMode = selectedSubMode
-                            scope.launch {
-                                val repoArg = apiKeyRepository
-                                    ?: ApiKeyRepository(context)
-                                GitHubDeviceFlowManager.startDeviceFlowAndPoll(
-                                    settingsRepository, repoArg, chosenMode
-                                ).collect { state ->
-                                    when (state) {
-                                        is GitHubDeviceFlowManager.DeviceFlowState.AwaitingUserCode -> {
-                                            deviceFlowUserCode = state.userCode
-                                            deviceFlowVerificationUri = state.verificationUri
-                                            deviceFlowPolling = false
-                                        }
-                                        is GitHubDeviceFlowManager.DeviceFlowState.Polling -> {
-                                            deviceFlowPolling = true
-                                        }
-                                        is GitHubDeviceFlowManager.DeviceFlowState.Success -> {
-                                            githubOAuthToken = state.token
-                                            connectedSubMode = chosenMode
-                                            deviceFlowUserCode = null
-                                            deviceFlowPolling = false
-                                            deviceFlowInProgress = false
-                                        }
-                                        is GitHubDeviceFlowManager.DeviceFlowState.Error -> {
-                                            deviceFlowError = state.message
-                                            deviceFlowUserCode = null
-                                            deviceFlowPolling = false
-                                            deviceFlowInProgress = false
+                        OutlinedTextField(
+                            value = githubModelsPat,
+                            onValueChange = { githubModelsPat = it; githubModelsPatError = null },
+                            label = { Text("GitHub PAT (ghp_…)") },
+                            placeholder = { Text("ghp_xxxxxxxxxxxxxxxxxxxx") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        Text(
+                            text = "Generate at github.com/settings/tokens → Classic token → repo scope",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (githubModelsPatError != null) {
+                            Text(
+                                text = "⚠️ ${githubModelsPatError}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                val pat = githubModelsPat.trim()
+                                if (pat.isBlank()) {
+                                    githubModelsPatError = "Token cannot be empty."
+                                    return@Button
+                                }
+                                scope.launch {
+                                    val repo = apiKeyRepository ?: ApiKeyRepository(context)
+                                    // Store PAT in three places that serve different consumers:
+                                    //  • ApiKeyRepository/GITHUB_MODELS → CompletionService (AI calls)
+                                    //  • SettingsRepository.githubOAuthToken → UI "connected" state
+                                    //  • SettingsRepository.githubPat → GitHubManagerTool (repo ops)
+                                    repo.setApiKey(ModelProvider.GITHUB_MODELS, pat)
+                                    settingsRepository.setGitHubOAuthToken(pat)
+                                    settingsRepository.setGitHubPat(pat)
+                                    settingsRepository.setGitHubSubMode(
+                                        GitHubDeviceFlowManager.SubMode.MODELS.serializedName
+                                    )
+                                    githubOAuthToken = pat
+                                    connectedSubMode = GitHubDeviceFlowManager.SubMode.MODELS
+                                    githubModelsPatError = null
+                                }
+                            },
+                            enabled = githubModelsPat.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Save Token")
+                        }
+                    } else {
+                        // ── GitHub Copilot: Device Flow start button ─────────
+                        if (deviceFlowError != null) {
+                            Text(
+                                text = "⚠️ ${deviceFlowError}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                deviceFlowError = null
+                                deviceFlowInProgress = true
+                                val chosenMode = selectedSubMode
+                                scope.launch {
+                                    val repoArg = apiKeyRepository
+                                        ?: ApiKeyRepository(context)
+                                    GitHubDeviceFlowManager.startDeviceFlowAndPoll(
+                                        settingsRepository, repoArg, chosenMode
+                                    ).collect { state ->
+                                        when (state) {
+                                            is GitHubDeviceFlowManager.DeviceFlowState.AwaitingUserCode -> {
+                                                deviceFlowUserCode = state.userCode
+                                                deviceFlowVerificationUri = state.verificationUri
+                                                deviceFlowPolling = false
+                                            }
+                                            is GitHubDeviceFlowManager.DeviceFlowState.Polling -> {
+                                                deviceFlowPolling = true
+                                            }
+                                            is GitHubDeviceFlowManager.DeviceFlowState.Success -> {
+                                                githubOAuthToken = state.token
+                                                connectedSubMode = chosenMode
+                                                deviceFlowUserCode = null
+                                                deviceFlowPolling = false
+                                                deviceFlowInProgress = false
+                                            }
+                                            is GitHubDeviceFlowManager.DeviceFlowState.Error -> {
+                                                deviceFlowError = state.message
+                                                deviceFlowUserCode = null
+                                                deviceFlowPolling = false
+                                                deviceFlowInProgress = false
+                                            }
                                         }
                                     }
                                 }
+                            },
+                            enabled = !deviceFlowInProgress,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (deviceFlowInProgress) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                                    Text("Connecting...")
+                                }
+                            } else {
+                                Text("Connect with ${selectedSubMode.displayName}")
                             }
-                        },
-                        enabled = !deviceFlowInProgress,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        if (deviceFlowInProgress) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                                Text("Connecting...")
-                            }
-                        } else {
-                            Text("Connect with ${selectedSubMode.displayName}")
                         }
                     }
                 }

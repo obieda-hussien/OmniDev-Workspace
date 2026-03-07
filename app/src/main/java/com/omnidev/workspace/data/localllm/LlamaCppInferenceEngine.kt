@@ -120,12 +120,15 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 pfd.close()
 
                 if (ctx == 0L) {
+                    val hint = if (modelName.contains("i2_s", ignoreCase = true))
+                        "BitNet i2_s models require at least $MIN_I2S_RAM_GB GB free RAM. " +
+                        "Ensure the file is from microsoft/bitnet_b1_58-2B-4T-gguf on " +
+                        "Hugging Face and that the device has at least $MIN_I2S_RAM_GB GB free RAM."
+                    else
+                        "Ensure the file is a valid, non-corrupted quantized GGUF model " +
+                        "and that the device has sufficient RAM."
                     return@withContext Result.failure(
-                        IOException(
-                            "llama.cpp failed to load \"$modelName\". " +
-                            "Ensure the file is a valid, non-corrupted quantized GGUF model " +
-                            "and that the device has sufficient RAM."
-                        )
+                        IOException("llama.cpp failed to load \"$modelName\". $hint")
                     )
                 }
 
@@ -286,6 +289,9 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
 
     companion object {
         private const val TAG = "LlamaCppEngine"
+
+        /** Minimum free RAM (GB) recommended for loading BitNet i2_s quantized models. */
+        private const val MIN_I2S_RAM_GB = 3
 
         /** Upper bound on inference threads — 8 is a practical limit on mobile hardware
          *  beyond which additional threads provide diminishing returns and increase

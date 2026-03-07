@@ -207,6 +207,9 @@ class CompletionService {
     companion object {
         private const val CONNECT_TIMEOUT_MS = 30_000
         private const val READ_TIMEOUT_MS    = 120_000
+        // Shorter timeout for the Copilot token-exchange call so users get faster
+        // feedback if their network cannot reach api.github.com.
+        private const val COPILOT_EXCHANGE_TIMEOUT_MS = 10_000
 
         private const val COPILOT_TOKEN_EXCHANGE_URL =
             "https://api.github.com/copilot_internal/v2/token"
@@ -251,8 +254,8 @@ class CompletionService {
             val url = URL(COPILOT_TOKEN_EXCHANGE_URL)
             val conn = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
-                connectTimeout = CONNECT_TIMEOUT_MS
-                readTimeout = CONNECT_TIMEOUT_MS
+                connectTimeout = COPILOT_EXCHANGE_TIMEOUT_MS
+                readTimeout = COPILOT_EXCHANGE_TIMEOUT_MS
                 setRequestProperty("Authorization", "Bearer $oauthToken")
                 setRequestProperty("Accept", "application/json")
                 setRequestProperty("Editor-Version", "OmniDevWorkspace/1.0")
