@@ -465,10 +465,12 @@ class CompletionService {
 
         // GitHub Models uses a "github/" prefix in registry IDs for uniqueness;
         // strip it before sending to the Azure inference endpoint.
-        val apiModelId = if (provider == ModelProvider.GITHUB_MODELS)
-            request.modelId.removePrefix("github/")
-        else
-            request.modelId
+        // GitHub Copilot uses a "copilot/" prefix similarly; strip before sending to api.githubcopilot.com.
+        val apiModelId = when (provider) {
+            ModelProvider.GITHUB_MODELS  -> request.modelId.removePrefix("github/")
+            ModelProvider.GITHUB_COPILOT -> request.modelId.removePrefix("copilot/")
+            else                         -> request.modelId
+        }
 
         val body = json.encodeToString(
             OpenAiRequest.serializer(),
@@ -604,10 +606,12 @@ class CompletionService {
 
         // GitHub Models uses a "github/" prefix in registry IDs for uniqueness;
         // strip it before sending to the Azure inference endpoint.
-        val apiModelIdStream = if (provider == ModelProvider.GITHUB_MODELS)
-            request.modelId.removePrefix("github/")
-        else
-            request.modelId
+        // GitHub Copilot uses a "copilot/" prefix similarly; strip before sending to api.githubcopilot.com.
+        val apiModelIdStream = when (provider) {
+            ModelProvider.GITHUB_MODELS  -> request.modelId.removePrefix("github/")
+            ModelProvider.GITHUB_COPILOT -> request.modelId.removePrefix("copilot/")
+            else                         -> request.modelId
+        }
 
         val body = json.encodeToString(
             OpenAiRequest.serializer(),

@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.omnidev.workspace.data.auth.GitHubDeviceFlowManager
 import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.flow.Flow
@@ -62,6 +63,8 @@ class SettingsRepository(private val context: Context) {
         val TELEGRAM_CHAT_ID = stringPreferencesKey("telegram_chat_id")
         val GITHUB_PAT = stringPreferencesKey("github_pat")
         val GITHUB_OAUTH_TOKEN = stringPreferencesKey("github_oauth_token")
+        /** "copilot" or "models" — which GitHub sub-mode the user selected. */
+        val GITHUB_SUB_MODE = stringPreferencesKey("github_sub_mode")
         val DISCORD_WEBHOOK_URL = stringPreferencesKey("discord_webhook_url")
         val NOTION_API_KEY = stringPreferencesKey("notion_api_key")
         val NOTION_DATABASE_ID = stringPreferencesKey("notion_database_id")
@@ -282,6 +285,14 @@ class SettingsRepository(private val context: Context) {
         context.settingsDataStore.edit { prefs ->
             if (token.isNullOrBlank()) prefs.remove(Keys.GITHUB_OAUTH_TOKEN) else prefs[Keys.GITHUB_OAUTH_TOKEN] = token
         }
+    }
+
+    /** Observes the chosen GitHub sub-mode: "copilot" or "models". Defaults to "models". */
+    fun observeGitHubSubMode(): Flow<String> =
+        context.settingsDataStore.data.map { it[Keys.GITHUB_SUB_MODE] ?: GitHubDeviceFlowManager.SubMode.MODELS.serializedName }
+
+    suspend fun setGitHubSubMode(mode: String) {
+        context.settingsDataStore.edit { it[Keys.GITHUB_SUB_MODE] = mode }
     }
 
     // Discord

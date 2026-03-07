@@ -28,7 +28,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Settings screen for configuring external platform integrations:
- * - GitHub Device Flow (RFC 8628) — shows XXXX-XXXX code, polls for token
+ * - GitHub Device Flow (RFC 8628) with sub-mode toggle (Copilot / Models)
  * - Telegram Bot Token & Chat ID
  * - Discord Webhook URL
  * - Notion API Key & Database ID
@@ -55,6 +55,11 @@ fun IntegrationsScreen(
     // GitHub auth state
     var githubOAuthToken by remember { mutableStateOf<String?>(null) }
 
+    // Which GitHub sub-mode the user has selected (persisted)
+    var selectedSubMode by remember { mutableStateOf(GitHubDeviceFlowManager.SubMode.COPILOT) }
+    // Which sub-mode the currently stored token belongs to (loaded from DataStore)
+    var connectedSubMode by remember { mutableStateOf<GitHubDeviceFlowManager.SubMode?>(null) }
+
     // Device Flow state
     var deviceFlowUserCode by remember { mutableStateOf<String?>(null) }
     var deviceFlowVerificationUri by remember { mutableStateOf("https://github.com/login/device") }
@@ -78,6 +83,15 @@ fun IntegrationsScreen(
     // Load existing values on first composition
     LaunchedEffect(Unit) {
         githubOAuthToken = settingsRepository.observeGitHubOAuthToken().first()
+        // Restore the persisted sub-mode so the UI reflects the actual connected state
+        val storedMode = settingsRepository.observeGitHubSubMode().first()
+        val mode = GitHubDeviceFlowManager.SubMode.fromSerializedName(storedMode)
+        if (githubOAuthToken != null) {
+            connectedSubMode = mode
+            selectedSubMode  = mode
+        } else {
+            selectedSubMode = mode
+        }
         telegramToken = settingsRepository.observeTelegramBotToken().first() ?: ""
         telegramChatId = settingsRepository.observeTelegramChatId().first() ?: ""
         discordWebhookUrl = settingsRepository.observeDiscordWebhookUrl().first() ?: ""
@@ -113,7 +127,7 @@ fun IntegrationsScreen(
             )
 
             if (githubOAuthToken != null) {
-                // Connected state
+                // ── Connected state ──────────────────────────────────────────
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -129,8 +143,14 @@ fun IntegrationsScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
+                val modeLabel = when (connectedSubMode) {
+                    GitHubDeviceFlowManager.SubMode.COPILOT ->
+                        "GitHub Copilot is active — models routed via api.githubcopilot.com."
+                    else ->
+                        "GitHub Repos integration and GitHub AI Models are both active."
+                }
                 Text(
-                    text = "GitHub Repos integration and GitHub AI Models are both active.",
+                    text = modeLabel,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -140,6 +160,7 @@ fun IntegrationsScreen(
                             settingsRepository.setGitHubOAuthToken(null)
                             settingsRepository.setGitHubPat(null)
                             githubOAuthToken = null
+                            connectedSubMode = null
                             deviceFlowUserCode = null
                             deviceFlowPolling = false
                             deviceFlowError = null
@@ -151,15 +172,65 @@ fun IntegrationsScreen(
                     Text("Log Out of GitHub")
                 }
             } else {
-                // Not yet connected
+                // ── Not yet connected ────────────────────────────────────────
+
+                // Sub-mode selector
                 Text(
-                    text = "Connect your GitHub account to enable GitHub Repos and GitHub AI Models (GPT-4o, Llama, DeepSeek, Phi and more — free with your GitHub account).",
-                    style = MaterialTheme.typography.bodySmall,
+                    text = "Choose connection type:",
+                    style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // ── Copilot option ──
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                    ) {
+                        RadioButton(
+                            selected = selectedSubMode == GitHubDeviceFlowManager.SubMode.COPILOT,
+                            onClick = { selectedSubMode = GitHubDeviceFlowManager.SubMode.COPILOT }
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "🤖 GitHub Copilot",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "Zero registration · Uses your Copilot subscription · Access GPT-4o, Claude, Gemini, o3-mini",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    // ── Models option ──
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
+                    ) {
+                        RadioButton(
+                            selected = selectedSubMode == GitHubDeviceFlowManager.SubMode.MODELS,
+                            onClick = { selectedSubMode = GitHubDeviceFlowManager.SubMode.MODELS }
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "🛒 GitHub Models",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = "Requires your own OAuth App · Free AI marketplace · GPT-4o, Llama, DeepSeek, Phi and more",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
 
                 if (deviceFlowUserCode != null) {
-                    // ── Device Flow active: show the code ──
+                    // ── Device Flow active: show the code ───────────────────
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(
                             text = "Step 1: Copy this code",
@@ -248,7 +319,7 @@ fun IntegrationsScreen(
                         }
                     }
                 } else {
-                    // ── Start Device Flow button ──
+                    // ── Start Device Flow button ─────────────────────────────
                     if (deviceFlowError != null) {
                         Text(
                             text = "⚠️ ${deviceFlowError}",
@@ -260,11 +331,12 @@ fun IntegrationsScreen(
                         onClick = {
                             deviceFlowError = null
                             deviceFlowInProgress = true
+                            val chosenMode = selectedSubMode
                             scope.launch {
                                 val repoArg = apiKeyRepository
                                     ?: ApiKeyRepository(context)
                                 GitHubDeviceFlowManager.startDeviceFlowAndPoll(
-                                    settingsRepository, repoArg
+                                    settingsRepository, repoArg, chosenMode
                                 ).collect { state ->
                                     when (state) {
                                         is GitHubDeviceFlowManager.DeviceFlowState.AwaitingUserCode -> {
@@ -277,6 +349,7 @@ fun IntegrationsScreen(
                                         }
                                         is GitHubDeviceFlowManager.DeviceFlowState.Success -> {
                                             githubOAuthToken = state.token
+                                            connectedSubMode = chosenMode
                                             deviceFlowUserCode = null
                                             deviceFlowPolling = false
                                             deviceFlowInProgress = false
@@ -303,7 +376,7 @@ fun IntegrationsScreen(
                                 Text("Connecting...")
                             }
                         } else {
-                            Text("Connect with GitHub")
+                            Text("Connect with ${selectedSubMode.displayName}")
                         }
                     }
                 }

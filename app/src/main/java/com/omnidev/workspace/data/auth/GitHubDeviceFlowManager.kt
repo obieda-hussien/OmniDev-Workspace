@@ -18,39 +18,62 @@ import javax.net.ssl.HttpsURLConnection
 /**
  * Implements GitHub Device Flow (RFC 8628) — the same standard used by GitHub CLI and VS Code.
  *
- * No client_secret is required. The user sees an 8-character code (XXXX-XXXX) and enters
- * it at https://github.com/login/device in a browser while the app polls for authorization.
+ * Supports TWO sub-modes:
+ *  - [SubMode.COPILOT]  — uses the public opencode Client ID (Ov23li8tweQw6odWQebz), which
+ *    works with any GitHub Copilot subscription (Individual, Business, Enterprise).
+ *    Zero registration required — this is the same Client ID used by VS Code and
+ *    opencode (github.com/anomalyco/opencode). The resulting token is stored under
+ *    [ModelProvider.GITHUB_COPILOT] and targets api.githubcopilot.com.
  *
- * SETUP INSTRUCTIONS — Run once per deployment:
- * 1. Go to: https://github.com/settings/developers → "OAuth Apps" → "New OAuth App"
- * 2. Fill in:
- *    - Application name: "OmniDev Workspace"
- *    - Homepage URL: https://github.com/obieda-hussien/DevSwarm
- *    - Authorization callback URL: (leave blank — device flow doesn't need one)
- *    - ✅ Enable Device Flow checkbox
- * 3. Copy the generated Client ID
- * 4. Replace GITHUB_CLIENT_ID below with your Client ID
- * 5. Do NOT generate a Client Secret — device flow is a public client
+ *  - [SubMode.MODELS]   — requires the user's own OAuth App Client ID.
+ *    Stores the token under [ModelProvider.GITHUB_MODELS] and targets
+ *    models.inference.ai.azure.com.
  */
 object GitHubDeviceFlowManager {
 
+    // ── Sub-mode constants ────────────────────────────────────────────────────
+
+    /** Which GitHub provider the user wants to connect. */
+    enum class SubMode(val displayName: String, val serializedName: String) {
+        /** GitHub Copilot — zero registration, uses shared public Client ID. */
+        COPILOT("GitHub Copilot", "copilot"),
+        /** GitHub Models marketplace — requires your own OAuth App Client ID. */
+        MODELS("GitHub Models", "models");
+
+        companion object {
+            fun fromSerializedName(name: String): SubMode =
+                entries.firstOrNull { it.serializedName == name } ?: MODELS
+        }
+    }
+
     /**
-     * GitHub OAuth App Client ID.
+     * Public Client ID used by opencode / VS Code for GitHub Copilot Device Flow.
+     * Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/plugin/copilot.ts
+     * This is NOT a secret — it is hardcoded in public open-source tooling.
+     * No registration or OAuth App setup is required for Copilot mode.
+     */
+    const val COPILOT_CLIENT_ID = "Ov23li8tweQw6odWQebz"
+
+    /**
+     * Client ID for the GitHub Models (Azure inference) provider.
      * Replace with your Client ID from https://github.com/settings/developers
      * Must be a Device Flow-enabled OAuth App (NOT a GitHub App).
      *
      * NOTE: This is a placeholder — substitute your real Client ID before shipping.
-     * In CI/CD environments, inject via BuildConfig:
-     *   buildConfigField("String", "GITHUB_CLIENT_ID", "\"${project.findProperty("githubClientId")}\"")
      */
-    const val GITHUB_CLIENT_ID = "Ov23liXXXXXXXXXXXXXX" // TODO: replace with real OAuth App Client ID
+    const val MODELS_CLIENT_ID = "Ov23liXXXXXXXXXXXXXX" // TODO: replace with real OAuth App Client ID
 
-    private const val DEVICE_CODE_URL = "https://github.com/login/device/code"
-    private const val TOKEN_URL       = "https://github.com/login/oauth/access_token"
+    private const val DEVICE_CODE_URL  = "https://github.com/login/device/code"
+    private const val TOKEN_URL        = "https://github.com/login/oauth/access_token"
     private const val VERIFICATION_URL = "https://github.com/login/device"
 
-    // Scopes needed for GitHub Repos integration AND GitHub AI Models API
-    private const val SCOPES = "repo read:user user:email models:read"
+    /** Scope for Copilot: only read:user is needed. */
+    private const val COPILOT_SCOPE = "read:user"
+
+    /** Scope for GitHub Models: repo + email + models access. */
+    private const val MODELS_SCOPE = "repo read:user user:email"
+
+    // ── DeviceFlowState ───────────────────────────────────────────────────────
 
     /** Possible states emitted by [startDeviceFlowAndPoll]. */
     sealed class DeviceFlowState {
@@ -71,8 +94,12 @@ object GitHubDeviceFlowManager {
         data class Error(val message: String) : DeviceFlowState()
     }
 
+    // ── Public API ────────────────────────────────────────────────────────────
+
     /**
      * Initiates GitHub Device Flow and polls until the user authorizes (or flow expires).
+     *
+     * @param subMode     Which sub-mode to connect ([SubMode.COPILOT] or [SubMode.MODELS]).
      *
      * Emits:
      * 1. [DeviceFlowState.AwaitingUserCode] immediately with the code to display
@@ -80,15 +107,22 @@ object GitHubDeviceFlowManager {
      * 3. [DeviceFlowState.Success] once the user authorizes
      * 4. [DeviceFlowState.Error] on failure / expiry / denial
      *
-     * On success, the token is saved to [SettingsRepository] (for GitHub Repos integration)
-     * AND to [ApiKeyRepository] under [ModelProvider.GITHUB_MODELS] (for the AI Models API).
+     * On success the token is stored:
+     * - Always: [SettingsRepository.setGitHubOAuthToken] + [SettingsRepository.setGitHubPat]
+     *   (used by GitHubManagerTool for repo operations)
+     * - Copilot mode: [ApiKeyRepository] under [ModelProvider.GITHUB_COPILOT]
+     * - Models mode:  [ApiKeyRepository] under [ModelProvider.GITHUB_MODELS]
      */
     fun startDeviceFlowAndPoll(
         settingsRepository: SettingsRepository,
-        apiKeyRepository: ApiKeyRepository
+        apiKeyRepository: ApiKeyRepository,
+        subMode: SubMode = SubMode.MODELS
     ): Flow<DeviceFlowState> = flow {
+        val clientId = if (subMode == SubMode.COPILOT) COPILOT_CLIENT_ID else MODELS_CLIENT_ID
+        val scope    = if (subMode == SubMode.COPILOT) COPILOT_SCOPE    else MODELS_SCOPE
+
         // ── Step 1: Request device + user codes ──────────────────────────────
-        val codeResponse = withContext(Dispatchers.IO) { requestDeviceCode() }
+        val codeResponse = withContext(Dispatchers.IO) { requestDeviceCode(clientId, scope) }
             .getOrElse { e ->
                 emit(DeviceFlowState.Error("Failed to start device flow: ${e.message}"))
                 return@flow
@@ -117,7 +151,7 @@ object GitHubDeviceFlowManager {
             emit(DeviceFlowState.Polling)
 
             val pollResult = withContext(Dispatchers.IO) {
-                pollForToken(deviceCode)
+                pollForToken(clientId, deviceCode)
             }
 
             pollResult.onSuccess { json ->
@@ -143,11 +177,17 @@ object GitHubDeviceFlowManager {
                         val token = json.optString("access_token")
                         if (token.isNotBlank()) {
                             withContext(Dispatchers.IO) {
-                                // Store token for GitHub Repos integration (GitHubManagerTool)
+                                // Persist sub-mode so the UI can show the correct connected state
+                                settingsRepository.setGitHubSubMode(subMode.serializedName)
+                                // Store for GitHub Repos integration (GitHubManagerTool)
                                 settingsRepository.setGitHubOAuthToken(token)
                                 settingsRepository.setGitHubPat(token)
-                                // Store token for GitHub AI Models provider
-                                apiKeyRepository.setApiKey(ModelProvider.GITHUB_MODELS, token)
+                                // Store under the correct AI provider key
+                                val provider = if (subMode == SubMode.COPILOT)
+                                    ModelProvider.GITHUB_COPILOT
+                                else
+                                    ModelProvider.GITHUB_MODELS
+                                apiKeyRepository.setApiKey(provider, token)
                             }
                             emit(DeviceFlowState.Success(token))
                             return@flow
@@ -175,8 +215,8 @@ object GitHubDeviceFlowManager {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private fun requestDeviceCode(): Result<JSONObject> = runCatching {
-        val postBody = "client_id=${GITHUB_CLIENT_ID}&scope=${SCOPES.replace(" ", "+")}"
+    private fun requestDeviceCode(clientId: String, scope: String): Result<JSONObject> = runCatching {
+        val postBody = "client_id=${clientId}&scope=${scope.replace(" ", "+")}"
         val url = URL(DEVICE_CODE_URL)
         val conn = url.openConnection() as HttpsURLConnection
         conn.requestMethod = "POST"
@@ -189,8 +229,8 @@ object GitHubDeviceFlowManager {
         JSONObject(response)
     }
 
-    private fun pollForToken(deviceCode: String): Result<JSONObject> = runCatching {
-        val postBody = "client_id=${GITHUB_CLIENT_ID}" +
+    private fun pollForToken(clientId: String, deviceCode: String): Result<JSONObject> = runCatching {
+        val postBody = "client_id=${clientId}" +
             "&device_code=${deviceCode}" +
             "&grant_type=urn:ietf:params:oauth:grant-type:device_code"
         val url = URL(TOKEN_URL)
