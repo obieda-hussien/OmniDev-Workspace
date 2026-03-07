@@ -18,6 +18,7 @@ import com.omnidev.workspace.data.tools.FileToolManager
 import com.omnidev.workspace.data.tools.GodEyeProfilerTool
 import com.omnidev.workspace.data.tools.MemoryManager
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
+import com.omnidev.workspace.data.tools.VectorMemoryManager
 import com.omnidev.workspace.domain.attachment.AttachmentProcessor
 import com.omnidev.workspace.domain.engine.AgentConfig
 import com.omnidev.workspace.domain.engine.AgentPipeline
@@ -69,7 +70,8 @@ class MainActivity : ComponentActivity() {
             settingsRepository = settingsRepository,
             godEyeProfilerTool = godEyeProfilerTool,
             discordPublisherTool = discordPublisherTool,
-            notionPublisherTool = notionPublisherTool
+            notionPublisherTool = notionPublisherTool,
+            vectorMemoryManager = VectorMemoryManager(database.knowledgeDao())
         )
 
         // Real HTTP completion provider

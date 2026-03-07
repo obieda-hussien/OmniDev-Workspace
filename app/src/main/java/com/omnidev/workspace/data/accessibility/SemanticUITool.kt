@@ -1,6 +1,7 @@
 package com.omnidev.workspace.data.accessibility
 
 import android.view.accessibility.AccessibilityNodeInfo
+import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.tools.ToolExecutionResult
 import com.omnidev.workspace.data.tools.ToolParameter
@@ -47,13 +48,17 @@ object SemanticUITool {
                 "Actions: 'dump_tree' (get semantic UI tree), 'click' (click node by ID), " +
                 "'long_click' (long-press node), 'type' (type text into editable node), " +
                 "'scroll' (scroll node forward/backward), 'back' (press BACK), " +
-                "'home' (press HOME), 'tap_xy' (fallback: tap raw coordinates).",
+                "'home' (press HOME), 'tap_xy' (fallback: tap raw coordinates), " +
+                "'force_click' (hardware tap via Shizuku — unstoppable, bypasses app restrictions), " +
+                "'force_long_click' (hardware long-press via Shizuku), " +
+                "'auto_enable' (auto-enable accessibility service via Shizuku).",
             parameters = listOf(
                 ToolParameter(
                     name = "action",
                     type = "string",
                     description = "Action: 'dump_tree', 'click', 'long_click', 'type', " +
-                        "'scroll', 'back', 'home', or 'tap_xy'.",
+                        "'scroll', 'back', 'home', 'tap_xy', 'force_click' (Shizuku hardware tap), " +
+                        "'force_long_click' (Shizuku hardware long-press), or 'auto_enable'.",
                     required = true
                 ),
                 ToolParameter(
@@ -94,14 +99,33 @@ object SemanticUITool {
 
     suspend fun execute(action: String, params: Map<String, String>): ToolExecutionResult =
         withContext(Dispatchers.Main) {
+            // Auto-enable doesn't require service to be connected
+            if (action.lowercase() == "auto_enable") {
+                return@withContext autoEnable()
+            }
+
             // Check if accessibility service is connected
             if (!AccessibilityStateManager.isServiceConnected.value) {
-                return@withContext ToolExecutionResult(
-                    "⚠️ Accessibility Service is not enabled. " +
-                        "Go to Settings → Accessibility → OmniDev Workspace and enable it. " +
-                        "This is required for semantic UI interaction.",
-                    isError = true
-                )
+                // Try auto-enable via Shizuku before giving up
+                if (ShizukuCommandTool.isAvailable() && ShizukuCommandTool.hasPermission()) {
+                    val enableResult = GodModeAccessibility.autoEnableOmniVision()
+                    // Wait briefly for the service to connect
+                    kotlinx.coroutines.delay(1500)
+                    if (!AccessibilityStateManager.isServiceConnected.value) {
+                        return@withContext ToolExecutionResult(
+                            "⚠️ Accessibility Service auto-enable attempted: $enableResult\n" +
+                                "Service has not connected yet. Try again in a few seconds.",
+                            isError = true
+                        )
+                    }
+                } else {
+                    return@withContext ToolExecutionResult(
+                        "⚠️ Accessibility Service is not enabled. " +
+                            "Go to Settings → Accessibility → OmniDev Workspace and enable it. " +
+                            "This is required for semantic UI interaction.",
+                        isError = true
+                    )
+                }
             }
 
             when (action.lowercase()) {
@@ -113,9 +137,12 @@ object SemanticUITool {
                 "back" -> pressBack()
                 "home" -> pressHome()
                 "tap_xy" -> tapXY(params["x"], params["y"])
+                "force_click" -> forceClick(params["node_id"])
+                "force_long_click" -> forceLongClick(params["node_id"])
                 else -> ToolExecutionResult(
                     "Unknown semantic_ui action: '$action'. " +
-                        "Supported: dump_tree, click, long_click, type, scroll, back, home, tap_xy.",
+                        "Supported: dump_tree, click, long_click, type, scroll, back, home, " +
+                        "tap_xy, force_click, force_long_click, auto_enable.",
                     isError = true
                 )
             }
@@ -330,6 +357,75 @@ object SemanticUITool {
     }
 
     // ── Helpers ──
+
+    /**
+     * Auto-enables OmniAccessibilityService via Shizuku.
+     */
+    private suspend fun autoEnable(): ToolExecutionResult {
+        val result = GodModeAccessibility.autoEnableOmniVision()
+        val isError = result.startsWith("❌")
+        return ToolExecutionResult(result, isError = isError)
+    }
+
+    /**
+     * Force-clicks a node via Shizuku hardware tap (bypasses app restrictions).
+     */
+    private suspend fun forceClick(nodeId: String?): ToolExecutionResult {
+        if (nodeId.isNullOrBlank()) {
+            return ToolExecutionResult("Missing 'node_id' for force_click action.", isError = true)
+        }
+
+        val parseResult = lastParseResult
+            ?: return ToolExecutionResult(
+                "No UI tree cached. Call 'dump_tree' first to get node IDs.",
+                isError = true
+            )
+
+        val node = parseResult.nodeMap[nodeId.uppercase()]
+            ?: return ToolExecutionResult(
+                "Node '$nodeId' not found. Call 'dump_tree' to refresh.",
+                isError = true
+            )
+
+        val result = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            GodModeAccessibility.hybridTap(node)
+        }
+        val isError = result.startsWith("❌")
+        return ToolExecutionResult(
+            if (!isError) "✅ Force-clicked [$nodeId] via Shizuku hardware tap" else result,
+            isError = isError
+        )
+    }
+
+    /**
+     * Force-long-clicks a node via Shizuku hardware long-press.
+     */
+    private suspend fun forceLongClick(nodeId: String?): ToolExecutionResult {
+        if (nodeId.isNullOrBlank()) {
+            return ToolExecutionResult("Missing 'node_id' for force_long_click action.", isError = true)
+        }
+
+        val parseResult = lastParseResult
+            ?: return ToolExecutionResult(
+                "No UI tree cached. Call 'dump_tree' first to get node IDs.",
+                isError = true
+            )
+
+        val node = parseResult.nodeMap[nodeId.uppercase()]
+            ?: return ToolExecutionResult(
+                "Node '$nodeId' not found. Call 'dump_tree' to refresh.",
+                isError = true
+            )
+
+        val result = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            GodModeAccessibility.hybridLongPress(node)
+        }
+        val isError = result.startsWith("❌")
+        return ToolExecutionResult(
+            if (!isError) "✅ Force-long-clicked [$nodeId] via Shizuku hardware long-press" else result,
+            isError = isError
+        )
+    }
 
     /**
      * Recursively finds the first scrollable node in the tree.

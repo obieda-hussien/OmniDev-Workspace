@@ -27,7 +27,8 @@ class CompositeToolManager(
     private val settingsRepository: SettingsRepository? = null,
     private val godEyeProfilerTool: GodEyeProfilerTool? = null,
     private val discordPublisherTool: DiscordPublisherTool? = null,
-    private val notionPublisherTool: NotionPublisherTool? = null
+    private val notionPublisherTool: NotionPublisherTool? = null,
+    val vectorMemoryManager: VectorMemoryManager? = null
 ) : ToolManager {
 
     override fun getToolDefinitions(): List<ToolDefinition> = buildList {
@@ -68,6 +69,10 @@ class CompositeToolManager(
             addAll(SystemSettingsTool.getToolDefinitions())
             addAll(PackageInstallerTool.getToolDefinitions())
             addAll(AdvancedRootShellTool.getToolDefinitions())
+            addAll(AppManifestAnalyzerTool.getToolDefinitions())
+        }
+        if (vectorMemoryManager != null) {
+            addAll(vectorMemoryManager.getToolDefinitions())
         }
     }
 
@@ -285,6 +290,24 @@ class CompositeToolManager(
                 AdvancedRootShellTool.execute(
                     command = arguments["command"] ?: return missingArg("command")
                 )
+            }
+
+            // ── App manifest analyzer tool ──
+            "app_manifest_analyzer" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("App analyzer tool requires Android context.", isError = true)
+                AppManifestAnalyzerTool.execute(
+                    context = ctx,
+                    targetPackage = arguments["target_package"] ?: return missingArg("target_package"),
+                    filter = arguments["filter"]
+                )
+            }
+
+            // ── Vector memory tools ──
+            "vector_store", "vector_search", "vector_similar" -> {
+                val vmm = vectorMemoryManager
+                    ?: return ToolExecutionResult("Vector memory manager not configured.", isError = true)
+                vmm.executeTool(name, arguments)
             }
 
             // ── File tools (default fallback) ──

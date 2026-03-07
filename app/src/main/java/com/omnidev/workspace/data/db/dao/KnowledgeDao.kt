@@ -37,6 +37,10 @@ interface KnowledgeDao {
     @Query("SELECT * FROM knowledge_snippets ORDER BY createdAt DESC")
     fun observeAll(): Flow<List<KnowledgeSnippet>>
 
+    /** Load all snippets (used by VectorMemoryManager for TF-IDF corpus). */
+    @Query("SELECT * FROM knowledge_snippets ORDER BY createdAt DESC")
+    suspend fun getAll(): List<KnowledgeSnippet>
+
     @Query("DELETE FROM knowledge_snippets WHERE id = :id")
     suspend fun deleteById(id: Long)
 }

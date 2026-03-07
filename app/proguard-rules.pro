@@ -57,6 +57,11 @@
 -keep class com.omnidev.workspace.data.accessibility.AccessibilityStateManager { *; }
 -keep class com.omnidev.workspace.data.accessibility.SemanticTreeParser { *; }
 -keep class com.omnidev.workspace.data.accessibility.SemanticUITool { *; }
+-keep class com.omnidev.workspace.data.accessibility.GodModeAccessibility { *; }
+
+# ── App Manifest Analyzer & Vector Memory ─────────────────────────────────────
+-keep class com.omnidev.workspace.data.tools.AppManifestAnalyzerTool { *; }
+-keep class com.omnidev.workspace.data.tools.VectorMemoryManager { *; }
 
 # ── OkHttp / Ktor (if used for HTTP) ─────────────────────────────────────────
 -dontwarn okhttp3.**

@@ -202,12 +202,15 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 | Open / launch an app | `app_manager_tool` (action=launch_app) |
 | Read the device screen / UI elements | `semantic_ui` (action=dump_tree) — PREFERRED, returns semantic node IDs |
 | Tap a button on screen | `semantic_ui` (action=click, node_id=N3) — PREFERRED semantic click |
+| Force-tap (bypass app restrictions) | `semantic_ui` (action=force_click, node_id=N3) — Shizuku hardware tap |
 | Swipe on screen | `ui_automation` (action=swipe) — coordinate-based fallback |
 | Type text into an app | `semantic_ui` (action=type, node_id=N2, text="hello") — PREFERRED |
 | Scroll a list or page | `semantic_ui` (action=scroll, direction=forward) |
 | Press back / home / enter key | `semantic_ui` (action=back) or `ui_automation` (action=press_key) |
 | Long-press an element | `semantic_ui` (action=long_click, node_id=N5) |
+| Force long-press (hardware) | `semantic_ui` (action=force_long_click, node_id=N5) — Shizuku |
 | Tap at raw pixel coordinates (fallback) | `semantic_ui` (action=tap_xy, x=540, y=960) or `ui_automation` (action=tap) |
+| Auto-enable accessibility service | `semantic_ui` (action=auto_enable) — uses Shizuku |
 | Set an alarm or calendar event | `planner_tool` |
 | Get GPS location | `get_current_location` |
 | Get device info (battery, storage) | `get_device_info` |
@@ -219,6 +222,10 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 | Read or change system settings (brightness, timeout, etc.) | `system_settings_tool` |
 | Install / uninstall APK packages | `package_installer_tool` |
 | Run advanced root/system commands (dumpsys, getprop, wm, etc.) | `root_shell_tool` |
+| Reverse-engineer an app (activities, deep links, services) | `app_manifest_analyzer` (target_package="com.whatsapp") |
+| Store a fact in semantic vector memory | `vector_store` (content="user prefers dark mode") |
+| Search semantic memory by meaning | `vector_search` (query="user's UI preferences") |
+| Find similar memories | `vector_similar` (id=42) |
 
 ### CATEGORY B — CODEBASE TOOLS (use ONLY for coding tasks in the project files):
 `read_file_lines`, `search_codebase`, `patch_file_content`, `create_file`, `delete_file`, `run_terminal`, `web_search`
@@ -227,6 +234,9 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 **NEVER use `search_codebase` or `run_terminal` for OS tasks like contacts, calls, toggles, SMS, call log, screenshots, system settings, or screen interaction.**
 **ALWAYS use Category A tools for any request involving device state, hardware, screen, personal data, or system commands.**
 **PREFER `semantic_ui` over `ui_automation` for ALL screen interaction. Use `dump_tree` first to get node IDs, then `click`/`type`/`scroll` by ID. Only fall back to `ui_automation` (X/Y coordinates) when semantic_ui is unavailable.**
+**Use `force_click` / `force_long_click` when a normal `click` fails — these use Shizuku hardware taps that bypass app restrictions.**
+**Use `app_manifest_analyzer` to reverse-engineer any app's entry points before attempting `am start` commands.**
+**Use `vector_store` and `vector_search` for semantic RAG memory — these understand meaning, not just exact keywords.**
 """
 
         /** Number of extra retry attempts reserved exclusively for 429 rate-limit responses. */
