@@ -104,7 +104,8 @@ fun AISettingsScreen(
     onNavigateToIntegrations: () -> Unit = {},
     onNavigateToLocalModels: () -> Unit = {},
     onNavigateToScheduledTasks: () -> Unit = {},
-    onNavigateToToolRegistry: () -> Unit = {}
+    onNavigateToToolRegistry: () -> Unit = {},
+    onNavigateToProfile: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -229,6 +230,12 @@ fun AISettingsScreen(
                 icon = Icons.Filled.AutoAwesome,
                 title = "AI Identity & Context",
                 subtitle = "Customize system prompts and manage the knowledge base"
+            )
+
+            SettingsNavCard(
+                title = "👤 الملف الشخصي",
+                subtitle = "اسمك وبيانات عنك — أومني هيسلم عليك بالاسم ويتكيف مع أسلوبك",
+                onClick = onNavigateToProfile
             )
 
             SettingsNavCard(

@@ -576,6 +576,7 @@ class ChatViewModel(
         val customPrompt = settingsRepository
             .observeCustomPrompt(SettingsRepository.PromptRole.AGENT)
             .first()
+        val userPersona = settingsRepository.observeUserPersona().first()
 
         agentPipeline.execute(
             userMessage = input,
@@ -584,7 +585,8 @@ class ChatViewModel(
             scopePath = scopePath,
             enableDeepThinking = deepThinking,
             userAttachments = imageAttachments,
-            customSystemPrompt = customPrompt
+            customSystemPrompt = customPrompt,
+            userContext = userPersona
         ).collect { event ->
             handleAgentEvent(event, sessionId)
         }

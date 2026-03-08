@@ -73,6 +73,9 @@ class SettingsRepository(private val context: Context) {
         val LOCAL_MODEL_NAME = stringPreferencesKey("local_model_name")
         // Local Engine Selection (llama.cpp vs BitNet.cpp)
         val LOCAL_ENGINE_TYPE = stringPreferencesKey("local_engine_type")
+        // User Profile
+        val USER_NAME = stringPreferencesKey("user_name")
+        val USER_PERSONA = stringPreferencesKey("user_persona")
     }
 
     // ──────────────────────────────────────────────
@@ -382,5 +385,34 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setTtsEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.VOICE_TTS_ENABLED] = enabled }
+    }
+
+    // ──────────────────────────────────────────────
+    //  User Profile
+    // ──────────────────────────────────────────────
+
+    /** The user's display name, shown in voice greetings and personalised prompts. */
+    fun observeUserName(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.USER_NAME] }
+
+    suspend fun setUserName(name: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (name.isNullOrBlank()) prefs.remove(Keys.USER_NAME) else prefs[Keys.USER_NAME] = name
+        }
+    }
+
+    /**
+     * A short free-text bio the user writes about themselves (e.g. "Senior Android developer,
+     * prefers Kotlin, builds indie apps"). Injected into the system prompt so the AI can tailor
+     * advice, style and code examples to this specific person.
+     */
+    fun observeUserPersona(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.USER_PERSONA] }
+
+    suspend fun setUserPersona(persona: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (persona.isNullOrBlank()) prefs.remove(Keys.USER_PERSONA)
+            else prefs[Keys.USER_PERSONA] = persona
+        }
     }
 }

@@ -26,12 +26,21 @@ import android.speech.tts.UtteranceProgressListener
 import androidx.core.app.NotificationCompat
 import com.omnidev.workspace.MainActivity
 import com.omnidev.workspace.R
+import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.ui.overlay.OmniBubbleService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Locale
 import java.util.UUID
 
@@ -82,6 +91,17 @@ class VoiceAssistantService : Service() {
     private val _transcriptFlow = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private val _partialFlow = MutableSharedFlow<String>(extraBufferCapacity = 16)
     private val _wakeState = MutableStateFlow(WakeState.IDLE)
+
+    /** Coroutine scope for async work inside this service (greeting TTS, name lookup). */
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    /**
+     * Single SettingsRepository instance for this service lifecycle.
+     * Initialised lazily on first use (requires applicationContext).
+     */
+    private val settingsRepository: SettingsRepository by lazy {
+        SettingsRepository(applicationContext)
+    }
 
     // ── Companion (static access for UI / ViewModel) ──────────────────────────────────────────────
 
@@ -164,7 +184,11 @@ class VoiceAssistantService : Service() {
 
         // ── Constants ───────────────────────────────────────────────────────────────────────────
 
-        private val WAKE_PHRASES = listOf("hey omni", "wake up", "هيي أومني", "استيقظ")
+        private val WAKE_PHRASES = listOf(
+            "hey omni", "wake up", "هيي أومني", "استيقظ",
+            // Arabic wake command added for natural voice activation
+            "اصحي يا اومني", "صحي يا اومني", "اصحي اومني"
+        )
 
         private const val NOTIFICATION_ID = 8001
         private const val CHANNEL_ID = "omni_voice_channel"
@@ -214,6 +238,7 @@ class VoiceAssistantService : Service() {
     override fun onDestroy() {
         isDestroyed = true
         instance = null
+        serviceScope.cancel()
         stopWakeWordLoop()
         stopMainListening()
         tts?.stop()
@@ -457,6 +482,24 @@ class VoiceAssistantService : Service() {
         wakeRecognizer?.destroy()
         wakeRecognizer = null
         vibrate()
+        // Greet the user by name and open the overlay
+        serviceScope.launch {
+            val userName = settingsRepository
+                .observeUserName()
+                .first()
+            val greeting = if (userName.isNullOrBlank())
+                "أنا هنا، قولي عايز إيه؟"
+            else
+                "أنا هنا يا $userName، قولي عايز إيه؟"
+            withContext(Dispatchers.Main) {
+                OmniBubbleService.startWithGreeting(
+                    context = this@VoiceAssistantService,
+                    userName = userName ?: "",
+                    greeting = greeting
+                )
+                speakText(greeting)
+            }
+        }
     }
 
     // ── WakeLock ──────────────────────────────────────────────────────────────────────────────────

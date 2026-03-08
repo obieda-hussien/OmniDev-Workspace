@@ -97,6 +97,16 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
         const val ACTION_STOP = "com.omnidev.workspace.OMNI_BUBBLE_STOP"
 
         /**
+         * When the wake word is detected, start (or bring to front) the bubble,
+         * auto-expand it, and show a personalised greeting from the assistant.
+         */
+        const val ACTION_WAKE = "com.omnidev.workspace.OMNI_BUBBLE_WAKE"
+
+        /** Intent extras for [ACTION_WAKE]. */
+        const val EXTRA_USER_NAME = "user_name"
+        const val EXTRA_GREETING = "greeting"
+
+        /**
          * Indicates whether an [OmniBubbleService] instance is currently active.
          * Updated in [onCreate] / [onDestroy]. Readable from UI without binding.
          */
@@ -112,6 +122,20 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
         fun stop(context: Context) {
             context.startService(
                 Intent(context, OmniBubbleService::class.java).apply { action = ACTION_STOP }
+            )
+        }
+
+        /**
+         * Start (or bring to front) the bubble in wake mode: auto-expanded with a greeting
+         * message already injected so it looks like the assistant woke up and said hello.
+         */
+        fun startWithGreeting(context: Context, userName: String, greeting: String) {
+            context.startService(
+                Intent(context, OmniBubbleService::class.java).apply {
+                    action = ACTION_WAKE
+                    putExtra(EXTRA_USER_NAME, userName)
+                    putExtra(EXTRA_GREETING, greeting)
+                }
             )
         }
     }
@@ -156,8 +180,20 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
-            stopSelf()
+        when (intent?.action) {
+            ACTION_STOP -> stopSelf()
+            ACTION_WAKE -> {
+                // Wake word triggered — auto-expand and inject the greeting (deduplicated)
+                val greeting = intent.getStringExtra(EXTRA_GREETING)
+                if (!greeting.isNullOrBlank() && messages.lastOrNull()?.second != greeting) {
+                    messages.add(false to greeting)
+                }
+                bubbleExpanded.value = true
+                // Re-enable focus so the input field is immediately usable
+                layoutParams.flags = layoutParams.flags and
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                bubbleView?.let { windowManager.updateViewLayout(it, layoutParams) }
+            }
         }
         return START_STICKY
     }
@@ -277,9 +313,9 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
     private fun handleUserMessage(text: String) {
         if (text.isBlank()) return
         messages.add(true to text)
-        // Echo a placeholder — full pipeline wiring requires a bound service connection
-        // or a BroadcastReceiver bridge to MainActivity. This gives the visual scaffolding.
-        messages.add(false to "⚡ OmniDev received: \"$text\"\n\nOpen the app to use the full Agent pipeline.")
+        // Placeholder response — the full pipeline runs in MainActivity.
+        // Open the app for the complete Agent/Swarm experience.
+        messages.add(false to "⚡ استلمت رسالتك: \"$text\"\n\nافتح التطبيق للاستخدام الكامل.")
     }
 }
 
@@ -346,7 +382,7 @@ private fun OmniBubbleContent(
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            text = "OmniDev",
+                            text = "OmniDev — أنا هنا 👋",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -379,7 +415,7 @@ private fun OmniBubbleContent(
                 ) {
                     if (messages.isEmpty()) {
                         Text(
-                            text = "Ask OmniDev anything…",
+                            text = "قولي عايز إيه…",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                             modifier = Modifier.fillMaxWidth(),

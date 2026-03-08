@@ -350,7 +350,8 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
         enableDeepThinking: Boolean = false,
         userAttachments: List<AttachmentMeta> = emptyList(),
         customSystemPrompt: String? = null,
-        workerPersona: String? = null
+        workerPersona: String? = null,
+        userContext: String? = null
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.Started)
 
@@ -392,6 +393,15 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 
         val systemPrompt = buildString {
             append(effectiveBasePrompt)
+            // User context — personalise advice/style to the specific person if provided
+            if (!userContext.isNullOrBlank()) {
+                appendLine()
+                appendLine()
+                appendLine("## User Context")
+                appendLine("The person you are helping has shared the following about themselves:")
+                appendLine(userContext.trim())
+                appendLine("Tailor your explanations, code examples, and tone to match their background.")
+            }
             // Anti-lecture directive — always injected first; prevents the agent from
             // refusing tasks or lecturing the user about missing Android permissions.
             append(ANTI_LECTURE_DIRECTIVE)

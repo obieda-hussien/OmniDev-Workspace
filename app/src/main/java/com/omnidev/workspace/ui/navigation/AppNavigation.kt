@@ -21,6 +21,7 @@ import com.omnidev.workspace.ui.settings.MemoryExplorerScreen
 import com.omnidev.workspace.ui.settings.ScheduledTasksScreen
 import com.omnidev.workspace.ui.settings.SystemPromptEditorScreen
 import com.omnidev.workspace.ui.settings.ToolRegistryScreen
+import com.omnidev.workspace.ui.settings.UserProfileScreen
 
 /**
  * Navigation route constants.
@@ -36,6 +37,7 @@ object Routes {
     const val LOCAL_MODELS = "local_models"
     const val SCHEDULED_TASKS = "scheduled_tasks"
     const val TOOL_REGISTRY = "tool_registry"
+    const val PROFILE = "profile"
 }
 
 /**
@@ -75,7 +77,8 @@ fun AppNavigation(
                 onNavigateToIntegrations = { navController.navigate(Routes.INTEGRATIONS) },
                 onNavigateToLocalModels = { navController.navigate(Routes.LOCAL_MODELS) },
                 onNavigateToScheduledTasks = { navController.navigate(Routes.SCHEDULED_TASKS) },
-                onNavigateToToolRegistry = { navController.navigate(Routes.TOOL_REGISTRY) }
+                onNavigateToToolRegistry = { navController.navigate(Routes.TOOL_REGISTRY) },
+                onNavigateToProfile = { navController.navigate(Routes.PROFILE) }
             )
         }
 
@@ -128,6 +131,13 @@ fun AppNavigation(
 
         composable(Routes.TOOL_REGISTRY) {
             ToolRegistryScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+        composable(Routes.PROFILE) {
+            UserProfileScreen(
+                settingsRepository = settingsRepository,
+                onNavigateBack = { navController.popBackStack() }
+            )
         }
     }
 }

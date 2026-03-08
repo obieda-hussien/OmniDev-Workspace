@@ -191,6 +191,16 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="omnidev" android:host="oauth" />
             </intent-filter>
+            <!-- Default digital assistant (long-press Home → "Set as default") -->
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <!-- Legacy voice command entry point -->
+            <intent-filter>
+                <action android:name="android.intent.action.VOICE_COMMAND" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
 
         <!-- Notification Listener Service: reads & controls all notifications in the status bar -->
