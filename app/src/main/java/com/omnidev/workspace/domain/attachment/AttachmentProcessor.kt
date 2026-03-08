@@ -37,6 +37,14 @@ class AttachmentProcessor(private val contentResolver: ContentResolver) {
         /** Maximum single file size in bytes (10 MB). */
         const val MAX_SINGLE_FILE_SIZE_BYTES = 10L * 1024L * 1024L
 
+        /**
+         * Maximum number of characters read from a text/code attachment before truncating.
+         *
+         * At ~4 chars per token this caps text attachments at roughly 12 000 tokens each,
+         * preventing accidental context-window exhaustion when large source files are attached.
+         */
+        const val MAX_TEXT_CONTENT_CHARS = 48_000
+
         /** MIME type prefixes for classification. */
         private const val MIME_IMAGE_PREFIX = "image/"
         private const val MIME_VIDEO_PREFIX = "video/"
@@ -127,6 +135,36 @@ class AttachmentProcessor(private val contentResolver: ContentResolver) {
     }
 
     /**
+     * Reads a text or source-code attachment and returns its content as a [String].
+     *
+     * Large files are truncated at [maxChars] to prevent token exhaustion when sending
+     * code or document attachments to LLM APIs. A truncation notice is appended so the
+     * model is aware that content was cut.
+     *
+     * @param uri The content URI of the text/code file.
+     * @param maxChars Maximum characters to return. Defaults to [MAX_TEXT_CONTENT_CHARS].
+     * @return The (possibly truncated) file content, or `null` if the file cannot be read.
+     */
+    suspend fun readTextWithTruncation(
+        uri: Uri,
+        maxChars: Int = MAX_TEXT_CONTENT_CHARS
+    ): String? = withContext(Dispatchers.IO) {
+        try {
+            val bytes = contentResolver.openInputStream(uri)?.use(InputStream::readBytes)
+                ?: return@withContext null
+            val text = bytes.decodeToString()
+            if (text.length <= maxChars) {
+                text
+            } else {
+                text.take(maxChars) +
+                    "\n\n[... file truncated at $maxChars characters to prevent token exhaustion ...]"
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
      * Reads the raw bytes of an attachment for API payload construction.
      * Callers should use this selectively — prefer streaming for large files.
      *
@@ -210,10 +248,14 @@ class AttachmentProcessor(private val contentResolver: ContentResolver) {
 
     /**
      * Resolves a content URI into an [AttachmentMeta] using [ContentResolver] queries.
-     * Determines MIME type, file name, size, and media classification.
+     *
+     * Uses [getMimeType] (extension-aware fallback) instead of the raw [ContentResolver.getType]
+     * to ensure source-code files (`.kt`, `.py`, `.js`, etc.) are correctly classified as
+     * `text/plain` rather than `application/octet-stream`, which APIs reject.
      */
     private fun resolveAttachmentMeta(uri: Uri): AttachmentMeta? {
-        val mimeType = contentResolver.getType(uri) ?: guessMimeType(uri)
+        // Use the extension-aware getMimeType() for accurate MIME classification of code files.
+        val mimeType = getMimeType(uri)
         val cursor = contentResolver.query(uri, null, null, null, null) ?: return null
 
         return cursor.use {
@@ -227,7 +269,7 @@ class AttachmentProcessor(private val contentResolver: ContentResolver) {
 
             AttachmentMeta(
                 uri = uri.toString(),
-                mimeType = mimeType ?: "application/octet-stream",
+                mimeType = mimeType,
                 fileName = fileName,
                 sizeBytes = sizeBytes,
                 mediaType = classifyMediaType(mimeType)
@@ -238,8 +280,7 @@ class AttachmentProcessor(private val contentResolver: ContentResolver) {
     /**
      * Classifies a MIME type into our internal [AttachmentMediaType] enum.
      */
-    private fun classifyMediaType(mimeType: String?): AttachmentMediaType = when {
-        mimeType == null -> AttachmentMediaType.UNKNOWN
+    private fun classifyMediaType(mimeType: String): AttachmentMediaType = when {
         mimeType.startsWith(MIME_IMAGE_PREFIX) -> AttachmentMediaType.IMAGE
         mimeType.startsWith(MIME_VIDEO_PREFIX) -> AttachmentMediaType.VIDEO
         mimeType.startsWith(MIME_TEXT_PREFIX) -> AttachmentMediaType.TEXT

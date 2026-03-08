@@ -1,204 +1,103 @@
 package com.omnidev.workspace.data.voice
 
 import android.content.Context
-import android.content.Intent
-import android.os.Bundle
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
-import android.speech.tts.TextToSpeech
-import android.speech.tts.UtteranceProgressListener
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.util.Locale
-import java.util.UUID
 
 /**
- * Duplex voice interface: Speech-to-Text + Text-to-Speech.
+ * Lightweight UI facade over [VoiceAssistantService].
  *
- * Wraps Android's [SpeechRecognizer] and [TextToSpeech] engines. Call [startListening] to begin
- * capturing the user's speech. The final transcription is delivered via [transcriptState]. Call
- * [speak] to synthesise AI responses using the highest-quality neural TTS voice available.
+ * All STT and TTS operations are delegated to [VoiceAssistantService], which is the single
+ * source of truth for the microphone and speaker. This prevents `ERROR_RECOGNIZER_BUSY`
+ * crashes caused by concurrent [SpeechRecognizer] sessions when both this class and the
+ * always-on wake-word service attempt to use the mic simultaneously.
  *
- * Lifecycle: call [init] on the main thread before use; call [destroy] when done.
+ * Lifecycle: [init] and [destroy] are no-ops — the service manages its own lifecycle.
+ * Start / stop the service via [android.content.Context.startService] /
+ * [android.content.Context.stopService] before calling voice APIs.
  */
 class VoiceManager(private val context: Context) {
 
-    // ── STT state ────────────────────────────────────────────────────────────────────────────────
+    // ── State enums (kept for API compatibility with ChatViewModel) ──────────────────────────────
 
     enum class SttState { IDLE, LISTENING, PARTIAL, RESULT, ERROR }
-
-    private val _sttState = MutableStateFlow(SttState.IDLE)
-    val sttState: StateFlow<SttState> = _sttState.asStateFlow()
-
-    /** Latest final transcript from the last STT session. */
-    private val _transcriptState = MutableStateFlow<String?>(null)
-    val transcriptState: StateFlow<String?> = _transcriptState.asStateFlow()
-
-    /** Latest partial transcript (intermediate result). */
-    private val _partialTranscript = MutableStateFlow<String?>(null)
-    val partialTranscript: StateFlow<String?> = _partialTranscript.asStateFlow()
-
-    // ── TTS state ────────────────────────────────────────────────────────────────────────────────
-
     enum class TtsState { UNINITIALISED, READY, SPEAKING, ERROR }
 
-    private val _ttsState = MutableStateFlow(TtsState.UNINITIALISED)
-    val ttsState: StateFlow<TtsState> = _ttsState.asStateFlow()
-
-    // ── Internals ────────────────────────────────────────────────────────────────────────────────
-
-    private var recognizer: SpeechRecognizer? = null
-    private var tts: TextToSpeech? = null
-
-    /** Callback invoked when a final transcript is ready (auto-submit). */
-    var onTranscriptReady: ((String) -> Unit)? = null
-
-    // ── Lifecycle ────────────────────────────────────────────────────────────────────────────────
+    // ── Reactive state — derived from VoiceAssistantService ──────────────────────────────────────
 
     /**
-     * Initialises both STT and TTS engines. Must be called on the main thread.
+     * Current STT state, mapped from [VoiceAssistantService.voiceState].
+     * Emits [SttState.IDLE] when the service is not running.
      */
-    fun init() {
-        initStt()
-        initTts()
-    }
-
-    private fun initStt() {
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) return
-        recognizer = SpeechRecognizer.createSpeechRecognizer(context).also { sr ->
-            sr.setRecognitionListener(object : RecognitionListener {
-                override fun onReadyForSpeech(params: Bundle?) {
-                    _sttState.value = SttState.LISTENING
-                }
-
-                override fun onPartialResults(partialResults: Bundle?) {
-                    val partial = partialResults
-                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.firstOrNull()
-                    if (!partial.isNullOrBlank()) {
-                        _partialTranscript.value = partial
-                        _sttState.value = SttState.PARTIAL
-                    }
-                }
-
-                override fun onResults(results: Bundle?) {
-                    val text = results
-                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        ?.firstOrNull()
-                    _partialTranscript.value = null
-                    if (!text.isNullOrBlank()) {
-                        _transcriptState.value = text
-                        _sttState.value = SttState.RESULT
-                        onTranscriptReady?.invoke(text)
-                    } else {
-                        _sttState.value = SttState.IDLE
-                    }
-                }
-
-                override fun onError(error: Int) {
-                    _sttState.value = SttState.ERROR
-                    _partialTranscript.value = null
-                }
-
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) {}
-                override fun onBufferReceived(buffer: ByteArray?) {}
-                override fun onEndOfSpeech() {}
-                override fun onEvent(eventType: Int, params: Bundle?) {}
-            })
-        }
-    }
-
-    private fun initTts() {
-        tts = TextToSpeech(context) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                val locale = Locale.getDefault()
-                tts?.setLanguage(locale)
-
-                // Prefer high-quality network voice; fallback handled internally
-                tts?.setSpeechRate(1.0f)
-                tts?.setPitch(1.0f)
-                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                    override fun onStart(utteranceId: String?) {
-                        _ttsState.value = TtsState.SPEAKING
-                    }
-
-                    override fun onDone(utteranceId: String?) {
-                        _ttsState.value = TtsState.READY
-                    }
-
-                    @Deprecated("Deprecated in Java")
-                    override fun onError(utteranceId: String?) {
-                        _ttsState.value = TtsState.READY
-                    }
-
-                    override fun onError(utteranceId: String?, errorCode: Int) {
-                        _ttsState.value = TtsState.READY
-                    }
-                })
-                _ttsState.value = TtsState.READY
-            } else {
-                _ttsState.value = TtsState.ERROR
+    val sttState: Flow<SttState>
+        get() = VoiceAssistantService.voiceState.map { vs ->
+            when (vs) {
+                is VoiceAssistantService.VoiceState.Listening     -> SttState.LISTENING
+                is VoiceAssistantService.VoiceState.PartialResult -> SttState.PARTIAL
+                is VoiceAssistantService.VoiceState.Processing    -> SttState.RESULT
+                is VoiceAssistantService.VoiceState.Error         -> SttState.ERROR
+                else                                              -> SttState.IDLE
             }
         }
-    }
-
-    fun destroy() {
-        recognizer?.destroy()
-        recognizer = null
-        tts?.stop()
-        tts?.shutdown()
-        tts = null
-    }
-
-    // ── STT API ──────────────────────────────────────────────────────────────────────────────────
 
     /**
-     * Starts capturing the user's speech. The final transcript is delivered via
-     * [transcriptState] and [onTranscriptReady].
+     * Current TTS state, mapped from [VoiceAssistantService.voiceState].
+     * Emits [TtsState.READY] when the service is not running.
+     */
+    val ttsState: Flow<TtsState>
+        get() = VoiceAssistantService.voiceState.map { vs ->
+            if (vs is VoiceAssistantService.VoiceState.Speaking) TtsState.SPEAKING else TtsState.READY
+        }
+
+    /**
+     * Live partial transcript while the user is speaking, or `null` when silent.
+     * Mapped from [VoiceAssistantService.voiceState].
+     */
+    val partialTranscript: Flow<String?>
+        get() = VoiceAssistantService.voiceState.map { vs ->
+            if (vs is VoiceAssistantService.VoiceState.PartialResult) vs.text else null
+        }
+
+    // ── Lifecycle (no-ops — service manages its own lifecycle) ───────────────────────────────────
+
+    /** No-op. The service is the engine; call [android.content.Context.startService] instead. */
+    fun init() {}
+
+    /** No-op. The service is the engine; call [android.content.Context.stopService] instead. */
+    fun destroy() {}
+
+    // ── STT API (delegates to VoiceAssistantService) ─────────────────────────────────────────────
+
+    /**
+     * Starts capturing the user's speech via [VoiceAssistantService].
+     * The wake-word loop is automatically paused while the query session is active.
      *
-     * @param language BCP-47 language tag, defaults to device locale.
+     * @param language BCP-47 language tag (unused; the service uses the device locale).
      */
     fun startListening(language: String = Locale.getDefault().toLanguageTag()) {
-        if (_sttState.value == SttState.LISTENING) return
-        _transcriptState.value = null
-        _partialTranscript.value = null
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, language)
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-        }
-        recognizer?.startListening(intent)
-        _sttState.value = SttState.LISTENING
+        VoiceAssistantService.startListening()
     }
 
-    /** Stops the current STT session. */
+    /** Stops the current STT session via [VoiceAssistantService]. */
     fun stopListening() {
-        recognizer?.stopListening()
-        _sttState.value = SttState.IDLE
+        VoiceAssistantService.stopListening()
     }
 
-    // ── TTS API ──────────────────────────────────────────────────────────────────────────────────
+    // ── TTS API (delegates to VoiceAssistantService) ─────────────────────────────────────────────
 
     /**
-     * Synthesises [text] using the Android TTS engine. Any currently speaking utterance is
-     * interrupted.
-     *
-     * @param text Text to synthesise. Long texts are queued automatically.
+     * Synthesises [text] using [VoiceAssistantService]'s on-device TTS engine.
+     * Any currently playing utterance is interrupted.
      */
     fun speak(text: String) {
-        if (_ttsState.value == TtsState.UNINITIALISED || tts == null) return
-        val utteranceId = UUID.randomUUID().toString()
-        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
+        VoiceAssistantService.speak(text)
     }
 
-    /** Stops the current TTS utterance immediately. */
+    /** Stops the current TTS utterance immediately via [VoiceAssistantService]. */
     fun stopSpeaking() {
-        tts?.stop()
-        _ttsState.value = TtsState.READY
+        VoiceAssistantService.stopSpeaking()
     }
 
     val isSpeechRecognitionAvailable: Boolean

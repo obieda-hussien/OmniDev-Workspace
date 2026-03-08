@@ -815,6 +815,15 @@ class ChatViewModel(
                 autoSpeakIfActive(event.summary)
             }
 
+            is SwarmEvent.WorkerStreamChunk ->
+                // Forward real-time worker streaming delta to the console
+                _uiState.update {
+                    it.copy(
+                        agentStatus = "⚙️ Worker ${event.task.id}: streaming…",
+                        streamingContent = (it.streamingContent ?: "") + event.delta
+                    )
+                }
+
             is SwarmEvent.Error ->
                 _uiState.update {
                     it.copy(
@@ -987,8 +996,12 @@ class ChatViewModel(
     // ──────────────────────────────────────────────
 
     /**
-     * Initialises the [VoiceManager] (STT + TTS) with the given [context].
-     * Also wires up [VoiceAssistantService] state flows when the service is running.
+     * Initialises the [VoiceManager] facade and wires all voice state flows to the UI.
+     *
+     * [VoiceManager] now delegates everything to [VoiceAssistantService], so the flows
+     * from the manager and the service are the same underlying flows — we only need to
+     * subscribe once (via the manager) to avoid duplicate transcript submissions.
+     *
      * Must be called from a composable that has a [Context] reference (e.g. [LocalContext]).
      * Safe to call multiple times — subsequent calls are no-ops.
      */
@@ -996,14 +1009,9 @@ class ChatViewModel(
         if (voiceManager != null) return
         val vm = VoiceManager(context)
         vm.init()
-        vm.onTranscriptReady = { text ->
-            // Auto-submit the transcribed text into the agent pipeline
-            onInputChanged(text)
-            sendMessage()
-        }
         voiceManager = vm
 
-        // Observe partial transcript updates for real-time hint display
+        // Observe partial transcript for real-time hint display
         viewModelScope.launch {
             vm.partialTranscript.collect { partial ->
                 _uiState.update { it.copy(partialTranscript = partial) }
@@ -1023,7 +1031,8 @@ class ChatViewModel(
                 _uiState.update { it.copy(isSpeaking = state == VoiceManager.TtsState.SPEAKING) }
             }
         }
-        // Also wire VoiceAssistantService flows (service may or may not be running)
+        // VoiceManager now delegates to VoiceAssistantService — subscribe to the service's
+        // transcript flow directly (single subscription, no duplicate sends).
         viewModelScope.launch {
             VoiceAssistantService.transcriptFlow.collect { text ->
                 if (_uiState.value.isVoiceModeEnabled) {
@@ -1032,60 +1041,31 @@ class ChatViewModel(
                 }
             }
         }
-        viewModelScope.launch {
-            VoiceAssistantService.voiceState.collect { state ->
-                _uiState.update {
-                    it.copy(
-                        isListening = state is VoiceAssistantService.VoiceState.Listening ||
-                            state is VoiceAssistantService.VoiceState.PartialResult,
-                        isSpeaking = state is VoiceAssistantService.VoiceState.Speaking,
-                        partialTranscript = if (state is VoiceAssistantService.VoiceState.PartialResult)
-                            state.text else it.partialTranscript
-                    )
-                }
-            }
-        }
     }
 
-    /** Starts capturing the user's speech via STT (uses service if running, else VoiceManager). */
+    /** Starts capturing the user's speech via [VoiceAssistantService] (through [VoiceManager]). */
     fun startListening() {
-        if (VoiceAssistantService.isRunning) {
-            VoiceAssistantService.startListening()
-        } else {
-            voiceManager?.startListening()
-        }
+        voiceManager?.startListening()
         // State update comes via the state flow collectors
     }
 
     /** Stops the current STT session without submitting. */
     fun stopListening() {
-        if (VoiceAssistantService.isRunning) {
-            VoiceAssistantService.stopListening()
-        } else {
-            voiceManager?.stopListening()
-        }
+        voiceManager?.stopListening()
         // State update comes via the state flow collectors
     }
 
     /**
      * Synthesises [text] using TTS — called after agent generates a response when voice mode
-     * is ON and TTS is enabled. Uses [VoiceAssistantService] if running, else [VoiceManager].
+     * is ON and TTS is enabled. Delegates to [VoiceManager] which forwards to [VoiceAssistantService].
      */
     fun speak(text: String) {
-        if (VoiceAssistantService.isRunning) {
-            VoiceAssistantService.speak(text)
-        } else {
-            voiceManager?.speak(text)
-        }
+        voiceManager?.speak(text)
     }
 
     /** Stops any ongoing TTS utterance. */
     fun stopSpeaking() {
-        if (VoiceAssistantService.isRunning) {
-            VoiceAssistantService.stopSpeaking()
-        } else {
-            voiceManager?.stopSpeaking()
-        }
+        voiceManager?.stopSpeaking()
     }
 
     /**
