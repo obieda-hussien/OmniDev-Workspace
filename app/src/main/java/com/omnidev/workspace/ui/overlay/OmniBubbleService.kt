@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -64,7 +65,22 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import com.omnidev.workspace.data.model.ChatMessage
+import com.omnidev.workspace.data.model.CompletionRequest
+import com.omnidev.workspace.data.model.MessageRole
+import com.omnidev.workspace.data.network.CompletionService
+import com.omnidev.workspace.data.repository.ApiKeyRepository
+import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.domain.engine.IntentClassifier
+import com.omnidev.workspace.domain.engine.OmniMode
+import com.omnidev.workspace.registry.ModelRegistry
 import com.omnidev.workspace.ui.theme.OmniDevTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * System-wide floating AI assistant bubble that persists across all apps.
@@ -164,6 +180,28 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
 
     private val bubbleExpanded = mutableStateOf(false)
     private val messages = mutableStateListOf<Pair<Boolean, String>>() // (isUser, text)
+    private val isProcessing = mutableStateOf(false)
+
+    // ── Execution dependencies (lazy — only created when first message is sent) ──
+
+    /** Coroutine scope for async LLM calls. Cancelled in [onDestroy]. */
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    /** Reads model IDs, custom prompts, and user persona. */
+    private val settingsRepository: SettingsRepository by lazy {
+        SettingsRepository(applicationContext)
+    }
+
+    /** Provides stored API keys for each provider. */
+    private val apiKeyRepository: ApiKeyRepository by lazy {
+        ApiKeyRepository(applicationContext)
+    }
+
+    /** Routes [CompletionRequest]s to the appropriate LLM provider. */
+    private val completionService: CompletionService by lazy { CompletionService() }
+
+    /** Conversation history for the current bubble session. */
+    private val conversationHistory = mutableListOf<ChatMessage>()
 
     // ──────────────────────────────────────────────────────────────────────────────
     //  Service lifecycle
@@ -200,6 +238,7 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
 
     override fun onDestroy() {
         isRunning = false
+        serviceScope.cancel()
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
         bubbleView?.let { windowManager.removeView(it) }
         bubbleView = null
@@ -244,6 +283,7 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                 OmniBubbleContent(
                     expanded = bubbleExpanded.value,
                     messages = messages,
+                    isProcessing = isProcessing.value,
                     onToggleExpand = { bubbleExpanded.value = !bubbleExpanded.value },
                     onSendMessage = { text -> handleUserMessage(text) },
                     onDismiss = { stop(this@OmniBubbleService) }
@@ -307,16 +347,97 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
     }
 
     // ──────────────────────────────────────────────────────────────────────────────
-    //  Message handling (placeholder — no pipeline wired in the overlay)
+    //  Intent-based message handling — AUTO routing with real LLM execution
     // ──────────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Processes a user message from the floating overlay using intent-based AUTO routing:
+     * - **CHAT intent** → Direct LLM completion (conversational, no tools)
+     * - **AGENT intent** → Direct LLM completion with the God-Protocol agent system prompt
+     * - **SWARM intent** → Offers to open the full app for multi-agent coordination
+     *
+     * Uses [completionService] so responses are real, not placeholder text.
+     * Conversation history is maintained across turns for context continuity.
+     */
     private fun handleUserMessage(text: String) {
-        if (text.isBlank()) return
+        if (text.isBlank() || isProcessing.value) return
+
         messages.add(true to text)
-        // Placeholder response — the full pipeline runs in MainActivity.
-        // Open the app for the complete Agent/Swarm experience.
-        messages.add(false to "⚡ استلمت رسالتك: \"$text\"\n\nافتح التطبيق للاستخدام الكامل.")
+        conversationHistory.add(ChatMessage(role = MessageRole.USER, content = text))
+        isProcessing.value = true
+
+        serviceScope.launch {
+            try {
+                // Classify intent to choose the right system prompt and execution strategy
+                val intent = classifyIntent(text)
+
+                // For very complex multi-agent tasks, prompt to open the full app instead
+                if (intent == OmniMode.SWARM) {
+                    val reply = "🧠 يبدو ده مشروع كبير يحتاج تنسيق بين عدة وكلاء.\n" +
+                        "افتح التطبيق للاستخدام الكامل مع وضع Team Agents."
+                    messages.add(false to reply)
+                    conversationHistory.add(ChatMessage(role = MessageRole.ASSISTANT, content = reply))
+                    isProcessing.value = false
+                    return@launch
+                }
+
+                // Pick model and system prompt based on intent
+                val modelRole = if (intent == OmniMode.AGENT)
+                    com.omnidev.workspace.data.model.ModelRole.AGENT
+                else
+                    com.omnidev.workspace.data.model.ModelRole.CHAT
+
+                val modelId = settingsRepository
+                    .observeModelIdForRole(modelRole)
+                    .first()
+
+                val systemPrompt = when (intent) {
+                    OmniMode.AGENT ->
+                        "You are an Autonomous Operator. Be direct, concise, and action-oriented. " +
+                        "The user is accessing you via a floating overlay — keep responses brief " +
+                        "and focused. If a task requires reading or editing files on disk, advise " +
+                        "the user to open the full app."
+                    else ->
+                        "You are a helpful, concise assistant. Answer questions directly. " +
+                        "Keep responses short as the user is in the floating overlay."
+                }
+
+                // Inject user persona if available
+                val userPersona = settingsRepository.observeUserPersona().first()
+                val effectiveSystemPrompt = if (!userPersona.isNullOrBlank())
+                    "$systemPrompt\n\n## User Context\n$userPersona"
+                else systemPrompt
+
+                val model = ModelRegistry.findModelById(modelId)
+                val apiKey = model?.let { apiKeyRepository.getApiKey(it.provider) }
+
+                val request = CompletionRequest(
+                    modelId = modelId,
+                    messages = conversationHistory.toList(),
+                    systemPrompt = effectiveSystemPrompt,
+                    maxTokens = 1024,
+                    temperature = 0.7,
+                    apiKey = apiKey
+                )
+
+                val response = completionService.invoke(request)
+                val assistantReply = response.content.trim()
+
+                messages.add(false to assistantReply)
+                conversationHistory.add(ChatMessage(role = MessageRole.ASSISTANT, content = assistantReply))
+            } catch (e: Exception) {
+                val errorMsg = "⚠️ حصل خطأ: ${e.message?.take(120) ?: "خطأ غير معروف"}"
+                messages.add(false to errorMsg)
+            } finally {
+                isProcessing.value = false
+            }
+        }
     }
+
+    /**
+     * Delegates to [IntentClassifier.classify] for consistent intent scoring with ChatViewModel.
+     */
+    private fun classifyIntent(input: String): OmniMode = IntentClassifier.classify(input)
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -328,11 +449,13 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
  *
  * In **collapsed** mode this renders a single draggable circle with the OmniDev logo.
  * In **expanded** mode it becomes a mini chat panel with a message list and input field.
+ * The [isProcessing] flag shows a loading indicator while an LLM response is in-flight.
  */
 @Composable
 private fun OmniBubbleContent(
     expanded: Boolean,
     messages: List<Pair<Boolean, String>>,
+    isProcessing: Boolean,
     onToggleExpand: () -> Unit,
     onSendMessage: (String) -> Unit,
     onDismiss: () -> Unit
@@ -425,6 +548,25 @@ private fun OmniBubbleContent(
                     messages.forEach { (isUser, text) ->
                         BubbleChatMessage(isUser = isUser, text = text)
                     }
+                    // Show loading dots while the LLM is responding
+                    if (isProcessing) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = "بفكر…",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(8.dp))
@@ -439,33 +581,49 @@ private fun OmniBubbleContent(
                         onValueChange = { inputText = it },
                         modifier = Modifier.weight(1f),
                         placeholder = {
-                            Text("Message…", style = MaterialTheme.typography.bodySmall)
+                            Text("قولي عايز إيه…", style = MaterialTheme.typography.bodySmall)
                         },
+                        enabled = !isProcessing,
                         singleLine = true,
                         textStyle = MaterialTheme.typography.bodySmall,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                         keyboardActions = KeyboardActions(onSend = {
-                            onSendMessage(inputText)
-                            inputText = ""
+                            if (!isProcessing) {
+                                onSendMessage(inputText)
+                                inputText = ""
+                            }
                         })
                     )
                     Spacer(Modifier.width(6.dp))
                     IconButton(
                         onClick = {
-                            onSendMessage(inputText)
-                            inputText = ""
+                            if (!isProcessing) {
+                                onSendMessage(inputText)
+                                inputText = ""
+                            }
                         },
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
+                            .background(
+                                if (isProcessing) MaterialTheme.colorScheme.surfaceVariant
+                                else MaterialTheme.colorScheme.primary
+                            )
                     ) {
-                        Icon(
-                            Icons.Filled.Send,
-                            contentDescription = "Send",
-                            tint = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        if (isProcessing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else {
+                            Icon(
+                                Icons.Filled.Send,
+                                contentDescription = "Send",
+                                tint = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }

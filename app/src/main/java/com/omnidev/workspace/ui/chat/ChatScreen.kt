@@ -410,31 +410,22 @@ private fun ModeSelector(
     onModeSelected: (OmniMode) -> Unit,
     enabled: Boolean = true
 ) {
+    // Only show the three explicit modes the user can pick manually.
+    // AUTO is reserved for the floating overlay which routes by intent automatically.
+    val manualModes = listOf(OmniMode.CHAT, OmniMode.AGENT, OmniMode.SWARM)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(0.dp)
     ) {
-        OmniMode.entries.forEachIndexed { index, mode ->
+        manualModes.forEachIndexed { index, mode ->
             val isSelected = mode == activeMode
-            val isAutoMode = mode == OmniMode.AUTO
             val shape = when (index) {
                 0 -> RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
-                OmniMode.entries.lastIndex -> RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp)
+                manualModes.lastIndex -> RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp)
                 else -> RoundedCornerShape(0.dp)
-            }
-
-            // AUTO mode gets a special tertiary highlight when selected
-            val containerColor = when {
-                isSelected && isAutoMode -> MaterialTheme.colorScheme.tertiaryContainer
-                isSelected -> MaterialTheme.colorScheme.primaryContainer
-                else -> MaterialTheme.colorScheme.surfaceVariant
-            }
-            val contentColor = when {
-                isSelected && isAutoMode -> MaterialTheme.colorScheme.onTertiaryContainer
-                isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
-                else -> MaterialTheme.colorScheme.onSurfaceVariant
             }
 
             Surface(
@@ -442,7 +433,10 @@ private fun ModeSelector(
                     .weight(1f)
                     .height(38.dp),
                 shape = shape,
-                color = containerColor,
+                color = if (isSelected)
+                    MaterialTheme.colorScheme.primaryContainer
+                else
+                    MaterialTheme.colorScheme.surfaceVariant,
                 onClick = { if (enabled) onModeSelected(mode) }
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -450,7 +444,10 @@ private fun ModeSelector(
                         text = mode.label,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = contentColor
+                        color = if (isSelected)
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

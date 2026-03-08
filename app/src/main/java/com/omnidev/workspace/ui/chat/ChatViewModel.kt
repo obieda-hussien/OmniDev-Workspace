@@ -21,6 +21,7 @@ import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
 import com.omnidev.workspace.domain.engine.AgentEvent
 import com.omnidev.workspace.domain.engine.AgentPipeline
+import com.omnidev.workspace.domain.engine.IntentClassifier
 import com.omnidev.workspace.domain.engine.OmniMode
 import com.omnidev.workspace.domain.engine.SwarmEvent
 import com.omnidev.workspace.domain.engine.SwarmOrchestrator
@@ -72,8 +73,8 @@ data class ChatUiState(
     val currentSessionId: Long? = null,
     /** Partial text from the current streaming response (null = not streaming). */
     val streamingContent: String? = null,
-    /** The currently active execution mode (Auto / Chat / Agent / Swarm). */
-    val activeMode: OmniMode = OmniMode.AUTO,
+    /** The currently active execution mode (Chat / Agent / Swarm). AUTO is used by the floating overlay only. */
+    val activeMode: OmniMode = OmniMode.AGENT,
     /** A privileged action awaiting user approval via [ConfirmationGateDialog]. */
     val pendingConfirmation: PendingConfirmation? = null,
     /** Whether God Mode is enabled — hides scope selection when true. */
@@ -387,9 +388,9 @@ class ChatViewModel(
 
         val mode = _uiState.value.activeMode
 
-        // CHAT mode does not require a Target Context scope
+        // CHAT and AUTO modes do not require a Target Context scope (AUTO may route to CHAT)
         val scopePath = _uiState.value.targetContext
-        if (mode != OmniMode.CHAT && scopePath == null) {
+        if (mode != OmniMode.CHAT && mode != OmniMode.AUTO && scopePath == null) {
             _uiState.update { it.copy(errorMessage = "Please set a Target Context before sending messages.") }
             return
         }
@@ -502,56 +503,13 @@ class ChatViewModel(
     // ──────────────────────────────────────────────
 
     /**
-     * Classifies the task complexity and returns which [OmniMode] should handle it:
-     * - **CHAT** — Short conversational question, explanation request, or definition lookup.
-     * - **AGENT** — Task that requires reading/editing files, running code, or using tools.
-     * - **SWARM** — Large multi-step project tasks (build full feature, migrate entire module, etc.)
+     * Intent-based task classifier — delegates to [IntentClassifier.classify].
      *
-     * Uses a keyword/pattern heuristic — zero latency, no extra LLM call needed.
-     * The heuristic is intentionally conservative: when in doubt it upgrades to a more
-     * capable mode rather than downgrading.
+     * `internal` visibility allows unit tests in the same module to exercise the routing logic
+     * directly without going through the full [sendMessage] flow.
      */
-    private fun classifyTaskComplexity(input: String): OmniMode {
-        val lower = input.lowercase()
-        val wordCount = lower.split(Regex("\\s+")).size
-
-        // Patterns that strongly indicate a large multi-step project task → SWARM.
-        // Arabic translations: "اعمل التطبيق" = "make the app", "ابني" = "build",
-        // "افعل كل" = "do all", "كل الكود" = "all the code"
-        val swarmIndicators = listOf(
-            "build", "create the entire", "full project", "migrate", "refactor the whole",
-            "implement all", "new feature from scratch", "port", "write all", "create all",
-            "implement the full", "end to end", "end-to-end", "entire codebase",
-            "complete implementation", "اعمل التطبيق", "ابني", "افعل كل", "كل الكود"
-        )
-
-        // Patterns that indicate tool use / file operations → AGENT.
-        // Arabic translations: "انشئ" = "create", "اكتب" = "write", "ابحث" = "search",
-        // "افحص" = "examine/check", "عدل" = "edit", "احذف" = "delete",
-        // "اضف" = "add", "شغل" = "run", "اعمل" = "do/make", "ملف" = "file", "كود" = "code"
-        val agentIndicators = listOf(
-            "file", "code", "function", "class", "fix", "bug", "error", "edit", "change",
-            "refactor", "implement", "add", "remove", "update", "write", "create",
-            "run", "execute", "read", "search", "find", "debug", "test", "compile",
-            "gradle", "manifest", "kotlin", "java", "android", "xml", "json", "api",
-            "dependency", "import", "build", "lint", "check", "analyze", "انشئ", "اكتب",
-            "ابحث", "افحص", "عدل", "احذف", "اضف", "شغل", "اعمل", "ملف", "كود",
-            "modify", "patch", "deploy", "install", "setup", "configure"
-        )
-
-        // SWARM_MIN_WORD_COUNT: swarm tasks are inherently long descriptions; a single-word
-        // "build" inside a short 5-word question is more likely Agent than full Swarm.
-        val swarmMinWordCount = 20
-        // CHAT_MAX_WORD_COUNT: ≤ 15 words with no action keywords → conversational question.
-        val chatMaxWordCount = 15
-
-        if (swarmIndicators.any { lower.contains(it) } && wordCount > swarmMinWordCount) return OmniMode.SWARM
-        if (agentIndicators.any { lower.contains(it) }) return OmniMode.AGENT
-        if (wordCount <= chatMaxWordCount) return OmniMode.CHAT
-        // Longer messages without clear action keywords default to AGENT (safer than CHAT —
-        // Agent can still answer conversationally if no tools are needed)
-        return OmniMode.AGENT
-    }
+    internal fun classifyTaskComplexity(input: String): OmniMode =
+        IntentClassifier.classify(input)
     //  MODE: CHAT — Direct Completion (No Tools)
     // ──────────────────────────────────────────────
 
