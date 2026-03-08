@@ -56,9 +56,9 @@ import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DismissibleDrawerSheet
 import androidx.compose.material3.DismissibleNavigationDrawer
 import androidx.compose.material3.DrawerValue
@@ -384,6 +384,7 @@ fun ChatScreen(
                     inputText = uiState.inputText,
                     onInputChanged = { viewModel.onInputChanged(it) },
                     onSend = { viewModel.sendMessage() },
+                    onStop = { viewModel.cancelCurrentRun() },
                     isProcessing = uiState.isProcessing,
                     pendingAttachments = uiState.pendingAttachments,
                     onAttachClick = { attachmentLauncher.launch("*/*") },
@@ -971,6 +972,7 @@ private fun ChatInputBar(
     inputText: String,
     onInputChanged: (String) -> Unit,
     onSend: () -> Unit,
+    onStop: () -> Unit = {},
     isProcessing: Boolean,
     pendingAttachments: List<PendingAttachment> = emptyList(),
     onAttachClick: () -> Unit = {},
@@ -1053,16 +1055,19 @@ private fun ChatInputBar(
             )
             Spacer(modifier = Modifier.width(8.dp))
             FloatingActionButton(
-                onClick = onSend,
+                onClick = if (isProcessing) onStop else onSend,
                 modifier = Modifier.size(48.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
+                containerColor = if (isProcessing)
+                    MaterialTheme.colorScheme.error
+                else
+                    MaterialTheme.colorScheme.primary,
                 shape = CircleShape
             ) {
                 if (isProcessing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp
+                    Icon(
+                        imageVector = Icons.Filled.Stop,
+                        contentDescription = "Stop agent",
+                        tint = MaterialTheme.colorScheme.onError
                     )
                 } else {
                     Icon(

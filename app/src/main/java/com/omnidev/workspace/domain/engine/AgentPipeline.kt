@@ -35,7 +35,19 @@ data class AgentConfig(
     val baseRetryDelayMs: Long = 500L,
     val tokenBudget: Int? = null,
     val contextWindowBuffer: Int = 4_096,
-    val enableMemoryTrimming: Boolean = true
+    val enableMemoryTrimming: Boolean = true,
+    /**
+     * Wall-clock timeout for the entire ReAct loop in milliseconds.
+     * If the agent has not completed within this duration it is forcibly cancelled
+     * and an [AgentEvent.Error] is emitted.  Set to null for no timeout.
+     */
+    val maxExecutionTimeMs: Long? = 5 * 60 * 1_000L, // 5 minutes default
+    /**
+     * Maximum number of times the exact same tool + arguments combination may appear
+     * in a single run before the loop is aborted with an [AgentEvent.Error].
+     * Prevents runaway "stuck" loops where the model keeps calling the same tool.
+     */
+    val maxRepeatedToolCalls: Int = 4
 ) {
     companion object {
         /** Preset for cost-sensitive runs: fewer iterations, lower token budget. */
@@ -403,9 +415,28 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
         var iteration = 0
         var totalTokensUsed = 0
 
+        // Wall-clock start time for timeout enforcement
+        val startTimeMs = System.currentTimeMillis()
+
+        // Loop-detection: tracks how many times each identical tool call has appeared.
+        // Key = "toolName:sortedArgs" fingerprint; value = occurrence count.
+        val toolCallCounts = mutableMapOf<String, Int>()
+
         // ── ReAct Loop ──
         while (iteration < config.maxIterations) {
             iteration++
+
+            // ── Wall-clock timeout check ──
+            config.maxExecutionTimeMs?.let { timeoutMs ->
+                if (System.currentTimeMillis() - startTimeMs >= timeoutMs) {
+                    send(AgentEvent.Error(
+                        "Agent execution timed out after ${timeoutMs / 1_000}s. " +
+                        "Use the ⏹ stop button to cancel a run at any time."
+                    ))
+                    return@channelFlow
+                }
+            }
+
             // Brief pause between iterations to avoid bursting free-tier rate limits
             // (e.g. GitHub Models / Azure inference). Skipped on the very first call.
             if (iteration > 1) delay(INTER_CALL_DELAY_MS)
@@ -489,6 +520,25 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
             val toolResults = mutableListOf<ToolCallResult>()
 
             for (toolCall in response.toolCalls) {
+                // ── Loop detection ──
+                val fingerprint = buildString {
+                    append(toolCall.name)
+                    append(':')
+                    toolCall.arguments.entries.sortedBy { it.key }.forEach { (k, v) ->
+                        append(k).append('=').append(v.toString()).append(',')
+                    }
+                }
+                val callCount = (toolCallCounts[fingerprint] ?: 0) + 1
+                toolCallCounts[fingerprint] = callCount
+                if (callCount > config.maxRepeatedToolCalls) {
+                    send(AgentEvent.Error(
+                        "🔄 Loop detected: tool '${toolCall.name}' called $callCount times " +
+                        "with identical arguments. Aborting to prevent an infinite loop. " +
+                        "Use the ⏹ stop button to cancel a run at any time."
+                    ))
+                    return@channelFlow
+                }
+
                 send(AgentEvent.ToolExecution(
                     toolName = toolCall.name,
                     arguments = toolCall.arguments,

@@ -25,6 +25,7 @@ import com.omnidev.workspace.domain.engine.OmniMode
 import com.omnidev.workspace.domain.engine.SwarmEvent
 import com.omnidev.workspace.domain.engine.SwarmOrchestrator
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -125,6 +126,9 @@ class ChatViewModel(
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+
+    /** Tracks the currently running agent/chat/swarm coroutine Job so it can be cancelled. */
+    @Volatile private var currentAgentJob: Job? = null
 
     /** Lazily initialised on first voice use — requires a [Context] to be passed in. */
     private var voiceManager: VoiceManager? = null
@@ -410,8 +414,7 @@ class ChatViewModel(
             )
         }
 
-        viewModelScope.launch {
-            // Ensure the session is persisted before saving any messages
+        currentAgentJob = viewModelScope.launch {
             val sessionId = ensureSession(input)
             chatRepository?.saveMessage(sessionId, userMessage)
 
@@ -442,6 +445,27 @@ class ChatViewModel(
                     executeSwarmMode(input, sessionId, scope)
                 }
             }
+        }
+    }
+
+    /**
+     * Immediately cancels the currently running agent/chat/swarm execution.
+     *
+     * Safe to call at any time — no-ops when nothing is running.
+     * The coroutine cancellation propagates through [AgentPipeline] and [SwarmOrchestrator]
+     * (both re-throw [kotlinx.coroutines.CancellationException]), cleanly terminating all
+     * in-flight network calls and tool executions.
+     */
+    fun cancelCurrentRun() {
+        currentAgentJob?.cancel()
+        currentAgentJob = null
+        _uiState.update {
+            it.copy(
+                isProcessing = false,
+                agentStatus = null,
+                streamingContent = null,
+                errorMessage = "⏹ Run stopped by user."
+            )
         }
     }
 
