@@ -3,6 +3,7 @@ package com.omnidev.workspace.data.voice
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.media.AudioManager
 import android.util.Log
 import android.app.PendingIntent
 import android.app.Service
@@ -194,7 +195,17 @@ class VoiceAssistantService : Service() {
         private const val CHANNEL_ID = "omni_voice_channel"
         private const val CHANNEL_NAME = "Omni Voice"
 
-        private const val RESTART_DELAY_MS = 500L
+        private const val RESTART_DELAY_MS = 1500L
+        /** How long to keep STREAM_SYSTEM muted before startListening() (suppress OS beep). */
+        private const val BEEP_MUTE_DURATION_MS = 350L
+        /** Delay before restarting the wake-word loop after a triggered wake greeting ends. */
+        private const val WAKE_LOOP_RESTART_DELAY_MS = 1000L
+        /**
+         * Undocumented Android extra that adds secondary recognition languages.
+         * There is no public constant for this in [RecognizerIntent]; the string is
+         * stable across AOSP back to API 21 and used by Google Keyboard / GBoard.
+         */
+        private const val EXTRA_ADDITIONAL_LANGUAGES = "android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES"
     }
 
     // ── Recognizers & TTS ─────────────────────────────────────────────────────────────────────────
@@ -207,6 +218,15 @@ class VoiceAssistantService : Service() {
 
     /** On-device TTS for agent responses. */
     private var tts: TextToSpeech? = null
+
+    /**
+     * True once [initTts] completes successfully. Any call to [speakText] before this flag
+     * is set is queued in [pendingTtsText] and played as soon as TTS initialises.
+     */
+    private var isTtsReady = false
+
+    /** Speech text queued while TTS is still initialising. */
+    private var pendingTtsText: String? = null
 
     /**
      * Keeps the CPU running even when the screen is off, so the wake-word loop
@@ -255,7 +275,7 @@ class VoiceAssistantService : Service() {
     private fun initTts() {
         tts = TextToSpeech(this) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                tts?.setLanguage(Locale.getDefault())
+                isTtsReady = true
                 tts?.setSpeechRate(1.0f)
                 tts?.setPitch(1.0f)
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -266,19 +286,44 @@ class VoiceAssistantService : Service() {
                         if (_voiceState.value is VoiceState.Speaking) {
                             _voiceState.value = VoiceState.Idle
                         }
+                        // Auto-restart the wake-word loop after the wake greeting finishes.
+                        // Without this the loop stays dead after one trigger.
+                        if (_wakeState.value == WakeState.TRIGGERED) {
+                            _wakeState.value = WakeState.IDLE
+                            handler.postDelayed({
+                                if (!isDestroyed) startWakeWordLoop()
+                            }, WAKE_LOOP_RESTART_DELAY_MS)
+                        }
                     }
                     @Deprecated("Deprecated in Java")
                     override fun onError(utteranceId: String?) {
                         if (_voiceState.value is VoiceState.Speaking) {
                             _voiceState.value = VoiceState.Idle
                         }
+                        if (_wakeState.value == WakeState.TRIGGERED) {
+                            _wakeState.value = WakeState.IDLE
+                            handler.postDelayed({
+                                if (!isDestroyed) startWakeWordLoop()
+                            }, WAKE_LOOP_RESTART_DELAY_MS)
+                        }
                     }
                     override fun onError(utteranceId: String?, errorCode: Int) {
                         if (_voiceState.value is VoiceState.Speaking) {
                             _voiceState.value = VoiceState.Idle
                         }
+                        if (_wakeState.value == WakeState.TRIGGERED) {
+                            _wakeState.value = WakeState.IDLE
+                            handler.postDelayed({
+                                if (!isDestroyed) startWakeWordLoop()
+                            }, WAKE_LOOP_RESTART_DELAY_MS)
+                        }
                     }
                 })
+                // Speak anything that was queued before TTS was ready
+                pendingTtsText?.let { pending ->
+                    pendingTtsText = null
+                    speakText(pending)
+                }
             }
         }
     }
@@ -357,6 +402,7 @@ class VoiceAssistantService : Service() {
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
+        muteSystemBeepBriefly()
         queryRecognizer?.startListening(intent)
     }
 
@@ -372,8 +418,22 @@ class VoiceAssistantService : Service() {
     // ── TTS output ────────────────────────────────────────────────────────────────────────────────
 
     private fun speakText(text: String) {
-        if (isDestroyed || tts == null) return
+        if (isDestroyed) return
+        if (!isTtsReady || tts == null) {
+            // TTS not ready yet — queue and retry after init
+            pendingTtsText = text
+            return
+        }
         tts?.stop()
+        // Auto-detect Arabic script and switch the TTS engine language accordingly.
+        // Without this the engine tries to read Arabic letters as romanised English.
+        val isArabic = text.any { it.code in 0x0600..0x06FF }
+        val locale = if (isArabic) Locale("ar") else Locale.getDefault()
+        val langResult = tts?.setLanguage(locale) ?: TextToSpeech.LANG_NOT_SUPPORTED
+        if (langResult == TextToSpeech.LANG_MISSING_DATA || langResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+            Log.w("VoiceAssistantService", "TTS locale $locale not supported, falling back to default")
+            tts?.setLanguage(Locale.getDefault())
+        }
         _voiceState.value = VoiceState.Speaking(text)
         val utteranceId = UUID.randomUUID().toString()
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId)
@@ -450,24 +510,40 @@ class VoiceAssistantService : Service() {
                     if (WAKE_PHRASES.any { heard.contains(it) }) triggerWake()
                     else scheduleWakeRestart()
                 }
+                override fun onPartialResults(partialResults: Bundle?) {
+                    // Check partial results so the wake word is detected mid-sentence
+                    // (faster response — don't wait for the user to finish speaking).
+                    val heard = partialResults
+                        ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        ?.joinToString(" ")?.lowercase(Locale.getDefault()) ?: ""
+                    if (WAKE_PHRASES.any { heard.contains(it) }) triggerWake()
+                }
                 override fun onError(error: Int) { scheduleWakeRestart() }
                 override fun onReadyForSpeech(params: Bundle?) {}
                 override fun onBeginningOfSpeech() {}
                 override fun onRmsChanged(rmsdB: Float) {}
                 override fun onBufferReceived(buffer: ByteArray?) {}
                 override fun onEndOfSpeech() {}
-                override fun onPartialResults(partialResults: Bundle?) {}
                 override fun onEvent(eventType: Int, params: Bundle?) {}
             })
         }
 
+        // Suppress the OS "beep" sound that plays on every startListening() call.
+        // We mute STREAM_SYSTEM for ~300ms — just enough to silence the click/beep
+        // without affecting actual audio playback.
+        muteSystemBeepBriefly()
+
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
-            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L)
+            // Primary language: Arabic (Egyptian) so wake phrases like "اصحي يا اومني" are heard.
+            // EXTRA_ADDITIONAL_LANGUAGES adds English as a fallback for "hey omni".
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-EG")
+            putExtra(EXTRA_ADDITIONAL_LANGUAGES, arrayOf("en-US"))
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
+            putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
+            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
         }
         wakeRecognizer?.startListening(intent)
     }
@@ -502,8 +578,35 @@ class VoiceAssistantService : Service() {
         }
     }
 
-    // ── WakeLock ──────────────────────────────────────────────────────────────────────────────────
+    // ── Suppress recognizer beep ──────────────────────────────────────────────────────────────────
 
+    /**
+     * Mutes `STREAM_SYSTEM` for ~300 ms before [startListening] is called.
+     *
+     * Android's `SpeechRecognizer` plays a "ready to listen" click/beep through
+     * `STREAM_SYSTEM` on every `startListening()` call. In an always-on wake-word loop
+     * this produces a recurring noise every ~1.5 s. This helper silences that stream
+     * for the brief moment it takes for the recognizer to start, then restores it.
+     *
+     * Only `STREAM_SYSTEM` is affected; music, calls, and ringtones are unaffected.
+     */
+    private fun muteSystemBeepBriefly() {
+        try {
+            val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            @Suppress("DEPRECATION")
+            am.setStreamMute(AudioManager.STREAM_SYSTEM, true)
+            handler.postDelayed({
+                try {
+                    @Suppress("DEPRECATION")
+                    am.setStreamMute(AudioManager.STREAM_SYSTEM, false)
+                } catch (_: Exception) {}
+            }, BEEP_MUTE_DURATION_MS)
+        } catch (e: Exception) {
+            Log.w("VoiceAssistantService", "Could not mute system beep: ${e.message}")
+        }
+    }
+
+    // ── WakeLock ──────────────────────────────────────────────────────────────────────────────────
     private fun acquireWakeLock() {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         wakeLock = pm.newWakeLock(
