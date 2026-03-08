@@ -28,6 +28,7 @@ sealed class AgentConsoleEntry {
         val toolName: String,
         val params: String,
         val iteration: Int,
+        val fullParams: String = params,
         override val timestamp: Long = System.currentTimeMillis()
     ) : AgentConsoleEntry()
 
@@ -36,6 +37,8 @@ sealed class AgentConsoleEntry {
         val toolName: String,
         val snippet: String,
         val isError: Boolean,
+        val fullOutput: String = snippet,
+        val durationMs: Long = 0L,
         override val timestamp: Long = System.currentTimeMillis()
     ) : AgentConsoleEntry()
 

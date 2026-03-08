@@ -715,23 +715,29 @@ class ChatViewModel(
             is AgentEvent.ToolExecution -> {
                 val params = event.arguments.entries
                     .joinToString(", ") { (k, v) -> "$k=${v.toString().take(40)}" }
+                val fullParams = event.arguments.entries
+                    .joinToString("\n") { (k, v) -> "$k = $v" }
                 _uiState.update {
                     it.copy(
                         agentStatus = "Executing ${event.toolName}...",
                         consoleEntries = it.consoleEntries +
-                            AgentConsoleEntry.ToolEntry(event.toolName, params, event.iteration)
+                            AgentConsoleEntry.ToolEntry(event.toolName, params, event.iteration, fullParams)
                     )
                 }
             }
 
             is AgentEvent.ToolResult -> {
                 val snippet = event.output.lines().firstOrNull()?.take(100) ?: ""
+                val durationMs = _uiState.value.consoleEntries
+                    .filterIsInstance<AgentConsoleEntry.ToolEntry>()
+                    .lastOrNull { it.toolName == event.toolName && it.iteration == event.iteration }
+                    ?.let { System.currentTimeMillis() - it.timestamp } ?: 0L
                 _uiState.update {
                     it.copy(
                         agentStatus = if (event.isError) "Tool error: ${event.toolName}"
                         else "Tool completed: ${event.toolName}",
                         consoleEntries = it.consoleEntries +
-                            AgentConsoleEntry.ResultEntry(event.toolName, snippet, event.isError)
+                            AgentConsoleEntry.ResultEntry(event.toolName, snippet, event.isError, event.output, durationMs)
                     )
                 }
             }
@@ -827,7 +833,7 @@ class ChatViewModel(
                 _uiState.update {
                     it.copy(
                         consoleEntries = it.consoleEntries +
-                            AgentConsoleEntry.ResultEntry(event.task.id, snippet, isError = false)
+                            AgentConsoleEntry.ResultEntry(event.task.id, snippet, isError = false, fullOutput = event.result)
                     )
                 }
             }
