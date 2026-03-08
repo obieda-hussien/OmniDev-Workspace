@@ -7,6 +7,9 @@ import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.tools.ToolManager
 import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.serialization.json.Json
@@ -24,11 +27,17 @@ import kotlinx.serialization.json.Json
  * @param completionProvider The AI API call abstraction, used for both Orchestrator and Workers.
  * @param apiKeyRepository Optional key store. When provided, the API key for the model's
  *        provider is injected into each [CompletionRequest] automatically.
+ * @param memoryManager Optional long-term memory store passed to every Worker [AgentPipeline]
+ *        so Workers can recall facts and persist observations across sub-task iterations.
+ * @param streamingCompletionProvider Optional streaming variant of the completion provider.
+ *        When provided, Workers stream text chunks in real-time via [SwarmEvent.WorkerStreamChunk].
  */
 class SwarmOrchestrator(
     private val toolManager: ToolManager,
     private val completionProvider: suspend (CompletionRequest) -> CompletionResponse,
-    private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null
+    private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null,
+    private val memoryManager: com.omnidev.workspace.data.tools.MemoryManager? = null,
+    private val streamingCompletionProvider: (suspend (CompletionRequest, suspend (String) -> Unit) -> CompletionResponse)? = null
 ) {
 
     companion object {
@@ -141,70 +150,114 @@ CRITICAL INSTRUCTIONS:
 
         send(SwarmEvent.PlanCompleted(tasks))
 
-        // ── Phase 2: Delegate ──
+        // ── Phase 2: Delegate (concurrent execution respecting dependency order) ──
+        // Tasks are grouped into "waves" using a topological level sort:
+        //   wave 0 = tasks with no dependencies
+        //   wave 1 = tasks whose only dependencies are in wave 0, etc.
+        // All tasks in the same wave are executed concurrently; waves are processed sequentially
+        // so that results from wave N are available before wave N+1 begins.
         val completedTasks = mutableMapOf<String, String>()
         val failedTasks = mutableMapOf<String, String>()
         val skippedTasks = mutableMapOf<String, String>()
-        val sortedTasks = tasks.sortedBy { it.priority }
 
-        for (task in sortedTasks) {
-            // Check dependencies are met
-            val unmetDeps = task.dependencies.filter { it !in completedTasks }
-            if (unmetDeps.isNotEmpty()) {
-                val reason = "Unmet dependencies: $unmetDeps"
+        val remaining = tasks.sortedBy { it.priority }.toMutableList()
+
+        while (remaining.isNotEmpty()) {
+            // Identify tasks whose dependencies are all already completed (or have none)
+            val readyNow = remaining.filter { task ->
+                task.dependencies.all { dep -> dep in completedTasks }
+            }
+
+            // Tasks that are blocked on a failed/skipped dependency are permanently unrunnable —
+            // detect and evict them so they don't stall the loop forever.
+            val permanentlyBlocked = remaining.filter { task ->
+                task.dependencies.any { dep -> dep in failedTasks || dep in skippedTasks }
+            }
+            permanentlyBlocked.forEach { task ->
+                remaining.remove(task)
+                val blockedDeps = task.dependencies.filter { it in failedTasks || it in skippedTasks }
+                val reason = "Blocked: dependencies $blockedDeps failed or were skipped"
                 skippedTasks[task.id] = reason
                 send(SwarmEvent.TaskSkipped(task, reason))
-                continue
             }
 
-            send(SwarmEvent.TaskStarted(task))
-
-            // Build context from completed dependencies
-            val dependencyContext = task.dependencies.mapNotNull { depId ->
-                completedTasks[depId]?.let { result -> "[$depId result]: $result" }
-            }.joinToString("\n")
-
-            val workerPrompt = buildString {
-                appendLine("## Sub-Task: ${task.description}")
-                if (dependencyContext.isNotEmpty()) {
-                    appendLine()
-                    appendLine("## Context from prior tasks:")
-                    appendLine(dependencyContext)
+            if (readyNow.isEmpty()) {
+                // All remaining tasks are stuck in a dependency cycle or all blocked — abort.
+                if (remaining.isNotEmpty()) {
+                    remaining.forEach { task ->
+                        val reason = "Dependency cycle or unresolvable dependency"
+                        skippedTasks[task.id] = reason
+                        send(SwarmEvent.TaskSkipped(task, reason))
+                    }
+                    remaining.clear()
                 }
+                break
             }
 
-            // Execute via a Worker AgentPipeline
-            val workerPipeline = AgentPipeline(toolManager, completionProvider, apiKeyRepository = apiKeyRepository)
-            var taskResult = ""
-            var taskError: String? = null
+            // Remove the ready tasks from the pending list before starting them
+            remaining.removeAll(readyNow)
 
-            workerPipeline.execute(
-                userMessage = workerPrompt,
-                modelId = workerModelId,
-                scopePath = scopePath,
-                enableDeepThinking = enableDeepThinking,
-                workerPersona = task.requiredPersona.takeIf { it.isNotBlank() }
-            ).collect { event ->
-                when (event) {
-                    is AgentEvent.FinalAnswer -> {
-                        taskResult = event.content
+            // Execute all ready tasks concurrently within a coroutineScope
+            coroutineScope {
+                val deferredResults = readyNow.map { task ->
+                    async {
+                        send(SwarmEvent.TaskStarted(task))
+
+                        val dependencyContext = task.dependencies.mapNotNull { depId ->
+                            completedTasks[depId]?.let { result -> "[$depId result]: $result" }
+                        }.joinToString("\n")
+
+                        val workerPrompt = buildString {
+                            appendLine("## Sub-Task: ${task.description}")
+                            if (dependencyContext.isNotEmpty()) {
+                                appendLine()
+                                appendLine("## Context from prior tasks:")
+                                appendLine(dependencyContext)
+                            }
+                        }
+
+                        val workerPipeline = AgentPipeline(
+                            toolManager = toolManager,
+                            completionProvider = completionProvider,
+                            streamingCompletionProvider = streamingCompletionProvider,
+                            apiKeyRepository = apiKeyRepository,
+                            memoryManager = memoryManager
+                        )
+                        var taskResult = ""
+                        var taskError: String? = null
+
+                        workerPipeline.execute(
+                            userMessage = workerPrompt,
+                            modelId = workerModelId,
+                            scopePath = scopePath,
+                            enableDeepThinking = enableDeepThinking,
+                            workerPersona = task.requiredPersona.takeIf { it.isNotBlank() }
+                        ).collect { event ->
+                            when (event) {
+                                is AgentEvent.FinalAnswer -> taskResult = event.content
+                                is AgentEvent.Error -> taskError = event.message
+                                is AgentEvent.StreamChunk -> send(SwarmEvent.WorkerStreamChunk(task, event.delta))
+                                is AgentEvent.ToolExecution -> send(SwarmEvent.WorkerToolUse(task, event.toolName, event.arguments))
+                                else -> { /* other events handled internally by the worker */ }
+                            }
+                        }
+
+                        Triple(task, taskResult, taskError)
                     }
-                    is AgentEvent.Error -> {
-                        taskError = event.message
-                    }
-                    is AgentEvent.ToolExecution -> {
-                        send(SwarmEvent.WorkerToolUse(task, event.toolName, event.arguments))
-                    }
-                    else -> { /* Forward other events as needed */ }
                 }
-            }
 
-            if (taskError != null) {
-                failedTasks[task.id] = taskError!!
-                send(SwarmEvent.TaskFailed(task, taskError!!))
-            } else {
-                completedTasks[task.id] = taskResult
-                send(SwarmEvent.TaskCompleted(task, taskResult))
+                // Collect results and update shared maps (sequentially after all tasks finish)
+                deferredResults.awaitAll().forEach { (task, result, error) ->
+                    if (error != null) {
+                        // Preserve any partial output alongside the error for debugging
+                        val errorMsg = if (result.isNotBlank()) "$error\n[Partial output]: $result" else error
+                        failedTasks[task.id] = errorMsg
+                        send(SwarmEvent.TaskFailed(task, errorMsg))
+                    } else {
+                        completedTasks[task.id] = result
+                        send(SwarmEvent.TaskCompleted(task, result))
+                    }
+                }
             }
         }
 
@@ -273,18 +326,26 @@ CRITICAL INSTRUCTIONS:
 
     /**
      * Parses the orchestrator's JSON response into a list of [SwarmTask]s.
-     * Handles common formatting issues gracefully.
+     *
+     * The model may wrap the JSON array in markdown code fences or surround it with prose.
+     * Rather than blindly stripping backticks we locate the first `[` and the last `]` in the
+     * response and extract that substring — this correctly handles all common formatting patterns.
      */
     private fun parseTasks(responseContent: String): List<SwarmTask> {
         return try {
-            // Extract JSON array from the response (may be wrapped in markdown code blocks)
-            val jsonStr = responseContent
-                .replace("```json", "").replace("```", "")
-                .trim()
-
-            json.decodeFromString<List<SwarmTask>>(jsonStr)
+            // Find the bounds of the JSON array, ignoring any surrounding markdown/prose
+            val start = responseContent.indexOf('[')
+            val end = responseContent.lastIndexOf(']')
+            if (start == -1 || end == -1 || start >= end) {
+                throw IllegalArgumentException("No JSON array found in orchestrator response")
+            }
+            val jsonStr = responseContent.substring(start, end + 1)
+            val tasks = json.decodeFromString<List<SwarmTask>>(jsonStr)
+            if (tasks.isEmpty()) throw IllegalArgumentException("Orchestrator returned an empty task list")
+            tasks
         } catch (e: Exception) {
-            // If parsing fails, try to create a single task from the response
+            // If structured parsing fails entirely, fall back to a single-task wrapper so the
+            // Swarm still attempts the user's original request rather than aborting silently.
             listOf(SwarmTask(
                 id = "task-1",
                 description = responseContent.take(500),
@@ -309,6 +370,8 @@ sealed class SwarmEvent {
         val toolName: String,
         val arguments: Map<String, String>
     ) : SwarmEvent()
+    /** A streaming text delta chunk emitted by a Worker during its ReAct loop. */
+    data class WorkerStreamChunk(val task: SwarmTask, val delta: String) : SwarmEvent()
     data object SynthesisStarted : SwarmEvent()
     data class Completed(
         val summary: String,

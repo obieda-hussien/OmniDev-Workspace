@@ -629,9 +629,17 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
     /**
      * Trims the conversation message list to fit within [maxTokens] by removing
      * the oldest non-system messages first. Always preserves the first (user) message
-     * and the last [RECENT_MESSAGES_TO_PRESERVE] messages to maintain continuity.
+     * to maintain task continuity.
      *
-     * Note: This is a heuristic approach using character counts as a proxy for token counts.
+     * **Important:** In a ReAct loop an ASSISTANT message that contains tool calls MUST be
+     * immediately followed by one or more TOOL messages. Removing the ASSISTANT message
+     * while leaving its TOOL reply(ies) behind produces an orphaned tool result which
+     * causes `400 Bad Request` errors from OpenAI and Anthropic APIs.
+     * This function therefore removes ASSISTANT+TOOL groups atomically: when an ASSISTANT
+     * message with tool calls is evicted, all immediately-following TOOL messages are also
+     * removed in the same pass before checking the budget again.
+     *
+     * Note: Character counts are used as a heuristic proxy for token counts (≈ 4 chars/token).
      * A production implementation would use the provider's tokenizer for exact counts.
      */
     private fun trimMessagesForContextWindow(
@@ -644,13 +652,26 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 
         if (totalChars <= maxChars) return messages
 
-        // Keep first message (original task) and recent messages
+        // Detach the first message (original user task) — it must always be preserved.
         val result = messages.toMutableList()
         val keepFirst = result.removeAt(0)
 
-        // Remove oldest messages (index 0 after removeAt) until we're within budget
-        while (result.sumOf { it.content.length } + keepFirst.content.length > maxChars && result.size > 2) {
-            result.removeAt(0)
+        // Evict oldest messages until we're within budget, always keeping at least 2 messages
+        // so the last ASSISTANT reply is never stranded without the preceding USER turn.
+        while (result.sumOf { it.content.length } + keepFirst.content.length > maxChars
+            && result.size > 2) {
+
+            val evicted = result.removeAt(0)
+
+            // If the evicted ASSISTANT message had tool calls, evict all immediately-following
+            // TOOL messages too. Leaving orphaned TOOL messages causes 400 Bad Request errors
+            // from OpenAI/Anthropic because the API requires tool results to be preceded by
+            // the exact ASSISTANT turn that issued the tool call.
+            if (evicted.role == MessageRole.ASSISTANT && !evicted.toolCalls.isNullOrEmpty()) {
+                while (result.isNotEmpty() && result[0].role == MessageRole.TOOL) {
+                    result.removeAt(0)
+                }
+            }
         }
 
         result.add(0, keepFirst)

@@ -95,7 +95,11 @@ class MainActivity : ComponentActivity() {
         val swarmOrchestrator = SwarmOrchestrator(
             toolManager = toolManager,
             completionProvider = completionProvider,
-            apiKeyRepository = apiKeyRepository
+            apiKeyRepository = apiKeyRepository,
+            memoryManager = memoryManager,
+            streamingCompletionProvider = { request, onChunk ->
+                completionService.stream(request, onChunk)
+            }
         )
 
         // Auto-Heal Build Loop
