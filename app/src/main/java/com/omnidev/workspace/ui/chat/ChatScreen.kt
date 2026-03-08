@@ -418,10 +418,23 @@ private fun ModeSelector(
     ) {
         OmniMode.entries.forEachIndexed { index, mode ->
             val isSelected = mode == activeMode
+            val isAutoMode = mode == OmniMode.AUTO
             val shape = when (index) {
                 0 -> RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
                 OmniMode.entries.lastIndex -> RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp)
                 else -> RoundedCornerShape(0.dp)
+            }
+
+            // AUTO mode gets a special tertiary highlight when selected
+            val containerColor = when {
+                isSelected && isAutoMode -> MaterialTheme.colorScheme.tertiaryContainer
+                isSelected -> MaterialTheme.colorScheme.primaryContainer
+                else -> MaterialTheme.colorScheme.surfaceVariant
+            }
+            val contentColor = when {
+                isSelected && isAutoMode -> MaterialTheme.colorScheme.onTertiaryContainer
+                isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
+                else -> MaterialTheme.colorScheme.onSurfaceVariant
             }
 
             Surface(
@@ -429,10 +442,7 @@ private fun ModeSelector(
                     .weight(1f)
                     .height(38.dp),
                 shape = shape,
-                color = if (isSelected)
-                    MaterialTheme.colorScheme.primaryContainer
-                else
-                    MaterialTheme.colorScheme.surfaceVariant,
+                color = containerColor,
                 onClick = { if (enabled) onModeSelected(mode) }
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -440,10 +450,7 @@ private fun ModeSelector(
                         text = mode.label,
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected)
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                        color = contentColor
                     )
                 }
             }

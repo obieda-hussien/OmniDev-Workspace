@@ -72,8 +72,8 @@ data class ChatUiState(
     val currentSessionId: Long? = null,
     /** Partial text from the current streaming response (null = not streaming). */
     val streamingContent: String? = null,
-    /** The currently active execution mode (Chat / Agent / Swarm). */
-    val activeMode: OmniMode = OmniMode.AGENT,
+    /** The currently active execution mode (Auto / Chat / Agent / Swarm). */
+    val activeMode: OmniMode = OmniMode.AUTO,
     /** A privileged action awaiting user approval via [ConfirmationGateDialog]. */
     val pendingConfirmation: PendingConfirmation? = null,
     /** Whether God Mode is enabled — hides scope selection when true. */
@@ -119,9 +119,12 @@ class ChatViewModel(
 ) : ViewModel() {
 
     companion object {
-        /** System prompt for CHAT mode — conversational, no tools. */
+        /**
+         * Fallback system prompt for CHAT mode when no custom prompt has been saved.
+         * The user can override this from Settings → System Prompt Studio → Chat tab.
+         */
         private const val CHAT_SYSTEM_PROMPT =
-            "You are a helpful coding assistant. Answer questions directly without using tools."
+            "You are a helpful, concise assistant. Answer questions directly. If the user asks you to write or edit code, be precise and professional."
     }
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -435,6 +438,31 @@ class ChatViewModel(
                 }
 
             when (mode) {
+                OmniMode.AUTO -> {
+                    val resolved = classifyTaskComplexity(input)
+                    _uiState.update {
+                        it.copy(agentStatus = "🧠 Auto-routed → ${resolved.label}")
+                    }
+                    when (resolved) {
+                        OmniMode.CHAT -> executeChatMode(input, imageAttachments, sessionId)
+                        OmniMode.AGENT -> {
+                            val scope = scopePath ?: run {
+                                // No scope set — fall back to Chat for conversational auto requests
+                                executeChatMode(input, imageAttachments, sessionId)
+                                return@launch
+                            }
+                            executeAgentMode(input, imageAttachments, sessionId, scope)
+                        }
+                        OmniMode.SWARM -> {
+                            val scope = scopePath ?: run {
+                                executeAgentMode(input, imageAttachments, sessionId, "")
+                                return@launch
+                            }
+                            executeSwarmMode(input, sessionId, scope)
+                        }
+                        OmniMode.AUTO -> executeChatMode(input, imageAttachments, sessionId)
+                    }
+                }
                 OmniMode.CHAT -> executeChatMode(input, imageAttachments, sessionId)
                 OmniMode.AGENT -> {
                     val scope = scopePath ?: return@launch
@@ -470,6 +498,60 @@ class ChatViewModel(
     }
 
     // ──────────────────────────────────────────────
+    //  AUTO-ROUTING — Task Complexity Classifier
+    // ──────────────────────────────────────────────
+
+    /**
+     * Classifies the task complexity and returns which [OmniMode] should handle it:
+     * - **CHAT** — Short conversational question, explanation request, or definition lookup.
+     * - **AGENT** — Task that requires reading/editing files, running code, or using tools.
+     * - **SWARM** — Large multi-step project tasks (build full feature, migrate entire module, etc.)
+     *
+     * Uses a keyword/pattern heuristic — zero latency, no extra LLM call needed.
+     * The heuristic is intentionally conservative: when in doubt it upgrades to a more
+     * capable mode rather than downgrading.
+     */
+    private fun classifyTaskComplexity(input: String): OmniMode {
+        val lower = input.lowercase()
+        val wordCount = lower.split(Regex("\\s+")).size
+
+        // Patterns that strongly indicate a large multi-step project task → SWARM.
+        // Arabic translations: "اعمل التطبيق" = "make the app", "ابني" = "build",
+        // "افعل كل" = "do all", "كل الكود" = "all the code"
+        val swarmIndicators = listOf(
+            "build", "create the entire", "full project", "migrate", "refactor the whole",
+            "implement all", "new feature from scratch", "port", "write all", "create all",
+            "implement the full", "end to end", "end-to-end", "entire codebase",
+            "complete implementation", "اعمل التطبيق", "ابني", "افعل كل", "كل الكود"
+        )
+
+        // Patterns that indicate tool use / file operations → AGENT.
+        // Arabic translations: "انشئ" = "create", "اكتب" = "write", "ابحث" = "search",
+        // "افحص" = "examine/check", "عدل" = "edit", "احذف" = "delete",
+        // "اضف" = "add", "شغل" = "run", "اعمل" = "do/make", "ملف" = "file", "كود" = "code"
+        val agentIndicators = listOf(
+            "file", "code", "function", "class", "fix", "bug", "error", "edit", "change",
+            "refactor", "implement", "add", "remove", "update", "write", "create",
+            "run", "execute", "read", "search", "find", "debug", "test", "compile",
+            "gradle", "manifest", "kotlin", "java", "android", "xml", "json", "api",
+            "dependency", "import", "build", "lint", "check", "analyze", "انشئ", "اكتب",
+            "ابحث", "افحص", "عدل", "احذف", "اضف", "شغل", "اعمل", "ملف", "كود",
+            "modify", "patch", "deploy", "install", "setup", "configure"
+        )
+
+        // SWARM_MIN_WORD_COUNT: swarm tasks are inherently long descriptions; a single-word
+        // "build" inside a short 5-word question is more likely Agent than full Swarm.
+        val swarmMinWordCount = 20
+        // CHAT_MAX_WORD_COUNT: ≤ 15 words with no action keywords → conversational question.
+        val chatMaxWordCount = 15
+
+        if (swarmIndicators.any { lower.contains(it) } && wordCount > swarmMinWordCount) return OmniMode.SWARM
+        if (agentIndicators.any { lower.contains(it) }) return OmniMode.AGENT
+        if (wordCount <= chatMaxWordCount) return OmniMode.CHAT
+        // Longer messages without clear action keywords default to AGENT (safer than CHAT —
+        // Agent can still answer conversationally if no tools are needed)
+        return OmniMode.AGENT
+    }
     //  MODE: CHAT — Direct Completion (No Tools)
     // ──────────────────────────────────────────────
 
@@ -486,6 +568,14 @@ class ChatViewModel(
             .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.CHAT)
             .first()
 
+        // Read the custom chat prompt saved in System Prompt Studio (Settings).
+        // Fall back to the built-in CHAT_SYSTEM_PROMPT if the user hasn't customised it.
+        val customChatPrompt = settingsRepository
+            .observeCustomPrompt(SettingsRepository.PromptRole.CHAT)
+            .first()
+        val effectiveSystemPrompt = customChatPrompt?.takeIf { it.isNotBlank() }
+            ?: CHAT_SYSTEM_PROMPT
+
         val history = _uiState.value.messages.dropLast(1)
 
         val request = CompletionRequest(
@@ -495,7 +585,7 @@ class ChatViewModel(
                 content = input,
                 attachments = imageAttachments
             ),
-            systemPrompt = CHAT_SYSTEM_PROMPT,
+            systemPrompt = effectiveSystemPrompt,
             maxTokens = 4096,
             temperature = 0.7
         )
