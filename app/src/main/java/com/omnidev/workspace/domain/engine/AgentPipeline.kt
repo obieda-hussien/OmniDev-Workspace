@@ -10,6 +10,9 @@ import com.omnidev.workspace.data.model.ToolCallResult
 import com.omnidev.workspace.data.tools.ToolManager
 import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
@@ -47,7 +50,17 @@ data class AgentConfig(
      * in a single run before the loop is aborted with an [AgentEvent.Error].
      * Prevents runaway "stuck" loops where the model keeps calling the same tool.
      */
-    val maxRepeatedToolCalls: Int = 4
+    val maxRepeatedToolCalls: Int = 4,
+    /**
+     * When true (default), multiple tool calls returned in the same ReAct iteration
+     * are executed concurrently using structured concurrency (coroutineScope + async).
+     * This can reduce multi-tool iteration wall time by 2–4× for I/O-bound operations
+     * like file reads, searches, or network calls.
+     *
+     * Set to false to force sequential tool execution (useful for tools with side-effects
+     * that must not run simultaneously, e.g. two writes to the same file).
+     */
+    val enableParallelToolExecution: Boolean = true
 ) {
     companion object {
         /** Preset for cost-sensitive runs: fewer iterations, lower token budget. */
@@ -294,8 +307,22 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
          * Minimum pause between consecutive LLM API calls inside the ReAct loop.
          * Prevents burst-firing requests when tools resolve instantly (e.g. file reads)
          * and helps stay within rate-limit windows on free-tier providers (e.g. GitHub Models).
+         * Tier-specific overrides are applied at runtime — see [interCallDelayFor].
          */
         private const val INTER_CALL_DELAY_MS = 500L
+
+        /**
+         * Returns the appropriate inter-call delay for [tier].
+         * FAST models are high-throughput (600+ t/s) and typically run on providers
+         * with generous rate limits, so they need a much shorter pause.
+         * ORCHESTRATOR models (reasoning/frontier) are slower to respond, so the
+         * existing 500 ms buffer is fine.
+         */
+        private fun interCallDelayFor(tier: ModelTier): Long = when (tier) {
+            ModelTier.FAST -> 100L
+            ModelTier.EXECUTOR -> 250L
+            ModelTier.ORCHESTRATOR -> INTER_CALL_DELAY_MS
+        }
     }
 
     /**
@@ -439,7 +466,8 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 
             // Brief pause between iterations to avoid bursting free-tier rate limits
             // (e.g. GitHub Models / Azure inference). Skipped on the very first call.
-            if (iteration > 1) delay(INTER_CALL_DELAY_MS)
+            // Delay scales with model tier: FAST=100ms, EXECUTOR=250ms, ORCHESTRATOR=500ms.
+            if (iteration > 1) delay(interCallDelayFor(model.tier))
             send(AgentEvent.Thinking(iteration = iteration))
 
             // Token budget enforcement
@@ -519,8 +547,8 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 
             val toolResults = mutableListOf<ToolCallResult>()
 
+            // ── Loop detection — check all fingerprints upfront (before any I/O) ──
             for (toolCall in response.toolCalls) {
-                // ── Loop detection ──
                 val fingerprint = buildString {
                     append(toolCall.name)
                     append(':')
@@ -538,19 +566,47 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
                     ))
                     return@channelFlow
                 }
+            }
 
+            // Emit ToolExecution events for all calls (before we start executing them)
+            for (toolCall in response.toolCalls) {
                 send(AgentEvent.ToolExecution(
                     toolName = toolCall.name,
                     arguments = toolCall.arguments,
                     iteration = iteration
                 ))
+            }
 
-                val result = toolManager.executeTool(
-                    name = toolCall.name,
-                    arguments = toolCall.arguments,
-                    scopePath = scopePath
-                )
+            // ── Execute tools: parallel when enabled and >1 call, sequential otherwise ──
+            val rawResults: List<com.omnidev.workspace.data.tools.ToolExecutionResult> =
+                if (config.enableParallelToolExecution && response.toolCalls.size > 1) {
+                    // Run all tool calls concurrently. coroutineScope propagates cancellation
+                    // cleanly — if the parent Flow is cancelled mid-flight, all async blocks
+                    // are cancelled immediately.
+                    coroutineScope {
+                        response.toolCalls.map { toolCall ->
+                            async {
+                                toolManager.executeTool(
+                                    name = toolCall.name,
+                                    arguments = toolCall.arguments,
+                                    scopePath = scopePath
+                                )
+                            }
+                        }.awaitAll()
+                    }
+                } else {
+                    // Sequential fallback for single calls or when parallel is disabled
+                    response.toolCalls.map { toolCall ->
+                        toolManager.executeTool(
+                            name = toolCall.name,
+                            arguments = toolCall.arguments,
+                            scopePath = scopePath
+                        )
+                    }
+                }
 
+            // Collect results in original toolCall order, emit ToolResult events
+            for ((toolCall, result) in response.toolCalls.zip(rawResults)) {
                 val toolCallResult = ToolCallResult(
                     toolCallId = toolCall.id,
                     toolName = toolCall.name,
