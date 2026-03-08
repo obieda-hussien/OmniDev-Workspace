@@ -10,12 +10,14 @@ import com.omnidev.workspace.data.model.ToolCallResult
 import com.omnidev.workspace.data.tools.ToolManager
 import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.Serializable
 import kotlin.math.min
 
@@ -46,11 +48,20 @@ data class AgentConfig(
      */
     val maxExecutionTimeMs: Long? = 5 * 60 * 1_000L, // 5 minutes default
     /**
+     * Per-iteration timeout for a single LLM API call in milliseconds.
+     * If the LLM takes longer than this to respond for a single iteration,
+     * the run is aborted with an error. Prevents the agent from hanging
+     * indefinitely when the API is slow or unresponsive. Set to null to disable.
+     */
+    val maxIterationTimeMs: Long? = 90_000L, // 90 seconds per LLM call
+    /**
      * Maximum number of times the exact same tool + arguments combination may appear
      * in a single run before the loop is aborted with an [AgentEvent.Error].
      * Prevents runaway "stuck" loops where the model keeps calling the same tool.
+     * Default is 2: allows calling the same read-only tool (e.g. semantic_ui dump_tree)
+     * at most twice — if it calls it a 3rd time with identical args it is stuck.
      */
-    val maxRepeatedToolCalls: Int = 4,
+    val maxRepeatedToolCalls: Int = 2,
     /**
      * When true (default), multiple tool calls returned in the same ReAct iteration
      * are executed concurrently using structured concurrency (coroutineScope + async).
@@ -371,6 +382,12 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
             ModelTier.EXECUTOR -> 250L
             ModelTier.ORCHESTRATOR -> INTER_CALL_DELAY_MS
         }
+
+        /**
+         * Abort if semantic_ui(dump_tree) is called this many consecutive iterations
+         * without any action (click/type/tap/scroll) — the agent is stuck inspecting.
+         */
+        private const val NO_PROGRESS_THRESHOLD = 3
     }
 
     /**
@@ -506,6 +523,11 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
         // Loop-detection: tracks how many times each identical tool call has appeared.
         // Key = "toolName:sortedArgs" fingerprint; value = occurrence count.
         val toolCallCounts = mutableMapOf<String, Int>()
+
+        // No-progress detection: counts consecutive iterations where the agent only called
+        // read-only / observation tools (e.g. dump_tree, read_file, search) without taking
+        // any write/action tool. 3+ read-only-only iterations = agent is stuck inspecting.
+        var consecutiveReadOnlyIterations = 0
 
         // ── ReAct Loop ──
         while (iteration < config.maxIterations) {
@@ -697,6 +719,37 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
                     )
                 }
             }
+
+            // ── No-progress / read-only loop detection ──
+            // Detect when the agent is stuck only inspecting (dump_tree) without acting.
+            // We check semantic_ui calls: if EVERY call this iteration uses a read-only
+            // action (dump_tree, get_node, find_node), increment the counter; reset on any
+            // click/type/tap/scroll/press action.
+            val semanticUiCalls = response.toolCalls.filter { it.name == "semantic_ui" }
+            val readOnlyActions = setOf("dump_tree", "get_node", "find_node", "list_nodes")
+            val allSemUiAreReadOnly = semanticUiCalls.isNotEmpty() &&
+                semanticUiCalls.all { tc ->
+                    // Treat missing/null action as read-only (conservative — no write assumed)
+                    val action = tc.arguments["action"]?.toString()
+                    action == null || action in readOnlyActions
+                }
+            // Non-semantic_ui tools (write_file, execute_command, etc.) always count as action
+            val hasNonSemUiTool = response.toolCalls.any { it.name != "semantic_ui" }
+            if (allSemUiAreReadOnly && !hasNonSemUiTool) {
+                consecutiveReadOnlyIterations++
+                if (consecutiveReadOnlyIterations >= NO_PROGRESS_THRESHOLD) {
+                    send(AgentEvent.Error(
+                        "🔍 Agent stuck: called semantic_ui read-only operations $consecutiveReadOnlyIterations " +
+                        "consecutive times without taking any action (click/type/scroll/etc). " +
+                        "The agent may not know how to interact with the current screen. " +
+                        "Try rephrasing the task or providing a more specific instruction."
+                    ))
+                    return@channelFlow
+                }
+            } else {
+                consecutiveReadOnlyIterations = 0
+            }
+
             val toolMessage = ChatMessage(
                 role = MessageRole.TOOL,
                 content = toolContent,
@@ -742,11 +795,29 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 
         while (true) {
             try {
-                return if (streamingCompletionProvider != null) {
-                    streamingCompletionProvider.invoke(request, onStreamChunk)
+                val response = if (config.maxIterationTimeMs != null) {
+                    withTimeout(config.maxIterationTimeMs) {
+                        if (streamingCompletionProvider != null) {
+                            streamingCompletionProvider.invoke(request, onStreamChunk)
+                        } else {
+                            completionProvider(request)
+                        }
+                    }
                 } else {
-                    completionProvider(request)
+                    if (streamingCompletionProvider != null) {
+                        streamingCompletionProvider.invoke(request, onStreamChunk)
+                    } else {
+                        completionProvider(request)
+                    }
                 }
+                return response
+            } catch (e: TimeoutCancellationException) {
+                val timeoutSec = (config.maxIterationTimeMs ?: 90_000L) / 1_000
+                onFatalError(
+                    "⏱ LLM call timed out after ${timeoutSec}s at iteration $iteration. " +
+                    "The model API did not respond in time. Try again or use ⏹ to cancel."
+                )
+                return null
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
