@@ -256,9 +256,14 @@ class CompletionService {
                 requestMethod = "GET"
                 connectTimeout = COPILOT_EXCHANGE_TIMEOUT_MS
                 readTimeout = COPILOT_EXCHANGE_TIMEOUT_MS
-                setRequestProperty("Authorization", "Bearer $oauthToken")
+                // GitHub REST API requires "token" scheme for OAuth tokens.
+                // "Bearer" is only correct for the Copilot session token (api.githubcopilot.com).
+                setRequestProperty("Authorization", "token $oauthToken")
                 setRequestProperty("Accept", "application/json")
                 setRequestProperty("Editor-Version", "OmniDevWorkspace/1.0")
+                // "vscode-chat" is the publicly accepted integration ID used by all third-party
+                // Copilot clients (aider, opencode, etc.). GitHub rejects unknown IDs.
+                setRequestProperty("Copilot-Integration-Id", "vscode-chat")
             }
 
             val responseCode = conn.responseCode
