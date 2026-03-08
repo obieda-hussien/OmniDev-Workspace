@@ -107,8 +107,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.drawscope.Stroke
+import com.omnidev.workspace.data.voice.VoiceAssistantService
 
 /**
  * System-wide floating AI assistant bubble that persists across all apps.
@@ -223,6 +231,16 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
     /** Counts unread AI replies accumulated while the bubble is collapsed. */
     private val unreadCount = mutableIntStateOf(0)
 
+    /** Current voice assistant state for dynamic bubble color/animation feedback. */
+    private val voiceState = mutableStateOf<VoiceAssistantService.VoiceState>(VoiceAssistantService.VoiceState.Idle)
+
+    /** Whether the Gemini-style pill bar is currently attached to the window. */
+    private val showPillBar = mutableStateOf(false)
+
+    /** Separate overlay window for the bottom pill bar. */
+    private var pillView: ComposeView? = null
+    private lateinit var pillParams: WindowManager.LayoutParams
+
     // ── Execution dependencies (lazy — only created when first message is sent) ──
 
     /** Coroutine scope for async LLM calls. Cancelled in [onDestroy]. */
@@ -259,6 +277,13 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
 
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         attachBubble()
+
+        // Mirror VoiceAssistantService state into local Compose state for bubble feedback.
+        serviceScope.launch {
+            VoiceAssistantService.voiceState.collectLatest { state ->
+                voiceState.value = state
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -286,6 +311,8 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
         isRunning = false
         serviceScope.cancel()
         lifecycleRegistry.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
+        pillView?.let { try { windowManager.removeView(it) } catch (_: Exception) {} }
+        pillView = null
         bubbleView?.let { windowManager.removeView(it) }
         bubbleView = null
         super.onDestroy()
@@ -333,6 +360,7 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                     detectedMode = detectedMode.value,
                     isProcessing = isProcessing.value,
                     unreadCount = unreadCount.intValue,
+                    voiceState = voiceState.value,
                     onToggleExpand = {
                         bubbleExpanded.value = !bubbleExpanded.value
                         if (bubbleExpanded.value) unreadCount.intValue = 0
@@ -411,15 +439,11 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                 bubbleView?.let { windowManager.updateViewLayout(it, layoutParams) }
             }
             MotionEvent.ACTION_UP -> {
-                // If the drag distance is small, treat it as a tap (expand)
+                // If the drag distance is small, treat it as a tap — toggle the pill bar.
                 val dx = event.rawX - initialTouchX
                 val dy = event.rawY - initialTouchY
                 if (dx * dx + dy * dy < 25f * 25f) {
-                    bubbleExpanded.value = true
-                    // Re-enable focus so the expanded panel can receive text input
-                    layoutParams.flags = layoutParams.flags and
-                        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-                    bubbleView?.let { windowManager.updateViewLayout(it, layoutParams) }
+                    if (showPillBar.value) removePillBar() else attachPillBar()
                 }
             }
         }
@@ -531,6 +555,71 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
      * Delegates to [IntentClassifier.classify] for consistent intent scoring with ChatViewModel.
      */
     private fun classifyIntent(input: String): OmniMode = IntentClassifier.classify(input)
+
+    // ──────────────────────────────────────────────────────────────────────────────
+    //  Pill bar — Gemini-style bottom overlay
+    // ──────────────────────────────────────────────────────────────────────────────
+
+    private fun attachPillBar() {
+        if (pillView != null) return
+
+        val overlayType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+
+        pillParams = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            overlayType,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            y = 48
+        }
+
+        val view = ComposeView(this).also { pillView = it }
+        view.setViewTreeLifecycleOwner(this)
+        view.setViewTreeViewModelStoreOwner(this)
+        view.setViewTreeSavedStateRegistryOwner(this)
+
+        view.setContent {
+            OmniDevTheme {
+                OmniPillBar(
+                    voiceState = voiceState.value,
+                    onSendMessage = { text ->
+                        removePillBar()
+                        handleUserMessage(text)
+                    },
+                    onExpand = {
+                        removePillBar()
+                        bubbleExpanded.value = true
+                        layoutParams.flags = layoutParams.flags and
+                            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+                        bubbleView?.let { windowManager.updateViewLayout(it, layoutParams) }
+                    },
+                    onStop = {
+                        currentJob?.cancel()
+                        currentJob = null
+                        streamingText.value = null
+                        isProcessing.value = false
+                    },
+                    onDismiss = { removePillBar() }
+                )
+            }
+        }
+
+        windowManager.addView(view, pillParams)
+        showPillBar.value = true
+    }
+
+    private fun removePillBar() {
+        pillView?.let { try { windowManager.removeView(it) } catch (_: Exception) {} }
+        pillView = null
+        showPillBar.value = false
+    }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -569,6 +658,7 @@ private fun OmniBubbleContent(
     detectedMode: OmniMode?,
     isProcessing: Boolean,
     unreadCount: Int,
+    voiceState: VoiceAssistantService.VoiceState,
     onToggleExpand: () -> Unit,
     onSendMessage: (String) -> Unit,
     onStopGeneration: () -> Unit,
@@ -577,7 +667,43 @@ private fun OmniBubbleContent(
     onDismiss: () -> Unit
 ) {
     if (!expanded) {
-        // ── Collapsed bubble with unread badge ──
+        // ── Collapsed bubble: dynamic colors + waveform/pulse per voice state ──
+
+        val (topColor, bottomColor) = when {
+            voiceState is VoiceAssistantService.VoiceState.Listening ||
+            voiceState is VoiceAssistantService.VoiceState.PartialResult ->
+                Color(0xFF00C853) to Color(0xFF00897B)
+            voiceState is VoiceAssistantService.VoiceState.Processing ->
+                Color(0xFF1565C0) to Color(0xFF0D47A1)
+            voiceState is VoiceAssistantService.VoiceState.Speaking ->
+                Color(0xFF00BFA5) to Color(0xFF00695C)
+            voiceState is VoiceAssistantService.VoiceState.Error ->
+                Color(0xFFE53935) to Color(0xFFB71C1C)
+            else -> Color(0xFF6750A4) to Color(0xFF4A3780)
+        }
+
+        val isListening = voiceState is VoiceAssistantService.VoiceState.Listening ||
+                          voiceState is VoiceAssistantService.VoiceState.PartialResult
+        val isVoiceProcessing = voiceState is VoiceAssistantService.VoiceState.Processing
+
+        // Always-running infinite transition — values are zeroed when not in Processing state
+        // so that the animation engine doesn't need to be conditionally created.
+        val infiniteTransition = rememberInfiniteTransition(label = "bubble_pulse")
+        val rawPulseScale by infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 1.35f,
+            animationSpec = infiniteRepeatable(tween(800), RepeatMode.Restart),
+            label = "pulse_scale"
+        )
+        val rawPulseAlpha by infiniteTransition.animateFloat(
+            initialValue = 0.5f,
+            targetValue = 0f,
+            animationSpec = infiniteRepeatable(tween(800), RepeatMode.Restart),
+            label = "pulse_alpha"
+        )
+        val pulseScale = if (isVoiceProcessing) rawPulseScale else 1f
+        val pulseAlpha = if (isVoiceProcessing) rawPulseAlpha else 0f
+
         BadgedBox(
             badge = {
                 if (unreadCount > 0) {
@@ -593,27 +719,45 @@ private fun OmniBubbleContent(
                 }
             }
         ) {
-            Box(
-                modifier = Modifier
-                    .size(60.dp)
-                    .shadow(10.dp, CircleShape)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                Color(0xFF6750A4),
-                                Color(0xFF4A3780)
-                            )
-                        )
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Filled.AutoAwesome,
-                    contentDescription = "OmniDev Bubble",
-                    tint = Color.White,
-                    modifier = Modifier.size(30.dp)
+            Box(contentAlignment = Alignment.Center) {
+                // Pulsing ring drawn behind the main circle when Processing
+                Box(
+                    modifier = Modifier
+                        .size(60.dp)
+                        .drawBehind {
+                            if (pulseAlpha > 0f) {
+                                drawCircle(
+                                    color = topColor.copy(alpha = pulseAlpha),
+                                    radius = (size.minDimension / 2f) * pulseScale,
+                                    style = Stroke(width = 2.dp.toPx())
+                                )
+                            }
+                        }
                 )
+                // Main bubble circle
+                Box(
+                    modifier = Modifier
+                        .size(60.dp)
+                        .shadow(10.dp, CircleShape)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(topColor, bottomColor)
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isListening) {
+                        WaveformBars()
+                    } else {
+                        Icon(
+                            Icons.Filled.AutoAwesome,
+                            contentDescription = "OmniDev Bubble",
+                            tint = Color.White,
+                            modifier = Modifier.size(30.dp)
+                        )
+                    }
+                }
             }
         }
     } else {
@@ -1016,6 +1160,39 @@ private fun TypingDotsIndicator() {
     }
 }
 
+// ── Animated waveform bars (shown inside the collapsed bubble when Listening) ──
+
+@Composable
+private fun WaveformBars() {
+    val infiniteTransition = rememberInfiniteTransition(label = "waveform")
+    val delays = listOf(0, 100, 200, 300, 400)
+    val heightStates = delays.map { delay ->
+        infiniteTransition.animateFloat(
+            initialValue = 8f,
+            targetValue = 24f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(600, delayMillis = delay),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "bar_$delay"
+        )
+    }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        heightStates.forEach { state ->
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(state.value.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.White)
+            )
+        }
+    }
+}
+
 // ── Input row ──
 
 @Composable
@@ -1094,6 +1271,176 @@ private fun BubbleInputRow(
                         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
                     modifier = Modifier.size(18.dp)
                 )
+            }
+        }
+    }
+}
+
+// ── Gemini-style pill bar ──
+
+/**
+ * A bottom-anchored pill-shaped overlay bar providing quick voice/text input access.
+ * Shown when the user taps the collapsed bubble, replacing the need to expand the full panel.
+ *
+ * Layout: [ waveform icon | text field | mic button | (stop button) | expand | close ]
+ */
+@Composable
+private fun OmniPillBar(
+    voiceState: VoiceAssistantService.VoiceState,
+    onSendMessage: (String) -> Unit,
+    onExpand: () -> Unit,
+    onStop: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var inputText by remember { mutableStateOf("") }
+
+    val isListening = voiceState is VoiceAssistantService.VoiceState.Listening ||
+                      voiceState is VoiceAssistantService.VoiceState.PartialResult
+    val isVoiceProcessing = voiceState is VoiceAssistantService.VoiceState.Processing
+
+    val infiniteTransition = rememberInfiniteTransition(label = "pill_anim")
+
+    // Rainbow hue cycle for the waveform icon
+    val rainbowHue by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(2000, easing = LinearEasing), RepeatMode.Restart),
+        label = "rainbow_hue"
+    )
+    val rainbowColor = Color(android.graphics.Color.HSVToColor(floatArrayOf(rainbowHue, 1f, 1f)))
+
+    // Mic pulse when listening
+    val rawMicScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.15f,
+        animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse),
+        label = "mic_pulse"
+    )
+    val micScale = if (isListening) rawMicScale else 1f
+
+    val rainbowBrush = Brush.horizontalGradient(
+        listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta)
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp),
+            shape = RoundedCornerShape(30.dp),
+            color = Color(0xFF1C1B1F).copy(alpha = 0.95f),
+            border = BorderStroke(1.5.dp, rainbowBrush)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+        // Waveform icon with animated rainbow color
+                Icon(
+                    Icons.Filled.GraphicEq,
+                    contentDescription = null,
+                    tint = rainbowColor,
+                    modifier = Modifier.size(28.dp)
+                )
+
+                Spacer(Modifier.width(8.dp))
+
+                // Text input (no visible border)
+                OutlinedTextField(
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = {
+                        Text(
+                            "اسأل أومني...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.4f)
+                        )
+                    },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodySmall.copy(color = Color.White),
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Send,
+                        capitalization = KeyboardCapitalization.Sentences
+                    ),
+                    keyboardActions = KeyboardActions(onSend = {
+                        if (inputText.isNotBlank()) {
+                            onSendMessage(inputText)
+                            inputText = ""
+                        }
+                    })
+                )
+
+                Spacer(Modifier.width(6.dp))
+
+                // Mic button with pulse animation while listening
+                Box(
+                    modifier = Modifier
+                        .size((48 * micScale).dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.Mic,
+                        contentDescription = "Microphone",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                // Stop button — only shown while processing
+                if (isVoiceProcessing) {
+                    Spacer(Modifier.width(4.dp))
+                    IconButton(
+                        onClick = onStop,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.errorContainer)
+                    ) {
+                        Icon(
+                            Icons.Filled.Stop,
+                            contentDescription = "Stop",
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.width(4.dp))
+
+                // Expand to full panel
+                IconButton(
+                    onClick = onExpand,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.OpenInFull,
+                        contentDescription = "Expand",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                // Dismiss pill bar
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Close",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
     }
