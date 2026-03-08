@@ -201,6 +201,11 @@ class VoiceAssistantService : Service() {
         /** Delay before restarting the wake-word loop after a triggered wake greeting ends. */
         private const val WAKE_LOOP_RESTART_DELAY_MS = 1000L
         /**
+         * Back-off delay when startListening() throws SecurityException (another app's
+         * RecognitionService is set as default). Retry after this many ms.
+         */
+        private const val SECURITY_EXCEPTION_RETRY_DELAY_MS = 5_000L
+        /**
          * Undocumented Android extra that adds secondary recognition languages.
          * There is no public constant for this in [RecognizerIntent]; the string is
          * stable across AOSP back to API 21 and used by Google Keyboard / GBoard.
@@ -403,7 +408,21 @@ class VoiceAssistantService : Service() {
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
         }
         muteSystemBeepBriefly()
-        queryRecognizer?.startListening(intent)
+        try {
+            queryRecognizer?.startListening(intent)
+        } catch (e: SecurityException) {
+            // Another app (e.g. Claude) is set as the default RecognitionService and Android
+            // blocks cross-app service binding. Destroy the unusable recognizer and report the
+            // error so the UI can surface a helpful message rather than crashing.
+            Log.e("VoiceAssistantService", "SecurityException in startListening (query): ${e.message}")
+            queryRecognizer?.destroy()
+            queryRecognizer = null
+            _voiceState.value = VoiceState.Error(
+                "Speech recognition unavailable: another app's recognition service is set as default. " +
+                "Go to Settings → Apps → Default apps → Assist app and select a different app."
+            )
+            startWakeWordLoop()
+        }
     }
 
     private fun stopMainListening() {
@@ -545,7 +564,18 @@ class VoiceAssistantService : Service() {
             putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500L)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
         }
-        wakeRecognizer?.startListening(intent)
+        try {
+            wakeRecognizer?.startListening(intent)
+        } catch (e: SecurityException) {
+            // Another app (e.g. Claude) is registered as the default RecognitionService.
+            // Android blocks cross-package service binding; destroy the unusable recognizer
+            // and schedule a re-check instead of crashing the whole service.
+            Log.e("VoiceAssistantService", "SecurityException in startListening (wake): ${e.message}")
+            wakeRecognizer?.destroy()
+            wakeRecognizer = null
+            // Back off before retrying, to avoid hammering the OS.
+            handler.postDelayed({ launchWakeSession() }, SECURITY_EXCEPTION_RETRY_DELAY_MS)
+        }
     }
 
     private fun scheduleWakeRestart() {
