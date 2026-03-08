@@ -24,7 +24,7 @@ import java.util.Locale
  * 3. Logcat analyzer and Git manager
  * 4. Environment / advanced terminal tools
  * 5. Notification and task scheduler tools
- * 6. Visual inspector, Telegram publisher, GitHub manager
+ * 6. Visual inspector, Telegram publisher, Telegram bot, GitHub manager
  * 7. File tools (read, search, patch, create, delete, terminal, web search) — default fallback
  */
 class CompositeToolManager(
@@ -70,6 +70,7 @@ class CompositeToolManager(
         addAll(N8nAutomationTool.getToolDefinitions())
         addAll(VisualInspectorTool.getToolDefinitions())
         addAll(TelegramPublisherTool.getToolDefinitions())
+        addAll(TelegramBotTool.getToolDefinitions())
         addAll(GitHubManagerTool.getToolDefinitions())
         if (discordPublisherTool != null) {
             addAll(DiscordPublisherTool.getToolDefinitions())
@@ -335,6 +336,12 @@ class CompositeToolManager(
                     message = arguments["message"] ?: return missingArg("message"),
                     parseMode = arguments["parseMode"] ?: "Markdown"
                 )
+            }
+
+            // ── Telegram bot tool (bidirectional — send, receive, get_updates, etc.) ──
+            "telegram_bot" -> {
+                val botToken = settingsRepository?.observeTelegramBotToken()?.first()
+                TelegramBotTool.execute(botToken = botToken, args = arguments)
             }
 
             // ── GitHub manager tool ──

@@ -233,6 +233,12 @@
                 android:value="omni_bubble_overlay" />
         </service>
 
+        <!-- Telegram Polling Service (OpenClaw-style bot listener) -->
+        <service
+            android:name=".data.integration.TelegramPollingService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <!-- VoiceAssistantService -->
         <service
             android:name=".data.voice.VoiceAssistantService"

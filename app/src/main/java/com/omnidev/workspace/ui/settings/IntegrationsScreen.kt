@@ -20,7 +20,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
 import com.omnidev.workspace.data.auth.GitHubDeviceFlowManager
+import com.omnidev.workspace.data.integration.TelegramPollingService
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
@@ -30,7 +32,7 @@ import kotlinx.coroutines.launch
 /**
  * Settings screen for configuring external platform integrations:
  * - GitHub Device Flow (RFC 8628) with sub-mode toggle (Copilot / Models)
- * - Telegram Bot Token & Chat ID
+ * - Telegram Bot Token & Chat ID + Polling listener toggle (OpenClaw-style)
  * - Discord Webhook URL
  * - Notion API Key & Database ID
  *
@@ -495,6 +497,44 @@ fun IntegrationsScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
+
+            // Telegram Bot Listener toggle (OpenClaw-style polling)
+            var telegramBotRunning by remember { mutableStateOf(TelegramPollingService.isRunning) }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "🤖 Telegram Bot Listener",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Text(
+                        text = if (telegramBotRunning)
+                            "Active — Omni is listening to Telegram messages"
+                        else
+                            "Start to let Omni listen and reply to Telegram messages (OpenClaw-style)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (telegramBotRunning)
+                            MaterialTheme.colorScheme.primary
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = telegramBotRunning,
+                    onCheckedChange = { enabled ->
+                        telegramBotRunning = enabled
+                        val svcIntent = Intent(context, TelegramPollingService::class.java)
+                        if (enabled) {
+                            context.startService(svcIntent)
+                        } else {
+                            svcIntent.action = TelegramPollingService.ACTION_STOP
+                            context.startService(svcIntent)
+                        }
+                    }
+                )
+            }
 
             HorizontalDivider()
 
