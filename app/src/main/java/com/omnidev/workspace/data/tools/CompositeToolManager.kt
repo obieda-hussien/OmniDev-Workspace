@@ -2,8 +2,16 @@ package com.omnidev.workspace.data.tools
 
 import android.content.Context
 import com.omnidev.workspace.data.accessibility.SemanticUITool
+import com.omnidev.workspace.data.admin.OmniDeviceAdminReceiver
+import com.omnidev.workspace.data.communication.SmsCaptureBuffer
+import com.omnidev.workspace.data.input.OmniInputMethodService
+import com.omnidev.workspace.data.media.OmniMediaSessionService
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.data.sync.OmniSyncService
 import kotlinx.coroutines.flow.first
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * Delegates tool execution to [FileToolManager], [MemoryManager], and the suite of
@@ -92,6 +100,117 @@ class CompositeToolManager(
         }
         if (requestGitHubAuthTool != null) {
             addAll(RequestGitHubAuthenticationTool.getToolDefinitions())
+        }
+
+        // ── Media control tool ──
+        if (context != null) {
+            add(ToolDefinition(
+                name = "media_control",
+                description = "Control media playback across all apps (play, pause, stop, next, previous, toggle). " +
+                        "Also supports 'info' action to get currently playing track details. " +
+                        "Requires Notification Access permission.",
+                parameters = listOf(
+                    ToolParameter(
+                        name = "action",
+                        type = "string",
+                        description = "One of: play, pause, stop, next, previous, toggle, info",
+                        required = true
+                    )
+                )
+            ))
+        }
+
+        // ── Device admin tool ──
+        if (context != null) {
+            add(ToolDefinition(
+                name = "device_admin",
+                description = "Device administration: lock screen, set password policies, check admin status. " +
+                        "Requires Device Admin permission. Actions: lock_screen, set_password_min_length, " +
+                        "set_lock_timeout, status, request_activation.",
+                parameters = listOf(
+                    ToolParameter(
+                        name = "action",
+                        type = "string",
+                        description = "One of: lock_screen, set_password_min_length, set_lock_timeout, status, request_activation",
+                        required = true
+                    ),
+                    ToolParameter(
+                        name = "value",
+                        type = "string",
+                        description = "Value for the action (e.g., min password length, timeout in ms)",
+                        required = false
+                    )
+                )
+            ))
+        }
+
+        // ── Incoming SMS capture tool ──
+        add(ToolDefinition(
+            name = "read_incoming_sms",
+            description = "Read real-time incoming SMS messages captured by the background SMS receiver. " +
+                    "Returns recently received messages with sender, body, and timestamp. " +
+                    "Different from sms_reader_tool which reads the SMS database — this reads only " +
+                    "messages that arrived while the app was running.",
+            parameters = listOf(
+                ToolParameter(
+                    name = "sender_filter",
+                    type = "string",
+                    description = "Filter by sender phone number (substring match)",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "limit",
+                    type = "string",
+                    description = "Max number of messages to return (default: 20)",
+                    required = false
+                )
+            )
+        ))
+
+        // ── Input method (IME) tool ──
+        add(ToolDefinition(
+            name = "ime_tool",
+            description = "Interact with OmniDev's Input Method Service to type text into any app's " +
+                    "input field, read text near the cursor, or delete text. The OmniDev IME must " +
+                    "be enabled and active. Actions: commit_text, delete, get_selected, get_before_cursor, status.",
+            parameters = listOf(
+                ToolParameter(
+                    name = "action",
+                    type = "string",
+                    description = "One of: commit_text, delete, get_selected, get_before_cursor, status",
+                    required = true
+                ),
+                ToolParameter(
+                    name = "text",
+                    type = "string",
+                    description = "Text to commit (for commit_text action)",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "length",
+                    type = "string",
+                    description = "Number of chars for delete/get_before_cursor (default: 1 for delete, 100 for get)",
+                    required = false
+                )
+            )
+        ))
+
+        // ── Sync service control tool ──
+        if (context != null) {
+            add(ToolDefinition(
+                name = "sync_service",
+                description = "Control the background sync service. Actions: start, stop, status. " +
+                        "The sync service periodically checks for scheduled tasks and manages " +
+                        "background data synchronization.",
+                parameters = listOf(
+                    ToolParameter(
+                        name = "action",
+                        type = "string",
+                        description = "One of: start, stop, status",
+                        required = true
+                    )
+                )
+            ))
         }
     }
 
@@ -364,6 +483,140 @@ class CompositeToolManager(
                 val authTool = requestGitHubAuthTool
                     ?: return ToolExecutionResult("GitHub auth tool requires settingsRepository and apiKeyRepository.", isError = true)
                 authTool.execute(requestedScopes = arguments["requested_scopes"])
+            }
+
+            // ── Media control tool ──
+            "media_control" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Media control requires Android context.", isError = true)
+                val action = arguments["action"] ?: return missingArg("action")
+                if (action.lowercase() == "info") {
+                    ToolExecutionResult(OmniMediaSessionService.getActiveMediaInfo(ctx))
+                } else {
+                    ToolExecutionResult(OmniMediaSessionService.controlMedia(ctx, action))
+                }
+            }
+
+            // ── Device admin tool ──
+            "device_admin" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Device admin requires Android context.", isError = true)
+                val action = arguments["action"] ?: return missingArg("action")
+                when (action.lowercase()) {
+                    "lock_screen" -> {
+                        val success = OmniDeviceAdminReceiver.lockScreen(ctx)
+                        if (success) ToolExecutionResult("🔒 Screen locked successfully.")
+                        else ToolExecutionResult("Device Admin not active. Use action 'request_activation' first.", isError = true)
+                    }
+                    "set_password_min_length" -> {
+                        val len = arguments["value"]?.toIntOrNull()
+                            ?: return ToolExecutionResult("'value' must be an integer for min password length.", isError = true)
+                        val success = OmniDeviceAdminReceiver.setMinPasswordLength(ctx, len)
+                        if (success) ToolExecutionResult("✅ Minimum password length set to $len.")
+                        else ToolExecutionResult("Device Admin not active.", isError = true)
+                    }
+                    "set_lock_timeout" -> {
+                        val ms = arguments["value"]?.toLongOrNull()
+                            ?: return ToolExecutionResult("'value' must be timeout in milliseconds.", isError = true)
+                        val success = OmniDeviceAdminReceiver.setMaxScreenLockTimeout(ctx, ms)
+                        if (success) ToolExecutionResult("✅ Screen lock timeout set to ${ms}ms.")
+                        else ToolExecutionResult("Device Admin not active.", isError = true)
+                    }
+                    "status" -> {
+                        val active = OmniDeviceAdminReceiver.isAdminActive(ctx)
+                        ToolExecutionResult("Device Admin status: ${if (active) "✅ Active" else "❌ Inactive (use request_activation)"}")
+                    }
+                    "request_activation" -> {
+                        OmniDeviceAdminReceiver.requestAdminActivation(ctx)
+                        ToolExecutionResult("📱 Device Admin activation dialog launched. User must approve.")
+                    }
+                    else -> ToolExecutionResult("Unknown device_admin action '$action'.", isError = true)
+                }
+            }
+
+            // ── Incoming SMS capture tool ──
+            "read_incoming_sms" -> {
+                val senderFilter = arguments["sender_filter"]
+                val limit = arguments["limit"]?.toIntOrNull() ?: 20
+                val messages = if (senderFilter != null) {
+                    SmsCaptureBuffer.getFromSender(senderFilter, limit)
+                } else {
+                    SmsCaptureBuffer.getRecent(limit)
+                }
+                if (messages.isEmpty()) {
+                    ToolExecutionResult("No incoming SMS captured yet. Messages appear here as they arrive in real-time.")
+                } else {
+                    val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                    val sb = StringBuilder("Captured SMS (${messages.size}):\n")
+                    for (msg in messages) {
+                        sb.appendLine("  From: ${msg.sender}")
+                        sb.appendLine("  Time: ${dateFormat.format(Date(msg.timestamp))}")
+                        sb.appendLine("  Body: ${msg.body}")
+                        sb.appendLine("  ---")
+                    }
+                    ToolExecutionResult(sb.toString())
+                }
+            }
+
+            // ── Input Method (IME) tool ──
+            "ime_tool" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                when (action.lowercase()) {
+                    "commit_text" -> {
+                        val text = arguments["text"]
+                            ?: return ToolExecutionResult("Missing 'text' argument for commit_text.", isError = true)
+                        val success = OmniInputMethodService.commitText(text)
+                        if (success) ToolExecutionResult("✅ Committed ${text.length} chars to input field.")
+                        else ToolExecutionResult("OmniDev IME is not active. User must enable and switch to it in Settings → Languages & Input.", isError = true)
+                    }
+                    "delete" -> {
+                        val len = arguments["length"]?.toIntOrNull() ?: 1
+                        val success = OmniInputMethodService.deleteSurrounding(len)
+                        if (success) ToolExecutionResult("✅ Deleted $len char(s).")
+                        else ToolExecutionResult("OmniDev IME is not active.", isError = true)
+                    }
+                    "get_selected" -> {
+                        val text = OmniInputMethodService.getSelectedText()
+                        ToolExecutionResult(text ?: "(no text selected or IME not active)")
+                    }
+                    "get_before_cursor" -> {
+                        val len = arguments["length"]?.toIntOrNull() ?: 100
+                        val text = OmniInputMethodService.getTextBeforeCursor(len)
+                        ToolExecutionResult(text ?: "(no text or IME not active)")
+                    }
+                    "status" -> {
+                        val active = OmniInputMethodService.isActive.value
+                        ToolExecutionResult("OmniDev IME status: ${if (active) "✅ Active" else "❌ Inactive"}")
+                    }
+                    else -> ToolExecutionResult("Unknown ime_tool action '$action'.", isError = true)
+                }
+            }
+
+            // ── Sync service control tool ──
+            "sync_service" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Sync service requires Android context.", isError = true)
+                val action = arguments["action"] ?: return missingArg("action")
+                when (action.lowercase()) {
+                    "start" -> {
+                        OmniSyncService.start(ctx)
+                        ToolExecutionResult("✅ Background sync service started.")
+                    }
+                    "stop" -> {
+                        OmniSyncService.stop(ctx)
+                        ToolExecutionResult("⏹️ Background sync service stopped.")
+                    }
+                    "status" -> {
+                        val state = OmniSyncService.syncState.value
+                        val lastSync = OmniSyncService.lastSyncTimeMs.value
+                        val lastStr = if (lastSync > 0) {
+                            SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                                .format(Date(lastSync))
+                        } else "never"
+                        ToolExecutionResult("Sync status: $state | Last sync: $lastStr")
+                    }
+                    else -> ToolExecutionResult("Unknown sync_service action '$action'.", isError = true)
+                }
             }
 
             // ── File tools (default fallback) ──
