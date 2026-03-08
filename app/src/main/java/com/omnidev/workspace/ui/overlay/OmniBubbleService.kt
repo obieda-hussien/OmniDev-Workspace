@@ -20,6 +20,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -73,6 +74,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -239,7 +243,7 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
 
     /** Separate overlay window for the bottom pill bar. */
     private var pillView: ComposeView? = null
-    private lateinit var pillParams: WindowManager.LayoutParams
+    private var pillParams: WindowManager.LayoutParams? = null
 
     // ── Execution dependencies (lazy — only created when first message is sent) ──
 
@@ -611,7 +615,7 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             }
         }
 
-        windowManager.addView(view, pillParams)
+        windowManager.addView(view, pillParams!!)
         showPillBar.value = true
     }
 
@@ -1327,6 +1331,7 @@ private fun OmniPillBar(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1384,7 +1389,8 @@ private fun OmniPillBar(
                     modifier = Modifier
                         .size((48 * micScale).dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary),
+                        .background(MaterialTheme.colorScheme.primary)
+                        .clickable { VoiceAssistantService.startListening() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -1443,5 +1449,6 @@ private fun OmniPillBar(
                 }
             }
         }
+        } // end CompositionLocalProvider
     }
 }
