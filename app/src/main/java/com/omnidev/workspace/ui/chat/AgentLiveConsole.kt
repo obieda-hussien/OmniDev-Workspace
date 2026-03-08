@@ -240,7 +240,7 @@ fun AgentLiveConsole(
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp)
                 ) {
-                    items(entries, key = { it.timestamp }) { entry ->
+                    items(entries, key = { it.id }) { entry ->
                         AnimatedVisibility(
                             visible = true,
                             enter = fadeIn(tween(120)) + expandVertically(tween(120))
