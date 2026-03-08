@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">OmniDev Workspace</string>
+    <string name="accessibility_service_description">OmniDev Workspace uses this service to read and interact with the screen semantically. The AI agent can see UI elements (buttons, text fields, labels) across all apps and perform actions like clicking, typing, and scrolling — without relying on fragile pixel coordinates. This enables intelligent, context-aware automation.</string>
+</resources>
