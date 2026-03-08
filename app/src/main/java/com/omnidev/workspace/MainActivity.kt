@@ -71,7 +71,8 @@ class MainActivity : ComponentActivity() {
             godEyeProfilerTool = godEyeProfilerTool,
             discordPublisherTool = discordPublisherTool,
             notionPublisherTool = notionPublisherTool,
-            vectorMemoryManager = VectorMemoryManager(database.knowledgeDao())
+            vectorMemoryManager = VectorMemoryManager(database.knowledgeDao()),
+            apiKeyRepository = apiKeyRepository
         )
 
         // Real HTTP completion provider

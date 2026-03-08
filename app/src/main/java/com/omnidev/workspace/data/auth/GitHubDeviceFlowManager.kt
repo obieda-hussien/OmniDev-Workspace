@@ -69,7 +69,7 @@ object GitHubDeviceFlowManager {
 
     private const val DEVICE_CODE_URL  = "https://github.com/login/device/code"
     private const val TOKEN_URL        = "https://github.com/login/oauth/access_token"
-    private const val VERIFICATION_URL = "https://github.com/login/device"
+    const val VERIFICATION_URL = "https://github.com/login/device"
 
     private const val TAG = "GitHubDeviceFlow"
 
@@ -81,6 +81,13 @@ object GitHubDeviceFlowManager {
 
     /** Scope for GitHub Models: repo + email + models access. */
     private const val MODELS_SCOPE = "repo read:user user:email"
+
+    /**
+     * Comprehensive default scope used by [RequestGitHubAuthenticationTool] when
+     * no specific scopes are requested.  Covers repository access, Actions/workflow
+     * triggers, Gist creation, and basic user-profile reads.
+     */
+    const val DEFAULT_COMPREHENSIVE_SCOPE = "repo workflow gist read:user user:email"
 
     // ── DeviceFlowState ───────────────────────────────────────────────────────
 
@@ -108,7 +115,12 @@ object GitHubDeviceFlowManager {
     /**
      * Initiates GitHub Device Flow and polls until the user authorizes (or flow expires).
      *
-     * @param subMode     Which sub-mode to connect ([SubMode.COPILOT] or [SubMode.MODELS]).
+     * @param subMode       Which sub-mode to connect ([SubMode.COPILOT] or [SubMode.MODELS]).
+     * @param overrideScope Optional OAuth scope string.  When non-null, overrides the
+     *                      sub-mode default.  Used by [RequestGitHubAuthenticationTool]
+     *                      to request dynamic scopes at the LLM's direction.  When null
+     *                      the appropriate sub-mode default is used
+     *                      (COPILOT → [COPILOT_SCOPE], MODELS → [MODELS_SCOPE]).
      *
      * Emits:
      * 1. [DeviceFlowState.AwaitingUserCode] immediately with the code to display
@@ -125,10 +137,12 @@ object GitHubDeviceFlowManager {
     fun startDeviceFlowAndPoll(
         settingsRepository: SettingsRepository,
         apiKeyRepository: ApiKeyRepository,
-        subMode: SubMode = SubMode.MODELS
+        subMode: SubMode = SubMode.MODELS,
+        overrideScope: String? = null
     ): Flow<DeviceFlowState> = flow {
         val clientId = if (subMode == SubMode.COPILOT) COPILOT_CLIENT_ID else MODELS_CLIENT_ID
-        val scope    = if (subMode == SubMode.COPILOT) COPILOT_SCOPE    else MODELS_SCOPE
+        val scope    = overrideScope?.takeIf { it.isNotBlank() }
+            ?: if (subMode == SubMode.COPILOT) COPILOT_SCOPE else MODELS_SCOPE
 
         // ── Step 1: Request device + user codes ──────────────────────────────
         val codeResponse = withContext(Dispatchers.IO) { requestDeviceCode(clientId, scope) }
@@ -265,9 +279,27 @@ object GitHubDeviceFlowManager {
         conn.doOutput = true
         conn.outputStream.write(postBody.toByteArray())
         conn.connect()
-        // Use error stream for 4xx responses that still carry JSON
-        val stream = if (conn.responseCode in 200..299) conn.inputStream else conn.errorStream
-        val response = (stream ?: conn.inputStream).bufferedReader().readText()
+        // On some Android versions (< API 29), calling getResponseCode() on a POST request
+        // that returns a 4xx status throws a fatal IOException instead of returning the
+        // status code.  Wrap it in a try-catch so we can fall through to the error stream
+        // and still parse the JSON body (which carries "error":"access_denied" etc.).
+        val responseCode = try {
+            conn.responseCode
+        } catch (e: IOException) {
+            // Log for debuggability — this indicates an older Android quirk.
+            Log.w(TAG, "getResponseCode threw IOException (older Android); falling back to errorStream: ${e.message}")
+            -1
+        }
+        // Prefer errorStream for non-2xx so the JSON error body is readable.
+        // errorStream is null only when no error response was received (shouldn't happen
+        // here since responseCode == -1 means connection already failed), so we fall
+        // back to inputStream as a last resort to avoid a NullPointerException.
+        val stream = when {
+            responseCode in 200..299 -> conn.inputStream
+            conn.errorStream != null -> conn.errorStream
+            else -> conn.inputStream
+        }
+        val response = stream.bufferedReader().readText()
         JSONObject(response)
     }
 }

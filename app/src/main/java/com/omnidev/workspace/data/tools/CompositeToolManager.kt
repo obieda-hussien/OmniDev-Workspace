@@ -29,8 +29,18 @@ class CompositeToolManager(
     private val discordPublisherTool: DiscordPublisherTool? = null,
     private val notionPublisherTool: NotionPublisherTool? = null,
     val vectorMemoryManager: VectorMemoryManager? = null,
-    val headlessBrowserManager: HeadlessBrowserManager? = null
+    val headlessBrowserManager: HeadlessBrowserManager? = null,
+    private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null
 ) : ToolManager {
+
+    /**
+     * Lazily constructed agentic-auth tool. Available only when both
+     * [settingsRepository] and [apiKeyRepository] are supplied.
+     */
+    private val requestGitHubAuthTool: RequestGitHubAuthenticationTool? =
+        if (settingsRepository != null && apiKeyRepository != null)
+            RequestGitHubAuthenticationTool(settingsRepository, apiKeyRepository)
+        else null
 
     override fun getToolDefinitions(): List<ToolDefinition> = buildList {
         addAll(fileToolManager.getToolDefinitions())
@@ -79,6 +89,9 @@ class CompositeToolManager(
         }
         if (vectorMemoryManager != null) {
             addAll(vectorMemoryManager.getToolDefinitions())
+        }
+        if (requestGitHubAuthTool != null) {
+            addAll(RequestGitHubAuthenticationTool.getToolDefinitions())
         }
     }
 
@@ -344,6 +357,13 @@ class CompositeToolManager(
             // ── Advanced root file tools ──
             "grep_search", "find_files", "file_permissions", "disk_usage", "archive_tool" -> {
                 AdvancedFileTools.executeTool(name, arguments)
+            }
+
+            // ── Agentic GitHub authentication tool ──
+            "request_github_auth" -> {
+                val authTool = requestGitHubAuthTool
+                    ?: return ToolExecutionResult("GitHub auth tool requires settingsRepository and apiKeyRepository.", isError = true)
+                authTool.execute(requestedScopes = arguments["requested_scopes"])
             }
 
             // ── File tools (default fallback) ──
