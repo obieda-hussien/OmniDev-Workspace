@@ -68,6 +68,9 @@ class SettingsRepository(private val context: Context) {
         val DISCORD_WEBHOOK_URL = stringPreferencesKey("discord_webhook_url")
         val NOTION_API_KEY = stringPreferencesKey("notion_api_key")
         val NOTION_DATABASE_ID = stringPreferencesKey("notion_database_id")
+        // n8n Automation
+        val N8N_BASE_URL = stringPreferencesKey("n8n_base_url")
+        val N8N_API_KEY = stringPreferencesKey("n8n_api_key")
         // Local Edge Model
         val LOCAL_MODEL_URI = stringPreferencesKey("local_model_uri")
         val LOCAL_MODEL_NAME = stringPreferencesKey("local_model_name")
@@ -324,6 +327,28 @@ class SettingsRepository(private val context: Context) {
     suspend fun setNotionDatabaseId(id: String?) {
         context.settingsDataStore.edit { prefs ->
             if (id.isNullOrBlank()) prefs.remove(Keys.NOTION_DATABASE_ID) else prefs[Keys.NOTION_DATABASE_ID] = id
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  n8n Automation
+    // ──────────────────────────────────────────────
+
+    fun observeN8nBaseUrl(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.N8N_BASE_URL] }
+
+    suspend fun setN8nBaseUrl(url: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (url.isNullOrBlank()) prefs.remove(Keys.N8N_BASE_URL) else prefs[Keys.N8N_BASE_URL] = url
+        }
+    }
+
+    fun observeN8nApiKey(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.N8N_API_KEY] }
+
+    suspend fun setN8nApiKey(key: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (key.isNullOrBlank()) prefs.remove(Keys.N8N_API_KEY) else prefs[Keys.N8N_API_KEY] = key
         }
     }
 

@@ -66,6 +66,8 @@ class CompositeToolManager(
         }
         addAll(NotificationCaptureTool.getToolDefinitions())
         addAll(TaskSchedulerTool.getToolDefinitions())
+        addAll(TaskManagerTool.getToolDefinitions())
+        addAll(N8nAutomationTool.getToolDefinitions())
         addAll(VisualInspectorTool.getToolDefinitions())
         addAll(TelegramPublisherTool.getToolDefinitions())
         addAll(GitHubManagerTool.getToolDefinitions())
@@ -303,6 +305,21 @@ class CompositeToolManager(
             // ── Task scheduler tool ──
             "task_scheduler" ->
                 TaskSchedulerTool.executeTool(name, arguments)
+
+            // ── Task manager tool (Taskly-style todo list) ──
+            "task_manager" ->
+                TaskManagerTool.executeTool(name, arguments)
+
+            // ── n8n automation tool ──
+            "n8n_automation" -> {
+                val n8nBaseUrl = settingsRepository?.observeN8nBaseUrl()?.first()
+                val n8nApiKey = settingsRepository?.observeN8nApiKey()?.first()
+                N8nAutomationTool.execute(
+                    args = arguments,
+                    settingsBaseUrl = n8nBaseUrl,
+                    settingsApiKey = n8nApiKey
+                )
+            }
 
             // ── Visual inspector tool ──
             "visual_inspector" ->
