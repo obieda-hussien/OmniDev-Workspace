@@ -572,16 +572,23 @@ class TelegramPollingService : Service() {
                 "mode_swarm" to "تفعيل وضع الفريق متعدد الوكلاء 🐝"
             )
 
+            // Sanitize tool names to valid Telegram command format (a-z, 0-9, underscore only)
             val toolCommands = toolManager.getToolDefinitions()
-                .filter { it.name.length <= 32 }  // Telegram limit
-                .take(93)  // 7 built-in + 93 tool = 100 max
                 .map { tool ->
-                    val safeName = tool.name.replace("-", "_").take(32)
+                    val safeName = tool.name
+                        .lowercase()
+                        .replace(Regex("[^a-z0-9_]"), "_")
+                        .take(32)
                     val safeDesc = (tool.description ?: "Run ${tool.name}").take(255)
                     safeName to safeDesc
                 }
+                .filter { (name, _) -> name.isNotBlank() }
 
-            val allCommands = (builtIn + toolCommands).distinctBy { it.first }
+            // Merge built-in first, then tools; keep first occurrence on name collision
+            val allCommands = (builtIn + toolCommands)
+                .distinctBy { it.first }
+                .take(100)  // Telegram hard limit: 100 commands
+
             val arr = JSONArray()
             allCommands.forEach { (cmd, desc) ->
                 arr.put(JSONObject().apply {
@@ -599,9 +606,15 @@ class TelegramPollingService : Service() {
             conn.connectTimeout = 10_000
             conn.readTimeout = 10_000
             conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-            conn.responseCode
+            val responseCode = conn.responseCode
             conn.disconnect()
-        } catch (_: Exception) { /* non-fatal */ }
+            if (responseCode !in 200..299) {
+                android.util.Log.w("TelegramPolling",
+                    "setMyCommands returned HTTP $responseCode for ${allCommands.size} commands")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("TelegramPolling", "Failed to register bot commands: ${e.message}", e)
+        }
     }
 
     // ── Telegram API helpers ───────────────────────────────────────────────
