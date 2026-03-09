@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.core.content.ContextCompat
 import com.omnidev.workspace.data.voice.VoiceAssistantService
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -221,7 +222,8 @@ fun AISettingsScreen(
                     viewModel.toggleWakeListening(enabled)
                     // Start or stop VoiceAssistantService based on the toggle
                     if (enabled) {
-                        wakeContext.startForegroundService(
+                        ContextCompat.startForegroundService(
+                            wakeContext,
                             Intent(wakeContext, VoiceAssistantService::class.java)
                         )
                     } else {
