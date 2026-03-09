@@ -380,9 +380,10 @@ class WhatsAppBridgeService : Service() {
         val botMsg = WhatsAppMessage(jid, "OmniDev", reply, isFromMe = true)
         _whatsappMessages.value = (_whatsappMessages.value + botMsg).takeLast(MAX_MIRROR_MESSAGES)
 
-        reply.chunked(4000).forEachIndexed { i, chunk ->
+        val replyChunks = reply.chunked(4000)
+        replyChunks.forEachIndexed { i, chunk ->
             sendWhatsApp(jid, chunk)
-            if (i < reply.chunked(4000).size - 1) delay(300)
+            if (i < replyChunks.size - 1) delay(300)
         }
     }
 

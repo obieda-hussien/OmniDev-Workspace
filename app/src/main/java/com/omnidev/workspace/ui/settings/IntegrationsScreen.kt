@@ -714,26 +714,30 @@ fun IntegrationsScreen(
                             try {
                                 settingsRepository.setWhatsAppBridgeUrl(whatsappBridgeUrl.trimEnd('/'))
                                 settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone)
-                                val url = java.net.URL("${whatsappBridgeUrl.trimEnd('/')}/pair")
-                                val conn = url.openConnection() as java.net.HttpURLConnection
-                                conn.requestMethod = "POST"
-                                conn.setRequestProperty("Content-Type", "application/json")
-                                conn.doOutput = true
-                                conn.connectTimeout = 10_000
-                                conn.readTimeout = 15_000
-                                conn.connect()
-                                val body = org.json.JSONObject().apply { put("phone", whatsappBridgePhone) }
-                                java.io.OutputStreamWriter(conn.outputStream).use { it.write(body.toString()) }
-                                val responseCode = conn.responseCode
-                                val text = if (responseCode in 200..299) {
-                                    conn.inputStream.bufferedReader().readText()
-                                } else {
-                                    conn.errorStream?.bufferedReader()?.readText() ?: "Error $responseCode"
+                                val pairingCode = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    val url = java.net.URL("${whatsappBridgeUrl.trimEnd('/')}/pair")
+                                    val conn = url.openConnection() as java.net.HttpURLConnection
+                                    conn.requestMethod = "POST"
+                                    conn.setRequestProperty("Content-Type", "application/json")
+                                    conn.doOutput = true
+                                    conn.connectTimeout = 10_000
+                                    conn.readTimeout = 15_000
+                                    conn.connect()
+                                    val body = org.json.JSONObject().apply { put("phone", whatsappBridgePhone) }
+                                    java.io.OutputStreamWriter(conn.outputStream).use { it.write(body.toString()) }
+                                    conn.outputStream.flush()
+                                    val responseCode = conn.responseCode
+                                    val text = if (responseCode in 200..299) {
+                                        conn.inputStream.bufferedReader().readText()
+                                    } else {
+                                        conn.errorStream?.bufferedReader()?.readText() ?: "Error $responseCode"
+                                    }
+                                    conn.disconnect()
+                                    val json = org.json.JSONObject(text)
+                                    val code = json.optString("code", "").ifBlank { json.optString("pairingCode", "") }
+                                    code.ifBlank { "Error: ${json.optString("error", text)}" }
                                 }
-                                conn.disconnect()
-                                val json = org.json.JSONObject(text)
-                                val code = json.optString("code", "").ifBlank { json.optString("pairingCode", "") }
-                                whatsappBridgePairingCode = code.ifBlank { "Error: ${json.optString("error", text)}" }
+                                whatsappBridgePairingCode = pairingCode
                             } catch (e: Exception) {
                                 whatsappBridgePairingCode = "Error: ${e.message}"
                             } finally {
@@ -756,16 +760,19 @@ fun IntegrationsScreen(
                         if (whatsappBridgeUrl.isBlank()) return@IconButton
                         scope.launch {
                             try {
-                                val url = java.net.URL("${whatsappBridgeUrl.trimEnd('/')}/status")
-                                val conn = url.openConnection() as java.net.HttpURLConnection
-                                conn.requestMethod = "GET"
-                                conn.connectTimeout = 5_000
-                                conn.readTimeout = 5_000
-                                conn.connect()
-                                val text = conn.inputStream.bufferedReader().readText()
-                                conn.disconnect()
-                                val json = org.json.JSONObject(text)
-                                whatsappBridgeStatus = json.optString("status", "unknown")
+                                val status = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    val url = java.net.URL("${whatsappBridgeUrl.trimEnd('/')}/status")
+                                    val conn = url.openConnection() as java.net.HttpURLConnection
+                                    conn.requestMethod = "GET"
+                                    conn.connectTimeout = 5_000
+                                    conn.readTimeout = 5_000
+                                    conn.connect()
+                                    val text = conn.inputStream.bufferedReader().readText()
+                                    conn.disconnect()
+                                    val json = org.json.JSONObject(text)
+                                    json.optString("status", "unknown")
+                                }
+                                whatsappBridgeStatus = status
                             } catch (e: Exception) {
                                 whatsappBridgeStatus = "unreachable"
                             }
