@@ -1,6 +1,7 @@
 package com.omnidev.workspace.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -623,7 +624,8 @@ fun IntegrationsScreen(
                         scope.launch {
                             settingsRepository.setDiscordListenerEnabled(enabled)
                             if (enabled) {
-                                context.startForegroundService(
+                                ContextCompat.startForegroundService(
+                                    context,
                                     Intent(context, DiscordPollingService::class.java)
                                 )
                             } else {
@@ -862,7 +864,7 @@ fun IntegrationsScreen(
                             settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone)
                         }
                         if (enabled) {
-                            context.startForegroundService(Intent(context, WhatsAppBridgeService::class.java))
+                            ContextCompat.startForegroundService(context, Intent(context, WhatsAppBridgeService::class.java))
                         } else {
                             context.startService(
                                 Intent(context, WhatsAppBridgeService::class.java)
