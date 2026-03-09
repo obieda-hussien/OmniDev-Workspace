@@ -44,6 +44,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -107,6 +108,15 @@ class TelegramPollingService : Service() {
         /** Rolling in-app mirror of Telegram conversations (max 200 messages). */
         private const val MAX_MIRROR_MESSAGES = 200
 
+        /** Maximum time allowed for a single Agent/Swarm response (8 min). */
+        private const val AGENT_TIMEOUT_MS = 8 * 60 * 1_000L
+
+        /** Timeout duration in minutes, for user-facing messages. */
+        private const val AGENT_TIMEOUT_MINUTES = AGENT_TIMEOUT_MS / 60_000L
+
+        /** Interval to re-send the typing indicator during long operations. */
+        private const val TYPING_REFRESH_MS = 4_500L
+
         private val _telegramMessages = MutableStateFlow<List<TelegramChatMessage>>(emptyList())
 
         /**
@@ -147,6 +157,18 @@ class TelegramPollingService : Service() {
                 ) = size > MAX_SESSIONS
             }
         )
+
+    /** Named sessions per chatId — list of (name, messages) for /sessions listing. */
+    private val namedSessions: MutableMap<Long, MutableList<Pair<String, Int>>> =
+        Collections.synchronizedMap(mutableMapOf())
+
+    /** Current session name per chatId. */
+    private val sessionNameMap: MutableMap<Long, String> =
+        Collections.synchronizedMap(mutableMapOf())
+
+    /** Auto-incrementing session counter per chatId. */
+    private val sessionCounters: MutableMap<Long, Int> =
+        Collections.synchronizedMap(mutableMapOf())
 
     /** Current OmniMode per chatId — defaults to CHAT. */
     private val chatModes: MutableMap<Long, OmniMode> =
@@ -329,8 +351,16 @@ class TelegramPollingService : Service() {
             }
 
             "/clear", "/reset" -> {
+                // Archive before clearing
+                val oldHistory = sessionHistory[chatId]
+                val oldName = sessionNameMap[chatId] ?: "جلسة ${sessionCounters.getOrDefault(chatId, 1)}"
+                if (!oldHistory.isNullOrEmpty()) {
+                    val sessionList = namedSessions.getOrPut(chatId) { mutableListOf() }
+                    sessionList.add(oldName to oldHistory.size)
+                }
                 sessionHistory.remove(chatId)
-                sendReply(token, chatId, messageId, "✅ تم مسح تاريخ المحادثة.")
+                sendReply(token, chatId, messageId,
+                    "✅ تم مسح تاريخ المحادثة.\n_استخدم /sessions لرؤية الجلسات السابقة._")
                 return
             }
 
@@ -343,9 +373,12 @@ class TelegramPollingService : Service() {
                     "🎛️ *الأوضاع:*\n" +
                     "/mode\\_chat — محادثة عادية\n" +
                     "/mode\\_agent — وكيل ذاتي بكل الأدوات\n" +
-                    "/mode\\_swarm — فريق من الوكلاء\n" +
+                    "/mode\\_swarm — فريق من الوكلاء\n\n" +
+                    "📋 *إدارة الجلسات:*\n" +
                     "/status — عرض الوضع والإحصائيات\n" +
-                    "/clear — مسح تاريخ المحادثة\n\n" +
+                    "/new\\_session [اسم] — بدء جلسة جديدة مع حفظ الحالية\n" +
+                    "/sessions — عرض الجلسات المحفوظة\n" +
+                    "/clear — مسح سياق المحادثة الحالي\n\n" +
                     "🛠️ *أمثلة على الأدوات المتاحة:*\n$toolList\n\n" +
                     "_اكتب / لرؤية القائمة الكاملة للأدوات_")
                 return
@@ -383,12 +416,57 @@ class TelegramPollingService : Service() {
                 val history = sessionHistory[chatId]
                 val msgCount = history?.size ?: 0
                 val toolCount = toolManager.getToolDefinitions().size
+                val sesName = sessionNameMap[chatId] ?: "الجلسة الافتراضية"
                 sendReply(token, chatId, messageId,
                     "📊 *حالة الجلسة:*\n\n" +
                     "🎛️ الوضع: *${(chatModes[chatId] ?: OmniMode.CHAT).label}*\n" +
+                    "📝 اسم الجلسة: *$sesName*\n" +
                     "💬 رسائل في السياق: *$msgCount*\n" +
                     "🛠️ أدوات متاحة: *$toolCount*\n" +
-                    "🤖 البوت شغّال: ${if (isRunning) "✅" else "❌"}")
+                    "🤖 البوت شغّال: ${if (isRunning) "✅" else "❌"}\n\n" +
+                    "_/new\\_session [اسم] — ابدأ جلسة جديدة_\n" +
+                    "_/sessions — عرض كل الجلسات السابقة_")
+                return
+            }
+
+            "/new_session" -> {
+                // Archive current session
+                val oldHistory = sessionHistory[chatId]
+                val oldName = sessionNameMap[chatId] ?: "جلسة ${sessionCounters.getOrDefault(chatId, 1)}"
+                if (!oldHistory.isNullOrEmpty()) {
+                    val sessionList = namedSessions.getOrPut(chatId) { mutableListOf() }
+                    sessionList.add(oldName to oldHistory.size)
+                }
+                // Start new session
+                val counter = (sessionCounters.getOrDefault(chatId, 1)) + 1
+                sessionCounters[chatId] = counter
+                val parts = text.split(" ", limit = 2)
+                val newName = if (parts.size > 1 && parts[1].isNotBlank())
+                    parts[1].trim() else "جلسة $counter"
+                sessionHistory.remove(chatId)
+                sessionNameMap[chatId] = newName
+                sendReply(token, chatId, messageId,
+                    "🆕 تم بدء جلسة جديدة: *$newName*\n" +
+                    "سياق المحادثة تم مسحه — ابدأ من جديد!")
+                return
+            }
+
+            "/sessions" -> {
+                val list = namedSessions[chatId]
+                if (list.isNullOrEmpty()) {
+                    sendReply(token, chatId, messageId,
+                        "📋 لا توجد جلسات محفوظة بعد.\n\n" +
+                        "_استخدم /new\\_session [اسم] لبدء جلسة وحفظ الحالية_")
+                } else {
+                    val sb = StringBuilder("📋 *الجلسات السابقة:*\n\n")
+                    list.takeLast(10).forEachIndexed { i, (name, count) ->
+                        sb.append("${i + 1}. *$name* — $count رسالة\n")
+                    }
+                    val currentName = sessionNameMap[chatId] ?: "الجلسة الحالية"
+                    val currentCount = sessionHistory[chatId]?.size ?: 0
+                    sb.append("\n🟢 الحالية: *$currentName* ($currentCount رسالة)")
+                    sendReply(token, chatId, messageId, sb.toString())
+                }
                 return
             }
         }
@@ -397,8 +475,8 @@ class TelegramPollingService : Service() {
         sendTypingAction(token, chatId)
 
         val reply = when (chatModes[chatId] ?: OmniMode.CHAT) {
-            OmniMode.AGENT -> handleAgentMode(chatId, senderName, text)
-            OmniMode.SWARM -> handleSwarmMode(chatId, text)
+            OmniMode.AGENT -> handleAgentMode(token, chatId, senderName, text)
+            OmniMode.SWARM -> handleSwarmMode(token, chatId, text)
             else -> handleChatMode(chatId, senderName, text)
         }
 
@@ -463,7 +541,26 @@ class TelegramPollingService : Service() {
 
     // ── Agent mode (ReAct loop with tools) ────────────────────────────────
 
+    /**
+     * Runs [block] while periodically refreshing the Telegram typing indicator.
+     * Cancels the typing coroutine when done.
+     */
+    private suspend fun <T> withTypingIndicator(token: String, chatId: Long, block: suspend () -> T): T {
+        val typingJob = serviceScope.launch {
+            while (isActive) {
+                delay(TYPING_REFRESH_MS)
+                sendTypingAction(token, chatId)
+            }
+        }
+        return try {
+            block()
+        } finally {
+            typingJob.cancel()
+        }
+    }
+
     private suspend fun handleAgentMode(
+        token: String,
         chatId: Long,
         senderName: String,
         text: String
@@ -475,24 +572,32 @@ class TelegramPollingService : Service() {
 
             val replyBuilder = StringBuilder()
             val toolLog = StringBuilder()
-            var iterationCount = 0
 
-            agentPipeline.execute(
-                userMessage = text,
-                conversationHistory = history.toList(),
-                modelId = modelId,
-                scopePath = "/",
-                userContext = if (!persona.isNullOrBlank()) persona else null
-            ).collect { event ->
-                when (event) {
-                    is AgentEvent.FinalAnswer -> replyBuilder.append(event.content)
-                    is AgentEvent.Thinking -> iterationCount = event.iteration
-                    is AgentEvent.ToolExecution ->
-                        toolLog.append("\n🛠 `${event.toolName}` — iteration ${event.iteration}")
-                    is AgentEvent.Error -> replyBuilder.append("\n⚠️ ${event.message}")
-                    is AgentEvent.StreamChunk -> replyBuilder.append(event.delta)
-                    else -> Unit
+            val result = withTypingIndicator(token, chatId) {
+                withTimeoutOrNull(AGENT_TIMEOUT_MS) {
+                    agentPipeline.execute(
+                        userMessage = text,
+                        conversationHistory = history.toList(),
+                        modelId = modelId,
+                        scopePath = "/",
+                        userContext = if (!persona.isNullOrBlank()) persona else null
+                    ).collect { event ->
+                        when (event) {
+                            is AgentEvent.FinalAnswer -> replyBuilder.append(event.content)
+                            is AgentEvent.ToolExecution ->
+                                toolLog.append("\n🛠 `${event.toolName}` — iteration ${event.iteration}")
+                            is AgentEvent.Error -> replyBuilder.append("\n⚠️ ${event.message}")
+                            is AgentEvent.StreamChunk -> replyBuilder.append(event.delta)
+                            else -> Unit
+                        }
+                    }
+                    true
                 }
+            }
+
+            if (result == null) {
+                return "⏱ انتهت مهلة الوكيل ($AGENT_TIMEOUT_MINUTES دقائق). " +
+                    "حاول تبسيط المهمة أو تقسيمها."
             }
 
             // Store the exchange in session history
@@ -519,7 +624,7 @@ class TelegramPollingService : Service() {
 
     // ── Swarm mode (multi-agent orchestration) ────────────────────────────
 
-    private suspend fun handleSwarmMode(chatId: Long, text: String): String {
+    private suspend fun handleSwarmMode(token: String, chatId: Long, text: String): String {
         return try {
             val orchestratorModelId = settingsRepository
                 .observeModelIdForRole(ModelRole.SWARM_ORCHESTRATOR).first()
@@ -528,21 +633,31 @@ class TelegramPollingService : Service() {
 
             val replyBuilder = StringBuilder()
 
-            swarmOrchestrator.execute(
-                userMessage = text,
-                orchestratorModelId = orchestratorModelId,
-                workerModelId = workerModelId,
-                scopePath = "/"
-            ).collect { event ->
-                when (event) {
-                    is com.omnidev.workspace.domain.engine.SwarmEvent.Completed ->
-                        replyBuilder.append(event.summary)
-                    is com.omnidev.workspace.domain.engine.SwarmEvent.Error ->
-                        replyBuilder.append("\n⚠️ ${event.message}")
-                    is com.omnidev.workspace.domain.engine.SwarmEvent.TaskFailed ->
-                        replyBuilder.append("\n❌ فشل: ${event.task.description} — ${event.error}")
-                    else -> Unit
+            val result = withTypingIndicator(token, chatId) {
+                withTimeoutOrNull(AGENT_TIMEOUT_MS) {
+                    swarmOrchestrator.execute(
+                        userMessage = text,
+                        orchestratorModelId = orchestratorModelId,
+                        workerModelId = workerModelId,
+                        scopePath = "/"
+                    ).collect { event ->
+                        when (event) {
+                            is com.omnidev.workspace.domain.engine.SwarmEvent.Completed ->
+                                replyBuilder.append(event.summary)
+                            is com.omnidev.workspace.domain.engine.SwarmEvent.Error ->
+                                replyBuilder.append("\n⚠️ ${event.message}")
+                            is com.omnidev.workspace.domain.engine.SwarmEvent.TaskFailed ->
+                                replyBuilder.append("\n❌ فشل: ${event.task.description} — ${event.error}")
+                            else -> Unit
+                        }
+                    }
+                    true
                 }
+            }
+
+            if (result == null) {
+                return "⏱ انتهت مهلة الفريق ($AGENT_TIMEOUT_MINUTES دقائق). " +
+                    "حاول تبسيط المهمة أو تقسيمها."
             }
 
             replyBuilder.toString().trim().ifBlank {
@@ -567,6 +682,8 @@ class TelegramPollingService : Service() {
                 "help" to "قائمة الأوامر والأدوات المتاحة",
                 "clear" to "مسح تاريخ المحادثة",
                 "status" to "عرض الوضع والإحصائيات",
+                "new_session" to "بدء جلسة جديدة وحفظ الحالية",
+                "sessions" to "عرض الجلسات السابقة المحفوظة",
                 "mode_chat" to "تفعيل وضع المحادثة العادية 💬",
                 "mode_agent" to "تفعيل وضع الوكيل بالأدوات 🤖",
                 "mode_swarm" to "تفعيل وضع الفريق متعدد الوكلاء 🐝"
