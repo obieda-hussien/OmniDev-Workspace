@@ -23,10 +23,11 @@ import com.omnidev.workspace.data.db.entities.KnowledgeSnippet
  *  2 → added `isPinned` column to `chat_sessions`
  *  3 → added `source` and `telegramChatId` columns to `chat_sessions`
  *  4 → added `discordChannelId` column to `chat_sessions`
+ *  5 → added `whatsappJid` column to `chat_sessions`
  */
 @Database(
     entities = [KnowledgeSnippet::class, ChatSessionEntity::class, ChatMessageEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -62,6 +63,13 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
+        /** Migration from v4 → v5 (whatsappJid column added). */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat_sessions ADD COLUMN whatsappJid TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getInstance(context: Context): OmniDevDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -69,7 +77,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
                     OmniDevDatabase::class.java,
                     "omnidev_workspace.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                     .build().also { INSTANCE = it }
             }
     }

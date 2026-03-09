@@ -245,6 +245,12 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- WhatsApp Baileys Bridge Polling Service -->
+        <service
+            android:name=".data.integration.WhatsAppBridgeService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <!-- VoiceAssistantService -->
         <service
             android:name=".data.voice.VoiceAssistantService"

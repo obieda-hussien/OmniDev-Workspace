@@ -73,6 +73,10 @@ class SettingsRepository(private val context: Context) {
         // WhatsApp Business Cloud API
         val WHATSAPP_PHONE_NUMBER_ID = stringPreferencesKey("whatsapp_phone_number_id")
         val WHATSAPP_ACCESS_TOKEN = stringPreferencesKey("whatsapp_access_token")
+        // WhatsApp Baileys Bridge (self-hosted Node.js bridge using Baileys library)
+        val WHATSAPP_BRIDGE_URL = stringPreferencesKey("whatsapp_bridge_url")
+        val WHATSAPP_BRIDGE_PHONE = stringPreferencesKey("whatsapp_bridge_phone")
+        val WHATSAPP_BRIDGE_ENABLED = booleanPreferencesKey("whatsapp_bridge_enabled")
         val NOTION_API_KEY = stringPreferencesKey("notion_api_key")
         val NOTION_DATABASE_ID = stringPreferencesKey("notion_database_id")
         // n8n Automation
@@ -367,6 +371,34 @@ class SettingsRepository(private val context: Context) {
     }
 
     // Notion
+    // WhatsApp Baileys Bridge
+    fun observeWhatsAppBridgeUrl(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.WHATSAPP_BRIDGE_URL] }
+
+    suspend fun setWhatsAppBridgeUrl(url: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (url.isNullOrBlank()) prefs.remove(Keys.WHATSAPP_BRIDGE_URL)
+            else prefs[Keys.WHATSAPP_BRIDGE_URL] = url
+        }
+    }
+
+    fun observeWhatsAppBridgePhone(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.WHATSAPP_BRIDGE_PHONE] }
+
+    suspend fun setWhatsAppBridgePhone(phone: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (phone.isNullOrBlank()) prefs.remove(Keys.WHATSAPP_BRIDGE_PHONE)
+            else prefs[Keys.WHATSAPP_BRIDGE_PHONE] = phone
+        }
+    }
+
+    fun observeWhatsAppBridgeEnabled(): Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.WHATSAPP_BRIDGE_ENABLED] ?: false }
+
+    suspend fun setWhatsAppBridgeEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.WHATSAPP_BRIDGE_ENABLED] = enabled }
+    }
+
     fun observeNotionApiKey(): Flow<String?> =
         context.settingsDataStore.data.map { it[Keys.NOTION_API_KEY] }
 

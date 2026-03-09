@@ -122,4 +122,19 @@ class ChatRepository(
             )
         )
     }
+
+    suspend fun findOrCreateWhatsAppBridgeSession(jid: String, title: String): Long {
+        val existing = sessionDao.getByWhatsAppJid(jid)
+        if (existing != null) {
+            sessionDao.updateTitleAndTimestamp(existing.id, title, System.currentTimeMillis())
+            return existing.id
+        }
+        return sessionDao.insert(
+            ChatSessionEntity(
+                title = "💬 WhatsApp: $title",
+                source = ChatSessionEntity.SOURCE_WHATSAPP_BRIDGE,
+                whatsappJid = jid
+            )
+        )
+    }
 }

@@ -11,9 +11,10 @@ import androidx.room.PrimaryKey
  * @property lastUpdated Unix timestamp (ms) of the most recent activity.
  * @property createdAt Unix timestamp (ms) when the session started.
  * @property isPinned Whether this session is pinned to the top of the history list.
- * @property source Origin of the session: "app" for in-app conversations, "telegram" for Telegram-originated sessions, "discord" for Discord-originated sessions.
+ * @property source Origin of the session: "app" for in-app conversations, "telegram" for Telegram-originated sessions, "discord" for Discord-originated sessions, "whatsapp_bridge" for WhatsApp Bridge-originated sessions.
  * @property telegramChatId Telegram chat ID (0 if source != "telegram").
  * @property discordChannelId Discord channel ID (empty string if source != "discord").
+ * @property whatsappJid WhatsApp JID/number (empty string if source != "whatsapp_bridge").
  */
 @Entity(tableName = "chat_sessions")
 data class ChatSessionEntity(
@@ -24,11 +25,13 @@ data class ChatSessionEntity(
     val isPinned: Boolean = false,
     val source: String = SOURCE_APP,
     val telegramChatId: Long = 0L,
-    val discordChannelId: String = ""
+    val discordChannelId: String = "",
+    val whatsappJid: String = ""
 ) {
     companion object {
         const val SOURCE_APP = "app"
         const val SOURCE_TELEGRAM = "telegram"
         const val SOURCE_DISCORD = "discord"
+        const val SOURCE_WHATSAPP_BRIDGE = "whatsapp_bridge"
     }
 }

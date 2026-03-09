@@ -46,4 +46,8 @@ interface ChatSessionDao {
     /** Find an existing Discord session by its channel ID. */
     @Query("SELECT * FROM chat_sessions WHERE discordChannelId = :channelId AND source = 'discord' LIMIT 1")
     suspend fun getByDiscordChannelId(channelId: String): ChatSessionEntity?
+
+    /** Find an existing WhatsApp Bridge session by JID. */
+    @Query("SELECT * FROM chat_sessions WHERE whatsappJid = :jid AND source = 'whatsapp_bridge' LIMIT 1")
+    suspend fun getByWhatsAppJid(jid: String): ChatSessionEntity?
 }

@@ -73,6 +73,7 @@ class CompositeToolManager(
         addAll(TelegramBotTool.getToolDefinitions())
         addAll(DiscordBotTool.getToolDefinitions())
         addAll(WhatsAppTool.getToolDefinitions())
+        addAll(WhatsAppBridgeTool.getToolDefinitions())
         addAll(GitHubManagerTool.getToolDefinitions())
         if (discordPublisherTool != null) {
             addAll(DiscordPublisherTool.getToolDefinitions())
@@ -357,6 +358,12 @@ class CompositeToolManager(
                 val phoneNumberId = settingsRepository?.observeWhatsAppPhoneNumberId()?.first()
                 val accessToken   = settingsRepository?.observeWhatsAppAccessToken()?.first()
                 WhatsAppTool.execute(phoneNumberId = phoneNumberId, accessToken = accessToken, args = arguments)
+            }
+
+            // ── WhatsApp Baileys Bridge tool ──
+            "whatsapp_bridge" -> {
+                val bridgeUrl = settingsRepository?.observeWhatsAppBridgeUrl()?.first()
+                WhatsAppBridgeTool.execute(bridgeUrl = bridgeUrl, args = arguments)
             }
 
             // ── GitHub manager tool ──
