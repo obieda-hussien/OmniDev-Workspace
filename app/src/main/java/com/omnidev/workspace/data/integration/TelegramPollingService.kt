@@ -281,7 +281,61 @@ class TelegramPollingService : Service() {
                             ?: update.optJSONObject("edited_message")
                             ?: continue
 
-                        val text = msg.optString("text", "").trim()
+                        // Extract text or a human-readable description of media content
+                        val text: String = when {
+                            msg.has("text") -> msg.optString("text", "").trim()
+                            msg.has("photo") -> {
+                                val photoArr = msg.optJSONArray("photo")
+                                val best = photoArr?.optJSONObject((photoArr.length() - 1).coerceAtLeast(0))
+                                val fid = best?.optString("file_id", "") ?: ""
+                                val cap = msg.optString("caption", "")
+                                "[📷 صورة${if (cap.isNotBlank()) ": $cap" else ""}] file_id=$fid"
+                            }
+                            msg.has("document") -> {
+                                val doc = msg.optJSONObject("document")
+                                val name = doc?.optString("file_name", "document") ?: "document"
+                                val fid = doc?.optString("file_id", "") ?: ""
+                                val cap = msg.optString("caption", "")
+                                "[📄 ملف: $name${if (cap.isNotBlank()) " ($cap)" else ""}] file_id=$fid"
+                            }
+                            msg.has("location") -> {
+                                val loc = msg.optJSONObject("location")
+                                val lat = loc?.optDouble("latitude") ?: 0.0
+                                val lon = loc?.optDouble("longitude") ?: 0.0
+                                val isLive = loc?.has("live_period") == true
+                                "[${if (isLive) "📍 موقع مباشر" else "📍 موقع"}: lat=$lat, lon=$lon]"
+                            }
+                            msg.has("contact") -> {
+                                val c = msg.optJSONObject("contact")
+                                val name = "${c?.optString("first_name", "")} ${c?.optString("last_name", "")}".trim()
+                                val phone = c?.optString("phone_number", "") ?: ""
+                                "[👤 جهة اتصال: $name, هاتف: $phone]"
+                            }
+                            msg.has("sticker") -> {
+                                val e = msg.optJSONObject("sticker")?.optString("emoji", "") ?: ""
+                                "[🎭 ملصق $e]"
+                            }
+                            msg.has("voice") -> {
+                                val fid = msg.optJSONObject("voice")?.optString("file_id", "") ?: ""
+                                "[🎤 رسالة صوتية] file_id=$fid"
+                            }
+                            msg.has("video") -> {
+                                val fid = msg.optJSONObject("video")?.optString("file_id", "") ?: ""
+                                val cap = msg.optString("caption", "")
+                                "[🎥 فيديو${if (cap.isNotBlank()) ": $cap" else ""}] file_id=$fid"
+                            }
+                            msg.has("audio") -> {
+                                val audio = msg.optJSONObject("audio")
+                                val fid = audio?.optString("file_id", "") ?: ""
+                                val title = audio?.optString("title", "") ?: ""
+                                "[🎵 صوت${if (title.isNotBlank()) ": $title" else ""}] file_id=$fid"
+                            }
+                            msg.has("video_note") -> {
+                                val fid = msg.optJSONObject("video_note")?.optString("file_id", "") ?: ""
+                                "[📹 فيديو مستدير] file_id=$fid"
+                            }
+                            else -> ""
+                        }
                         if (text.isBlank()) continue
 
                         val chatObj = msg.optJSONObject("chat") ?: continue
@@ -335,7 +389,10 @@ class TelegramPollingService : Service() {
         val chatTitle = chatTitles[chatId] ?: chatId.toString()
 
         // ── Built-in commands ──────────────────────────────────────────────
-        val cmd = text.lowercase().trim().split(" ")[0]
+        // Strip optional @BotName suffix (Telegram appends it in groups, e.g. /status@OmniBot)
+        val cmd = text.lowercase().trim().split(" ")[0].let {
+            if (it.contains("@")) it.substringBefore("@") else it
+        }
         when (cmd) {
             "/start" -> {
                 sendReply(token, chatId, messageId,
