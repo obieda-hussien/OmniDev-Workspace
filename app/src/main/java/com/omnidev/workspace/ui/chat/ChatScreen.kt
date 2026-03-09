@@ -668,6 +668,13 @@ private fun SessionItem(
                     modifier = Modifier.padding(end = 6.dp)
                 )
             }
+            if (session.source == ChatSessionEntity.SOURCE_TELEGRAM) {
+                Text(
+                    text = "✈️",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+            }
             Text(
                 text = session.title,
                 maxLines = 2,

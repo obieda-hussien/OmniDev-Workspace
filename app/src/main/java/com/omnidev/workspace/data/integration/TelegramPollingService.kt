@@ -16,6 +16,7 @@ import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.data.network.CompletionService
 import com.omnidev.workspace.data.repository.ApiKeyRepository
+import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.DiscordPublisherTool
@@ -187,6 +188,11 @@ class TelegramPollingService : Service() {
         ApiKeyRepository(applicationContext)
     }
     private val completionService: CompletionService by lazy { CompletionService() }
+
+    private val chatRepository: ChatRepository by lazy {
+        val db = OmniDevDatabase.getInstance(applicationContext)
+        ChatRepository(db.chatSessionDao(), db.chatMessageDao())
+    }
 
     private val toolManager: CompositeToolManager by lazy {
         val db = OmniDevDatabase.getInstance(applicationContext)
@@ -531,6 +537,22 @@ class TelegramPollingService : Service() {
         // ── Route to the right engine based on mode ──────────────────────
         sendTypingAction(token, chatId)
 
+        // Persist user message to the app's conversation database
+        val dbSessionId = try {
+            chatRepository.findOrCreateTelegramSession(chatId, chatTitle)
+        } catch (e: Exception) {
+            android.util.Log.w("TelegramPolling", "Failed to find/create DB session for chat $chatId: ${e.message}")
+            -1L
+        }
+        if (dbSessionId > 0) {
+            try {
+                chatRepository.saveMessage(dbSessionId,
+                    ChatMessage(role = MessageRole.USER, content = "$senderName: $text"))
+            } catch (e: Exception) {
+                android.util.Log.w("TelegramPolling", "Failed to save user message to DB (session $dbSessionId): ${e.message}")
+            }
+        }
+
         val reply = when (chatModes[chatId] ?: OmniMode.CHAT) {
             OmniMode.AGENT -> handleAgentMode(token, chatId, senderName, text)
             OmniMode.SWARM -> handleSwarmMode(token, chatId, text)
@@ -549,6 +571,15 @@ class TelegramPollingService : Service() {
                     mode = chatModes[chatId] ?: OmniMode.CHAT
                 )
             )
+            // Persist bot reply to the app's conversation database
+            if (dbSessionId > 0) {
+                try {
+                    chatRepository.saveMessage(dbSessionId,
+                        ChatMessage(role = MessageRole.ASSISTANT, content = reply))
+                } catch (e: Exception) {
+                    android.util.Log.w("TelegramPolling", "Failed to save bot reply to DB (session $dbSessionId): ${e.message}")
+                }
+            }
             sendReply(token, chatId, messageId, reply)
         }
     }

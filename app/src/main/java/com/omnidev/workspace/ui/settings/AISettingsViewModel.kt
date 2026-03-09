@@ -28,6 +28,8 @@ data class AISettingsUiState(
     val deepThinkingEnabled: Boolean = false,
     /** Whether God Mode (unrestricted file system access) is enabled. */
     val godModeEnabled: Boolean = false,
+    /** Whether background voice listening (wake-word daemon) is enabled. */
+    val wakeListeningEnabled: Boolean = false,
     /** Which role's dropdown is currently expanded (null = all collapsed). */
     val expandedDropdownRole: ModelRole? = null,
     /** Whether a save operation is in progress. */
@@ -62,12 +64,14 @@ class AISettingsViewModel(
             combine(
                 settingsRepository.observeAllModelAssignments(),
                 settingsRepository.observeDeepThinking(),
-                settingsRepository.observeGodMode()
-            ) { assignments, deepThinking, godMode ->
+                settingsRepository.observeGodMode(),
+                settingsRepository.observeVoiceMode()
+            ) { assignments, deepThinking, godMode, wakeListening ->
                 AISettingsUiState(
                     modelAssignments = assignments,
                     deepThinkingEnabled = deepThinking,
-                    godModeEnabled = godMode
+                    godModeEnabled = godMode,
+                    wakeListeningEnabled = wakeListening
                 )
             }.collect { state ->
                 _uiState.update { state }
@@ -114,6 +118,17 @@ class AISettingsViewModel(
         viewModelScope.launch {
             settingsRepository.setGodMode(enabled)
             _uiState.update { it.copy(godModeEnabled = enabled) }
+        }
+    }
+
+    /**
+     * Toggles background wake-word listening on/off.
+     * Service lifecycle is managed by callers via [VoiceAssistantService].
+     */
+    fun toggleWakeListening(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepository.setVoiceMode(enabled)
+            // State is refreshed reactively by observeVoiceMode() in the combine() flow
         }
     }
 

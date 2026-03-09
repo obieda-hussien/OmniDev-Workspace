@@ -85,4 +85,26 @@ class ChatRepository(
     suspend fun renameSession(sessionId: Long, newTitle: String) {
         sessionDao.updateTitle(sessionId, newTitle)
     }
+
+    /**
+     * Finds an existing Telegram session for [telegramChatId], or creates a new one
+     * if none exists. Updates the title and timestamp on each call to keep it current —
+     * Telegram chat titles can change, and the timestamp keeps the session visible at the top
+     * of the sorted history list after each new message.
+     * Returns the session's primary-key ID.
+     */
+    suspend fun findOrCreateTelegramSession(telegramChatId: Long, title: String): Long {
+        val existing = sessionDao.getByTelegramChatId(telegramChatId)
+        if (existing != null) {
+            sessionDao.updateTitleAndTimestamp(existing.id, title, System.currentTimeMillis())
+            return existing.id
+        }
+        return sessionDao.insert(
+            ChatSessionEntity(
+                title = title,
+                source = ChatSessionEntity.SOURCE_TELEGRAM,
+                telegramChatId = telegramChatId
+            )
+        )
+    }
 }
