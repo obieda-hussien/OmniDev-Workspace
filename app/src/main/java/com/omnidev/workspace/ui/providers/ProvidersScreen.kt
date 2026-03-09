@@ -211,10 +211,10 @@ private fun ProviderKeyCard(
                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                 )
             }
-            // GitHub Copilot hint badge
+            // GitHub Copilot hint badge — token comes from Device Flow (OAuth), not a PAT
             if (entry.provider == ModelProvider.GITHUB_COPILOT) {
                 Text(
-                    text = "PAT",
+                    text = "OAuth",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.secondary,
                     fontWeight = FontWeight.Bold,
@@ -383,7 +383,7 @@ private fun EmptyProvidersState(modifier: Modifier = Modifier) {
 // ──────────────────────────────────────────────
 
 private fun apiKeyLabel(provider: ModelProvider): String = when (provider) {
-    ModelProvider.GITHUB_COPILOT -> "GitHub Personal Access Token"
+    ModelProvider.GITHUB_COPILOT -> "GitHub OAuth Token (Device Flow)"
     else -> "API Key"
 }
 
@@ -396,17 +396,19 @@ private fun apiKeyHint(provider: ModelProvider): String = when (provider) {
     ModelProvider.MISTRAL -> "..."
     ModelProvider.GROQ -> "gsk_..."
     ModelProvider.CEREBRAS -> "csk-..."
-    ModelProvider.GITHUB_COPILOT -> "ghp_ or gho_..."
+    ModelProvider.GITHUB_COPILOT -> "gho_... (use Device Flow, not manual PAT)"
     ModelProvider.OPEN_ROUTER -> "sk-or-v1-..."
     else -> "Enter your API key"
 }
 
 private fun providerHintText(provider: ModelProvider): String? = when (provider) {
     ModelProvider.GITHUB_COPILOT ->
-        "Create a GitHub PAT at github.com/settings/tokens with the \"copilot\" scope. " +
-            "This enables Bring Your Own Key (BYOK) access to multiple models " +
-            "(including GPT-4o, Claude, and Gemini variants) via the GitHub Copilot API " +
-            "at api.githubcopilot.com. Model availability depends on your Copilot plan."
+        "⚠️ GitHub Copilot requires the Device Flow to authorize — do NOT paste a manual PAT here.\n\n" +
+            "Go to Settings → Integrations → GitHub, tap 'Connect via GitHub', and choose " +
+            "'GitHub Copilot' sub-mode. This generates a gho_ OAuth token that can be " +
+            "exchanged for a Copilot session token.\n\n" +
+            "Requirement: an active GitHub Copilot subscription (Individual, Business, or Enterprise) " +
+            "is needed to access models at api.githubcopilot.com."
     ModelProvider.OPEN_ROUTER ->
         "Get your key at openrouter.ai/keys — routes to 100+ models with a single key."
     ModelProvider.GROQ ->

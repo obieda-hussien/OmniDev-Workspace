@@ -334,10 +334,16 @@ class CompletionService {
             if (responseCode !in 200..299) {
                 val errorBody = conn.errorStream?.bufferedReader()?.readText() ?: ""
                 conn.disconnect()
-                throw IOException(
-                    "Copilot token exchange failed ($responseCode). " +
-                        "Make sure you authorized via GitHub Copilot sub-mode: $errorBody"
-                )
+                val hint = when (responseCode) {
+                    401 -> "The GitHub token is invalid or expired. Please re-authorize via Settings → Integrations → GitHub (Copilot sub-mode)."
+                    403 -> "Access denied. Make sure your GitHub account has an active GitHub Copilot subscription (Individual, Business, or Enterprise)."
+                    404 -> """GitHub Copilot API not found for this token. This usually means:
+1. Your account does not have an active GitHub Copilot subscription, OR
+2. The token was entered manually instead of using the Device Flow.
+Fix: Go to Settings → Integrations → GitHub, tap 'Connect via GitHub', and choose 'GitHub Copilot' sub-mode to re-authorize."""
+                    else -> "HTTP $responseCode — please re-authorize via Settings → Integrations → GitHub (Copilot sub-mode). Details: $errorBody"
+                }
+                throw IOException("Copilot token exchange failed ($responseCode). $hint")
             }
 
             val responseBody = conn.inputStream.bufferedReader(Charsets.UTF_8).readText()
