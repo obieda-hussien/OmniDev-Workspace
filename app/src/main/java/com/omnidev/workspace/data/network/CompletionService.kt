@@ -1,6 +1,7 @@
 package com.omnidev.workspace.data.network
 
 import com.omnidev.workspace.data.localllm.LocalEngineHolder
+import com.omnidev.workspace.data.auth.CopilotSessionManager
 import com.omnidev.workspace.data.model.AttachmentMediaType
 import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
@@ -239,12 +240,6 @@ class CompletionService {
     companion object {
         private const val CONNECT_TIMEOUT_MS = 30_000
         private const val READ_TIMEOUT_MS    = 120_000
-        // Shorter timeout for the Copilot token-exchange call so users get faster
-        // feedback if their network cannot reach api.github.com.
-        private const val COPILOT_EXCHANGE_TIMEOUT_MS = 10_000
-
-        private const val COPILOT_TOKEN_EXCHANGE_URL =
-            "https://api.github.com/copilot_internal/v2/token"
     }
 
     // ── Retry helper ──────────────────────────────────────────────────────────
@@ -279,95 +274,28 @@ class CompletionService {
             msg.contains("Retrying")
     }
 
-    // ── GitHub Copilot session token cache ────────────────────────────────────
-    // The Device Flow gives us an OAuth token; Copilot requires exchanging it
-    // for a short-lived session token before calling api.githubcopilot.com.
-
-    @Volatile private var copilotSessionToken: String? = null
-    @Volatile private var copilotTokenExpiresAt: Long = 0L
-
-    /**
-     * Exchanges a GitHub OAuth token for a short-lived Copilot session token.
-     *
-     * Endpoint: GET https://api.github.com/copilot_internal/v2/token
-     * Header:   Authorization: Bearer <github_oauth_token>
-     * Response: { "token": "tid=...", "refresh_in": 1800, "expires_at": "...", ... }
-     *
-     * The resulting token is cached until 60 seconds before its expiry so that
-     * back-to-back requests reuse the same token without extra round-trips.
-     *
-     * @param oauthToken The raw GitHub OAuth token from Device Flow.
-     * @return The Copilot session token (use as Bearer for api.githubcopilot.com calls).
-     * @throws IOException if the exchange fails or the response is malformed.
-     */
-    private fun getCopilotSessionToken(oauthToken: String): String {
-        // Fast path: return cached token if still valid (with 60-second buffer).
-        val cached = copilotSessionToken
-        if (cached != null && System.currentTimeMillis() < copilotTokenExpiresAt - 60_000L) {
-            return cached
-        }
-
-        // Slow path: exchange under a lock to avoid redundant concurrent requests.
-        synchronized(this) {
-            // Re-check inside the lock in case another thread already refreshed.
-            val recheck = copilotSessionToken
-            if (recheck != null && System.currentTimeMillis() < copilotTokenExpiresAt - 60_000L) {
-                return recheck
-            }
-
-            val url = URL(COPILOT_TOKEN_EXCHANGE_URL)
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                requestMethod = "GET"
-                connectTimeout = COPILOT_EXCHANGE_TIMEOUT_MS
-                readTimeout = COPILOT_EXCHANGE_TIMEOUT_MS
-                // GitHub REST API requires "token" scheme for OAuth tokens.
-                // "Bearer" is only correct for the Copilot session token (api.githubcopilot.com).
-                setRequestProperty("Authorization", "token $oauthToken")
-                setRequestProperty("Accept", "application/json")
-                setRequestProperty("Editor-Version", "OmniDevWorkspace/1.0")
-                // "vscode-chat" is the publicly accepted integration ID used by all third-party
-                // Copilot clients (aider, opencode, etc.). GitHub rejects unknown IDs.
-                setRequestProperty("Copilot-Integration-Id", "vscode-chat")
-            }
-
-            val responseCode = conn.responseCode
-            if (responseCode !in 200..299) {
-                val errorBody = conn.errorStream?.bufferedReader()?.readText() ?: ""
-                conn.disconnect()
-                val hint = when (responseCode) {
-                    401 -> "The GitHub token is invalid or expired. Please re-authorize via Settings → Integrations → GitHub (Copilot sub-mode)."
-                    403 -> "Access denied. Make sure your GitHub account has an active GitHub Copilot subscription (Individual, Business, or Enterprise)."
-                    404 -> """GitHub Copilot API not found for this token. This usually means:
-1. Your account does not have an active GitHub Copilot subscription, OR
-2. The token was entered manually instead of using the Device Flow.
-Fix: Go to Settings → Integrations → GitHub, tap 'Connect via GitHub', and choose 'GitHub Copilot' sub-mode to re-authorize."""
-                    else -> "HTTP $responseCode — please re-authorize via Settings → Integrations → GitHub (Copilot sub-mode). Details: $errorBody"
-                }
-                throw IOException("Copilot token exchange failed ($responseCode). $hint")
-            }
-
-            val responseBody = conn.inputStream.bufferedReader(Charsets.UTF_8).readText()
-            conn.disconnect()
-
-            val responseJson = json.parseToJsonElement(responseBody).jsonObject
-            val token = responseJson["token"]?.jsonPrimitive?.content
-                ?: throw IOException("Copilot token exchange: missing 'token' field in response")
-
-            // refresh_in is the recommended refresh interval in seconds (default 1800 = 30 min).
-            val refreshInMs = (responseJson["refresh_in"]?.jsonPrimitive?.content?.toLongOrNull() ?: 1800L) * 1000L
-            copilotSessionToken = token
-            copilotTokenExpiresAt = System.currentTimeMillis() + refreshInMs
-            return token
-        }
-    }
+    // ── GitHub Copilot session token ──────────────────────────────────────────
+    // Delegated entirely to CopilotSessionManager, which:
+    //  • Maintains a persistent cache in SharedPreferences (survives app restarts)
+    //  • Keeps an in-memory fast-path to avoid I/O on every request
+    //  • Uses a coroutine Mutex to prevent concurrent exchange races
+    //  • Exchanges the OAuth token via GET https://api.github.com/copilot_internal/v2/token
+    //    with the "vscode-chat" Copilot-Integration-Id — same as VS Code and opencode.
 
     /**
      * Returns the effective API key for a request.
-     * For GITHUB_COPILOT the raw OAuth token is exchanged for a short-lived session token.
-     * For all other providers the key is returned as-is.
+     * For GITHUB_COPILOT the raw OAuth token is exchanged for a short-lived session
+     * token via [CopilotSessionManager].  For all other providers the key is returned
+     * as-is.
+     *
+     * NOTE: This is a blocking wrapper around a suspend function — it must only be
+     * called from an existing coroutine context (all call-sites are inside suspend funs).
      */
-    private fun resolveApiKey(provider: ModelProvider, rawKey: String): String =
-        if (provider == ModelProvider.GITHUB_COPILOT) getCopilotSessionToken(rawKey) else rawKey
+    private suspend fun resolveApiKey(provider: ModelProvider, rawKey: String): String =
+        if (provider == ModelProvider.GITHUB_COPILOT)
+            CopilotSessionManager.getSessionToken(rawKey)
+        else
+            rawKey
 
     /**
      * Returns the provider's API base URL (no trailing slash).
@@ -480,7 +408,7 @@ Fix: Go to Settings → Integrations → GitHub, tap 'Connect via GitHub', and c
 
     // ── Anthropic Messages API ────────────────────────────────────────────────
 
-    private fun callAnthropic(
+    private suspend fun callAnthropic(
         request: CompletionRequest,
         provider: ModelProvider,
         apiKey: String
@@ -585,7 +513,7 @@ Fix: Go to Settings → Integrations → GitHub, tap 'Connect via GitHub', and c
 
     // ── OpenAI-compatible Chat Completions API ────────────────────────────────
 
-    private fun callOpenAiCompatible(
+    private suspend fun callOpenAiCompatible(
         request: CompletionRequest,
         provider: ModelProvider,
         apiKey: String

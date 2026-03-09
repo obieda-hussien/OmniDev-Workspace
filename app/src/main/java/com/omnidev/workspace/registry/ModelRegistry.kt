@@ -4,6 +4,7 @@ import com.omnidev.workspace.data.model.AIModel
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.data.model.ModelTier
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Central registry of all available AI models, updated with confirmed releases as of Feb 2026.
@@ -1616,7 +1617,35 @@ object ModelRegistry {
     // ─────────────────────────────────────────────────────────────────
 
     /** All models flattened into a single ordered list, newest/most capable first. */
-    val allModels: List<AIModel> = buildList {
+    // ── Dynamic Copilot models (fetched from api.githubcopilot.com/models) ────
+    //
+    // Populated by CopilotModelRefresher after a successful GitHub Copilot login.
+    // Any model fetched from the Copilot API that is NOT already in the static
+    // `githubCopilotModels` list is added here so it appears in the model selector.
+    // Thread-safe: backed by CopyOnWriteArrayList.
+    private val _dynamicCopilotModels = CopyOnWriteArrayList<AIModel>()
+
+    // Static set of Copilot model IDs — computed once for fast duplicate detection.
+    private val staticCopilotModelIds: Set<String> = githubCopilotModels.map { it.id }.toHashSet()
+
+    /**
+     * Injects dynamically fetched Copilot models into the registry.
+     * Existing static models are preserved; duplicates (same `id`) are skipped.
+     *
+     * Call this from [com.omnidev.workspace.data.auth.CopilotModelRefresher] after
+     * a successful [fetchAndStoreAvailableModels].
+     */
+    fun addDynamicCopilotModels(models: List<AIModel>) {
+        val newModels = models.filter { it.id !in staticCopilotModelIds }
+        _dynamicCopilotModels.addAll(newModels)
+    }
+
+    /** Clears all dynamically added Copilot models (e.g. after logout). */
+    fun clearDynamicCopilotModels() {
+        _dynamicCopilotModels.clear()
+    }
+
+    val allModels: List<AIModel> get() = buildList {
         addAll(anthropicModels)
         addAll(openAIModels)
         addAll(geminiModels)
@@ -1630,6 +1659,7 @@ object ModelRegistry {
         addAll(fireworksModels)
         addAll(nvidiaModels)
         addAll(githubCopilotModels)
+        addAll(_dynamicCopilotModels)   // ← dynamically fetched Copilot models
         addAll(githubModels)
         addAll(openRouterModels)
         add(
@@ -1650,15 +1680,15 @@ object ModelRegistry {
     }
 
     /** Models grouped by their provider for UI dropdown grouping. */
-    val modelsByProvider: Map<ModelProvider, List<AIModel>> =
+    val modelsByProvider: Map<ModelProvider, List<AIModel>> get() =
         allModels.groupBy { it.provider }
 
     /** Models grouped by tier for intelligent routing. */
-    val modelsByTier: Map<ModelTier, List<AIModel>> =
+    val modelsByTier: Map<ModelTier, List<AIModel>> get() =
         allModels.groupBy { it.tier }
 
     /** The latest (flagship) models from each provider — ideal for auto-selection. */
-    val latestByProvider: Map<ModelProvider, AIModel> = buildMap {
+    val latestByProvider: Map<ModelProvider, AIModel> get() = buildMap {
         modelsByProvider.forEach { (provider, models) ->
             val latest = models.firstOrNull { it.isLatest } ?: models.first()
             put(provider, latest)

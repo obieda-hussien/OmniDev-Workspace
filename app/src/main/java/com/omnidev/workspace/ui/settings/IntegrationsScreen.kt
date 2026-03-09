@@ -21,6 +21,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.content.Intent
+import com.omnidev.workspace.data.auth.CopilotSessionManager
 import com.omnidev.workspace.data.auth.GitHubDeviceFlowManager
 import com.omnidev.workspace.data.integration.DiscordPollingService
 import com.omnidev.workspace.data.integration.TelegramPollingService
@@ -28,6 +29,7 @@ import com.omnidev.workspace.data.integration.WhatsAppBridgeService
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -218,6 +220,9 @@ fun IntegrationsScreen(
                             deviceFlowPolling = false
                             deviceFlowError = null
                             deviceFlowInProgress = false
+                            // Clear persisted Copilot session + dynamic model list
+                            CopilotSessionManager.clearSession()
+                            ModelRegistry.clearDynamicCopilotModels()
                         }
                     },
                     modifier = Modifier.fillMaxWidth()

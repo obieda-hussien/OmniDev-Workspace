@@ -222,6 +222,13 @@ object GitHubDeviceFlowManager {
                                 else
                                     ModelProvider.GITHUB_MODELS
                                 apiKeyRepository.setApiKey(provider, token)
+
+                                // After a successful Copilot login, immediately fetch the full
+                                // list of models available on this subscription and inject them
+                                // into ModelRegistry — same approach as VS Code / opencode.
+                                if (subMode == SubMode.COPILOT) {
+                                    CopilotModelRefresher.refreshModels(token)
+                                }
                             }
                             emit(DeviceFlowState.Success(token))
                             return@flow
