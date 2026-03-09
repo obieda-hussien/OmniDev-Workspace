@@ -107,4 +107,19 @@ class ChatRepository(
             )
         )
     }
+
+    suspend fun findOrCreateDiscordSession(discordChannelId: String, title: String): Long {
+        val existing = sessionDao.getByDiscordChannelId(discordChannelId)
+        if (existing != null) {
+            sessionDao.updateTitleAndTimestamp(existing.id, title, System.currentTimeMillis())
+            return existing.id
+        }
+        return sessionDao.insert(
+            ChatSessionEntity(
+                title = "💬 Discord: $title",
+                source = ChatSessionEntity.SOURCE_DISCORD,
+                discordChannelId = discordChannelId
+            )
+        )
+    }
 }

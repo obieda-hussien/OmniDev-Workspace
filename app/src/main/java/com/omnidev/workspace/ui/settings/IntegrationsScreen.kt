@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.content.Intent
 import com.omnidev.workspace.data.auth.GitHubDeviceFlowManager
+import com.omnidev.workspace.data.integration.DiscordPollingService
 import com.omnidev.workspace.data.integration.TelegramPollingService
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.repository.ApiKeyRepository
@@ -78,8 +79,17 @@ fun IntegrationsScreen(
     var telegramToken by remember { mutableStateOf("") }
     var telegramChatId by remember { mutableStateOf("") }
 
-    // Discord
+    // Discord Webhook (legacy)
     var discordWebhookUrl by remember { mutableStateOf("") }
+
+    // Discord Bot (new full integration)
+    var discordBotToken by remember { mutableStateOf("") }
+    var discordListenerChannelId by remember { mutableStateOf("") }
+    var discordListenerEnabled by remember { mutableStateOf(false) }
+
+    // WhatsApp Business Cloud API
+    var whatsappPhoneNumberId by remember { mutableStateOf("") }
+    var whatsappAccessToken by remember { mutableStateOf("") }
 
     // Notion
     var notionApiKey by remember { mutableStateOf("") }
@@ -105,6 +115,11 @@ fun IntegrationsScreen(
         telegramToken = settingsRepository.observeTelegramBotToken().first() ?: ""
         telegramChatId = settingsRepository.observeTelegramChatId().first() ?: ""
         discordWebhookUrl = settingsRepository.observeDiscordWebhookUrl().first() ?: ""
+        discordBotToken = settingsRepository.observeDiscordBotToken().first() ?: ""
+        discordListenerChannelId = settingsRepository.observeDiscordListenerChannelId().first() ?: ""
+        discordListenerEnabled = settingsRepository.observeDiscordListenerEnabled().first()
+        whatsappPhoneNumberId = settingsRepository.observeWhatsAppPhoneNumberId().first() ?: ""
+        whatsappAccessToken = settingsRepository.observeWhatsAppAccessToken().first() ?: ""
         notionApiKey = settingsRepository.observeNotionApiKey().first() ?: ""
         notionDatabaseId = settingsRepository.observeNotionDatabaseId().first() ?: ""
     }
@@ -545,15 +560,92 @@ fun IntegrationsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = "Add a Discord webhook URL to let the AI send notifications to your Discord server.",
+                text = "Discord Webhook: let the AI push notifications to a channel.\nDiscord Bot: full bidirectional listener — the AI reads messages and responds.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             OutlinedTextField(
                 value = discordWebhookUrl,
                 onValueChange = { discordWebhookUrl = it; saved = false },
-                label = { Text("Webhook URL") },
+                label = { Text("Webhook URL (one-way notifications)") },
                 placeholder = { Text("https://discord.com/api/webhooks/...") },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = discordBotToken,
+                onValueChange = { discordBotToken = it; saved = false },
+                label = { Text("Bot Token (full bidirectional)") },
+                placeholder = { Text("Bot Token from Discord Developer Portal") },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = discordListenerChannelId,
+                onValueChange = { discordListenerChannelId = it; saved = false },
+                label = { Text("Default Channel ID to listen on") },
+                placeholder = { Text("Channel ID from Discord (right-click → Copy ID)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (discordListenerEnabled) "✅ Discord Bot Listener — Running" else "Discord Bot Listener",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Switch(
+                    checked = discordListenerEnabled,
+                    onCheckedChange = { enabled ->
+                        discordListenerEnabled = enabled
+                        scope.launch {
+                            settingsRepository.setDiscordListenerEnabled(enabled)
+                            if (enabled) {
+                                context.startForegroundService(
+                                    Intent(context, DiscordPollingService::class.java)
+                                )
+                            } else {
+                                context.startService(
+                                    Intent(context, DiscordPollingService::class.java)
+                                        .apply { action = DiscordPollingService.ACTION_STOP }
+                                )
+                            }
+                        }
+                    }
+                )
+            }
+
+            HorizontalDivider()
+
+            // ── WhatsApp Section ──
+            Text(
+                text = "💬 WhatsApp",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Connect via Meta WhatsApp Business Cloud API to let the AI send messages, images, documents, locations and contacts.\n\nSetup: Meta Business Suite → WhatsApp → Get Started → copy Phone Number ID and Access Token.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedTextField(
+                value = whatsappPhoneNumberId,
+                onValueChange = { whatsappPhoneNumberId = it; saved = false },
+                label = { Text("Phone Number ID") },
+                placeholder = { Text("1234567890 from Meta Business Suite") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = whatsappAccessToken,
+                onValueChange = { whatsappAccessToken = it; saved = false },
+                label = { Text("Access Token") },
+                placeholder = { Text("EAAxxxxxxxx...") },
                 visualTransformation = PasswordVisualTransformation(),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
@@ -600,6 +692,10 @@ fun IntegrationsScreen(
                             settingsRepository.setTelegramBotToken(telegramToken.ifBlank { null })
                             settingsRepository.setTelegramChatId(telegramChatId.ifBlank { null })
                             settingsRepository.setDiscordWebhookUrl(discordWebhookUrl.ifBlank { null })
+                            settingsRepository.setDiscordBotToken(discordBotToken.ifBlank { null })
+                            settingsRepository.setDiscordListenerChannelId(discordListenerChannelId.ifBlank { null })
+                            settingsRepository.setWhatsAppPhoneNumberId(whatsappPhoneNumberId.ifBlank { null })
+                            settingsRepository.setWhatsAppAccessToken(whatsappAccessToken.ifBlank { null })
                             settingsRepository.setNotionApiKey(notionApiKey.ifBlank { null })
                             settingsRepository.setNotionDatabaseId(notionDatabaseId.ifBlank { null })
                             saved = true

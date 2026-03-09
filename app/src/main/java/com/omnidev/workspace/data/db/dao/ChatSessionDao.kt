@@ -42,4 +42,8 @@ interface ChatSessionDao {
     /** Find an existing Telegram session by its chat ID. */
     @Query("SELECT * FROM chat_sessions WHERE telegramChatId = :chatId AND source = 'telegram' LIMIT 1")
     suspend fun getByTelegramChatId(chatId: Long): ChatSessionEntity?
+
+    /** Find an existing Discord session by its channel ID. */
+    @Query("SELECT * FROM chat_sessions WHERE discordChannelId = :channelId AND source = 'discord' LIMIT 1")
+    suspend fun getByDiscordChannelId(channelId: String): ChatSessionEntity?
 }

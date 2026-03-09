@@ -239,6 +239,12 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
+        <!-- Discord Bot Polling Service -->
+        <service
+            android:name=".data.integration.DiscordPollingService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <!-- VoiceAssistantService -->
         <service
             android:name=".data.voice.VoiceAssistantService"

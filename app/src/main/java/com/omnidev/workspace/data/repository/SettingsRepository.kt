@@ -66,6 +66,13 @@ class SettingsRepository(private val context: Context) {
         /** "copilot" or "models" — which GitHub sub-mode the user selected. */
         val GITHUB_SUB_MODE = stringPreferencesKey("github_sub_mode")
         val DISCORD_WEBHOOK_URL = stringPreferencesKey("discord_webhook_url")
+        // Discord Bot (full bot token integration)
+        val DISCORD_BOT_TOKEN = stringPreferencesKey("discord_bot_token")
+        val DISCORD_LISTENER_CHANNEL_ID = stringPreferencesKey("discord_listener_channel_id")
+        val DISCORD_LISTENER_ENABLED = booleanPreferencesKey("discord_listener_enabled")
+        // WhatsApp Business Cloud API
+        val WHATSAPP_PHONE_NUMBER_ID = stringPreferencesKey("whatsapp_phone_number_id")
+        val WHATSAPP_ACCESS_TOKEN = stringPreferencesKey("whatsapp_access_token")
         val NOTION_API_KEY = stringPreferencesKey("notion_api_key")
         val NOTION_DATABASE_ID = stringPreferencesKey("notion_database_id")
         // n8n Automation
@@ -308,6 +315,54 @@ class SettingsRepository(private val context: Context) {
     suspend fun setDiscordWebhookUrl(url: String?) {
         context.settingsDataStore.edit { prefs ->
             if (url.isNullOrBlank()) prefs.remove(Keys.DISCORD_WEBHOOK_URL) else prefs[Keys.DISCORD_WEBHOOK_URL] = url
+        }
+    }
+
+    // Discord Bot Token & Listener
+    fun observeDiscordBotToken(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.DISCORD_BOT_TOKEN] }
+
+    suspend fun setDiscordBotToken(token: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (token.isNullOrBlank()) prefs.remove(Keys.DISCORD_BOT_TOKEN) else prefs[Keys.DISCORD_BOT_TOKEN] = token
+        }
+    }
+
+    fun observeDiscordListenerChannelId(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.DISCORD_LISTENER_CHANNEL_ID] }
+
+    suspend fun setDiscordListenerChannelId(id: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (id.isNullOrBlank()) prefs.remove(Keys.DISCORD_LISTENER_CHANNEL_ID)
+            else prefs[Keys.DISCORD_LISTENER_CHANNEL_ID] = id
+        }
+    }
+
+    fun observeDiscordListenerEnabled(): Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.DISCORD_LISTENER_ENABLED] ?: false }
+
+    suspend fun setDiscordListenerEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.DISCORD_LISTENER_ENABLED] = enabled }
+    }
+
+    // WhatsApp Business Cloud API
+    fun observeWhatsAppPhoneNumberId(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.WHATSAPP_PHONE_NUMBER_ID] }
+
+    suspend fun setWhatsAppPhoneNumberId(id: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (id.isNullOrBlank()) prefs.remove(Keys.WHATSAPP_PHONE_NUMBER_ID)
+            else prefs[Keys.WHATSAPP_PHONE_NUMBER_ID] = id
+        }
+    }
+
+    fun observeWhatsAppAccessToken(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.WHATSAPP_ACCESS_TOKEN] }
+
+    suspend fun setWhatsAppAccessToken(token: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (token.isNullOrBlank()) prefs.remove(Keys.WHATSAPP_ACCESS_TOKEN)
+            else prefs[Keys.WHATSAPP_ACCESS_TOKEN] = token
         }
     }
 

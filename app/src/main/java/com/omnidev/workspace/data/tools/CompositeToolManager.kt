@@ -71,6 +71,8 @@ class CompositeToolManager(
         addAll(VisualInspectorTool.getToolDefinitions())
         addAll(TelegramPublisherTool.getToolDefinitions())
         addAll(TelegramBotTool.getToolDefinitions())
+        addAll(DiscordBotTool.getToolDefinitions())
+        addAll(WhatsAppTool.getToolDefinitions())
         addAll(GitHubManagerTool.getToolDefinitions())
         if (discordPublisherTool != null) {
             addAll(DiscordPublisherTool.getToolDefinitions())
@@ -342,6 +344,19 @@ class CompositeToolManager(
             "telegram_bot" -> {
                 val botToken = settingsRepository?.observeTelegramBotToken()?.first()
                 TelegramBotTool.execute(botToken = botToken, args = arguments)
+            }
+
+            // ── Discord bot tool (full bidirectional Discord Bot API) ──
+            "discord_bot" -> {
+                val botToken = settingsRepository?.observeDiscordBotToken()?.first()
+                DiscordBotTool.execute(botToken = botToken, args = arguments)
+            }
+
+            // ── WhatsApp Business Cloud API tool ──
+            "whatsapp" -> {
+                val phoneNumberId = settingsRepository?.observeWhatsAppPhoneNumberId()?.first()
+                val accessToken   = settingsRepository?.observeWhatsAppAccessToken()?.first()
+                WhatsAppTool.execute(phoneNumberId = phoneNumberId, accessToken = accessToken, args = arguments)
             }
 
             // ── GitHub manager tool ──
