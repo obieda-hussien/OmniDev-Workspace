@@ -51,12 +51,15 @@ object GitHubDeviceFlowManager {
     }
 
     /**
-     * Public Client ID used by opencode / VS Code for GitHub Copilot Device Flow.
-     * Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/plugin/copilot.ts
-     * This is NOT a secret — it is hardcoded in public open-source tooling.
+     * Public Client ID used by VS Code for GitHub Copilot Device Flow.
+     * Source: VS Code GitHub Copilot extension (open-source, publicly documented).
+     * This is NOT a secret — it is hardcoded in VS Code's open-source codebase.
      * No registration or OAuth App setup is required for Copilot mode.
+     * GitHub's Copilot internal token-exchange endpoint specifically validates that
+     * the OAuth token was issued to a recognized Copilot client; this Client ID
+     * (`Iv1.b507a08c87ecfe98`) is the one GitHub recognizes for Copilot access.
      */
-    const val COPILOT_CLIENT_ID = "Ov23li8tweQw6odWQebz"
+    const val COPILOT_CLIENT_ID = "Iv1.b507a08c87ecfe98"
 
     /**
      * Client ID for the GitHub Models (Azure inference) provider.

@@ -217,8 +217,10 @@ object CopilotSessionManager {
             val hint = when (responseCode) {
                 401 -> "The GitHub OAuth token is invalid or expired. Re-authorize via Settings → Integrations → GitHub (Copilot)."
                 403 -> "No active GitHub Copilot subscription on this account."
-                404 -> "The token was not obtained via the Copilot Device Flow. " +
-                       "Go to Settings → Integrations → GitHub → 'GitHub Copilot' and re-authorize."
+                404 -> "Your GitHub account may not have an active Copilot subscription, or the " +
+                       "authorization needs to be refreshed. Go to Settings → Integrations → GitHub → " +
+                       "'GitHub Copilot' and re-authorize, then ensure your account has Copilot access at " +
+                       "github.com/settings/copilot."
                 else -> "HTTP $responseCode. Details: $errorBody"
             }
             throw IOException("Copilot session token exchange failed ($responseCode). $hint")
