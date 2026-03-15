@@ -204,8 +204,8 @@ object CopilotSessionManager {
             setRequestProperty("Accept", "application/json")
             // Editor metadata — used by GitHub to route requests correctly.
             // "vscode-chat" is the widely accepted integration ID for third-party clients.
-            setRequestProperty("Editor-Version", "OmniDevWorkspace/1.0")
-            setRequestProperty("Editor-Plugin-Version", "omnidev-copilot/1.0")
+            setRequestProperty("Editor-Version", "vscode/1.0.0")
+            setRequestProperty("Editor-Plugin-Version", "copilot-chat/0.1.0")
             setRequestProperty("Copilot-Integration-Id", "vscode-chat")
             setRequestProperty("User-Agent", "OmniDevWorkspace/1.0")
         }
@@ -261,7 +261,8 @@ object CopilotSessionManager {
             setRequestProperty("Authorization", "Bearer $sessionToken")
             setRequestProperty("Accept", "application/json")
             setRequestProperty("Copilot-Integration-Id", "vscode-chat")
-            setRequestProperty("Editor-Version", "OmniDevWorkspace/1.0")
+            setRequestProperty("Editor-Version", "vscode/1.0.0")
+            setRequestProperty("openai-organization", "github-copilot")
         }
 
         val responseCode = conn.responseCode

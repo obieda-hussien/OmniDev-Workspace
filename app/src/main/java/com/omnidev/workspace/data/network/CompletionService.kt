@@ -583,8 +583,10 @@ class CompletionService {
 
         val extraHeaders: Map<String, String> = when (provider) {
             ModelProvider.GITHUB_COPILOT -> mapOf(
-                "Editor-Version" to "OmniDevWorkspace/1.0",
-                "Copilot-Integration-Id" to "vscode-chat"
+                "Editor-Version" to "vscode/1.0.0",
+                "Editor-Plugin-Version" to "copilot-chat/0.1.0",
+                "Copilot-Integration-Id" to "vscode-chat",
+                "openai-organization" to "github-copilot"
             )
             ModelProvider.GITHUB_MODELS -> mapOf(
                 "X-GitHub-Api-Version" to "2022-11-28"
@@ -727,8 +729,10 @@ class CompletionService {
 
         val extraHeaders: Map<String, String> = when (provider) {
             ModelProvider.GITHUB_COPILOT -> mapOf(
-                "Editor-Version" to "OmniDevWorkspace/1.0",
-                "Copilot-Integration-Id" to "vscode-chat"
+                "Editor-Version" to "vscode/1.0.0",
+                "Editor-Plugin-Version" to "copilot-chat/0.1.0",
+                "Copilot-Integration-Id" to "vscode-chat",
+                "openai-organization" to "github-copilot"
             )
             ModelProvider.GITHUB_MODELS -> mapOf(
                 "X-GitHub-Api-Version" to "2022-11-28"
