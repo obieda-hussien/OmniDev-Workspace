@@ -51,12 +51,15 @@ object GitHubDeviceFlowManager {
     }
 
     /**
-     * Public Client ID used by opencode / VS Code for GitHub Copilot Device Flow.
-     * Source: https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/plugin/copilot.ts
-     * This is NOT a secret — it is hardcoded in public open-source tooling.
+     * Public Client ID used by VS Code for GitHub Copilot Device Flow.
+     * Source: VS Code GitHub Copilot extension (open-source, publicly documented).
+     * This is NOT a secret — it is hardcoded in VS Code's open-source codebase.
      * No registration or OAuth App setup is required for Copilot mode.
+     * GitHub's Copilot internal token-exchange endpoint specifically validates that
+     * the OAuth token was issued to a recognized Copilot client; this Client ID
+     * (`Iv1.b507a08c87ecfe98`) is the one GitHub recognizes for Copilot access.
      */
-    const val COPILOT_CLIENT_ID = "Ov23li8tweQw6odWQebz"
+    const val COPILOT_CLIENT_ID = "Iv1.b507a08c87ecfe98"
 
     /**
      * Client ID for the GitHub Models (Azure inference) provider.
@@ -76,8 +79,15 @@ object GitHubDeviceFlowManager {
     /** Timeout (ms) for each HTTP request to GitHub's OAuth endpoints. */
     private const val HTTP_TIMEOUT_MS = 30_000
 
-    /** Scope for Copilot: only read:user is needed. */
-    private const val COPILOT_SCOPE = "read:user"
+    /**
+     * Scope for Copilot: empty string means no explicit scope is requested.
+     * The Copilot Client ID (Ov23li8tweQw6odWQebz) itself implicitly grants
+     * Copilot API access — requesting specific scopes like "read:user" actually
+     * restricts the token and causes the Copilot internal token-exchange endpoint
+     * to return 404, because GitHub treats the token as a limited-scope PAT rather
+     * than a full Copilot-authorized OAuth token.
+     */
+    private const val COPILOT_SCOPE = ""
 
     /** Scope for GitHub Models: repo + email + models access. */
     private const val MODELS_SCOPE = "repo read:user user:email"
@@ -215,6 +225,13 @@ object GitHubDeviceFlowManager {
                                 else
                                     ModelProvider.GITHUB_MODELS
                                 apiKeyRepository.setApiKey(provider, token)
+
+                                // After a successful Copilot login, immediately fetch the full
+                                // list of models available on this subscription and inject them
+                                // into ModelRegistry — same approach as VS Code / opencode.
+                                if (subMode == SubMode.COPILOT) {
+                                    CopilotModelRefresher.refreshModels(token)
+                                }
                             }
                             emit(DeviceFlowState.Success(token))
                             return@flow
@@ -250,7 +267,14 @@ object GitHubDeviceFlowManager {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private fun requestDeviceCode(clientId: String, scope: String): Result<JSONObject> = runCatching {
-        val postBody = "client_id=${clientId}&scope=${scope.replace(" ", "+")}"
+        // Only append scope if non-empty. For GitHub Copilot the scope is empty —
+        // sending "scope=" (empty value) is valid but sending it explicitly causes
+        // GitHub to treat the token as scope-restricted, breaking Copilot internal API.
+        val postBody = if (scope.isBlank()) {
+            "client_id=$clientId"
+        } else {
+            "client_id=${clientId}&scope=${scope.replace(" ", "+")}"
+        }
         val url = URL(DEVICE_CODE_URL)
         val conn = url.openConnection() as HttpsURLConnection
         conn.requestMethod = "POST"

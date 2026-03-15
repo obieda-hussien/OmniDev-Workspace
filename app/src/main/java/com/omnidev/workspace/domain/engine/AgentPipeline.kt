@@ -10,9 +10,14 @@ import com.omnidev.workspace.data.model.ToolCallResult
 import com.omnidev.workspace.data.tools.ToolManager
 import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.Serializable
 import kotlin.math.min
 
@@ -35,7 +40,38 @@ data class AgentConfig(
     val baseRetryDelayMs: Long = 500L,
     val tokenBudget: Int? = null,
     val contextWindowBuffer: Int = 4_096,
-    val enableMemoryTrimming: Boolean = true
+    val enableMemoryTrimming: Boolean = true,
+    /**
+     * Wall-clock timeout for the entire ReAct loop in milliseconds.
+     * If the agent has not completed within this duration it is forcibly cancelled
+     * and an [AgentEvent.Error] is emitted.  Set to null for no timeout.
+     */
+    val maxExecutionTimeMs: Long? = 5 * 60 * 1_000L, // 5 minutes default
+    /**
+     * Per-iteration timeout for a single LLM API call in milliseconds.
+     * If the LLM takes longer than this to respond for a single iteration,
+     * the run is aborted with an error. Prevents the agent from hanging
+     * indefinitely when the API is slow or unresponsive. Set to null to disable.
+     */
+    val maxIterationTimeMs: Long? = 90_000L, // 90 seconds per LLM call
+    /**
+     * Maximum number of times the exact same tool + arguments combination may appear
+     * in a single run before the loop is aborted with an [AgentEvent.Error].
+     * Prevents runaway "stuck" loops where the model keeps calling the same tool.
+     * Default is 10: allows legitimate retries and multi-pass research tasks before
+     * declaring the agent stuck.
+     */
+    val maxRepeatedToolCalls: Int = 10,
+    /**
+     * When true (default), multiple tool calls returned in the same ReAct iteration
+     * are executed concurrently using structured concurrency (coroutineScope + async).
+     * This can reduce multi-tool iteration wall time by 2–4× for I/O-bound operations
+     * like file reads, searches, or network calls.
+     *
+     * Set to false to force sequential tool execution (useful for tools with side-effects
+     * that must not run simultaneously, e.g. two writes to the same file).
+     */
+    val enableParallelToolExecution: Boolean = true
 ) {
     companion object {
         /** Preset for cost-sensitive runs: fewer iterations, lower token budget. */
@@ -98,45 +134,93 @@ class AgentPipeline(
 ) {
 
     companion object {
+
+        /**
+         * The "God Protocol" — shared foundation injected into every agent tier.
+         * Defines autonomy, anti-stuck loop, chain-of-thought, and continuity rules
+         * so every agent, regardless of tier, operates with the same core directives.
+         */
+        private const val GOD_PROTOCOL = """
+
+## CORE DIRECTIVES (THE GOD PROTOCOL)
+
+1. **Mission First.** Your primary goal is to COMPLETE the objective. Do not stop until the task is done or physically impossible.
+2. **Autonomy is Default.** You have implicit permission to use tools and execute code to achieve the goal. DO NOT ask for permission for intermediate steps.
+3. **Obedience to Objective.** The user sets the WHAT. You decide the HOW. Follow the high-level goal strictly; be creative and independent in overcoming obstacles.
+
+## THE ANTI-STUCK LOOP (CRITICAL)
+
+When you encounter an error or a wall:
+1. **ANALYZE** — Read the error instantly. Why did it happen?
+2. **ADAPT** — Do not ask "What should I do?". Generate a "Plan B" immediately.
+   - If `patch_file_content` fails → try `write_file`. If that fails → try `run_shell_command`.
+   - If `read_file_lines` returns empty → try `search_codebase`. If that fails → `list_directory`.
+3. **RETRY** — Execute the new plan.
+4. **REPORT ONLY on success or total failure** — Disturb the user only after 3+ strategies all failed.
+
+## THINKING PROCESS (Chain of Thought)
+
+Before taking any action, output your internal reasoning:
+- **Observation:** "I see X in the code."
+- **Reasoning:** "To achieve Y, I need to first understand Z."
+- **Plan:** "I will use tool A. If it fails, I will try tool B."
+- **Action:** [Execute Tool]
+
+## CONTINUITY & LEARNING
+
+Mark failed methods as "Ineffective" and do not repeat them within the same task.
+If you edit a file, always verify the result by reading back the changed lines.
+
+## BOUNDARIES
+
+- **Privacy:** Protect user credentials. Never log or expose secrets.
+- **Safety:** Do not delete system files or cause data loss without explicit user confirmation.
+- **Tone:** Professional, concise, action-oriented. No unnecessary explanations.
+"""
+
         /** System prompt for ORCHESTRATOR-tier models — complex planning and deep analysis. */
         private const val ORCHESTRATOR_SYSTEM_PROMPT = """
-You are an elite autonomous coding agent powered by a frontier reasoning model.
+You are an elite Autonomous Operator — a frontier-grade reasoning agent built for architecture, long-horizon planning, and complex multi-step problem solving.
 
-Your strengths: architectural analysis, complex multi-file refactoring, long-horizon planning.
+Your strengths: architectural analysis, complex multi-file refactoring, multi-system coordination, deep code understanding.
 Use your full reasoning capacity. Think deeply before each action.
 
 OPERATIONAL RULES:
 1. Operate ONLY within the user's active Target Context scope — never access files outside it.
 2. Use read_file_lines with precise line ranges — reading entire large files wastes context.
 3. Use search_codebase FIRST to understand the codebase structure before editing.
-4. Use patch_file_content for all edits — never rewrite complete files.
-5. Verify every change by reading back the modified lines.
-6. When uncertain, prefer smaller, reversible changes and report your reasoning.
-7. Break complex tasks into explicit steps and validate each step before proceeding.
-"""
+4. Use patch_file_content for all edits — never rewrite complete files unless strictly necessary.
+5. Verify every change by reading back the modified lines after each edit.
+6. Break complex tasks into explicit numbered steps and validate each step before proceeding.
+7. When delegating to sub-agents (Swarm mode), write clear, atomic, dependency-annotated task specs.
+""" + GOD_PROTOCOL
 
         /** System prompt for EXECUTOR-tier models — fast, practical code generation. */
         private const val EXECUTOR_SYSTEM_PROMPT = """
-You are an autonomous coding agent optimized for fast, precise code execution.
+You are an Autonomous Operator optimized for fast, precise code execution and feature delivery.
 
-Your strengths: implementing features, refactoring, bug fixes, code generation.
-Be concise in your reasoning. Act decisively with minimal back-and-forth.
+Your strengths: implementing features, refactoring, bug fixes, code generation, test writing.
+Act decisively. Complete tasks in as few tool calls as possible without sacrificing correctness.
 
 OPERATIONAL RULES:
 1. Operate ONLY within the user's active Target Context scope.
 2. Use read_file_lines for targeted reads — specify exact line ranges.
 3. Use search_codebase to find relevant code before editing.
 4. Use patch_file_content for surgical edits — no full file rewrites.
-5. Verify changes by reading back affected lines.
-6. Complete tasks in as few tool calls as reasonably possible.
-"""
+5. Verify changes by reading back affected lines after each edit.
+6. Be concise in reasoning. Skip narration; focus on execution.
+""" + GOD_PROTOCOL
 
         /** System prompt for FAST-tier models — minimal overhead for quick queries. */
         private const val FAST_SYSTEM_PROMPT = """
-You are a fast-response coding assistant. Be brief and direct.
-All file operations must stay within the user's Target Context scope.
-Use read_file_lines for targeted reads. Use patch_file_content for edits.
-"""
+You are a fast-response Autonomous Operator. Be brief, direct, and decisive.
+
+OPERATIONAL RULES:
+1. All file operations must stay within the user's Target Context scope.
+2. Use read_file_lines for targeted reads. Use patch_file_content for edits.
+3. Verify each change immediately. Never assume success.
+4. If a tool fails, try an alternative approach immediately — do not give up.
+""" + GOD_PROTOCOL
 
         /** Extended thinking injection appended when Deep Mode is active. */
         private const val DEEP_THINKING_SUFFIX = """
@@ -282,8 +366,28 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
          * Minimum pause between consecutive LLM API calls inside the ReAct loop.
          * Prevents burst-firing requests when tools resolve instantly (e.g. file reads)
          * and helps stay within rate-limit windows on free-tier providers (e.g. GitHub Models).
+         * Tier-specific overrides are applied at runtime — see [interCallDelayFor].
          */
         private const val INTER_CALL_DELAY_MS = 500L
+
+        /**
+         * Returns the appropriate inter-call delay for [tier].
+         * FAST models are high-throughput (600+ t/s) and typically run on providers
+         * with generous rate limits, so they need a much shorter pause.
+         * ORCHESTRATOR models (reasoning/frontier) are slower to respond, so the
+         * existing 500 ms buffer is fine.
+         */
+        private fun interCallDelayFor(tier: ModelTier): Long = when (tier) {
+            ModelTier.FAST -> 100L
+            ModelTier.EXECUTOR -> 250L
+            ModelTier.ORCHESTRATOR -> INTER_CALL_DELAY_MS
+        }
+
+        /**
+         * Abort if semantic_ui(dump_tree) is called this many consecutive iterations
+         * without any action (click/type/tap/scroll) — the agent is stuck inspecting.
+         */
+        private const val NO_PROGRESS_THRESHOLD = 3
     }
 
     /**
@@ -311,7 +415,8 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
         enableDeepThinking: Boolean = false,
         userAttachments: List<AttachmentMeta> = emptyList(),
         customSystemPrompt: String? = null,
-        workerPersona: String? = null
+        workerPersona: String? = null,
+        userContext: String? = null
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.Started)
 
@@ -353,6 +458,15 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 
         val systemPrompt = buildString {
             append(effectiveBasePrompt)
+            // User context — personalise advice/style to the specific person if provided
+            if (!userContext.isNullOrBlank()) {
+                appendLine()
+                appendLine()
+                appendLine("## User Context")
+                appendLine("The person you are helping has shared the following about themselves:")
+                appendLine(userContext.trim())
+                appendLine("Tailor your explanations, code examples, and tone to match their background.")
+            }
             // Anti-lecture directive — always injected first; prevents the agent from
             // refusing tasks or lecturing the user about missing Android permissions.
             append(ANTI_LECTURE_DIRECTIVE)
@@ -403,12 +517,37 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
         var iteration = 0
         var totalTokensUsed = 0
 
+        // Wall-clock start time for timeout enforcement
+        val startTimeMs = System.currentTimeMillis()
+
+        // Loop-detection: tracks how many times each identical tool call has appeared.
+        // Key = "toolName:sortedArgs" fingerprint; value = occurrence count.
+        val toolCallCounts = mutableMapOf<String, Int>()
+
+        // No-progress detection: counts consecutive iterations where the agent only called
+        // read-only / observation tools (e.g. dump_tree, read_file, search) without taking
+        // any write/action tool. 3+ read-only-only iterations = agent is stuck inspecting.
+        var consecutiveReadOnlyIterations = 0
+
         // ── ReAct Loop ──
         while (iteration < config.maxIterations) {
             iteration++
+
+            // ── Wall-clock timeout check ──
+            config.maxExecutionTimeMs?.let { timeoutMs ->
+                if (System.currentTimeMillis() - startTimeMs >= timeoutMs) {
+                    send(AgentEvent.Error(
+                        "Agent execution timed out after ${timeoutMs / 1_000}s. " +
+                        "Use the ⏹ stop button to cancel a run at any time."
+                    ))
+                    return@channelFlow
+                }
+            }
+
             // Brief pause between iterations to avoid bursting free-tier rate limits
             // (e.g. GitHub Models / Azure inference). Skipped on the very first call.
-            if (iteration > 1) delay(INTER_CALL_DELAY_MS)
+            // Delay scales with model tier: FAST=100ms, EXECUTOR=250ms, ORCHESTRATOR=500ms.
+            if (iteration > 1) delay(interCallDelayFor(model.tier))
             send(AgentEvent.Thinking(iteration = iteration))
 
             // Token budget enforcement
@@ -488,19 +627,66 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 
             val toolResults = mutableListOf<ToolCallResult>()
 
+            // ── Loop detection — check all fingerprints upfront (before any I/O) ──
+            for (toolCall in response.toolCalls) {
+                val fingerprint = buildString {
+                    append(toolCall.name)
+                    append(':')
+                    toolCall.arguments.entries.sortedBy { it.key }.forEach { (k, v) ->
+                        append(k).append('=').append(v.toString()).append(',')
+                    }
+                }
+                val callCount = (toolCallCounts[fingerprint] ?: 0) + 1
+                toolCallCounts[fingerprint] = callCount
+                if (callCount > config.maxRepeatedToolCalls) {
+                    send(AgentEvent.Error(
+                        "🔄 Loop detected: tool '${toolCall.name}' called $callCount times " +
+                        "with identical arguments. Aborting to prevent an infinite loop. " +
+                        "Use the ⏹ stop button to cancel a run at any time."
+                    ))
+                    return@channelFlow
+                }
+            }
+
+            // Emit ToolExecution events for all calls (before we start executing them)
             for (toolCall in response.toolCalls) {
                 send(AgentEvent.ToolExecution(
                     toolName = toolCall.name,
                     arguments = toolCall.arguments,
                     iteration = iteration
                 ))
+            }
 
-                val result = toolManager.executeTool(
-                    name = toolCall.name,
-                    arguments = toolCall.arguments,
-                    scopePath = scopePath
-                )
+            // ── Execute tools: parallel when enabled and >1 call, sequential otherwise ──
+            val rawResults: List<com.omnidev.workspace.data.tools.ToolExecutionResult> =
+                if (config.enableParallelToolExecution && response.toolCalls.size > 1) {
+                    // Run all tool calls concurrently. coroutineScope propagates cancellation
+                    // cleanly — if the parent Flow is cancelled mid-flight, all async blocks
+                    // are cancelled immediately.
+                    coroutineScope {
+                        response.toolCalls.map { toolCall ->
+                            async {
+                                toolManager.executeTool(
+                                    name = toolCall.name,
+                                    arguments = toolCall.arguments,
+                                    scopePath = scopePath
+                                )
+                            }
+                        }.awaitAll()
+                    }
+                } else {
+                    // Sequential fallback for single calls or when parallel is disabled
+                    response.toolCalls.map { toolCall ->
+                        toolManager.executeTool(
+                            name = toolCall.name,
+                            arguments = toolCall.arguments,
+                            scopePath = scopePath
+                        )
+                    }
+                }
 
+            // Collect results in original toolCall order, emit ToolResult events
+            for ((toolCall, result) in response.toolCalls.zip(rawResults)) {
                 val toolCallResult = ToolCallResult(
                     toolCallId = toolCall.id,
                     toolName = toolCall.name,
@@ -533,6 +719,37 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
                     )
                 }
             }
+
+            // ── No-progress / read-only loop detection ──
+            // Detect when the agent is stuck only inspecting (dump_tree) without acting.
+            // We check semantic_ui calls: if EVERY call this iteration uses a read-only
+            // action (dump_tree, get_node, find_node), increment the counter; reset on any
+            // click/type/tap/scroll/press action.
+            val semanticUiCalls = response.toolCalls.filter { it.name == "semantic_ui" }
+            val readOnlyActions = setOf("dump_tree", "get_node", "find_node", "list_nodes")
+            val allSemUiAreReadOnly = semanticUiCalls.isNotEmpty() &&
+                semanticUiCalls.all { tc ->
+                    // Treat missing/null action as read-only (conservative — no write assumed)
+                    val action = tc.arguments["action"]?.toString()
+                    action == null || action in readOnlyActions
+                }
+            // Non-semantic_ui tools (write_file, execute_command, etc.) always count as action
+            val hasNonSemUiTool = response.toolCalls.any { it.name != "semantic_ui" }
+            if (allSemUiAreReadOnly && !hasNonSemUiTool) {
+                consecutiveReadOnlyIterations++
+                if (consecutiveReadOnlyIterations >= NO_PROGRESS_THRESHOLD) {
+                    send(AgentEvent.Error(
+                        "🔍 Agent stuck: called semantic_ui read-only operations $consecutiveReadOnlyIterations " +
+                        "consecutive times without taking any action (click/type/scroll/etc). " +
+                        "The agent may not know how to interact with the current screen. " +
+                        "Try rephrasing the task or providing a more specific instruction."
+                    ))
+                    return@channelFlow
+                }
+            } else {
+                consecutiveReadOnlyIterations = 0
+            }
+
             val toolMessage = ChatMessage(
                 role = MessageRole.TOOL,
                 content = toolContent,
@@ -578,11 +795,29 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
 
         while (true) {
             try {
-                return if (streamingCompletionProvider != null) {
-                    streamingCompletionProvider.invoke(request, onStreamChunk)
+                val response = if (config.maxIterationTimeMs != null) {
+                    withTimeout(config.maxIterationTimeMs) {
+                        if (streamingCompletionProvider != null) {
+                            streamingCompletionProvider.invoke(request, onStreamChunk)
+                        } else {
+                            completionProvider(request)
+                        }
+                    }
                 } else {
-                    completionProvider(request)
+                    if (streamingCompletionProvider != null) {
+                        streamingCompletionProvider.invoke(request, onStreamChunk)
+                    } else {
+                        completionProvider(request)
+                    }
                 }
+                return response
+            } catch (e: TimeoutCancellationException) {
+                val timeoutSec = (config.maxIterationTimeMs ?: 90_000L) / 1_000
+                onFatalError(
+                    "⏱ LLM call timed out after ${timeoutSec}s at iteration $iteration. " +
+                    "The model API did not respond in time. Try again or use ⏹ to cancel."
+                )
+                return null
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

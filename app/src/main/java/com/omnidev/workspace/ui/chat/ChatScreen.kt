@@ -56,9 +56,9 @@ import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DismissibleDrawerSheet
 import androidx.compose.material3.DismissibleNavigationDrawer
 import androidx.compose.material3.DrawerValue
@@ -384,6 +384,7 @@ fun ChatScreen(
                     inputText = uiState.inputText,
                     onInputChanged = { viewModel.onInputChanged(it) },
                     onSend = { viewModel.sendMessage() },
+                    onStop = { viewModel.cancelCurrentRun() },
                     isProcessing = uiState.isProcessing,
                     pendingAttachments = uiState.pendingAttachments,
                     onAttachClick = { attachmentLauncher.launch("*/*") },
@@ -409,17 +410,21 @@ private fun ModeSelector(
     onModeSelected: (OmniMode) -> Unit,
     enabled: Boolean = true
 ) {
+    // Only show the three explicit modes the user can pick manually.
+    // AUTO is reserved for the floating overlay which routes by intent automatically.
+    val manualModes = listOf(OmniMode.CHAT, OmniMode.AGENT, OmniMode.SWARM)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(0.dp)
     ) {
-        OmniMode.entries.forEachIndexed { index, mode ->
+        manualModes.forEachIndexed { index, mode ->
             val isSelected = mode == activeMode
             val shape = when (index) {
                 0 -> RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
-                OmniMode.entries.lastIndex -> RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp)
+                manualModes.lastIndex -> RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp)
                 else -> RoundedCornerShape(0.dp)
             }
 
@@ -661,6 +666,27 @@ private fun SessionItem(
                     text = "📌",
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(end = 6.dp)
+                )
+            }
+            if (session.source == ChatSessionEntity.SOURCE_TELEGRAM) {
+                Text(
+                    text = "✈️",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+            }
+            if (session.source == ChatSessionEntity.SOURCE_DISCORD) {
+                Text(
+                    text = "🎮",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+            }
+            if (session.source == ChatSessionEntity.SOURCE_WHATSAPP_BRIDGE) {
+                Text(
+                    text = "📱",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(end = 4.dp)
                 )
             }
             Text(
@@ -971,6 +997,7 @@ private fun ChatInputBar(
     inputText: String,
     onInputChanged: (String) -> Unit,
     onSend: () -> Unit,
+    onStop: () -> Unit = {},
     isProcessing: Boolean,
     pendingAttachments: List<PendingAttachment> = emptyList(),
     onAttachClick: () -> Unit = {},
@@ -1053,16 +1080,19 @@ private fun ChatInputBar(
             )
             Spacer(modifier = Modifier.width(8.dp))
             FloatingActionButton(
-                onClick = onSend,
+                onClick = if (isProcessing) onStop else onSend,
                 modifier = Modifier.size(48.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
+                containerColor = if (isProcessing)
+                    MaterialTheme.colorScheme.error
+                else
+                    MaterialTheme.colorScheme.primary,
                 shape = CircleShape
             ) {
                 if (isProcessing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp
+                    Icon(
+                        imageVector = Icons.Filled.Stop,
+                        contentDescription = "Stop agent",
+                        tint = MaterialTheme.colorScheme.onError
                     )
                 } else {
                     Icon(

@@ -1,6 +1,7 @@
 package com.omnidev.workspace.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -20,17 +21,23 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
+import com.omnidev.workspace.data.auth.CopilotSessionManager
 import com.omnidev.workspace.data.auth.GitHubDeviceFlowManager
+import com.omnidev.workspace.data.integration.DiscordPollingService
+import com.omnidev.workspace.data.integration.TelegramPollingService
+import com.omnidev.workspace.data.integration.WhatsAppBridgeService
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
  * Settings screen for configuring external platform integrations:
  * - GitHub Device Flow (RFC 8628) with sub-mode toggle (Copilot / Models)
- * - Telegram Bot Token & Chat ID
+ * - Telegram Bot Token & Chat ID + Polling listener toggle (OpenClaw-style)
  * - Discord Webhook URL
  * - Notion API Key & Database ID
  *
@@ -76,8 +83,25 @@ fun IntegrationsScreen(
     var telegramToken by remember { mutableStateOf("") }
     var telegramChatId by remember { mutableStateOf("") }
 
-    // Discord
+    // Discord Webhook (legacy)
     var discordWebhookUrl by remember { mutableStateOf("") }
+
+    // Discord Bot (new full integration)
+    var discordBotToken by remember { mutableStateOf("") }
+    var discordListenerChannelId by remember { mutableStateOf("") }
+    var discordListenerEnabled by remember { mutableStateOf(false) }
+
+    // WhatsApp Business Cloud API
+    var whatsappPhoneNumberId by remember { mutableStateOf("") }
+    var whatsappAccessToken by remember { mutableStateOf("") }
+
+    // WhatsApp Baileys Bridge
+    var whatsappBridgeUrl by remember { mutableStateOf("") }
+    var whatsappBridgePhone by remember { mutableStateOf("") }
+    var whatsappBridgeEnabled by remember { mutableStateOf(false) }
+    var whatsappBridgePairingCode by remember { mutableStateOf<String?>(null) }
+    var whatsappBridgePairingLoading by remember { mutableStateOf(false) }
+    var whatsappBridgeStatus by remember { mutableStateOf<String?>(null) }
 
     // Notion
     var notionApiKey by remember { mutableStateOf("") }
@@ -103,6 +127,14 @@ fun IntegrationsScreen(
         telegramToken = settingsRepository.observeTelegramBotToken().first() ?: ""
         telegramChatId = settingsRepository.observeTelegramChatId().first() ?: ""
         discordWebhookUrl = settingsRepository.observeDiscordWebhookUrl().first() ?: ""
+        discordBotToken = settingsRepository.observeDiscordBotToken().first() ?: ""
+        discordListenerChannelId = settingsRepository.observeDiscordListenerChannelId().first() ?: ""
+        discordListenerEnabled = settingsRepository.observeDiscordListenerEnabled().first()
+        whatsappPhoneNumberId = settingsRepository.observeWhatsAppPhoneNumberId().first() ?: ""
+        whatsappAccessToken = settingsRepository.observeWhatsAppAccessToken().first() ?: ""
+        whatsappBridgeUrl = settingsRepository.observeWhatsAppBridgeUrl().first() ?: ""
+        whatsappBridgePhone = settingsRepository.observeWhatsAppBridgePhone().first() ?: ""
+        whatsappBridgeEnabled = settingsRepository.observeWhatsAppBridgeEnabled().first()
         notionApiKey = settingsRepository.observeNotionApiKey().first() ?: ""
         notionDatabaseId = settingsRepository.observeNotionDatabaseId().first() ?: ""
     }
@@ -189,6 +221,9 @@ fun IntegrationsScreen(
                             deviceFlowPolling = false
                             deviceFlowError = null
                             deviceFlowInProgress = false
+                            // Clear persisted Copilot session + dynamic model list
+                            CopilotSessionManager.clearSession()
+                            ModelRegistry.clearDynamicCopilotModels()
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -496,6 +531,44 @@ fun IntegrationsScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            // Telegram Bot Listener toggle (OpenClaw-style polling)
+            var telegramBotRunning by remember { mutableStateOf(TelegramPollingService.isRunning) }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "🤖 Telegram Bot Listener",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Text(
+                        text = if (telegramBotRunning)
+                            "Active — Omni is listening to Telegram messages"
+                        else
+                            "Start to let Omni listen and reply to Telegram messages (OpenClaw-style)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (telegramBotRunning)
+                            MaterialTheme.colorScheme.primary
+                        else
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = telegramBotRunning,
+                    onCheckedChange = { enabled ->
+                        telegramBotRunning = enabled
+                        val svcIntent = Intent(context, TelegramPollingService::class.java)
+                        if (enabled) {
+                            context.startService(svcIntent)
+                        } else {
+                            svcIntent.action = TelegramPollingService.ACTION_STOP
+                            context.startService(svcIntent)
+                        }
+                    }
+                )
+            }
+
             HorizontalDivider()
 
             // ── Discord Section ──
@@ -505,21 +578,302 @@ fun IntegrationsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = "Add a Discord webhook URL to let the AI send notifications to your Discord server.",
+                text = "Discord Webhook: let the AI push notifications to a channel.\nDiscord Bot: full bidirectional listener — the AI reads messages and responds.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             OutlinedTextField(
                 value = discordWebhookUrl,
                 onValueChange = { discordWebhookUrl = it; saved = false },
-                label = { Text("Webhook URL") },
+                label = { Text("Webhook URL (one-way notifications)") },
                 placeholder = { Text("https://discord.com/api/webhooks/...") },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = discordBotToken,
+                onValueChange = { discordBotToken = it; saved = false },
+                label = { Text("Bot Token (full bidirectional)") },
+                placeholder = { Text("Bot Token from Discord Developer Portal") },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = discordListenerChannelId,
+                onValueChange = { discordListenerChannelId = it; saved = false },
+                label = { Text("Default Channel ID to listen on") },
+                placeholder = { Text("Channel ID from Discord (right-click → Copy ID)") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (discordListenerEnabled) "✅ Discord Bot Listener — Running" else "Discord Bot Listener",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Switch(
+                    checked = discordListenerEnabled,
+                    onCheckedChange = { enabled ->
+                        discordListenerEnabled = enabled
+                        scope.launch {
+                            settingsRepository.setDiscordListenerEnabled(enabled)
+                            if (enabled) {
+                                ContextCompat.startForegroundService(
+                                    context,
+                                    Intent(context, DiscordPollingService::class.java)
+                                )
+                            } else {
+                                context.startService(
+                                    Intent(context, DiscordPollingService::class.java)
+                                        .apply { action = DiscordPollingService.ACTION_STOP }
+                                )
+                            }
+                        }
+                    }
+                )
+            }
+
+            HorizontalDivider()
+
+            // ── WhatsApp Section ──
+            Text(
+                text = "💬 WhatsApp",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Connect via Meta WhatsApp Business Cloud API to let the AI send messages, images, documents, locations and contacts.\n\nSetup: Meta Business Suite → WhatsApp → Get Started → copy Phone Number ID and Access Token.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedTextField(
+                value = whatsappPhoneNumberId,
+                onValueChange = { whatsappPhoneNumberId = it; saved = false },
+                label = { Text("Phone Number ID") },
+                placeholder = { Text("1234567890 from Meta Business Suite") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = whatsappAccessToken,
+                onValueChange = { whatsappAccessToken = it; saved = false },
+                label = { Text("Access Token") },
+                placeholder = { Text("EAAxxxxxxxx...") },
                 visualTransformation = PasswordVisualTransformation(),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
 
             HorizontalDivider()
+
+            // ── WhatsApp Bridge Section (Baileys) ──
+            Text(
+                text = "📱 WhatsApp Bridge (Baileys)",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Link your personal WhatsApp account via a self-hosted Baileys bridge server.\n\n" +
+                    "Setup:\n" +
+                    "1. Host the companion Node.js bridge server (Baileys)\n" +
+                    "2. Enter the bridge URL and your phone number below\n" +
+                    "3. Tap 'Request Pairing Code'\n" +
+                    "4. Open WhatsApp → Linked Devices → Link with phone number → enter the code\n" +
+                    "5. Enable the listener toggle",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedTextField(
+                value = whatsappBridgeUrl,
+                onValueChange = { whatsappBridgeUrl = it; saved = false },
+                label = { Text("Bridge Server URL") },
+                placeholder = { Text("http://192.168.1.100:3000") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = whatsappBridgePhone,
+                onValueChange = { whatsappBridgePhone = it; saved = false },
+                label = { Text("Phone Number (international format)") },
+                placeholder = { Text("201012345678") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            // Pairing code request button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = {
+                        if (whatsappBridgeUrl.isBlank() || whatsappBridgePhone.isBlank()) return@Button
+                        whatsappBridgePairingLoading = true
+                        whatsappBridgePairingCode = null
+                        whatsappBridgeStatus = null
+                        scope.launch {
+                            try {
+                                settingsRepository.setWhatsAppBridgeUrl(whatsappBridgeUrl.trimEnd('/'))
+                                settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone)
+                                val pairingCode = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    val url = java.net.URL("${whatsappBridgeUrl.trimEnd('/')}/pair")
+                                    val conn = url.openConnection() as java.net.HttpURLConnection
+                                    conn.requestMethod = "POST"
+                                    conn.setRequestProperty("Content-Type", "application/json")
+                                    conn.doOutput = true
+                                    conn.connectTimeout = 10_000
+                                    conn.readTimeout = 15_000
+                                    conn.connect()
+                                    val body = org.json.JSONObject().apply { put("phone", whatsappBridgePhone) }
+                                    java.io.OutputStreamWriter(conn.outputStream).use { it.write(body.toString()) }
+                                    conn.outputStream.flush()
+                                    val responseCode = conn.responseCode
+                                    val text = if (responseCode in 200..299) {
+                                        conn.inputStream.bufferedReader().readText()
+                                    } else {
+                                        conn.errorStream?.bufferedReader()?.readText() ?: "Error $responseCode"
+                                    }
+                                    conn.disconnect()
+                                    val json = org.json.JSONObject(text)
+                                    val code = json.optString("code", "").ifBlank { json.optString("pairingCode", "") }
+                                    code.ifBlank { "Error: ${json.optString("error", text)}" }
+                                }
+                                whatsappBridgePairingCode = pairingCode
+                            } catch (e: Exception) {
+                                whatsappBridgePairingCode = "Error: ${e.message}"
+                            } finally {
+                                whatsappBridgePairingLoading = false
+                            }
+                        }
+                    },
+                    enabled = !whatsappBridgePairingLoading && whatsappBridgeUrl.isNotBlank() && whatsappBridgePhone.isNotBlank(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (whatsappBridgePairingLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text("Request Pairing Code")
+                }
+                // Check status button
+                IconButton(
+                    onClick = {
+                        if (whatsappBridgeUrl.isBlank()) return@IconButton
+                        scope.launch {
+                            try {
+                                val status = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    val url = java.net.URL("${whatsappBridgeUrl.trimEnd('/')}/status")
+                                    val conn = url.openConnection() as java.net.HttpURLConnection
+                                    conn.requestMethod = "GET"
+                                    conn.connectTimeout = 5_000
+                                    conn.readTimeout = 5_000
+                                    conn.connect()
+                                    val text = conn.inputStream.bufferedReader().readText()
+                                    conn.disconnect()
+                                    val json = org.json.JSONObject(text)
+                                    json.optString("status", "unknown")
+                                }
+                                whatsappBridgeStatus = status
+                            } catch (e: Exception) {
+                                whatsappBridgeStatus = "unreachable"
+                            }
+                        }
+                    }
+                ) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = "Check status")
+                }
+            }
+            // Show pairing code if available
+            whatsappBridgePairingCode?.let { code ->
+                if (code.isNotBlank()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (code.startsWith("Error"))
+                                MaterialTheme.colorScheme.errorContainer
+                            else MaterialTheme.colorScheme.primaryContainer
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            if (!code.startsWith("Error")) {
+                                Text(
+                                    "🔑 Pairing Code",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    code,
+                                    style = MaterialTheme.typography.headlineMedium.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        letterSpacing = 4.sp
+                                    ),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    "Open WhatsApp → Linked Devices → Link with phone number → enter this code",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                TextButton(onClick = { clipboard.setText(AnnotatedString(code)) }) {
+                                    Text("Copy Code")
+                                }
+                            } else {
+                                Text(
+                                    code,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            // Show connection status badge
+            whatsappBridgeStatus?.let { status ->
+                val isConnected = status.lowercase() == "connected" || status.lowercase() == "open"
+                Text(
+                    "Bridge: $status",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                )
+            }
+            // Enable/disable listener toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = if (whatsappBridgeEnabled) "✅ WhatsApp Bridge Listener — Running" else "WhatsApp Bridge Listener",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                Switch(
+                    checked = whatsappBridgeEnabled,
+                    onCheckedChange = { enabled ->
+                        whatsappBridgeEnabled = enabled
+                        scope.launch {
+                            settingsRepository.setWhatsAppBridgeEnabled(enabled)
+                            settingsRepository.setWhatsAppBridgeUrl(whatsappBridgeUrl.trimEnd('/'))
+                            settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone)
+                        }
+                        if (enabled) {
+                            ContextCompat.startForegroundService(context, Intent(context, WhatsAppBridgeService::class.java))
+                        } else {
+                            context.startService(
+                                Intent(context, WhatsAppBridgeService::class.java)
+                                    .apply { action = WhatsAppBridgeService.ACTION_STOP }
+                            )
+                        }
+                    }
+                )
+            }
 
             // ── Notion Section ──
             Text(
@@ -560,6 +914,12 @@ fun IntegrationsScreen(
                             settingsRepository.setTelegramBotToken(telegramToken.ifBlank { null })
                             settingsRepository.setTelegramChatId(telegramChatId.ifBlank { null })
                             settingsRepository.setDiscordWebhookUrl(discordWebhookUrl.ifBlank { null })
+                            settingsRepository.setDiscordBotToken(discordBotToken.ifBlank { null })
+                            settingsRepository.setDiscordListenerChannelId(discordListenerChannelId.ifBlank { null })
+                            settingsRepository.setWhatsAppPhoneNumberId(whatsappPhoneNumberId.ifBlank { null })
+                            settingsRepository.setWhatsAppAccessToken(whatsappAccessToken.ifBlank { null })
+                            settingsRepository.setWhatsAppBridgeUrl(whatsappBridgeUrl.ifBlank { null })
+                            settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone.ifBlank { null })
                             settingsRepository.setNotionApiKey(notionApiKey.ifBlank { null })
                             settingsRepository.setNotionDatabaseId(notionDatabaseId.ifBlank { null })
                             saved = true

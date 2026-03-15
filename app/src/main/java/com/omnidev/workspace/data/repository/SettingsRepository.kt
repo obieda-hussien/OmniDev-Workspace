@@ -66,13 +66,30 @@ class SettingsRepository(private val context: Context) {
         /** "copilot" or "models" — which GitHub sub-mode the user selected. */
         val GITHUB_SUB_MODE = stringPreferencesKey("github_sub_mode")
         val DISCORD_WEBHOOK_URL = stringPreferencesKey("discord_webhook_url")
+        // Discord Bot (full bot token integration)
+        val DISCORD_BOT_TOKEN = stringPreferencesKey("discord_bot_token")
+        val DISCORD_LISTENER_CHANNEL_ID = stringPreferencesKey("discord_listener_channel_id")
+        val DISCORD_LISTENER_ENABLED = booleanPreferencesKey("discord_listener_enabled")
+        // WhatsApp Business Cloud API
+        val WHATSAPP_PHONE_NUMBER_ID = stringPreferencesKey("whatsapp_phone_number_id")
+        val WHATSAPP_ACCESS_TOKEN = stringPreferencesKey("whatsapp_access_token")
+        // WhatsApp Baileys Bridge (self-hosted Node.js bridge using Baileys library)
+        val WHATSAPP_BRIDGE_URL = stringPreferencesKey("whatsapp_bridge_url")
+        val WHATSAPP_BRIDGE_PHONE = stringPreferencesKey("whatsapp_bridge_phone")
+        val WHATSAPP_BRIDGE_ENABLED = booleanPreferencesKey("whatsapp_bridge_enabled")
         val NOTION_API_KEY = stringPreferencesKey("notion_api_key")
         val NOTION_DATABASE_ID = stringPreferencesKey("notion_database_id")
+        // n8n Automation
+        val N8N_BASE_URL = stringPreferencesKey("n8n_base_url")
+        val N8N_API_KEY = stringPreferencesKey("n8n_api_key")
         // Local Edge Model
         val LOCAL_MODEL_URI = stringPreferencesKey("local_model_uri")
         val LOCAL_MODEL_NAME = stringPreferencesKey("local_model_name")
         // Local Engine Selection (llama.cpp vs BitNet.cpp)
         val LOCAL_ENGINE_TYPE = stringPreferencesKey("local_engine_type")
+        // User Profile
+        val USER_NAME = stringPreferencesKey("user_name")
+        val USER_PERSONA = stringPreferencesKey("user_persona")
     }
 
     // ──────────────────────────────────────────────
@@ -305,7 +322,83 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    // Discord Bot Token & Listener
+    fun observeDiscordBotToken(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.DISCORD_BOT_TOKEN] }
+
+    suspend fun setDiscordBotToken(token: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (token.isNullOrBlank()) prefs.remove(Keys.DISCORD_BOT_TOKEN) else prefs[Keys.DISCORD_BOT_TOKEN] = token
+        }
+    }
+
+    fun observeDiscordListenerChannelId(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.DISCORD_LISTENER_CHANNEL_ID] }
+
+    suspend fun setDiscordListenerChannelId(id: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (id.isNullOrBlank()) prefs.remove(Keys.DISCORD_LISTENER_CHANNEL_ID)
+            else prefs[Keys.DISCORD_LISTENER_CHANNEL_ID] = id
+        }
+    }
+
+    fun observeDiscordListenerEnabled(): Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.DISCORD_LISTENER_ENABLED] ?: false }
+
+    suspend fun setDiscordListenerEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.DISCORD_LISTENER_ENABLED] = enabled }
+    }
+
+    // WhatsApp Business Cloud API
+    fun observeWhatsAppPhoneNumberId(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.WHATSAPP_PHONE_NUMBER_ID] }
+
+    suspend fun setWhatsAppPhoneNumberId(id: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (id.isNullOrBlank()) prefs.remove(Keys.WHATSAPP_PHONE_NUMBER_ID)
+            else prefs[Keys.WHATSAPP_PHONE_NUMBER_ID] = id
+        }
+    }
+
+    fun observeWhatsAppAccessToken(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.WHATSAPP_ACCESS_TOKEN] }
+
+    suspend fun setWhatsAppAccessToken(token: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (token.isNullOrBlank()) prefs.remove(Keys.WHATSAPP_ACCESS_TOKEN)
+            else prefs[Keys.WHATSAPP_ACCESS_TOKEN] = token
+        }
+    }
+
     // Notion
+    // WhatsApp Baileys Bridge
+    fun observeWhatsAppBridgeUrl(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.WHATSAPP_BRIDGE_URL] }
+
+    suspend fun setWhatsAppBridgeUrl(url: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (url.isNullOrBlank()) prefs.remove(Keys.WHATSAPP_BRIDGE_URL)
+            else prefs[Keys.WHATSAPP_BRIDGE_URL] = url
+        }
+    }
+
+    fun observeWhatsAppBridgePhone(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.WHATSAPP_BRIDGE_PHONE] }
+
+    suspend fun setWhatsAppBridgePhone(phone: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (phone.isNullOrBlank()) prefs.remove(Keys.WHATSAPP_BRIDGE_PHONE)
+            else prefs[Keys.WHATSAPP_BRIDGE_PHONE] = phone
+        }
+    }
+
+    fun observeWhatsAppBridgeEnabled(): Flow<Boolean> =
+        context.settingsDataStore.data.map { it[Keys.WHATSAPP_BRIDGE_ENABLED] ?: false }
+
+    suspend fun setWhatsAppBridgeEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { it[Keys.WHATSAPP_BRIDGE_ENABLED] = enabled }
+    }
+
     fun observeNotionApiKey(): Flow<String?> =
         context.settingsDataStore.data.map { it[Keys.NOTION_API_KEY] }
 
@@ -321,6 +414,28 @@ class SettingsRepository(private val context: Context) {
     suspend fun setNotionDatabaseId(id: String?) {
         context.settingsDataStore.edit { prefs ->
             if (id.isNullOrBlank()) prefs.remove(Keys.NOTION_DATABASE_ID) else prefs[Keys.NOTION_DATABASE_ID] = id
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  n8n Automation
+    // ──────────────────────────────────────────────
+
+    fun observeN8nBaseUrl(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.N8N_BASE_URL] }
+
+    suspend fun setN8nBaseUrl(url: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (url.isNullOrBlank()) prefs.remove(Keys.N8N_BASE_URL) else prefs[Keys.N8N_BASE_URL] = url
+        }
+    }
+
+    fun observeN8nApiKey(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.N8N_API_KEY] }
+
+    suspend fun setN8nApiKey(key: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (key.isNullOrBlank()) prefs.remove(Keys.N8N_API_KEY) else prefs[Keys.N8N_API_KEY] = key
         }
     }
 
@@ -382,5 +497,34 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setTtsEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { it[Keys.VOICE_TTS_ENABLED] = enabled }
+    }
+
+    // ──────────────────────────────────────────────
+    //  User Profile
+    // ──────────────────────────────────────────────
+
+    /** The user's display name, shown in voice greetings and personalised prompts. */
+    fun observeUserName(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.USER_NAME] }
+
+    suspend fun setUserName(name: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (name.isNullOrBlank()) prefs.remove(Keys.USER_NAME) else prefs[Keys.USER_NAME] = name
+        }
+    }
+
+    /**
+     * A short free-text bio the user writes about themselves (e.g. "Senior Android developer,
+     * prefers Kotlin, builds indie apps"). Injected into the system prompt so the AI can tailor
+     * advice, style and code examples to this specific person.
+     */
+    fun observeUserPersona(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.USER_PERSONA] }
+
+    suspend fun setUserPersona(persona: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (persona.isNullOrBlank()) prefs.remove(Keys.USER_PERSONA)
+            else prefs[Keys.USER_PERSONA] = persona
+        }
     }
 }

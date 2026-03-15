@@ -24,7 +24,7 @@ import java.util.Locale
  * 3. Logcat analyzer and Git manager
  * 4. Environment / advanced terminal tools
  * 5. Notification and task scheduler tools
- * 6. Visual inspector, Telegram publisher, GitHub manager
+ * 6. Visual inspector, Telegram publisher, Telegram bot, GitHub manager
  * 7. File tools (read, search, patch, create, delete, terminal, web search) — default fallback
  */
 class CompositeToolManager(
@@ -66,8 +66,14 @@ class CompositeToolManager(
         }
         addAll(NotificationCaptureTool.getToolDefinitions())
         addAll(TaskSchedulerTool.getToolDefinitions())
+        addAll(TaskManagerTool.getToolDefinitions())
+        addAll(N8nAutomationTool.getToolDefinitions())
         addAll(VisualInspectorTool.getToolDefinitions())
         addAll(TelegramPublisherTool.getToolDefinitions())
+        addAll(TelegramBotTool.getToolDefinitions())
+        addAll(DiscordBotTool.getToolDefinitions())
+        addAll(WhatsAppTool.getToolDefinitions())
+        addAll(WhatsAppBridgeTool.getToolDefinitions())
         addAll(GitHubManagerTool.getToolDefinitions())
         if (discordPublisherTool != null) {
             addAll(DiscordPublisherTool.getToolDefinitions())
@@ -304,6 +310,21 @@ class CompositeToolManager(
             "task_scheduler" ->
                 TaskSchedulerTool.executeTool(name, arguments)
 
+            // ── Task manager tool (Taskly-style todo list) ──
+            "task_manager" ->
+                TaskManagerTool.executeTool(name, arguments)
+
+            // ── n8n automation tool ──
+            "n8n_automation" -> {
+                val n8nBaseUrl = settingsRepository?.observeN8nBaseUrl()?.first()
+                val n8nApiKey = settingsRepository?.observeN8nApiKey()?.first()
+                N8nAutomationTool.execute(
+                    args = arguments,
+                    settingsBaseUrl = n8nBaseUrl,
+                    settingsApiKey = n8nApiKey
+                )
+            }
+
             // ── Visual inspector tool ──
             "visual_inspector" ->
                 VisualInspectorTool.execute()
@@ -318,6 +339,31 @@ class CompositeToolManager(
                     message = arguments["message"] ?: return missingArg("message"),
                     parseMode = arguments["parseMode"] ?: "Markdown"
                 )
+            }
+
+            // ── Telegram bot tool (bidirectional — send, receive, get_updates, etc.) ──
+            "telegram_bot" -> {
+                val botToken = settingsRepository?.observeTelegramBotToken()?.first()
+                TelegramBotTool.execute(botToken = botToken, args = arguments)
+            }
+
+            // ── Discord bot tool (full bidirectional Discord Bot API) ──
+            "discord_bot" -> {
+                val botToken = settingsRepository?.observeDiscordBotToken()?.first()
+                DiscordBotTool.execute(botToken = botToken, args = arguments)
+            }
+
+            // ── WhatsApp Business Cloud API tool ──
+            "whatsapp" -> {
+                val phoneNumberId = settingsRepository?.observeWhatsAppPhoneNumberId()?.first()
+                val accessToken   = settingsRepository?.observeWhatsAppAccessToken()?.first()
+                WhatsAppTool.execute(phoneNumberId = phoneNumberId, accessToken = accessToken, args = arguments)
+            }
+
+            // ── WhatsApp Baileys Bridge tool ──
+            "whatsapp_bridge" -> {
+                val bridgeUrl = settingsRepository?.observeWhatsAppBridgeUrl()?.first()
+                WhatsAppBridgeTool.execute(bridgeUrl = bridgeUrl, args = arguments)
             }
 
             // ── GitHub manager tool ──

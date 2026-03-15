@@ -10,8 +10,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
+import kotlin.math.min
 import kotlinx.serialization.json.Json
 
 /**
@@ -129,7 +131,7 @@ CRITICAL INSTRUCTIONS:
 
         val planResponse: CompletionResponse
         try {
-            planResponse = completionProvider(planRequest)
+            planResponse = callWithRateLimitRetry(planRequest)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -168,10 +170,13 @@ CRITICAL INSTRUCTIONS:
                 task.dependencies.all { dep -> dep in completedTasks }
             }
 
-            // Tasks that are blocked on a failed/skipped dependency are permanently unrunnable —
-            // detect and evict them so they don't stall the loop forever.
+            // Tasks that are blocked on a skipped dependency (e.g. a dependency cycle was
+            // detected) are permanently unrunnable — evict them so they don't stall the loop.
+            // NOTE: Tasks blocked on a *failed* dependency are NOT skipped here — they will be
+            // run with the failure output as context so the worker can attempt recovery or work
+            // around the failure.
             val permanentlyBlocked = remaining.filter { task ->
-                task.dependencies.any { dep -> dep in failedTasks || dep in skippedTasks }
+                task.dependencies.any { dep -> dep in skippedTasks }
             }
             permanentlyBlocked.forEach { task ->
                 remaining.remove(task)
@@ -252,6 +257,10 @@ CRITICAL INSTRUCTIONS:
                         // Preserve any partial output alongside the error for debugging
                         val errorMsg = if (result.isNotBlank()) "$error\n[Partial output]: $result" else error
                         failedTasks[task.id] = errorMsg
+                        // Also register in completedTasks so that dependent tasks are not
+                        // blocked — they will receive the failure context and can attempt
+                        // recovery or continue working around it.
+                        completedTasks[task.id] = "[FAILED] $errorMsg"
                         send(SwarmEvent.TaskFailed(task, errorMsg))
                     } else {
                         completedTasks[task.id] = result
@@ -309,7 +318,7 @@ CRITICAL INSTRUCTIONS:
 
         val synthesisResponse: CompletionResponse
         try {
-            synthesisResponse = completionProvider(synthesisRequest)
+            synthesisResponse = callWithRateLimitRetry(synthesisRequest)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -322,6 +331,41 @@ CRITICAL INSTRUCTIONS:
             tasksCompleted = completedTasks.size,
             tasksFailed = failedTasks.size + skippedTasks.size
         ))
+    }
+
+    /**
+     * Wraps a completion call with rate-limit aware retry logic.
+     *
+     * On a "Rate limit" (429-style) exception the call is retried up to [maxRetries] times
+     * using linearly increasing delays (15s, 30s, 45s … capped at 60s).  All other
+     * exceptions are rethrown immediately so the caller can handle them.
+     */
+    private suspend fun callWithRateLimitRetry(
+        request: CompletionRequest,
+        maxRetries: Int = 5,
+        baseDelayMs: Long = 15_000L
+    ): CompletionResponse {
+        var attempt = 0
+        while (true) {
+            try {
+                return completionProvider(request)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Align with AgentPipeline: rate-limit errors are always wrapped as IOException
+                // with the message "Rate limit exceeded…" by CompletionService.
+                val isRateLimit = e is java.io.IOException &&
+                    (e.message?.contains("Rate limit exceeded", ignoreCase = true) == true ||
+                     e.message?.contains("429", ignoreCase = true) == true)
+                if (isRateLimit && attempt < maxRetries) {
+                    val delayMs = min(baseDelayMs * (attempt + 1), 60_000L)
+                    attempt++
+                    delay(delayMs)
+                } else {
+                    throw e
+                }
+            }
+        }
     }
 
     /**

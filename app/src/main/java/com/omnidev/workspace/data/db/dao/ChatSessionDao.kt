@@ -38,4 +38,16 @@ interface ChatSessionDao {
 
     @Query("DELETE FROM chat_sessions WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    /** Find an existing Telegram session by its chat ID. */
+    @Query("SELECT * FROM chat_sessions WHERE telegramChatId = :chatId AND source = 'telegram' LIMIT 1")
+    suspend fun getByTelegramChatId(chatId: Long): ChatSessionEntity?
+
+    /** Find an existing Discord session by its channel ID. */
+    @Query("SELECT * FROM chat_sessions WHERE discordChannelId = :channelId AND source = 'discord' LIMIT 1")
+    suspend fun getByDiscordChannelId(channelId: String): ChatSessionEntity?
+
+    /** Find an existing WhatsApp Bridge session by JID. */
+    @Query("SELECT * FROM chat_sessions WHERE whatsappJid = :jid AND source = 'whatsapp_bridge' LIMIT 1")
+    suspend fun getByWhatsAppJid(jid: String): ChatSessionEntity?
 }

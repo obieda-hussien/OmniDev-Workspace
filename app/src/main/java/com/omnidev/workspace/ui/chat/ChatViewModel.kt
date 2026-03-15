@@ -21,10 +21,12 @@ import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
 import com.omnidev.workspace.domain.engine.AgentEvent
 import com.omnidev.workspace.domain.engine.AgentPipeline
+import com.omnidev.workspace.domain.engine.IntentClassifier
 import com.omnidev.workspace.domain.engine.OmniMode
 import com.omnidev.workspace.domain.engine.SwarmEvent
 import com.omnidev.workspace.domain.engine.SwarmOrchestrator
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -71,7 +73,7 @@ data class ChatUiState(
     val currentSessionId: Long? = null,
     /** Partial text from the current streaming response (null = not streaming). */
     val streamingContent: String? = null,
-    /** The currently active execution mode (Chat / Agent / Swarm). */
+    /** The currently active execution mode (Chat / Agent / Swarm). AUTO is used by the floating overlay only. */
     val activeMode: OmniMode = OmniMode.AGENT,
     /** A privileged action awaiting user approval via [ConfirmationGateDialog]. */
     val pendingConfirmation: PendingConfirmation? = null,
@@ -118,13 +120,19 @@ class ChatViewModel(
 ) : ViewModel() {
 
     companion object {
-        /** System prompt for CHAT mode — conversational, no tools. */
+        /**
+         * Fallback system prompt for CHAT mode when no custom prompt has been saved.
+         * The user can override this from Settings → System Prompt Studio → Chat tab.
+         */
         private const val CHAT_SYSTEM_PROMPT =
-            "You are a helpful coding assistant. Answer questions directly without using tools."
+            "You are a helpful, concise assistant. Answer questions directly. If the user asks you to write or edit code, be precise and professional."
     }
 
     private val _uiState = MutableStateFlow(ChatUiState())
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
+
+    /** Tracks the currently running agent/chat/swarm coroutine Job so it can be cancelled. */
+    @Volatile private var currentAgentJob: Job? = null
 
     /** Lazily initialised on first voice use — requires a [Context] to be passed in. */
     private var voiceManager: VoiceManager? = null
@@ -380,9 +388,9 @@ class ChatViewModel(
 
         val mode = _uiState.value.activeMode
 
-        // CHAT mode does not require a Target Context scope
+        // CHAT and AUTO modes do not require a Target Context scope (AUTO may route to CHAT)
         val scopePath = _uiState.value.targetContext
-        if (mode != OmniMode.CHAT && scopePath == null) {
+        if (mode != OmniMode.CHAT && mode != OmniMode.AUTO && scopePath == null) {
             _uiState.update { it.copy(errorMessage = "Please set a Target Context before sending messages.") }
             return
         }
@@ -410,8 +418,7 @@ class ChatViewModel(
             )
         }
 
-        viewModelScope.launch {
-            // Ensure the session is persisted before saving any messages
+        currentAgentJob = viewModelScope.launch {
             val sessionId = ensureSession(input)
             chatRepository?.saveMessage(sessionId, userMessage)
 
@@ -432,6 +439,31 @@ class ChatViewModel(
                 }
 
             when (mode) {
+                OmniMode.AUTO -> {
+                    val resolved = classifyTaskComplexity(input)
+                    _uiState.update {
+                        it.copy(agentStatus = "🧠 Auto-routed → ${resolved.label}")
+                    }
+                    when (resolved) {
+                        OmniMode.CHAT -> executeChatMode(input, imageAttachments, sessionId)
+                        OmniMode.AGENT -> {
+                            val scope = scopePath ?: run {
+                                // No scope set — fall back to Chat for conversational auto requests
+                                executeChatMode(input, imageAttachments, sessionId)
+                                return@launch
+                            }
+                            executeAgentMode(input, imageAttachments, sessionId, scope)
+                        }
+                        OmniMode.SWARM -> {
+                            val scope = scopePath ?: run {
+                                executeAgentMode(input, imageAttachments, sessionId, "")
+                                return@launch
+                            }
+                            executeSwarmMode(input, sessionId, scope)
+                        }
+                        OmniMode.AUTO -> executeChatMode(input, imageAttachments, sessionId)
+                    }
+                }
                 OmniMode.CHAT -> executeChatMode(input, imageAttachments, sessionId)
                 OmniMode.AGENT -> {
                     val scope = scopePath ?: return@launch
@@ -445,7 +477,39 @@ class ChatViewModel(
         }
     }
 
+    /**
+     * Immediately cancels the currently running agent/chat/swarm execution.
+     *
+     * Safe to call at any time — no-ops when nothing is running.
+     * The coroutine cancellation propagates through [AgentPipeline] and [SwarmOrchestrator]
+     * (both re-throw [kotlinx.coroutines.CancellationException]), cleanly terminating all
+     * in-flight network calls and tool executions.
+     */
+    fun cancelCurrentRun() {
+        currentAgentJob?.cancel()
+        currentAgentJob = null
+        _uiState.update {
+            it.copy(
+                isProcessing = false,
+                agentStatus = null,
+                streamingContent = null,
+                errorMessage = "⏹ Run stopped by user."
+            )
+        }
+    }
+
     // ──────────────────────────────────────────────
+    //  AUTO-ROUTING — Task Complexity Classifier
+    // ──────────────────────────────────────────────
+
+    /**
+     * Intent-based task classifier — delegates to [IntentClassifier.classify].
+     *
+     * `internal` visibility allows unit tests in the same module to exercise the routing logic
+     * directly without going through the full [sendMessage] flow.
+     */
+    internal fun classifyTaskComplexity(input: String): OmniMode =
+        IntentClassifier.classify(input)
     //  MODE: CHAT — Direct Completion (No Tools)
     // ──────────────────────────────────────────────
 
@@ -462,6 +526,14 @@ class ChatViewModel(
             .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.CHAT)
             .first()
 
+        // Read the custom chat prompt saved in System Prompt Studio (Settings).
+        // Fall back to the built-in CHAT_SYSTEM_PROMPT if the user hasn't customised it.
+        val customChatPrompt = settingsRepository
+            .observeCustomPrompt(SettingsRepository.PromptRole.CHAT)
+            .first()
+        val effectiveSystemPrompt = customChatPrompt?.takeIf { it.isNotBlank() }
+            ?: CHAT_SYSTEM_PROMPT
+
         val history = _uiState.value.messages.dropLast(1)
 
         val request = CompletionRequest(
@@ -471,7 +543,7 @@ class ChatViewModel(
                 content = input,
                 attachments = imageAttachments
             ),
-            systemPrompt = CHAT_SYSTEM_PROMPT,
+            systemPrompt = effectiveSystemPrompt,
             maxTokens = 4096,
             temperature = 0.7
         )
@@ -552,6 +624,7 @@ class ChatViewModel(
         val customPrompt = settingsRepository
             .observeCustomPrompt(SettingsRepository.PromptRole.AGENT)
             .first()
+        val userPersona = settingsRepository.observeUserPersona().first()
 
         agentPipeline.execute(
             userMessage = input,
@@ -560,7 +633,8 @@ class ChatViewModel(
             scopePath = scopePath,
             enableDeepThinking = deepThinking,
             userAttachments = imageAttachments,
-            customSystemPrompt = customPrompt
+            customSystemPrompt = customPrompt,
+            userContext = userPersona
         ).collect { event ->
             handleAgentEvent(event, sessionId)
         }
@@ -641,23 +715,29 @@ class ChatViewModel(
             is AgentEvent.ToolExecution -> {
                 val params = event.arguments.entries
                     .joinToString(", ") { (k, v) -> "$k=${v.toString().take(40)}" }
+                val fullParams = event.arguments.entries
+                    .joinToString("\n") { (k, v) -> "$k = $v" }
                 _uiState.update {
                     it.copy(
                         agentStatus = "Executing ${event.toolName}...",
                         consoleEntries = it.consoleEntries +
-                            AgentConsoleEntry.ToolEntry(event.toolName, params, event.iteration)
+                            AgentConsoleEntry.ToolEntry(event.toolName, params, event.iteration, fullParams)
                     )
                 }
             }
 
             is AgentEvent.ToolResult -> {
                 val snippet = event.output.lines().firstOrNull()?.take(100) ?: ""
+                val durationMs = _uiState.value.consoleEntries
+                    .filterIsInstance<AgentConsoleEntry.ToolEntry>()
+                    .lastOrNull { it.toolName == event.toolName && it.iteration == event.iteration }
+                    ?.let { System.currentTimeMillis() - it.timestamp } ?: 0L
                 _uiState.update {
                     it.copy(
                         agentStatus = if (event.isError) "Tool error: ${event.toolName}"
                         else "Tool completed: ${event.toolName}",
                         consoleEntries = it.consoleEntries +
-                            AgentConsoleEntry.ResultEntry(event.toolName, snippet, event.isError)
+                            AgentConsoleEntry.ResultEntry(event.toolName, snippet, event.isError, event.output, durationMs)
                     )
                 }
             }
@@ -753,7 +833,7 @@ class ChatViewModel(
                 _uiState.update {
                     it.copy(
                         consoleEntries = it.consoleEntries +
-                            AgentConsoleEntry.ResultEntry(event.task.id, snippet, isError = false)
+                            AgentConsoleEntry.ResultEntry(event.task.id, snippet, isError = false, fullOutput = event.result)
                     )
                 }
             }
