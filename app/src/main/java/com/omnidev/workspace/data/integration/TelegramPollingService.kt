@@ -611,7 +611,7 @@ class TelegramPollingService : Service() {
                 modelId = modelId,
                 messages = history.toList(),
                 systemPrompt = systemPrompt,
-                maxTokens = 1500,
+                maxTokens = model?.maxOutputTokens ?: 8192,
                 temperature = 0.7,
                 apiKey = apiKey
             )

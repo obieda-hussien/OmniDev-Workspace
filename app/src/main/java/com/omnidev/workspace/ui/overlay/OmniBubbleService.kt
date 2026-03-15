@@ -121,6 +121,20 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.drawscope.Stroke
 import com.omnidev.workspace.data.voice.VoiceAssistantService
+import com.omnidev.workspace.data.db.OmniDevDatabase
+import com.omnidev.workspace.data.model.ModelRole
+import com.omnidev.workspace.data.tools.CompositeToolManager
+import com.omnidev.workspace.data.tools.DiscordPublisherTool
+import com.omnidev.workspace.data.tools.FileToolManager
+import com.omnidev.workspace.data.tools.GodEyeProfilerTool
+import com.omnidev.workspace.data.tools.MemoryManager
+import com.omnidev.workspace.data.tools.NotionPublisherTool
+import com.omnidev.workspace.data.tools.ShizukuCommandTool
+import com.omnidev.workspace.data.tools.VectorMemoryManager
+import com.omnidev.workspace.domain.engine.AgentConfig
+import com.omnidev.workspace.domain.engine.AgentEvent
+import com.omnidev.workspace.domain.engine.AgentPipeline
+import com.omnidev.workspace.domain.engine.SwarmOrchestrator
 
 /**
  * System-wide floating AI assistant bubble that persists across all apps.
@@ -265,6 +279,46 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
 
     /** Routes [CompletionRequest]s to the appropriate LLM provider. */
     private val completionService: CompletionService by lazy { CompletionService() }
+
+    /** Full tool suite for agent execution — same set as TelegramPollingService. */
+    private val toolManager: CompositeToolManager by lazy {
+        val db = OmniDevDatabase.getInstance(applicationContext)
+        val memoryManager = MemoryManager(db.knowledgeDao())
+        CompositeToolManager(
+            fileToolManager = FileToolManager(),
+            memoryManager = memoryManager,
+            context = applicationContext,
+            settingsRepository = settingsRepository,
+            godEyeProfilerTool = GodEyeProfilerTool(applicationContext, ShizukuCommandTool),
+            discordPublisherTool = DiscordPublisherTool(settingsRepository),
+            notionPublisherTool = NotionPublisherTool(settingsRepository),
+            vectorMemoryManager = VectorMemoryManager(db.knowledgeDao()),
+            apiKeyRepository = apiKeyRepository
+        )
+    }
+
+    /** ReAct agent pipeline used when AGENT intent is detected. */
+    private val agentPipeline: AgentPipeline by lazy {
+        AgentPipeline(
+            toolManager = toolManager,
+            completionProvider = completionService::invoke,
+            streamingCompletionProvider = { req, onChunk -> completionService.stream(req, onChunk) },
+            config = AgentConfig.THOROUGH,
+            apiKeyRepository = apiKeyRepository,
+            memoryManager = toolManager.memoryManager
+        )
+    }
+
+    /** Multi-agent swarm orchestrator used when SWARM intent is detected. */
+    private val swarmOrchestrator: SwarmOrchestrator by lazy {
+        SwarmOrchestrator(
+            toolManager = toolManager,
+            completionProvider = completionService::invoke,
+            apiKeyRepository = apiKeyRepository,
+            memoryManager = toolManager.memoryManager,
+            streamingCompletionProvider = { req, onChunk -> completionService.stream(req, onChunk) }
+        )
+    }
 
     /** Conversation history for the current bubble session. */
     private val conversationHistory = mutableListOf<ChatMessage>()
@@ -462,8 +516,8 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
      * Streams the response token-by-token for a ChatGPT-like experience.
      *
      * - **CHAT intent** → Streaming completion with concise conversational system prompt
-     * - **AGENT intent** → Streaming completion with God-Protocol agent system prompt
-     * - **SWARM intent** → Static reply prompting user to open the full app
+     * - **AGENT intent** → Full [AgentPipeline] ReAct loop with all tools
+     * - **SWARM intent** → Full [SwarmOrchestrator] multi-agent execution
      */
     private fun handleUserMessage(text: String) {
         if (text.isBlank() || isProcessing.value) return
@@ -475,75 +529,142 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
 
         currentJob = serviceScope.launch {
             try {
-                // Classify intent to choose the right system prompt and execution strategy
+                // Classify intent to choose the right execution strategy
                 val intent = IntentClassifier.classify(text)
                 detectedMode.value = intent
 
-                // For very complex multi-agent tasks, prompt to open the full app instead
-                if (intent == OmniMode.SWARM) {
-                    val reply = "🧠 يبدو ده مشروع كبير يحتاج تنسيق بين عدة وكلاء.\n" +
-                        "افتح التطبيق للاستخدام الكامل مع وضع Team Agents."
-                    streamingText.value = null
-                    messages.add(BubbleMessage(isUser = false, text = reply, mode = intent))
-                    conversationHistory.add(ChatMessage(role = MessageRole.ASSISTANT, content = reply))
-                    if (!bubbleExpanded.value) unreadCount.intValue++
-                    isProcessing.value = false
-                    return@launch
+                when (intent) {
+                    OmniMode.AGENT -> {
+                        // Full ReAct agent loop with all tools
+                        val agentModelId = settingsRepository
+                            .observeModelIdForRole(ModelRole.AGENT)
+                            .first()
+                        val persona = settingsRepository.observeUserPersona().first()
+                        val accumulated = StringBuilder()
+                        agentPipeline.execute(
+                            userMessage = text,
+                            conversationHistory = conversationHistory.dropLast(1),
+                            modelId = agentModelId,
+                            scopePath = "/",
+                            userContext = persona?.takeIf { it.isNotBlank() }
+                        ).collect { event ->
+                            when (event) {
+                                is AgentEvent.StreamChunk -> {
+                                    accumulated.append(event.delta)
+                                    streamingText.value = accumulated.toString()
+                                }
+                                is AgentEvent.FinalAnswer -> {
+                                    val reply = event.content
+                                    streamingText.value = null
+                                    messages.add(BubbleMessage(isUser = false, text = reply, mode = intent))
+                                    conversationHistory.add(ChatMessage(role = MessageRole.ASSISTANT, content = reply))
+                                    if (!bubbleExpanded.value) unreadCount.intValue++
+                                }
+                                is AgentEvent.Error -> {
+                                    streamingText.value = null
+                                    val errMsg = "⚠️ ${event.message}"
+                                    messages.add(BubbleMessage(isUser = false, text = errMsg, mode = intent))
+                                    if (!bubbleExpanded.value) unreadCount.intValue++
+                                }
+                                else -> {}
+                            }
+                        }
+                        // Flush any partial streamed content not yet committed
+                        val partial = accumulated.toString().trim()
+                        if (streamingText.value != null && partial.isNotEmpty() &&
+                            messages.lastOrNull()?.isUser == true
+                        ) {
+                            streamingText.value = null
+                            messages.add(BubbleMessage(isUser = false, text = partial, mode = intent))
+                            conversationHistory.add(ChatMessage(role = MessageRole.ASSISTANT, content = partial))
+                            if (!bubbleExpanded.value) unreadCount.intValue++
+                        } else {
+                            streamingText.value = null
+                        }
+                    }
+
+                    OmniMode.SWARM -> {
+                        // Full multi-agent swarm execution
+                        val orchestratorModelId = settingsRepository
+                            .observeModelIdForRole(ModelRole.SWARM_ORCHESTRATOR)
+                            .first()
+                        val workerModelId = settingsRepository
+                            .observeModelIdForRole(ModelRole.SWARM_WORKER)
+                            .first()
+                        val replyBuilder = StringBuilder()
+                        swarmOrchestrator.execute(
+                            userMessage = text,
+                            orchestratorModelId = orchestratorModelId,
+                            workerModelId = workerModelId,
+                            scopePath = "/"
+                        ).collect { event ->
+                            when (event) {
+                                is com.omnidev.workspace.domain.engine.SwarmEvent.PlanningStarted ->
+                                    streamingText.value = "🧠 جاري التخطيط..."
+                                is com.omnidev.workspace.domain.engine.SwarmEvent.PlanCompleted ->
+                                    streamingText.value = "📋 تم التخطيط — ${event.tasks.size} مهام"
+                                is com.omnidev.workspace.domain.engine.SwarmEvent.TaskStarted ->
+                                    streamingText.value = "⚙️ ${event.task.description}"
+                                is com.omnidev.workspace.domain.engine.SwarmEvent.SynthesisStarted ->
+                                    streamingText.value = "✍️ جاري صياغة النتيجة..."
+                                is com.omnidev.workspace.domain.engine.SwarmEvent.Completed ->
+                                    replyBuilder.append(event.summary)
+                                is com.omnidev.workspace.domain.engine.SwarmEvent.Error ->
+                                    replyBuilder.append("\n⚠️ ${event.message}")
+                                is com.omnidev.workspace.domain.engine.SwarmEvent.TaskFailed ->
+                                    replyBuilder.append("\n❌ فشل: ${event.task.description} — ${event.error}")
+                                else -> {}
+                            }
+                        }
+                        streamingText.value = null
+                        val reply = replyBuilder.toString().trim()
+                            .ifBlank { "✅ اكتمل تنفيذ مهمة الفريق." }
+                        messages.add(BubbleMessage(isUser = false, text = reply, mode = intent))
+                        conversationHistory.add(ChatMessage(role = MessageRole.ASSISTANT, content = reply))
+                        if (!bubbleExpanded.value) unreadCount.intValue++
+                    }
+
+                    else -> {
+                        // CHAT mode — streaming one-shot completion
+                        val modelId = settingsRepository
+                            .observeModelIdForRole(ModelRole.CHAT)
+                            .first()
+
+                        val chatSystemPrompt = "You are a smart, concise assistant. Answer directly and clearly. " +
+                            "The user is in a floating overlay — keep answers brief and scannable. " +
+                            "No filler phrases. Just useful information."
+
+                        val userPersona = settingsRepository.observeUserPersona().first()
+                        val effectiveSystemPrompt = if (!userPersona.isNullOrBlank())
+                            "$chatSystemPrompt\n\n## User Context\n$userPersona"
+                        else chatSystemPrompt
+
+                        val model = ModelRegistry.findModelById(modelId)
+                        val apiKey = model?.let { apiKeyRepository.getApiKey(it.provider) }
+                        val maxTokens = model?.maxOutputTokens ?: 8192
+
+                        val request = CompletionRequest(
+                            modelId = modelId,
+                            messages = conversationHistory.toList(),
+                            systemPrompt = effectiveSystemPrompt,
+                            maxTokens = maxTokens,
+                            temperature = 0.7,
+                            apiKey = apiKey
+                        )
+
+                        val accumulated = StringBuilder()
+                        completionService.stream(request) { chunk ->
+                            accumulated.append(chunk)
+                            streamingText.value = accumulated.toString()
+                        }
+
+                        val finalReply = accumulated.toString().trim()
+                        streamingText.value = null
+                        messages.add(BubbleMessage(isUser = false, text = finalReply, mode = intent))
+                        conversationHistory.add(ChatMessage(role = MessageRole.ASSISTANT, content = finalReply))
+                        if (!bubbleExpanded.value) unreadCount.intValue++
+                    }
                 }
-
-                // Pick model and system prompt based on intent
-                val modelRole = if (intent == OmniMode.AGENT)
-                    com.omnidev.workspace.data.model.ModelRole.AGENT
-                else
-                    com.omnidev.workspace.data.model.ModelRole.CHAT
-
-                val modelId = settingsRepository
-                    .observeModelIdForRole(modelRole)
-                    .first()
-
-                val systemPrompt = when (intent) {
-                    OmniMode.AGENT ->
-                        "You are an Autonomous Operator running inside a floating overlay. " +
-                        "Be DIRECT, CONCISE, and ACTION-ORIENTED. Think step-by-step but respond briefly. " +
-                        "Do not use filler phrases like 'Great question!' or 'I hope this helps'. " +
-                        "Just solve the problem. If the task requires reading or editing files on disk, " +
-                        "tell the user to open the full app."
-                    else ->
-                        "You are a smart, concise assistant. Answer directly and clearly. " +
-                        "The user is in a floating overlay — keep answers brief and scannable. " +
-                        "No filler phrases. Just useful information."
-                }
-
-                // Inject user persona if available
-                val userPersona = settingsRepository.observeUserPersona().first()
-                val effectiveSystemPrompt = if (!userPersona.isNullOrBlank())
-                    "$systemPrompt\n\n## User Context\n$userPersona"
-                else systemPrompt
-
-                val model = ModelRegistry.findModelById(modelId)
-                val apiKey = model?.let { apiKeyRepository.getApiKey(it.provider) }
-
-                val request = CompletionRequest(
-                    modelId = modelId,
-                    messages = conversationHistory.toList(),
-                    systemPrompt = effectiveSystemPrompt,
-                    maxTokens = 1024,
-                    temperature = 0.7,
-                    apiKey = apiKey
-                )
-
-                // Stream the response token-by-token
-                val accumulated = StringBuilder()
-                completionService.stream(request) { chunk ->
-                    accumulated.append(chunk)
-                    streamingText.value = accumulated.toString()
-                }
-
-                val finalReply = accumulated.toString().trim()
-                streamingText.value = null
-                messages.add(BubbleMessage(isUser = false, text = finalReply, mode = intent))
-                conversationHistory.add(ChatMessage(role = MessageRole.ASSISTANT, content = finalReply))
-                if (!bubbleExpanded.value) unreadCount.intValue++
             } catch (e: Exception) {
                 streamingText.value = null
                 val errorMsg = "⚠️ حصل خطأ: ${e.message?.take(120) ?: "خطأ غير معروف"}"
