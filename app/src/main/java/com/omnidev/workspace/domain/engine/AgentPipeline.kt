@@ -58,10 +58,10 @@ data class AgentConfig(
      * Maximum number of times the exact same tool + arguments combination may appear
      * in a single run before the loop is aborted with an [AgentEvent.Error].
      * Prevents runaway "stuck" loops where the model keeps calling the same tool.
-     * Default is 2: allows calling the same read-only tool (e.g. semantic_ui dump_tree)
-     * at most twice — if it calls it a 3rd time with identical args it is stuck.
+     * Default is 10: allows legitimate retries and multi-pass research tasks before
+     * declaring the agent stuck.
      */
-    val maxRepeatedToolCalls: Int = 2,
+    val maxRepeatedToolCalls: Int = 10,
     /**
      * When true (default), multiple tool calls returned in the same ReAct iteration
      * are executed concurrently using structured concurrency (coroutineScope + async).
