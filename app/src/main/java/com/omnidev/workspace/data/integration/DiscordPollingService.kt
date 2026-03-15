@@ -20,6 +20,7 @@ import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.DiscordPublisherTool
 import com.omnidev.workspace.data.tools.FileToolManager
+import com.omnidev.workspace.data.tools.HeadlessBrowserManager
 import com.omnidev.workspace.data.tools.MemoryManager
 import com.omnidev.workspace.domain.engine.AgentConfig
 import com.omnidev.workspace.domain.engine.AgentPipeline
@@ -168,7 +169,8 @@ class DiscordPollingService : Service() {
             context = applicationContext,
             settingsRepository = settingsRepository,
             discordPublisherTool = discordTool,
-            apiKeyRepository = apiKeyRepository
+            apiKeyRepository = apiKeyRepository,
+            headlessBrowserManager = HeadlessBrowserManager(applicationContext)
         )
     }
 

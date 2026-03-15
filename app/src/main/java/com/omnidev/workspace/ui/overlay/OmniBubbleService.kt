@@ -127,6 +127,7 @@ import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.DiscordPublisherTool
 import com.omnidev.workspace.data.tools.FileToolManager
 import com.omnidev.workspace.data.tools.GodEyeProfilerTool
+import com.omnidev.workspace.data.tools.HeadlessBrowserManager
 import com.omnidev.workspace.data.tools.MemoryManager
 import com.omnidev.workspace.data.tools.NotionPublisherTool
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
@@ -293,7 +294,8 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             discordPublisherTool = DiscordPublisherTool(settingsRepository),
             notionPublisherTool = NotionPublisherTool(settingsRepository),
             vectorMemoryManager = VectorMemoryManager(db.knowledgeDao()),
-            apiKeyRepository = apiKeyRepository
+            apiKeyRepository = apiKeyRepository,
+            headlessBrowserManager = HeadlessBrowserManager(applicationContext)
         )
     }
 

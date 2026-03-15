@@ -19,6 +19,7 @@ import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.FileToolManager
+import com.omnidev.workspace.data.tools.HeadlessBrowserManager
 import com.omnidev.workspace.data.tools.MemoryManager
 import com.omnidev.workspace.domain.engine.AgentConfig
 import com.omnidev.workspace.domain.engine.AgentEvent
@@ -128,7 +129,8 @@ class WhatsAppBridgeService : Service() {
             memoryManager = memoryManager,
             context = applicationContext,
             settingsRepository = settingsRepository,
-            apiKeyRepository = apiKeyRepository
+            apiKeyRepository = apiKeyRepository,
+            headlessBrowserManager = HeadlessBrowserManager(applicationContext)
         )
     }
 

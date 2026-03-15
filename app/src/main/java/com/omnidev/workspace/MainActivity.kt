@@ -16,6 +16,7 @@ import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.EnvironmentSetupManager
 import com.omnidev.workspace.data.tools.FileToolManager
 import com.omnidev.workspace.data.tools.GodEyeProfilerTool
+import com.omnidev.workspace.data.tools.HeadlessBrowserManager
 import com.omnidev.workspace.data.tools.MemoryManager
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.data.tools.VectorMemoryManager
@@ -72,7 +73,8 @@ class MainActivity : ComponentActivity() {
             discordPublisherTool = discordPublisherTool,
             notionPublisherTool = notionPublisherTool,
             vectorMemoryManager = VectorMemoryManager(database.knowledgeDao()),
-            apiKeyRepository = apiKeyRepository
+            apiKeyRepository = apiKeyRepository,
+            headlessBrowserManager = HeadlessBrowserManager(applicationContext)
         )
 
         // Real HTTP completion provider
