@@ -26,6 +26,9 @@ object TaskSchedulerTool {
     /** Possible lifecycle states for a scheduled task. */
     enum class TaskStatus { PENDING, RUNNING, COMPLETED, FAILED, CANCELLED }
 
+    /** Supported recurrence presets for calendar-based scheduling. */
+    enum class RecurrenceType { ONCE, INTERVAL_MINUTES, DAILY, WEEKLY, MONTHLY }
+
     /**
      * Immutable snapshot describing a single scheduled task.
      */
@@ -34,6 +37,10 @@ object TaskSchedulerTool {
         val name: String,
         val prompt: String,
         val scheduledTimeMillis: Long,
+        val recurrenceType: RecurrenceType = RecurrenceType.ONCE,
+        val timeOfDay: String? = null,
+        val dayOfWeek: Int? = null,
+        val dayOfMonth: Int? = null,
         val repeatIntervalMinutes: Int?,
         val status: TaskStatus,
         val lastResult: String? = null
@@ -92,6 +99,30 @@ object TaskSchedulerTool {
                     required = false
                 ),
                 ToolParameter(
+                    name = "recurrence",
+                    type = "string",
+                    description = "Optional recurrence preset: once, daily, weekly, monthly.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "timeOfDay",
+                    type = "string",
+                    description = "Optional local time in HH:mm for daily/weekly/monthly runs.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "dayOfWeek",
+                    type = "string",
+                    description = "For weekly recurrence: day index 1..7 (Mon..Sun).",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "dayOfMonth",
+                    type = "string",
+                    description = "For monthly recurrence: day 1..31.",
+                    required = false
+                ),
+                ToolParameter(
                     name = "taskId",
                     type = "string",
                     description = "Task ID for 'cancel' or 'status' actions",
@@ -112,11 +143,24 @@ object TaskSchedulerTool {
         prompt: String? = null,
         delayMinutes: Int = 0,
         repeatIntervalMinutes: Int? = null,
+        recurrenceType: RecurrenceType = RecurrenceType.ONCE,
+        timeOfDay: String? = null,
+        dayOfWeek: Int? = null,
+        dayOfMonth: Int? = null,
         taskId: String? = null
     ): ToolExecutionResult = withContext(Dispatchers.IO) {
         runCatching {
             when (action.lowercase(Locale.ROOT)) {
-                "schedule" -> scheduleTask(name, prompt, delayMinutes, repeatIntervalMinutes)
+                "schedule" -> scheduleTask(
+                    name = name,
+                    prompt = prompt,
+                    delayMinutes = delayMinutes,
+                    repeatIntervalMinutes = repeatIntervalMinutes,
+                    recurrenceType = recurrenceType,
+                    timeOfDay = timeOfDay,
+                    dayOfWeek = dayOfWeek,
+                    dayOfMonth = dayOfMonth
+                )
                 "list" -> listTasks()
                 "cancel" -> cancelTask(taskId)
                 "status" -> taskStatus(taskId)
@@ -139,7 +183,11 @@ object TaskSchedulerTool {
         name: String?,
         prompt: String?,
         delayMinutes: Int,
-        repeatIntervalMinutes: Int?
+        repeatIntervalMinutes: Int?,
+        recurrenceType: RecurrenceType,
+        timeOfDay: String?,
+        dayOfWeek: Int?,
+        dayOfMonth: Int?
     ): ToolExecutionResult {
         if (name.isNullOrBlank()) {
             return ToolExecutionResult(output = "'name' is required for schedule action.", isError = true)
@@ -149,7 +197,17 @@ object TaskSchedulerTool {
         }
 
         val id = UUID.randomUUID().toString()
-        val scheduledTime = System.currentTimeMillis() + (delayMinutes * 60_000L)
+        val selectedRecurrence = when {
+            repeatIntervalMinutes != null -> RecurrenceType.INTERVAL_MINUTES
+            else -> recurrenceType
+        }
+        val scheduledTime = computeInitialScheduledTime(
+            delayMinutes = delayMinutes,
+            recurrenceType = selectedRecurrence,
+            timeOfDay = timeOfDay,
+            dayOfWeek = dayOfWeek,
+            dayOfMonth = dayOfMonth
+        )
         val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
 
         val task = ScheduledTask(
@@ -157,15 +215,17 @@ object TaskSchedulerTool {
             name = name,
             prompt = prompt,
             scheduledTimeMillis = scheduledTime,
+            recurrenceType = selectedRecurrence,
+            timeOfDay = timeOfDay,
+            dayOfWeek = dayOfWeek,
+            dayOfMonth = dayOfMonth,
             repeatIntervalMinutes = repeatIntervalMinutes,
             status = TaskStatus.PENDING
         )
         tasks.add(task)
         notifyChanged()
 
-        val repeatInfo = if (repeatIntervalMinutes != null) {
-            "\nRepeat:      every $repeatIntervalMinutes minute(s)"
-        } else ""
+        val repeatInfo = "\nRecurrence:  ${recurrenceSummary(task)}"
 
         return ToolExecutionResult(
             output = """
@@ -192,9 +252,7 @@ object TaskSchedulerTool {
             sb.appendLine("Name:        ${t.name}")
             sb.appendLine("Scheduled:   ${dateFormat.format(Date(t.scheduledTimeMillis))}")
             sb.appendLine("Status:      ${t.status}")
-            if (t.repeatIntervalMinutes != null) {
-                sb.appendLine("Repeat:      every ${t.repeatIntervalMinutes} minute(s)")
-            }
+            sb.appendLine("Recurrence:  ${recurrenceSummary(t)}")
             if (t.lastResult != null) {
                 sb.appendLine("Last Result: ${t.lastResult}")
             }
@@ -230,9 +288,7 @@ object TaskSchedulerTool {
         sb.appendLine("Prompt:      ${task.prompt}")
         sb.appendLine("Scheduled:   ${dateFormat.format(Date(task.scheduledTimeMillis))}")
         sb.appendLine("Status:      ${task.status}")
-        if (task.repeatIntervalMinutes != null) {
-            sb.appendLine("Repeat:      every ${task.repeatIntervalMinutes} minute(s)")
-        }
+        sb.appendLine("Recurrence:  ${recurrenceSummary(task)}")
         if (task.lastResult != null) {
             sb.appendLine("Last Result: ${task.lastResult}")
         }
@@ -248,10 +304,13 @@ object TaskSchedulerTool {
         }
 
     /** Transitions a task to [TaskStatus.RUNNING]. */
-    fun markRunning(taskId: String) {
+    fun markRunning(taskId: String, executionDetails: String? = null) {
         val index = tasks.indexOfFirst { it.id == taskId }
         if (index != -1) {
-            tasks[index] = tasks[index].copy(status = TaskStatus.RUNNING)
+            tasks[index] = tasks[index].copy(
+                status = TaskStatus.RUNNING,
+                lastResult = executionDetails ?: tasks[index].lastResult
+            )
             notifyChanged()
         }
     }
@@ -281,11 +340,11 @@ object TaskSchedulerTool {
      */
     fun rescheduleRepeating(taskId: String) {
         val task = tasks.find { it.id == taskId } ?: return
-        val interval = task.repeatIntervalMinutes ?: return
+        val nextSchedule = computeNextScheduledTime(task) ?: return
 
         val newTask = task.copy(
             id = UUID.randomUUID().toString(),
-            scheduledTimeMillis = System.currentTimeMillis() + (interval * 60_000L),
+            scheduledTimeMillis = nextSchedule,
             status = TaskStatus.PENDING,
             lastResult = null
         )
@@ -365,6 +424,9 @@ object TaskSchedulerTool {
                 isError = true
             )
         }
+        val recurrenceType = parseRecurrence(arguments["recurrence"])
+        val dayOfWeek = arguments["dayOfWeek"]?.toIntOrNull()
+        val dayOfMonth = arguments["dayOfMonth"]?.toIntOrNull()
 
         return execute(
             action = action,
@@ -372,7 +434,150 @@ object TaskSchedulerTool {
             prompt = arguments["prompt"],
             delayMinutes = delayMinutes,
             repeatIntervalMinutes = repeatInterval,
+            recurrenceType = recurrenceType,
+            timeOfDay = arguments["timeOfDay"],
+            dayOfWeek = dayOfWeek,
+            dayOfMonth = dayOfMonth,
             taskId = arguments["taskId"]
         )
+    }
+
+    private fun recurrenceSummary(task: ScheduledTask): String {
+        return when (task.recurrenceType) {
+            RecurrenceType.ONCE -> "one-time"
+            RecurrenceType.INTERVAL_MINUTES ->
+                "every ${task.repeatIntervalMinutes?.toString() ?: "unknown interval"} minute(s)"
+            RecurrenceType.DAILY -> "daily at ${task.timeOfDay ?: "--:--"}"
+            RecurrenceType.WEEKLY -> {
+                "weekly (${dayName(task.dayOfWeek)}) at ${task.timeOfDay ?: "--:--"}"
+            }
+            RecurrenceType.MONTHLY -> "monthly (day ${task.dayOfMonth ?: 1}) at ${task.timeOfDay ?: "--:--"}"
+        }
+    }
+
+    private fun parseRecurrence(raw: String?): RecurrenceType {
+        return when (raw?.trim()?.lowercase(Locale.ROOT)) {
+            "interval", "interval_minutes", "every_minutes" -> RecurrenceType.INTERVAL_MINUTES
+            "daily" -> RecurrenceType.DAILY
+            "weekly" -> RecurrenceType.WEEKLY
+            "monthly" -> RecurrenceType.MONTHLY
+            else -> RecurrenceType.ONCE
+        }
+    }
+
+    private fun dayName(dayOfWeek: Int?): String {
+        return when (dayOfWeek) {
+            1 -> "Mon"
+            2 -> "Tue"
+            3 -> "Wed"
+            4 -> "Thu"
+            5 -> "Fri"
+            6 -> "Sat"
+            7 -> "Sun"
+            else -> "unknown day"
+        }
+    }
+
+    private fun parseTimeOfDay(timeOfDay: String?): Pair<Int, Int>? {
+        if (timeOfDay.isNullOrBlank()) return null
+        val parts = timeOfDay.split(":")
+        if (parts.size != 2) return null
+        val hour = parts[0].toIntOrNull() ?: return null
+        val minute = parts[1].toIntOrNull() ?: return null
+        if (hour !in 0..23 || minute !in 0..59) return null
+        return hour to minute
+    }
+
+    private fun computeInitialScheduledTime(
+        delayMinutes: Int,
+        recurrenceType: RecurrenceType,
+        timeOfDay: String?,
+        dayOfWeek: Int?,
+        dayOfMonth: Int?
+    ): Long {
+        if (delayMinutes > 0) return System.currentTimeMillis() + (delayMinutes * 60_000L)
+        val now = Calendar.getInstance()
+        return when (recurrenceType) {
+            RecurrenceType.ONCE, RecurrenceType.INTERVAL_MINUTES -> now.timeInMillis
+            RecurrenceType.DAILY -> nextDaily(now, timeOfDay).timeInMillis
+            RecurrenceType.WEEKLY -> nextWeekly(now, timeOfDay, dayOfWeek).timeInMillis
+            RecurrenceType.MONTHLY -> nextMonthly(now, timeOfDay, dayOfMonth).timeInMillis
+        }
+    }
+
+    private fun computeNextScheduledTime(task: ScheduledTask): Long? {
+        val now = Calendar.getInstance()
+        return when (task.recurrenceType) {
+            RecurrenceType.ONCE -> null
+            RecurrenceType.INTERVAL_MINUTES -> {
+                val interval = task.repeatIntervalMinutes ?: return null
+                System.currentTimeMillis() + interval * 60_000L
+            }
+            RecurrenceType.DAILY -> nextDaily(now, task.timeOfDay).timeInMillis
+            RecurrenceType.WEEKLY -> nextWeekly(now, task.timeOfDay, task.dayOfWeek).timeInMillis
+            RecurrenceType.MONTHLY -> nextMonthly(now, task.timeOfDay, task.dayOfMonth).timeInMillis
+        }
+    }
+
+    private fun nextDaily(now: Calendar, timeOfDay: String?): Calendar {
+        val (hour, minute) = parseTimeOfDay(timeOfDay) ?: (now.get(Calendar.HOUR_OF_DAY) to now.get(Calendar.MINUTE))
+        return (now.clone() as Calendar).apply {
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            if (!after(now)) add(Calendar.DAY_OF_YEAR, 1)
+        }
+    }
+
+    private fun nextWeekly(now: Calendar, timeOfDay: String?, dayOfWeek: Int?): Calendar {
+        val targetDay = toCalendarDayOfWeek(dayOfWeek) ?: now.get(Calendar.DAY_OF_WEEK)
+        val (hour, minute) = parseTimeOfDay(timeOfDay) ?: (now.get(Calendar.HOUR_OF_DAY) to now.get(Calendar.MINUTE))
+        return (now.clone() as Calendar).apply {
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            var safetyCounter = 0
+            while ((get(Calendar.DAY_OF_WEEK) != targetDay || !after(now)) && safetyCounter < 8) {
+                add(Calendar.DAY_OF_YEAR, 1)
+                safetyCounter++
+            }
+        }
+    }
+
+    private fun nextMonthly(now: Calendar, timeOfDay: String?, dayOfMonth: Int?): Calendar {
+        val targetDay = (dayOfMonth ?: 1).coerceIn(1, 31)
+        val (hour, minute) = parseTimeOfDay(timeOfDay) ?: (now.get(Calendar.HOUR_OF_DAY) to now.get(Calendar.MINUTE))
+        return (now.clone() as Calendar).apply {
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            fun applyCappedDay() {
+                set(
+                    Calendar.DAY_OF_MONTH,
+                    targetDay.coerceAtMost(getActualMaximum(Calendar.DAY_OF_MONTH))
+                )
+            }
+            applyCappedDay()
+            if (!after(now)) {
+                add(Calendar.MONTH, 1)
+                applyCappedDay()
+            }
+        }
+    }
+
+    private fun toCalendarDayOfWeek(userDay: Int?): Int? {
+        return when (userDay) {
+            1 -> Calendar.MONDAY
+            2 -> Calendar.TUESDAY
+            3 -> Calendar.WEDNESDAY
+            4 -> Calendar.THURSDAY
+            5 -> Calendar.FRIDAY
+            6 -> Calendar.SATURDAY
+            7 -> Calendar.SUNDAY
+            else -> null
+        }
     }
 }
