@@ -84,16 +84,25 @@ object ShizukuCommandTool {
         Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
     }.getOrDefault(false)
 
+    /**
+     * Detects failures indicating the underlying Shizuku binder/service is unavailable or unauthorized.
+     *
+     * Reflection-based `Shizuku.newProcess()` invocation may wrap root causes in
+     * [InvocationTargetException], so we unwrap and inspect the deepest relevant throwable.
+     * We also fall back to class-name checks for framework exception types that may not be
+     * directly accessible at compile time in this module.
+     */
     fun isShizukuServiceException(error: Throwable): Boolean {
-        val root = when (error) {
-            is InvocationTargetException -> error.targetException ?: error.cause ?: error
-            else -> error.cause ?: error
+        val root: Throwable = if (error is InvocationTargetException) {
+            error.targetException ?: error.cause ?: error
+        } else {
+            error.cause ?: error
         }
         val name = root::class.java.name
         return root is IllegalStateException ||
             root is SecurityException ||
-            name.contains("DeadObjectException") ||
-            name.contains("RemoteException")
+            name == "android.os.DeadObjectException" ||
+            name == "android.os.RemoteException"
     }
 }
 

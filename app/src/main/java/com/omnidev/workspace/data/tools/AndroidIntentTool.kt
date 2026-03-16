@@ -52,7 +52,8 @@ object AndroidIntentTool {
             IntentResult.Success("Intent fired: action=$action package=$packageName")
         }
 
-        if (primaryResult.isSuccess) {
+        val primaryError = primaryResult.exceptionOrNull()
+        if (primaryError == null) {
             return primaryResult.getOrThrow()
         }
 
@@ -64,11 +65,13 @@ object AndroidIntentTool {
                 context.startActivity(fallbackIntent)
                 IntentResult.Success("Intent fallback fired: action=${Intent.ACTION_VIEW} uri=$extraUri")
             }.getOrElse { fallbackError ->
-                IntentResult.Failure("Failed to fire intent: ${fallbackError.message}")
+                IntentResult.Failure(
+                    "Failed to fire intent (primary: ${primaryError.message}, fallback: ${fallbackError.message})"
+                )
             }
         }
 
-        return IntentResult.Failure("Failed to fire intent: ${primaryResult.exceptionOrNull()?.message}")
+        return IntentResult.Failure("Failed to fire intent: ${primaryError.message}")
     }
 
     /**
