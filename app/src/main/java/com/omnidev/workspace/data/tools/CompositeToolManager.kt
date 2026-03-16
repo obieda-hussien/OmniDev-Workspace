@@ -51,7 +51,9 @@ class CompositeToolManager(
         else null
 
     override fun getToolDefinitions(): List<ToolDefinition> = buildList {
-        addAll(fileToolManager.getToolDefinitions())
+        addAll(fileToolManager.getToolDefinitions().filterNot { it.name == "web_search" })
+        addAll(WebSearchTool.getToolDefinitions())
+        addAll(NetworkRequestTool.getToolDefinitions())
         addAll(memoryManager.getToolDefinitions())
         addAll(CommunicationTool.getToolDefinitions())
         addAll(PlannerTool.getToolDefinitions())
@@ -324,6 +326,22 @@ class CompositeToolManager(
                     settingsApiKey = n8nApiKey
                 )
             }
+
+            // ── Robust web search tool ──
+            "web_search" -> {
+                val serpApiKey = settingsRepository?.observeSerpApiKey()?.first()
+                val googleApiKey = settingsRepository?.observeGoogleCseApiKey()?.first()
+                val googleCx = settingsRepository?.observeGoogleCseCx()?.first()
+                WebSearchTool.execute(
+                    query = arguments["query"] ?: return missingArg("query"),
+                    serpApiKey = serpApiKey,
+                    googleApiKey = googleApiKey,
+                    googleCseCx = googleCx
+                )
+            }
+
+            // ── Direct network request tool ──
+            "network_request" -> NetworkRequestTool.execute(arguments)
 
             // ── Visual inspector tool ──
             "visual_inspector" ->

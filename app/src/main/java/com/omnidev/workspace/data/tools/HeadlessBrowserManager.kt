@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.webkit.JavascriptInterface
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -13,6 +14,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import org.json.JSONObject
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -31,6 +35,9 @@ class HeadlessBrowserManager(context: Context) {
     private val appContext = context.applicationContext
     private val mainHandler = Handler(Looper.getMainLooper())
     private var webView: WebView? = null
+    private val pendingJsResults = ConcurrentHashMap<String, CompletableDeferred<String>>()
+    private val jsBridge = JsBridge()
+    private val nullPayloadErrorJson = """{"ok":false,"result":"","error":"Empty JS payload"}"""
 
     companion object {
         /** Navigation timeout in milliseconds. */
@@ -57,6 +64,7 @@ class HeadlessBrowserManager(context: Context) {
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
                 settings.blockNetworkImage = true // faster loading
+                addJavascriptInterface(jsBridge, "OmniDevJsBridge")
             }
             webView = wv
             wv
@@ -151,14 +159,16 @@ class HeadlessBrowserManager(context: Context) {
 
         return try {
             withTimeout(JS_TIMEOUT_MS) {
-                val result = suspendCancellableCoroutine<String?> { continuation ->
+                val token = UUID.randomUUID().toString()
+                val deferred = CompletableDeferred<String>()
+                pendingJsResults[token] = deferred
+
+                val wrappedJs = buildAsyncWrapper(jsCode, token)
+                suspendCancellableCoroutine<Unit> { continuation ->
                     mainHandler.post {
                         try {
-                            wv.evaluateJavascript(jsCode) { value ->
-                                if (continuation.isActive) {
-                                    continuation.resume(value)
-                                }
-                            }
+                            wv.evaluateJavascript(wrappedJs, null)
+                            if (continuation.isActive) continuation.resume(Unit)
                         } catch (e: Exception) {
                             if (continuation.isActive) {
                                 continuation.resumeWithException(e)
@@ -167,21 +177,26 @@ class HeadlessBrowserManager(context: Context) {
                     }
                 }
 
-                if (result == null) {
+                val result = deferred.await()
+                pendingJsResults.remove(token)
+                val parsed = runCatching { JSONObject(result) }.getOrNull()
+                    ?: return@withTimeout ToolExecutionResult(
+                        output = "JS ERROR: Invalid async result payload.",
+                        isError = true
+                    )
+                if (!parsed.optBoolean("ok")) {
                     return@withTimeout ToolExecutionResult(
-                        output = "JS ERROR: evaluateJavascript returned null. " +
-                            "Possible causes: JS is disabled, page context was destroyed, " +
-                            "or the script threw an uncaught exception. " +
-                            "Re-check your code for syntax errors and ensure the page is fully loaded.",
+                        output = "JS ERROR: ${parsed.optString("error", "Unknown JavaScript error")}",
                         isError = true
                     )
                 }
+                val value = parsed.optString("result", "")
 
-                val truncated = result.length > MAX_JS_OUTPUT
+                val truncated = value.length > MAX_JS_OUTPUT
                 val output = if (truncated) {
-                    result.take(MAX_JS_OUTPUT) + "\n[TRUNCATED — ${result.length} chars total]"
+                    value.take(MAX_JS_OUTPUT) + "\n[TRUNCATED — ${value.length} chars total]"
                 } else {
-                    result
+                    value
                 }
 
                 ToolExecutionResult(output = "JS Result:\n$output")
@@ -216,8 +231,58 @@ class HeadlessBrowserManager(context: Context) {
      */
     fun destroy() {
         mainHandler.post {
+            pendingJsResults.values.forEach { deferred ->
+                if (!deferred.isCompleted) deferred.completeExceptionally(
+                    IllegalStateException("Browser destroyed before JS result returned.")
+                )
+            }
+            pendingJsResults.clear()
             webView?.destroy()
             webView = null
+        }
+    }
+
+    private fun buildAsyncWrapper(jsCode: String, token: String): String {
+        val quotedCode = JSONObject.quote(jsCode)
+        val quotedToken = JSONObject.quote(token)
+        return """
+            (function() {
+                const __token = $quotedToken;
+                const __source = $quotedCode;
+                const __extractError = function(err) {
+                    return err && (err.stack || err.message) ? (err.stack || err.message) : err;
+                };
+                const __send = function(ok, value) {
+                    try {
+                        const payload = JSON.stringify({
+                            ok: !!ok,
+                            result: ok ? (value == null ? "" : String(value)) : "",
+                            error: ok ? "" : (value == null ? "Unknown JavaScript error" : String(value))
+                        });
+                        OmniDevJsBridge.deliver(__token, payload);
+                    } catch (bridgeErr) {}
+                };
+                try {
+                    // Intentionally evaluates agent-supplied code in the currently loaded page
+                    // context (the core purpose of browser_execute_js). This tool must remain
+                    // user-gated by the agent pipeline confirmation flow.
+                    const __result = (0, eval)(__source);
+                    Promise.resolve(__result)
+                        .then(function(v) { __send(true, v); })
+                        .catch(function(err) { __send(false, __extractError(err)); });
+                } catch (err) {
+                    __send(false, __extractError(err));
+                }
+                return true;
+            })();
+        """.trimIndent()
+    }
+
+    private inner class JsBridge {
+        @JavascriptInterface
+        fun deliver(token: String, payload: String?) {
+            val deferred = pendingJsResults.remove(token) ?: return
+            if (!deferred.isCompleted) deferred.complete(payload ?: nullPayloadErrorJson)
         }
     }
 }
