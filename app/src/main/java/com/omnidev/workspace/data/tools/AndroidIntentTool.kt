@@ -36,7 +36,7 @@ object AndroidIntentTool {
         activityClass: String? = null,
         extraUri: String? = null
     ): IntentResult {
-        return runCatching {
+        val primaryResult = runCatching {
             val intent = Intent(action).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 if (packageName != null && activityClass != null) {
@@ -50,9 +50,25 @@ object AndroidIntentTool {
             }
             context.startActivity(intent)
             IntentResult.Success("Intent fired: action=$action package=$packageName")
-        }.getOrElse { e ->
-            IntentResult.Failure("Failed to fire intent: ${e.message}")
         }
+
+        if (primaryResult.isSuccess) {
+            return primaryResult.getOrThrow()
+        }
+
+        if (action == Intent.ACTION_VIEW && !extraUri.isNullOrBlank()) {
+            return runCatching {
+                val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse(extraUri)).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(fallbackIntent)
+                IntentResult.Success("Intent fallback fired: action=${Intent.ACTION_VIEW} uri=$extraUri")
+            }.getOrElse { fallbackError ->
+                IntentResult.Failure("Failed to fire intent: ${fallbackError.message}")
+            }
+        }
+
+        return IntentResult.Failure("Failed to fire intent: ${primaryResult.exceptionOrNull()?.message}")
     }
 
     /**
