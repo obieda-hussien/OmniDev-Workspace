@@ -1,5 +1,6 @@
 package com.omnidev.workspace.data.accessibility
 
+import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.data.tools.ToolDefinition
@@ -51,7 +52,8 @@ object SemanticUITool {
                 "Actions: 'dump_tree' (get semantic UI tree), 'click' (click node by ID), " +
                 "'long_click' (long-press node), 'type' (type text into editable node), " +
                 "'scroll' (scroll node forward/backward), 'back' (press BACK), " +
-                "'home' (press HOME), 'tap_xy' (fallback: tap raw coordinates), " +
+                "'home' (press HOME), 'recents' (open recent apps), " +
+                "'swipe' (gesture swipe by direction), 'tap_xy' (fallback: tap raw coordinates), " +
                 "'force_click' (hardware tap via Shizuku — unstoppable, bypasses app restrictions), " +
                 "'force_long_click' (hardware long-press via Shizuku), " +
                 "'auto_enable' (auto-enable accessibility service via Shizuku).",
@@ -60,7 +62,8 @@ object SemanticUITool {
                     name = "action",
                     type = "string",
                     description = "Action: 'dump_tree', 'click', 'long_click', 'type', " +
-                        "'scroll', 'back', 'home', 'tap_xy', 'force_click' (Shizuku hardware tap), " +
+                        "'scroll', 'back', 'home', 'recents', 'swipe', 'tap_xy', " +
+                        "'force_click' (Shizuku hardware tap), " +
                         "'force_long_click' (Shizuku hardware long-press), or 'auto_enable'.",
                     required = true
                 ),
@@ -81,7 +84,19 @@ object SemanticUITool {
                     name = "direction",
                     type = "string",
                     description = "Scroll direction: 'forward' (down) or 'backward' (up). " +
-                        "Default: 'forward'. Used with 'scroll'.",
+                        "Default: 'forward'. Used with 'scroll' and 'swipe'.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "duration_ms",
+                    type = "string",
+                    description = "Gesture duration in milliseconds for 'swipe'. Default: 320.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "distance_ratio",
+                    type = "string",
+                    description = "Swipe travel distance ratio (0.1..0.9). Default: 0.35.",
                     required = false
                 ),
                 ToolParameter(
@@ -139,12 +154,14 @@ object SemanticUITool {
                 "scroll" -> scrollNode(params["node_id"], params["direction"])
                 "back" -> pressBack()
                 "home" -> pressHome()
+                "recents" -> pressRecents()
+                "swipe" -> swipe(direction = params["direction"], durationMs = params["duration_ms"], distanceRatio = params["distance_ratio"], nodeId = params["node_id"])
                 "tap_xy" -> tapXY(params["x"], params["y"])
                 "force_click" -> forceClick(params["node_id"])
                 "force_long_click" -> forceLongClick(params["node_id"])
                 else -> ToolExecutionResult(
                     "Unknown semantic_ui action: '$action'. " +
-                        "Supported: dump_tree, click, long_click, type, scroll, back, home, " +
+                        "Supported: dump_tree, click, long_click, type, scroll, back, home, recents, swipe, " +
                         "tap_xy, force_click, force_long_click, auto_enable.",
                     isError = true
                 )
@@ -343,6 +360,17 @@ object SemanticUITool {
         }
     }
 
+    private fun pressRecents(): ToolExecutionResult {
+        val service = OmniAccessibilityService.instance
+            ?: return ToolExecutionResult("Accessibility service not running.", isError = true)
+
+        return if (service.pressRecents()) {
+            ToolExecutionResult("✅ Opened recent apps")
+        } else {
+            ToolExecutionResult("❌ RECENTS action failed.", isError = true)
+        }
+    }
+
     private fun tapXY(x: String?, y: String?): ToolExecutionResult {
         val xVal = x?.toFloatOrNull()
             ?: return ToolExecutionResult("Missing or invalid 'x' for tap_xy.", isError = true)
@@ -359,7 +387,74 @@ object SemanticUITool {
         }
     }
 
+    private fun swipe(
+        direction: String?,
+        durationMs: String?,
+        distanceRatio: String?,
+        nodeId: String?
+    ): ToolExecutionResult {
+        val service = OmniAccessibilityService.instance
+            ?: return ToolExecutionResult("Accessibility service not running.", isError = true)
+
+        val dir = direction?.lowercase() ?: "forward"
+        val duration = durationMs?.toLongOrNull()?.coerceIn(120L, 2_500L) ?: 320L
+        val ratio = distanceRatio?.toFloatOrNull()?.coerceIn(0.1f, 0.9f) ?: 0.35f
+
+        val area = if (nodeId.isNullOrBlank()) {
+            val root = AccessibilityStateManager.rootNode.value
+                ?: return ToolExecutionResult("No UI tree available for swipe.", isError = true)
+            Rect().apply { root.getBoundsInScreen(this) }
+        } else {
+            val parseResult = lastParseResult
+                ?: return ToolExecutionResult(
+                    "No UI tree cached. Call 'dump_tree' first to use node-specific swipe.",
+                    isError = true
+                )
+            val node = parseResult.nodeMap[nodeId.uppercase()]
+                ?: return ToolExecutionResult(
+                    "Node '$nodeId' not found. Call 'dump_tree' to refresh.",
+                    isError = true
+                )
+            Rect().apply { node.getBoundsInScreen(this) }
+        }
+
+        if (area.isEmpty) {
+            return ToolExecutionResult("Swipe area has invalid bounds.", isError = true)
+        }
+
+        val dx = area.width() * ratio
+        val dy = area.height() * ratio
+        val centerX = area.exactCenterX()
+        val centerY = area.exactCenterY()
+
+        val (startX, startY, endX, endY) = when (dir) {
+            "backward", "up" -> SwipePoints(centerX, centerY + dy, centerX, centerY - dy)
+            "down" -> SwipePoints(centerX, centerY - dy, centerX, centerY + dy)
+            "left" -> SwipePoints(centerX + dx, centerY, centerX - dx, centerY)
+            "right" -> SwipePoints(centerX - dx, centerY, centerX + dx, centerY)
+            "forward" -> SwipePoints(centerX, centerY - dy, centerX, centerY + dy)
+            else -> return ToolExecutionResult(
+                "Invalid swipe direction '$dir'. Use forward/backward/up/down/left/right.",
+                isError = true
+            )
+        }
+
+        return if (service.swipeGesture(startX, startY, endX, endY, duration)) {
+            val scope = if (nodeId.isNullOrBlank()) "screen" else "[$nodeId]"
+            ToolExecutionResult("✅ Swiped $dir on $scope (duration=${duration}ms, ratio=$ratio)")
+        } else {
+            ToolExecutionResult("❌ Swipe gesture failed.", isError = true)
+        }
+    }
+
     // ── Helpers ──
+
+    private data class SwipePoints(
+        val startX: Float,
+        val startY: Float,
+        val endX: Float,
+        val endY: Float
+    )
 
     /**
      * Auto-enables OmniAccessibilityService via Shizuku.

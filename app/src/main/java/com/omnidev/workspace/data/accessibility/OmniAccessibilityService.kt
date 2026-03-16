@@ -2,6 +2,7 @@ package com.omnidev.workspace.data.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.graphics.Rect
 import android.graphics.Path
 import android.os.Bundle
 import android.util.Log
@@ -99,12 +100,18 @@ class OmniAccessibilityService : AccessibilityService() {
     fun clickNode(nodeInfo: AccessibilityNodeInfo): Boolean {
         var current: AccessibilityNodeInfo? = nodeInfo
         while (current != null) {
-            if (current.isClickable) {
+            if (isNodeClickable(current)) {
                 return current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             }
             current = current.parent
         }
-        return false
+        val bounds = Rect()
+        nodeInfo.getBoundsInScreen(bounds)
+        return if (!bounds.isEmpty) {
+            tapAtCoordinates(bounds.centerX().toFloat(), bounds.centerY().toFloat())
+        } else {
+            false
+        }
     }
 
     /**
@@ -114,12 +121,21 @@ class OmniAccessibilityService : AccessibilityService() {
     fun longClickNode(nodeInfo: AccessibilityNodeInfo): Boolean {
         var current: AccessibilityNodeInfo? = nodeInfo
         while (current != null) {
-            if (current.isLongClickable) {
+            if (isNodeLongClickable(current)) {
                 return current.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)
             }
             current = current.parent
         }
-        return false
+        val bounds = Rect()
+        nodeInfo.getBoundsInScreen(bounds)
+        if (bounds.isEmpty) return false
+        return swipeGesture(
+            startX = bounds.centerX().toFloat(),
+            startY = bounds.centerY().toFloat(),
+            endX = bounds.centerX().toFloat(),
+            endY = bounds.centerY().toFloat(),
+            durationMs = 700L
+        )
     }
 
     /**
@@ -141,7 +157,7 @@ class OmniAccessibilityService : AccessibilityService() {
     fun scrollNode(nodeInfo: AccessibilityNodeInfo, forward: Boolean): Boolean {
         var current: AccessibilityNodeInfo? = nodeInfo
         while (current != null) {
-            if (current.isScrollable) {
+            if (isNodeScrollable(current)) {
                 val action = if (forward) {
                     AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
                 } else {
@@ -203,5 +219,27 @@ class OmniAccessibilityService : AccessibilityService() {
             .addStroke(GestureDescription.StrokeDescription(path, 0L, durationMs))
             .build()
         return dispatchGesture(gesture, null, null)
+    }
+
+    private fun supportsAnyScrollAction(node: AccessibilityNodeInfo): Boolean {
+        return supportsAction(node, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) ||
+            supportsAction(node, AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) ||
+            node.actionList.any { it.label?.toString()?.contains("scroll", ignoreCase = true) == true }
+    }
+
+    private fun supportsAction(node: AccessibilityNodeInfo, actionId: Int): Boolean {
+        return node.actionList.any { it.id == actionId }
+    }
+
+    private fun isNodeClickable(node: AccessibilityNodeInfo): Boolean {
+        return node.isClickable || supportsAction(node, AccessibilityNodeInfo.ACTION_CLICK)
+    }
+
+    private fun isNodeLongClickable(node: AccessibilityNodeInfo): Boolean {
+        return node.isLongClickable || supportsAction(node, AccessibilityNodeInfo.ACTION_LONG_CLICK)
+    }
+
+    private fun isNodeScrollable(node: AccessibilityNodeInfo): Boolean {
+        return node.isScrollable || supportsAnyScrollAction(node)
     }
 }
