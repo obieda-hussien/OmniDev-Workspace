@@ -71,13 +71,13 @@ object AdvancedFileTools {
         ),
         ToolDefinition(
             name = "archive_tool",
-            description = "Create or extract tar/zip archives using root access. " +
-                "Supports tar.gz, tar.bz2, and zip formats.",
+            description = "Create or extract archives using root access. " +
+                "Supports tar, tar.gz/tgz, tar.bz2, tar.xz, and zip formats.",
             parameters = listOf(
                 ToolParameter("action", "string", "Action: 'create' or 'extract'", required = true),
                 ToolParameter("archive_path", "string", "Path to the archive file", required = true),
                 ToolParameter("target_path", "string", "For create: directory to archive. For extract: destination directory.", required = true),
-                ToolParameter("format", "string", "Archive format: 'tar.gz' (default), 'tar.bz2', 'zip'", required = false)
+                ToolParameter("format", "string", "Archive format: tar, tar.gz, tgz, tar.bz2, tar.xz, zip. If omitted, inferred from archive_path.", required = false)
             )
         )
     )
@@ -175,27 +175,35 @@ object AdvancedFileTools {
         val action = args["action"] ?: return missingArg("action")
         val archivePath = args["archive_path"] ?: return missingArg("archive_path")
         val targetPath = args["target_path"] ?: return missingArg("target_path")
-        val format = args["format"] ?: "tar.gz"
+        val format = (args["format"] ?: inferArchiveFormat(archivePath)).lowercase()
 
         val shellArchive = sanitizeShellArg(archivePath)
         val shellTarget = sanitizeShellArg(targetPath)
 
         val cmd = when {
-            action == "create" && format == "tar.gz" ->
+            action == "create" && format == "tar" ->
+                "tar -cf $shellArchive -C $shellTarget . && echo 'OK: archive created' && ls -la $shellArchive"
+            action == "create" && (format == "tar.gz" || format == "tgz") ->
                 "tar -czf $shellArchive -C $shellTarget . && echo 'OK: archive created' && ls -la $shellArchive"
             action == "create" && format == "tar.bz2" ->
                 "tar -cjf $shellArchive -C $shellTarget . && echo 'OK: archive created' && ls -la $shellArchive"
+            action == "create" && format == "tar.xz" ->
+                "tar -cJf $shellArchive -C $shellTarget . && echo 'OK: archive created' && ls -la $shellArchive"
             action == "create" && format == "zip" ->
                 "cd $shellTarget && zip -r $shellArchive . && echo 'OK: archive created' && ls -la $shellArchive"
-            action == "extract" && (format == "tar.gz" || archivePath.endsWith(".tar.gz") || archivePath.endsWith(".tgz")) ->
+            action == "extract" && format == "tar" ->
+                "mkdir -p $shellTarget && tar -xf $shellArchive -C $shellTarget && echo 'OK: extracted' && ls -la $shellTarget"
+            action == "extract" && (format == "tar.gz" || format == "tgz") ->
                 "mkdir -p $shellTarget && tar -xzf $shellArchive -C $shellTarget && echo 'OK: extracted' && ls -la $shellTarget"
-            action == "extract" && (format == "tar.bz2" || archivePath.endsWith(".tar.bz2")) ->
+            action == "extract" && format == "tar.bz2" ->
                 "mkdir -p $shellTarget && tar -xjf $shellArchive -C $shellTarget && echo 'OK: extracted' && ls -la $shellTarget"
-            action == "extract" && (format == "zip" || archivePath.endsWith(".zip")) ->
+            action == "extract" && format == "tar.xz" ->
+                "mkdir -p $shellTarget && tar -xJf $shellArchive -C $shellTarget && echo 'OK: extracted' && ls -la $shellTarget"
+            action == "extract" && format == "zip" ->
                 "mkdir -p $shellTarget && unzip -o $shellArchive -d $shellTarget && echo 'OK: extracted' && ls -la $shellTarget"
             else -> return ToolExecutionResult(
                 "Unknown combination: action=$action, format=$format. " +
-                "Supported: create/extract with tar.gz, tar.bz2, zip",
+                "Supported: create/extract with tar, tar.gz/tgz, tar.bz2, tar.xz, zip",
                 isError = true
             )
         }
@@ -227,6 +235,16 @@ object AdvancedFileTools {
     private fun sanitizeShellArg(arg: String): String {
         // Use single quotes to prevent shell expansion; escape any existing single quotes
         return "'${arg.replace("'", "'\\''")}'"
+    }
+
+    private fun inferArchiveFormat(path: String): String = when {
+        path.endsWith(".tar.gz", ignoreCase = true) -> "tar.gz"
+        path.endsWith(".tgz", ignoreCase = true) -> "tgz"
+        path.endsWith(".tar.bz2", ignoreCase = true) -> "tar.bz2"
+        path.endsWith(".tar.xz", ignoreCase = true) -> "tar.xz"
+        path.endsWith(".tar", ignoreCase = true) -> "tar"
+        path.endsWith(".zip", ignoreCase = true) -> "zip"
+        else -> "tar.gz"
     }
 
     private fun missingArg(name: String) =

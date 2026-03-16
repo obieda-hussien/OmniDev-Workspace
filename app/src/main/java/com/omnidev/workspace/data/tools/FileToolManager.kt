@@ -22,6 +22,7 @@ import java.net.URLEncoder
  * - `create_file`: Create a new file with content.
  * - `delete_file`: Delete a file.
  * - `run_terminal`: Execute a shell command in the Target Context directory.
+ * - `python_runner`: Run inline Python code or execute a Python file.
  * - `web_search`: Search the web using DuckDuckGo Lite and return the top results.
  *
  * File-modifying operations (`patch_file_content`, `create_file`, `delete_file`) generate a
@@ -71,6 +72,9 @@ class FileToolManager(
 
         /** Maximum characters captured from a terminal command's combined stdout/stderr. */
         private const val MAX_TERMINAL_OUTPUT_CHARS = 8_000
+
+        /** Maximum Python inline code length accepted by python_runner. */
+        private const val MAX_PYTHON_CODE_CHARS = 20_000
     }
 
     // ──────────────────────────────────────────────
@@ -150,6 +154,18 @@ class FileToolManager(
                     required = true
                 )
             )
+        ),
+        ToolDefinition(
+            name = "python_runner",
+            description = "Run Python code or execute a Python file inside the current Target Context. " +
+                "Use mode='inline' with `code`, or mode='file' with `filePath`. " +
+                "Optional `args` are passed to the script in file mode.",
+            parameters = listOf(
+                ToolParameter("mode", "string", "Execution mode: 'inline' or 'file'.", required = true),
+                ToolParameter("code", "string", "Python source code for mode='inline'.", required = false),
+                ToolParameter("filePath", "string", "Path to Python file for mode='file'.", required = false),
+                ToolParameter("args", "string", "Optional command-line args for mode='file'.", required = false)
+            )
         )
     )
 
@@ -170,6 +186,7 @@ class FileToolManager(
                 "create_file" -> createFile(arguments, scopePath)
                 "delete_file" -> deleteFile(arguments, scopePath)
                 "run_terminal" -> runTerminal(arguments, scopePath)
+                "python_runner" -> runPython(arguments, scopePath)
                 "web_search" -> webSearch(arguments["query"]
                     ?: return ToolExecutionResult("Missing required argument: query", isError = true)
                 )
@@ -654,6 +671,198 @@ class FileToolManager(
                 isError = true
             )
         }
+    }
+
+    // ──────────────────────────────────────────────
+    //  python_runner
+    // ──────────────────────────────────────────────
+
+    /**
+     * Executes Python using either inline code (`python -c`) or a Python file path.
+     */
+    private suspend fun runPython(args: Map<String, String>, scopePath: String): ToolExecutionResult {
+        val mode = requireArg(args, "mode").lowercase()
+        val workDir = File(scopePath)
+        if (!workDir.exists() || !workDir.isDirectory) {
+            return ToolExecutionResult(
+                output = "Target Context directory not found: $scopePath",
+                isError = true
+            )
+        }
+
+        val pythonBin = detectPythonInterpreter(workDir)
+            ?: return ToolExecutionResult(
+                output = "Python interpreter not found. Install python3/python in the environment first.",
+                isError = true
+            )
+
+        val command = when (mode) {
+            "inline" -> {
+                val code = args["code"]
+                    ?: return ToolExecutionResult("Missing required argument: code", isError = true)
+                if (code.length > MAX_PYTHON_CODE_CHARS) {
+                    return ToolExecutionResult(
+                        output = "Python code is too large (${code.length} chars). Max: $MAX_PYTHON_CODE_CHARS.",
+                        isError = true
+                    )
+                }
+                listOf(pythonBin, "-c", code)
+            }
+            "file" -> {
+                val filePath = normalizePath(
+                    args["filePath"] ?: return ToolExecutionResult("Missing required argument: filePath", isError = true),
+                    scopePath
+                )
+                validateScope(filePath, scopePath)
+                val scriptFile = File(filePath)
+                if (!scriptFile.exists() || !scriptFile.isFile) {
+                    return ToolExecutionResult("Python file not found: $filePath", isError = true)
+                }
+                val cliArgs = parseCommandLineArgs(args["args"].orEmpty())
+                listOf(pythonBin, scriptFile.absolutePath) + cliArgs
+            }
+            else -> return ToolExecutionResult(
+                output = "Invalid mode '$mode'. Use 'inline' or 'file'.",
+                isError = true
+            )
+        }
+
+        return executeProcess(command = command, workingDir = workDir)
+    }
+
+    private suspend fun detectPythonInterpreter(workDir: File): String? = withContext(Dispatchers.IO) {
+        val candidates = listOf("python3", "python")
+        candidates.firstOrNull { candidate ->
+            try {
+                val process = ProcessBuilder(candidate, "--version")
+                    .directory(workDir)
+                    .redirectErrorStream(true)
+                    .start()
+                val waiter = Thread { try { process.waitFor() } catch (_: InterruptedException) {} }
+                waiter.start()
+                waiter.join(2_000L)
+                if (waiter.isAlive) {
+                    process.destroy()
+                    false
+                } else {
+                    process.exitValue() == 0
+                }
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
+    private suspend fun executeProcess(command: List<String>, workingDir: File): ToolExecutionResult {
+        return try {
+            withContext(Dispatchers.IO) {
+                val process = ProcessBuilder(command)
+                    .directory(workingDir)
+                    .start()
+
+                val stdoutBuffer = StringBuffer()
+                val stderrBuffer = StringBuffer()
+
+                val stdoutThread = Thread {
+                    try {
+                        process.inputStream.bufferedReader().use { reader ->
+                            reader.lineSequence().forEach { line ->
+                                if (stdoutBuffer.length < MAX_TERMINAL_OUTPUT_CHARS) {
+                                    stdoutBuffer.appendLine(line)
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+                val stderrThread = Thread {
+                    try {
+                        process.errorStream.bufferedReader().use { reader ->
+                            reader.lineSequence().forEach { line ->
+                                if (stderrBuffer.length < MAX_TERMINAL_OUTPUT_CHARS) {
+                                    stderrBuffer.appendLine(line)
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {}
+                }
+                stdoutThread.start()
+                stderrThread.start()
+
+                val waitThread = Thread {
+                    try { process.waitFor() } catch (_: InterruptedException) {}
+                }
+                waitThread.start()
+                waitThread.join(TERMINAL_TIMEOUT_SECONDS * 1000L)
+
+                if (waitThread.isAlive) {
+                    process.destroy()
+                    return@withContext ToolExecutionResult(
+                        output = "⏱ Python command timed out after ${TERMINAL_TIMEOUT_SECONDS}s.",
+                        isError = true
+                    )
+                }
+
+                stdoutThread.join(2_000L)
+                stderrThread.join(2_000L)
+
+                val exitCode = process.exitValue()
+                val stdout = stdoutBuffer.toString().trimEnd().ifEmpty { "(empty)" }
+                val stderr = stderrBuffer.toString().trimEnd().ifEmpty { "(empty)" }
+                ToolExecutionResult(
+                    output = buildString {
+                        appendLine("$ ${command.joinToString(" ")}")
+                        appendLine("[exit_code: $exitCode]")
+                        appendLine("[stdout]")
+                        appendLine(stdout)
+                        appendLine("[stderr]")
+                        append(stderr)
+                    },
+                    isError = exitCode != 0
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            ToolExecutionResult(output = "Failed to run python: ${e.message}", isError = true)
+        }
+    }
+
+    private fun parseCommandLineArgs(rawArgs: String): List<String> {
+        if (rawArgs.isBlank()) return emptyList()
+        val result = mutableListOf<String>()
+        val current = StringBuilder()
+        var quote: Char? = null
+        var escaping = false
+
+        for (ch in rawArgs.trim()) {
+            if (escaping) {
+                current.append(ch)
+                escaping = false
+                continue
+            }
+            if (ch == '\\') {
+                escaping = true
+                continue
+            }
+            if (quote != null && ch == quote) {
+                quote = null
+                continue
+            }
+            if (quote == null && (ch == '"' || ch == '\'')) {
+                quote = ch
+                continue
+            }
+            if (quote == null && ch.isWhitespace()) {
+                if (current.isNotEmpty()) {
+                    result += current.toString()
+                    current.clear()
+                }
+                continue
+            }
+            current.append(ch)
+        }
+        if (current.isNotEmpty()) result += current.toString()
+        return result
     }
 
     // ──────────────────────────────────────────────
