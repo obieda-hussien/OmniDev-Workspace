@@ -69,6 +69,7 @@ class CompositeToolManager(
         addAll(fileToolManager.getToolDefinitions().filterNot { it.name == "web_search" })
         addAll(WebSearchTool.getToolDefinitions())
         addAll(NetworkRequestTool.getToolDefinitions())
+        addAll(QualitySecurityTool.getToolDefinitions())
         addAll(memoryManager.getToolDefinitions())
         addAll(CommunicationTool.getToolDefinitions())
         addAll(PlannerTool.getToolDefinitions())
@@ -357,6 +358,9 @@ class CompositeToolManager(
 
             // ── Direct network request tool ──
             "network_request" -> NetworkRequestTool.execute(arguments)
+
+            // ── Quality/security tooling (code review, vulnerability scans, tests) ──
+            "quality_security_tool" -> QualitySecurityTool.execute(context = context, args = arguments)
 
             // ── Visual inspector tool ──
             "visual_inspector" ->
