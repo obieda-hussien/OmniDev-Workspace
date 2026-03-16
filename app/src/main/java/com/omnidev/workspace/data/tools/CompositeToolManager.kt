@@ -1,6 +1,7 @@
 package com.omnidev.workspace.data.tools
 
 import android.content.Context
+import android.content.Intent
 import com.omnidev.workspace.data.accessibility.SemanticUITool
 import com.omnidev.workspace.data.admin.OmniDeviceAdminReceiver
 import com.omnidev.workspace.data.communication.SmsCaptureBuffer
@@ -10,6 +11,7 @@ import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.sync.OmniSyncService
 import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
+import java.net.URI
 import java.util.Date
 import java.util.Locale
 
@@ -40,6 +42,19 @@ class CompositeToolManager(
     val headlessBrowserManager: HeadlessBrowserManager? = null,
     private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null
 ) : ToolManager {
+    companion object {
+        /**
+         * Extracts the -d URL argument from `am start` command, supporting:
+         * -d "https://..."
+         * -d 'https://...'
+         * -d https://...
+         * Note: escaped quotes inside quoted URLs are not supported by this lightweight parser.
+         */
+        private val AM_START_DATA_URL_REGEX =
+            Regex("""\s-d\s+(?:"([^"]+)"|'([^']+)'|(\S+))""", RegexOption.IGNORE_CASE)
+        private val AM_START_VIEW_ACTION_REGEX =
+            Regex("""\s-a\s+android\.intent\.action\.VIEW\b""", RegexOption.IGNORE_CASE)
+    }
 
     /**
      * Lazily constructed agentic-auth tool. Available only when both
@@ -489,9 +504,17 @@ class CompositeToolManager(
 
             // ── Advanced root shell tool ──
             "root_shell_tool" -> {
-                AdvancedRootShellTool.execute(
-                    command = arguments["command"] ?: return missingArg("command")
-                )
+                val command = arguments["command"] ?: return missingArg("command")
+                val viewUrl = extractUrlFromAmStartViewCommand(command)
+                if (!viewUrl.isNullOrBlank()) {
+                    val contextForIntent = context
+                    if (contextForIntent != null) {
+                        return fireViewIntentFallback(contextForIntent, viewUrl)
+                    }
+                }
+
+                val rootResult = AdvancedRootShellTool.execute(command = command)
+                rootResult
             }
 
             // ── App manifest analyzer tool ──
@@ -691,4 +714,37 @@ class CompositeToolManager(
 
     private fun missingArg(name: String) =
         ToolExecutionResult("Missing required argument: $name", isError = true)
+
+    private fun extractUrlFromAmStartViewCommand(command: String): String? {
+        if (!command.contains("am start", ignoreCase = true)) return null
+        if (!AM_START_VIEW_ACTION_REGEX.containsMatchIn(command)) return null
+        val match = AM_START_DATA_URL_REGEX.find(command) ?: return null
+        val doubleQuoted = match.groupValues.getOrNull(1).orEmpty()
+        val singleQuoted = match.groupValues.getOrNull(2).orEmpty()
+        val unquoted = match.groupValues.getOrNull(3).orEmpty()
+        val extractedUrl = when {
+            doubleQuoted.isNotBlank() -> doubleQuoted
+            singleQuoted.isNotBlank() -> singleQuoted
+            unquoted.isNotBlank() -> unquoted
+            else -> return null
+        }
+        return extractedUrl.trim().takeIf { isValidHttpUrl(it) }
+    }
+
+    private fun isValidHttpUrl(candidate: String): Boolean {
+        return runCatching {
+            val uri = URI(candidate.trim())
+            (uri.scheme.equals("http", ignoreCase = true) ||
+                uri.scheme.equals("https", ignoreCase = true)) &&
+                !uri.host.isNullOrBlank()
+        }.getOrDefault(false)
+    }
+
+    private fun fireViewIntentFallback(ctx: Context, viewUrl: String): ToolExecutionResult {
+        return AndroidIntentTool.fire(
+            context = ctx,
+            action = Intent.ACTION_VIEW,
+            extraUri = viewUrl
+        ).toDisplayString().let { ToolExecutionResult(it) }
+    }
 }

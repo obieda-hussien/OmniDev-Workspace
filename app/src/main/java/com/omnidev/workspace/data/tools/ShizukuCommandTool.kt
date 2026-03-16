@@ -99,10 +99,17 @@ object ShizukuCommandTool {
             error.cause ?: error
         }
         val name = root::class.java.name
+        val message = (root.message ?: error.message).orEmpty()
         return root is IllegalStateException ||
             root is SecurityException ||
+            root is NoSuchMethodException ||
+            root is ClassNotFoundException ||
+            root is NoClassDefFoundError ||
             name == "android.os.DeadObjectException" ||
-            name == "android.os.RemoteException"
+            name == "android.os.RemoteException" ||
+            // Reflection can fail with method-signature text when Shizuku API/service
+            // shape is incompatible at runtime; match the known method token safely.
+            message.contains("rikka.shizuku.Shizuku.newProcess", ignoreCase = true)
     }
 }
 

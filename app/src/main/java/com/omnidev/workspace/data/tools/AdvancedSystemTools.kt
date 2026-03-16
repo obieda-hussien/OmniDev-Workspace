@@ -577,7 +577,8 @@ object AdvancedRootShellTool {
                 "Supports complex piped commands, redirects, and system-level operations. " +
                 "Examples: 'dumpsys battery', 'getprop ro.build.version.sdk', " +
                 "'cat /proc/meminfo | head -20', 'wm size', 'wm density'. " +
-                "Use this for any system command not covered by other specialized tools.",
+                "Use this for any system command not covered by other specialized tools. " +
+                "For opening URLs/apps, prefer Android intent tools instead of root shell.",
             parameters = listOf(
                 ToolParameter("command", "string", "Full shell command to execute.", required = true)
             )
