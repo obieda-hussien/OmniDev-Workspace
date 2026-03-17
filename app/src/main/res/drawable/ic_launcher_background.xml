@@ -4,7 +4,16 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Deep space base fill -->
     <path
-        android:fillColor="#0A0824"
+        android:fillColor="#05031A"
         android:pathData="M0,0h108v108h-108z" />
+    <!-- Subtle radial depth — large dark-purple ellipse -->
+    <path
+        android:fillColor="#120B3A"
+        android:pathData="M54,54m-48,0a48,48 0,1 1,96 0a48,48 0,1 1,-96 0" />
+    <!-- Inner violet core glow -->
+    <path
+        android:fillColor="#1A0F48"
+        android:pathData="M54,54m-28,0a28,28 0,1 1,56 0a28,28 0,1 1,-56 0" />
 </vector>

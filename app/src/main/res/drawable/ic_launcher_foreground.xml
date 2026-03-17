@@ -4,25 +4,66 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- ── Outer ring glow ── -->
     <path
-        android:fillColor="#4A43B8"
-        android:pathData="M54,26m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" />
+        android:fillColor="#00000000"
+        android:strokeColor="#6D28D9"
+        android:strokeWidth="1.5"
+        android:pathData="M54,54m-32,0a32,32 0,1 1,64 0a32,32 0,1 1,-64 0" />
+
+    <!-- ── Main icon plate (rounded square) ── -->
     <path
-        android:fillColor="#4A43B8"
-        android:pathData="M34,40m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
+        android:fillColor="#1E1250"
+        android:pathData="M36,26 H72 Q82,26 82,36 V72 Q82,82 72,82 H36 Q26,82 26,72 V36 Q26,26 36,26 Z" />
+
+    <!-- ── Plate border glow ── -->
     <path
-        android:fillColor="#4A43B8"
-        android:pathData="M74,40m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
+        android:fillColor="#00000000"
+        android:strokeColor="#7C3AED"
+        android:strokeWidth="1.8"
+        android:pathData="M36,26 H72 Q82,26 82,36 V72 Q82,82 72,82 H36 Q26,82 26,72 V36 Q26,26 36,26 Z" />
+
+    <!-- ══ CODE SYMBOL  < / >  ══ -->
+
+    <!-- Left bracket  < -->
     <path
-        android:fillColor="#4A43B8"
-        android:pathData="M28,34H80C84.4,34 88,37.6 88,42V78C88,82.4 84.4,86 80,86H28C23.6,86 20,82.4 20,78V42C20,37.6 23.6,34 28,34Z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#C4B5FD"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M44,43 L34,54 L44,65" />
+
+    <!-- Forward slash  / -->
     <path
-        android:fillColor="#0A0824"
-        android:pathData="M40,56m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+        android:fillColor="#00000000"
+        android:strokeColor="#22D3EE"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M50,66 L58,42" />
+
+    <!-- Right bracket  > -->
     <path
-        android:fillColor="#0A0824"
-        android:pathData="M68,56m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
-    <path
-        android:fillColor="#0A0824"
-        android:pathData="M38,68h32v10h-32z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#C4B5FD"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M64,43 L74,54 L64,65" />
+
+    <!-- ── Circuit dots at bracket tips ── -->
+    <path android:fillColor="#7C3AED" android:pathData="M44,43m-2.5,0a2.5,2.5 0,1 1,5 0a2.5,2.5 0,1 1,-5 0" />
+    <path android:fillColor="#7C3AED" android:pathData="M44,65m-2.5,0a2.5,2.5 0,1 1,5 0a2.5,2.5 0,1 1,-5 0" />
+    <path android:fillColor="#06B6D4" android:pathData="M50,66m-2.5,0a2.5,2.5 0,1 1,5 0a2.5,2.5 0,1 1,-5 0" />
+    <path android:fillColor="#06B6D4" android:pathData="M58,42m-2.5,0a2.5,2.5 0,1 1,5 0a2.5,2.5 0,1 1,-5 0" />
+    <path android:fillColor="#7C3AED" android:pathData="M64,43m-2.5,0a2.5,2.5 0,1 1,5 0a2.5,2.5 0,1 1,-5 0" />
+    <path android:fillColor="#7C3AED" android:pathData="M64,65m-2.5,0a2.5,2.5 0,1 1,5 0a2.5,2.5 0,1 1,-5 0" />
+
+    <!-- ── Corner accent dots (circuit board feel) ── -->
+    <path android:fillColor="#4C1D95" android:pathData="M30,30m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+    <path android:fillColor="#4C1D95" android:pathData="M78,30m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+    <path android:fillColor="#4C1D95" android:pathData="M30,78m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+    <path android:fillColor="#4C1D95" android:pathData="M78,78m-2,0a2,2 0,1 1,4 0a2,2 0,1 1,-4 0" />
+
 </vector>
