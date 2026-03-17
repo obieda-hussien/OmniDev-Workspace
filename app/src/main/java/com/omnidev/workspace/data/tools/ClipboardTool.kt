@@ -3,6 +3,7 @@ package com.omnidev.workspace.data.tools
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -84,7 +85,11 @@ class ClipboardTool(private val context: Context) {
 
     private suspend fun clear(): ToolExecutionResult = withContext(Dispatchers.Main) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.clearPrimaryClip()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            clipboard.clearPrimaryClip()
+        } else {
+            clipboard.setPrimaryClip(ClipData.newPlainText("", ""))
+        }
         ToolExecutionResult("✅ Clipboard cleared.")
     }
 
