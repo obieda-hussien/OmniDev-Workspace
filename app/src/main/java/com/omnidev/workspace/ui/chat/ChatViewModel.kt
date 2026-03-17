@@ -10,6 +10,7 @@ import com.omnidev.workspace.data.model.AttachmentMediaType
 import com.omnidev.workspace.data.model.AttachmentMeta
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
+import com.omnidev.workspace.data.repository.AnalyticsRepository
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
@@ -116,7 +117,8 @@ class ChatViewModel(
     private val swarmOrchestrator: SwarmOrchestrator? = null,
     private val apiKeyRepository: ApiKeyRepository? = null,
     private val fileToolManager: FileToolManager? = null,
-    private val autoHealBuildUseCase: com.omnidev.workspace.domain.engine.AutoHealBuildUseCase? = null
+    private val autoHealBuildUseCase: com.omnidev.workspace.domain.engine.AutoHealBuildUseCase? = null,
+    private val analyticsRepository: AnalyticsRepository? = null
 ) : ViewModel() {
 
     companion object {
@@ -740,6 +742,7 @@ class ChatViewModel(
                             AgentConsoleEntry.ResultEntry(event.toolName, snippet, event.isError, event.output, durationMs)
                     )
                 }
+                viewModelScope.launch { analyticsRepository?.recordToolUsage(event.toolName) }
             }
 
             is AgentEvent.TokenUsageUpdate ->
@@ -749,6 +752,11 @@ class ChatViewModel(
                         consoleEntries = it.consoleEntries +
                             AgentConsoleEntry.TokenEntry(event.totalTokens, event.budget)
                     )
+                }
+
+            is AgentEvent.Reflecting ->
+                _uiState.update {
+                    it.copy(agentStatus = "🔍 Self-reflection (reviewing draft answer)...")
                 }
 
             is AgentEvent.StreamChunk ->
