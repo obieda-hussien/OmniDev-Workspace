@@ -185,23 +185,39 @@ object PlannerTool {
 
                 // Auto-grant SET_ALARM permission via Shizuku if not already held
                 ensurePermissionViaShizuku(PERMISSION_SET_ALARM, PACKAGE_NAME, context)
+                val canSkipUi = ContextCompat.checkSelfPermission(
+                    context,
+                    PERMISSION_SET_ALARM
+                ) == PackageManager.PERMISSION_GRANTED
 
-                // Try standard Intent first
-                val intentResult = runCatching {
+                fun tryLaunchAlarmIntent(skipUi: Boolean): Boolean = runCatching {
                     val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
                         putExtra(AlarmClock.EXTRA_HOUR, hour)
                         putExtra(AlarmClock.EXTRA_MINUTES, minute)
                         putExtra(AlarmClock.EXTRA_MESSAGE, title)
-                        putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+                        putExtra(AlarmClock.EXTRA_SKIP_UI, skipUi)
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
                     context.startActivity(intent)
                     true
                 }.getOrDefault(false)
 
-                if (intentResult) {
+                // Prefer silent alarm when allowed; otherwise open alarm UI fallback.
+                val intentResult = if (canSkipUi) tryLaunchAlarmIntent(skipUi = true) else false
+                val intentUiFallbackResult =
+                    if (intentResult) true else tryLaunchAlarmIntent(skipUi = false)
+
+                if (intentUiFallbackResult) {
                     return ToolExecutionResult(
-                        output = "✅ Alarm set for %02d:%02d — \"%s\".".format(hour, minute, title)
+                        output = if (intentResult) {
+                            "✅ Alarm set for %02d:%02d — \"%s\".".format(hour, minute, title)
+                        } else {
+                            "✅ Opened alarm app with pre-filled time %02d:%02d — \"%s\".".format(
+                                hour,
+                                minute,
+                                title
+                            )
+                        }
                     )
                 }
 

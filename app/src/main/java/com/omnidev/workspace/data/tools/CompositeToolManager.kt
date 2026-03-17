@@ -2,6 +2,7 @@ package com.omnidev.workspace.data.tools
 
 import android.content.Context
 import android.content.Intent
+import android.provider.AlarmClock
 import com.omnidev.workspace.data.accessibility.SemanticUITool
 import com.omnidev.workspace.data.admin.OmniDeviceAdminReceiver
 import com.omnidev.workspace.data.communication.SmsCaptureBuffer
@@ -54,6 +55,20 @@ class CompositeToolManager(
             Regex("""\s-d\s+(?:"([^"]+)"|'([^']+)'|(\S+))""", RegexOption.IGNORE_CASE)
         private val AM_START_VIEW_ACTION_REGEX =
             Regex("""\s-a\s+android\.intent\.action\.VIEW\b""", RegexOption.IGNORE_CASE)
+        private val AM_START_SET_ALARM_ACTION_REGEX =
+            Regex("""\s-a\s+android\.intent\.action\.SET_ALARM\b""", RegexOption.IGNORE_CASE)
+        private val AM_START_SET_ALARM_HOUR_REGEX =
+            Regex("""--ei\s+android\.intent\.extra\.alarm\.HOUR\s+(\d{1,2})""", RegexOption.IGNORE_CASE)
+        private val AM_START_SET_ALARM_MINUTES_REGEX =
+            Regex("""--ei\s+android\.intent\.extra\.alarm\.MINUTES\s+(\d{1,2})""", RegexOption.IGNORE_CASE)
+        private val AM_START_SET_ALARM_MESSAGE_REGEX =
+            Regex("""--es\s+android\.intent\.extra\.alarm\.MESSAGE\s+(?:"([^"]+)"|'([^']+)'|(\S+))""", RegexOption.IGNORE_CASE)
+        private val AM_START_SET_ALARM_SKIP_UI_REGEX =
+            Regex("""--ez\s+android\.intent\.extra\.alarm\.SKIP_UI\s+(true|false)""", RegexOption.IGNORE_CASE)
+        private const val ALARM_HOUR_MIN = 0
+        private const val ALARM_HOUR_MAX = 23
+        private const val ALARM_MINUTE_MIN = 0
+        private const val ALARM_MINUTE_MAX = 59
     }
 
     /**
@@ -509,11 +524,22 @@ class CompositeToolManager(
             // ── Advanced root shell tool ──
             "root_shell_tool" -> {
                 val command = arguments["command"] ?: return missingArg("command")
+                val contextForIntent = context
                 val viewUrl = extractUrlFromAmStartViewCommand(command)
                 if (!viewUrl.isNullOrBlank()) {
-                    val contextForIntent = context
                     if (contextForIntent != null) {
                         return fireViewIntentFallback(contextForIntent, viewUrl)
+                    }
+                }
+                if (contextForIntent != null && isAmStartSetAlarmCommand(command)) {
+                    parseSetAlarmCommand(command)?.let { alarmArgs ->
+                        return fireSetAlarmIntentFallback(
+                            ctx = contextForIntent,
+                            hour = alarmArgs.hour,
+                            minute = alarmArgs.minute,
+                            message = alarmArgs.message,
+                            skipUi = alarmArgs.skipUi
+                        )
                     }
                 }
 
@@ -735,6 +761,46 @@ class CompositeToolManager(
         return extractedUrl.trim().takeIf { isValidHttpUrl(it) }
     }
 
+    private fun isAmStartSetAlarmCommand(command: String): Boolean {
+        if (!command.contains("am start", ignoreCase = true)) return false
+        return AM_START_SET_ALARM_ACTION_REGEX.containsMatchIn(command)
+    }
+
+    private data class SetAlarmArgs(
+        val hour: Int,
+        val minute: Int,
+        val message: String?,
+        val skipUi: Boolean
+    )
+
+    private fun parseSetAlarmCommand(command: String): SetAlarmArgs? {
+        val hour = AM_START_SET_ALARM_HOUR_REGEX.find(command)
+            ?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: return null
+        val minute = AM_START_SET_ALARM_MINUTES_REGEX.find(command)
+            ?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: return null
+        if (hour !in ALARM_HOUR_MIN..ALARM_HOUR_MAX || minute !in ALARM_MINUTE_MIN..ALARM_MINUTE_MAX) return null
+
+        val messageMatch = AM_START_SET_ALARM_MESSAGE_REGEX.find(command)
+        val message = messageMatch?.let {
+            val doubleQuoted = it.groupValues.getOrNull(1).orEmpty()
+            val singleQuoted = it.groupValues.getOrNull(2).orEmpty()
+            val unquoted = it.groupValues.getOrNull(3).orEmpty()
+            when {
+                doubleQuoted.isNotBlank() -> doubleQuoted
+                singleQuoted.isNotBlank() -> singleQuoted
+                unquoted.isNotBlank() -> unquoted
+                else -> null
+            }
+        }
+
+        val skipUi = AM_START_SET_ALARM_SKIP_UI_REGEX.find(command)
+            ?.groupValues?.getOrNull(1)?.equals("true", ignoreCase = true) ?: false
+
+        return SetAlarmArgs(hour = hour, minute = minute, message = message, skipUi = skipUi)
+    }
+
     private fun isValidHttpUrl(candidate: String): Boolean {
         return runCatching {
             val uri = URI(candidate.trim())
@@ -750,5 +816,37 @@ class CompositeToolManager(
             action = Intent.ACTION_VIEW,
             extraUri = viewUrl
         ).toDisplayString().let { ToolExecutionResult(it) }
+    }
+
+    private fun fireSetAlarmIntentFallback(
+        ctx: Context,
+        hour: Int,
+        minute: Int,
+        message: String?,
+        skipUi: Boolean
+    ): ToolExecutionResult {
+        fun buildSetAlarmIntent(skipUiValue: Boolean) = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            putExtra(AlarmClock.EXTRA_HOUR, hour)
+            putExtra(AlarmClock.EXTRA_MINUTES, minute)
+            if (!message.isNullOrBlank()) {
+                putExtra(AlarmClock.EXTRA_MESSAGE, message)
+            }
+            putExtra(AlarmClock.EXTRA_SKIP_UI, skipUiValue)
+        }
+        return runCatching {
+            ctx.startActivity(buildSetAlarmIntent(skipUi))
+            ToolExecutionResult("✅ Alarm intent fired for %02d:%02d.".format(hour, minute))
+        }.getOrElse { skipUiError ->
+            runCatching {
+                ctx.startActivity(buildSetAlarmIntent(skipUiValue = false))
+                ToolExecutionResult("✅ Alarm intent fired (UI fallback) for %02d:%02d.".format(hour, minute))
+            }.getOrElse { fallbackError ->
+                ToolExecutionResult(
+                    "Failed to launch alarm intent (primary: ${skipUiError.message}, fallback: ${fallbackError.message})",
+                    isError = true
+                )
+            }
+        }
     }
 }
