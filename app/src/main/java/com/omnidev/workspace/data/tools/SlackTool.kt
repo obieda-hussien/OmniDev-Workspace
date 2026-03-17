@@ -236,8 +236,8 @@ object SlackTool {
                     val icon    = if (isPriv) "🔒" else "#"
                     append("$icon $name (id=$id, members=$members)\n")
                 }
-                val nextCursor = json.optJSONObject("response_metadata")?.optString("next_cursor", "")
-                if (!nextCursor.isNullOrBlank()) append("\n(more channels available)")
+                val nextCursor = json.optJSONObject("response_metadata")?.optString("next_cursor", "") ?: ""
+                if (nextCursor.isNotBlank()) append("\n(more channels available)")
             }
         }
     }
@@ -266,8 +266,8 @@ object SlackTool {
                 }
                 append("👥 ${active.size} active user(s):\n\n")
                 append(active.joinToString("\n"))
-                val nextCursor = json.optJSONObject("response_metadata")?.optString("next_cursor", "")
-                if (!nextCursor.isNullOrBlank()) append("\n\n(more users available)")
+                val nextCursor = json.optJSONObject("response_metadata")?.optString("next_cursor", "") ?: ""
+                if (nextCursor.isNotBlank()) append("\n\n(more users available)")
             }
         }
     }
