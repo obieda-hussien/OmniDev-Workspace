@@ -106,6 +106,7 @@ class CompositeToolManager(
         addAll(TelegramBotTool.getToolDefinitions())
         addAll(DiscordBotTool.getToolDefinitions())
         addAll(SlackTool.getToolDefinitions())
+        addAll(SendGridEmailTool.getToolDefinitions())
         addAll(WhatsAppTool.getToolDefinitions())
         addAll(WhatsAppBridgeTool.getToolDefinitions())
         addAll(GitHubManagerTool.getToolDefinitions())
@@ -423,6 +424,12 @@ class CompositeToolManager(
             "slack" -> {
                 val slackToken = settingsRepository?.observeSlackBotToken()?.first()
                 SlackTool.execute(token = slackToken, args = arguments)
+            }
+
+            // ── SendGrid email tool ──
+            "sendgrid_email", "send_email" -> {
+                val key = settingsRepository?.observeSendGridApiKey()?.first()
+                SendGridEmailTool.execute(apiKey = key, args = arguments)
             }
 
             // ── GitHub manager tool ──

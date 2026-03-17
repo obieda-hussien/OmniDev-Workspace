@@ -81,6 +81,8 @@ class SettingsRepository(private val context: Context) {
         val NOTION_DATABASE_ID = stringPreferencesKey("notion_database_id")
         // Slack Bot Token
         val SLACK_BOT_TOKEN = stringPreferencesKey("slack_bot_token")
+        // SendGrid Email
+        val SENDGRID_API_KEY = stringPreferencesKey("sendgrid_api_key")
         // n8n Automation
         val N8N_BASE_URL = stringPreferencesKey("n8n_base_url")
         val N8N_API_KEY = stringPreferencesKey("n8n_api_key")
@@ -430,6 +432,16 @@ class SettingsRepository(private val context: Context) {
     suspend fun setSlackBotToken(token: String?) {
         context.settingsDataStore.edit { prefs ->
             if (token.isNullOrBlank()) prefs.remove(Keys.SLACK_BOT_TOKEN) else prefs[Keys.SLACK_BOT_TOKEN] = token
+        }
+    }
+
+    // SendGrid Email
+    fun observeSendGridApiKey(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.SENDGRID_API_KEY] }
+
+    suspend fun setSendGridApiKey(key: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (key.isNullOrBlank()) prefs.remove(Keys.SENDGRID_API_KEY) else prefs[Keys.SENDGRID_API_KEY] = key
         }
     }
 

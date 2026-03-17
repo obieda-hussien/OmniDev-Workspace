@@ -110,6 +110,9 @@ fun IntegrationsScreen(
     // Slack
     var slackBotToken by remember { mutableStateOf("") }
 
+    // SendGrid
+    var sendGridApiKey by remember { mutableStateOf("") }
+
     var saved by remember { mutableStateOf(false) }
 
     // Load existing values on first composition
@@ -141,6 +144,7 @@ fun IntegrationsScreen(
         notionApiKey = settingsRepository.observeNotionApiKey().first() ?: ""
         notionDatabaseId = settingsRepository.observeNotionDatabaseId().first() ?: ""
         slackBotToken = settingsRepository.observeSlackBotToken().first() ?: ""
+        sendGridApiKey = settingsRepository.observeSendGridApiKey().first() ?: ""
     }
 
     Scaffold(
@@ -933,6 +937,29 @@ fun IntegrationsScreen(
 
             HorizontalDivider()
 
+            // ── SendGrid Email Section ──
+            Text(
+                text = "📧 SendGrid Email",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Connect SendGrid to let the AI send transactional and template emails, manage marketing contacts, and retrieve send statistics.\n\nSetup: app.sendgrid.com → Settings → API Keys → Create API Key → copy key.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedTextField(
+                value = sendGridApiKey,
+                onValueChange = { sendGridApiKey = it; saved = false },
+                label = { Text("SendGrid API Key") },
+                placeholder = { Text("SG.xxxx...") },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            HorizontalDivider()
+
             // ── Save Button ──
             Button(
                 onClick = {
@@ -950,6 +977,7 @@ fun IntegrationsScreen(
                             settingsRepository.setNotionApiKey(notionApiKey.ifBlank { null })
                             settingsRepository.setNotionDatabaseId(notionDatabaseId.ifBlank { null })
                             settingsRepository.setSlackBotToken(slackBotToken.ifBlank { null })
+                            settingsRepository.setSendGridApiKey(sendGridApiKey.ifBlank { null })
                             saved = true
                         } catch (_: Exception) {
                             saved = false
