@@ -4,25 +4,38 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+
+    <!-- ── Inner plate (rounded square) ── -->
     <path
-        android:fillColor="#4A43B8"
-        android:pathData="M54,26m-7,0a7,7 0,1 1,14 0a7,7 0,1 1,-14 0" />
+        android:fillColor="#353279"
+        android:pathData="M32,24 H76 Q84,24 84,32 V76 Q84,84 76,84 H32 Q24,84 24,76 V32 Q24,24 32,24 Z" />
+
+    <!-- ══ CODE SYMBOL  < / >  ══ -->
+
+    <!-- Left bracket  < -->
     <path
-        android:fillColor="#4A43B8"
-        android:pathData="M34,40m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M43,42 L32,54 L43,66" />
+
+    <!-- Forward slash  / -->
     <path
-        android:fillColor="#4A43B8"
-        android:pathData="M74,40m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
+        android:fillColor="#00000000"
+        android:strokeColor="#A0D2FF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M50,67 L58,41" />
+
+    <!-- Right bracket  > -->
     <path
-        android:fillColor="#4A43B8"
-        android:pathData="M28,34H80C84.4,34 88,37.6 88,42V78C88,82.4 84.4,86 80,86H28C23.6,86 20,82.4 20,78V42C20,37.6 23.6,34 28,34Z" />
-    <path
-        android:fillColor="#0A0824"
-        android:pathData="M40,56m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
-    <path
-        android:fillColor="#0A0824"
-        android:pathData="M68,56m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
-    <path
-        android:fillColor="#0A0824"
-        android:pathData="M38,68h32v10h-32z" />
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M65,42 L76,54 L65,66" />
+
 </vector>
