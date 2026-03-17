@@ -4,12 +4,7 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Base fill: medium indigo matching reference #2F2C70 -->
     <path
-        android:fillColor="#2F2C70"
+        android:fillColor="#0D0B24"
         android:pathData="M0,0h108v108h-108z" />
-    <!-- Subtle lighter centre -->
-    <path
-        android:fillColor="#353279"
-        android:pathData="M54,54m-44,0a44,44 0,1 1,88 0a44,44 0,1 1,-88 0" />
 </vector>

@@ -2,40 +2,9 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-
-    <!-- ── Inner plate (rounded square) ── -->
+    android:viewportWidth="24"
+    android:viewportHeight="24">
     <path
-        android:fillColor="#353279"
-        android:pathData="M32,24 H76 Q84,24 84,32 V76 Q84,84 76,84 H32 Q24,84 24,76 V32 Q24,24 32,24 Z" />
-
-    <!-- ══ CODE SYMBOL  < / >  ══ -->
-
-    <!-- Left bracket  < -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M43,42 L32,54 L43,66" />
-
-    <!-- Forward slash  / -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#A0D2FF"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:pathData="M50,67 L58,41" />
-
-    <!-- Right bracket  > -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M65,42 L76,54 L65,66" />
-
+        android:fillColor="#4A42B8"
+        android:pathData="M20,11h-1.17l0.59,-0.59C19.78,10.05 20,9.55 20,9c0,-1.1 -0.9,-2 -2,-2c-0.55,0 -1.05,0.22 -1.41,0.59l-0.59,0.58h-3l-0.59,-0.59C12.05,7.22 11.55,7 11,7c-1.1,0 -2,0.9 -2,2c0,0.55 0.22,1.05 0.59,1.41l0.58,0.59H9c-2.21,0 -4,1.79 -4,4v5c0,1.1 0.9,2 2,2h10c1.1,0 2,-0.9 2,-2v-5c0,-2.21 -1.79,-4 -4,-4zM11,16.5c0,-0.83 0.67,-1.5 1.5,-1.5s1.5,0.67 1.5,1.5s-0.67,1.5 -1.5,1.5S11,17.33 11,16.5zM16,20H8v-2h8v2zM14.5,18c-0.83,0 -1.5,-0.67 -1.5,-1.5s0.67,-1.5 1.5,-1.5s1.5,0.67 1.5,1.5s-0.67,1.5 -1.5,1.5z" />
 </vector>
