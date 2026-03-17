@@ -80,6 +80,8 @@ class CompositeToolManager(
             RequestGitHubAuthenticationTool(settingsRepository, apiKeyRepository)
         else null
 
+    private val clipboardTool: ClipboardTool? = if (context != null) ClipboardTool(context) else null
+
     override fun getToolDefinitions(): List<ToolDefinition> = buildList {
         addAll(fileToolManager.getToolDefinitions().filterNot { it.name == "web_search" })
         addAll(WebSearchTool.getToolDefinitions())
@@ -107,6 +109,7 @@ class CompositeToolManager(
         addAll(DiscordBotTool.getToolDefinitions())
         addAll(SlackTool.getToolDefinitions())
         addAll(SendGridEmailTool.getToolDefinitions())
+        clipboardTool?.let { addAll(it.getToolDefinitions()) }
         addAll(WhatsAppTool.getToolDefinitions())
         addAll(WhatsAppBridgeTool.getToolDefinitions())
         addAll(GitHubManagerTool.getToolDefinitions())
@@ -615,6 +618,10 @@ class CompositeToolManager(
                     ?: return ToolExecutionResult("GitHub auth tool requires settingsRepository and apiKeyRepository.", isError = true)
                 authTool.execute(requestedScopes = arguments["requested_scopes"])
             }
+
+            // ── Clipboard tool ──
+            "clipboard" -> clipboardTool?.execute(arguments)
+                ?: ToolExecutionResult("Clipboard tool unavailable (no context).", isError = true)
 
             // ── Media control tool ──
             "media_control" -> {
