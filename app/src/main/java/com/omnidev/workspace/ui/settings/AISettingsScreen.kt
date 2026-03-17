@@ -107,7 +107,8 @@ fun AISettingsScreen(
     onNavigateToLocalModels: () -> Unit = {},
     onNavigateToScheduledTasks: () -> Unit = {},
     onNavigateToToolRegistry: () -> Unit = {},
-    onNavigateToProfile: () -> Unit = {}
+    onNavigateToProfile: () -> Unit = {},
+    onNavigateToAnalytics: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -294,6 +295,12 @@ fun AISettingsScreen(
                 title = "Tool Arsenal",
                 subtitle = "Browse all available agent tools and their descriptions",
                 onClick = onNavigateToToolRegistry
+            )
+
+            SettingsNavCard(
+                title = "📊 Analytics Dashboard",
+                subtitle = "View token usage, cost breakdown, tool statistics, and agent run history",
+                onClick = onNavigateToAnalytics
             )
 
             Spacer(modifier = Modifier.height(24.dp))
