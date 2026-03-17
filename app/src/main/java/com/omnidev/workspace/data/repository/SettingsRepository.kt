@@ -79,6 +79,8 @@ class SettingsRepository(private val context: Context) {
         val WHATSAPP_BRIDGE_ENABLED = booleanPreferencesKey("whatsapp_bridge_enabled")
         val NOTION_API_KEY = stringPreferencesKey("notion_api_key")
         val NOTION_DATABASE_ID = stringPreferencesKey("notion_database_id")
+        // Slack Bot Token
+        val SLACK_BOT_TOKEN = stringPreferencesKey("slack_bot_token")
         // n8n Automation
         val N8N_BASE_URL = stringPreferencesKey("n8n_base_url")
         val N8N_API_KEY = stringPreferencesKey("n8n_api_key")
@@ -418,6 +420,16 @@ class SettingsRepository(private val context: Context) {
     suspend fun setNotionDatabaseId(id: String?) {
         context.settingsDataStore.edit { prefs ->
             if (id.isNullOrBlank()) prefs.remove(Keys.NOTION_DATABASE_ID) else prefs[Keys.NOTION_DATABASE_ID] = id
+        }
+    }
+
+    // Slack Bot Token
+    fun observeSlackBotToken(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.SLACK_BOT_TOKEN] }
+
+    suspend fun setSlackBotToken(token: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (token.isNullOrBlank()) prefs.remove(Keys.SLACK_BOT_TOKEN) else prefs[Keys.SLACK_BOT_TOKEN] = token
         }
     }
 

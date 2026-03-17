@@ -107,6 +107,9 @@ fun IntegrationsScreen(
     var notionApiKey by remember { mutableStateOf("") }
     var notionDatabaseId by remember { mutableStateOf("") }
 
+    // Slack
+    var slackBotToken by remember { mutableStateOf("") }
+
     var saved by remember { mutableStateOf(false) }
 
     // Load existing values on first composition
@@ -137,6 +140,7 @@ fun IntegrationsScreen(
         whatsappBridgeEnabled = settingsRepository.observeWhatsAppBridgeEnabled().first()
         notionApiKey = settingsRepository.observeNotionApiKey().first() ?: ""
         notionDatabaseId = settingsRepository.observeNotionDatabaseId().first() ?: ""
+        slackBotToken = settingsRepository.observeSlackBotToken().first() ?: ""
     }
 
     Scaffold(
@@ -906,6 +910,29 @@ fun IntegrationsScreen(
 
             HorizontalDivider()
 
+            // ── Slack Section ──
+            Text(
+                text = "💬 Slack",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "Connect a Slack Bot to let the AI send and read messages, manage channels, search, and more.\n\nSetup: api.slack.com → Your Apps → create or select an app → OAuth & Permissions → copy Bot User OAuth Token (xoxb-...).",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            OutlinedTextField(
+                value = slackBotToken,
+                onValueChange = { slackBotToken = it; saved = false },
+                label = { Text("Slack Bot Token") },
+                placeholder = { Text("xoxb-...") },
+                visualTransformation = PasswordVisualTransformation(),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            HorizontalDivider()
+
             // ── Save Button ──
             Button(
                 onClick = {
@@ -922,6 +949,7 @@ fun IntegrationsScreen(
                             settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone.ifBlank { null })
                             settingsRepository.setNotionApiKey(notionApiKey.ifBlank { null })
                             settingsRepository.setNotionDatabaseId(notionDatabaseId.ifBlank { null })
+                            settingsRepository.setSlackBotToken(slackBotToken.ifBlank { null })
                             saved = true
                         } catch (_: Exception) {
                             saved = false

@@ -105,6 +105,7 @@ class CompositeToolManager(
         addAll(TelegramPublisherTool.getToolDefinitions())
         addAll(TelegramBotTool.getToolDefinitions())
         addAll(DiscordBotTool.getToolDefinitions())
+        addAll(SlackTool.getToolDefinitions())
         addAll(WhatsAppTool.getToolDefinitions())
         addAll(WhatsAppBridgeTool.getToolDefinitions())
         addAll(GitHubManagerTool.getToolDefinitions())
@@ -416,6 +417,12 @@ class CompositeToolManager(
             "whatsapp_bridge" -> {
                 val bridgeUrl = settingsRepository?.observeWhatsAppBridgeUrl()?.first()
                 WhatsAppBridgeTool.execute(bridgeUrl = bridgeUrl, args = arguments)
+            }
+
+            // ── Slack tool (full bidirectional Slack Web API) ──
+            "slack" -> {
+                val slackToken = settingsRepository?.observeSlackBotToken()?.first()
+                SlackTool.execute(token = slackToken, args = arguments)
             }
 
             // ── GitHub manager tool ──
