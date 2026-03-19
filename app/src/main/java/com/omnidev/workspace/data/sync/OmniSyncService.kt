@@ -1,5 +1,6 @@
 package com.omnidev.workspace.data.sync
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,12 +9,16 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.omnidev.workspace.MainActivity
 import com.omnidev.workspace.R
+import com.omnidev.workspace.data.debug.DebugLogManager
 import com.omnidev.workspace.data.tools.TaskSchedulerTool
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,7 +49,11 @@ class OmniSyncService : Service() {
     companion object {
         private const val TAG = "OmniSyncService"
         private const val CHANNEL_ID = "omni_sync_channel"
+        private const val TASK_EVENTS_CHANNEL_ID = "omni_scheduled_tasks_channel"
         private const val NOTIFICATION_ID = 4002
+        private const val TASK_EVENT_NOTIFICATION_BASE = 4100
+        private const val TASK_EVENT_NOTIFICATION_RANGE = 1000
+        private const val MAX_PROMPT_LENGTH_IN_STATUS = 220
         private const val SYNC_INTERVAL_MS = 60_000L
 
         private val _syncState = MutableStateFlow(SyncState.IDLE)
@@ -79,6 +88,7 @@ class OmniSyncService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        createTaskEventsChannel()
         val notification = buildNotification("OmniDev Sync active")
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -133,7 +143,14 @@ class OmniSyncService : Service() {
         if (readyTasks.isNotEmpty()) {
             Log.d(TAG, "Found ${readyTasks.size} ready task(s), marking as RUNNING")
             for (task in readyTasks) {
-                TaskSchedulerTool.markRunning(task.id)
+                val startedAt = System.currentTimeMillis()
+                val runningDetails = buildString {
+                    append("Started at ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(startedAt))}")
+                    append(" | Prompt: ${task.prompt.take(MAX_PROMPT_LENGTH_IN_STATUS)}")
+                }
+                TaskSchedulerTool.markRunning(task.id, executionDetails = runningDetails)
+                DebugLogManager.appendInfo(TAG, "Scheduled task started: ${task.name} (${task.id})")
+                notifyTaskStarted(task.name, task.id)
             }
         }
     }
@@ -155,6 +172,21 @@ class OmniSyncService : Service() {
         }
     }
 
+    private fun createTaskEventsChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                TASK_EVENTS_CHANNEL_ID,
+                "Scheduled Task Events",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Notifications when scheduled AI tasks start"
+                setShowBadge(true)
+            }
+            val nm = getSystemService(NotificationManager::class.java)
+            nm?.createNotificationChannel(channel)
+        }
+    }
+
     private fun buildNotification(contentText: String): Notification {
         val pendingIntent = PendingIntent.getActivity(
             this, 0,
@@ -170,5 +202,44 @@ class OmniSyncService : Service() {
             .setSilent(true)
             .setContentIntent(pendingIntent)
             .build()
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun notifyTaskStarted(taskName: String, taskId: String) {
+        if (!canPostNotifications()) return
+        val openIntent = PendingIntent.getActivity(
+            this,
+            taskId.hashCode(),
+            Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val notification = NotificationCompat.Builder(this, TASK_EVENTS_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("Scheduled task started")
+            .setContentText("Task \"$taskName\" is now running")
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText("Scheduled task \"$taskName\" is now running (id: $taskId).")
+            )
+            .setContentIntent(openIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+        runCatching {
+            NotificationManagerCompat.from(this).notify(
+                TASK_EVENT_NOTIFICATION_BASE + kotlin.math.abs(taskId.hashCode() % TASK_EVENT_NOTIFICATION_RANGE),
+                notification
+            )
+        }.onFailure {
+            Log.w(TAG, "Unable to post task event notification: ${it.message}")
+        }
+    }
+
+    private fun canPostNotifications(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
+        return ContextCompat.checkSelfPermission(
+            this,
+            android.Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
     }
 }

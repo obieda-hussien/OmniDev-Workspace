@@ -79,9 +79,17 @@ class SettingsRepository(private val context: Context) {
         val WHATSAPP_BRIDGE_ENABLED = booleanPreferencesKey("whatsapp_bridge_enabled")
         val NOTION_API_KEY = stringPreferencesKey("notion_api_key")
         val NOTION_DATABASE_ID = stringPreferencesKey("notion_database_id")
+        // Slack Bot Token
+        val SLACK_BOT_TOKEN = stringPreferencesKey("slack_bot_token")
+        // SendGrid Email
+        val SENDGRID_API_KEY = stringPreferencesKey("sendgrid_api_key")
         // n8n Automation
         val N8N_BASE_URL = stringPreferencesKey("n8n_base_url")
         val N8N_API_KEY = stringPreferencesKey("n8n_api_key")
+        // Web search providers
+        val SERP_API_KEY = stringPreferencesKey("serp_api_key")
+        val GOOGLE_CSE_API_KEY = stringPreferencesKey("google_cse_api_key")
+        val GOOGLE_CSE_CX = stringPreferencesKey("google_cse_cx")
         // Local Edge Model
         val LOCAL_MODEL_URI = stringPreferencesKey("local_model_uri")
         val LOCAL_MODEL_NAME = stringPreferencesKey("local_model_name")
@@ -417,6 +425,26 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    // Slack Bot Token
+    fun observeSlackBotToken(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.SLACK_BOT_TOKEN] }
+
+    suspend fun setSlackBotToken(token: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (token.isNullOrBlank()) prefs.remove(Keys.SLACK_BOT_TOKEN) else prefs[Keys.SLACK_BOT_TOKEN] = token
+        }
+    }
+
+    // SendGrid Email
+    fun observeSendGridApiKey(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.SENDGRID_API_KEY] }
+
+    suspend fun setSendGridApiKey(key: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (key.isNullOrBlank()) prefs.remove(Keys.SENDGRID_API_KEY) else prefs[Keys.SENDGRID_API_KEY] = key
+        }
+    }
+
     // ──────────────────────────────────────────────
     //  n8n Automation
     // ──────────────────────────────────────────────
@@ -436,6 +464,37 @@ class SettingsRepository(private val context: Context) {
     suspend fun setN8nApiKey(key: String?) {
         context.settingsDataStore.edit { prefs ->
             if (key.isNullOrBlank()) prefs.remove(Keys.N8N_API_KEY) else prefs[Keys.N8N_API_KEY] = key
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  Web Search Providers
+    // ──────────────────────────────────────────────
+
+    fun observeSerpApiKey(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.SERP_API_KEY] }
+
+    suspend fun setSerpApiKey(key: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (key.isNullOrBlank()) prefs.remove(Keys.SERP_API_KEY) else prefs[Keys.SERP_API_KEY] = key
+        }
+    }
+
+    fun observeGoogleCseApiKey(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.GOOGLE_CSE_API_KEY] }
+
+    suspend fun setGoogleCseApiKey(key: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (key.isNullOrBlank()) prefs.remove(Keys.GOOGLE_CSE_API_KEY) else prefs[Keys.GOOGLE_CSE_API_KEY] = key
+        }
+    }
+
+    fun observeGoogleCseCx(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.GOOGLE_CSE_CX] }
+
+    suspend fun setGoogleCseCx(cx: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (cx.isNullOrBlank()) prefs.remove(Keys.GOOGLE_CSE_CX) else prefs[Keys.GOOGLE_CSE_CX] = cx
         }
     }
 

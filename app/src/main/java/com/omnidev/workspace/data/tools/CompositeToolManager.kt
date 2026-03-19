@@ -1,6 +1,8 @@
 package com.omnidev.workspace.data.tools
 
 import android.content.Context
+import android.content.Intent
+import android.provider.AlarmClock
 import com.omnidev.workspace.data.accessibility.SemanticUITool
 import com.omnidev.workspace.data.admin.OmniDeviceAdminReceiver
 import com.omnidev.workspace.data.communication.SmsCaptureBuffer
@@ -10,6 +12,7 @@ import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.sync.OmniSyncService
 import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
+import java.net.URI
 import java.util.Date
 import java.util.Locale
 
@@ -40,6 +43,33 @@ class CompositeToolManager(
     val headlessBrowserManager: HeadlessBrowserManager? = null,
     private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null
 ) : ToolManager {
+    companion object {
+        /**
+         * Extracts the -d URL argument from `am start` command, supporting:
+         * -d "https://..."
+         * -d 'https://...'
+         * -d https://...
+         * Note: escaped quotes inside quoted URLs are not supported by this lightweight parser.
+         */
+        private val AM_START_DATA_URL_REGEX =
+            Regex("""\s-d\s+(?:"([^"]+)"|'([^']+)'|(\S+))""", RegexOption.IGNORE_CASE)
+        private val AM_START_VIEW_ACTION_REGEX =
+            Regex("""\s-a\s+android\.intent\.action\.VIEW\b""", RegexOption.IGNORE_CASE)
+        private val AM_START_SET_ALARM_ACTION_REGEX =
+            Regex("""\s-a\s+android\.intent\.action\.SET_ALARM\b""", RegexOption.IGNORE_CASE)
+        private val AM_START_SET_ALARM_HOUR_REGEX =
+            Regex("""--ei\s+android\.intent\.extra\.alarm\.HOUR\s+(\d{1,2})""", RegexOption.IGNORE_CASE)
+        private val AM_START_SET_ALARM_MINUTES_REGEX =
+            Regex("""--ei\s+android\.intent\.extra\.alarm\.MINUTES\s+(\d{1,2})""", RegexOption.IGNORE_CASE)
+        private val AM_START_SET_ALARM_MESSAGE_REGEX =
+            Regex("""--es\s+android\.intent\.extra\.alarm\.MESSAGE\s+(?:"([^"]+)"|'([^']+)'|(\S+))""", RegexOption.IGNORE_CASE)
+        private val AM_START_SET_ALARM_SKIP_UI_REGEX =
+            Regex("""--ez\s+android\.intent\.extra\.alarm\.SKIP_UI\s+(true|false)""", RegexOption.IGNORE_CASE)
+        private const val ALARM_HOUR_MIN = 0
+        private const val ALARM_HOUR_MAX = 23
+        private const val ALARM_MINUTE_MIN = 0
+        private const val ALARM_MINUTE_MAX = 59
+    }
 
     /**
      * Lazily constructed agentic-auth tool. Available only when both
@@ -50,8 +80,13 @@ class CompositeToolManager(
             RequestGitHubAuthenticationTool(settingsRepository, apiKeyRepository)
         else null
 
+    private val clipboardTool: ClipboardTool? = if (context != null) ClipboardTool(context) else null
+
     override fun getToolDefinitions(): List<ToolDefinition> = buildList {
-        addAll(fileToolManager.getToolDefinitions())
+        addAll(fileToolManager.getToolDefinitions().filterNot { it.name == "web_search" })
+        addAll(WebSearchTool.getToolDefinitions())
+        addAll(NetworkRequestTool.getToolDefinitions())
+        addAll(QualitySecurityTool.getToolDefinitions())
         addAll(memoryManager.getToolDefinitions())
         addAll(CommunicationTool.getToolDefinitions())
         addAll(PlannerTool.getToolDefinitions())
@@ -72,6 +107,9 @@ class CompositeToolManager(
         addAll(TelegramPublisherTool.getToolDefinitions())
         addAll(TelegramBotTool.getToolDefinitions())
         addAll(DiscordBotTool.getToolDefinitions())
+        addAll(SlackTool.getToolDefinitions())
+        addAll(SendGridEmailTool.getToolDefinitions())
+        clipboardTool?.let { addAll(it.getToolDefinitions()) }
         addAll(WhatsAppTool.getToolDefinitions())
         addAll(WhatsAppBridgeTool.getToolDefinitions())
         addAll(GitHubManagerTool.getToolDefinitions())
@@ -325,6 +363,25 @@ class CompositeToolManager(
                 )
             }
 
+            // ── Robust web search tool ──
+            "web_search" -> {
+                val serpApiKey = settingsRepository?.observeSerpApiKey()?.first()
+                val googleApiKey = settingsRepository?.observeGoogleCseApiKey()?.first()
+                val googleCx = settingsRepository?.observeGoogleCseCx()?.first()
+                WebSearchTool.execute(
+                    query = arguments["query"] ?: return missingArg("query"),
+                    serpApiKey = serpApiKey,
+                    googleApiKey = googleApiKey,
+                    googleCseCx = googleCx
+                )
+            }
+
+            // ── Direct network request tool ──
+            "network_request" -> NetworkRequestTool.execute(arguments)
+
+            // ── Quality/security tooling (code review, vulnerability scans, tests) ──
+            "quality_security_tool" -> QualitySecurityTool.execute(context = context, args = arguments)
+
             // ── Visual inspector tool ──
             "visual_inspector" ->
                 VisualInspectorTool.execute()
@@ -364,6 +421,18 @@ class CompositeToolManager(
             "whatsapp_bridge" -> {
                 val bridgeUrl = settingsRepository?.observeWhatsAppBridgeUrl()?.first()
                 WhatsAppBridgeTool.execute(bridgeUrl = bridgeUrl, args = arguments)
+            }
+
+            // ── Slack tool (full bidirectional Slack Web API) ──
+            "slack" -> {
+                val slackToken = settingsRepository?.observeSlackBotToken()?.first()
+                SlackTool.execute(token = slackToken, args = arguments)
+            }
+
+            // ── SendGrid email tool ──
+            "sendgrid_email", "send_email" -> {
+                val key = settingsRepository?.observeSendGridApiKey()?.first()
+                SendGridEmailTool.execute(apiKey = key, args = arguments)
             }
 
             // ── GitHub manager tool ──
@@ -471,9 +540,28 @@ class CompositeToolManager(
 
             // ── Advanced root shell tool ──
             "root_shell_tool" -> {
-                AdvancedRootShellTool.execute(
-                    command = arguments["command"] ?: return missingArg("command")
-                )
+                val command = arguments["command"] ?: return missingArg("command")
+                val contextForIntent = context
+                val viewUrl = extractUrlFromAmStartViewCommand(command)
+                if (!viewUrl.isNullOrBlank()) {
+                    if (contextForIntent != null) {
+                        return fireViewIntentFallback(contextForIntent, viewUrl)
+                    }
+                }
+                if (contextForIntent != null && isAmStartSetAlarmCommand(command)) {
+                    parseSetAlarmCommand(command)?.let { alarmArgs ->
+                        return fireSetAlarmIntentFallback(
+                            ctx = contextForIntent,
+                            hour = alarmArgs.hour,
+                            minute = alarmArgs.minute,
+                            message = alarmArgs.message,
+                            skipUi = alarmArgs.skipUi
+                        )
+                    }
+                }
+
+                val rootResult = AdvancedRootShellTool.execute(command = command)
+                rootResult
             }
 
             // ── App manifest analyzer tool ──
@@ -530,6 +618,10 @@ class CompositeToolManager(
                     ?: return ToolExecutionResult("GitHub auth tool requires settingsRepository and apiKeyRepository.", isError = true)
                 authTool.execute(requestedScopes = arguments["requested_scopes"])
             }
+
+            // ── Clipboard tool ──
+            "clipboard" -> clipboardTool?.execute(arguments)
+                ?: ToolExecutionResult("Clipboard tool unavailable (no context).", isError = true)
 
             // ── Media control tool ──
             "media_control" -> {
@@ -673,4 +765,109 @@ class CompositeToolManager(
 
     private fun missingArg(name: String) =
         ToolExecutionResult("Missing required argument: $name", isError = true)
+
+    private fun extractUrlFromAmStartViewCommand(command: String): String? {
+        if (!command.contains("am start", ignoreCase = true)) return null
+        if (!AM_START_VIEW_ACTION_REGEX.containsMatchIn(command)) return null
+        val match = AM_START_DATA_URL_REGEX.find(command) ?: return null
+        val doubleQuoted = match.groupValues.getOrNull(1).orEmpty()
+        val singleQuoted = match.groupValues.getOrNull(2).orEmpty()
+        val unquoted = match.groupValues.getOrNull(3).orEmpty()
+        val extractedUrl = when {
+            doubleQuoted.isNotBlank() -> doubleQuoted
+            singleQuoted.isNotBlank() -> singleQuoted
+            unquoted.isNotBlank() -> unquoted
+            else -> return null
+        }
+        return extractedUrl.trim().takeIf { isValidHttpUrl(it) }
+    }
+
+    private fun isAmStartSetAlarmCommand(command: String): Boolean {
+        if (!command.contains("am start", ignoreCase = true)) return false
+        return AM_START_SET_ALARM_ACTION_REGEX.containsMatchIn(command)
+    }
+
+    private data class SetAlarmArgs(
+        val hour: Int,
+        val minute: Int,
+        val message: String?,
+        val skipUi: Boolean
+    )
+
+    private fun parseSetAlarmCommand(command: String): SetAlarmArgs? {
+        val hour = AM_START_SET_ALARM_HOUR_REGEX.find(command)
+            ?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: return null
+        val minute = AM_START_SET_ALARM_MINUTES_REGEX.find(command)
+            ?.groupValues?.getOrNull(1)?.toIntOrNull()
+            ?: return null
+        if (hour !in ALARM_HOUR_MIN..ALARM_HOUR_MAX || minute !in ALARM_MINUTE_MIN..ALARM_MINUTE_MAX) return null
+
+        val messageMatch = AM_START_SET_ALARM_MESSAGE_REGEX.find(command)
+        val message = messageMatch?.let {
+            val doubleQuoted = it.groupValues.getOrNull(1).orEmpty()
+            val singleQuoted = it.groupValues.getOrNull(2).orEmpty()
+            val unquoted = it.groupValues.getOrNull(3).orEmpty()
+            when {
+                doubleQuoted.isNotBlank() -> doubleQuoted
+                singleQuoted.isNotBlank() -> singleQuoted
+                unquoted.isNotBlank() -> unquoted
+                else -> null
+            }
+        }
+
+        val skipUi = AM_START_SET_ALARM_SKIP_UI_REGEX.find(command)
+            ?.groupValues?.getOrNull(1)?.equals("true", ignoreCase = true) ?: false
+
+        return SetAlarmArgs(hour = hour, minute = minute, message = message, skipUi = skipUi)
+    }
+
+    private fun isValidHttpUrl(candidate: String): Boolean {
+        return runCatching {
+            val uri = URI(candidate.trim())
+            (uri.scheme.equals("http", ignoreCase = true) ||
+                uri.scheme.equals("https", ignoreCase = true)) &&
+                !uri.host.isNullOrBlank()
+        }.getOrDefault(false)
+    }
+
+    private fun fireViewIntentFallback(ctx: Context, viewUrl: String): ToolExecutionResult {
+        return AndroidIntentTool.fire(
+            context = ctx,
+            action = Intent.ACTION_VIEW,
+            extraUri = viewUrl
+        ).toDisplayString().let { ToolExecutionResult(it) }
+    }
+
+    private fun fireSetAlarmIntentFallback(
+        ctx: Context,
+        hour: Int,
+        minute: Int,
+        message: String?,
+        skipUi: Boolean
+    ): ToolExecutionResult {
+        fun buildSetAlarmIntent(skipUiValue: Boolean) = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            putExtra(AlarmClock.EXTRA_HOUR, hour)
+            putExtra(AlarmClock.EXTRA_MINUTES, minute)
+            if (!message.isNullOrBlank()) {
+                putExtra(AlarmClock.EXTRA_MESSAGE, message)
+            }
+            putExtra(AlarmClock.EXTRA_SKIP_UI, skipUiValue)
+        }
+        return runCatching {
+            ctx.startActivity(buildSetAlarmIntent(skipUi))
+            ToolExecutionResult("✅ Alarm intent fired for %02d:%02d.".format(hour, minute))
+        }.getOrElse { skipUiError ->
+            runCatching {
+                ctx.startActivity(buildSetAlarmIntent(skipUiValue = false))
+                ToolExecutionResult("✅ Alarm intent fired (UI fallback) for %02d:%02d.".format(hour, minute))
+            }.getOrElse { fallbackError ->
+                ToolExecutionResult(
+                    "Failed to launch alarm intent (primary: ${skipUiError.message}, fallback: ${fallbackError.message})",
+                    isError = true
+                )
+            }
+        }
+    }
 }

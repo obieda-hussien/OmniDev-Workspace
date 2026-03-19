@@ -90,50 +90,61 @@ object UIAutomationTool {
 
     suspend fun execute(action: String, params: Map<String, String>): ToolExecutionResult =
         withContext(Dispatchers.IO) {
-            when (action.lowercase()) {
-                "dump_screen" -> dumpScreen()
-                "tap" -> {
-                    val x = params["x"]?.toIntOrNull()
-                        ?: return@withContext ToolExecutionResult(
-                            "Missing or invalid 'x' coordinate for tap.", isError = true)
-                    val y = params["y"]?.toIntOrNull()
-                        ?: return@withContext ToolExecutionResult(
-                            "Missing or invalid 'y' coordinate for tap.", isError = true)
-                    tap(x, y)
+            runCatching {
+                when (action.lowercase()) {
+                    "dump_screen" -> dumpScreen()
+                    "tap" -> {
+                        val x = params["x"]?.toIntOrNull()
+                            ?: return@withContext ToolExecutionResult(
+                                "Missing or invalid 'x' coordinate for tap.", isError = true)
+                        val y = params["y"]?.toIntOrNull()
+                            ?: return@withContext ToolExecutionResult(
+                                "Missing or invalid 'y' coordinate for tap.", isError = true)
+                        tap(x, y)
+                    }
+                    "swipe" -> {
+                        val x1 = params["x"]?.toIntOrNull()
+                            ?: return@withContext ToolExecutionResult(
+                                "Missing or invalid 'x' for swipe start.", isError = true)
+                        val y1 = params["y"]?.toIntOrNull()
+                            ?: return@withContext ToolExecutionResult(
+                                "Missing or invalid 'y' for swipe start.", isError = true)
+                        val x2 = params["x2"]?.toIntOrNull()
+                            ?: return@withContext ToolExecutionResult(
+                                "Missing or invalid 'x2' for swipe end.", isError = true)
+                        val y2 = params["y2"]?.toIntOrNull()
+                            ?: return@withContext ToolExecutionResult(
+                                "Missing or invalid 'y2' for swipe end.", isError = true)
+                        val duration = params["duration"]?.toIntOrNull() ?: 300
+                        swipe(x1, y1, x2, y2, duration)
+                    }
+                    "input_text" -> {
+                        val text = params["text"]
+                            ?: return@withContext ToolExecutionResult(
+                                "Missing 'text' argument for input_text.", isError = true)
+                        inputText(text)
+                    }
+                    "press_key" -> {
+                        val keycode = params["keycode"]
+                            ?: return@withContext ToolExecutionResult(
+                                "Missing 'keycode' argument for press_key.", isError = true)
+                        pressKey(keycode)
+                    }
+                    else -> ToolExecutionResult(
+                        "Unknown ui_automation action: '$action'. " +
+                            "Supported: dump_screen, tap, swipe, input_text, press_key.",
+                        isError = true
+                    )
                 }
-                "swipe" -> {
-                    val x1 = params["x"]?.toIntOrNull()
-                        ?: return@withContext ToolExecutionResult(
-                            "Missing or invalid 'x' for swipe start.", isError = true)
-                    val y1 = params["y"]?.toIntOrNull()
-                        ?: return@withContext ToolExecutionResult(
-                            "Missing or invalid 'y' for swipe start.", isError = true)
-                    val x2 = params["x2"]?.toIntOrNull()
-                        ?: return@withContext ToolExecutionResult(
-                            "Missing or invalid 'x2' for swipe end.", isError = true)
-                    val y2 = params["y2"]?.toIntOrNull()
-                        ?: return@withContext ToolExecutionResult(
-                            "Missing or invalid 'y2' for swipe end.", isError = true)
-                    val duration = params["duration"]?.toIntOrNull() ?: 300
-                    swipe(x1, y1, x2, y2, duration)
+            }.getOrElse { error ->
+                if (ShizukuCommandTool.isShizukuServiceException(error)) {
+                    ToolExecutionResult(ShizukuCommandTool.SHIZUKU_UNAVAILABLE_ERROR, isError = true)
+                } else {
+                    ToolExecutionResult(
+                        output = "UI automation failed: ${error.message}",
+                        isError = true
+                    )
                 }
-                "input_text" -> {
-                    val text = params["text"]
-                        ?: return@withContext ToolExecutionResult(
-                            "Missing 'text' argument for input_text.", isError = true)
-                    inputText(text)
-                }
-                "press_key" -> {
-                    val keycode = params["keycode"]
-                        ?: return@withContext ToolExecutionResult(
-                            "Missing 'keycode' argument for press_key.", isError = true)
-                    pressKey(keycode)
-                }
-                else -> ToolExecutionResult(
-                    "Unknown ui_automation action: '$action'. " +
-                        "Supported: dump_screen, tap, swipe, input_text, press_key.",
-                    isError = true
-                )
             }
         }
 

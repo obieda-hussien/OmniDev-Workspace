@@ -71,7 +71,17 @@ data class AgentConfig(
      * Set to false to force sequential tool execution (useful for tools with side-effects
      * that must not run simultaneously, e.g. two writes to the same file).
      */
-    val enableParallelToolExecution: Boolean = true
+    val enableParallelToolExecution: Boolean = true,
+    /**
+     * When true, the agent performs a self-reflection pass after generating its initial
+     * final answer.  A lightweight critic prompt evaluates completeness and accuracy;
+     * if improvement opportunities are found, one additional refinement call is made
+     * and the improved answer is emitted instead.
+     *
+     * Disabled by default to preserve cost/latency for most runs.  Enable for
+     * THOROUGH-class tasks where quality is more important than speed.
+     */
+    val enableSelfReflection: Boolean = false
 ) {
     companion object {
         /** Preset for cost-sensitive runs: fewer iterations, lower token budget. */
@@ -86,7 +96,8 @@ data class AgentConfig(
             maxIterations = 50,
             maxRetries = 5,
             baseRetryDelayMs = 1_000L,
-            contextWindowBuffer = 8_192
+            contextWindowBuffer = 8_192,
+            enableSelfReflection = true
         )
 
         /** Preset for ultra-fast inline completions — single shot only. */
@@ -371,6 +382,35 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
         private const val INTER_CALL_DELAY_MS = 500L
 
         /**
+         * Critic system prompt used during the self-reflection pass.
+         * Instructs a lightweight evaluator to check the draft answer for completeness,
+         * correctness, and relevance — and either approve it or suggest specific improvements.
+         */
+        private const val CRITIC_SYSTEM_PROMPT = """
+You are a precise and demanding quality reviewer for AI agent responses.
+
+Your task is to critically evaluate the draft answer below against the original user request.
+
+Evaluation criteria:
+1. **Completeness** — Does it fully address every part of the user's request?
+2. **Accuracy** — Are all statements, code snippets, and commands correct and verifiable?
+3. **Clarity** — Is it well-structured, easy to follow, and free of ambiguity?
+4. **Actionability** — Are the next steps clear and immediately executable?
+5. **Conciseness** — Does it avoid unnecessary verbosity or repetition?
+
+Respond in this exact format:
+VERDICT: APPROVED | NEEDS_IMPROVEMENT
+ISSUES: <comma-separated list of specific issues, or "none" if approved>
+IMPROVED_ANSWER: <the improved answer text, or the exact original if approved>
+
+Rules:
+- If the answer is already excellent, output VERDICT: APPROVED and repeat the original answer verbatim under IMPROVED_ANSWER.
+- Only output VERDICT: NEEDS_IMPROVEMENT when there are clear, substantive gaps — not stylistic preferences.
+- The IMPROVED_ANSWER must be a complete standalone response, not a diff or patch.
+- Do NOT use tools. Your job is review and rewrite only.
+"""
+
+        /**
          * Returns the appropriate inter-call delay for [tier].
          * FAST models are high-throughput (600+ t/s) and typically run on providers
          * with generous rate limits, so they need a much shorter pause.
@@ -607,8 +647,73 @@ You are an AI with two categories of tools. Routing to the wrong category is a C
                 )
                 messages.add(assistantMessage)
 
+                // ── Self-Reflection pass (optional) ──
+                // When enabled, run a lightweight critic pass that evaluates the draft
+                // answer and optionally rewrites it with targeted improvements.
+                val finalContent = if (config.enableSelfReflection && response.content.isNotBlank()) {
+                    send(AgentEvent.Reflecting(draftLength = response.content.length))
+                    val originalUserMessage = messages.firstOrNull {
+                        it.role == MessageRole.USER
+                    }?.content ?: userMessage
+
+                    val criticPrompt = buildString {
+                        appendLine("**Original user request:**")
+                        appendLine(originalUserMessage)
+                        appendLine()
+                        appendLine("**Draft answer to review:**")
+                        appendLine(response.content)
+                    }
+
+                    val criticRequest = CompletionRequest(
+                        modelId = modelId,
+                        messages = listOf(
+                            ChatMessage(role = MessageRole.USER, content = criticPrompt)
+                        ),
+                        systemPrompt = CRITIC_SYSTEM_PROMPT.trimIndent(),
+                        maxTokens = minOf(model.maxOutputTokens, 8_192),
+                        enableThinking = false,
+                        targetContext = scopePath,
+                        apiKey = resolvedApiKey,
+                        tools = emptyList()
+                    )
+
+                    val criticResponse = try {
+                        callWithRetry(criticRequest, iteration + 1) { /* ignore critic errors */ }
+                    } catch (_: Exception) {
+                        null
+                    }
+
+                    criticResponse?.tokensUsed?.let { usage ->
+                        totalTokensUsed += usage.totalTokens
+                        send(AgentEvent.TokenUsageUpdate(
+                            iterationTokens = usage.totalTokens,
+                            totalTokens = totalTokensUsed,
+                            budget = config.tokenBudget
+                        ))
+                    }
+
+                    val criticText = criticResponse?.content?.trim().orEmpty()
+                    val improvedAnswerMarker = "IMPROVED_ANSWER:"
+                    val verdictNeedsImprovement = criticText.contains("VERDICT: NEEDS_IMPROVEMENT", ignoreCase = true)
+
+                    if (verdictNeedsImprovement) {
+                        val improvedIdx = criticText.indexOf(improvedAnswerMarker, ignoreCase = true)
+                        if (improvedIdx >= 0) {
+                            criticText.substring(improvedIdx + improvedAnswerMarker.length).trim()
+                                .takeIf { it.isNotBlank() } ?: response.content
+                        } else {
+                            response.content
+                        }
+                    } else {
+                        // APPROVED or unparseable response — use original answer unchanged
+                        response.content
+                    }
+                } else {
+                    response.content
+                }
+
                 send(AgentEvent.FinalAnswer(
-                    content = response.content,
+                    content = finalContent,
                     totalIterations = iteration,
                     totalTokensUsed = totalTokensUsed,
                     conversationHistory = messages.toList()
@@ -960,6 +1065,9 @@ sealed class AgentEvent {
         val totalTokensUsed: Int,
         val conversationHistory: List<ChatMessage>
     ) : AgentEvent()
+
+    /** The agent is performing a self-reflection critique of its draft answer. */
+    data class Reflecting(val draftLength: Int) : AgentEvent()
 
     /** An unrecoverable error occurred. */
     data class Error(val message: String) : AgentEvent()

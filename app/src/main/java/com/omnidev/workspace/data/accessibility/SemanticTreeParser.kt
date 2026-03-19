@@ -127,7 +127,7 @@ object SemanticTreeParser {
      */
     private fun isRelevantNode(node: AccessibilityNodeInfo): Boolean {
         // Always include actionable nodes
-        if (node.isClickable || node.isLongClickable) return true
+        if (isNodeActionable(node)) return true
         if (node.isEditable) return true
         if (node.isScrollable) return true
         if (node.isCheckable) return true
@@ -140,6 +140,13 @@ object SemanticTreeParser {
         // Include nodes with content description (accessibility labels)
         val desc = node.contentDescription?.toString()?.trim()
         if (!desc.isNullOrEmpty() && desc.length <= MAX_TEXT_LENGTH) return true
+
+        // Compose semantics and compat metadata often appear in extras.
+        if (hasSemanticExtras(node)) return true
+
+        // Include compose-related containers when they have children,
+        // so the agent can reason about Compose trees better.
+        if (isComposeNode(node) && node.childCount > 0) return true
 
         return false
     }
@@ -176,18 +183,27 @@ object SemanticTreeParser {
             append(" [desc: \"${truncate(desc)}\"]")
         }
 
+        val state = readSemanticState(node)
+        if (!state.isNullOrEmpty()) {
+            append(" [state: \"${truncate(state)}\"]")
+        }
+
         // Capability flags
         val flags = mutableListOf<String>()
-        if (node.isClickable) flags.add("Clickable")
-        if (node.isLongClickable) flags.add("LongClickable")
+        val hasClickAction = supportsAction(node, AccessibilityNodeInfo.ACTION_CLICK)
+        val hasLongClickAction = supportsAction(node, AccessibilityNodeInfo.ACTION_LONG_CLICK)
+        val hasScrollAction = supportsAnyScrollAction(node)
+        if (node.isClickable || hasClickAction) flags.add("Clickable")
+        if (node.isLongClickable || hasLongClickAction) flags.add("LongClickable")
         if (node.isEditable) flags.add("Editable")
-        if (node.isScrollable) flags.add("Scrollable")
+        if (node.isScrollable || hasScrollAction) flags.add("Scrollable")
         if (node.isCheckable) {
             flags.add(if (node.isChecked) "Checked" else "Unchecked")
         }
         if (node.isSelected) flags.add("Selected")
         if (node.isFocused) flags.add("Focused")
         if (!node.isEnabled) flags.add("Disabled")
+        if (isComposeNode(node)) flags.add("Compose")
 
         if (flags.isNotEmpty()) {
             append(" (${flags.joinToString(", ")})")
@@ -199,5 +215,62 @@ object SemanticTreeParser {
             val shortId = viewId.substringAfterLast('/')
             append(" #$shortId")
         }
+    }
+
+    private fun isNodeActionable(node: AccessibilityNodeInfo): Boolean {
+        if (node.isClickable || node.isLongClickable) return true
+        if (supportsAction(node, AccessibilityNodeInfo.ACTION_CLICK)) return true
+        if (supportsAction(node, AccessibilityNodeInfo.ACTION_LONG_CLICK)) return true
+        if (supportsAnyScrollAction(node)) return true
+        return false
+    }
+
+    private fun supportsAnyScrollAction(node: AccessibilityNodeInfo): Boolean {
+        return supportsAction(node, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) ||
+            supportsAction(node, AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) ||
+            node.actionList.any { action ->
+                val label = action.label ?: return@any false
+                label.toString().contains("scroll", ignoreCase = true)
+            }
+    }
+
+    private fun supportsAction(node: AccessibilityNodeInfo, actionId: Int): Boolean {
+        return node.actionList.any { it.id == actionId }
+    }
+
+    private fun isComposeNode(node: AccessibilityNodeInfo): Boolean {
+        val className = node.className?.toString().orEmpty().lowercase()
+        if ("compose" in className) return true
+        if ("androidx.compose" in className) return true
+        return node.extras.keySet().any { it.lowercase().contains("compose") }
+    }
+
+    private fun hasSemanticExtras(node: AccessibilityNodeInfo): Boolean {
+        val keys = node.extras.keySet()
+        if (keys.isEmpty()) return false
+        return keys.any { key ->
+            val normalized = key.lowercase()
+            normalized.contains("role_description") ||
+                normalized.contains("state_description") ||
+                normalized.contains("pane_title") ||
+                normalized.contains("hint_text") ||
+                normalized.contains("tooltip_text") ||
+                normalized.contains("heading") ||
+                normalized.contains("compose")
+        }
+    }
+
+    private fun readSemanticState(node: AccessibilityNodeInfo): String? {
+        val extras = node.extras
+        val candidateKeys = listOf(
+            "androidx.view.accessibility.AccessibilityNodeInfoCompat.STATE_DESCRIPTION_KEY",
+            "androidx.view.accessibility.AccessibilityNodeInfoCompat.ROLE_DESCRIPTION_KEY",
+            "androidx.view.accessibility.AccessibilityNodeInfoCompat.PANE_TITLE_KEY"
+        )
+        for (key in candidateKeys) {
+            val value = extras.getCharSequence(key)?.toString()?.trim()
+            if (!value.isNullOrEmpty()) return value
+        }
+        return null
     }
 }

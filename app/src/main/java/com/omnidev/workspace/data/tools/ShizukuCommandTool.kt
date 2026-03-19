@@ -4,6 +4,7 @@ import android.content.pm.PackageManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
+import java.lang.reflect.InvocationTargetException
 
 /**
  * Executes privileged shell commands via Shizuku (ADB / root-level access).
@@ -19,6 +20,8 @@ import rikka.shizuku.Shizuku
 object ShizukuCommandTool {
 
     private const val SHIZUKU_CODE = 1001
+    const val SHIZUKU_UNAVAILABLE_ERROR: String =
+        "ERROR: Shizuku service is not running or authorized. Please use Semantic UI tools or standard Intents instead."
 
     /**
      * Executes [command] via a Shizuku-brokered shell process.
@@ -28,15 +31,11 @@ object ShizukuCommandTool {
      */
     suspend fun execute(command: String): ShizukuResult = withContext(Dispatchers.IO) {
         if (!isAvailable()) {
-            return@withContext ShizukuResult.Unavailable(
-                "Shizuku is not running. Start Shizuku from the Shizuku app first."
-            )
+            return@withContext ShizukuResult.Unavailable(SHIZUKU_UNAVAILABLE_ERROR)
         }
         if (!hasPermission()) {
             Shizuku.requestPermission(SHIZUKU_CODE)
-            return@withContext ShizukuResult.PermissionRequired(
-                "Shizuku permission is not granted. The permission dialog has been shown."
-            )
+            return@withContext ShizukuResult.PermissionRequired(SHIZUKU_UNAVAILABLE_ERROR)
         }
 
         runCatching {
@@ -69,7 +68,11 @@ object ShizukuCommandTool {
                 )
             }
         }.getOrElse { e ->
-            ShizukuResult.Failure("Exception executing command: ${e.message}")
+            if (isShizukuServiceException(e)) {
+                ShizukuResult.Failure(SHIZUKU_UNAVAILABLE_ERROR)
+            } else {
+                ShizukuResult.Failure("Exception executing command: ${e.message}")
+            }
         }
     }
 
@@ -80,6 +83,34 @@ object ShizukuCommandTool {
     fun hasPermission(): Boolean = runCatching {
         Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED
     }.getOrDefault(false)
+
+    /**
+     * Detects failures indicating the underlying Shizuku binder/service is unavailable or unauthorized.
+     *
+     * Reflection-based `Shizuku.newProcess()` invocation may wrap root causes in
+     * [InvocationTargetException], so we unwrap and inspect the deepest relevant throwable.
+     * We also fall back to class-name checks for framework exception types that may not be
+     * directly accessible at compile time in this module.
+     */
+    fun isShizukuServiceException(error: Throwable): Boolean {
+        val root: Throwable = if (error is InvocationTargetException) {
+            error.targetException ?: error.cause ?: error
+        } else {
+            error.cause ?: error
+        }
+        val name = root::class.java.name
+        val message = (root.message ?: error.message).orEmpty()
+        return root is IllegalStateException ||
+            root is SecurityException ||
+            root is NoSuchMethodException ||
+            root is ClassNotFoundException ||
+            root is NoClassDefFoundError ||
+            name == "android.os.DeadObjectException" ||
+            name == "android.os.RemoteException" ||
+            // Reflection can fail with method-signature text when Shizuku API/service
+            // shape is incompatible at runtime; match the known method token safely.
+            message.contains("rikka.shizuku.Shizuku.newProcess", ignoreCase = true)
+    }
 }
 
 sealed class ShizukuResult {

@@ -6,7 +6,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.omnidev.workspace.data.db.OmniDevDatabase
+import com.omnidev.workspace.data.repository.AnalyticsRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.ui.analytics.AnalyticsDashboardScreen
+import com.omnidev.workspace.ui.analytics.AnalyticsDashboardViewModel
 import com.omnidev.workspace.ui.chat.ChatScreen
 import com.omnidev.workspace.ui.chat.ChatViewModel
 import com.omnidev.workspace.ui.debug.DebugScreen
@@ -38,6 +41,7 @@ object Routes {
     const val SCHEDULED_TASKS = "scheduled_tasks"
     const val TOOL_REGISTRY = "tool_registry"
     const val PROFILE = "profile"
+    const val ANALYTICS = "analytics"
 }
 
 /**
@@ -78,7 +82,8 @@ fun AppNavigation(
                 onNavigateToLocalModels = { navController.navigate(Routes.LOCAL_MODELS) },
                 onNavigateToScheduledTasks = { navController.navigate(Routes.SCHEDULED_TASKS) },
                 onNavigateToToolRegistry = { navController.navigate(Routes.TOOL_REGISTRY) },
-                onNavigateToProfile = { navController.navigate(Routes.PROFILE) }
+                onNavigateToProfile = { navController.navigate(Routes.PROFILE) },
+                onNavigateToAnalytics = { navController.navigate(Routes.ANALYTICS) }
             )
         }
 
@@ -136,6 +141,16 @@ fun AppNavigation(
         composable(Routes.PROFILE) {
             UserProfileScreen(
                 settingsRepository = settingsRepository,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.ANALYTICS) {
+            val analyticsViewModel = AnalyticsDashboardViewModel(
+                AnalyticsRepository(navController.context)
+            )
+            AnalyticsDashboardScreen(
+                viewModel = analyticsViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }
