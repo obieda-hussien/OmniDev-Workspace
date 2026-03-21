@@ -136,7 +136,11 @@ Actions and required parameters:
 
             "pip_run" -> {
                 val code = args["code"] ?: return@withContext err("pip_run requires 'code'")
-                PrivilegedExecutionManager.executeCommand("python3 -c ${shellQuote(code)}").toToolResult()
+                PrivilegedExecutionManager.executeCommand(
+                    "python3 -c ${shellQuote(code)} 2>&1" +
+                    " || $TERMUX_BIN/python3 -c ${shellQuote(code)} 2>&1" +
+                    " || $TERMUX_BIN/python -c ${shellQuote(code)} 2>&1"
+                ).toToolResult()
             }
 
             "npm_install" -> {
@@ -193,15 +197,26 @@ Actions and required parameters:
         val sb = StringBuilder("=== Runtime environment check ===\n")
 
         for (tool in tools) {
-            val result = PrivilegedExecutionManager.executeCommand("which $tool 2>/dev/null")
-            val path = result.getOrNull()?.trim()?.takeIf { it.isNotEmpty() && !it.startsWith("ERROR") }
-            if (path != null) {
-                // Also try to get version
-                val ver = PrivilegedExecutionManager.executeCommand("$tool --version 2>&1 | head -1")
-                    .getOrNull()?.trim()?.take(60) ?: ""
-                sb.appendLine("✅ $tool → $path  [$ver]")
-            } else {
-                sb.appendLine("❌ $tool — not found")
+            // Check system PATH first, then Termux bin directory as fallback
+            val systemResult = PrivilegedExecutionManager.executeCommand("which $tool 2>/dev/null")
+            val systemPath = systemResult.getOrNull()?.trim()?.takeIf { it.isNotEmpty() && !it.startsWith("ERROR") }
+            val termuxPath = run {
+                val exists = PrivilegedExecutionManager.executeCommand("test -f $TERMUX_BIN/$tool && echo yes 2>/dev/null")
+                    .getOrNull()?.trim()
+                if (exists == "yes") "$TERMUX_BIN/$tool" else null
+            }
+            when {
+                systemPath != null -> {
+                    val ver = PrivilegedExecutionManager.executeCommand("$tool --version 2>&1 | head -1")
+                        .getOrNull()?.trim()?.take(60) ?: ""
+                    sb.appendLine("✅ $tool → $systemPath  [$ver]")
+                }
+                termuxPath != null -> {
+                    val ver = PrivilegedExecutionManager.executeCommand("$termuxPath --version 2>&1 | head -1")
+                        .getOrNull()?.trim()?.take(60) ?: ""
+                    sb.appendLine("✅ $tool → $termuxPath (Termux)  [$ver]")
+                }
+                else -> sb.appendLine("❌ $tool — not found on PATH or in Termux")
             }
         }
 
@@ -216,6 +231,9 @@ Actions and required parameters:
         val rootAvailable = PrivilegedExecutionManager.isRootAvailable()
         sb.appendLine()
         sb.appendLine("Privilege backend: ${when { shizukuReady -> "✅ Shizuku"; rootAvailable -> "⚠️ Root only"; else -> "❌ None" }}")
+        if (!shizukuReady && !rootAvailable) {
+            sb.appendLine("⚠️  No privileged backend — install Shizuku (play.google.com/store/apps/details?id=moe.shizuku.privileged.api) and grant this app permission, or use a rooted device.")
+        }
 
         return ToolExecutionResult(sb.toString().trimEnd())
     }
@@ -223,7 +241,9 @@ Actions and required parameters:
     private suspend fun toolWhich(tool: String): ToolExecutionResult {
         val safeTool = tool.replace(Regex("[^a-zA-Z0-9_.\\-]"), "")
         if (safeTool.isEmpty()) return err("Invalid tool name.")
-        return PrivilegedExecutionManager.executeCommand("which $safeTool 2>/dev/null || echo 'NOT FOUND'").toToolResult()
+        return PrivilegedExecutionManager.executeCommand(
+            "which $safeTool 2>/dev/null || test -f $TERMUX_BIN/$safeTool && echo $TERMUX_BIN/$safeTool || echo 'NOT FOUND'"
+        ).toToolResult()
     }
 
     private suspend fun pythonRun(code: String, extraArgs: String?): ToolExecutionResult {
@@ -235,15 +255,20 @@ Actions and required parameters:
             ?.filter { it.isNotBlank() }
             ?.joinToString(" ") { shellQuote(it) }
             ?.let { " $it" } ?: ""
-        return PrivilegedExecutionManager.executeCommand(
-            "python3 -c ${shellQuote(code)}$argStr 2>&1"
-        ).toToolResult()
+        // Cascade: system python3 → Termux python3 → Termux python
+        val cmd = buildString {
+            append("python3 -c ${shellQuote(code)}$argStr 2>&1")
+            append(" || $TERMUX_BIN/python3 -c ${shellQuote(code)}$argStr 2>&1")
+            append(" || $TERMUX_BIN/python -c ${shellQuote(code)}$argStr 2>&1")
+        }
+        return PrivilegedExecutionManager.executeCommand(cmd).toToolResult()
     }
 
     private suspend fun nodeRun(code: String): ToolExecutionResult {
         // Run inline via `node -e` — avoids app-private cacheDir access issue.
+        // Termux node fallback for devices without system node.
         return PrivilegedExecutionManager.executeCommand(
-            "node -e ${shellQuote(code)} 2>&1"
+            "node -e ${shellQuote(code)} 2>&1 || $TERMUX_BIN/node -e ${shellQuote(code)} 2>&1"
         ).toToolResult()
     }
 
@@ -253,8 +278,16 @@ Actions and required parameters:
         // Use the appropriate inline evaluation flag:
         // node uses `--eval` / `-e`; all shell interpreters and Python use `-c`.
         val flag = if (safeInterpreter == "node") "-e" else "-c"
+        // For Python/Node/bash interpreters, also try Termux paths as fallback.
+        val termuxFallback = when (safeInterpreter) {
+            "python3" -> " || $TERMUX_BIN/python3 $flag ${shellQuote(scriptContent)} 2>&1"
+            "python"  -> " || $TERMUX_BIN/python $flag ${shellQuote(scriptContent)} 2>&1"
+            "node"    -> " || $TERMUX_BIN/node $flag ${shellQuote(scriptContent)} 2>&1"
+            "bash"    -> " || $TERMUX_BIN/bash $flag ${shellQuote(scriptContent)} 2>&1"
+            else      -> ""
+        }
         return PrivilegedExecutionManager.executeCommand(
-            "$safeInterpreter $flag ${shellQuote(scriptContent)} 2>&1"
+            "$safeInterpreter $flag ${shellQuote(scriptContent)} 2>&1$termuxFallback"
         ).toToolResult()
     }
 
@@ -398,39 +431,52 @@ Actions and required parameters:
     private suspend fun toolBootstrap(): ToolExecutionResult {
         val sb = StringBuilder("=== Tool Bootstrap ===\n")
 
-        // Check curl
-        val hasCurl = PrivilegedExecutionManager.executeCommand("which curl 2>/dev/null")
-            .getOrNull()?.trim()?.isNotEmpty() == true
-        sb.appendLine("curl: ${if (hasCurl) "✅ already available" else "❌ not found"}")
+        suspend fun checkTool(name: String): String? =
+            PrivilegedExecutionManager.executeCommand(
+                "which $name 2>/dev/null || (test -f $TERMUX_BIN/$name && echo $TERMUX_BIN/$name)"
+            ).getOrNull()?.trim()?.ifEmpty { null }
 
-        // Check wget
-        val hasWget = PrivilegedExecutionManager.executeCommand("which wget 2>/dev/null")
-            .getOrNull()?.trim()?.isNotEmpty() == true
-        sb.appendLine("wget: ${if (hasWget) "✅ already available" else "❌ not found"}")
+        val curlPath   = checkTool("curl")
+        val wgetPath   = checkTool("wget")
+        val busyboxPath= checkTool("busybox")
+        val pythonPath = checkTool("python3") ?: checkTool("python")
+        val nodePath   = checkTool("node")
 
-        // Check busybox
-        val hasBusybox = PrivilegedExecutionManager.executeCommand("which busybox 2>/dev/null")
-            .getOrNull()?.trim()?.isNotEmpty() == true
-        sb.appendLine("busybox: ${if (hasBusybox) "✅ already available" else "❌ not found"}")
+        sb.appendLine("curl:    ${if (curlPath != null) "✅ $curlPath" else "❌ not found"}")
+        sb.appendLine("wget:    ${if (wgetPath != null) "✅ $wgetPath" else "❌ not found"}")
+        sb.appendLine("busybox: ${if (busyboxPath != null) "✅ $busyboxPath" else "❌ not found"}")
+        sb.appendLine("python3: ${if (pythonPath != null) "✅ $pythonPath" else "❌ not found"}")
+        sb.appendLine("node:    ${if (nodePath != null) "✅ $nodePath" else "❌ not found"}")
 
-        // Check python3
-        val hasPython = PrivilegedExecutionManager.executeCommand("which python3 2>/dev/null")
-            .getOrNull()?.trim()?.isNotEmpty() == true
-        sb.appendLine("python3: ${if (hasPython) "✅ already available" else "❌ not found"}")
+        val termuxInstalled = PrivilegedExecutionManager.executeCommand(
+            "pm list packages | grep com.termux"
+        ).getOrNull()?.contains("com.termux") == true
+        sb.appendLine("Termux:  ${if (termuxInstalled) "✅ installed" else "❌ not installed"}")
 
         sb.appendLine()
-        sb.appendLine("To install missing tools, use:")
-        if (!hasCurl && !hasWget) {
-            sb.appendLine("• action=termux_pkg_install packages='curl wget' (requires Termux)")
+        if (!termuxInstalled) {
+            sb.appendLine("⚠️  Termux is not installed. Most tools require it on stock Android.")
+            sb.appendLine("   Install Termux from F-Droid: https://f-droid.org/en/packages/com.termux/")
+            sb.appendLine("   (Do NOT use the Play Store version — it is outdated.)")
+            sb.appendLine()
         }
-        if (!hasPython) {
-            sb.appendLine("• action=termux_pkg_install packages='python' (requires Termux)")
-            sb.appendLine("• Or use action=download_file to fetch a Python binary for Android")
+        if (termuxInstalled) {
+            val missingPkgs = buildList {
+                if (curlPath == null) add("curl")
+                if (wgetPath == null) add("wget")
+                if (pythonPath == null) add("python")
+                if (nodePath == null) add("nodejs")
+                if (busyboxPath == null) add("busybox")
+            }
+            if (missingPkgs.isNotEmpty()) {
+                sb.appendLine("Install missing tools via Termux:")
+                sb.appendLine("  action=termux_pkg_install packages='${missingPkgs.joinToString(" ")}'")
+            } else {
+                sb.appendLine("✅ All essential tools are available.")
+            }
         }
         sb.appendLine()
-        sb.appendLine("For Termux integration:")
-        sb.appendLine("• Install Termux from F-Droid, then use action=termux_run and action=termux_pkg_install")
-        sb.appendLine("• Termux provides: python, node, git, gcc, clang, and 1000+ Unix tools")
+        sb.appendLine("Tip: after installing Termux packages, use action=env_check to verify.")
 
         return ToolExecutionResult(sb.toString().trimEnd())
     }
