@@ -13,8 +13,14 @@ import com.omnidev.workspace.data.tools.ShizukuResult
  * (via [OmniCoreService] AIDL).
  *
  * ### Execution backends (tried in order)
- * 1. **Shizuku** — preferred; ADB-level privilege, no full root required.
- * 2. **Root / SU** — fallback when Shizuku is unavailable.
+ * 1. **Shizuku API** (`Shizuku.newProcess`) — preferred; ADB-level privilege, no full root required.
+ * 2. **rish** (`app_process` + `rish_shizuku.dex`) — full ADB shell with piped commands,
+ *    subshells, and complete environment. Requires [init] with a [Context].
+ * 3. **Root / SU** — fallback when neither Shizuku backend is available.
+ *
+ * ### Initialisation
+ * Call [init] once (e.g., from [com.omnidev.workspace.OmniDevApp.onCreate]) to supply the
+ * [Context] needed by [RishShellManager]. Without init, rish is skipped silently.
  *
  * ### Security contract
  * - In-process callers (the agent) invoke this directly after the user approves
@@ -30,12 +36,40 @@ object PrivilegedExecutionManager {
     private const val MAX_OUTPUT = 8_000
 
     // ─────────────────────────────────────────────────────────────────────
+    // Context / rish initialisation
+    // ─────────────────────────────────────────────────────────────────────
+
+    @Volatile private var rishManager: RishShellManager? = null
+    private val rishInitLock = Any()
+
+    /**
+     * Initialise the manager with application context.
+     * Must be called before using the rish backend.
+     * Safe to call multiple times — subsequent calls are no-ops if already initialised.
+     */
+    fun init(context: Context) {
+        if (rishManager == null) {
+            synchronized(rishInitLock) {
+                if (rishManager == null) {
+                    rishManager = RishShellManager(context.applicationContext)
+                }
+            }
+        }
+    }
+
+    /** Expose [RishShellManager] for direct rish operations in [OmniCoreAgentTool]. */
+    fun getRishManager(): RishShellManager? = rishManager
+
+    // ─────────────────────────────────────────────────────────────────────
     // Backend availability
     // ─────────────────────────────────────────────────────────────────────
 
     /** Returns true if Shizuku is bound, alive, and the app holds its permission. */
     fun isShizukuReady(): Boolean =
         ShizukuCommandTool.isAvailable() && ShizukuCommandTool.hasPermission()
+
+    /** Returns true if rish is usable on this device (app_process + DEX reachable). */
+    fun isRishReady(): Boolean = rishManager?.isAvailable() ?: false
 
     /** Returns true if an SU binary is reachable on the device. */
     fun isRootAvailable(): Boolean = runCatching {
@@ -49,6 +83,12 @@ object PrivilegedExecutionManager {
 
     /**
      * Execute [command] with elevated privileges.
+     *
+     * Tries backends in order:
+     * 1. **Shizuku API** — `Shizuku.newProcess()` via [ShizukuCommandTool]
+     * 2. **rish** — `app_process` + `rish_shizuku.dex` via [RishShellManager]
+     * 3. **root / SU** — `su -c` fallback
+     *
      * Returns [Result.success] with trimmed stdout, or [Result.failure] on error.
      */
     suspend fun executeCommand(command: String): Result<String> = withContext(Dispatchers.IO) {
@@ -57,11 +97,12 @@ object PrivilegedExecutionManager {
         }
         return@withContext when {
             isShizukuReady() -> executeViaShizuku(command)
+            isRishReady() -> rishManager!!.execute(command)
             isRootAvailable() -> executeViaRoot(command)
             else -> Result.failure(
                 IllegalStateException(
                     "No privileged execution backend available. " +
-                    "Shizuku is not running and root is not accessible."
+                    "Shizuku is not running, rish DEX is not found, and root is not accessible."
                 )
             )
         }
@@ -83,6 +124,7 @@ object PrivilegedExecutionManager {
                 model = "${Build.MANUFACTURER} ${Build.MODEL}",
                 androidVersion = Build.VERSION.RELEASE,
                 shizukuReady = isShizukuReady(),
+                rishAvailable = isRishReady(),
                 rootAvailable = isRootAvailable(),
                 foregroundPackage = foregroundPkg,
                 batteryLevel = batteryLevel,
@@ -405,6 +447,7 @@ data class DeviceStateSnapshot(
     val model: String,
     val androidVersion: String,
     val shizukuReady: Boolean,
+    val rishAvailable: Boolean,
     val rootAvailable: Boolean,
     val foregroundPackage: String,
     val batteryLevel: Int,
@@ -418,6 +461,7 @@ data class DeviceStateSnapshot(
         append("\"model\":\"${model.jsonEscape()}\",")
         append("\"androidVersion\":\"${androidVersion.jsonEscape()}\",")
         append("\"shizukuReady\":$shizukuReady,")
+        append("\"rishAvailable\":$rishAvailable,")
         append("\"rootAvailable\":$rootAvailable,")
         append("\"foregroundPackage\":\"${foregroundPackage.jsonEscape()}\",")
         append("\"batteryLevel\":$batteryLevel,")

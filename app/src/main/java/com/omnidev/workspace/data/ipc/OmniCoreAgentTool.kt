@@ -60,11 +60,11 @@ object OmniCoreAgentTool {
         ToolDefinition(
             name = "privileged_tool",
             description = """
-Execute privileged Android OS operations via Shizuku (preferred) or root/SU fallback.
+Execute privileged Android OS operations via Shizuku (preferred), rish full-shell, or root/SU fallback.
 Use this for any action that requires elevated system access beyond standard Android APIs.
 
 Actions and their required parameters:
-• status              — Check if Shizuku or root is available. No extra params.
+• status              — Check if Shizuku, rish, or root is available. No extra params.
 • shell               — command: arbitrary shell command, returns full stdout.
 • dumpsys             — service: service name (battery, wifi, package, activity, window, input, notification, power, connectivity).
 • getprop             — key: system property key (e.g. ro.build.version.sdk).
@@ -84,7 +84,7 @@ Actions and their required parameters:
 • pkg_info            — package: detailed pm dump for a package.
 • app_stop            — package: force-stop an application.
 • app_launch          — component: full component (com.pkg/.Activity) or am-start expression.
-• app_broadcast       — action: broadcast intent action string.
+• app_broadcast       — broadcast_action: broadcast intent action string.
 • input_tap           — x, y: screen coordinates (integers).
 • input_swipe         — x1, y1, x2, y2, duration_ms: swipe gesture.
 • input_text          — text: text to type.
@@ -92,10 +92,18 @@ Actions and their required parameters:
 • screencap           — output_path (default /data/local/tmp/omnidev_cap.png).
 • wm                  — sub_command (size/density/size reset/density reset), value (optional new value).
 • svc                 — service (wifi/data/bluetooth/nfc/power), action (enable/disable).
+
+rish (Remote Interactive Shell via Shizuku) — full ADB-equivalent shell:
+• rish_setup          — Prepare rish: locate/extract rish_shizuku.dex, write rish script. Returns status.
+• rish_exec           — command: run a command through rish full-shell (supports pipes, redirects, env vars).
+• rish_script         — script: multi-line shell script content to execute via rish.
+• rish_session        — commands: newline-separated list of commands to run sequentially via rish.
 """.trimIndent(),
             parameters = listOf(
                 ToolParameter("action", "string", "The privileged action to perform (see description).", required = true),
-                ToolParameter("command", "string", "Shell command (for action=shell).", required = false),
+                ToolParameter("command", "string", "Shell command (for action=shell or rish_exec).", required = false),
+                ToolParameter("script", "string", "Multi-line shell script (for rish_script).", required = false),
+                ToolParameter("commands", "string", "Newline-separated commands for rish_session.", required = false),
                 ToolParameter("service", "string", "Service name for dumpsys/svc.", required = false),
                 ToolParameter("key", "string", "Property key or settings key.", required = false),
                 ToolParameter("value", "string", "Value to write (setprop/settings_put/wm).", required = false),
@@ -105,6 +113,7 @@ Actions and their required parameters:
                 ToolParameter("permission", "string", "Android permission string for pkg_grant/pkg_revoke.", required = false),
                 ToolParameter("component", "string", "Activity component name for app_launch.", required = false),
                 ToolParameter("broadcast_action", "string", "Intent action for app_broadcast.", required = false),
+                ToolParameter("filter", "string", "Package name filter for pkg_list.", required = false),
                 ToolParameter("x", "string", "X coordinate (input_tap).", required = false),
                 ToolParameter("y", "string", "Y coordinate (input_tap).", required = false),
                 ToolParameter("x1", "string", "Swipe start X (input_swipe).", required = false),
@@ -133,13 +142,18 @@ Actions and their required parameters:
 
             "status" -> {
                 val shizuku = PrivilegedExecutionManager.isShizukuReady()
+                val rish = PrivilegedExecutionManager.isRishReady()
                 val root = PrivilegedExecutionManager.isRootAvailable()
                 val backend = when {
-                    shizuku -> "✅ Shizuku (active)"
-                    root -> "⚠️ Root/SU only (Shizuku not available)"
-                    else -> "❌ No privileged backend available"
+                    shizuku -> "✅ Shizuku API (active)"
+                    rish    -> "✅ rish full-shell (active)"
+                    root    -> "⚠️ Root/SU only (Shizuku/rish not available)"
+                    else    -> "❌ No privileged backend available"
                 }
-                ToolExecutionResult("Privileged backend: $backend\nShizuku ready: $shizuku | Root available: $root")
+                ToolExecutionResult(
+                    "Privileged backend: $backend\n" +
+                    "Shizuku API: $shizuku | rish: $rish | Root: $root"
+                )
             }
 
             "shell" -> {
@@ -285,6 +299,47 @@ Actions and their required parameters:
                 val act = args["svc_action"]
                     ?: return@withContext err("svc requires 'svc_action' (enable or disable)")
                 PrivilegedExecutionManager.controlService(svc, act).toToolResult()
+            }
+
+            // ── rish (Remote Interactive Shell) ──────────────────────────
+
+            "rish_setup" -> {
+                val rish = PrivilegedExecutionManager.getRishManager()
+                    ?: return@withContext err("RishShellManager not initialised (call PrivilegedExecutionManager.init first).")
+                // Attempt to prepare the DEX
+                rish.prepareLocalDex()
+                // Write the rish script
+                val scriptPath = rish.ensureRishScript()
+                // Return full status
+                val status = rish.statusReport()
+                ToolExecutionResult("rish script written to: $scriptPath\n\n$status")
+            }
+
+            "rish_exec" -> {
+                val cmd = args["command"] ?: return@withContext err("rish_exec requires 'command'")
+                val rish = PrivilegedExecutionManager.getRishManager()
+                    ?: return@withContext err("RishShellManager not initialised.")
+                rish.execute(cmd).toToolResult()
+            }
+
+            "rish_script" -> {
+                val script = args["script"] ?: return@withContext err("rish_script requires 'script'")
+                val rish = PrivilegedExecutionManager.getRishManager()
+                    ?: return@withContext err("RishShellManager not initialised.")
+                rish.executeScript(script).toToolResult()
+            }
+
+            "rish_session" -> {
+                val rawCmds = args["commands"] ?: return@withContext err("rish_session requires 'commands'")
+                val rish = PrivilegedExecutionManager.getRishManager()
+                    ?: return@withContext err("RishShellManager not initialised.")
+                val results = StringBuilder()
+                rawCmds.lines().filter { it.isNotBlank() }.forEachIndexed { idx, cmd ->
+                    val r = rish.execute(cmd.trim())
+                    results.appendLine("$ ${cmd.trim()}")
+                    results.appendLine(r.getOrElse { "❌ ${it.message}" })
+                }
+                ToolExecutionResult(results.toString().trimEnd())
             }
 
             else -> err("Unknown privileged_tool action: '$action'. See tool description for supported actions.")

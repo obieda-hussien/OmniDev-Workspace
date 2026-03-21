@@ -239,7 +239,11 @@ class OmniCoreService : Service() {
         }
     }
 
-    override fun onBind(intent: Intent?): IBinder = binder
+    override fun onBind(intent: Intent?): IBinder {
+        // Ensure rish is available for the isolated :core_ipc process as well.
+        PrivilegedExecutionManager.init(applicationContext)
+        return binder
+    }
 
     override fun onDestroy() {
         super.onDestroy()
