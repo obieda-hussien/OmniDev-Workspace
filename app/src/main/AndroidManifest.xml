@@ -144,6 +144,12 @@
     <uses-permission android:name="android.permission.DEVICE_POWER"
         tools:ignore="ProtectedPermissions" />
 
+    <!-- ═══ OMNI CORE IPC — Custom Signature Permission ═══ -->
+    <!-- Declared here so the system registers it when OmniDev is installed first.
+         Protection level "signature" means only apps signed with the same key can hold it. -->
+    <!-- uses-permission for the service host itself is intentionally omitted:
+         OmniCoreService *defines* this permission; it does not need to *request* it. -->
+
     <!-- ═══ FOREGROUND SERVICES (Android 14+) ═══ -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
@@ -159,6 +165,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <permission
+        android:name="com.omnidev.permission.CONTROL_CORE"
+        android:label="OmniDev Core Control"
+        android:description="@string/perm_control_core_description"
+        android:protectionLevel="signature" />
 
     <application
         android:name=".OmniDevApp"
@@ -327,6 +339,14 @@
             android:name=".data.sync.OmniSyncService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- OmniCoreService: privileged AIDL IPC endpoint (isolated process) -->
+        <!-- Access is restricted to callers holding com.omnidev.permission.CONTROL_CORE -->
+        <service
+            android:name=".data.ipc.OmniCoreService"
+            android:exported="true"
+            android:process=":core_ipc"
+            android:permission="com.omnidev.permission.CONTROL_CORE" />
 
     </application>
 

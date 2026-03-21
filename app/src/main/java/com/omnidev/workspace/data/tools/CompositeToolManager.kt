@@ -7,6 +7,7 @@ import com.omnidev.workspace.data.accessibility.SemanticUITool
 import com.omnidev.workspace.data.admin.OmniDeviceAdminReceiver
 import com.omnidev.workspace.data.communication.SmsCaptureBuffer
 import com.omnidev.workspace.data.input.OmniInputMethodService
+import com.omnidev.workspace.data.ipc.OmniCoreAgentTool
 import com.omnidev.workspace.data.media.OmniMediaSessionService
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.sync.OmniSyncService
@@ -135,6 +136,8 @@ class CompositeToolManager(
             addAll(AppManifestAnalyzerTool.getToolDefinitions())
             addAll(WebScraperTool.getToolDefinitions())
             addAll(AdvancedFileTools.getToolDefinitions())
+            addAll(OmniCoreAgentTool.getToolDefinitions())
+            addAll(AgentRuntimeTool.getToolDefinitions())
         }
         if (headlessBrowserManager != null) {
             addAll(headlessBrowserManager.getToolDefinitions())
@@ -575,6 +578,18 @@ class CompositeToolManager(
                 )
             }
 
+            // ── Privileged execution tool (Shizuku / rish / root via PrivilegedExecutionManager) ──
+            "privileged_tool" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                OmniCoreAgentTool.execute(action = action, args = arguments)
+            }
+
+            // ── Agent runtime / tool-installer tool ──
+            "agent_runtime" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                AgentRuntimeTool.execute(context = context ?: return missingContext(), action = action, args = arguments)
+            }
+
             // ── Vector memory tools ──
             "vector_store", "vector_search", "vector_similar" -> {
                 val vmm = vectorMemoryManager
@@ -765,6 +780,9 @@ class CompositeToolManager(
 
     private fun missingArg(name: String) =
         ToolExecutionResult("Missing required argument: $name", isError = true)
+
+    private fun missingContext() =
+        ToolExecutionResult("Context not available for this operation.", isError = true)
 
     private fun extractUrlFromAmStartViewCommand(command: String): String? {
         if (!command.contains("am start", ignoreCase = true)) return null
