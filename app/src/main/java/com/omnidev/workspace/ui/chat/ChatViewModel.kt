@@ -296,6 +296,40 @@ class ChatViewModel(
         }
     }
 
+    /** Deletes all sessions and resets to a new unsaved session. */
+    fun deleteAllSessions() {
+        viewModelScope.launch {
+            chatRepository?.deleteAllSessions()
+            _uiState.update {
+                it.copy(
+                    currentSessionId = null,
+                    messages = emptyList(),
+                    consoleEntries = emptyList(),
+                    errorMessage = null,
+                    streamingContent = null
+                )
+            }
+        }
+    }
+
+    /** Deletes a set of sessions by their IDs and resets if the active session is included. */
+    fun deleteSelectedSessions(ids: Set<Long>) {
+        viewModelScope.launch {
+            chatRepository?.deleteSelectedSessions(ids)
+            if (_uiState.value.currentSessionId in ids) {
+                _uiState.update {
+                    it.copy(
+                        currentSessionId = null,
+                        messages = emptyList(),
+                        consoleEntries = emptyList(),
+                        errorMessage = null,
+                        streamingContent = null
+                    )
+                }
+            }
+        }
+    }
+
     /**
      * Updates the text input field.
      */
