@@ -19,33 +19,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 /**
- * OmniCoreService — a bound Android [Service] running in the isolated process
- * `:core_ipc` that exposes the [IOmniCoreInterface] AIDL interface to trusted
- * companion apps.
+ * OmniCoreService -- a bound Android Service running in the isolated process
+ * :core_ipc that exposes the full IOmniCoreInterface AIDL interface to
+ * trusted companion apps (e.g., a Magisk module companion).
  *
- * ### Security model
- * Every binder method starts by calling [enforceCorePermission], which invokes
- * [enforceCallingPermission] with the custom signature-level permission
- * `com.omnidev.permission.CONTROL_CORE`. Unsigned or differently-signed callers
- * are rejected with a [SecurityException] before any privileged work is done.
- *
- * ### Process isolation
- * Declared with `android:process=":core_ipc"` in the Manifest so that a crash
- * in a caller or in the privileged execution path cannot kill the main app
- * process.
- *
- * ### Thread safety
- * Binder calls arrive on binder pool threads. All suspend work is dispatched
- * through [serviceScope] backed by [SupervisorJob]; failures in one call do
- * not cancel others. [runBlocking] bridges the binder-thread/coroutine boundary
- * for the synchronous AIDL return values expected by callers.
+ * Security: every binder method calls enforceCorePermission() first.
+ * Delegation: all privileged work goes to PrivilegedExecutionManager.
  */
 class OmniCoreService : Service() {
 
     companion object {
         private const val TAG = "OmniCoreService"
-
-        /** Custom signature-level permission that guards all IPC methods. */
         const val PERMISSION_CONTROL_CORE = "com.omnidev.permission.CONTROL_CORE"
     }
 
@@ -55,112 +39,230 @@ class OmniCoreService : Service() {
     }
     private val serviceScope = CoroutineScope(Dispatchers.IO + serviceJob + exceptionHandler)
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Binder implementation
-    // ─────────────────────────────────────────────────────────────────────
-
     private val binder = object : IOmniCoreInterface.Stub() {
 
-        /**
-         * Execute a privileged shell command.
-         *
-         * Blocks the calling binder thread until the command completes or an
-         * error is returned. [DeadObjectException] from nested IPC calls inside
-         * [PrivilegedExecutionManager] is caught and surfaced as `false`.
-         */
         override fun executeSystemCommand(command: String): Boolean {
             enforceCorePermission()
-            return runBlocking(Dispatchers.IO) {
-                runCatching {
-                    val result = PrivilegedExecutionManager.executeCommand(command)
-                    result.isSuccess
-                }.getOrElse { t ->
-                    when (t) {
-                        is DeadObjectException, is RemoteException -> {
-                            Log.w(TAG, "IPC transport error in executeSystemCommand: ${t.message}")
-                            false
-                        }
-                        else -> {
-                            Log.e(TAG, "executeSystemCommand failed", t)
-                            false
-                        }
-                    }
-                }
+            return ipc("executeSystemCommand") {
+                PrivilegedExecutionManager.executeCommand(command).isSuccess
+            } ?: false
+        }
+
+        override fun executeCommandWithOutput(command: String): String {
+            enforceCorePermission()
+            return ipcString("executeCommandWithOutput") {
+                PrivilegedExecutionManager.executeCommand(command)
+                    .getOrElse { "ERROR: ${it.message}" }
             }
         }
 
-        /**
-         * Return a JSON snapshot of the current device state.
-         *
-         * Never throws across the binder boundary; errors produce an inline
-         * JSON error payload so callers always receive a valid string.
-         */
         override fun getDeviceState(): String {
             enforceCorePermission()
-            return runBlocking(Dispatchers.IO) {
-                runCatching {
-                    val snapshot = PrivilegedExecutionManager.getDeviceState(applicationContext)
-                    snapshot.toJson()
-                }.getOrElse { t ->
-                    when (t) {
-                        is DeadObjectException, is RemoteException -> {
-                            Log.w(TAG, "IPC transport error in getDeviceState: ${t.message}")
-                            "{\"error\":\"IPC transport failure\"}"
-                        }
-                        else -> {
-                            Log.e(TAG, "getDeviceState failed", t)
-                            "{\"error\":\"${t.message.jsonEscape()}\"}"
-                        }
-                    }
-                }
+            return ipcString("getDeviceState") {
+                PrivilegedExecutionManager.getDeviceState(applicationContext).toJson()
             }
         }
 
-        /**
-         * Inject a [KeyEvent] via Shizuku's `input keyevent` shell command.
-         *
-         * This is fire-and-forget from the caller's perspective (one-way
-         * semantics); the actual dispatch is done asynchronously on [serviceScope].
-         */
+        override fun getSystemProperty(key: String): String {
+            enforceCorePermission()
+            return ipcString("getSystemProperty") {
+                PrivilegedExecutionManager.getSystemProperty(key)
+                    .getOrElse { "ERROR: ${it.message}" }
+            }
+        }
+
+        override fun setSystemProperty(key: String, value: String): Boolean {
+            enforceCorePermission()
+            return ipc("setSystemProperty") {
+                PrivilegedExecutionManager.setSystemProperty(key, value).isSuccess
+            } ?: false
+        }
+
+        override fun dumpSysInfo(service: String): String {
+            enforceCorePermission()
+            return ipcString("dumpSysInfo") {
+                PrivilegedExecutionManager.dumpSysInfo(service)
+                    .getOrElse { "ERROR: ${it.message}" }
+            }
+        }
+
+        override fun listRunningProcesses(): String {
+            enforceCorePermission()
+            return ipcString("listRunningProcesses") {
+                PrivilegedExecutionManager.listRunningProcesses()
+                    .getOrElse { "ERROR: ${it.message}" }
+            }
+        }
+
+        override fun readSetting(namespace: String, key: String): String {
+            enforceCorePermission()
+            return ipcString("readSetting") {
+                PrivilegedExecutionManager.readSetting(namespace, key)
+                    .getOrElse { "ERROR: ${it.message}" }
+            }
+        }
+
+        override fun writeSetting(namespace: String, key: String, value: String): Boolean {
+            enforceCorePermission()
+            return ipc("writeSetting") {
+                PrivilegedExecutionManager.writeSetting(namespace, key, value).isSuccess
+            } ?: false
+        }
+
+        override fun listSettings(namespace: String): String {
+            enforceCorePermission()
+            return ipcString("listSettings") {
+                PrivilegedExecutionManager.listSettings(namespace)
+                    .getOrElse { "ERROR: ${it.message}" }
+            }
+        }
+
+        override fun queryPackages(filter: String): String {
+            enforceCorePermission()
+            return ipcString("queryPackages") {
+                PrivilegedExecutionManager.queryPackages(filter)
+                    .getOrElse { "ERROR: ${it.message}" }
+            }
+        }
+
+        override fun installApk(apkPath: String): Boolean {
+            enforceCorePermission()
+            return ipc("installApk") {
+                PrivilegedExecutionManager.installApk(apkPath).isSuccess
+            } ?: false
+        }
+
+        override fun uninstallPackage(packageName: String): Boolean {
+            enforceCorePermission()
+            return ipc("uninstallPackage") {
+                PrivilegedExecutionManager.uninstallPackage(packageName).isSuccess
+            } ?: false
+        }
+
+        override fun grantPermission(packageName: String, permission: String): Boolean {
+            enforceCorePermission()
+            return ipc("grantPermission") {
+                PrivilegedExecutionManager.grantPermission(packageName, permission).isSuccess
+            } ?: false
+        }
+
+        override fun revokePermission(packageName: String, permission: String): Boolean {
+            enforceCorePermission()
+            return ipc("revokePermission") {
+                PrivilegedExecutionManager.revokePermission(packageName, permission).isSuccess
+            } ?: false
+        }
+
+        override fun getPackageInfo(packageName: String): String {
+            enforceCorePermission()
+            return ipcString("getPackageInfo") {
+                PrivilegedExecutionManager.getPackageInfo(packageName)
+                    .getOrElse { "ERROR: ${it.message}" }
+            }
+        }
+
+        override fun forceStopApp(packageName: String): Boolean {
+            enforceCorePermission()
+            return ipc("forceStopApp") {
+                PrivilegedExecutionManager.forceStopApp(packageName).isSuccess
+            } ?: false
+        }
+
+        override fun launchComponent(component: String): Boolean {
+            enforceCorePermission()
+            return ipc("launchComponent") {
+                PrivilegedExecutionManager.launchComponent(component).isSuccess
+            } ?: false
+        }
+
+        override fun sendBroadcast(action: String): Boolean {
+            enforceCorePermission()
+            return ipc("sendBroadcast") {
+                PrivilegedExecutionManager.sendBroadcast(action).isSuccess
+            } ?: false
+        }
+
         override fun injectInputEvent(event: KeyEvent?) {
             enforceCorePermission()
             if (event == null) {
-                Log.w(TAG, "injectInputEvent: received null KeyEvent — ignoring")
+                Log.w(TAG, "injectInputEvent: null KeyEvent ignored")
                 return
             }
             serviceScope.launch {
-                runCatching {
-                    // Translate to `input keyevent <keycode>` shell command.
-                    val keyCode = event.keyCode
-                    PrivilegedExecutionManager.executeCommand("input keyevent $keyCode")
-                        .onFailure { t -> Log.e(TAG, "injectInputEvent dispatch failed", t) }
-                }.onFailure { t ->
-                    Log.e(TAG, "injectInputEvent unexpected error", t)
-                }
+                PrivilegedExecutionManager.injectKeyEvent(event.keyCode)
+                    .onFailure { t -> Log.e(TAG, "injectInputEvent failed", t) }
+            }
+        }
+
+        override fun injectTap(x: Int, y: Int): Boolean {
+            enforceCorePermission()
+            return ipc("injectTap") {
+                PrivilegedExecutionManager.injectTap(x, y).isSuccess
+            } ?: false
+        }
+
+        override fun injectSwipe(x1: Int, y1: Int, x2: Int, y2: Int, durationMs: Int): Boolean {
+            enforceCorePermission()
+            return ipc("injectSwipe") {
+                PrivilegedExecutionManager.injectSwipe(x1, y1, x2, y2, durationMs).isSuccess
+            } ?: false
+        }
+
+        override fun injectText(text: String): Boolean {
+            enforceCorePermission()
+            return ipc("injectText") {
+                PrivilegedExecutionManager.injectText(text).isSuccess
+            } ?: false
+        }
+
+        override fun captureScreen(outputPath: String): String {
+            enforceCorePermission()
+            return ipcString("captureScreen") {
+                PrivilegedExecutionManager.captureScreen(outputPath)
+                    .getOrElse { "ERROR: ${it.message}" }
+            }
+        }
+
+        override fun controlService(service: String, action: String): Boolean {
+            enforceCorePermission()
+            return ipc("controlService") {
+                PrivilegedExecutionManager.controlService(service, action).isSuccess
+            } ?: false
+        }
+
+        override fun windowManager(subCommand: String, value: String): String {
+            enforceCorePermission()
+            return ipcString("windowManager") {
+                PrivilegedExecutionManager.windowManager(subCommand, value)
+                    .getOrElse { "ERROR: ${it.message}" }
             }
         }
     }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // Service lifecycle
-    // ─────────────────────────────────────────────────────────────────────
 
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onDestroy() {
         super.onDestroy()
         serviceScope.cancel()
-        Log.d(TAG, "OmniCoreService destroyed — coroutine scope cancelled")
+        Log.d(TAG, "OmniCoreService destroyed")
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Permission helpers
-    // ─────────────────────────────────────────────────────────────────────
+    private fun <T> ipc(tag: String, block: suspend () -> T): T? {
+        return runBlocking(Dispatchers.IO) {
+            runCatching { block() }.getOrElse { t ->
+                when (t) {
+                    is DeadObjectException, is RemoteException ->
+                        Log.w(TAG, "IPC transport error in $tag: ${t.message}")
+                    else -> Log.e(TAG, "$tag failed", t)
+                }
+                null
+            }
+        }
+    }
 
-    /**
-     * Throws [SecurityException] if the remote caller does not hold
-     * [PERMISSION_CONTROL_CORE]. Must be called at the top of every AIDL method.
-     */
+    private fun ipcString(tag: String, block: suspend () -> String): String =
+        ipc(tag, block) ?: "{\"error\":\"IPC failure in $tag\"}"
+
     private fun enforceCorePermission() {
         val callerUid = Binder.getCallingUid()
         val check = checkPermission(PERMISSION_CONTROL_CORE, Binder.getCallingPid(), callerUid)
@@ -171,11 +273,3 @@ class OmniCoreService : Service() {
         }
     }
 }
-
-/** Escapes special characters for embedding a string inside a JSON string literal. */
-private fun String?.jsonEscape(): String = (this ?: "")
-    .replace("\\", "\\\\")
-    .replace("\"", "\\\"")
-    .replace("\n", "\\n")
-    .replace("\r", "\\r")
-    .replace("\t", "\\t")

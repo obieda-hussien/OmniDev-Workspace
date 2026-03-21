@@ -7,6 +7,7 @@ import com.omnidev.workspace.data.accessibility.SemanticUITool
 import com.omnidev.workspace.data.admin.OmniDeviceAdminReceiver
 import com.omnidev.workspace.data.communication.SmsCaptureBuffer
 import com.omnidev.workspace.data.input.OmniInputMethodService
+import com.omnidev.workspace.data.ipc.OmniCoreAgentTool
 import com.omnidev.workspace.data.media.OmniMediaSessionService
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.sync.OmniSyncService
@@ -135,6 +136,7 @@ class CompositeToolManager(
             addAll(AppManifestAnalyzerTool.getToolDefinitions())
             addAll(WebScraperTool.getToolDefinitions())
             addAll(AdvancedFileTools.getToolDefinitions())
+            addAll(OmniCoreAgentTool.getToolDefinitions())
         }
         if (headlessBrowserManager != null) {
             addAll(headlessBrowserManager.getToolDefinitions())
@@ -573,6 +575,12 @@ class CompositeToolManager(
                     targetPackage = arguments["target_package"] ?: return missingArg("target_package"),
                     filter = arguments["filter"]
                 )
+            }
+
+            // ── Privileged execution tool (Shizuku / root via PrivilegedExecutionManager) ──
+            "privileged_tool" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                OmniCoreAgentTool.execute(action = action, args = arguments)
             }
 
             // ── Vector memory tools ──
