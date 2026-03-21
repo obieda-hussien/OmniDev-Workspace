@@ -114,17 +114,17 @@ Actions and required parameters:
 
             "python_run" -> {
                 val code = args["code"] ?: return@withContext err("python_run requires 'code'")
-                pythonRun(context, code, args["args"])
+                pythonRun(code, args["args"])
             }
 
             "node_run" -> {
                 val code = args["code"] ?: return@withContext err("node_run requires 'code'")
-                nodeRun(context, code)
+                nodeRun(code)
             }
 
             "shell_script" -> {
                 val script = args["script"] ?: return@withContext err("shell_script requires 'script'")
-                shellScript(context, script, args["interpreter"] ?: "sh")
+                shellScript(script, args["interpreter"] ?: "sh")
             }
 
             "pip_install" -> {
@@ -153,7 +153,7 @@ Actions and required parameters:
 
             "download_exec" -> {
                 val url = args["url"] ?: return@withContext err("download_exec requires 'url'")
-                downloadExec(context, url, args["args"] ?: "")
+                downloadExec(url, args["args"] ?: "")
             }
 
             "termux_check" -> termuxCheck()
@@ -226,46 +226,36 @@ Actions and required parameters:
         return PrivilegedExecutionManager.executeCommand("which $safeTool 2>/dev/null || echo 'NOT FOUND'").toToolResult()
     }
 
-    private suspend fun pythonRun(context: Context, code: String, extraArgs: String?): ToolExecutionResult {
-        val tmp = File(context.cacheDir, "agent_py_${System.currentTimeMillis()}.py")
-        return try {
-            tmp.writeText(code)
-            // Quote the script path; extra args passed as separate quoted argument if provided
-            val argStr = extraArgs?.let { " ${shellQuote(it)}" } ?: ""
-            val result = PrivilegedExecutionManager.executeCommand(
-                "python3 ${shellQuote(tmp.absolutePath)}$argStr 2>&1"
-            )
-            result.toToolResult()
-        } finally {
-            tmp.delete()
-        }
+    private suspend fun pythonRun(code: String, extraArgs: String?): ToolExecutionResult {
+        // Run inline via `python3 -c` — avoids writing to app-private cacheDir,
+        // which the Shizuku `shell` process cannot access due to SELinux type enforcement.
+        // extraArgs are forwarded as quoted positional arguments after the -c code block
+        // (sys.argv[0] == '-c', sys.argv[1..] == the extra args).
+        val argStr = extraArgs?.split(Regex("\\s+"))
+            ?.filter { it.isNotBlank() }
+            ?.joinToString(" ") { shellQuote(it) }
+            ?.let { " $it" } ?: ""
+        return PrivilegedExecutionManager.executeCommand(
+            "python3 -c ${shellQuote(code)}$argStr 2>&1"
+        ).toToolResult()
     }
 
-    private suspend fun nodeRun(context: Context, code: String): ToolExecutionResult {
-        val tmp = File(context.cacheDir, "agent_js_${System.currentTimeMillis()}.js")
-        return try {
-            tmp.writeText(code)
-            val result = PrivilegedExecutionManager.executeCommand(
-                "node ${shellQuote(tmp.absolutePath)} 2>&1"
-            )
-            result.toToolResult()
-        } finally {
-            tmp.delete()
-        }
+    private suspend fun nodeRun(code: String): ToolExecutionResult {
+        // Run inline via `node -e` — avoids app-private cacheDir access issue.
+        return PrivilegedExecutionManager.executeCommand(
+            "node -e ${shellQuote(code)} 2>&1"
+        ).toToolResult()
     }
 
-    private suspend fun shellScript(context: Context, scriptContent: String, interpreter: String): ToolExecutionResult {
-        // Validate interpreter against a whitelist to prevent path traversal
+    private suspend fun shellScript(scriptContent: String, interpreter: String): ToolExecutionResult {
         val safeInterpreter = interpreter.lowercase().trim()
             .let { ALLOWED_INTERPRETERS.firstOrNull { allowed -> allowed == it } ?: "sh" }
-        val tmp = File(context.cacheDir, "agent_sh_${System.currentTimeMillis()}.sh")
-        return try {
-            tmp.writeText("#!/system/bin/env $safeInterpreter\n$scriptContent")
-            tmp.setExecutable(true, false)
-            PrivilegedExecutionManager.executeCommand("$safeInterpreter ${shellQuote(tmp.absolutePath)} 2>&1").toToolResult()
-        } finally {
-            tmp.delete()
-        }
+        // Use the appropriate inline evaluation flag:
+        // node uses `--eval` / `-e`; all shell interpreters and Python use `-c`.
+        val flag = if (safeInterpreter == "node") "-e" else "-c"
+        return PrivilegedExecutionManager.executeCommand(
+            "$safeInterpreter $flag ${shellQuote(scriptContent)} 2>&1"
+        ).toToolResult()
     }
 
     private suspend fun pipInstall(packages: String, upgrade: Boolean): ToolExecutionResult {
@@ -277,12 +267,26 @@ Actions and required parameters:
             .joinToString(" ")
         if (safePkgs.isEmpty()) return err("No valid package names provided.")
         val upgradeFlag = if (upgrade) " --upgrade" else ""
-        val cmd = "pip3 install$upgradeFlag $safePkgs 2>&1 || pip install$upgradeFlag $safePkgs 2>&1"
+        // Try pip3/pip on PATH first, then python3 -m pip (works even without pip on PATH),
+        // then Termux's Python as a last resort for environments where only Termux has Python.
+        val cmd = buildString {
+            append("pip3 install$upgradeFlag $safePkgs 2>&1")
+            append(" || pip install$upgradeFlag $safePkgs 2>&1")
+            append(" || python3 -m pip install$upgradeFlag $safePkgs 2>&1")
+            append(" || $TERMUX_BIN/python3 -m pip install$upgradeFlag $safePkgs 2>&1")
+            append(" || $TERMUX_BIN/python -m pip install$upgradeFlag $safePkgs 2>&1")
+        }
         return PrivilegedExecutionManager.executeCommand(cmd).toToolResult()
     }
 
     private suspend fun pipList(): ToolExecutionResult {
-        val cmd = "pip3 list 2>&1 || pip list 2>&1"
+        val cmd = buildString {
+            append("pip3 list 2>&1")
+            append(" || pip list 2>&1")
+            append(" || python3 -m pip list 2>&1")
+            append(" || $TERMUX_BIN/python3 -m pip list 2>&1")
+            append(" || $TERMUX_BIN/python -m pip list 2>&1")
+        }
         return PrivilegedExecutionManager.executeCommand(cmd).toToolResult()
     }
 
@@ -293,7 +297,9 @@ Actions and required parameters:
             .joinToString(" ")
         if (safePkgs.isEmpty()) return err("No valid package names provided.")
         val globalFlag = if (global) " -g" else ""
-        return PrivilegedExecutionManager.executeCommand("npm install$globalFlag $safePkgs 2>&1").toToolResult()
+        return PrivilegedExecutionManager.executeCommand(
+            "npm install$globalFlag $safePkgs 2>&1 || $TERMUX_BIN/npm install$globalFlag $safePkgs 2>&1"
+        ).toToolResult()
     }
 
     private suspend fun downloadFile(url: String, destPath: String?): ToolExecutionResult {
@@ -311,25 +317,19 @@ Actions and required parameters:
         return PrivilegedExecutionManager.executeCommand(cmd).map { "Downloaded to: $dest" }.toToolResult()
     }
 
-    private suspend fun downloadExec(context: Context, url: String, extraArgs: String): ToolExecutionResult {
+    private suspend fun downloadExec(url: String, extraArgs: String): ToolExecutionResult {
         if (url.isBlank()) return err("URL is blank.")
         val validatedUrl = validateUrl(url) ?: return err("Invalid URL: '$url'")
-        val tmp = File(context.cacheDir, "agent_dl_${System.currentTimeMillis()}.sh")
-        return try {
-            val dlResult = PrivilegedExecutionManager.executeCommand(
-                "curl -fsSL -o ${shellQuote(tmp.absolutePath)} ${shellQuote(validatedUrl)} 2>&1" +
-                " || wget -q -O ${shellQuote(tmp.absolutePath)} ${shellQuote(validatedUrl)} 2>&1"
-            )
-            if (dlResult.isFailure) {
-                return err("Failed to download '$validatedUrl': ${dlResult.exceptionOrNull()?.message}")
-            }
-            tmp.setExecutable(true, false)
-            // Pass extra args as a single quoted shell argument to prevent injection
-            val argPart = if (extraArgs.isBlank()) "" else " ${shellQuote(extraArgs)}"
-            PrivilegedExecutionManager.executeCommand("sh ${shellQuote(tmp.absolutePath)}$argPart 2>&1").toToolResult()
-        } finally {
-            tmp.delete()
-        }
+        // Use /data/local/tmp/ (writable by the `shell` user) instead of app-private cacheDir.
+        // The entire download + execute is performed as a single privileged command so the
+        // Shizuku/root process owns the temp file and can both write and execute it.
+        val tmpPath = "/data/local/tmp/agent_dl_${System.currentTimeMillis()}.sh"
+        val argPart = if (extraArgs.isBlank()) "" else " ${shellQuote(extraArgs)}"
+        return PrivilegedExecutionManager.executeCommand(
+            "(curl -fsSL -o $tmpPath ${shellQuote(validatedUrl)} 2>&1" +
+            " || wget -q -O $tmpPath ${shellQuote(validatedUrl)} 2>&1)" +
+            " && chmod +x $tmpPath && sh $tmpPath$argPart 2>&1; rm -f $tmpPath"
+        ).toToolResult()
     }
 
     private suspend fun termuxCheck(): ToolExecutionResult {
