@@ -13,6 +13,8 @@ import androidx.room.PrimaryKey
  * @property role Message sender role: "USER", "ASSISTANT", "SYSTEM", or "TOOL".
  * @property content The textual content of the message.
  * @property timestamp Unix timestamp (ms) when this message was created.
+ * @property consoleEntriesJson JSON-serialized agent console entries associated with this message.
+ *   Non-empty only for ASSISTANT messages produced by the agent/swarm pipeline.
  */
 @Entity(
     tableName = "chat_messages",
@@ -31,5 +33,6 @@ data class ChatMessageEntity(
     val sessionId: Long,
     val role: String,
     val content: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val consoleEntriesJson: String = ""
 )

@@ -24,10 +24,11 @@ import com.omnidev.workspace.data.db.entities.KnowledgeSnippet
  *  3 → added `source` and `telegramChatId` columns to `chat_sessions`
  *  4 → added `discordChannelId` column to `chat_sessions`
  *  5 → added `whatsappJid` column to `chat_sessions`
+ *  6 → added `consoleEntriesJson` column to `chat_messages`
  */
 @Database(
     entities = [KnowledgeSnippet::class, ChatSessionEntity::class, ChatMessageEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -70,6 +71,13 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
+        /** Migration from v5 → v6 (consoleEntriesJson column added to chat_messages). */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN consoleEntriesJson TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getInstance(context: Context): OmniDevDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -77,7 +85,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
                     OmniDevDatabase::class.java,
                     "omnidev_workspace.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                     .build().also { INSTANCE = it }
             }
     }
