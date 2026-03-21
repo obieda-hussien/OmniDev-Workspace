@@ -95,17 +95,27 @@ object PrivilegedExecutionManager {
         if (command.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Command must not be blank."))
         }
-        return@withContext when {
-            isShizukuReady() -> executeViaShizuku(command)
-            isRishReady() -> rishManager!!.execute(command)
-            isRootAvailable() -> executeViaRoot(command)
-            else -> Result.failure(
-                IllegalStateException(
-                    "No privileged execution backend available. " +
-                    "Shizuku is not running, rish DEX is not found, and root is not accessible."
-                )
-            )
+        // Try each backend in order, falling through to the next on failure.
+        // Shizuku.pingBinder() + checkSelfPermission() can both return true while
+        // Shizuku.newProcess() still fails (e.g. UserService stopped, version mismatch) —
+        // so we must cascade on execution failure, not just on availability checks.
+        if (isShizukuReady()) {
+            val result = executeViaShizuku(command)
+            if (result.isSuccess) return@withContext result
+            // Shizuku binder was live but process creation failed; try next backend.
         }
+        if (isRishReady()) {
+            return@withContext rishManager!!.execute(command)
+        }
+        if (isRootAvailable()) {
+            return@withContext executeViaRoot(command)
+        }
+        return@withContext Result.failure(
+            IllegalStateException(
+                "No privileged execution backend available. " +
+                "Shizuku is not running, rish DEX is not found, and root is not accessible."
+            )
+        )
     }
 
     // ─────────────────────────────────────────────────────────────────────

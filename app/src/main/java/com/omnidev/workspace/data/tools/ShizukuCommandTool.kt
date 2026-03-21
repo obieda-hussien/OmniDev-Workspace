@@ -91,6 +91,10 @@ object ShizukuCommandTool {
      * [InvocationTargetException], so we unwrap and inspect the deepest relevant throwable.
      * We also fall back to class-name checks for framework exception types that may not be
      * directly accessible at compile time in this module.
+     *
+     * NOTE: [IllegalStateException] and [SecurityException] are matched **only** when the
+     * exception message references Shizuku. Catching them generically caused real execution
+     * errors (e.g. process-creation failures) to be misreported as "service not running".
      */
     fun isShizukuServiceException(error: Throwable): Boolean {
         val root: Throwable = if (error is InvocationTargetException) {
@@ -100,13 +104,16 @@ object ShizukuCommandTool {
         }
         val name = root::class.java.name
         val message = (root.message ?: error.message).orEmpty()
-        return root is IllegalStateException ||
-            root is SecurityException ||
+        return name == "android.os.DeadObjectException" ||
+            name == "android.os.RemoteException" ||
             root is NoSuchMethodException ||
             root is ClassNotFoundException ||
             root is NoClassDefFoundError ||
-            name == "android.os.DeadObjectException" ||
-            name == "android.os.RemoteException" ||
+            // Only treat SecurityException / IllegalStateException as a Shizuku-availability
+            // issue when the message explicitly references Shizuku — otherwise let the real
+            // error propagate so the caller can fall through to the next backend.
+            (root is SecurityException && message.contains("shizuku", ignoreCase = true)) ||
+            (root is IllegalStateException && message.contains("shizuku", ignoreCase = true)) ||
             // Reflection can fail with method-signature text when Shizuku API/service
             // shape is incompatible at runtime; match the known method token safely.
             message.contains("rikka.shizuku.Shizuku.newProcess", ignoreCase = true)
