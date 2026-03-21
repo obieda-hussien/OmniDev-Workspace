@@ -814,12 +814,16 @@ class ChatViewModel(
                     role = MessageRole.ASSISTANT,
                     content = event.content
                 )
+                val currentConsole = _uiState.value.consoleEntries
                 viewModelScope.launch {
-                    chatRepository?.saveMessage(sessionId, assistantMessage)
+                    chatRepository?.saveMessage(sessionId, assistantMessage, currentConsole)
                 }
                 _uiState.update {
                     it.copy(
                         messages = it.messages + assistantMessage,
+                        messageConsoleEntries = if (currentConsole.isNotEmpty())
+                            it.messageConsoleEntries + (assistantMessage.timestamp to currentConsole)
+                        else it.messageConsoleEntries,
                         isProcessing = false,
                         agentStatus = null,
                         streamingContent = null,
@@ -932,12 +936,16 @@ class ChatViewModel(
                     role = MessageRole.ASSISTANT,
                     content = event.summary
                 )
+                val currentConsole = _uiState.value.consoleEntries
                 viewModelScope.launch {
-                    chatRepository?.saveMessage(sessionId, assistantMessage)
+                    chatRepository?.saveMessage(sessionId, assistantMessage, currentConsole)
                 }
                 _uiState.update {
                     it.copy(
                         messages = it.messages + assistantMessage,
+                        messageConsoleEntries = if (currentConsole.isNotEmpty())
+                            it.messageConsoleEntries + (assistantMessage.timestamp to currentConsole)
+                        else it.messageConsoleEntries,
                         isProcessing = false,
                         agentStatus = null,
                         streamingContent = null,

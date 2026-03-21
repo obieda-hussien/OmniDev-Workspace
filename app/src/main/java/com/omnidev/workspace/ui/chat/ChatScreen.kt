@@ -355,8 +355,11 @@ fun ChatScreen(
                     if (uiState.messages.isEmpty()) {
                         item { EmptyStateContent() }
                     }
-                    items(uiState.messages) { message ->
-                        MessageBubble(message = message)
+                    items(uiState.messages, key = { it.timestamp }) { message ->
+                        MessageBubble(
+                            message = message,
+                            consoleEntries = uiState.messageConsoleEntries[message.timestamp]
+                        )
                     }
                     // Show partial streaming response while the model is still generating
                     val streamingContent = uiState.streamingContent
@@ -952,7 +955,10 @@ private fun groupSessionsByDate(sessions: List<ChatSessionEntity>): Map<String, 
 // ──────────────────────────────────────────────
 
 @Composable
-private fun MessageBubble(message: ChatMessage) {
+private fun MessageBubble(
+    message: ChatMessage,
+    consoleEntries: List<AgentConsoleEntry>? = null
+) {
     val isUser = message.role == MessageRole.USER
     val alignment = if (isUser) Alignment.End else Alignment.Start
     val backgroundColor = if (isUser)
@@ -972,6 +978,15 @@ private fun MessageBubble(message: ChatMessage) {
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = alignment
     ) {
+        // Persistent per-message Agent Console — collapsed by default, expandable
+        if (!isUser && !consoleEntries.isNullOrEmpty()) {
+            AgentLiveConsole(
+                entries = consoleEntries,
+                isRunning = false,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
+
         // Expandable "🧠 Thought Process" cards (assistant only)
         if (parsed != null && parsed.thoughtBlocks.isNotEmpty()) {
             parsed.thoughtBlocks.forEach { thought ->
