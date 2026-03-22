@@ -140,6 +140,9 @@ class CompositeToolManager(
             addAll(AgentRuntimeTool.getToolDefinitions())
         }
         addAll(SocialMediaTool.getToolDefinitions())
+        if (context != null) {
+            addAll(NetworkMonitorTool.getToolDefinitions())
+        }
         if (headlessBrowserManager != null) {
             addAll(headlessBrowserManager.getToolDefinitions())
         }
@@ -609,6 +612,12 @@ class CompositeToolManager(
             "social_media_video" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 SocialMediaTool.execute(context = context, action = action, args = arguments)
+            }
+
+            // ── Network traffic monitor (VPN-based) ──
+            "network_monitor" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                NetworkMonitorTool.execute(context = context ?: return missingContext(), action = action, args = arguments)
             }
 
             // ── Vector memory tools ──
