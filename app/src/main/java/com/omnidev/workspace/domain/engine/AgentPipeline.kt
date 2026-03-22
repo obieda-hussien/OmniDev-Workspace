@@ -34,7 +34,7 @@ import kotlin.math.min
  * @property enableMemoryTrimming Whether to trim old messages when context window fills up.
  */
 data class AgentConfig(
-    val maxIterations: Int = 25,
+    val maxIterations: Int = 50,
     val enableRetry: Boolean = true,
     val maxRetries: Int = 3,
     val baseRetryDelayMs: Long = 500L,
@@ -46,22 +46,22 @@ data class AgentConfig(
      * If the agent has not completed within this duration it is forcibly cancelled
      * and an [AgentEvent.Error] is emitted.  Set to null for no timeout.
      */
-    val maxExecutionTimeMs: Long? = 5 * 60 * 1_000L, // 5 minutes default
+    val maxExecutionTimeMs: Long? = null, // No wall-clock timeout by default
     /**
      * Per-iteration timeout for a single LLM API call in milliseconds.
      * If the LLM takes longer than this to respond for a single iteration,
      * the run is aborted with an error. Prevents the agent from hanging
      * indefinitely when the API is slow or unresponsive. Set to null to disable.
      */
-    val maxIterationTimeMs: Long? = 90_000L, // 90 seconds per LLM call
+    val maxIterationTimeMs: Long? = 3 * 60 * 1_000L, // 3 minutes per LLM call
     /**
      * Maximum number of times the exact same tool + arguments combination may appear
      * in a single run before the loop is aborted with an [AgentEvent.Error].
      * Prevents runaway "stuck" loops where the model keeps calling the same tool.
-     * Default is 10: allows legitimate retries and multi-pass research tasks before
+     * Default is 15: allows legitimate retries and multi-pass research tasks before
      * declaring the agent stuck.
      */
-    val maxRepeatedToolCalls: Int = 10,
+    val maxRepeatedToolCalls: Int = 15,
     /**
      * When true (default), multiple tool calls returned in the same ReAct iteration
      * are executed concurrently using structured concurrency (coroutineScope + async).
@@ -93,7 +93,7 @@ data class AgentConfig(
 
         /** Preset for deep, thorough agentic runs with maximum capability. */
         val THOROUGH = AgentConfig(
-            maxIterations = 50,
+            maxIterations = 100,
             maxRetries = 5,
             baseRetryDelayMs = 1_000L,
             contextWindowBuffer = 8_192,
