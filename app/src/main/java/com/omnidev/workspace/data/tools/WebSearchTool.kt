@@ -165,7 +165,10 @@ object WebSearchTool {
             targets.map { result ->
                 async(Dispatchers.IO) {
                     val content = withTimeoutOrNull(FETCH_PAGE_TIMEOUT_MS) {
-                        try { fetchPageContent(result.url) } catch (_: Exception) { null }
+                        try { fetchPageContent(result.url) } catch (e: Exception) {
+                            android.util.Log.w("WebSearchTool", "Failed to fetch ${result.url}: ${e.message}")
+                            null
+                        }
                     }
                     PageResult(result, content?.takeIf { it.isNotBlank() } ?: result.snippet)
                 }

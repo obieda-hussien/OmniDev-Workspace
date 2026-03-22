@@ -123,7 +123,7 @@ object WebScraperTool {
             }
 
             val results: List<Pair<String, ToolExecutionResult?>> = coroutineScope {
-                urls.take(MAX_URLS_MULTIPLE).mapIndexed { i, url ->
+                urls.take(MAX_URLS_MULTIPLE).map { url ->
                     async(Dispatchers.IO) {
                         val result = withTimeoutOrNull(MULTI_FETCH_TIMEOUT_MS) {
                             execute(url.trim(), selector)
