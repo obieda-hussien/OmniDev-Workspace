@@ -62,8 +62,14 @@ data class ChatUiState(
     val agentStatus: String? = null,
     /** Error message to display. */
     val errorMessage: String? = null,
-    /** Live console entries for the Agent Observability Console ("Glass Brain"). */
+    /** Live console entries accumulating during the current agent run. */
     val consoleEntries: List<AgentConsoleEntry> = emptyList(),
+    /**
+     * Per-message agent console entries, keyed by message timestamp.
+     * Populated for ASSISTANT messages that went through the agent/swarm pipeline.
+     * Restored from the database when loading a past session.
+     */
+    val messageConsoleEntries: Map<Long, List<AgentConsoleEntry>> = emptyMap(),
     /** Files selected by the user, waiting to be included in the next message. */
     val pendingAttachments: List<PendingAttachment> = emptyList(),
     /** Past sessions for the navigation drawer. */
@@ -238,11 +244,12 @@ class ChatViewModel(
      */
     fun loadSession(sessionId: Long) {
         viewModelScope.launch {
-            val messages = chatRepository?.loadMessages(sessionId) ?: return@launch
+            val (messages, consoleMap) = chatRepository?.loadMessages(sessionId) ?: return@launch
             _uiState.update {
                 it.copy(
                     currentSessionId = sessionId,
                     messages = messages,
+                    messageConsoleEntries = consoleMap,
                     isDrawerOpen = false,
                     errorMessage = null,
                     consoleEntries = emptyList()
@@ -260,6 +267,7 @@ class ChatViewModel(
                 inputText = "",
                 pendingAttachments = emptyList(),
                 consoleEntries = emptyList(),
+                messageConsoleEntries = emptyMap(),
                 errorMessage = null,
                 streamingContent = null,
                 isDrawerOpen = false
@@ -288,6 +296,43 @@ class ChatViewModel(
                         currentSessionId = null,
                         messages = emptyList(),
                         consoleEntries = emptyList(),
+                        messageConsoleEntries = emptyMap(),
+                        errorMessage = null,
+                        streamingContent = null
+                    )
+                }
+            }
+        }
+    }
+
+    /** Deletes all sessions and resets to a new unsaved session. */
+    fun deleteAllSessions() {
+        viewModelScope.launch {
+            chatRepository?.deleteAllSessions()
+            _uiState.update {
+                it.copy(
+                    currentSessionId = null,
+                    messages = emptyList(),
+                    consoleEntries = emptyList(),
+                    messageConsoleEntries = emptyMap(),
+                    errorMessage = null,
+                    streamingContent = null
+                )
+            }
+        }
+    }
+
+    /** Deletes a set of sessions by their IDs and resets if the active session is included. */
+    fun deleteSelectedSessions(ids: Set<Long>) {
+        viewModelScope.launch {
+            chatRepository?.deleteSelectedSessions(ids)
+            if (_uiState.value.currentSessionId in ids) {
+                _uiState.update {
+                    it.copy(
+                        currentSessionId = null,
+                        messages = emptyList(),
+                        consoleEntries = emptyList(),
+                        messageConsoleEntries = emptyMap(),
                         errorMessage = null,
                         streamingContent = null
                     )
@@ -769,12 +814,16 @@ class ChatViewModel(
                     role = MessageRole.ASSISTANT,
                     content = event.content
                 )
+                val currentConsole = _uiState.value.consoleEntries
                 viewModelScope.launch {
-                    chatRepository?.saveMessage(sessionId, assistantMessage)
+                    chatRepository?.saveMessage(sessionId, assistantMessage, currentConsole)
                 }
                 _uiState.update {
                     it.copy(
                         messages = it.messages + assistantMessage,
+                        messageConsoleEntries = if (currentConsole.isNotEmpty())
+                            it.messageConsoleEntries + (assistantMessage.timestamp to currentConsole)
+                        else it.messageConsoleEntries,
                         isProcessing = false,
                         agentStatus = null,
                         streamingContent = null,
@@ -887,12 +936,16 @@ class ChatViewModel(
                     role = MessageRole.ASSISTANT,
                     content = event.summary
                 )
+                val currentConsole = _uiState.value.consoleEntries
                 viewModelScope.launch {
-                    chatRepository?.saveMessage(sessionId, assistantMessage)
+                    chatRepository?.saveMessage(sessionId, assistantMessage, currentConsole)
                 }
                 _uiState.update {
                     it.copy(
                         messages = it.messages + assistantMessage,
+                        messageConsoleEntries = if (currentConsole.isNotEmpty())
+                            it.messageConsoleEntries + (assistantMessage.timestamp to currentConsole)
+                        else it.messageConsoleEntries,
                         isProcessing = false,
                         agentStatus = null,
                         streamingContent = null,

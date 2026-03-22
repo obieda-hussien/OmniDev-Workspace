@@ -22,6 +22,8 @@
     <!-- ═══ CONNECTIVITY & NETWORK ═══ -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- VPN-based network monitor (no root required; user must accept system dialog) -->
+    <uses-permission android:name="android.permission.BIND_VPN_SERVICE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
@@ -339,6 +341,17 @@
             android:name=".data.sync.OmniSyncService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- OmniDevVpnService: local VPN tunnel for agent-driven traffic monitoring -->
+        <service
+            android:name=".data.network.OmniDevVpnService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+        </service>
 
         <!-- OmniCoreService: privileged AIDL IPC endpoint (isolated process) -->
         <!-- Access is restricted to callers holding com.omnidev.permission.CONTROL_CORE -->

@@ -139,6 +139,10 @@ class CompositeToolManager(
             addAll(OmniCoreAgentTool.getToolDefinitions())
             addAll(AgentRuntimeTool.getToolDefinitions())
         }
+        addAll(SocialMediaTool.getToolDefinitions())
+        if (context != null) {
+            addAll(NetworkMonitorTool.getToolDefinitions())
+        }
         if (headlessBrowserManager != null) {
             addAll(headlessBrowserManager.getToolDefinitions())
         }
@@ -379,6 +383,20 @@ class CompositeToolManager(
                 )
             }
 
+            "web_search_deep" -> {
+                val serpApiKey = settingsRepository?.observeSerpApiKey()?.first()
+                val googleApiKey = settingsRepository?.observeGoogleCseApiKey()?.first()
+                val googleCx = settingsRepository?.observeGoogleCseCx()?.first()
+                val maxSites = arguments["max_sites"]?.toIntOrNull() ?: 5
+                WebSearchTool.executeDeep(
+                    query = arguments["query"] ?: return missingArg("query"),
+                    maxSites = maxSites,
+                    serpApiKey = serpApiKey,
+                    googleApiKey = googleApiKey,
+                    googleCseCx = googleCx
+                )
+            }
+
             // ── Direct network request tool ──
             "network_request" -> NetworkRequestTool.execute(arguments)
 
@@ -590,6 +608,18 @@ class CompositeToolManager(
                 AgentRuntimeTool.execute(context = context ?: return missingContext(), action = action, args = arguments)
             }
 
+            // ── Social media / video tool ──
+            "social_media_video" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                SocialMediaTool.execute(context = context, action = action, args = arguments)
+            }
+
+            // ── Network traffic monitor (VPN-based) ──
+            "network_monitor" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                NetworkMonitorTool.execute(context = context ?: return missingContext(), action = action, args = arguments)
+            }
+
             // ── Vector memory tools ──
             "vector_store", "vector_search", "vector_similar" -> {
                 val vmm = vectorMemoryManager
@@ -603,6 +633,12 @@ class CompositeToolManager(
                     url = arguments["url"] ?: return missingArg("url"),
                     selector = arguments["selector"]
                 )
+            }
+
+            "scrape_multiple" -> {
+                val rawUrls = arguments["urls"] ?: return missingArg("urls")
+                val urls = rawUrls.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                WebScraperTool.executeMultiple(urls = urls, selector = arguments["selector"])
             }
 
             // ── Headless browser tools (Ghost Browser) ──

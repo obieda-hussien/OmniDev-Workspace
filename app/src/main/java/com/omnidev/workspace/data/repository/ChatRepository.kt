@@ -6,6 +6,8 @@ import com.omnidev.workspace.data.db.entities.ChatMessageEntity
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
+import com.omnidev.workspace.ui.chat.AgentConsoleEntry
+import com.omnidev.workspace.ui.chat.AgentConsoleSerializer
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -14,7 +16,7 @@ import kotlinx.coroutines.flow.Flow
  * Provides a clean API for [ChatViewModel] to:
  * - Create new sessions and save messages to them.
  * - Load past sessions for the history drawer.
- * - Restore a previous session's message history.
+ * - Restore a previous session's message history, including per-message agent console entries.
  */
 class ChatRepository(
     private val sessionDao: ChatSessionDao,
@@ -46,34 +48,61 @@ class ChatRepository(
     }
 
     /**
-     * Persists a [ChatMessage] to the given session.
+     * Persists a [ChatMessage] to the given session, optionally with agent console entries.
      * Content is truncated to [MAX_STORED_MESSAGE_CHARS] chars to keep DB size manageable.
      * The full text is always visible in the live in-memory UI state.
+     *
+     * @param consoleEntries Agent console entries to persist alongside this message (assistant only).
      */
-    suspend fun saveMessage(sessionId: Long, message: ChatMessage): Long =
+    suspend fun saveMessage(
+        sessionId: Long,
+        message: ChatMessage,
+        consoleEntries: List<AgentConsoleEntry> = emptyList()
+    ): Long =
         messageDao.insert(
             ChatMessageEntity(
                 sessionId = sessionId,
                 role = message.role.name,
                 content = message.content.take(MAX_STORED_MESSAGE_CHARS),
-                timestamp = message.timestamp
+                timestamp = message.timestamp,
+                consoleEntriesJson = AgentConsoleSerializer.serialize(consoleEntries)
             )
         )
 
     /**
      * Loads all messages for a session and converts them to [ChatMessage] domain objects.
+     * Also returns a map from message timestamp → agent console entries for assistant messages
+     * that had console data saved.
+     *
+     * @return Pair of (messages, messageConsoleEntries map keyed by message timestamp).
      */
-    suspend fun loadMessages(sessionId: Long): List<ChatMessage> =
-        messageDao.getBySession(sessionId).map { entity ->
+    suspend fun loadMessages(sessionId: Long): Pair<List<ChatMessage>, Map<Long, List<AgentConsoleEntry>>> {
+        val entities = messageDao.getBySession(sessionId)
+        val messages = entities.map { entity ->
             ChatMessage(
                 role = runCatching { MessageRole.valueOf(entity.role) }.getOrDefault(MessageRole.USER),
                 content = entity.content,
                 timestamp = entity.timestamp
             )
         }
+        val consoleMap = entities
+            .filter { it.consoleEntriesJson.isNotBlank() }
+            .associate { entity ->
+                entity.timestamp to AgentConsoleSerializer.deserialize(entity.consoleEntriesJson)
+            }
+        return messages to consoleMap
+    }
 
     /** Deletes a session and all its messages (cascade delete handles messages). */
     suspend fun deleteSession(sessionId: Long) = sessionDao.deleteById(sessionId)
+
+    /** Deletes all sessions (cascade delete handles their messages). */
+    suspend fun deleteAllSessions() = sessionDao.deleteAll()
+
+    /** Deletes multiple sessions by their IDs. */
+    suspend fun deleteSelectedSessions(ids: Set<Long>) {
+        ids.forEach { sessionDao.deleteById(it) }
+    }
 
     /** Toggles the pinned state for the given session. */
     suspend fun togglePin(sessionId: Long) {

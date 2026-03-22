@@ -39,6 +39,9 @@ interface ChatSessionDao {
     @Query("DELETE FROM chat_sessions WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    @Query("DELETE FROM chat_sessions")
+    suspend fun deleteAll()
+
     /** Find an existing Telegram session by its chat ID. */
     @Query("SELECT * FROM chat_sessions WHERE telegramChatId = :chatId AND source = 'telegram' LIMIT 1")
     suspend fun getByTelegramChatId(chatId: Long): ChatSessionEntity?

@@ -1,7 +1,10 @@
 package com.omnidev.workspace.data.tools
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
@@ -18,10 +21,15 @@ import org.jsoup.safety.Safelist
 object WebScraperTool {
 
     /** Maximum characters in the converted Markdown output. */
-    private const val MAX_OUTPUT_CHARS = 12_000
+    private const val MAX_OUTPUT_CHARS = 30_000
 
     /** Connection timeout in milliseconds. */
     private const val TIMEOUT_MS = 15_000
+
+    private const val MAX_CHARS_PER_PAGE = 8_000
+    private const val MULTI_FETCH_TIMEOUT_MS = 12_000L
+    private const val MAX_URLS_MULTIPLE = 8
+    private const val MAX_COMBINED_OUTPUT_CHARS = 50_000
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
@@ -32,6 +40,16 @@ object WebScraperTool {
             parameters = listOf(
                 ToolParameter("url", "string", "The full URL to fetch (must start with http:// or https://)", required = true),
                 ToolParameter("selector", "string", "Optional CSS selector to extract only a specific section (e.g., 'article', 'main', '.content')", required = false)
+            )
+        ),
+        ToolDefinition(
+            name = "scrape_multiple",
+            description = "Fetch and read multiple web pages in parallel, converting each to clean Markdown. " +
+                "Pass a comma-separated list of URLs. Returns full content from all pages simultaneously. " +
+                "Ideal for comparing sources, reading a list of links, or researching a topic across multiple sites.",
+            parameters = listOf(
+                ToolParameter("urls", "string", "Comma-separated list of URLs to fetch (up to 8).", required = true),
+                ToolParameter("selector", "string", "Optional CSS selector applied to all pages.", required = false)
             )
         )
     )
@@ -64,9 +82,12 @@ object WebScraperTool {
                     doc.selectFirst(selector) ?: doc.body()
                 } else {
                     // Try common content selectors first
-                    doc.selectFirst("article") ?: doc.selectFirst("main") ?: 
-                    doc.selectFirst("[role=main]") ?: doc.selectFirst(".content") ?: 
-                    doc.selectFirst("#content") ?: doc.body()
+                    doc.selectFirst("article")
+                        ?: doc.selectFirst("main")
+                        ?: doc.selectFirst("[role=main]")
+                        ?: doc.selectFirst(".post-content, .entry-content, .article-content, .article-body, .story-content, .post-body, #article-body, .main-content, .blog-content, .page-content")
+                        ?: doc.selectFirst(".content, #content, #main")
+                        ?: doc.body()
                 }
 
                 val title = doc.title()
@@ -93,6 +114,53 @@ object WebScraperTool {
                     isError = true
                 )
             }
+        }
+
+    suspend fun executeMultiple(urls: List<String>, selector: String?): ToolExecutionResult =
+        withContext(Dispatchers.IO) {
+            if (urls.isEmpty()) {
+                return@withContext ToolExecutionResult("No URLs provided.", isError = true)
+            }
+
+            val results: List<Pair<String, ToolExecutionResult?>> = coroutineScope {
+                urls.take(MAX_URLS_MULTIPLE).map { url ->
+                    async(Dispatchers.IO) {
+                        val result = withTimeoutOrNull(MULTI_FETCH_TIMEOUT_MS) {
+                            execute(url.trim(), selector)
+                        }
+                        Pair(url.trim(), result)
+                    }
+                }.map { it.await() }
+            }
+
+            val combined = buildString {
+                results.forEachIndexed { index, (url, result) ->
+                    appendLine("---")
+                    appendLine("## Site ${index + 1}: $url")
+                    appendLine()
+                    when {
+                        result == null -> appendLine("*(Timed out fetching this page.)*")
+                        result.isError -> appendLine("*(Error: ${result.output})*")
+                        else -> {
+                            val content = if (result.output.length > MAX_CHARS_PER_PAGE) {
+                                result.output.take(MAX_CHARS_PER_PAGE) + "\n\n[TRUNCATED]"
+                            } else {
+                                result.output
+                            }
+                            appendLine(content)
+                        }
+                    }
+                    appendLine()
+                }
+            }.trimEnd()
+
+            val capped = if (combined.length > MAX_COMBINED_OUTPUT_CHARS) {
+                combined.take(MAX_COMBINED_OUTPUT_CHARS) + "\n\n[TOTAL OUTPUT CAPPED AT $MAX_COMBINED_OUTPUT_CHARS CHARS]"
+            } else {
+                combined
+            }
+
+            ToolExecutionResult(output = capped)
         }
 
     /**

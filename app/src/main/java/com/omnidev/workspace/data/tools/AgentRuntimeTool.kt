@@ -114,17 +114,17 @@ Actions and required parameters:
 
             "python_run" -> {
                 val code = args["code"] ?: return@withContext err("python_run requires 'code'")
-                pythonRun(context, code, args["args"])
+                pythonRun(code, args["args"])
             }
 
             "node_run" -> {
                 val code = args["code"] ?: return@withContext err("node_run requires 'code'")
-                nodeRun(context, code)
+                nodeRun(code)
             }
 
             "shell_script" -> {
                 val script = args["script"] ?: return@withContext err("shell_script requires 'script'")
-                shellScript(context, script, args["interpreter"] ?: "sh")
+                shellScript(script, args["interpreter"] ?: "sh")
             }
 
             "pip_install" -> {
@@ -136,7 +136,11 @@ Actions and required parameters:
 
             "pip_run" -> {
                 val code = args["code"] ?: return@withContext err("pip_run requires 'code'")
-                PrivilegedExecutionManager.executeCommand("python3 -c ${shellQuote(code)}").toToolResult()
+                PrivilegedExecutionManager.executeCommand(
+                    "python3 -c ${shellQuote(code)} 2>&1" +
+                    " || $TERMUX_BIN/python3 -c ${shellQuote(code)} 2>&1" +
+                    " || $TERMUX_BIN/python -c ${shellQuote(code)} 2>&1"
+                ).toToolResult()
             }
 
             "npm_install" -> {
@@ -153,7 +157,7 @@ Actions and required parameters:
 
             "download_exec" -> {
                 val url = args["url"] ?: return@withContext err("download_exec requires 'url'")
-                downloadExec(context, url, args["args"] ?: "")
+                downloadExec(url, args["args"] ?: "")
             }
 
             "termux_check" -> termuxCheck()
@@ -193,15 +197,26 @@ Actions and required parameters:
         val sb = StringBuilder("=== Runtime environment check ===\n")
 
         for (tool in tools) {
-            val result = PrivilegedExecutionManager.executeCommand("which $tool 2>/dev/null")
-            val path = result.getOrNull()?.trim()?.takeIf { it.isNotEmpty() && !it.startsWith("ERROR") }
-            if (path != null) {
-                // Also try to get version
-                val ver = PrivilegedExecutionManager.executeCommand("$tool --version 2>&1 | head -1")
-                    .getOrNull()?.trim()?.take(60) ?: ""
-                sb.appendLine("✅ $tool → $path  [$ver]")
-            } else {
-                sb.appendLine("❌ $tool — not found")
+            // Check system PATH first, then Termux bin directory as fallback
+            val systemResult = PrivilegedExecutionManager.executeCommand("which $tool 2>/dev/null")
+            val systemPath = systemResult.getOrNull()?.trim()?.takeIf { it.isNotEmpty() && !it.startsWith("ERROR") }
+            val termuxPath = run {
+                val exists = PrivilegedExecutionManager.executeCommand("test -f $TERMUX_BIN/$tool && echo yes 2>/dev/null")
+                    .getOrNull()?.trim()
+                if (exists == "yes") "$TERMUX_BIN/$tool" else null
+            }
+            when {
+                systemPath != null -> {
+                    val ver = PrivilegedExecutionManager.executeCommand("$tool --version 2>&1 | head -1")
+                        .getOrNull()?.trim()?.take(60) ?: ""
+                    sb.appendLine("✅ $tool → $systemPath  [$ver]")
+                }
+                termuxPath != null -> {
+                    val ver = PrivilegedExecutionManager.executeCommand("$termuxPath --version 2>&1 | head -1")
+                        .getOrNull()?.trim()?.take(60) ?: ""
+                    sb.appendLine("✅ $tool → $termuxPath (Termux)  [$ver]")
+                }
+                else -> sb.appendLine("❌ $tool — not found on PATH or in Termux")
             }
         }
 
@@ -216,6 +231,9 @@ Actions and required parameters:
         val rootAvailable = PrivilegedExecutionManager.isRootAvailable()
         sb.appendLine()
         sb.appendLine("Privilege backend: ${when { shizukuReady -> "✅ Shizuku"; rootAvailable -> "⚠️ Root only"; else -> "❌ None" }}")
+        if (!shizukuReady && !rootAvailable) {
+            sb.appendLine("⚠️  No privileged backend — install Shizuku (play.google.com/store/apps/details?id=moe.shizuku.privileged.api) and grant this app permission, or use a rooted device.")
+        }
 
         return ToolExecutionResult(sb.toString().trimEnd())
     }
@@ -223,49 +241,54 @@ Actions and required parameters:
     private suspend fun toolWhich(tool: String): ToolExecutionResult {
         val safeTool = tool.replace(Regex("[^a-zA-Z0-9_.\\-]"), "")
         if (safeTool.isEmpty()) return err("Invalid tool name.")
-        return PrivilegedExecutionManager.executeCommand("which $safeTool 2>/dev/null || echo 'NOT FOUND'").toToolResult()
+        return PrivilegedExecutionManager.executeCommand(
+            "which $safeTool 2>/dev/null || test -f $TERMUX_BIN/$safeTool && echo $TERMUX_BIN/$safeTool || echo 'NOT FOUND'"
+        ).toToolResult()
     }
 
-    private suspend fun pythonRun(context: Context, code: String, extraArgs: String?): ToolExecutionResult {
-        val tmp = File(context.cacheDir, "agent_py_${System.currentTimeMillis()}.py")
-        return try {
-            tmp.writeText(code)
-            // Quote the script path; extra args passed as separate quoted argument if provided
-            val argStr = extraArgs?.let { " ${shellQuote(it)}" } ?: ""
-            val result = PrivilegedExecutionManager.executeCommand(
-                "python3 ${shellQuote(tmp.absolutePath)}$argStr 2>&1"
-            )
-            result.toToolResult()
-        } finally {
-            tmp.delete()
+    private suspend fun pythonRun(code: String, extraArgs: String?): ToolExecutionResult {
+        // Run inline via `python3 -c` — avoids writing to app-private cacheDir,
+        // which the Shizuku `shell` process cannot access due to SELinux type enforcement.
+        // extraArgs are forwarded as quoted positional arguments after the -c code block
+        // (sys.argv[0] == '-c', sys.argv[1..] == the extra args).
+        val argStr = extraArgs?.split(Regex("\\s+"))
+            ?.filter { it.isNotBlank() }
+            ?.joinToString(" ") { shellQuote(it) }
+            ?.let { " $it" } ?: ""
+        // Cascade: system python3 → Termux python3 → Termux python
+        val cmd = buildString {
+            append("python3 -c ${shellQuote(code)}$argStr 2>&1")
+            append(" || $TERMUX_BIN/python3 -c ${shellQuote(code)}$argStr 2>&1")
+            append(" || $TERMUX_BIN/python -c ${shellQuote(code)}$argStr 2>&1")
         }
+        return PrivilegedExecutionManager.executeCommand(cmd).toToolResult()
     }
 
-    private suspend fun nodeRun(context: Context, code: String): ToolExecutionResult {
-        val tmp = File(context.cacheDir, "agent_js_${System.currentTimeMillis()}.js")
-        return try {
-            tmp.writeText(code)
-            val result = PrivilegedExecutionManager.executeCommand(
-                "node ${shellQuote(tmp.absolutePath)} 2>&1"
-            )
-            result.toToolResult()
-        } finally {
-            tmp.delete()
-        }
+    private suspend fun nodeRun(code: String): ToolExecutionResult {
+        // Run inline via `node -e` — avoids app-private cacheDir access issue.
+        // Termux node fallback for devices without system node.
+        return PrivilegedExecutionManager.executeCommand(
+            "node -e ${shellQuote(code)} 2>&1 || $TERMUX_BIN/node -e ${shellQuote(code)} 2>&1"
+        ).toToolResult()
     }
 
-    private suspend fun shellScript(context: Context, scriptContent: String, interpreter: String): ToolExecutionResult {
-        // Validate interpreter against a whitelist to prevent path traversal
+    private suspend fun shellScript(scriptContent: String, interpreter: String): ToolExecutionResult {
         val safeInterpreter = interpreter.lowercase().trim()
             .let { ALLOWED_INTERPRETERS.firstOrNull { allowed -> allowed == it } ?: "sh" }
-        val tmp = File(context.cacheDir, "agent_sh_${System.currentTimeMillis()}.sh")
-        return try {
-            tmp.writeText("#!/system/bin/env $safeInterpreter\n$scriptContent")
-            tmp.setExecutable(true, false)
-            PrivilegedExecutionManager.executeCommand("$safeInterpreter ${shellQuote(tmp.absolutePath)} 2>&1").toToolResult()
-        } finally {
-            tmp.delete()
+        // Use the appropriate inline evaluation flag:
+        // node uses `--eval` / `-e`; all shell interpreters and Python use `-c`.
+        val flag = if (safeInterpreter == "node") "-e" else "-c"
+        // For Python/Node/bash interpreters, also try Termux paths as fallback.
+        val termuxFallback = when (safeInterpreter) {
+            "python3" -> " || $TERMUX_BIN/python3 $flag ${shellQuote(scriptContent)} 2>&1"
+            "python"  -> " || $TERMUX_BIN/python $flag ${shellQuote(scriptContent)} 2>&1"
+            "node"    -> " || $TERMUX_BIN/node $flag ${shellQuote(scriptContent)} 2>&1"
+            "bash"    -> " || $TERMUX_BIN/bash $flag ${shellQuote(scriptContent)} 2>&1"
+            else      -> ""
         }
+        return PrivilegedExecutionManager.executeCommand(
+            "$safeInterpreter $flag ${shellQuote(scriptContent)} 2>&1$termuxFallback"
+        ).toToolResult()
     }
 
     private suspend fun pipInstall(packages: String, upgrade: Boolean): ToolExecutionResult {
@@ -277,12 +300,26 @@ Actions and required parameters:
             .joinToString(" ")
         if (safePkgs.isEmpty()) return err("No valid package names provided.")
         val upgradeFlag = if (upgrade) " --upgrade" else ""
-        val cmd = "pip3 install$upgradeFlag $safePkgs 2>&1 || pip install$upgradeFlag $safePkgs 2>&1"
+        // Try pip3/pip on PATH first, then python3 -m pip (works even without pip on PATH),
+        // then Termux's Python as a last resort for environments where only Termux has Python.
+        val cmd = buildString {
+            append("pip3 install$upgradeFlag $safePkgs 2>&1")
+            append(" || pip install$upgradeFlag $safePkgs 2>&1")
+            append(" || python3 -m pip install$upgradeFlag $safePkgs 2>&1")
+            append(" || $TERMUX_BIN/python3 -m pip install$upgradeFlag $safePkgs 2>&1")
+            append(" || $TERMUX_BIN/python -m pip install$upgradeFlag $safePkgs 2>&1")
+        }
         return PrivilegedExecutionManager.executeCommand(cmd).toToolResult()
     }
 
     private suspend fun pipList(): ToolExecutionResult {
-        val cmd = "pip3 list 2>&1 || pip list 2>&1"
+        val cmd = buildString {
+            append("pip3 list 2>&1")
+            append(" || pip list 2>&1")
+            append(" || python3 -m pip list 2>&1")
+            append(" || $TERMUX_BIN/python3 -m pip list 2>&1")
+            append(" || $TERMUX_BIN/python -m pip list 2>&1")
+        }
         return PrivilegedExecutionManager.executeCommand(cmd).toToolResult()
     }
 
@@ -293,7 +330,9 @@ Actions and required parameters:
             .joinToString(" ")
         if (safePkgs.isEmpty()) return err("No valid package names provided.")
         val globalFlag = if (global) " -g" else ""
-        return PrivilegedExecutionManager.executeCommand("npm install$globalFlag $safePkgs 2>&1").toToolResult()
+        return PrivilegedExecutionManager.executeCommand(
+            "npm install$globalFlag $safePkgs 2>&1 || $TERMUX_BIN/npm install$globalFlag $safePkgs 2>&1"
+        ).toToolResult()
     }
 
     private suspend fun downloadFile(url: String, destPath: String?): ToolExecutionResult {
@@ -311,25 +350,19 @@ Actions and required parameters:
         return PrivilegedExecutionManager.executeCommand(cmd).map { "Downloaded to: $dest" }.toToolResult()
     }
 
-    private suspend fun downloadExec(context: Context, url: String, extraArgs: String): ToolExecutionResult {
+    private suspend fun downloadExec(url: String, extraArgs: String): ToolExecutionResult {
         if (url.isBlank()) return err("URL is blank.")
         val validatedUrl = validateUrl(url) ?: return err("Invalid URL: '$url'")
-        val tmp = File(context.cacheDir, "agent_dl_${System.currentTimeMillis()}.sh")
-        return try {
-            val dlResult = PrivilegedExecutionManager.executeCommand(
-                "curl -fsSL -o ${shellQuote(tmp.absolutePath)} ${shellQuote(validatedUrl)} 2>&1" +
-                " || wget -q -O ${shellQuote(tmp.absolutePath)} ${shellQuote(validatedUrl)} 2>&1"
-            )
-            if (dlResult.isFailure) {
-                return err("Failed to download '$validatedUrl': ${dlResult.exceptionOrNull()?.message}")
-            }
-            tmp.setExecutable(true, false)
-            // Pass extra args as a single quoted shell argument to prevent injection
-            val argPart = if (extraArgs.isBlank()) "" else " ${shellQuote(extraArgs)}"
-            PrivilegedExecutionManager.executeCommand("sh ${shellQuote(tmp.absolutePath)}$argPart 2>&1").toToolResult()
-        } finally {
-            tmp.delete()
-        }
+        // Use /data/local/tmp/ (writable by the `shell` user) instead of app-private cacheDir.
+        // The entire download + execute is performed as a single privileged command so the
+        // Shizuku/root process owns the temp file and can both write and execute it.
+        val tmpPath = "/data/local/tmp/agent_dl_${System.currentTimeMillis()}.sh"
+        val argPart = if (extraArgs.isBlank()) "" else " ${shellQuote(extraArgs)}"
+        return PrivilegedExecutionManager.executeCommand(
+            "(curl -fsSL -o $tmpPath ${shellQuote(validatedUrl)} 2>&1" +
+            " || wget -q -O $tmpPath ${shellQuote(validatedUrl)} 2>&1)" +
+            " && chmod +x $tmpPath && sh $tmpPath$argPart 2>&1; rm -f $tmpPath"
+        ).toToolResult()
     }
 
     private suspend fun termuxCheck(): ToolExecutionResult {
@@ -398,39 +431,52 @@ Actions and required parameters:
     private suspend fun toolBootstrap(): ToolExecutionResult {
         val sb = StringBuilder("=== Tool Bootstrap ===\n")
 
-        // Check curl
-        val hasCurl = PrivilegedExecutionManager.executeCommand("which curl 2>/dev/null")
-            .getOrNull()?.trim()?.isNotEmpty() == true
-        sb.appendLine("curl: ${if (hasCurl) "✅ already available" else "❌ not found"}")
+        suspend fun checkTool(name: String): String? =
+            PrivilegedExecutionManager.executeCommand(
+                "which $name 2>/dev/null || (test -f $TERMUX_BIN/$name && echo $TERMUX_BIN/$name)"
+            ).getOrNull()?.trim()?.ifEmpty { null }
 
-        // Check wget
-        val hasWget = PrivilegedExecutionManager.executeCommand("which wget 2>/dev/null")
-            .getOrNull()?.trim()?.isNotEmpty() == true
-        sb.appendLine("wget: ${if (hasWget) "✅ already available" else "❌ not found"}")
+        val curlPath   = checkTool("curl")
+        val wgetPath   = checkTool("wget")
+        val busyboxPath= checkTool("busybox")
+        val pythonPath = checkTool("python3") ?: checkTool("python")
+        val nodePath   = checkTool("node")
 
-        // Check busybox
-        val hasBusybox = PrivilegedExecutionManager.executeCommand("which busybox 2>/dev/null")
-            .getOrNull()?.trim()?.isNotEmpty() == true
-        sb.appendLine("busybox: ${if (hasBusybox) "✅ already available" else "❌ not found"}")
+        sb.appendLine("curl:    ${if (curlPath != null) "✅ $curlPath" else "❌ not found"}")
+        sb.appendLine("wget:    ${if (wgetPath != null) "✅ $wgetPath" else "❌ not found"}")
+        sb.appendLine("busybox: ${if (busyboxPath != null) "✅ $busyboxPath" else "❌ not found"}")
+        sb.appendLine("python3: ${if (pythonPath != null) "✅ $pythonPath" else "❌ not found"}")
+        sb.appendLine("node:    ${if (nodePath != null) "✅ $nodePath" else "❌ not found"}")
 
-        // Check python3
-        val hasPython = PrivilegedExecutionManager.executeCommand("which python3 2>/dev/null")
-            .getOrNull()?.trim()?.isNotEmpty() == true
-        sb.appendLine("python3: ${if (hasPython) "✅ already available" else "❌ not found"}")
+        val termuxInstalled = PrivilegedExecutionManager.executeCommand(
+            "pm list packages | grep com.termux"
+        ).getOrNull()?.contains("com.termux") == true
+        sb.appendLine("Termux:  ${if (termuxInstalled) "✅ installed" else "❌ not installed"}")
 
         sb.appendLine()
-        sb.appendLine("To install missing tools, use:")
-        if (!hasCurl && !hasWget) {
-            sb.appendLine("• action=termux_pkg_install packages='curl wget' (requires Termux)")
+        if (!termuxInstalled) {
+            sb.appendLine("⚠️  Termux is not installed. Most tools require it on stock Android.")
+            sb.appendLine("   Install Termux from F-Droid: https://f-droid.org/en/packages/com.termux/")
+            sb.appendLine("   (Do NOT use the Play Store version — it is outdated.)")
+            sb.appendLine()
         }
-        if (!hasPython) {
-            sb.appendLine("• action=termux_pkg_install packages='python' (requires Termux)")
-            sb.appendLine("• Or use action=download_file to fetch a Python binary for Android")
+        if (termuxInstalled) {
+            val missingPkgs = buildList {
+                if (curlPath == null) add("curl")
+                if (wgetPath == null) add("wget")
+                if (pythonPath == null) add("python")
+                if (nodePath == null) add("nodejs")
+                if (busyboxPath == null) add("busybox")
+            }
+            if (missingPkgs.isNotEmpty()) {
+                sb.appendLine("Install missing tools via Termux:")
+                sb.appendLine("  action=termux_pkg_install packages='${missingPkgs.joinToString(" ")}'")
+            } else {
+                sb.appendLine("✅ All essential tools are available.")
+            }
         }
         sb.appendLine()
-        sb.appendLine("For Termux integration:")
-        sb.appendLine("• Install Termux from F-Droid, then use action=termux_run and action=termux_pkg_install")
-        sb.appendLine("• Termux provides: python, node, git, gcc, clang, and 1000+ Unix tools")
+        sb.appendLine("Tip: after installing Termux packages, use action=env_check to verify.")
 
         return ToolExecutionResult(sb.toString().trimEnd())
     }

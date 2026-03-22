@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.lang.reflect.InvocationTargetException
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.data.tools.ShizukuResult
 
@@ -85,7 +86,7 @@ object PrivilegedExecutionManager {
      * Execute [command] with elevated privileges.
      *
      * Tries backends in order:
-     * 1. **Shizuku API** — `Shizuku.newProcess()` via [ShizukuCommandTool]
+     * 1. **Shizuku API** — `Shizuku.newProcess()` via direct reflection
      * 2. **rish** — `app_process` + `rish_shizuku.dex` via [RishShellManager]
      * 3. **root / SU** — `su -c` fallback
      *
@@ -95,17 +96,28 @@ object PrivilegedExecutionManager {
         if (command.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Command must not be blank."))
         }
-        return@withContext when {
-            isShizukuReady() -> executeViaShizuku(command)
-            isRishReady() -> rishManager!!.execute(command)
-            isRootAvailable() -> executeViaRoot(command)
-            else -> Result.failure(
-                IllegalStateException(
-                    "No privileged execution backend available. " +
-                    "Shizuku is not running, rish DEX is not found, and root is not accessible."
-                )
-            )
+        // Gate on isAvailable() alone (binder alive), not the full isShizukuReady()
+        // (which also calls checkSelfPermission()).  Both calls use IPC that can flicker
+        // independently between threads — using only one check halves the race window.
+        // The direct execution attempt below will throw SecurityException if the app
+        // lacks permission, which falls through to the next backend cleanly.
+        if (ShizukuCommandTool.isAvailable()) {
+            val result = executeViaShizuku(command)
+            if (result.isSuccess) return@withContext result
+            // Shizuku binder was live but process creation failed; try next backend.
         }
+        if (isRishReady()) {
+            return@withContext rishManager!!.execute(command)
+        }
+        if (isRootAvailable()) {
+            return@withContext executeViaRoot(command)
+        }
+        return@withContext Result.failure(
+            IllegalStateException(
+                "No privileged execution backend available. " +
+                "Shizuku is not running, rish DEX is not found, and root is not accessible."
+            )
+        )
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -360,14 +372,41 @@ object PrivilegedExecutionManager {
     // Private helpers
     // ─────────────────────────────────────────────────────────────────────
 
-    private suspend fun executeViaShizuku(command: String): Result<String> {
-        return when (val result = ShizukuCommandTool.execute(command)) {
-            is ShizukuResult.Success -> Result.success(result.output.trim())
-            is ShizukuResult.Failure -> Result.failure(RuntimeException(result.reason))
-            is ShizukuResult.PermissionRequired ->
-                Result.failure(SecurityException(result.message))
-            is ShizukuResult.Unavailable ->
-                Result.failure(IllegalStateException(result.message))
+    private suspend fun executeViaShizuku(command: String): Result<String> = withContext(Dispatchers.IO) {
+        // Directly invoke Shizuku.newProcess() without re-checking isAvailable() or
+        // hasPermission() — the caller already gated on isAvailable(), and calling those
+        // checks again creates a race window where the binder can flicker between the gate
+        // and the actual IPC call, producing spurious "Unavailable" results.
+        runCatching {
+            val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
+            val newProcessMethod = shizukuClass.getMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                String::class.java
+            )
+            val process = newProcessMethod.invoke(
+                null,
+                arrayOf("sh", "-c", command),
+                null,
+                null
+            ) as Process
+            // Read both streams before waitFor() to prevent OS pipe-buffer deadlock.
+            val stdout = process.inputStream.bufferedReader().readText()
+            val stderr = process.errorStream.bufferedReader().readText()
+            process.waitFor()
+            val exit = process.exitValue()
+            if (exit == 0) {
+                stdout.trim().ifBlank { "(no output)" }
+            } else {
+                throw RuntimeException(
+                    "Command exited with code $exit.\nstdout: $stdout\nstderr: $stderr"
+                )
+            }
+        }.recoverCatching { e ->
+            // Unwrap InvocationTargetException to surface the real cause
+            val cause = if (e is InvocationTargetException) e.targetException ?: e.cause ?: e else e
+            throw cause
         }
     }
 

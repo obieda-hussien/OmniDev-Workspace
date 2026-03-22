@@ -47,6 +47,8 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderOpen
@@ -54,11 +56,13 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DismissibleDrawerSheet
 import androidx.compose.material3.DismissibleNavigationDrawer
 import androidx.compose.material3.DrawerValue
@@ -219,6 +223,8 @@ fun ChatScreen(
                     onTogglePin = { viewModel.togglePinSession(it) },
                     onRenameSession = { id, title -> viewModel.renameSession(id, title) },
                     onDeleteSession = { viewModel.deleteSession(it) },
+                    onDeleteAllSessions = { viewModel.deleteAllSessions() },
+                    onDeleteSelectedSessions = { viewModel.deleteSelectedSessions(it) },
                     onCloseDrawer = { scope.launch { drawerState.close() } }
                 )
             }
@@ -349,8 +355,11 @@ fun ChatScreen(
                     if (uiState.messages.isEmpty()) {
                         item { EmptyStateContent() }
                     }
-                    items(uiState.messages) { message ->
-                        MessageBubble(message = message)
+                    items(uiState.messages, key = { it.timestamp }) { message ->
+                        MessageBubble(
+                            message = message,
+                            consoleEntries = uiState.messageConsoleEntries[message.timestamp]
+                        )
                     }
                     // Show partial streaming response while the model is still generating
                     val streamingContent = uiState.streamingContent
@@ -468,6 +477,8 @@ private fun SessionDrawerContent(
     onTogglePin: (Long) -> Unit,
     onRenameSession: (Long, String) -> Unit,
     onDeleteSession: (Long) -> Unit,
+    onDeleteAllSessions: () -> Unit,
+    onDeleteSelectedSessions: (Set<Long>) -> Unit,
     onCloseDrawer: () -> Unit
 ) {
     // Rename dialog state
@@ -475,6 +486,14 @@ private fun SessionDrawerContent(
     var renameText by remember { mutableStateOf("") }
     // Delete confirmation state
     var deleteTarget by remember { mutableStateOf<ChatSessionEntity?>(null) }
+    // Search query
+    var searchQuery by remember { mutableStateOf("") }
+    // Selection mode
+    var isSelectionMode by remember { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf(emptySet<Long>()) }
+    // Bulk delete confirmation
+    var showDeleteAllDialog by remember { mutableStateOf(false) }
+    var showDeleteSelectedDialog by remember { mutableStateOf(false) }
 
     // Rename dialog
     if (renameTarget != null) {
@@ -501,7 +520,7 @@ private fun SessionDrawerContent(
         )
     }
 
-    // Delete confirmation dialog
+    // Delete single session confirmation dialog
     if (deleteTarget != null) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { deleteTarget = null },
@@ -519,6 +538,46 @@ private fun SessionDrawerContent(
         )
     }
 
+    // Delete all sessions confirmation dialog
+    if (showDeleteAllDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDeleteAllDialog = false },
+            title = { Text("Delete all chats?") },
+            text = { Text("All ${sessions.size} chat sessions and their messages will be permanently removed. This cannot be undone.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    onDeleteAllSessions()
+                    showDeleteAllDialog = false
+                    isSelectionMode = false
+                    selectedIds = emptySet()
+                }) { Text("Delete All", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showDeleteAllDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    // Delete selected sessions confirmation dialog
+    if (showDeleteSelectedDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showDeleteSelectedDialog = false },
+            title = { Text("Delete selected chats?") },
+            text = { Text("${selectedIds.size} chat session(s) and their messages will be permanently removed.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    onDeleteSelectedSessions(selectedIds)
+                    showDeleteSelectedDialog = false
+                    isSelectionMode = false
+                    selectedIds = emptySet()
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { showDeleteSelectedDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxHeight()
@@ -531,29 +590,123 @@ private fun SessionDrawerContent(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Chat History",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f)
-            )
-            IconButton(onClick = onCloseDrawer) {
-                Icon(Icons.Filled.Close, contentDescription = "Close drawer")
+            if (isSelectionMode) {
+                Text(
+                    text = "${selectedIds.size} selected",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                // Delete selected button
+                IconButton(
+                    onClick = { if (selectedIds.isNotEmpty()) showDeleteSelectedDialog = true },
+                    enabled = selectedIds.isNotEmpty()
+                ) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Delete selected",
+                        tint = if (selectedIds.isNotEmpty()) MaterialTheme.colorScheme.error
+                               else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    )
+                }
+                // Cancel selection mode
+                IconButton(onClick = {
+                    isSelectionMode = false
+                    selectedIds = emptySet()
+                }) {
+                    Icon(Icons.Filled.Close, contentDescription = "Cancel selection")
+                }
+            } else {
+                Text(
+                    text = "Chat History",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                // Delete all button (only when sessions exist)
+                if (sessions.isNotEmpty()) {
+                    IconButton(onClick = { showDeleteAllDialog = true }) {
+                        Icon(
+                            Icons.Filled.DeleteSweep,
+                            contentDescription = "Delete all chats",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+                IconButton(onClick = onCloseDrawer) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close drawer")
+                }
             }
         }
-        TextButton(
-            onClick = onNewSession,
+
+        // Search bar
+        if (sessions.isNotEmpty()) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search chats...") },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Clear search")
+                        }
+                    }
+                },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            )
+        }
+
+        // New Chat + Select All row
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("New Chat")
+            TextButton(
+                onClick = onNewSession,
+                modifier = Modifier.weight(1f)
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("New Chat")
+            }
+            if (sessions.isNotEmpty()) {
+                TextButton(onClick = {
+                    if (!isSelectionMode) {
+                        isSelectionMode = true
+                        selectedIds = emptySet()
+                    } else {
+                        // Toggle select-all / deselect-all
+                        selectedIds = if (selectedIds.size == sessions.size) {
+                            emptySet()
+                        } else {
+                            sessions.map { it.id }.toSet()
+                        }
+                    }
+                }) {
+                    Text(
+                        text = when {
+                            !isSelectionMode -> "Select"
+                            selectedIds.size == sessions.size -> "Deselect All"
+                            else -> "Select All"
+                        }
+                    )
+                }
+            }
         }
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-        if (sessions.isEmpty()) {
+        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+        // Filtered sessions list
+        val filteredSessions = if (searchQuery.isBlank()) sessions
+                               else sessions.filter { it.title.contains(searchQuery, ignoreCase = true) }
+
+        if (filteredSessions.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -561,15 +714,16 @@ private fun SessionDrawerContent(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "No saved sessions yet",
+                    text = if (sessions.isEmpty()) "No saved sessions yet"
+                           else "No chats match \"$searchQuery\"",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
             }
         } else {
             // Pinned sessions always appear at the top, then the rest grouped by date
-            val pinned = sessions.filter { it.isPinned }
-            val unpinned = sessions.filter { !it.isPinned }
+            val pinned = filteredSessions.filter { it.isPinned }
+            val unpinned = filteredSessions.filter { !it.isPinned }
             val grouped = groupSessionsByDate(unpinned)
 
             LazyColumn(modifier = Modifier.weight(1f)) {
@@ -586,7 +740,24 @@ private fun SessionDrawerContent(
                         SessionItem(
                             session = session,
                             isActive = session.id == currentSessionId,
-                            onClick = { onSessionClick(session.id) },
+                            isSelectionMode = isSelectionMode,
+                            isSelected = session.id in selectedIds,
+                            onClick = {
+                                if (isSelectionMode) {
+                                    selectedIds = if (session.id in selectedIds)
+                                        selectedIds - session.id
+                                    else
+                                        selectedIds + session.id
+                                } else {
+                                    onSessionClick(session.id)
+                                }
+                            },
+                            onLongClick = {
+                                if (!isSelectionMode) {
+                                    isSelectionMode = true
+                                    selectedIds = setOf(session.id)
+                                }
+                            },
                             onPin = { onTogglePin(session.id) },
                             onRename = {
                                 renameText = session.title
@@ -610,7 +781,24 @@ private fun SessionDrawerContent(
                         SessionItem(
                             session = session,
                             isActive = session.id == currentSessionId,
-                            onClick = { onSessionClick(session.id) },
+                            isSelectionMode = isSelectionMode,
+                            isSelected = session.id in selectedIds,
+                            onClick = {
+                                if (isSelectionMode) {
+                                    selectedIds = if (session.id in selectedIds)
+                                        selectedIds - session.id
+                                    else
+                                        selectedIds + session.id
+                                } else {
+                                    onSessionClick(session.id)
+                                }
+                            },
+                            onLongClick = {
+                                if (!isSelectionMode) {
+                                    isSelectionMode = true
+                                    selectedIds = setOf(session.id)
+                                }
+                            },
                             onPin = { onTogglePin(session.id) },
                             onRename = {
                                 renameText = session.title
@@ -630,7 +818,10 @@ private fun SessionDrawerContent(
 private fun SessionItem(
     session: ChatSessionEntity,
     isActive: Boolean,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     onPin: () -> Unit,
     onRename: () -> Unit,
     onDelete: () -> Unit
@@ -648,46 +839,65 @@ private fun SessionItem(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(50))
                 .background(
-                    if (isActive) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.surface
+                    when {
+                        isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        isActive -> MaterialTheme.colorScheme.primaryContainer
+                        else -> MaterialTheme.colorScheme.surface
+                    }
                 )
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        showContextMenu = true
+                        if (isSelectionMode) {
+                            showContextMenu = true
+                        } else {
+                            onLongClick()
+                        }
                     }
                 )
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (session.isPinned) {
-                Text(
-                    text = "📌",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(end = 6.dp)
+            // Checkbox in selection mode
+            if (isSelectionMode) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onClick() },
+                    modifier = Modifier
+                        .size(20.dp)
+                        .padding(end = 4.dp)
                 )
-            }
-            if (session.source == ChatSessionEntity.SOURCE_TELEGRAM) {
-                Text(
-                    text = "✈️",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(end = 4.dp)
-                )
-            }
-            if (session.source == ChatSessionEntity.SOURCE_DISCORD) {
-                Text(
-                    text = "🎮",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(end = 4.dp)
-                )
-            }
-            if (session.source == ChatSessionEntity.SOURCE_WHATSAPP_BRIDGE) {
-                Text(
-                    text = "📱",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(end = 4.dp)
-                )
+                Spacer(modifier = Modifier.width(8.dp))
+            } else {
+                if (session.isPinned) {
+                    Text(
+                        text = "📌",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                }
+                if (session.source == ChatSessionEntity.SOURCE_TELEGRAM) {
+                    Text(
+                        text = "✈️",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                }
+                if (session.source == ChatSessionEntity.SOURCE_DISCORD) {
+                    Text(
+                        text = "🎮",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                }
+                if (session.source == ChatSessionEntity.SOURCE_WHATSAPP_BRIDGE) {
+                    Text(
+                        text = "📱",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                }
             }
             Text(
                 text = session.title,
@@ -700,22 +910,24 @@ private fun SessionItem(
             )
         }
 
-        DropdownMenu(
-            expanded = showContextMenu,
-            onDismissRequest = { showContextMenu = false }
-        ) {
-            DropdownMenuItem(
-                text = { Text(if (session.isPinned) "📌 Unpin" else "📌 Pin") },
-                onClick = { onPin(); showContextMenu = false }
-            )
-            DropdownMenuItem(
-                text = { Text("✏️ Rename") },
-                onClick = { onRename(); showContextMenu = false }
-            )
-            DropdownMenuItem(
-                text = { Text("🗑️ Delete", color = MaterialTheme.colorScheme.error) },
-                onClick = { onDelete(); showContextMenu = false }
-            )
+        if (!isSelectionMode) {
+            DropdownMenu(
+                expanded = showContextMenu,
+                onDismissRequest = { showContextMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(if (session.isPinned) "📌 Unpin" else "📌 Pin") },
+                    onClick = { onPin(); showContextMenu = false }
+                )
+                DropdownMenuItem(
+                    text = { Text("✏️ Rename") },
+                    onClick = { onRename(); showContextMenu = false }
+                )
+                DropdownMenuItem(
+                    text = { Text("🗑️ Delete", color = MaterialTheme.colorScheme.error) },
+                    onClick = { onDelete(); showContextMenu = false }
+                )
+            }
         }
     }
 }
@@ -743,7 +955,10 @@ private fun groupSessionsByDate(sessions: List<ChatSessionEntity>): Map<String, 
 // ──────────────────────────────────────────────
 
 @Composable
-private fun MessageBubble(message: ChatMessage) {
+private fun MessageBubble(
+    message: ChatMessage,
+    consoleEntries: List<AgentConsoleEntry>? = null
+) {
     val isUser = message.role == MessageRole.USER
     val alignment = if (isUser) Alignment.End else Alignment.Start
     val backgroundColor = if (isUser)
@@ -763,6 +978,15 @@ private fun MessageBubble(message: ChatMessage) {
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = alignment
     ) {
+        // Persistent per-message Agent Console — collapsed by default, expandable
+        if (!isUser && !consoleEntries.isNullOrEmpty()) {
+            AgentLiveConsole(
+                entries = consoleEntries,
+                isRunning = false,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+        }
+
         // Expandable "🧠 Thought Process" cards (assistant only)
         if (parsed != null && parsed.thoughtBlocks.isNotEmpty()) {
             parsed.thoughtBlocks.forEach { thought ->

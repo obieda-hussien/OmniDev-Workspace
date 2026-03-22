@@ -9,6 +9,7 @@ import android.os.Build
 import android.provider.CallLog
 import android.provider.Telephony
 import androidx.core.content.ContextCompat
+import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -542,7 +543,9 @@ object AdvancedRootShellTool {
     private const val MAX_OUTPUT = 6_000
 
     /**
-     * Executes an arbitrary shell command via Shizuku.
+     * Executes an arbitrary shell command via the full privileged-execution cascade:
+     * Shizuku → rish → root/SU. Falls through to the next backend automatically when
+     * the preferred backend fails at execution time (not just at availability check time).
      *
      * @param command The full shell command (may include pipes, redirects, etc.).
      */
@@ -551,23 +554,18 @@ object AdvancedRootShellTool {
             if (command.isBlank()) {
                 return@withContext ToolExecutionResult("Empty command.", isError = true)
             }
-            val result = ShizukuCommandTool.execute(command)
-            when (result) {
-                is ShizukuResult.Success -> {
-                    val output = result.output
+            PrivilegedExecutionManager.executeCommand(command).fold(
+                onSuccess = { output ->
                     val truncated = output.length > MAX_OUTPUT
                     ToolExecutionResult(
                         output = if (truncated) output.take(MAX_OUTPUT) + "\n...[truncated]" else output,
                         truncated = truncated
                     )
+                },
+                onFailure = { e ->
+                    ToolExecutionResult(e.message ?: "Command execution failed.", isError = true)
                 }
-                is ShizukuResult.Failure ->
-                    ToolExecutionResult(result.reason, isError = true)
-                is ShizukuResult.PermissionRequired ->
-                    ToolExecutionResult(result.message, isError = true)
-                is ShizukuResult.Unavailable ->
-                    ToolExecutionResult(result.message, isError = true)
-            }
+            )
         }
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(

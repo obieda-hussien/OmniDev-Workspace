@@ -1,8 +1,11 @@
 package com.omnidev.workspace.data.tools
 
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import org.jsoup.Jsoup
 import java.io.InterruptedIOException
@@ -27,6 +30,9 @@ object WebSearchTool {
     private const val READ_TIMEOUT_MS = 20_000
     private const val MAX_RESULTS = 5
     private const val HTTP_RETRY_COUNT = 2
+    private const val MAX_RESULTS_DEEP = 8
+    private const val MAX_CHARS_PER_SITE = 6_000
+    private const val FETCH_PAGE_TIMEOUT_MS = 10_000L
 
     private data class SearchResult(
         val title: String,
@@ -48,6 +54,16 @@ object WebSearchTool {
                     required = true
                 )
             )
+        ),
+        ToolDefinition(
+            name = "web_search_deep",
+            description = "Search the web and read the full content of top results in parallel — like ChatGPT or Gemini browse mode. " +
+                "Returns actual article text from multiple sources simultaneously, not just titles and snippets. " +
+                "Best for research, summarizing topics, fact-checking, and comprehensive answers from multiple sources.",
+            parameters = listOf(
+                ToolParameter(name = "query", type = "string", description = "Search query text.", required = true),
+                ToolParameter(name = "max_sites", type = "integer", description = "Number of sites to read in parallel (1–8, default 5).", required = false)
+            )
         )
     )
 
@@ -61,55 +77,151 @@ object WebSearchTool {
             return@withContext ToolExecutionResult("Missing required argument: query", isError = true)
         }
 
-        val results = mutableListOf<SearchResult>()
         val normalizedQuery = query.trim()
-        val errors = mutableListOf<String>()
-        val acceptLanguage = preferredAcceptLanguage(normalizedQuery)
-
-        if (serpApiKey?.isNotBlank() == true) {
-            results += tryProvider("SerpApi", errors) {
-                searchViaSerpApi(normalizedQuery, serpApiKey, acceptLanguage)
-            }
-        }
-
-        if (results.isEmpty() && googleApiKey?.isNotBlank() == true && googleCseCx?.isNotBlank() == true) {
-            results += tryProvider("Google CSE", errors) {
-                searchViaGoogleCse(normalizedQuery, googleApiKey, googleCseCx, acceptLanguage)
-            }
-        }
-
-        if (results.isEmpty()) {
-            results += tryProvider("Google scrape", errors) { scrapeGoogle(normalizedQuery, acceptLanguage) }
-        }
-
-        if (results.isEmpty()) {
-            results += tryProvider("DuckDuckGo scrape", errors) { scrapeDuckDuckGo(normalizedQuery, acceptLanguage) }
-        }
-
-        if (results.isEmpty()) {
-            results += tryProvider("DuckDuckGo lite", errors) {
-                scrapeDuckDuckGoLite(normalizedQuery, acceptLanguage)
-            }
-        }
-
-        if (results.isEmpty()) {
-            results += tryProvider("Bing scrape", errors) { scrapeBing(normalizedQuery, acceptLanguage) }
-        }
-
-        val deduped = results
-            .filter { it.title.isNotBlank() && it.url.startsWith("http") }
-            .distinctBy { it.url }
-            .take(MAX_RESULTS)
+        val deduped = getSearchResults(normalizedQuery, serpApiKey, googleApiKey, googleCseCx, MAX_RESULTS)
 
         if (deduped.isEmpty()) {
-            val detail = if (errors.isNotEmpty()) "\nTried providers: ${errors.joinToString(" | ")}" else ""
             return@withContext ToolExecutionResult(
-                output = "No results found for: \"$normalizedQuery\"$detail",
+                output = "No results found for: \"$normalizedQuery\"",
                 isError = false
             )
         }
 
         ToolExecutionResult(formatAsMarkdown(normalizedQuery, deduped))
+    }
+
+    private suspend fun getSearchResults(
+        query: String,
+        serpApiKey: String?,
+        googleApiKey: String?,
+        googleCseCx: String?,
+        maxResults: Int
+    ): List<SearchResult> {
+        val results = mutableListOf<SearchResult>()
+        val errors = mutableListOf<String>()
+        val acceptLanguage = preferredAcceptLanguage(query)
+
+        if (serpApiKey?.isNotBlank() == true) {
+            results += tryProvider("SerpApi", errors) {
+                searchViaSerpApi(query, serpApiKey, acceptLanguage)
+            }
+        }
+
+        if (results.isEmpty() && googleApiKey?.isNotBlank() == true && googleCseCx?.isNotBlank() == true) {
+            results += tryProvider("Google CSE", errors) {
+                searchViaGoogleCse(query, googleApiKey, googleCseCx, acceptLanguage)
+            }
+        }
+
+        if (results.isEmpty()) {
+            results += tryProvider("Google scrape", errors) { scrapeGoogle(query, acceptLanguage) }
+        }
+
+        if (results.isEmpty()) {
+            results += tryProvider("DuckDuckGo scrape", errors) { scrapeDuckDuckGo(query, acceptLanguage) }
+        }
+
+        if (results.isEmpty()) {
+            results += tryProvider("DuckDuckGo lite", errors) {
+                scrapeDuckDuckGoLite(query, acceptLanguage)
+            }
+        }
+
+        if (results.isEmpty()) {
+            results += tryProvider("Bing scrape", errors) { scrapeBing(query, acceptLanguage) }
+        }
+
+        return results
+            .filter { it.title.isNotBlank() && it.url.startsWith("http") }
+            .distinctBy { it.url }
+            .take(maxResults)
+    }
+
+    suspend fun executeDeep(
+        query: String,
+        maxSites: Int,
+        serpApiKey: String?,
+        googleApiKey: String?,
+        googleCseCx: String?
+    ): ToolExecutionResult = withContext(Dispatchers.IO) {
+        if (query.isBlank()) {
+            return@withContext ToolExecutionResult("Missing required argument: query", isError = true)
+        }
+
+        val normalizedQuery = query.trim()
+        val clampedMax = maxSites.coerceIn(1, MAX_RESULTS_DEEP)
+        val targets = getSearchResults(normalizedQuery, serpApiKey, googleApiKey, googleCseCx, clampedMax)
+
+        if (targets.isEmpty()) {
+            return@withContext ToolExecutionResult(
+                output = "No results found for: \"$normalizedQuery\"",
+                isError = false
+            )
+        }
+
+        data class PageResult(val result: SearchResult, val content: String)
+
+        val pages: List<PageResult> = coroutineScope {
+            targets.map { result ->
+                async(Dispatchers.IO) {
+                    val content = withTimeoutOrNull(FETCH_PAGE_TIMEOUT_MS) {
+                        try { fetchPageContent(result.url) } catch (e: Exception) {
+                            android.util.Log.w("WebSearchTool", "Failed to fetch ${result.url}: ${e.message}")
+                            null
+                        }
+                    }
+                    PageResult(result, content?.takeIf { it.isNotBlank() } ?: result.snippet)
+                }
+            }.map { it.await() }
+        }
+
+        val output = buildString {
+            appendLine("# Deep Search: \"$normalizedQuery\"")
+            appendLine("Read ${pages.size} sources in parallel.")
+            appendLine("---")
+            pages.forEachIndexed { index, page ->
+                appendLine()
+                appendLine("## ${index + 1}. ${page.result.title}")
+                appendLine("**URL:** ${page.result.url}")
+                appendLine()
+                appendLine(page.content)
+                appendLine()
+                appendLine("---")
+            }
+        }.trimEnd()
+
+        ToolExecutionResult(output = output)
+    }
+
+    private fun fetchPageContent(url: String): String {
+        val doc = Jsoup.connect(url)
+            .userAgent(desktopUserAgent())
+            .timeout(FETCH_PAGE_TIMEOUT_MS.toInt())
+            .followRedirects(true)
+            .maxBodySize(1_500_000)
+            .get()
+
+        doc.select(
+            "script, style, nav, footer, header, aside, iframe, noscript, svg, form, button, input, select, textarea, " +
+                ".ad, .ads, .advertisement, .sidebar, .menu, #cookie-banner, .cookie-notice, .popup, .newsletter, " +
+                ".social-share, [aria-hidden=true]"
+        ).remove()
+
+        val content = doc.selectFirst("article")
+            ?: doc.selectFirst("main")
+            ?: doc.selectFirst("[role=main]")
+            ?: doc.selectFirst(".post-content, .entry-content, .article-content, .article-body, .story-content, .post-body, #article-body, .main-content")
+            ?: doc.selectFirst(".content, #content, #main")
+            ?: doc.body()
+
+        val text = content?.wholeText()
+            ?.lines()
+            ?.map { it.trim() }
+            ?.filter { it.isNotBlank() }
+            ?.joinToString("\n")
+            ?.trim() ?: ""
+
+        return if (text.length > MAX_CHARS_PER_SITE) text.take(MAX_CHARS_PER_SITE) else text
     }
 
     private suspend fun searchViaSerpApi(
