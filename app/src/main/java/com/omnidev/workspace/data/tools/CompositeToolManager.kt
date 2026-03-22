@@ -138,10 +138,14 @@ class CompositeToolManager(
             addAll(AdvancedFileTools.getToolDefinitions())
             addAll(OmniCoreAgentTool.getToolDefinitions())
             addAll(AgentRuntimeTool.getToolDefinitions())
+            addAll(LauncherControlTool.getToolDefinitions())
         }
         addAll(SocialMediaTool.getToolDefinitions())
         if (context != null) {
             addAll(NetworkMonitorTool.getToolDefinitions())
+            if (settingsRepository != null) {
+                addAll(AutofillAssistTool.getToolDefinitions())
+            }
         }
         if (headlessBrowserManager != null) {
             addAll(headlessBrowserManager.getToolDefinitions())
@@ -608,6 +612,12 @@ class CompositeToolManager(
                 AgentRuntimeTool.execute(context = context ?: return missingContext(), action = action, args = arguments)
             }
 
+            // ── Universal launcher control tool ──
+            "system_launcher_tool" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                LauncherControlTool.execute(action = action, args = arguments)
+            }
+
             // ── Social media / video tool ──
             "social_media_video" -> {
                 val action = arguments["action"] ?: return missingArg("action")
@@ -618,6 +628,20 @@ class CompositeToolManager(
             "network_monitor" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 NetworkMonitorTool.execute(context = context ?: return missingContext(), action = action, args = arguments)
+            }
+
+            // ── Autofill assistant tool ──
+            "autofill_assist" -> {
+                val ctx = context ?: return missingContext()
+                val settings = settingsRepository
+                    ?: return ToolExecutionResult("Settings repository not available.", isError = true)
+                val action = arguments["action"] ?: return missingArg("action")
+                AutofillAssistTool.execute(
+                    context = ctx,
+                    settingsRepository = settings,
+                    action = action,
+                    args = arguments
+                )
             }
 
             // ── Vector memory tools ──
