@@ -73,6 +73,14 @@ class LauncherCommandRouter(
     @Volatile
     private var systemStatus: Int = STATUS_IDLE
 
+    private data class AgentRuntimeConfig(
+        val modelId: String,
+        val scopePath: String,
+        val deepThinking: Boolean,
+        val customPrompt: String?,
+        val userPersona: String?
+    )
+
     fun getSystemStatus(): Int = systemStatus
 
     suspend fun executeSystemCommand(command: String, contextData: String?) {
@@ -94,19 +102,15 @@ class LauncherCommandRouter(
     suspend fun askAgentSilent(prompt: String): String {
         systemStatus = STATUS_RUNNING
         return try {
-            val modelId = settingsRepository.observeModelIdForRole(ModelRole.AGENT).first()
-            val scopePath = settingsRepository.observeTargetContext().first().orEmpty()
-            val deepThinking = settingsRepository.observeDeepThinking().first()
-            val customPrompt = settingsRepository.observeCustomPrompt(SettingsRepository.PromptRole.AGENT).first()
-            val userPersona = settingsRepository.observeUserPersona().first()
+            val runtimeConfig = loadAgentRuntimeConfig()
             var final = ""
             agentPipeline.execute(
                 userMessage = prompt,
-                modelId = modelId,
-                scopePath = scopePath,
-                enableDeepThinking = deepThinking,
-                customSystemPrompt = customPrompt,
-                userContext = userPersona
+                modelId = runtimeConfig.modelId,
+                scopePath = runtimeConfig.scopePath,
+                enableDeepThinking = runtimeConfig.deepThinking,
+                customSystemPrompt = runtimeConfig.customPrompt,
+                userContext = runtimeConfig.userPersona
             ).collect { event ->
                 when (event) {
                     is AgentEvent.FinalAnswer -> final = event.content
@@ -128,19 +132,15 @@ class LauncherCommandRouter(
     ) {
         systemStatus = STATUS_RUNNING
         try {
-            val modelId = settingsRepository.observeModelIdForRole(ModelRole.AGENT).first()
-            val scopePath = settingsRepository.observeTargetContext().first().orEmpty()
-            val deepThinking = settingsRepository.observeDeepThinking().first()
-            val customPrompt = settingsRepository.observeCustomPrompt(SettingsRepository.PromptRole.AGENT).first()
-            val userPersona = settingsRepository.observeUserPersona().first()
+            val runtimeConfig = loadAgentRuntimeConfig()
             var final = ""
             agentPipeline.execute(
                 userMessage = prompt,
-                modelId = modelId,
-                scopePath = scopePath,
-                enableDeepThinking = deepThinking,
-                customSystemPrompt = customPrompt,
-                userContext = userPersona
+                modelId = runtimeConfig.modelId,
+                scopePath = runtimeConfig.scopePath,
+                enableDeepThinking = runtimeConfig.deepThinking,
+                customSystemPrompt = runtimeConfig.customPrompt,
+                userContext = runtimeConfig.userPersona
             ).collect { event ->
                 when (event) {
                     is AgentEvent.StreamChunk -> onToken(event.delta)
@@ -189,5 +189,20 @@ class LauncherCommandRouter(
         if (result.isError) {
             Log.w(TAG, "EXECUTE_TOOL failed for $toolName: ${result.output}")
         }
+    }
+
+    private suspend fun loadAgentRuntimeConfig(): AgentRuntimeConfig {
+        val modelId = settingsRepository.observeModelIdForRole(ModelRole.AGENT).first()
+        val scopePath = settingsRepository.observeTargetContext().first().orEmpty()
+        val deepThinking = settingsRepository.observeDeepThinking().first()
+        val customPrompt = settingsRepository.observeCustomPrompt(SettingsRepository.PromptRole.AGENT).first()
+        val userPersona = settingsRepository.observeUserPersona().first()
+        return AgentRuntimeConfig(
+            modelId = modelId,
+            scopePath = scopePath,
+            deepThinking = deepThinking,
+            customPrompt = customPrompt,
+            userPersona = userPersona
+        )
     }
 }

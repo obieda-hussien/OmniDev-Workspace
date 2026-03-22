@@ -79,7 +79,7 @@ class OmniCoreService : Service() {
             val safeCallback = callback ?: return
             if (safePrompt.isBlank()) {
                 try {
-                    safeCallback.onError("Prompt is empty")
+                    safeCallback.onError("Prompt cannot be blank")
                 } catch (_: RemoteException) {
                     Log.w(TAG, "Callback died while sending empty-prompt error")
                 }
