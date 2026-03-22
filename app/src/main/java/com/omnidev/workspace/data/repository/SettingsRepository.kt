@@ -98,6 +98,9 @@ class SettingsRepository(private val context: Context) {
         // User Profile
         val USER_NAME = stringPreferencesKey("user_name")
         val USER_PERSONA = stringPreferencesKey("user_persona")
+        val USER_EMAIL = stringPreferencesKey("user_email")
+        val USER_PHONE = stringPreferencesKey("user_phone")
+        val USER_ADDRESS = stringPreferencesKey("user_address")
     }
 
     // ──────────────────────────────────────────────
@@ -584,6 +587,36 @@ class SettingsRepository(private val context: Context) {
         context.settingsDataStore.edit { prefs ->
             if (persona.isNullOrBlank()) prefs.remove(Keys.USER_PERSONA)
             else prefs[Keys.USER_PERSONA] = persona
+        }
+    }
+
+    /** Optional email used by autofill assistant. */
+    fun observeUserEmail(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.USER_EMAIL] }
+
+    suspend fun setUserEmail(email: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (email.isNullOrBlank()) prefs.remove(Keys.USER_EMAIL) else prefs[Keys.USER_EMAIL] = email
+        }
+    }
+
+    /** Optional phone number used by autofill assistant. */
+    fun observeUserPhone(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.USER_PHONE] }
+
+    suspend fun setUserPhone(phone: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (phone.isNullOrBlank()) prefs.remove(Keys.USER_PHONE) else prefs[Keys.USER_PHONE] = phone
+        }
+    }
+
+    /** Optional address used by autofill assistant. */
+    fun observeUserAddress(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.USER_ADDRESS] }
+
+    suspend fun setUserAddress(address: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (address.isNullOrBlank()) prefs.remove(Keys.USER_ADDRESS) else prefs[Keys.USER_ADDRESS] = address
         }
     }
 }

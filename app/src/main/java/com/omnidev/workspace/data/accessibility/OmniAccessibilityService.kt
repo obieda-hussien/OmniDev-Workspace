@@ -151,6 +151,17 @@ class OmniAccessibilityService : AccessibilityService() {
     }
 
     /**
+     * Types [text] into the currently focused editable node.
+     */
+    fun typeIntoFocusedNode(text: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            ?: root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
+            ?: return false
+        return typeIntoNode(focused, text)
+    }
+
+    /**
      * Scrolls a scrollable [nodeInfo] in the given direction.
      * @param forward true for scroll forward/down, false for scroll backward/up.
      */
