@@ -3,6 +3,8 @@ package com.omnidev.workspace.data.tools
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
+import android.view.autofill.AutofillManager
 import com.omnidev.workspace.data.accessibility.OmniAccessibilityService
 import com.omnidev.workspace.data.input.OmniInputMethodService
 import com.omnidev.workspace.data.repository.SettingsRepository
@@ -17,6 +19,18 @@ import kotlinx.coroutines.withContext
  * - Can open Android Autofill settings so the user can choose Google/system provider
  */
 object AutofillAssistTool {
+    private const val DEFAULT_BACKEND = "accessibility"
+
+    // Includes self-mappings for canonical keys so callers can pass either
+    // canonical names ("full_name") or aliases ("name") through one lookup.
+    private val PROFILE_FIELD_ALIASES = mapOf(
+        "full_name" to "full_name",
+        "name" to "full_name",
+        "email" to "email",
+        "phone" to "phone",
+        "phone_number" to "phone",
+        "address" to "address"
+    )
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
@@ -44,7 +58,7 @@ object AutofillAssistTool {
                 ToolParameter(
                     name = "field",
                     type = "string",
-                    description = "For source=profile: full_name | email | phone | address",
+                    description = "For source=profile: full_name (or name) | email | phone (or phone_number) | address",
                     required = false
                 ),
                 ToolParameter(
@@ -56,7 +70,7 @@ object AutofillAssistTool {
                 ToolParameter(
                     name = "backend",
                     type = "string",
-                    description = "Fill backend: accessibility | ime (default: accessibility)",
+                    description = "Fill backend: accessibility | ime (default: accessibility, chosen for reliability even when OmniDev IME is inactive)",
                     required = false
                 ),
                 ToolParameter(
@@ -92,15 +106,15 @@ object AutofillAssistTool {
         settingsRepository: SettingsRepository,
         action: String,
         args: Map<String, String>
-    ): ToolExecutionResult = withContext(Dispatchers.Main) {
-        when (action.lowercase()) {
+    ): ToolExecutionResult {
+        return when (action.lowercase()) {
             "save_profile" -> saveProfile(settingsRepository, args)
             "get_profile" -> getProfile(settingsRepository)
             "fill_focused" -> fillFocused(context, settingsRepository, args)
-            "status" -> status(settingsRepository)
+            "status" -> status(context)
             "open_autofill_settings" -> openAutofillSettings(context)
             else -> ToolExecutionResult(
-                "Unknown autofill_assist action '$action'. " +
+                    "Unknown autofill_assist action '$action'. " +
                     "Valid actions: save_profile, get_profile, fill_focused, status, open_autofill_settings",
                 isError = true
             )
@@ -154,17 +168,22 @@ object AutofillAssistTool {
         args: Map<String, String>
     ): ToolExecutionResult {
         val source = args["source"]?.lowercase()?.trim().orEmpty().ifBlank { "profile" }
-        val backend = args["backend"]?.lowercase()?.trim().orEmpty().ifBlank { "accessibility" }
+        val backend = args["backend"]?.lowercase()?.trim().orEmpty().ifBlank { DEFAULT_BACKEND }
 
         val text = when (source) {
             "profile" -> {
-                when (args["field"]?.lowercase()?.trim().orEmpty().ifBlank { "full_name" }) {
-                    "full_name", "name" -> settingsRepository.observeUserName().first()
+                val field = args["field"]?.lowercase()?.trim()
+                    ?: return ToolExecutionResult(
+                        "Missing 'field' for source=profile. Use one of: full_name (or name), email, phone (or phone_number), address.",
+                        isError = true
+                    )
+                when (normalizeProfileField(field)) {
+                    "full_name" -> settingsRepository.observeUserName().first()
                     "email" -> settingsRepository.observeUserEmail().first()
-                    "phone", "phone_number" -> settingsRepository.observeUserPhone().first()
+                    "phone" -> settingsRepository.observeUserPhone().first()
                     "address" -> settingsRepository.observeUserAddress().first()
                     else -> return ToolExecutionResult(
-                        "Unknown profile field. Use one of: full_name, email, phone, address.",
+                        "Unknown profile field. Use one of: full_name (or name), email, phone (or phone_number), address.",
                         isError = true
                     )
                 }
@@ -192,7 +211,7 @@ object AutofillAssistTool {
                         isError = true
                     )
                 if (service.typeIntoFocusedNode(text)) {
-                    ToolExecutionResult("✅ Filled focused field via Accessibility (${text.length} chars).")
+                    ToolExecutionResult("✅ Filled focused field via Accessibility from '$source' (${text.length} chars).")
                 } else {
                     ToolExecutionResult(
                         "Failed to fill focused field via Accessibility. Focus an editable field and try again.",
@@ -202,7 +221,7 @@ object AutofillAssistTool {
             }
             "ime" -> {
                 if (OmniInputMethodService.commitText(text)) {
-                    ToolExecutionResult("✅ Filled focused field via IME (${text.length} chars).")
+                    ToolExecutionResult("✅ Filled focused field via IME from '$source' (${text.length} chars).")
                 } else {
                     ToolExecutionResult(
                         "IME backend unavailable. Switch keyboard to OmniDev IME first.",
@@ -217,32 +236,42 @@ object AutofillAssistTool {
         }
     }
 
-    private fun status(settingsRepository: SettingsRepository): ToolExecutionResult {
+    private fun status(context: Context): ToolExecutionResult {
         val hasAccessibility = OmniAccessibilityService.instance != null
         val imeActive = OmniInputMethodService.isActive.value
+        val systemAutofillEnabled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = context.getSystemService(AutofillManager::class.java)
+            manager?.hasEnabledAutofillServices() == true
+        } else {
+            false
+        }
         return ToolExecutionResult(
             buildString {
                 appendLine("Autofill Assist status:")
                 appendLine("• Accessibility backend: ${if (hasAccessibility) "✅ ready" else "❌ not connected"}")
                 appendLine("• IME backend: ${if (imeActive) "✅ active" else "❌ inactive"}")
                 appendLine("• App profile source: ✅ available (DataStore)")
-                appendLine("• System/Google provider: use action=open_autofill_settings")
+                appendLine("• System/Google provider: ${if (systemAutofillEnabled) "✅ enabled" else "⚠️ not enabled"}")
+                appendLine("  Use action=open_autofill_settings to configure provider")
             }.trimEnd()
         )
     }
 
-    private fun openAutofillSettings(context: Context): ToolExecutionResult {
-        val result = AndroidIntentTool.fire(
-            context = context,
-            action = "android.settings.AUTOFILL_SETTINGS"
-        )
-        return ToolExecutionResult(result.toDisplayString(), isError = result is IntentResult.Failure)
-    }
+    private suspend fun openAutofillSettings(context: Context): ToolExecutionResult =
+        withContext(Dispatchers.Main) {
+            val result = AndroidIntentTool.fire(
+                context = context,
+                action = "android.settings.AUTOFILL_SETTINGS"
+            )
+            ToolExecutionResult(result.toDisplayString(), isError = result is IntentResult.Failure)
+        }
 
-    private fun getClipboardText(context: Context): String? {
+    private fun normalizeProfileField(field: String): String? = PROFILE_FIELD_ALIASES[field]
+
+    private suspend fun getClipboardText(context: Context): String? = withContext(Dispatchers.Main) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip: ClipData = clipboard.primaryClip ?: return null
-        if (clip.itemCount <= 0) return null
-        return clip.getItemAt(0).coerceToText(context)?.toString()
+        val clip: ClipData = clipboard.primaryClip ?: return@withContext null
+        if (clip.itemCount <= 0) return@withContext null
+        clip.getItemAt(0).coerceToText(context)?.toString()
     }
 }
