@@ -138,6 +138,7 @@ class CompositeToolManager(
             addAll(AdvancedFileTools.getToolDefinitions())
             addAll(OmniCoreAgentTool.getToolDefinitions())
             addAll(AgentRuntimeTool.getToolDefinitions())
+            addAll(LauncherControlTool.getToolDefinitions())
         }
         addAll(SocialMediaTool.getToolDefinitions())
         if (context != null) {
@@ -609,6 +610,12 @@ class CompositeToolManager(
             "agent_runtime" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 AgentRuntimeTool.execute(context = context ?: return missingContext(), action = action, args = arguments)
+            }
+
+            // ── Universal launcher control tool ──
+            "system_launcher_tool" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                LauncherControlTool.execute(action = action, args = arguments)
             }
 
             // ── Social media / video tool ──
