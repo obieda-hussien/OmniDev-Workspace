@@ -380,6 +380,20 @@ class CompositeToolManager(
                 )
             }
 
+            "web_search_deep" -> {
+                val serpApiKey = settingsRepository?.observeSerpApiKey()?.first()
+                val googleApiKey = settingsRepository?.observeGoogleCseApiKey()?.first()
+                val googleCx = settingsRepository?.observeGoogleCseCx()?.first()
+                val maxSites = arguments["max_sites"]?.toIntOrNull() ?: 5
+                WebSearchTool.executeDeep(
+                    query = arguments["query"] ?: return missingArg("query"),
+                    maxSites = maxSites,
+                    serpApiKey = serpApiKey,
+                    googleApiKey = googleApiKey,
+                    googleCseCx = googleCx
+                )
+            }
+
             // ── Direct network request tool ──
             "network_request" -> NetworkRequestTool.execute(arguments)
 
@@ -610,6 +624,12 @@ class CompositeToolManager(
                     url = arguments["url"] ?: return missingArg("url"),
                     selector = arguments["selector"]
                 )
+            }
+
+            "scrape_multiple" -> {
+                val rawUrls = arguments["urls"] ?: return missingArg("urls")
+                val urls = rawUrls.split(",").map { it.trim() }.filter { it.isNotBlank() }
+                WebScraperTool.executeMultiple(urls = urls, selector = arguments["selector"])
             }
 
             // ── Headless browser tools (Ghost Browser) ──
