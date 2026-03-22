@@ -139,6 +139,7 @@ class CompositeToolManager(
             addAll(OmniCoreAgentTool.getToolDefinitions())
             addAll(AgentRuntimeTool.getToolDefinitions())
         }
+        addAll(SocialMediaTool.getToolDefinitions())
         if (headlessBrowserManager != null) {
             addAll(headlessBrowserManager.getToolDefinitions())
         }
@@ -588,6 +589,12 @@ class CompositeToolManager(
             "agent_runtime" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 AgentRuntimeTool.execute(context = context ?: return missingContext(), action = action, args = arguments)
+            }
+
+            // ── Social media / video tool ──
+            "social_media_video" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                SocialMediaTool.execute(context = context, action = action, args = arguments)
             }
 
             // ── Vector memory tools ──
