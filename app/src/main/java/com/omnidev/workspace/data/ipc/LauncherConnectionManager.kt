@@ -7,9 +7,9 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.omnidev.launcher.ipc.IOmniLauncherInterface
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -137,21 +137,20 @@ object LauncherConnectionManager {
         if (!receiverRegistered.compareAndSet(false, true)) return
 
         val filter = IntentFilter().apply {
+            addAction("com.omnidev.action.DEFAULT_DISCOVER")
             addAction(Intent.ACTION_PACKAGE_ADDED)
             addAction(Intent.ACTION_PACKAGE_CHANGED)
             addAction(Intent.ACTION_PACKAGE_REMOVED)
             addAction(Intent.ACTION_PACKAGE_REPLACED)
             addAction(Intent.ACTION_PACKAGE_FULLY_REMOVED)
             addDataScheme("package")
-            // "ACTION_DEFAULT_DISCOVER" requested in spec; keep as custom action fallback.
-            addAction("android.intent.action.DEFAULT")
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.registerReceiver(launcherChangeReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            @Suppress("DEPRECATION")
-            context.registerReceiver(launcherChangeReceiver, filter)
-        }
+        ContextCompat.registerReceiver(
+            context,
+            launcherChangeReceiver,
+            filter,
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
     }
 }
