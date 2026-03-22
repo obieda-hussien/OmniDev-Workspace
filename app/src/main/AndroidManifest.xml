@@ -23,7 +23,6 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- VPN-based network monitor (no root required; user must accept system dialog) -->
-    <uses-permission android:name="android.permission.BIND_VPN_SERVICE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
@@ -150,7 +149,9 @@
     <!-- Declared here so the system registers it when OmniDev is installed first.
          Protection level "signature" means only apps signed with the same key can hold it. -->
     <!-- uses-permission for the service host itself is intentionally omitted:
-         OmniCoreService *defines* this permission; it does not need to *request* it. -->
+          OmniCoreService *defines* this permission; it does not need to *request* it. -->
+    <!-- Universal launcher control is cross-signature; keep permission non-signature. -->
+    <uses-permission android:name="com.omnidev.permission.CONTROL_LAUNCHER" />
 
     <!-- ═══ FOREGROUND SERVICES (Android 14+) ═══ -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -173,6 +174,12 @@
         android:label="OmniDev Core Control"
         android:description="@string/perm_control_core_description"
         android:protectionLevel="signature" />
+
+    <permission
+        android:name="com.omnidev.permission.CONTROL_LAUNCHER"
+        android:label="OmniDev Launcher Control"
+        android:description="@string/perm_control_launcher_description"
+        android:protectionLevel="normal" />
 
     <application
         android:name=".OmniDevApp"

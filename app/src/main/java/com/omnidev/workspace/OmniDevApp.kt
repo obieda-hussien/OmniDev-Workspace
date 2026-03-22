@@ -5,6 +5,7 @@ import android.util.Log
 import com.omnidev.workspace.data.auth.CopilotModelRefresher
 import com.omnidev.workspace.data.debug.CrashHandler
 import com.omnidev.workspace.data.debug.DebugLogManager
+import com.omnidev.workspace.data.ipc.LauncherConnectionManager
 import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 import com.omnidev.workspace.data.model.ModelProvider
 import kotlinx.coroutines.CoroutineScope
@@ -33,6 +34,10 @@ class OmniDevApp : Application() {
         // This enables the rish (Remote Interactive Shell) backend for Shizuku-based
         // shell execution and unlocks RishShellManager for the AI agent.
         PrivilegedExecutionManager.init(applicationContext)
+
+        // Initialize universal launcher IPC binding manager (binds to current default launcher
+        // if it exposes the OmniDev launcher control AIDL service).
+        LauncherConnectionManager.initialize(applicationContext)
 
         // Restore dynamic Copilot models from the persisted cache so the model
         // selector is populated immediately — without waiting for a network round-trip.
