@@ -78,14 +78,13 @@ object ExtensionConnectionManager {
         val context = appContext ?: return
         val pm = context.packageManager
         val intent = Intent(ACTION_BIND_EXTENSION)
-        val flags = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            PackageManager.ResolveInfoFlags.of(0)
-        } else {
-            null
-        }
         val resolveInfos = runCatching {
-            if (flags != null) pm.queryIntentServices(intent, flags)
-            else @Suppress("DEPRECATION") pm.queryIntentServices(intent, 0)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                pm.queryIntentServices(intent, PackageManager.ResolveInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.queryIntentServices(intent, 0)
+            }
         }.getOrElse {
             Log.w(TAG, "Failed querying extension services", it)
             emptyList()
