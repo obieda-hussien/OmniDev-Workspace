@@ -71,6 +71,14 @@ object LauncherConnectionManager {
 
     fun getLauncherInterface(): IOmniLauncherInterface? = launcherInterface
 
+    fun renderOmniWidget(widgetId: String, composeJson: String): Boolean {
+        val launcher = launcherInterface ?: return false
+        return runCatching { launcher.renderOmniWidget(widgetId, composeJson) }.getOrElse {
+            Log.w(TAG, "renderOmniWidget failed for widgetId=$widgetId", it)
+            false
+        }
+    }
+
     fun rebindToCurrentDefaultLauncher() {
         val context = appContext ?: return
         val defaultLauncherPackage = resolveDefaultLauncherPackage(context)

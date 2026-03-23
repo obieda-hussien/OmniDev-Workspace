@@ -140,6 +140,7 @@ class CompositeToolManager(
             addAll(OmniCoreAgentTool.getToolDefinitions())
             addAll(AgentRuntimeTool.getToolDefinitions())
             addAll(LauncherControlTool.getToolDefinitions())
+            addAll(WidgetGeneratorTool.getToolDefinitions())
         }
         addAll(SocialMediaTool.getToolDefinitions())
         if (context != null) {
@@ -618,6 +619,11 @@ class CompositeToolManager(
             "system_launcher_tool" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 LauncherControlTool.execute(action = action, args = arguments)
+            }
+
+            // ── Omni-Widgets UI generation tool ──
+            "widget_generator_tool" -> {
+                WidgetGeneratorTool.execute(args = arguments)
             }
 
             // ── Social media / video tool ──
