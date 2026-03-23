@@ -16,16 +16,32 @@ import java.io.InputStream
  * Processes multi-modal file attachments (images, PDFs, text files, videos) for
  * inclusion in AI completion requests.
  *
- * Enforces safety limits:
+ * ### God Mode — Unrestricted File Picker
+ * When [godModeEnabled] is `true`, MIME-type and extension filtering is completely
+ * bypassed in [processAttachments]. **Any** file type the user selects is accepted
+ * regardless of its MIME classification. This is the intentional behaviour so that
+ * a power user with God Mode ON can upload arbitrary binaries, APKs, raw config
+ * files, etc. directly into the chat for the agent to reason about.
+ *
+ * Enforces safety limits (count / total size) even in God Mode:
  * - Maximum 5 files per request
  * - Maximum 15 MB total payload size
- * - Video support gated on model capability (native pass-through or frame extraction fallback)
+ * - Maximum 10 MB per single file
  *
  * The processor resolves URIs using [ContentResolver], classifies media types, validates
  * constraints, and produces a structured list of [AttachmentMeta] ready for API payload
  * construction.
  */
-class AttachmentProcessor(private val contentResolver: ContentResolver) {
+class AttachmentProcessor(
+    private val contentResolver: ContentResolver,
+    /**
+     * When true, MIME-type restrictions and video-model compatibility checks are
+     * bypassed. The agent can then receive and reason over any file type.
+     *
+     * Updated at runtime by ChatViewModel when the user toggles God Mode.
+     */
+    @Volatile var godModeEnabled: Boolean = false
+) {
 
     companion object {
         /** Maximum number of attachments allowed in a single request. */
@@ -103,6 +119,15 @@ class AttachmentProcessor(private val contentResolver: ContentResolver) {
                         "Remove some files and try again."
                 )
             }
+
+            // ── God Mode: skip all MIME / video / vision checks ─────────────────
+            // In God Mode, we accept ANY file type unconditionally. The agent is
+            // responsible for deciding how to handle unknown binary payloads.
+            if (godModeEnabled) {
+                processed.add(meta)
+                continue
+            }
+            // ─────────────────────────────────────────────────────────────────
 
             // ── Video Handling ──
             if (meta.mediaType == AttachmentMediaType.VIDEO) {
