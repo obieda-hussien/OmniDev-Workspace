@@ -7,6 +7,7 @@ import com.omnidev.workspace.data.accessibility.SemanticUITool
 import com.omnidev.workspace.data.admin.OmniDeviceAdminReceiver
 import com.omnidev.workspace.data.communication.SmsCaptureBuffer
 import com.omnidev.workspace.data.input.OmniInputMethodService
+import com.omnidev.workspace.data.ipc.ExtensionConnectionManager
 import com.omnidev.workspace.data.ipc.OmniCoreAgentTool
 import com.omnidev.workspace.data.media.OmniMediaSessionService
 import com.omnidev.workspace.data.repository.SettingsRepository
@@ -146,6 +147,7 @@ class CompositeToolManager(
             if (settingsRepository != null) {
                 addAll(AutofillAssistTool.getToolDefinitions())
             }
+            addAll(OmniLinkTool.getToolDefinitions())
         }
         if (headlessBrowserManager != null) {
             addAll(headlessBrowserManager.getToolDefinitions())
@@ -642,6 +644,14 @@ class CompositeToolManager(
                     action = action,
                     args = arguments
                 )
+            }
+
+            // ── Omni-Link universal extension tool ──
+            "omni_link" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                val ctx = context ?: return missingContext()
+                ExtensionConnectionManager.initialize(ctx)
+                OmniLinkTool.execute(action = action, args = arguments)
             }
 
             // ── Vector memory tools ──
