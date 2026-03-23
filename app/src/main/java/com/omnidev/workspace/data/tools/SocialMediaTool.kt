@@ -207,7 +207,7 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
                 if (likes    != null) sb.appendLine("Likes    : $likes")
                 if (channel  != null && !sb.contains("Channel")) sb.appendLine("Channel  : $channel")
             }
-            if (output.isNullOrBlank() || output.contains("|||").not()) {
+            if (output.isNullOrBlank() || !output.contains("|||")) {
                 val errMsg = result.exceptionOrNull()?.message?.lineSequence()?.firstOrNull()?.trim()
                 if (!errMsg.isNullOrBlank()) {
                     sb.appendLine("⚠️  yt-dlp metadata fetch failed: $errMsg")
@@ -516,7 +516,7 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
         val sysBin = PrivilegedExecutionManager.executeCommand("which yt-dlp 2>/dev/null")
             .getOrNull()
             .let(::normalizeExecOutput)
-            ?.takeIf { it.startsWith("/") || it.contains("yt-dlp") }
+            ?.takeIf { it.startsWith("/") && (it.endsWith("/yt-dlp") || it.endsWith("/yt-dlp.exe")) }
         if (sysBin != null) return sysBin
 
         // 2. Termux bin
