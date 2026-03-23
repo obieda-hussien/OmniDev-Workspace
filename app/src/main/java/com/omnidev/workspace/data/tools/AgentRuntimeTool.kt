@@ -199,7 +199,7 @@ Actions and required parameters:
         for (tool in tools) {
             // Check system PATH first, then Termux bin directory as fallback
             val systemResult = PrivilegedExecutionManager.executeCommand("which $tool 2>/dev/null")
-            val systemPath = systemResult.getOrNull()?.trim()?.takeIf { it.isNotEmpty() && !it.startsWith("ERROR") }
+            val systemPath = normalizeExecOutput(systemResult.getOrNull())
             val termuxPath = run {
                 val exists = PrivilegedExecutionManager.executeCommand("test -f $TERMUX_BIN/$tool && echo yes 2>/dev/null")
                     .getOrNull()?.trim()
@@ -208,12 +208,20 @@ Actions and required parameters:
             when {
                 systemPath != null -> {
                     val ver = PrivilegedExecutionManager.executeCommand("$tool --version 2>&1 | head -1")
-                        .getOrNull()?.trim()?.take(60) ?: ""
+                        .getOrNull()
+                        ?.takeIf { it != "(no output)" }
+                        ?.trim()
+                        ?.take(60)
+                        ?: ""
                     sb.appendLine("✅ $tool → $systemPath  [$ver]")
                 }
                 termuxPath != null -> {
                     val ver = PrivilegedExecutionManager.executeCommand("$termuxPath --version 2>&1 | head -1")
-                        .getOrNull()?.trim()?.take(60) ?: ""
+                        .getOrNull()
+                        ?.takeIf { it != "(no output)" }
+                        ?.trim()
+                        ?.take(60)
+                        ?: ""
                     sb.appendLine("✅ $tool → $termuxPath (Termux)  [$ver]")
                 }
                 else -> sb.appendLine("❌ $tool — not found on PATH or in Termux")
@@ -434,7 +442,7 @@ Actions and required parameters:
         suspend fun checkTool(name: String): String? =
             PrivilegedExecutionManager.executeCommand(
                 "which $name 2>/dev/null || (test -f $TERMUX_BIN/$name && echo $TERMUX_BIN/$name)"
-            ).getOrNull()?.trim()?.ifEmpty { null }
+            ).getOrNull().let(::normalizeExecOutput)
 
         val curlPath   = checkTool("curl")
         val wgetPath   = checkTool("wget")
@@ -486,6 +494,18 @@ Actions and required parameters:
     // ─────────────────────────────────────────────────────────────────────
 
     private fun err(msg: String) = ToolExecutionResult(msg, isError = true)
+
+    /**
+     * Normalizes command output where some backends may return "(no output)" placeholder
+     * for successful commands with empty stdout.
+     */
+    private fun normalizeExecOutput(raw: String?): String? {
+        val value = raw?.trim().orEmpty()
+        if (value.isEmpty()) return null
+        if (value == "(no output)") return null
+        if (value.startsWith("ERROR", ignoreCase = true)) return null
+        return value
+    }
 
     private fun Result<String>.toToolResult(): ToolExecutionResult =
         fold(

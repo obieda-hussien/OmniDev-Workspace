@@ -190,7 +190,8 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
                 "--print '%(description.50B)s|||%(duration_string)s|||%(view_count)s|||%(upload_date)s|||%(like_count)s|||%(channel)s|||%(formats.:.height)s' " +
                 "${shellQuote(url)} 2>&1"
             val result = PrivilegedExecutionManager.executeCommand(cmd)
-            result.getOrNull()?.lines()?.firstOrNull { it.contains("|||") }?.let { line ->
+            val output = normalizeExecOutput(result.getOrNull())
+            output?.lines()?.firstOrNull { it.contains("|||") }?.let { line ->
                 val parts = line.split("|||")
                 val desc     = parts.getOrNull(0)?.trim().takeIf { !it.isNullOrBlank() && it != "NA" }
                 val duration = parts.getOrNull(1)?.trim().takeIf { !it.isNullOrBlank() && it != "NA" }
@@ -205,6 +206,12 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
                 if (date     != null) sb.appendLine("Uploaded : ${date.substring(0,4)}-${date.substring(4,6)}-${date.substring(6,8)}")
                 if (likes    != null) sb.appendLine("Likes    : $likes")
                 if (channel  != null && !sb.contains("Channel")) sb.appendLine("Channel  : $channel")
+            }
+            if (output.isNullOrBlank() || !output.contains("|||")) {
+                val errMsg = result.exceptionOrNull()?.message?.lineSequence()?.firstOrNull()?.trim()
+                if (!errMsg.isNullOrBlank()) {
+                    sb.appendLine("⚠️  yt-dlp metadata fetch failed: $errMsg")
+                }
             }
         } else if (oembed == null) {
             sb.appendLine()
@@ -440,7 +447,10 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
         val ytdlp = findYtDlp()
         if (ytdlp != null) {
             val version = PrivilegedExecutionManager.executeCommand("$ytdlp --version 2>&1")
-                .getOrNull()?.trim() ?: "unknown"
+                .getOrNull()
+                .takeIf { !it.isNullOrBlank() && it != "(no output)" }
+                ?.trim()
+                ?: "unknown"
             sb.appendLine("✅ yt-dlp: $ytdlp (v$version)")
             sb.appendLine()
             sb.appendLine("All actions available:")
@@ -504,7 +514,9 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
     private suspend fun findYtDlp(): String? {
         // 1. System PATH
         val sysBin = PrivilegedExecutionManager.executeCommand("which yt-dlp 2>/dev/null")
-            .getOrNull()?.trim().takeIf { !it.isNullOrBlank() }
+            .getOrNull()
+            .let(::normalizeExecOutput)
+            ?.takeIf { it.startsWith("/") && (it.endsWith("/yt-dlp") || it.endsWith("/yt-dlp.exe")) }
         if (sysBin != null) return sysBin
 
         // 2. Termux bin
@@ -517,13 +529,13 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
         // 3. Python module (system python3)
         val pipCheck = PrivilegedExecutionManager.executeCommand(
             "python3 -m yt_dlp --version 2>/dev/null"
-        ).getOrNull()?.trim()
+        ).getOrNull().let(::normalizeExecOutput)
         if (!pipCheck.isNullOrBlank() && pipCheck.isNotEmpty() && pipCheck.first().isDigit()) return "python3 -m yt_dlp"
 
         // 4. Termux Python module
         val termuxPipCheck = PrivilegedExecutionManager.executeCommand(
             "$TERMUX_BIN/python3 -m yt_dlp --version 2>/dev/null"
-        ).getOrNull()?.trim()
+        ).getOrNull().let(::normalizeExecOutput)
         if (!termuxPipCheck.isNullOrBlank() && termuxPipCheck.isNotEmpty() && termuxPipCheck.first().isDigit()) {
             return "$TERMUX_BIN/python3 -m yt_dlp"
         }
@@ -577,12 +589,15 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
         for (line in raw.lines()) {
             val s = line.trim()
             when {
-                s.startsWith("WEBVTT")                -> continue
-                s.startsWith("NOTE")                  -> continue
+                s.startsWith("WEBVTT")                 -> continue
+                s.startsWith("NOTE")                   -> continue
                 s.matches(Regex("""^\d+$"""))          -> continue  // cue/sequence number
                 timestampSrt.containsMatchIn(s)        -> continue  // timestamp line
                 s.isBlank() -> {
-                    if (prev.isNotBlank()) { sb.appendLine(); prev = "" }
+                    if (prev.isNotBlank()) {
+                        sb.appendLine()
+                        prev = ""
+                    }
                 }
                 else -> {
                     val text = tagRegex.replace(s, "").trim()
@@ -594,6 +609,18 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
             }
         }
         return sb.toString().trim()
+    }
+
+    /**
+     * Normalizes command output where some backends may return "(no output)" placeholder
+     * for successful commands with empty stdout.
+     */
+    private fun normalizeExecOutput(raw: String?): String? {
+        val value = raw?.trim().orEmpty()
+        if (value.isEmpty()) return null
+        if (value == "(no output)") return null
+        if (value.startsWith("ERROR", ignoreCase = true)) return null
+        return value
     }
 
     /** POSIX single-quote escaping for safe shell argument interpolation. */

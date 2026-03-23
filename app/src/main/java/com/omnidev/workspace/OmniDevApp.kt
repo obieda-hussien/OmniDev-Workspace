@@ -5,6 +5,7 @@ import android.util.Log
 import com.omnidev.workspace.data.auth.CopilotModelRefresher
 import com.omnidev.workspace.data.debug.CrashHandler
 import com.omnidev.workspace.data.debug.DebugLogManager
+import com.omnidev.workspace.data.ipc.ExtensionConnectionManager
 import com.omnidev.workspace.data.ipc.LauncherConnectionManager
 import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 import com.omnidev.workspace.data.model.ModelProvider
@@ -38,6 +39,10 @@ class OmniDevApp : Application() {
         // Initialize universal launcher IPC binding manager (binds to current default launcher
         // if it exposes the OmniDev launcher control AIDL service).
         LauncherConnectionManager.initialize(applicationContext)
+
+        // Initialize Omni-Link extension discovery (binds to third-party extension services
+        // exposing com.omnidev.action.BIND_EXTENSION).
+        ExtensionConnectionManager.initialize(applicationContext)
 
         // Restore dynamic Copilot models from the persisted cache so the model
         // selector is populated immediately — without waiting for a network round-trip.

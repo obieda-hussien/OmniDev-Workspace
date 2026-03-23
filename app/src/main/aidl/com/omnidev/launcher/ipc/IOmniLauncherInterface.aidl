@@ -6,4 +6,5 @@ interface IOmniLauncherInterface {
     boolean launchPackage(String packageName);
     boolean goToHomeScreen();
     boolean performLauncherAction(String actionName);
+    boolean renderOmniWidget(String widgetId, String composeJson);
 }
