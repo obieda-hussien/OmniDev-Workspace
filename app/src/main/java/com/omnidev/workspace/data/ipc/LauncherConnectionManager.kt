@@ -79,6 +79,22 @@ object LauncherConnectionManager {
         }
     }
 
+    fun removeOmniWidget(widgetId: String): Boolean {
+        val launcher = launcherInterface ?: return false
+        return runCatching { launcher.removeOmniWidget(widgetId) }.getOrElse {
+            Log.w(TAG, "removeOmniWidget failed for widgetId=$widgetId", it)
+            false
+        }
+    }
+
+    fun clearAllOmniWidgets(): Boolean {
+        val launcher = launcherInterface ?: return false
+        return runCatching { launcher.clearAllOmniWidgets() }.getOrElse {
+            Log.w(TAG, "clearAllOmniWidgets failed", it)
+            false
+        }
+    }
+
     fun rebindToCurrentDefaultLauncher() {
         val context = appContext ?: return
         val defaultLauncherPackage = resolveDefaultLauncherPackage(context)

@@ -16,6 +16,8 @@ interface IOmniLauncherInterface {
     boolean goToHomeScreen();
     boolean performLauncherAction(String actionName);
     boolean renderOmniWidget(String widgetId, String composeJson);
+    boolean removeOmniWidget(String widgetId);
+    boolean clearAllOmniWidgets();
 
     /**
      * Opens the system/launcher Widget Picker overlay, allowing the user (or agent)
