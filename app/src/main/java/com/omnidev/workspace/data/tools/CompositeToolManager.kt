@@ -141,6 +141,11 @@ class CompositeToolManager(
             addAll(AgentRuntimeTool.getToolDefinitions())
             addAll(LauncherControlTool.getToolDefinitions())
             addAll(WidgetGeneratorTool.getToolDefinitions())
+            // ── Dynamic Self-Sandbox Tool ────────────────────────────────────
+            // Always present when context is available — it requires the
+            // PrivilegedExecutionManager (Shizuku/rish/root) which is initialised
+            // from the application context.
+            addAll(AgentSandboxTool.getToolDefinitions())
         }
         addAll(SocialMediaTool.getToolDefinitions())
         if (context != null) {
@@ -624,6 +629,13 @@ class CompositeToolManager(
             // ── Omni-Widgets UI generation tool ──
             "widget_generator_tool" -> {
                 WidgetGeneratorTool.execute(args = arguments)
+            }
+
+            // ── Dynamic Self-Sandbox Tool ─────────────────────────────────────
+            // Runs shell scripts in an ephemeral, UUID-keyed /data/local/tmp/
+            // sandbox that is always wiped after execution.
+            "sandbox_execution_tool" -> {
+                AgentSandboxTool.executeTool(arguments)
             }
 
             // ── Social media / video tool ──

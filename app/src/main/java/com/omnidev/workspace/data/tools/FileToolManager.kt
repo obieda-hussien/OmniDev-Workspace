@@ -81,7 +81,8 @@ class FileToolManager(
     //  Tool Definitions (for AI function-calling schema)
     // ──────────────────────────────────────────────
 
-    override fun getToolDefinitions(): List<ToolDefinition> = listOf(
+    override fun getToolDefinitions(): List<ToolDefinition> = buildList {
+        addAll(listOf(
         ToolDefinition(
             name = "read_file_lines",
             description = "Read specific lines from a file. Use this instead of reading entire files to save tokens. " +
@@ -167,7 +168,70 @@ class FileToolManager(
                 ToolParameter("args", "string", "Optional command-line args for mode='file'.", required = false)
             )
         )
-    )
+        ))
+
+        // ── God Mode extended file operations ────────────────────────────────
+        // Only exposed when godModeEnabled == true to avoid polluting the agent's
+        // tool list under normal operation.
+        if (godModeEnabled) {
+            addAll(listOf(
+                ToolDefinition(
+                    name = "god_read_file",
+                    description = "[GOD MODE] Read any file on the Android filesystem, including protected " +
+                        "paths like /data/data/, /system/, /proc/. Automatically routes through " +
+                        "Shizuku/rish/root when required. Returns raw UTF-8 content.",
+                    parameters = listOf(
+                        ToolParameter("filePath", "string", "Absolute path to the file to read.", required = true)
+                    )
+                ),
+                ToolDefinition(
+                    name = "god_write_file",
+                    description = "[GOD MODE] Write content to any file on the Android filesystem, including " +
+                        "protected paths. Parent directories are created automatically. " +
+                        "Automatically escalates through Shizuku/rish/root when needed.",
+                    parameters = listOf(
+                        ToolParameter("filePath", "string", "Absolute path to the target file.", required = true),
+                        ToolParameter("content", "string", "UTF-8 text content to write.", required = true),
+                        ToolParameter("append", "string", "Set to 'true' to append instead of overwrite.", required = false)
+                    )
+                ),
+                ToolDefinition(
+                    name = "god_delete_file",
+                    description = "[GOD MODE] Delete any file or directory on the filesystem, including " +
+                        "protected paths. Escalates through Shizuku/rish/root as needed.",
+                    parameters = listOf(
+                        ToolParameter("filePath", "string", "Absolute path to the file/directory.", required = true),
+                        ToolParameter("recursive", "string", "Set to 'true' for recursive directory delete.", required = false)
+                    )
+                ),
+                ToolDefinition(
+                    name = "god_copy_file",
+                    description = "[GOD MODE] Copy a file from any source path to any destination path, " +
+                        "including privileged paths. Uses 'cp -p' via shell when necessary.",
+                    parameters = listOf(
+                        ToolParameter("sourcePath", "string", "Absolute path of the source file.", required = true),
+                        ToolParameter("destPath", "string", "Absolute path of the destination.", required = true)
+                    )
+                ),
+                ToolDefinition(
+                    name = "god_list_directory",
+                    description = "[GOD MODE] List directory contents at any path including privileged " +
+                        "directories. Uses 'ls -la' via shell when direct listing fails.",
+                    parameters = listOf(
+                        ToolParameter("path", "string", "Absolute directory path to list.", required = true)
+                    )
+                ),
+                ToolDefinition(
+                    name = "god_stat_file",
+                    description = "[GOD MODE] Get detailed stat info (permissions, owner, size, timestamps) " +
+                        "for any file, including in privileged paths.",
+                    parameters = listOf(
+                        ToolParameter("path", "string", "Absolute path to stat.", required = true)
+                    )
+                )
+            ))
+        }
+    }
 
     // ──────────────────────────────────────────────
     //  Tool Execution Router
@@ -180,6 +244,47 @@ class FileToolManager(
     ): ToolExecutionResult {
         return try {
             when (name) {
+                // ── God Mode extended file operations ────────────────────────────
+                // These are only surfaced when godModeEnabled == true; otherwise
+                // they fall through to the standard file tools below.
+                "god_read_file" -> {
+                    val path = arguments["filePath"]
+                        ?: return ToolExecutionResult("Missing required argument: filePath", isError = true)
+                    GodModeFileRouter.readFile(path, godMode = godModeEnabled).toToolResult()
+                }
+                "god_write_file" -> {
+                    val path = arguments["filePath"]
+                        ?: return ToolExecutionResult("Missing required argument: filePath", isError = true)
+                    val content = arguments["content"]
+                        ?: return ToolExecutionResult("Missing required argument: content", isError = true)
+                    val append = arguments["append"]?.equals("true", ignoreCase = true) ?: false
+                    GodModeFileRouter.writeFile(path, content, append, godMode = godModeEnabled).toToolResult()
+                }
+                "god_delete_file" -> {
+                    val path = arguments["filePath"]
+                        ?: return ToolExecutionResult("Missing required argument: filePath", isError = true)
+                    val recursive = arguments["recursive"]?.equals("true", ignoreCase = true) ?: false
+                    GodModeFileRouter.deleteFile(path, recursive, godMode = godModeEnabled).toToolResult()
+                }
+                "god_copy_file" -> {
+                    val src = arguments["sourcePath"]
+                        ?: return ToolExecutionResult("Missing required argument: sourcePath", isError = true)
+                    val dst = arguments["destPath"]
+                        ?: return ToolExecutionResult("Missing required argument: destPath", isError = true)
+                    GodModeFileRouter.copyFile(src, dst, godMode = godModeEnabled).toToolResult()
+                }
+                "god_list_directory" -> {
+                    val path = arguments["path"]
+                        ?: return ToolExecutionResult("Missing required argument: path", isError = true)
+                    GodModeFileRouter.listDirectory(path, godMode = godModeEnabled).toToolResult()
+                }
+                "god_stat_file" -> {
+                    val path = arguments["path"]
+                        ?: return ToolExecutionResult("Missing required argument: path", isError = true)
+                    GodModeFileRouter.statFile(path, godMode = godModeEnabled).toToolResult()
+                }
+                // ─────────────────────────────────────────────────────────────────
+
                 "read_file_lines" -> readFileLines(arguments, scopePath)
                 "search_codebase" -> searchCodebase(arguments, scopePath)
                 "patch_file_content" -> patchFileContent(arguments, scopePath)
@@ -275,8 +380,14 @@ class FileToolManager(
     /**
      * Reads lines [startLine]..[endLine] (1-indexed, inclusive) from a file.
      * Never loads more than [MAX_READ_LINES] at once to protect the context window.
+     *
+     * When [godModeEnabled] is true and the path is in a privileged namespace
+     * (e.g., `/data/data/`, `/system/`), the full file is fetched via
+     * [GodModeFileRouter] first, then the requested line range is sliced in-memory.
+     *
+     * Declared `suspend` to allow internal God Mode coroutine calls.
      */
-    private fun readFileLines(args: Map<String, String>, scopePath: String): ToolExecutionResult {
+    private suspend fun readFileLines(args: Map<String, String>, scopePath: String): ToolExecutionResult {
         val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
         val startLine = requireArg(args, "startLine").toIntOrNull()
             ?: return ToolExecutionResult("startLine must be an integer.", isError = true)
@@ -284,6 +395,26 @@ class FileToolManager(
             ?: return ToolExecutionResult("endLine must be an integer.", isError = true)
 
         validateScope(filePath, scopePath)
+
+        // ── God Mode privileged read ──────────────────────────────────────────────
+        if (godModeEnabled) {
+            val godResult = GodModeFileRouter.readFile(filePath, godMode = true)
+            if (godResult is GodModeResult.Success) {
+                val allLines = godResult.content.lines()
+                val effectiveEnd = minOf(endLine, startLine + MAX_READ_LINES - 1, allLines.size)
+                val slice = allLines.subList((startLine - 1).coerceAtLeast(0), effectiveEnd)
+                    .mapIndexed { idx, line -> "${startLine + idx}: $line" }
+                val escalationNote = if (godResult.escalated) "\n[🔓 Read via privileged shell]" else ""
+                val header = "--- $filePath (lines $startLine–$effectiveEnd) ---"
+                return ToolExecutionResult(
+                    output = "$header\n${slice.joinToString("\n")}$escalationNote"
+                )
+            }
+            // If GodModeFileRouter returned a non-Success for a privileged path,
+            // fall through to the standard java.io.File path — it may still work
+            // (e.g., the app owns the file) or produce a clean error.
+        }
+        // ─────────────────────────────────────────────────────────────────────────
 
         val file = File(filePath)
         if (!file.exists()) return ToolExecutionResult("File not found: $filePath", isError = true)
@@ -388,6 +519,9 @@ class FileToolManager(
      *
      * When [confirmationGate] is set, a unified diff is generated and the gate is
      * suspended until the user approves or denies the change.
+     *
+     * When [godModeEnabled] is true, the file content is obtained (and later written back)
+     * via [GodModeFileRouter] so that privileged paths are handled transparently.
      */
     private suspend fun patchFileContent(args: Map<String, String>, scopePath: String): ToolExecutionResult {
         val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
@@ -396,11 +530,32 @@ class FileToolManager(
 
         validateScope(filePath, scopePath)
 
-        val file = File(filePath)
-        if (!file.exists()) return ToolExecutionResult("File not found: $filePath", isError = true)
-        if (!file.isFile) return ToolExecutionResult("Not a file: $filePath", isError = true)
+        // ── God Mode: read via router so privileged files are accessible ──────────
+        val content: String
+        if (godModeEnabled) {
+            val readResult = GodModeFileRouter.readFile(filePath, godMode = true)
+            when (readResult) {
+                is GodModeResult.Success -> content = readResult.content
+                is GodModeResult.Failure -> return ToolExecutionResult(
+                    output = "God Mode read failed before patch: ${readResult.reason}", isError = true)
+                is GodModeResult.GodModeDisabled -> {
+                    // Fall through to standard read below
+                    val file = File(filePath)
+                    if (!file.exists()) return ToolExecutionResult("File not found: $filePath", isError = true)
+                    if (!file.isFile) return ToolExecutionResult("Not a file: $filePath", isError = true)
+                    content = file.readText()
+                }
+            }
+        } else {
+            val file = File(filePath)
+            if (!file.exists()) return ToolExecutionResult("File not found: $filePath", isError = true)
+            if (!file.isFile) return ToolExecutionResult("Not a file: $filePath", isError = true)
+            content = file.readText()
+        }
+        // ─────────────────────────────────────────────────────────────────────────
 
-        val content = file.readText()
+        // Legacy file reference kept for the non-God-Mode write path below.
+        val file = File(filePath)
         val occurrences = content.windowed(searchSnippet.length, 1)
             .count { it == searchSnippet }
 
@@ -422,8 +577,6 @@ class FileToolManager(
                 if (gate != null) {
                     val diff = generateUnifiedDiff(filePath, content, newContent)
                     val preview = "File: $filePath"
-                    // Pass the diff (may be empty if identical, though that can't happen here
-                    // since occurrences == 1 guarantees content != newContent)
                     val approved = gate.invoke(preview, diff.ifEmpty { null })
                     if (!approved) {
                         return ToolExecutionResult(
@@ -433,13 +586,29 @@ class FileToolManager(
                     }
                 }
 
-                file.writeText(newContent)
+                // ── God Mode: write via router so privileged files can be patched ──
+                if (godModeEnabled) {
+                    val writeResult = GodModeFileRouter.writeFile(
+                        path = filePath, content = newContent,
+                        append = false, godMode = true
+                    )
+                    if (writeResult is GodModeResult.Failure) {
+                        return ToolExecutionResult(
+                            output = "God Mode write failed after patch: ${writeResult.reason}",
+                            isError = true
+                        )
+                    }
+                } else {
+                    file.writeText(newContent)
+                }
+                // ─────────────────────────────────────────────────────────────────
 
                 // Calculate affected line range for the response
                 val linesBefore = content.substring(0, content.indexOf(searchSnippet)).count { it == '\n' } + 1
                 val linesAffected = searchSnippet.count { it == '\n' } + 1
+                val godNote = if (godModeEnabled) " [🔓 God Mode]" else ""
                 ToolExecutionResult(
-                    output = "✅ Patched $filePath — replaced $linesAffected line(s) starting at line $linesBefore."
+                    output = "✅ Patched $filePath — replaced $linesAffected line(s) starting at line $linesBefore.$godNote"
                 )
             }
         }
@@ -454,6 +623,9 @@ class FileToolManager(
      *
      * When [confirmationGate] is set, a diff-style preview of the new file content is shown
      * (all lines prefixed with `+`) and the gate suspends until the user approves.
+     *
+     * When [godModeEnabled] is true, the write is routed through [GodModeFileRouter] so
+     * files in privileged namespaces can be created via the shell backend.
      */
     private suspend fun createFile(args: Map<String, String>, scopePath: String): ToolExecutionResult {
         val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
@@ -468,9 +640,19 @@ class FileToolManager(
             )
         }
 
-        val file = File(filePath)
-        if (file.exists()) {
-            return ToolExecutionResult("File already exists: $filePath. Use patch_file_content to modify.", isError = true)
+        // Existence check — use God Mode router to stat privileged paths too.
+        val fileExists = if (godModeEnabled) {
+            val stat = GodModeFileRouter.statFile(filePath, godMode = true)
+            stat is GodModeResult.Success && !stat.content.contains("No such file", ignoreCase = true)
+        } else {
+            File(filePath).exists()
+        }
+
+        if (fileExists) {
+            return ToolExecutionResult(
+                "File already exists: $filePath. Use patch_file_content to modify.",
+                isError = true
+            )
         }
 
         // Ask for confirmation via diff viewer if a gate is registered
@@ -492,9 +674,19 @@ class FileToolManager(
             }
         }
 
-        file.parentFile?.mkdirs()
-        file.writeText(content)
+        // ── God Mode: write via router ────────────────────────────────────────────
+        if (godModeEnabled) {
+            return GodModeFileRouter.writeFile(
+                path = filePath, content = content,
+                append = false, godMode = true
+            ).toToolResult()
+        }
+        // ─────────────────────────────────────────────────────────────────────────
 
+        File(filePath).also { f ->
+            f.parentFile?.mkdirs()
+            f.writeText(content)
+        }
         return ToolExecutionResult("✅ Created file: $filePath (${content.length} bytes)")
     }
 
@@ -507,6 +699,9 @@ class FileToolManager(
      *
      * When [confirmationGate] is set, a diff-style preview showing all lines being removed
      * (prefixed with `-`) is shown and the gate suspends until the user approves.
+     *
+     * When [godModeEnabled] is true, deletion is routed through [GodModeFileRouter] so
+     * privileged files can be removed via the shell backend.
      */
     private suspend fun deleteFile(args: Map<String, String>, scopePath: String): ToolExecutionResult {
         val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
@@ -514,13 +709,24 @@ class FileToolManager(
         validateScope(filePath, scopePath)
 
         val file = File(filePath)
-        if (!file.exists()) return ToolExecutionResult("File not found: $filePath", isError = true)
-        if (file.isDirectory) return ToolExecutionResult("Cannot delete directory: $filePath", isError = true)
+
+        // For non-God-Mode, validate file existence and type via standard Java I/O.
+        if (!godModeEnabled) {
+            if (!file.exists()) return ToolExecutionResult("File not found: $filePath", isError = true)
+            if (file.isDirectory) return ToolExecutionResult("Cannot delete directory: $filePath", isError = true)
+        }
 
         // Ask for confirmation if a gate is registered
         val gate = confirmationGate
         if (gate != null) {
-            val existingContent = try { file.readText() } catch (_: Exception) { "" }
+            val existingContent = if (godModeEnabled) {
+                when (val r = GodModeFileRouter.readFile(filePath, godMode = true)) {
+                    is GodModeResult.Success -> r.content
+                    else -> ""
+                }
+            } else {
+                try { file.readText() } catch (_: Exception) { "" }
+            }
             val diffPreview = buildString {
                 appendLine("--- a/${filePath.substringAfterLast('/')}")
                 appendLine("+++ /dev/null")
@@ -536,6 +742,14 @@ class FileToolManager(
                 )
             }
         }
+
+        // ── God Mode: delete via router ───────────────────────────────────────────
+        if (godModeEnabled) {
+            return GodModeFileRouter.deleteFile(
+                path = filePath, recursive = false, godMode = true
+            ).toToolResult()
+        }
+        // ─────────────────────────────────────────────────────────────────────────
 
         val deleted = file.delete()
         return if (deleted) {

@@ -164,6 +164,7 @@
           OmniCoreService *defines* this permission; it does not need to *request* it. -->
     <!-- Universal launcher control is cross-signature; keep permission non-signature. -->
     <uses-permission android:name="com.omnidev.permission.CONTROL_LAUNCHER" />
+    <uses-permission android:name="com.omnidev.permission.INTEGRATE_LAUNCHER" />
 
     <!-- ═══ FOREGROUND SERVICES (Android 14+) ═══ -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
