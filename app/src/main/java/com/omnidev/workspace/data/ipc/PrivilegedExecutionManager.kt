@@ -4,6 +4,8 @@ import android.content.Context
 import android.os.Build
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import java.lang.reflect.InvocationTargetException
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.data.tools.ShizukuResult
@@ -392,20 +394,17 @@ object PrivilegedExecutionManager {
                 null
             ) as Process
 
-            // Read both streams concurrently before waitFor() to prevent OS pipe-buffer deadlock.
+            // MUST read streams concurrently before waitFor() to prevent deadlocks and capture output
+            // Avoid .use {} which closes the stream and breaks the shared fd.
             val stdoutBuffer = StringBuffer()
             val stderrBuffer = StringBuffer()
 
             val stdoutThread = Thread {
-                process.inputStream.bufferedReader().use { reader ->
-                    stdoutBuffer.append(reader.readText())
-                }
+                stdoutBuffer.append(process.inputStream.bufferedReader().readText())
             }.apply { start() }
 
             val stderrThread = Thread {
-                process.errorStream.bufferedReader().use { reader ->
-                    stderrBuffer.append(reader.readText())
-                }
+                stderrBuffer.append(process.errorStream.bufferedReader().readText())
             }.apply { start() }
 
             process.waitFor()
@@ -415,8 +414,11 @@ object PrivilegedExecutionManager {
             val stdout = stdoutBuffer.toString()
             val stderr = stderrBuffer.toString()
             val exit = process.exitValue()
+
+            val finalOutput = if (stderr.isNotBlank()) stderr else stdout
+
             if (exit == 0) {
-                stdout.trim().ifBlank { "(no output)" }
+                finalOutput.trim().ifBlank { "(no output)" }
             } else {
                 throw RuntimeException(
                     "Command exited with code $exit.\nstdout: $stdout\nstderr: $stderr"
@@ -432,20 +434,16 @@ object PrivilegedExecutionManager {
     private fun executeViaRoot(command: String): Result<String> = runCatching {
         val process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
 
-        // Read both streams concurrently before waitFor() to prevent OS pipe-buffer deadlock.
+        // Read streams before waitFor() to prevent OS pipe-buffer deadlock.
         val stdoutBuffer = StringBuffer()
         val stderrBuffer = StringBuffer()
 
         val stdoutThread = Thread {
-            process.inputStream.bufferedReader().use { reader ->
-                stdoutBuffer.append(reader.readText())
-            }
+            stdoutBuffer.append(process.inputStream.bufferedReader().readText())
         }.apply { start() }
 
         val stderrThread = Thread {
-            process.errorStream.bufferedReader().use { reader ->
-                stderrBuffer.append(reader.readText())
-            }
+            stderrBuffer.append(process.errorStream.bufferedReader().readText())
         }.apply { start() }
 
         val exit = process.waitFor()
@@ -454,8 +452,11 @@ object PrivilegedExecutionManager {
 
         val stdout = stdoutBuffer.toString()
         val stderr = stderrBuffer.toString()
+
+        val finalOutput = if (stderr.isNotBlank()) stderr else stdout
+
         if (exit == 0) {
-            stdout.trim().ifBlank { "(no output)" }
+            finalOutput.trim().ifBlank { "(no output)" }
         } else {
             throw RuntimeException("Root command exited $exit. stderr: $stderr")
         }

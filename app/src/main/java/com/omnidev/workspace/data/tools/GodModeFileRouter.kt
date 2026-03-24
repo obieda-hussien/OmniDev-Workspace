@@ -105,17 +105,13 @@ object GodModeFileRouter {
                     GodModeResult.Success(content = bytes.decodeToString(), escalated = false)
                 }
             }.getOrElse { ex ->
-                if (isExternalStorage || (!isPermissionDenied(ex) && ex !is SecurityException)) {
-                    GodModeResult.Failure("Direct read failed: ${ex.message}")
-                } else {
-                    // Silently escalate — the direct attempt failed on permissions.
+                if (isPermissionDenied(ex) || ex is SecurityException || isExternalStorage) {
+                    // Silently escalate — the direct attempt failed on permissions, or it's external storage.
                     readViaShell(canonical)
+                } else {
+                    GodModeResult.Failure("Direct read failed: ${ex.message}")
                 }
             }
-        } else if (isExternalStorage && file.exists() && !file.canRead()) {
-            return readViaShell(canonical)
-        } else if (isExternalStorage && !file.exists()) {
-            return GodModeResult.Failure("File not found: $canonical")
         }
 
         // Escalation path — privileged namespace or not directly accessible.
@@ -159,9 +155,7 @@ object GodModeFileRouter {
                     content = "Wrote ${content.length} chars to $canonical",
                     escalated = false
                 )
-            }.getOrElse { ex ->
-                if (isExternalStorage) GodModeResult.Failure("Direct write failed: ${ex.message}") else null
-            }
+            }.getOrNull()
             if (directResult != null) return directResult
         }
 
@@ -197,16 +191,12 @@ object GodModeFileRouter {
                 if (deleted) GodModeResult.Success("Deleted $canonical", escalated = false)
                 else GodModeResult.Failure("Direct delete returned false for $canonical")
             }.getOrElse { ex ->
-                if (isExternalStorage || (!isPermissionDenied(ex) && ex !is SecurityException)) {
-                    GodModeResult.Failure("Direct delete failed: ${ex.message}")
-                } else {
+                if (isPermissionDenied(ex) || ex is SecurityException || isExternalStorage) {
                     deleteViaShell(canonical, recursive)
+                } else {
+                    GodModeResult.Failure("Direct delete failed: ${ex.message}")
                 }
             }
-        } else if (isExternalStorage && file.exists() && !file.canWrite()) {
-            return deleteViaShell(canonical, recursive)
-        } else if (isExternalStorage && !file.exists()) {
-            return GodModeResult.Failure("File not found: $canonical")
         }
 
         return deleteViaShell(canonical, recursive)
@@ -242,9 +232,7 @@ object GodModeFileRouter {
                 dstFile.parentFile?.mkdirs()
                 srcFile.copyTo(dstFile, overwrite = true)
                 GodModeResult.Success("Copied $src → $dst", escalated = false)
-            }.getOrElse { ex ->
-                if (isSrcExternal || isDstExternal) GodModeResult.Failure("Direct copy failed: ${ex.message}") else null
-            }
+            }.getOrNull()
             if (result != null) return result
         }
 
@@ -276,16 +264,9 @@ object GodModeFileRouter {
                 } ?: "(empty)"
                 GodModeResult.Success("Contents of $canonical:\n$entries", escalated = false)
             }.getOrElse { ex ->
-                if (isExternalStorage) {
-                    GodModeResult.Failure("Direct directory listing failed: ${ex.message}")
-                } else {
-                    executeShell("ls -la ${shellQuote(canonical)} 2>&1",
-                        successMsg = "Directory listing via shell")
-                }
+                executeShell("ls -la ${shellQuote(canonical)} 2>&1",
+                    successMsg = "Directory listing via shell")
             }
-        } else if (isExternalStorage && !dir.canRead()) {
-            return executeShell("ls -la ${shellQuote(canonical)} 2>&1",
-                successMsg = "Directory listing via shell")
         }
 
         return executeShell("ls -la ${shellQuote(canonical)} 2>&1",
