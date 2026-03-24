@@ -391,10 +391,29 @@ object PrivilegedExecutionManager {
                 null,
                 null
             ) as Process
-            // Read both streams before waitFor() to prevent OS pipe-buffer deadlock.
-            val stdout = process.inputStream.bufferedReader().readText()
-            val stderr = process.errorStream.bufferedReader().readText()
+
+            // Read both streams concurrently before waitFor() to prevent OS pipe-buffer deadlock.
+            val stdoutBuffer = StringBuffer()
+            val stderrBuffer = StringBuffer()
+
+            val stdoutThread = Thread {
+                process.inputStream.bufferedReader().use { reader ->
+                    stdoutBuffer.append(reader.readText())
+                }
+            }.apply { start() }
+
+            val stderrThread = Thread {
+                process.errorStream.bufferedReader().use { reader ->
+                    stderrBuffer.append(reader.readText())
+                }
+            }.apply { start() }
+
             process.waitFor()
+            stdoutThread.join()
+            stderrThread.join()
+
+            val stdout = stdoutBuffer.toString()
+            val stderr = stderrBuffer.toString()
             val exit = process.exitValue()
             if (exit == 0) {
                 stdout.trim().ifBlank { "(no output)" }
@@ -412,10 +431,29 @@ object PrivilegedExecutionManager {
 
     private fun executeViaRoot(command: String): Result<String> = runCatching {
         val process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
-        // Read streams before waitFor() to prevent OS pipe-buffer deadlock.
-        val stdout = process.inputStream.bufferedReader().readText()
-        val stderr = process.errorStream.bufferedReader().readText()
+
+        // Read both streams concurrently before waitFor() to prevent OS pipe-buffer deadlock.
+        val stdoutBuffer = StringBuffer()
+        val stderrBuffer = StringBuffer()
+
+        val stdoutThread = Thread {
+            process.inputStream.bufferedReader().use { reader ->
+                stdoutBuffer.append(reader.readText())
+            }
+        }.apply { start() }
+
+        val stderrThread = Thread {
+            process.errorStream.bufferedReader().use { reader ->
+                stderrBuffer.append(reader.readText())
+            }
+        }.apply { start() }
+
         val exit = process.waitFor()
+        stdoutThread.join()
+        stderrThread.join()
+
+        val stdout = stdoutBuffer.toString()
+        val stderr = stderrBuffer.toString()
         if (exit == 0) {
             stdout.trim().ifBlank { "(no output)" }
         } else {
