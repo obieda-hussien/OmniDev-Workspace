@@ -90,6 +90,8 @@ object GodModeFileRouter {
         val file = File(canonical)
 
         // Fast path — process can read it directly.
+        val isExternalStorage = canonical.startsWith("/storage/emulated/0/")
+
         if (!requiresEscalation(canonical) && file.exists() && file.canRead()) {
             return runCatching {
                 val bytes = file.readBytes()
@@ -103,13 +105,17 @@ object GodModeFileRouter {
                     GodModeResult.Success(content = bytes.decodeToString(), escalated = false)
                 }
             }.getOrElse { ex ->
-                if (ex is SecurityException || isPermissionDenied(ex)) {
+                if (isExternalStorage || (!isPermissionDenied(ex) && ex !is SecurityException)) {
+                    GodModeResult.Failure("Direct read failed: ${ex.message}")
+                } else {
                     // Silently escalate — the direct attempt failed on permissions.
                     readViaShell(canonical)
-                } else {
-                    GodModeResult.Failure("Direct read failed: ${ex.message}")
                 }
             }
+        } else if (isExternalStorage && file.exists() && !file.canRead()) {
+            return readViaShell(canonical)
+        } else if (isExternalStorage && !file.exists()) {
+            return GodModeResult.Failure("File not found: $canonical")
         }
 
         // Escalation path — privileged namespace or not directly accessible.
@@ -141,8 +147,10 @@ object GodModeFileRouter {
         val file = File(canonical)
         val parent = file.parentFile
 
+        val isExternalStorage = canonical.startsWith("/storage/emulated/0/")
+
         // Fast path — try direct write if parent is accessible.
-        if (!requiresEscalation(canonical)) {
+        if (!requiresEscalation(canonical) && (!isExternalStorage || file.canWrite() || (parent?.canWrite() == true))) {
             val directResult = runCatching {
                 parent?.mkdirs()
                 if (append) file.appendText(content, Charsets.UTF_8)
@@ -151,7 +159,9 @@ object GodModeFileRouter {
                     content = "Wrote ${content.length} chars to $canonical",
                     escalated = false
                 )
-            }.getOrNull()
+            }.getOrElse { ex ->
+                if (isExternalStorage) GodModeResult.Failure("Direct write failed: ${ex.message}") else null
+            }
             if (directResult != null) return directResult
         }
 
@@ -178,6 +188,8 @@ object GodModeFileRouter {
         val canonical = resolveCanonical(path)
         val file = File(canonical)
 
+        val isExternalStorage = canonical.startsWith("/storage/emulated/0/")
+
         // Fast path.
         if (!requiresEscalation(canonical) && file.exists() && file.canWrite()) {
             return runCatching {
@@ -185,9 +197,16 @@ object GodModeFileRouter {
                 if (deleted) GodModeResult.Success("Deleted $canonical", escalated = false)
                 else GodModeResult.Failure("Direct delete returned false for $canonical")
             }.getOrElse { ex ->
-                if (ex is SecurityException || isPermissionDenied(ex)) deleteViaShell(canonical, recursive)
-                else GodModeResult.Failure("Direct delete failed: ${ex.message}")
+                if (isExternalStorage || (!isPermissionDenied(ex) && ex !is SecurityException)) {
+                    GodModeResult.Failure("Direct delete failed: ${ex.message}")
+                } else {
+                    deleteViaShell(canonical, recursive)
+                }
             }
+        } else if (isExternalStorage && file.exists() && !file.canWrite()) {
+            return deleteViaShell(canonical, recursive)
+        } else if (isExternalStorage && !file.exists()) {
+            return GodModeResult.Failure("File not found: $canonical")
         }
 
         return deleteViaShell(canonical, recursive)
@@ -210,14 +229,22 @@ object GodModeFileRouter {
         val src = resolveCanonical(sourcePath)
         val dst = resolveCanonical(destPath)
 
-        if (!requiresEscalation(src) && !requiresEscalation(dst)) {
+        val isSrcExternal = src.startsWith("/storage/emulated/0/")
+        val isDstExternal = dst.startsWith("/storage/emulated/0/")
+
+        val srcFile = File(src)
+        val dstFile = File(dst)
+
+        if (!requiresEscalation(src) && !requiresEscalation(dst) &&
+            (!isSrcExternal || srcFile.canRead()) &&
+            (!isDstExternal || dstFile.canWrite() || dstFile.parentFile?.canWrite() == true)) {
             val result = runCatching {
-                val srcFile = File(src)
-                val dstFile = File(dst)
                 dstFile.parentFile?.mkdirs()
                 srcFile.copyTo(dstFile, overwrite = true)
                 GodModeResult.Success("Copied $src → $dst", escalated = false)
-            }.getOrNull()
+            }.getOrElse { ex ->
+                if (isSrcExternal || isDstExternal) GodModeResult.Failure("Direct copy failed: ${ex.message}") else null
+            }
             if (result != null) return result
         }
 
@@ -238,6 +265,8 @@ object GodModeFileRouter {
         val canonical = resolveCanonical(path)
         val dir = File(canonical)
 
+        val isExternalStorage = canonical.startsWith("/storage/emulated/0/")
+
         if (!requiresEscalation(canonical) && dir.canRead()) {
             return runCatching {
                 val entries = dir.listFiles()?.joinToString("\n") { f ->
@@ -246,10 +275,17 @@ object GodModeFileRouter {
                     "[$type] ${f.name} ($size)"
                 } ?: "(empty)"
                 GodModeResult.Success("Contents of $canonical:\n$entries", escalated = false)
-            }.getOrElse {
-                executeShell("ls -la ${shellQuote(canonical)} 2>&1",
-                    successMsg = "Directory listing via shell")
+            }.getOrElse { ex ->
+                if (isExternalStorage) {
+                    GodModeResult.Failure("Direct directory listing failed: ${ex.message}")
+                } else {
+                    executeShell("ls -la ${shellQuote(canonical)} 2>&1",
+                        successMsg = "Directory listing via shell")
+                }
             }
+        } else if (isExternalStorage && !dir.canRead()) {
+            return executeShell("ls -la ${shellQuote(canonical)} 2>&1",
+                successMsg = "Directory listing via shell")
         }
 
         return executeShell("ls -la ${shellQuote(canonical)} 2>&1",
@@ -264,6 +300,32 @@ object GodModeFileRouter {
     suspend fun statFile(path: String, godMode: Boolean): GodModeResult {
         if (!godMode) return GodModeResult.GodModeDisabled
         val canonical = resolveCanonical(path)
+
+        val isExternalStorage = canonical.startsWith("/storage/emulated/0/")
+        val file = File(canonical)
+        if (isExternalStorage && file.exists() && file.canRead()) {
+            return runCatching {
+                val size = file.length()
+                val lastMod = file.lastModified()
+                val perms = buildString {
+                    append(if (file.isDirectory) "d" else "-")
+                    append(if (file.canRead()) "r" else "-")
+                    append(if (file.canWrite()) "w" else "-")
+                    append(if (file.canExecute()) "x" else "-")
+                }
+                GodModeResult.Success(
+                    "File: $canonical\nSize: $size\nPermissions: $perms\nLast Modified: $lastMod",
+                    escalated = false
+                )
+            }.getOrElse {
+                executeShell(
+                    "stat ${shellQuote(canonical)} 2>&1 && echo '---' && " +
+                    "ls -la ${shellQuote(canonical)} 2>&1",
+                    successMsg = "stat $canonical"
+                )
+            }
+        }
+
         return executeShell(
             "stat ${shellQuote(canonical)} 2>&1 && echo '---' && " +
             "ls -la ${shellQuote(canonical)} 2>&1",
@@ -275,7 +337,21 @@ object GodModeFileRouter {
     //  Internal — shell escalation helpers
     // ──────────────────────────────────────────────
 
+    @Volatile
+    private var appOpsGranted = false
+
+    private suspend fun ensureAppOpsGranted() {
+        if (!appOpsGranted) {
+            appOpsGranted = true
+            PrivilegedExecutionManager.executeCommand("appops set com.android.shell MANAGE_EXTERNAL_STORAGE allow")
+            PrivilegedExecutionManager.executeCommand("appops set com.android.shell READ_EXTERNAL_STORAGE allow")
+            PrivilegedExecutionManager.executeCommand("appops set com.android.shell WRITE_EXTERNAL_STORAGE allow")
+        }
+    }
+
+
     private suspend fun readViaShell(canonical: String): GodModeResult {
+        ensureAppOpsGranted()
         // Use `cat` to read the raw bytes and print them to stdout.
         // For binary files this may produce garbled output — callers dealing with
         // binary content should use `base64 <path>` directly via root_shell_tool.
@@ -307,6 +383,7 @@ object GodModeFileRouter {
         content: String,
         append: Boolean
     ): GodModeResult {
+        ensureAppOpsGranted()
         // Encode the content as base64 to safely pass arbitrary bytes / special chars
         // through a one-liner shell command without breaking quoting.
         val b64 = android.util.Base64.encodeToString(
@@ -340,6 +417,7 @@ object GodModeFileRouter {
     }
 
     private suspend fun deleteViaShell(canonical: String, recursive: Boolean): GodModeResult {
+        ensureAppOpsGranted()
         val flags = if (recursive) "-rf" else "-f"
         return executeShell("rm $flags ${shellQuote(canonical)} && echo 'DELETE_OK'",
             successMsg = "Deleted $canonical via shell")
@@ -347,6 +425,7 @@ object GodModeFileRouter {
 
     private suspend fun executeShell(cmd: String, successMsg: String): GodModeResult =
         withContext(Dispatchers.IO) {
+            ensureAppOpsGranted()
             PrivilegedExecutionManager.executeCommand(cmd).fold(
                 onSuccess = { output ->
                     GodModeResult.Success(
