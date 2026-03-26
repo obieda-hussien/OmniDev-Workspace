@@ -10,31 +10,14 @@ import com.omnidev.workspace.data.tools.ShizukuResult
  * GodModeAccessibility — Shizuku + Accessibility hybrid layer.
  *
  * Provides two God-Mode capabilities:
- *
- * 1. **Auto-Enable**: Silently enables [OmniAccessibilityService] via Shizuku shell
- *    commands (`settings put secure enabled_accessibility_services`), eliminating the
- *    need for the user to manually navigate to Android Accessibility Settings.
- *
- * 2. **Hybrid Tap**: Uses the Accessibility tree to find the exact bounding rect of a
- *    semantic node, then dispatches a hardware-level tap via Shizuku `input tap x y`.
- *    This bypasses app-level click listeners that may block [AccessibilityNodeInfo.performAction].
+ * 1. Auto-Enable ...
+ * 2. Hybrid Tap ...
  */
 object GodModeAccessibility {
 
     private const val TAG = "GodModeA11y"
     private const val SERVICE_CLASS = "com.omnidev.workspace/.data.accessibility.OmniAccessibilityService"
 
-    /**
-     * Auto-enables [OmniAccessibilityService] via Shizuku without user interaction.
-     *
-     * Steps:
-     * 1. Reads the current `enabled_accessibility_services` setting.
-     * 2. If our service is not listed, appends it (colon-separated).
-     * 3. Writes the updated list back.
-     * 4. Sets `accessibility_enabled` to `1`.
-     *
-     * @return A human-readable status message.
-     */
     suspend fun autoEnableOmniVision(): String {
         if (!ShizukuCommandTool.isAvailable()) {
             return "❌ Shizuku is not available. Cannot auto-enable Accessibility Service."
@@ -55,6 +38,8 @@ object GodModeAccessibility {
             )
             val currentServices = when (currentResult) {
                 is ShizukuResult.Success -> currentResult.output.trim()
+                    .let { if (it == "null" || it.isBlank()) "" else it }
+                is ShizukuResult.PartialSuccess -> currentResult.output.trim()
                     .let { if (it == "null" || it.isBlank()) "" else it }
                 else -> ""
             }
@@ -95,15 +80,6 @@ object GodModeAccessibility {
         }
     }
 
-    /**
-     * Performs a hardware-level tap at the center of a semantic node's bounding rect.
-     *
-     * Unlike [AccessibilityNodeInfo.performAction], this uses Shizuku to execute
-     * `input tap x y` — a raw hardware event that bypasses app-level click restrictions.
-     *
-     * @param node The target [AccessibilityNodeInfo] to tap.
-     * @return A human-readable result message.
-     */
     suspend fun hybridTap(node: AccessibilityNodeInfo): String {
         val bounds = Rect()
         node.getBoundsInScreen(bounds)
@@ -117,20 +93,14 @@ object GodModeAccessibility {
 
         return when (val result = ShizukuCommandTool.execute("input tap $centerX $centerY")) {
             is ShizukuResult.Success -> "✅ Hardware tap at ($centerX, $centerY)"
+            is ShizukuResult.PartialSuccess ->
+                "⚠️ Hardware tap partially succeeded (exit ${result.exitCode}): ${result.output}"
             is ShizukuResult.Failure -> "❌ Tap failed: ${result.reason}"
             is ShizukuResult.PermissionRequired -> "❌ Shizuku permission required"
             is ShizukuResult.Unavailable -> "❌ Shizuku unavailable"
         }
     }
 
-    /**
-     * Performs a hardware-level long-press at the center of a semantic node.
-     * Uses `input swipe x y x y duration` to simulate a long press.
-     *
-     * @param node The target [AccessibilityNodeInfo] to long-press.
-     * @param durationMs Duration in milliseconds for the long-press (default 800ms).
-     * @return A human-readable result message.
-     */
     suspend fun hybridLongPress(
         node: AccessibilityNodeInfo,
         durationMs: Int = 800
@@ -150,6 +120,8 @@ object GodModeAccessibility {
             "input swipe $centerX $centerY $centerX $centerY $durationMs"
         )) {
             is ShizukuResult.Success -> "✅ Hardware long-press at ($centerX, $centerY) for ${durationMs}ms"
+            is ShizukuResult.PartialSuccess ->
+                "⚠️ Hardware long-press partially succeeded (exit ${result.exitCode}): ${result.output}"
             is ShizukuResult.Failure -> "❌ Long-press failed: ${result.reason}"
             is ShizukuResult.PermissionRequired -> "❌ Shizuku permission required"
             is ShizukuResult.Unavailable -> "❌ Shizuku unavailable"
