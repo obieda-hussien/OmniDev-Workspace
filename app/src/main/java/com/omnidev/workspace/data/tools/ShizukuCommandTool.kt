@@ -33,106 +33,126 @@ object ShizukuCommandTool {
         if (!isAvailable()) {
             return@withContext ShizukuResult.Unavailable(SHIZUKU_UNAVAILABLE_ERROR)
         }
+
+        // If we don't have permission, request it and wait briefly for auto-grant.
         if (!hasPermission()) {
             Shizuku.requestPermission(SHIZUKU_CODE)
-            return@withContext ShizukuResult.PermissionRequired(SHIZUKU_UNAVAILABLE_ERROR)
+            // Wait up to 10 seconds for permission to be granted (polling).
+            val start = System.currentTimeMillis()
+            while (!hasPermission() && System.currentTimeMillis() - start < 10_000L) {
+                try { Thread.sleep(300L) } catch (_: InterruptedException) {}
+            }
+            if (!hasPermission()) {
+                android.util.Log.w("ShizukuCommandTool", "Shizuku permission not granted after wait; returning PermissionRequired.")
+                return@withContext ShizukuResult.PermissionRequired(SHIZUKU_UNAVAILABLE_ERROR)
+            }
         }
 
-        runCatching {
-            // Use reflection to invoke Shizuku.newProcess() — bypasses Kotlin's
-            // compile-time visibility constraints while remaining safe at runtime.
-            val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
-            val newProcessMethod = shizukuClass.getMethod(
-                "newProcess",
-                Array<String>::class.java,
-                Array<String>::class.java,
-                String::class.java
-            )
-            val process = newProcessMethod.invoke(
-                null,
-                arrayOf("sh", "-c", command),
-                null,
-                null
-            ) as Process
+        // Retry loop with exponential backoff for transient Shizuku service issues.
+        var attempt = 0
+        val maxAttempts = 3
+        var backoff = 500L
+        while (true) {
+            attempt++
+            try {
+                // Use reflection to invoke Shizuku.newProcess() — bypasses Kotlin's
+                // compile-time visibility constraints while remaining safe at runtime.
+                val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
+                val newProcessMethod = shizukuClass.getMethod(
+                    "newProcess",
+                    Array<String>::class.java,
+                    Array<String>::class.java,
+                    String::class.java
+                )
+                val process = newProcessMethod.invoke(
+                    null,
+                    arrayOf("sh", "-c", command),
+                    null,
+                    null
+                ) as Process
 
-            // Read stdout and stderr CONCURRENTLY before waitFor() to prevent
-            // OS pipe-buffer deadlock. A single-threaded sequential read will hang
-            // whenever a command writes enough to fill the kernel pipe buffer (~64KB).
-            val stdoutBuffer = StringBuffer()
-            val stderrBuffer = StringBuffer()
+                // Read stdout and stderr CONCURRENTLY before waitFor() to prevent
+                // OS pipe-buffer deadlock. A single-threaded sequential read will hang
+                // whenever a command writes enough to fill the kernel pipe buffer (~64KB).
+                val stdoutBuffer = StringBuffer()
+                val stderrBuffer = StringBuffer()
 
-            val stdoutThread = Thread {
-                try {
-                    process.inputStream.bufferedReader().use { reader ->
-                        reader.lineSequence().forEach { line ->
-                            if (stdoutBuffer.length < 6_000) stdoutBuffer.appendLine(line)
+                val stdoutThread = Thread {
+                    try {
+                        process.inputStream.bufferedReader().use { reader ->
+                            reader.lineSequence().forEach { line ->
+                                if (stdoutBuffer.length < 6_000) stdoutBuffer.appendLine(line)
+                            }
                         }
-                    }
-                } catch (_: Exception) {}
-            }.apply { start() }
+                    } catch (_: Exception) {}
+                }.apply { start() }
 
-            val stderrThread = Thread {
-                try {
-                    process.errorStream.bufferedReader().use { reader ->
-                        reader.lineSequence().forEach { line ->
-                            if (stderrBuffer.length < 2_000) stderrBuffer.appendLine(line)
+                val stderrThread = Thread {
+                    try {
+                        process.errorStream.bufferedReader().use { reader ->
+                            reader.lineSequence().forEach { line ->
+                                if (stderrBuffer.length < 2_000) stderrBuffer.appendLine(line)
+                            }
                         }
-                    }
-                } catch (_: Exception) {}
-            }.apply { start() }
+                    } catch (_: Exception) {}
+                }.apply { start() }
 
-            // API-24-compatible timeout: join a wait thread rather than calling
-            // process.waitFor(long, TimeUnit) which requires API 26.
-            val waitThread = Thread {
-                try { process.waitFor() } catch (_: InterruptedException) {}
-            }.apply { start() }
-            waitThread.join(30_000L)
-            if (waitThread.isAlive) {
-                process.destroy()
-                stdoutThread.interrupt()
-                stderrThread.interrupt()
-                return@runCatching ShizukuResult.Failure("Shizuku command timed out after 30s")
-            }
-
-            stdoutThread.join(2_000L)
-            stderrThread.join(2_000L)
-
-            val stdout = stdoutBuffer.toString().trimEnd()
-            val stderr = stderrBuffer.toString().trimEnd()
-            val exit = process.exitValue()
-
-            // FIX: Always prefer stdout. Append stderr as context only when stdout exists.
-            // Do NOT replace stdout with stderr — that was causing empty results.
-            val output = when {
-                stdout.isNotBlank() && stderr.isNotBlank() -> "$stdout\n[stderr]: $stderr"
-                stdout.isNotBlank() -> stdout
-                stderr.isNotBlank() -> stderr
-                else -> "(no output)"
-            }
-
-            if (exit == 0) {
-                ShizukuResult.Success(output.trim().ifBlank { "(no output)" })
-            } else {
-                // Non-zero exit: if there IS stdout output, treat as PartialSuccess so callers
-                // can surface the output instead of silently discarding it.
-                // Many tools (pkg/apt, python -c with sys.exit(), shell pipelines) produce
-                // useful output even when they exit != 0.
-                if (stdout.isNotBlank()) {
-                    ShizukuResult.PartialSuccess(
-                        output = output.trim(),
-                        exitCode = exit
-                    )
-                } else {
-                    ShizukuResult.Failure(
-                        "Command exited with code $exit.\nstdout: $stdout\nstderr: $stderr"
-                    )
+                // API-24-compatible timeout: join a wait thread rather than calling
+                // process.waitFor(long, TimeUnit) which requires API 26.
+                val waitThread = Thread {
+                    try { process.waitFor() } catch (_: InterruptedException) {}
+                }.apply { start() }
+                waitThread.join(30_000L)
+                if (waitThread.isAlive) {
+                    process.destroy()
+                    stdoutThread.interrupt()
+                    stderrThread.interrupt()
+                    return@withContext ShizukuResult.Failure("Shizuku command timed out after 30s")
                 }
-            }
-        }.getOrElse { e ->
-            if (isShizukuServiceException(e)) {
-                ShizukuResult.Failure(SHIZUKU_UNAVAILABLE_ERROR)
-            } else {
-                ShizukuResult.Failure("Exception executing command: ${e.message}")
+
+                stdoutThread.join(2_000L)
+                stderrThread.join(2_000L)
+
+                val stdout = stdoutBuffer.toString().trimEnd()
+                val stderr = stderrBuffer.toString().trimEnd()
+                val exit = process.exitValue()
+
+                // Always prefer stdout. Append stderr as context only when stdout exists.
+                val output = when {
+                    stdout.isNotBlank() && stderr.isNotBlank() -> "$stdout\n[stderr]: $stderr"
+                    stdout.isNotBlank() -> stdout
+                    stderr.isNotBlank() -> stderr
+                    else -> "(no output)"
+                }
+
+                if (exit == 0) {
+                    return@withContext ShizukuResult.Success(output.trim().ifBlank { "(no output)" })
+                } else {
+                    if (stdout.isNotBlank()) {
+                        return@withContext ShizukuResult.PartialSuccess(
+                            output = output.trim(),
+                            exitCode = exit
+                        )
+                    } else {
+                        return@withContext ShizukuResult.Failure(
+                            "Command exited with code $exit.\nstdout: $stdout\nstderr: $stderr"
+                        )
+                    }
+                }
+            } catch (e: Throwable) {
+                // If Shizuku's binder/service is the root cause, retry a few times with backoff.
+                if (isShizukuServiceException(e)) {
+                    android.util.Log.w("ShizukuCommandTool", "Shizuku service error on attempt $attempt: ${e.message}")
+                    if (attempt >= maxAttempts) {
+                        return@withContext ShizukuResult.Failure(SHIZUKU_UNAVAILABLE_ERROR)
+                    }
+                    try { Thread.sleep(backoff) } catch (_: InterruptedException) {}
+                    backoff = (backoff * 2).coerceAtMost(5_000L)
+                    continue
+                }
+
+                // Non-Shizuku-related exceptions are returned to the caller immediately.
+                return@withContext ShizukuResult.Failure("Exception executing command: ${e.message}")
             }
         }
     }

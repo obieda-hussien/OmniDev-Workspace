@@ -3,8 +3,7 @@ package com.omnidev.workspace.data.accessibility
 import android.graphics.Rect
 import android.util.Log
 import android.view.accessibility.AccessibilityNodeInfo
-import com.omnidev.workspace.data.tools.ShizukuCommandTool
-import com.omnidev.workspace.data.tools.ShizukuResult
+import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 
 /**
  * GodModeAccessibility — Shizuku + Accessibility hybrid layer.
@@ -19,11 +18,8 @@ object GodModeAccessibility {
     private const val SERVICE_CLASS = "com.omnidev.workspace/.data.accessibility.OmniAccessibilityService"
 
     suspend fun autoEnableOmniVision(): String {
-        if (!ShizukuCommandTool.isAvailable()) {
-            return "❌ Shizuku is not available. Cannot auto-enable Accessibility Service."
-        }
-        if (!ShizukuCommandTool.hasPermission()) {
-            return "❌ Shizuku permission not granted. Cannot auto-enable Accessibility Service."
+        if (!PrivilegedExecutionManager.isShizukuReady()) {
+            return "❌ Shizuku is not available or not authorized. Cannot auto-enable Accessibility Service."
         }
 
         // Already connected?
@@ -32,17 +28,16 @@ object GodModeAccessibility {
         }
 
         try {
-            // Step 1: Read current enabled services
-            val currentResult = ShizukuCommandTool.execute(
+            // Step 1: Read current enabled services via unified privileged manager
+            val currentServices = PrivilegedExecutionManager.executeCommand(
                 "settings get secure enabled_accessibility_services"
+            ).fold(
+                onSuccess = { it.trim().let { s -> if (s == "null" || s.isBlank()) "" else s } },
+                onFailure = {
+                    Log.w(TAG, "Failed to read enabled_accessibility_services via privileged backend: ${it.message}")
+                    ""
+                }
             )
-            val currentServices = when (currentResult) {
-                is ShizukuResult.Success -> currentResult.output.trim()
-                    .let { if (it == "null" || it.isBlank()) "" else it }
-                is ShizukuResult.PartialSuccess -> currentResult.output.trim()
-                    .let { if (it == "null" || it.isBlank()) "" else it }
-                else -> ""
-            }
 
             // Step 2: Append our service if not already listed
             val newServices = if (currentServices.contains(SERVICE_CLASS)) {
@@ -53,22 +48,28 @@ object GodModeAccessibility {
                 "$currentServices:$SERVICE_CLASS"
             }
 
-            // Step 3: Write updated services list
-            val putResult = ShizukuCommandTool.execute(
+            // Step 3: Write updated services list via unified privileged manager
+            val putResult = PrivilegedExecutionManager.executeCommand(
                 "settings put secure enabled_accessibility_services $newServices"
             )
-            if (putResult is ShizukuResult.Failure) {
-                Log.e(TAG, "Failed to set accessibility services: ${putResult.reason}")
-                return "❌ Failed to enable service: ${putResult.reason}"
+            val putOk = putResult.fold(onSuccess = { true }, onFailure = {
+                Log.e(TAG, "Failed to set accessibility services via privileged backend: ${it.message}")
+                false
+            })
+            if (!putOk) {
+                return "❌ Failed to enable service: ${putResult.exceptionOrNull()?.message}"
             }
 
-            // Step 4: Enable accessibility globally
-            val enableResult = ShizukuCommandTool.execute(
+            // Step 4: Enable accessibility globally via privileged manager
+            val enableResult = PrivilegedExecutionManager.executeCommand(
                 "settings put secure accessibility_enabled 1"
             )
-            if (enableResult is ShizukuResult.Failure) {
-                Log.e(TAG, "Failed to enable accessibility: ${enableResult.reason}")
-                return "❌ Failed to enable accessibility: ${enableResult.reason}"
+            val enableOk = enableResult.fold(onSuccess = { true }, onFailure = {
+                Log.e(TAG, "Failed to enable accessibility via privileged backend: ${it.message}")
+                false
+            })
+            if (!enableOk) {
+                return "❌ Failed to enable accessibility: ${enableResult.exceptionOrNull()?.message}"
             }
 
             Log.i(TAG, "OmniAccessibilityService auto-enabled via Shizuku")
@@ -91,14 +92,19 @@ object GodModeAccessibility {
             return "❌ Node has invalid bounds: $bounds"
         }
 
-        return when (val result = ShizukuCommandTool.execute("input tap $centerX $centerY")) {
-            is ShizukuResult.Success -> "✅ Hardware tap at ($centerX, $centerY)"
-            is ShizukuResult.PartialSuccess ->
-                "⚠️ Hardware tap partially succeeded (exit ${result.exitCode}): ${result.output}"
-            is ShizukuResult.Failure -> "❌ Tap failed: ${result.reason}"
-            is ShizukuResult.PermissionRequired -> "❌ Shizuku permission required"
-            is ShizukuResult.Unavailable -> "❌ Shizuku unavailable"
-        }
+        val tapCmd = "input tap $centerX $centerY"
+        val tapResult = PrivilegedExecutionManager.executeCommand(tapCmd)
+        return tapResult.fold(onSuccess = {
+            "✅ Hardware tap at ($centerX, $centerY)"
+        }, onFailure = { err ->
+            val msg = err.message ?: "unknown error"
+            when {
+                msg.contains("permission", ignoreCase = true) -> "❌ Shizuku permission required (and fallback failed): $msg"
+                msg.contains("shizuku", ignoreCase = true) || msg.contains("not running", ignoreCase = true) ->
+                    "❌ Shizuku unavailable and fallback failed: $msg"
+                else -> "❌ Tap failed: $msg"
+            }
+        })
     }
 
     suspend fun hybridLongPress(
@@ -116,15 +122,18 @@ object GodModeAccessibility {
         }
 
         // `input swipe` with same start/end coordinates acts as a long press
-        return when (val result = ShizukuCommandTool.execute(
-            "input swipe $centerX $centerY $centerX $centerY $durationMs"
-        )) {
-            is ShizukuResult.Success -> "✅ Hardware long-press at ($centerX, $centerY) for ${durationMs}ms"
-            is ShizukuResult.PartialSuccess ->
-                "⚠️ Hardware long-press partially succeeded (exit ${result.exitCode}): ${result.output}"
-            is ShizukuResult.Failure -> "❌ Long-press failed: ${result.reason}"
-            is ShizukuResult.PermissionRequired -> "❌ Shizuku permission required"
-            is ShizukuResult.Unavailable -> "❌ Shizuku unavailable"
-        }
+        val swipeCmd = "input swipe $centerX $centerY $centerX $centerY $durationMs"
+        val swipeResult = PrivilegedExecutionManager.executeCommand(swipeCmd)
+        return swipeResult.fold(onSuccess = {
+            "✅ Hardware long-press at ($centerX, $centerY) for ${durationMs}ms"
+        }, onFailure = { err ->
+            val msg = err.message ?: "unknown error"
+            when {
+                msg.contains("permission", ignoreCase = true) -> "❌ Shizuku permission required (and fallback failed): $msg"
+                msg.contains("shizuku", ignoreCase = true) || msg.contains("not running", ignoreCase = true) ->
+                    "❌ Shizuku unavailable and fallback failed: $msg"
+                else -> "❌ Long-press failed: $msg"
+            }
+        })
     }
 }

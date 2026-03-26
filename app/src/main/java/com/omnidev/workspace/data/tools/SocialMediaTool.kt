@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
+import com.omnidev.workspace.data.tools.TermuxEnvironmentBridge
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -27,6 +28,8 @@ import java.net.URL
  * | `download`      | Save video or audio to device storage (requires yt-dlp)              |
  * | `play`          | Open URL in YouTube / TikTok / browser via Android Intent            |
  * | `search_youtube`| Search YouTube; returns titles + URLs (API or yt-dlp search)         |
+ * | `get_captions`  | Extract subtitles / transcript text from the video (requires yt-dlp)|
+ * | `summarize`     | Download captions and produce a short extractive summary             |
  * | `setup`         | Check yt-dlp & ffmpeg availability; print installation instructions  |
  */
 object SocialMediaTool {
@@ -73,14 +76,15 @@ Actions and required parameters:
                     save_path (directory, default: /sdcard/Download).
 • play            — url: video URL. Opens in YouTube app / TikTok app / browser.
 • search_youtube  — query: search terms. Optional: max_results (1-20, default 5).
+• summarize       — url: video URL. Downloads captions and returns a concise summary of the transcript.
 • setup           — Check yt-dlp and ffmpeg availability; print installation instructions.
 
 Supported platforms include: YouTube, YouTube Shorts, TikTok, Instagram Reels/Stories,
 Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-dlp.
 """.trimIndent(),
             parameters = listOf(
-                ToolParameter("action", "string", "Action: get_info, get_captions, download, play, search_youtube, setup", required = true),
-                ToolParameter("url", "string", "Video URL (required for get_info, get_captions, download, play)", required = false),
+                ToolParameter("action", "string", "Action: get_info, get_captions, download, play, search_youtube, summarize, setup", required = true),
+                ToolParameter("url", "string", "Video URL (required for get_info, get_captions, download, play, summarize)", required = false),
                 ToolParameter("query", "string", "Search query for search_youtube", required = false),
                 ToolParameter("quality", "string", "Download quality: best, worst, audio_only (default: best)", required = false),
                 ToolParameter("format", "string", "Output format: mp4, mp3, mkv, webm (default: mp4)", required = false),
@@ -137,10 +141,15 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
                 searchYouTube(query, maxResults)
             }
 
+            "summarize" -> {
+                val url = args["url"] ?: return@withContext err("summarize requires 'url'")
+                summarizeVideo(url, args["lang"] ?: "en")
+            }
+
             "setup" -> checkSetup()
 
             else -> err(
-                "Unknown action '${action}'. Available: get_info, get_captions, download, play, search_youtube, setup"
+                "Unknown action '${action}'. Available: get_info, get_captions, download, play, search_youtube, summarize, setup"
             )
         }
     }
@@ -272,6 +281,34 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
 
             ToolExecutionResult("📝 Captions [$safeLang]:\n\n$plain")
         }
+
+    private suspend fun summarizeVideo(url: String, lang: String): ToolExecutionResult =
+        withContext(Dispatchers.IO) {
+            val captionsResult = getCaptions(url, lang)
+            if (captionsResult.isError) return@withContext captionsResult
+
+            val captionText = captionsResult.output
+                .substringAfter("📝 Captions [$lang]:\n\n")
+                .ifBlank { captionsResult.output }
+                .takeIf { it.isNotBlank() }
+                ?: return@withContext ToolExecutionResult(
+                    "⚠️ Unable to extract captions text for summarization."
+                )
+
+            val summary = summarizeText(captionText)
+            ToolExecutionResult("📝 Transcript summary:\n\n$summary")
+        }
+
+    private fun summarizeText(text: String): String {
+        val sentences = text.split(Regex("(?<=[.!?])\\s+"))
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+
+        if (sentences.isEmpty()) return "No transcript text available for summarization."
+
+        val topSentences = sentences.take(5)
+        return topSentences.joinToString(" ") { it.trim() }
+    }
 
     /**
      * Download video or audio using yt-dlp, saving to [savePath] on the device.
@@ -512,33 +549,46 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
      *  4. Termux Python module
      */
     private suspend fun findYtDlp(): String? {
-        // 1. System PATH
+        // Prefer Termux-installed yt-dlp for Android devices, but execute it with Termux env.
+        if (TermuxEnvironmentBridge.isTermuxUsable()) {
+            val termuxYtdlp = TermuxEnvironmentBridge.findBinary("yt-dlp")
+            if (!termuxYtdlp.isNullOrBlank()) {
+                return if (termuxYtdlp.startsWith(TermuxEnvironmentBridge.TERMUX_BIN)) {
+                    "${TermuxEnvironmentBridge.buildEnvPrefix()}${termuxYtdlp}"
+                } else {
+                    termuxYtdlp
+                }
+            }
+
+            val termuxPyBins = listOf("$TERMUX_BIN/python3", "$TERMUX_BIN/python")
+            val termuxPyModule = termuxPyBins.firstOrNull { pyBin ->
+                PrivilegedExecutionManager.executeCommand(
+                    "${TermuxEnvironmentBridge.buildEnvPrefix()}${shellQuote(pyBin)} -m yt_dlp --version 2>/dev/null"
+                ).getOrNull().let(::normalizeExecOutput)?.firstOrNull()?.isDigit() == true
+            }
+            if (termuxPyModule != null) {
+                return "${TermuxEnvironmentBridge.buildEnvPrefix()}${termuxPyModule} -m yt_dlp"
+            }
+        }
+
+        // System PATH binary
         val sysBin = PrivilegedExecutionManager.executeCommand("which yt-dlp 2>/dev/null")
             .getOrNull()
             .let(::normalizeExecOutput)
             ?.takeIf { it.startsWith("/") && (it.endsWith("/yt-dlp") || it.endsWith("/yt-dlp.exe")) }
         if (sysBin != null) return sysBin
 
-        // 2. Termux bin
-        val termuxBin = "$TERMUX_BIN/yt-dlp"
-        val termuxExists = PrivilegedExecutionManager.executeCommand(
-            "test -x $termuxBin && echo yes 2>/dev/null"
-        ).getOrNull()?.trim() == "yes"
-        if (termuxExists) return termuxBin
-
-        // 3. Python module (system python3)
+        // System python module
         val pipCheck = PrivilegedExecutionManager.executeCommand(
             "python3 -m yt_dlp --version 2>/dev/null"
         ).getOrNull().let(::normalizeExecOutput)
-        if (!pipCheck.isNullOrBlank() && pipCheck.isNotEmpty() && pipCheck.first().isDigit()) return "python3 -m yt_dlp"
+        if (!pipCheck.isNullOrBlank() && pipCheck.firstOrNull()?.isDigit() == true) return "python3 -m yt_dlp"
 
-        // 4. Termux Python module
-        val termuxPipCheck = PrivilegedExecutionManager.executeCommand(
-            "$TERMUX_BIN/python3 -m yt_dlp --version 2>/dev/null"
+        // System python fallback
+        val pipCheck2 = PrivilegedExecutionManager.executeCommand(
+            "python -m yt_dlp --version 2>/dev/null"
         ).getOrNull().let(::normalizeExecOutput)
-        if (!termuxPipCheck.isNullOrBlank() && termuxPipCheck.isNotEmpty() && termuxPipCheck.first().isDigit()) {
-            return "$TERMUX_BIN/python3 -m yt_dlp"
-        }
+        if (!pipCheck2.isNullOrBlank() && pipCheck2.firstOrNull()?.isDigit() == true) return "python -m yt_dlp"
 
         return null
     }

@@ -111,9 +111,20 @@ object TermuxEnvironmentBridge {
         val termuxPath = File(TERMUX_BIN, binaryName)
         if (termuxPath.exists()) return@withContext termuxPath.absolutePath
 
-        // Try system PATH via `which`
+        if (isTermuxUsable()) {
+            val envPrefix = buildEnvPrefix()
+            val result = PrivilegedExecutionManager.executeCommand(
+                "${envPrefix}${TERMUX_BASH} -lc ${shellQuote("command -v $binaryName || which $binaryName")}" +
+                " 2>/dev/null"
+            ).getOrNull()?.trim()
+            if (!result.isNullOrBlank() && result != "(no output)" &&
+                !result.startsWith("ERROR", ignoreCase = true)) {
+                return@withContext result
+            }
+        }
+
         val result = PrivilegedExecutionManager.executeCommand(
-            "which ${shellQuote(binaryName)} 2>/dev/null"
+            "command -v ${shellQuote(binaryName)} 2>/dev/null || which ${shellQuote(binaryName)} 2>/dev/null"
         ).getOrNull()?.trim()
 
         if (!result.isNullOrBlank() && result != "(no output)" &&

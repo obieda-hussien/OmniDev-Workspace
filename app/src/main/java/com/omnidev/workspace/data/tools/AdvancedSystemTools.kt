@@ -396,7 +396,7 @@ object SystemSettingsTool {
             return@withContext ToolExecutionResult("Invalid setting key.", isError = true)
         }
 
-        val resultValue = when (action.lowercase()) {
+        return@withContext when (action.lowercase()) {
             "get" -> {
                 val result = ShizukuCommandTool.execute("settings get $safeNamespace $safeKey")
                 when (result) {
@@ -414,26 +414,27 @@ object SystemSettingsTool {
             }
             "put" -> {
                 if (value.isNullOrBlank()) {
-                    return@withContext ToolExecutionResult(
+                    ToolExecutionResult(
                         "Missing 'value' for put action.", isError = true
                     )
-                }
-                // Sanitize value: only allow alphanumeric, underscore, dot, dash, and space
-                val safeValue = value.replace(Regex("[^a-zA-Z0-9_. -]"), "")
-                val result = ShizukuCommandTool.execute(
-                    "settings put $safeNamespace $safeKey $safeValue"
-                )
-                when (result) {
-                    is ShizukuResult.Success ->
-                        ToolExecutionResult("✅ Set $safeNamespace/$safeKey = $safeValue")
-                    is ShizukuResult.PartialSuccess ->
-                        ToolExecutionResult("⚠️ Set (partial) $safeNamespace/$safeKey = $safeValue", isError = false)
-                    is ShizukuResult.Failure ->
-                        ToolExecutionResult(result.reason, isError = true)
-                    is ShizukuResult.PermissionRequired ->
-                        ToolExecutionResult(result.message, isError = true)
-                    is ShizukuResult.Unavailable ->
-                        ToolExecutionResult(result.message, isError = true)
+                } else {
+                    // Sanitize value: only allow alphanumeric, underscore, dot, dash, and space
+                    val safeValue = value.replace(Regex("[^a-zA-Z0-9_. -]"), "")
+                    val result = ShizukuCommandTool.execute(
+                        "settings put $safeNamespace $safeKey $safeValue"
+                    )
+                    when (result) {
+                        is ShizukuResult.Success ->
+                            ToolExecutionResult("✅ Set $safeNamespace/$safeKey = $safeValue")
+                        is ShizukuResult.PartialSuccess ->
+                            ToolExecutionResult("⚠️ Set (partial) $safeNamespace/$safeKey = $safeValue", isError = false)
+                        is ShizukuResult.Failure ->
+                            ToolExecutionResult(result.reason, isError = true)
+                        is ShizukuResult.PermissionRequired ->
+                            ToolExecutionResult(result.message, isError = true)
+                        is ShizukuResult.Unavailable ->
+                            ToolExecutionResult(result.message, isError = true)
+                    }
                 }
             }
             else -> ToolExecutionResult(
@@ -441,7 +442,6 @@ object SystemSettingsTool {
                 isError = true
             )
         }
-        return@withContext resultValue
     }
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(

@@ -98,16 +98,30 @@ object PrivilegedExecutionManager {
         if (command.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Command must not be blank."))
         }
-        // Gate on isAvailable() alone (binder alive), not the full isShizukuReady()
-        // (which also calls checkSelfPermission()).  Both calls use IPC that can flicker
-        // independently between threads — using only one check halves the race window.
-        // The direct execution attempt below will throw SecurityException if the app
-        // lacks permission, which falls through to the next backend cleanly.
+
+        // Prefer the ShizukuCommandTool which implements retries, backoff and permission wait.
         if (ShizukuCommandTool.isAvailable()) {
-            val result = executeViaShizuku(command)
-            if (result.isSuccess) return@withContext result
-            // Shizuku binder was live but process creation failed; try next backend.
+            when (val r = ShizukuCommandTool.execute(command)) {
+                is com.omnidev.workspace.data.tools.ShizukuResult.Success -> {
+                    return@withContext Result.success(r.output.trim().take(MAX_OUTPUT))
+                }
+                is com.omnidev.workspace.data.tools.ShizukuResult.PartialSuccess -> {
+                    return@withContext Result.success(r.output.trim().take(MAX_OUTPUT))
+                }
+                is com.omnidev.workspace.data.tools.ShizukuResult.PermissionRequired -> {
+                    // Permission was requested but not granted within the short wait window.
+                    android.util.Log.w("PrivilegedExecutionManager", "Shizuku permission required for command; falling back to next backend. Hint: prompt the user to grant Shizuku permission or retry the action later.")
+                }
+                is com.omnidev.workspace.data.tools.ShizukuResult.Unavailable -> {
+                    android.util.Log.w("PrivilegedExecutionManager", "Shizuku unavailable: ${r.message}; falling back to next backend.")
+                }
+                is com.omnidev.workspace.data.tools.ShizukuResult.Failure -> {
+                    android.util.Log.w("PrivilegedExecutionManager", "Shizuku command failed: ${r.reason}; falling back to next backend.")
+                }
+            }
         }
+
+        // If Shizuku is not available or the call failed, try rish (if initialised) then root.
         if (isRishReady()) {
             return@withContext rishManager!!.execute(command)
         }
@@ -117,7 +131,7 @@ object PrivilegedExecutionManager {
         return@withContext Result.failure(
             IllegalStateException(
                 "No privileged execution backend available. " +
-                "Shizuku is not running, rish DEX is not found, and root is not accessible."
+                "Shizuku is not running/authorized, rish DEX is not found, and root is not accessible."
             )
         )
     }
@@ -585,6 +599,11 @@ object PrivilegedExecutionManager {
         val ns = namespace.lowercase()
         return if (ns in setOf("system", "secure", "global")) ns else null
     }
+
+    // Patch: noop to force rebuild — update for KSP transient error
+    // PR update: ensure this branch gets a fresh commit for the KSP rebuild fix.
+    private fun forceRebuildNoop(): Unit = Unit
+
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
