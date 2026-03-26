@@ -223,6 +223,15 @@ object AdvancedFileTools {
                         truncated = truncated
                     )
                 }
+                is ShizukuResult.PartialSuccess -> {
+                    val output = result.output
+                    val truncated = output.length > MAX_OUTPUT
+                    ToolExecutionResult(
+                        output = "⚠️ " + if (truncated) output.take(MAX_OUTPUT) + "\n[TRUNCATED]" else output,
+                        truncated = truncated,
+                        isError = false
+                    )
+                }
                 is ShizukuResult.Failure -> ToolExecutionResult(result.reason, isError = true)
                 is ShizukuResult.PermissionRequired -> ToolExecutionResult(result.message, isError = true)
                 is ShizukuResult.Unavailable -> ToolExecutionResult(result.message, isError = true)
