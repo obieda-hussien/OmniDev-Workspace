@@ -156,7 +156,7 @@ object UIAutomationTool {
             "uiautomator dump $DUMP_PATH && cat $DUMP_PATH && rm -f $DUMP_PATH"
         )
         return when (dumpResult) {
-            is ShizukuResult.Success -> {
+            is ShizukuResult.Success, is ShizukuResult.PartialSuccess -> {
                 val xml = dumpResult.output.trim()
                 if (xml.isBlank() || xml == "(no output)") {
                     ToolExecutionResult(
@@ -167,8 +167,9 @@ object UIAutomationTool {
                 } else {
                     // Truncate very large dumps to avoid context window overload
                     val truncated = xml.length > MAX_DUMP_LENGTH
+                    val prefix = if (dumpResult is ShizukuResult.PartialSuccess) "⚠️ [partial] " else ""
                     ToolExecutionResult(
-                        output = if (truncated) xml.take(MAX_DUMP_LENGTH) + "\n...[truncated]" else xml,
+                        output = prefix + if (truncated) xml.take(MAX_DUMP_LENGTH) + "\n...[truncated]" else xml,
                         truncated = truncated
                     )
                 }
