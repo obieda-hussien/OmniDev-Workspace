@@ -184,9 +184,9 @@ object UIAutomationTool {
         val result = ShizukuCommandTool.execute("input tap $x $y")
         return when (result) {
             is ShizukuResult.Success -> ToolExecutionResult("✅ Tapped ($x, $y).")
+            is ShizukuResult.PartialSuccess -> ToolExecutionResult("⚠️ Tapped ($x, $y) (partial): ${result.output}", isError = false)
             is ShizukuResult.Failure -> ToolExecutionResult(result.reason, isError = true)
-            is ShizukuResult.PermissionRequired -> ToolExecutionResult(
-                result.message, isError = true)
+            is ShizukuResult.PermissionRequired -> ToolExecutionResult(result.message, isError = true)
             is ShizukuResult.Unavailable -> ToolExecutionResult(result.message, isError = true)
         }
     }
@@ -196,18 +196,15 @@ object UIAutomationTool {
         return when (result) {
             is ShizukuResult.Success ->
                 ToolExecutionResult("✅ Swiped ($x1,$y1) → ($x2,$y2) in ${duration}ms.")
+            is ShizukuResult.PartialSuccess ->
+                ToolExecutionResult("⚠️ Swiped (partial) ($x1,$y1) → ($x2,$y2): ${result.output}", isError = false)
             is ShizukuResult.Failure -> ToolExecutionResult(result.reason, isError = true)
-            is ShizukuResult.PermissionRequired -> ToolExecutionResult(
-                result.message, isError = true)
+            is ShizukuResult.PermissionRequired -> ToolExecutionResult(result.message, isError = true)
             is ShizukuResult.Unavailable -> ToolExecutionResult(result.message, isError = true)
         }
     }
 
     private suspend fun inputText(text: String): ToolExecutionResult {
-        // The Android `input text` command accepts URL-encoded text.
-        // Encode ALL characters that could be misinterpreted by the shell or the `input` tool
-        // by percent-encoding everything outside [a-zA-Z0-9].  This matches the encoding
-        // that `adb shell input text` documents for passing arbitrary text safely.
         val encoded = text.map { ch ->
             when {
                 ch.isLetterOrDigit() -> ch.toString()
@@ -217,17 +214,15 @@ object UIAutomationTool {
         }.joinToString("")
         val result = ShizukuCommandTool.execute("input text $encoded")
         return when (result) {
-            is ShizukuResult.Success ->
-                ToolExecutionResult("✅ Typed text into focused field.")
+            is ShizukuResult.Success -> ToolExecutionResult("✅ Typed text into focused field.")
+            is ShizukuResult.PartialSuccess -> ToolExecutionResult("⚠️ Typed text (partial): ${result.output}", isError = false)
             is ShizukuResult.Failure -> ToolExecutionResult(result.reason, isError = true)
-            is ShizukuResult.PermissionRequired -> ToolExecutionResult(
-                result.message, isError = true)
+            is ShizukuResult.PermissionRequired -> ToolExecutionResult(result.message, isError = true)
             is ShizukuResult.Unavailable -> ToolExecutionResult(result.message, isError = true)
         }
     }
 
     private suspend fun pressKey(keycode: String): ToolExecutionResult {
-        // Accept either the numeric keycode or the KEYCODE_* name
         val safeKeycode = keycode.replace(Regex("[^a-zA-Z0-9_]"), "")
         if (safeKeycode.isEmpty()) {
             return ToolExecutionResult("Invalid keycode: '$keycode'.", isError = true)
@@ -236,9 +231,10 @@ object UIAutomationTool {
         return when (result) {
             is ShizukuResult.Success ->
                 ToolExecutionResult("✅ Pressed key: $safeKeycode.")
+            is ShizukuResult.PartialSuccess ->
+                ToolExecutionResult("⚠️ Pressed key (partial): $safeKeycode — ${result.output}", isError = false)
             is ShizukuResult.Failure -> ToolExecutionResult(result.reason, isError = true)
-            is ShizukuResult.PermissionRequired -> ToolExecutionResult(
-                result.message, isError = true)
+            is ShizukuResult.PermissionRequired -> ToolExecutionResult(result.message, isError = true)
             is ShizukuResult.Unavailable -> ToolExecutionResult(result.message, isError = true)
         }
     }
