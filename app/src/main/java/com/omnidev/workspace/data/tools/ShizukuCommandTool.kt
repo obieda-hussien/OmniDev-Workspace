@@ -52,7 +52,7 @@ object ShizukuCommandTool {
         var attempt = 0
         val maxAttempts = 3
         var backoff = 500L
-        while (true) {
+        while (attempt < maxAttempts) {
             attempt++
             try {
                 // Use reflection to invoke Shizuku.newProcess() — bypasses Kotlin's
@@ -155,6 +155,7 @@ object ShizukuCommandTool {
                 return@withContext ShizukuResult.Failure("Exception executing command: ${e.message}")
             }
         }
+        return@withContext ShizukuResult.Failure(SHIZUKU_UNAVAILABLE_ERROR)
     }
 
     /** Returns true if Shizuku service is alive and we can communicate with it. */
