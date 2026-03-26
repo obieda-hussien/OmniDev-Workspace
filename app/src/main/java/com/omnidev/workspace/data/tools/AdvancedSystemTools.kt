@@ -338,6 +338,8 @@ object ScreenshotTool {
             when (result) {
                 is ShizukuResult.Success ->
                     ToolExecutionResult("✅ Screenshot saved to $path")
+                is ShizukuResult.PartialSuccess ->
+                    ToolExecutionResult("⚠️ Screenshot saved (partial): ${result.output}", isError = false)
                 is ShizukuResult.Failure ->
                     ToolExecutionResult("Screenshot failed: ${result.reason}", isError = true)
                 is ShizukuResult.PermissionRequired ->
