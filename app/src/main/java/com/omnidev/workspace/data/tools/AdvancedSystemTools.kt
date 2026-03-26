@@ -510,6 +510,7 @@ object PackageInstallerTool {
     private suspend fun executeShizuku(cmd: String): ToolExecutionResult {
         return when (val result = ShizukuCommandTool.execute(cmd)) {
             is ShizukuResult.Success -> ToolExecutionResult("✅ ${result.output}")
+            is ShizukuResult.PartialSuccess -> ToolExecutionResult("⚠️ ${result.output}", isError = false)
             is ShizukuResult.Failure -> ToolExecutionResult(result.reason, isError = true)
             is ShizukuResult.PermissionRequired -> ToolExecutionResult(result.message, isError = true)
             is ShizukuResult.Unavailable -> ToolExecutionResult(result.message, isError = true)
