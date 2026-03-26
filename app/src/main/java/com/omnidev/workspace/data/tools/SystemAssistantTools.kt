@@ -355,6 +355,7 @@ object HardwareToggleTool {
     private suspend fun executeShizuku(command: String): ToolExecutionResult {
         return when (val result = ShizukuCommandTool.execute(command)) {
             is ShizukuResult.Success -> ToolExecutionResult(output = "✅ ${result.output}")
+            is ShizukuResult.PartialSuccess -> ToolExecutionResult(output = "⚠️ ${result.output}", isError = false)
             is ShizukuResult.Failure -> ToolExecutionResult(
                 output = result.reason,
                 isError = true
