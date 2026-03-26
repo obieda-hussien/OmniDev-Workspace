@@ -396,7 +396,7 @@ object SystemSettingsTool {
             return@withContext ToolExecutionResult("Invalid setting key.", isError = true)
         }
 
-        when (action.lowercase()) {
+        val resultValue = when (action.lowercase()) {
             "get" -> {
                 val result = ShizukuCommandTool.execute("settings get $safeNamespace $safeKey")
                 when (result) {
@@ -426,6 +426,8 @@ object SystemSettingsTool {
                 when (result) {
                     is ShizukuResult.Success ->
                         ToolExecutionResult("✅ Set $safeNamespace/$safeKey = $safeValue")
+                    is ShizukuResult.PartialSuccess ->
+                        ToolExecutionResult("⚠️ Set (partial) $safeNamespace/$safeKey = $safeValue", isError = false)
                     is ShizukuResult.Failure ->
                         ToolExecutionResult(result.reason, isError = true)
                     is ShizukuResult.PermissionRequired ->
@@ -439,6 +441,7 @@ object SystemSettingsTool {
                 isError = true
             )
         }
+        return@withContext resultValue
     }
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
