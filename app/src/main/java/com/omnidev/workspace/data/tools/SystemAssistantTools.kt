@@ -19,7 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 
-// ────────────────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────�[...]
 //  System Assistant Tools
 //
 //  A collection of object-level tools that let the ReAct agent interact with
@@ -29,7 +29,7 @@ import java.util.Calendar
 //  **Safety contract**: Like all agent tools, every invocation is gated behind
 //  [com.omnidev.workspace.ui.chat.ConfirmationGate] — no action fires without
 //  explicit user approval.
-// ────────────────────────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────────────────────�[...]
 
 /**
  * Initiates phone calls, SMS messages, and WhatsApp conversations.
