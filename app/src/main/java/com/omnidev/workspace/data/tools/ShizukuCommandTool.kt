@@ -41,8 +41,6 @@ object ShizukuCommandTool {
         runCatching {
             // Use reflection to invoke Shizuku.newProcess() — bypasses Kotlin's
             // compile-time visibility constraints while remaining safe at runtime.
-            // Targets Shizuku API 13.1.5; if the method signature changes in a future
-            // version this block will throw a NoSuchMethodException which is caught below.
             val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
             val newProcessMethod = shizukuClass.getMethod(
                 "newProcess",
@@ -56,16 +54,79 @@ object ShizukuCommandTool {
                 null,
                 null
             ) as Process
-            val stdout = process.inputStream.bufferedReader().readText()
-            val stderr = process.errorStream.bufferedReader().readText()
-            process.waitFor()
+
+            // Read stdout and stderr CONCURRENTLY before waitFor() to prevent
+            // OS pipe-buffer deadlock. A single-threaded sequential read will hang
+            // whenever a command writes enough to fill the kernel pipe buffer (~64KB).
+            val stdoutBuffer = StringBuffer()
+            val stderrBuffer = StringBuffer()
+
+            val stdoutThread = Thread {
+                try {
+                    process.inputStream.bufferedReader().use { reader ->
+                        reader.lineSequence().forEach { line ->
+                            if (stdoutBuffer.length < 6_000) stdoutBuffer.appendLine(line)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }.apply { start() }
+
+            val stderrThread = Thread {
+                try {
+                    process.errorStream.bufferedReader().use { reader ->
+                        reader.lineSequence().forEach { line ->
+                            if (stderrBuffer.length < 2_000) stderrBuffer.appendLine(line)
+                        }
+                    }
+                } catch (_: Exception) {}
+            }.apply { start() }
+
+            // API-24-compatible timeout: join a wait thread rather than calling
+            // process.waitFor(long, TimeUnit) which requires API 26.
+            val waitThread = Thread {
+                try { process.waitFor() } catch (_: InterruptedException) {}
+            }.apply { start() }
+            waitThread.join(30_000L)
+            if (waitThread.isAlive) {
+                process.destroy()
+                stdoutThread.interrupt()
+                stderrThread.interrupt()
+                return@runCatching ShizukuResult.Failure("Shizuku command timed out after 30s")
+            }
+
+            stdoutThread.join(2_000L)
+            stderrThread.join(2_000L)
+
+            val stdout = stdoutBuffer.toString().trimEnd()
+            val stderr = stderrBuffer.toString().trimEnd()
             val exit = process.exitValue()
+
+            // FIX: Always prefer stdout. Append stderr as context only when stdout exists.
+            // Do NOT replace stdout with stderr — that was causing empty results.
+            val output = when {
+                stdout.isNotBlank() && stderr.isNotBlank() -> "$stdout\n[stderr]: $stderr"
+                stdout.isNotBlank() -> stdout
+                stderr.isNotBlank() -> stderr
+                else -> "(no output)"
+            }
+
             if (exit == 0) {
-                ShizukuResult.Success(stdout.ifBlank { "(no output)" })
+                ShizukuResult.Success(output.trim().ifBlank { "(no output)" })
             } else {
-                ShizukuResult.Failure(
-                    "Command exited with code $exit.\nstdout: $stdout\nstderr: $stderr"
-                )
+                // Non-zero exit: if there IS stdout output, treat as PartialSuccess so callers
+                // can surface the output instead of silently discarding it.
+                // Many tools (pkg/apt, python -c with sys.exit(), shell pipelines) produce
+                // useful output even when they exit != 0.
+                if (stdout.isNotBlank()) {
+                    ShizukuResult.PartialSuccess(
+                        output = output.trim(),
+                        exitCode = exit
+                    )
+                } else {
+                    ShizukuResult.Failure(
+                        "Command exited with code $exit.\nstdout: $stdout\nstderr: $stderr"
+                    )
+                }
             }
         }.getOrElse { e ->
             if (isShizukuServiceException(e)) {
@@ -122,14 +183,22 @@ object ShizukuCommandTool {
 
 sealed class ShizukuResult {
     data class Success(val output: String) : ShizukuResult()
+    /**
+     * Command produced stdout output but exited with a non-zero code.
+     * This is common for tools like `pkg install`, Python scripts that call `sys.exit(1)`,
+     * or shell pipelines where an intermediate command fails but the final output is valid.
+     * Callers should treat the [output] as valid result data and log [exitCode] for debugging.
+     */
+    data class PartialSuccess(val output: String, val exitCode: Int) : ShizukuResult()
     data class Failure(val reason: String) : ShizukuResult()
     data class PermissionRequired(val message: String) : ShizukuResult()
     data class Unavailable(val message: String) : ShizukuResult()
 
     fun toDisplayString(): String = when (this) {
-        is Success -> output
-        is Failure -> "❌ Error: $reason"
+        is Success        -> output
+        is PartialSuccess -> output   // Surface output; exit code is informational only
+        is Failure        -> "❌ Error: $reason"
         is PermissionRequired -> "🔐 $message"
-        is Unavailable -> "⚠️ $message"
+        is Unavailable    -> "⚠️ $message"
     }
 }

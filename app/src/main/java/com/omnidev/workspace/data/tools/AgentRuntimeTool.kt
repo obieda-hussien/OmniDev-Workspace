@@ -12,34 +12,36 @@ import java.net.URL
  * AgentRuntimeTool — gives the AI agent the ability to autonomously discover,
  * download, install, and execute tools and scripts on the device.
  *
- * All execution goes through [PrivilegedExecutionManager] (Shizuku → rish → root/SU),
- * so commands run with ADB-level or root-level privilege as available.
+ * Backed by [PrivilegedExecutionManager] (Shizuku → rish → root/SU) for
+ * system-level privilege, and [TermuxEnvironmentBridge] for running commands
+ * inside Termux's full Linux userspace (proper LD_LIBRARY_PATH, PATH, libc, etc.).
  *
  * ### Supported actions (`agent_runtime` tool)
- * | Action               | Description                                                  |
- * |----------------------|--------------------------------------------------------------|
- * | `env_check`          | Detect available runtimes: Python, Node, npm, pip, curl, wget, git, busybox, Termux |
- * | `tool_which`         | Check if a specific tool binary is on PATH                   |
- * | `python_run`         | Execute inline Python code (creates & runs a temp .py file)  |
- * | `node_run`           | Execute inline JavaScript (creates & runs a temp .js file)   |
- * | `shell_script`       | Write and execute a multi-line shell script                  |
- * | `pip_install`        | Install Python packages via pip/pip3                         |
- * | `pip_list`           | List installed Python packages                               |
- * | `pip_run`            | Run a Python one-liner via `python3 -c`                      |
- * | `npm_install`        | Install npm packages globally                                |
- * | `download_file`      | Download a file from a URL via curl or wget                  |
- * | `download_exec`      | Download a script from a URL and execute it                  |
- * | `termux_check`       | Check if Termux is installed and available                   |
- * | `termux_run`         | Execute a command in Termux's environment (via Shizuku)       |
- * | `termux_pkg_install` | Install a Termux package via `pkg install`                   |
- * | `busybox_run`        | Execute a command via busybox (useful when coreutils missing)|
- * | `tool_bootstrap`     | Bootstrap minimal tools (busybox, curl, Python) if missing   |
+ * | Action               | Description                                                         |
+ * |----------------------|---------------------------------------------------------------------|
+ * | `env_check`          | Full survey: Python, Node, npm, pip, curl, wget, git, busybox, Termux, Shizuku |
+ * | `tool_which`         | Locate a binary on PATH or in Termux prefix                         |
+ * | `python_run`         | Execute inline Python code via best available interpreter           |
+ * | `node_run`           | Execute inline JavaScript via node                                  |
+ * | `shell_script`       | Write and execute a multi-line shell script                         |
+ * | `pip_install`        | Install Python packages (Termux pip first, system pip fallback)     |
+ * | `pip_list`           | List installed Python packages                                      |
+ * | `pip_run`            | Run a Python one-liner                                              |
+ * | `npm_install`        | Install npm packages globally                                       |
+ * | `download_file`      | Download a file via curl/wget                                       |
+ * | `download_exec`      | Download a script from URL and execute it                           |
+ * | `termux_check`       | Check Termux installation & available packages                      |
+ * | `termux_run`         | Execute a command with full Termux environment (LD_LIBRARY_PATH etc)|
+ * | `termux_pkg_install` | Install Termux packages via `pkg install`                           |
+ * | `busybox_run`        | Execute a command via busybox                                       |
+ * | `tool_bootstrap`     | Bootstrap missing essential tools (via Termux if available)         |
  */
 object AgentRuntimeTool {
 
-    private const val TERMUX_PKG = "com.termux"
-    private const val TERMUX_BIN = "/data/data/com.termux/files/usr/bin"
-    private const val TERMUX_BASH = "/data/data/com.termux/files/usr/bin/bash"
+    // Aliases from TermuxEnvironmentBridge for backward compat
+    private val TERMUX_PKG  = TermuxEnvironmentBridge.TERMUX_PKG
+    private val TERMUX_BIN  = TermuxEnvironmentBridge.TERMUX_BIN
+    private val TERMUX_BASH = TermuxEnvironmentBridge.TERMUX_BASH
 
     /** Whitelist of allowed shell interpreters for shell_script action. */
     private val ALLOWED_INTERPRETERS = setOf("sh", "bash", "dash", "ash", "python3", "python", "node", "perl", "ruby")
@@ -189,144 +191,80 @@ Actions and required parameters:
     // ─────────────────────────────────────────────────────────────────────
 
     private suspend fun envCheck(): ToolExecutionResult {
-        val tools = listOf(
-            "python3", "python", "node", "nodejs", "npm",
-            "pip3", "pip", "curl", "wget", "git", "perl", "ruby",
-            "busybox", "bash", "zsh", "adb"
-        )
-        val sb = StringBuilder("=== Runtime environment check ===\n")
-
-        for (tool in tools) {
-            // Check system PATH first, then Termux bin directory as fallback
-            val systemResult = PrivilegedExecutionManager.executeCommand("which $tool 2>/dev/null")
-            val systemPath = normalizeExecOutput(systemResult.getOrNull())
-            val termuxPath = run {
-                val exists = PrivilegedExecutionManager.executeCommand("test -f $TERMUX_BIN/$tool && echo yes 2>/dev/null")
-                    .getOrNull()?.trim()
-                if (exists == "yes") "$TERMUX_BIN/$tool" else null
-            }
-            when {
-                systemPath != null -> {
-                    val ver = PrivilegedExecutionManager.executeCommand("$tool --version 2>&1 | head -1")
-                        .getOrNull()
-                        ?.takeIf { it != "(no output)" }
-                        ?.trim()
-                        ?.take(60)
-                        ?: ""
-                    sb.appendLine("✅ $tool → $systemPath  [$ver]")
-                }
-                termuxPath != null -> {
-                    val ver = PrivilegedExecutionManager.executeCommand("$termuxPath --version 2>&1 | head -1")
-                        .getOrNull()
-                        ?.takeIf { it != "(no output)" }
-                        ?.trim()
-                        ?.take(60)
-                        ?: ""
-                    sb.appendLine("✅ $tool → $termuxPath (Termux)  [$ver]")
-                }
-                else -> sb.appendLine("❌ $tool — not found on PATH or in Termux")
-            }
-        }
-
-        // Check Termux
-        val termuxInstalled = PrivilegedExecutionManager.executeCommand(
-            "pm list packages | grep com.termux"
-        ).getOrNull()?.contains("com.termux") == true
-        sb.appendLine(if (termuxInstalled) "✅ Termux — installed ($TERMUX_PKG)" else "❌ Termux — not installed")
-
-        // Check Shizuku / rish
-        val shizukuReady = PrivilegedExecutionManager.isShizukuReady()
-        val rootAvailable = PrivilegedExecutionManager.isRootAvailable()
-        sb.appendLine()
-        sb.appendLine("Privilege backend: ${when { shizukuReady -> "✅ Shizuku"; rootAvailable -> "⚠️ Root only"; else -> "❌ None" }}")
-        if (!shizukuReady && !rootAvailable) {
-            sb.appendLine("⚠️  No privileged backend — install Shizuku (play.google.com/store/apps/details?id=moe.shizuku.privileged.api) and grant this app permission, or use a rooted device.")
-        }
-
-        return ToolExecutionResult(sb.toString().trimEnd())
+        // Delegate to TermuxEnvironmentBridge for a comprehensive, well-formatted status report
+        return TermuxEnvironmentBridge.statusReport()
     }
 
     private suspend fun toolWhich(tool: String): ToolExecutionResult {
         val safeTool = tool.replace(Regex("[^a-zA-Z0-9_.\\-]"), "")
         if (safeTool.isEmpty()) return err("Invalid tool name.")
-        return PrivilegedExecutionManager.executeCommand(
-            "which $safeTool 2>/dev/null || test -f $TERMUX_BIN/$safeTool && echo $TERMUX_BIN/$safeTool || echo 'NOT FOUND'"
-        ).toToolResult()
+        val path = TermuxEnvironmentBridge.findBinary(safeTool)
+        return if (path != null) {
+            ToolExecutionResult("✅ $safeTool → $path")
+        } else {
+            ToolExecutionResult("❌ '$safeTool' not found on system PATH or in Termux ($TERMUX_BIN/)", isError = true)
+        }
     }
 
     private suspend fun pythonRun(code: String, extraArgs: String?): ToolExecutionResult {
-        // Run inline via `python3 -c` — avoids writing to app-private cacheDir,
-        // which the Shizuku `shell` process cannot access due to SELinux type enforcement.
-        // extraArgs are forwarded as quoted positional arguments after the -c code block
-        // (sys.argv[0] == '-c', sys.argv[1..] == the extra args).
-        val argStr = extraArgs?.split(Regex("\\s+"))
-            ?.filter { it.isNotBlank() }
-            ?.joinToString(" ") { shellQuote(it) }
-            ?.let { " $it" } ?: ""
-        // Cascade: system python3 → Termux python3 → Termux python
-        val cmd = buildString {
-            append("python3 -c ${shellQuote(code)}$argStr 2>&1")
-            append(" || $TERMUX_BIN/python3 -c ${shellQuote(code)}$argStr 2>&1")
-            append(" || $TERMUX_BIN/python -c ${shellQuote(code)}$argStr 2>&1")
-        }
-        return PrivilegedExecutionManager.executeCommand(cmd).toToolResult()
+        // Delegate to TermuxEnvironmentBridge which handles Termux env injection automatically
+        return TermuxEnvironmentBridge.runPython(code, extraArgs)
     }
 
     private suspend fun nodeRun(code: String): ToolExecutionResult {
-        // Run inline via `node -e` — avoids app-private cacheDir access issue.
-        // Termux node fallback for devices without system node.
+        // Try Termux node first (with proper env), then system node
+        val termuxNode = TermuxEnvironmentBridge.TERMUX_NODE
+        val isTermuxNode = File(termuxNode).exists()
+        val envPrefix = if (isTermuxNode) TermuxEnvironmentBridge.buildEnvPrefix() else ""
+        val nodeBin = if (isTermuxNode) termuxNode else "node"
         return PrivilegedExecutionManager.executeCommand(
-            "node -e ${shellQuote(code)} 2>&1 || $TERMUX_BIN/node -e ${shellQuote(code)} 2>&1"
+            "${envPrefix}${nodeBin} -e ${shellQuote(code)} 2>&1"
         ).toToolResult()
     }
 
     private suspend fun shellScript(scriptContent: String, interpreter: String): ToolExecutionResult {
         val safeInterpreter = interpreter.lowercase().trim()
             .let { ALLOWED_INTERPRETERS.firstOrNull { allowed -> allowed == it } ?: "sh" }
-        // Use the appropriate inline evaluation flag:
-        // node uses `--eval` / `-e`; all shell interpreters and Python use `-c`.
-        val flag = if (safeInterpreter == "node") "-e" else "-c"
-        // For Python/Node/bash interpreters, also try Termux paths as fallback.
-        val termuxFallback = when (safeInterpreter) {
-            "python3" -> " || $TERMUX_BIN/python3 $flag ${shellQuote(scriptContent)} 2>&1"
-            "python"  -> " || $TERMUX_BIN/python $flag ${shellQuote(scriptContent)} 2>&1"
-            "node"    -> " || $TERMUX_BIN/node $flag ${shellQuote(scriptContent)} 2>&1"
-            "bash"    -> " || $TERMUX_BIN/bash $flag ${shellQuote(scriptContent)} 2>&1"
-            else      -> ""
+
+        // For bash/python/node, use Termux env so libs resolve correctly
+        val isTermuxInterp = when (safeInterpreter) {
+            "bash"    -> File(TermuxEnvironmentBridge.TERMUX_BASH).exists()
+            "python3", "python" -> File(TermuxEnvironmentBridge.TERMUX_PYTHON3).exists() ||
+                                   File(TermuxEnvironmentBridge.TERMUX_PYTHON).exists()
+            "node"    -> File(TermuxEnvironmentBridge.TERMUX_NODE).exists()
+            else      -> false
         }
+        val envPrefix = if (isTermuxInterp) TermuxEnvironmentBridge.buildEnvPrefix() else ""
+
+        val resolvedInterp = when {
+            isTermuxInterp && safeInterpreter == "bash"    -> TermuxEnvironmentBridge.TERMUX_BASH
+            isTermuxInterp && safeInterpreter == "python3" -> TermuxEnvironmentBridge.TERMUX_PYTHON3
+            isTermuxInterp && safeInterpreter == "python"  -> TermuxEnvironmentBridge.TERMUX_PYTHON
+            isTermuxInterp && safeInterpreter == "node"    -> TermuxEnvironmentBridge.TERMUX_NODE
+            else -> safeInterpreter
+        }
+
+        val flag = if (safeInterpreter == "node") "-e" else "-c"
         return PrivilegedExecutionManager.executeCommand(
-            "$safeInterpreter $flag ${shellQuote(scriptContent)} 2>&1$termuxFallback"
+            "${envPrefix}${resolvedInterp} $flag ${shellQuote(scriptContent)} 2>&1"
         ).toToolResult()
     }
 
     private suspend fun pipInstall(packages: String, upgrade: Boolean): ToolExecutionResult {
-        // Allow only valid PyPI package specifiers: name + optional version specifiers (== >= <= ~=)
-        // Intentionally exclude < > ! which could be used for redirection/injection
-        val safePkgs = packages.split(Regex("\\s+"))
-            .map { it.replace(Regex("[^a-zA-Z0-9_.\\-\\[\\]=~]"), "") }
-            .filter { it.isNotEmpty() }
-            .joinToString(" ")
-        if (safePkgs.isEmpty()) return err("No valid package names provided.")
-        val upgradeFlag = if (upgrade) " --upgrade" else ""
-        // Try pip3/pip on PATH first, then python3 -m pip (works even without pip on PATH),
-        // then Termux's Python as a last resort for environments where only Termux has Python.
-        val cmd = buildString {
-            append("pip3 install$upgradeFlag $safePkgs 2>&1")
-            append(" || pip install$upgradeFlag $safePkgs 2>&1")
-            append(" || python3 -m pip install$upgradeFlag $safePkgs 2>&1")
-            append(" || $TERMUX_BIN/python3 -m pip install$upgradeFlag $safePkgs 2>&1")
-            append(" || $TERMUX_BIN/python -m pip install$upgradeFlag $safePkgs 2>&1")
-        }
-        return PrivilegedExecutionManager.executeCommand(cmd).toToolResult()
+        // Delegate to TermuxEnvironmentBridge which handles Termux env + cascading fallback
+        return TermuxEnvironmentBridge.pipInstall(packages, upgrade)
     }
 
     private suspend fun pipList(): ToolExecutionResult {
+        val envPrefix = if (TermuxEnvironmentBridge.isTermuxUsable()) TermuxEnvironmentBridge.buildEnvPrefix() else ""
         val cmd = buildString {
-            append("pip3 list 2>&1")
-            append(" || pip list 2>&1")
-            append(" || python3 -m pip list 2>&1")
-            append(" || $TERMUX_BIN/python3 -m pip list 2>&1")
-            append(" || $TERMUX_BIN/python -m pip list 2>&1")
+            if (TermuxEnvironmentBridge.isTermuxUsable()) {
+                append("${envPrefix}${TermuxEnvironmentBridge.TERMUX_PIP3} list 2>&1")
+                append(" || ${envPrefix}${TermuxEnvironmentBridge.TERMUX_PIP} list 2>&1")
+                append(" || ${envPrefix}${TermuxEnvironmentBridge.TERMUX_PYTHON3} -m pip list 2>&1")
+                append(" || ")
+            }
+            append("pip3 list 2>&1 || pip list 2>&1 || python3 -m pip list 2>&1")
         }
         return PrivilegedExecutionManager.executeCommand(cmd).toToolResult()
     }
@@ -338,9 +276,19 @@ Actions and required parameters:
             .joinToString(" ")
         if (safePkgs.isEmpty()) return err("No valid package names provided.")
         val globalFlag = if (global) " -g" else ""
-        return PrivilegedExecutionManager.executeCommand(
-            "npm install$globalFlag $safePkgs 2>&1 || $TERMUX_BIN/npm install$globalFlag $safePkgs 2>&1"
-        ).toToolResult()
+        val termuxNode = TermuxEnvironmentBridge.TERMUX_NODE
+        val termuxNpm  = TermuxEnvironmentBridge.TERMUX_NPM
+        val isTermux   = File(termuxNpm).exists()
+        val envPrefix  = if (isTermux) TermuxEnvironmentBridge.buildEnvPrefix() else ""
+        return if (isTermux) {
+            PrivilegedExecutionManager.executeCommand(
+                "${envPrefix}${termuxNpm} install$globalFlag $safePkgs 2>&1"
+            ).toToolResult()
+        } else {
+            PrivilegedExecutionManager.executeCommand(
+                "npm install$globalFlag $safePkgs 2>&1"
+            ).toToolResult()
+        }
     }
 
     private suspend fun downloadFile(url: String, destPath: String?): ToolExecutionResult {
@@ -375,30 +323,33 @@ Actions and required parameters:
 
     private suspend fun termuxCheck(): ToolExecutionResult {
         val sb = StringBuilder()
-        val installed = PrivilegedExecutionManager.executeCommand(
-            "pm list packages | grep com.termux"
-        ).getOrNull()?.contains("com.termux") == true
+        val bashExists = File(TERMUX_BASH).exists()
 
-        if (!installed) {
-            sb.appendLine("❌ Termux is not installed.")
+        if (!bashExists) {
+            sb.appendLine("❌ Termux is not installed or its bash is missing.")
             sb.appendLine("Install from F-Droid: https://f-droid.org/en/packages/com.termux/")
+            sb.appendLine()
+            sb.appendLine("After installing Termux:")
+            sb.appendLine("  1. Open Termux and run: pkg update && pkg upgrade -y")
+            sb.appendLine("  2. Grant Shizuku permission to this app")
+            sb.appendLine("  3. Use action=termux_pkg_install packages='python nodejs git'")
             return ToolExecutionResult(sb.toString().trim())
         }
         sb.appendLine("✅ Termux is installed")
+        sb.appendLine("Termux bash: ✅ $TERMUX_BASH")
 
-        // Check if bash exists
-        val bashExists = File(TERMUX_BASH).exists()
-        sb.appendLine("Termux bash: ${if (bashExists) "✅ $TERMUX_BASH" else "❌ not found"}")
-
-        // List key Termux packages if accessible
-        if (bashExists && (PrivilegedExecutionManager.isShizukuReady() || PrivilegedExecutionManager.isRootAvailable())) {
+        // List key installed packages via dpkg
+        val isPrivileged = PrivilegedExecutionManager.isShizukuReady() ||
+                           PrivilegedExecutionManager.isRootAvailable()
+        if (isPrivileged) {
+            val envPrefix = TermuxEnvironmentBridge.buildEnvPrefix()
             val pkgList = PrivilegedExecutionManager.executeCommand(
-                "TERMUX_PREFIX=/data/data/com.termux/files/usr " +
-                "run-as com.termux /data/data/com.termux/files/usr/bin/dpkg --list 2>/dev/null | head -20 " +
-                "|| ls /data/data/com.termux/files/usr/bin/ | head -30 2>/dev/null"
+                "${envPrefix}${TermuxEnvironmentBridge.TERMUX_BIN}/dpkg --list 2>/dev/null | " +
+                "grep '^ii' | awk '{print \$2\" \"\$3}' | head -30 2>/dev/null " +
+                "|| ls $TERMUX_BIN/ | head -40 2>/dev/null"
             ).getOrNull()
-            if (!pkgList.isNullOrBlank()) {
-                sb.appendLine("\nTermux binaries/packages (sample):")
+            if (!pkgList.isNullOrBlank() && pkgList != "(no output)") {
+                sb.appendLine("\nInstalled Termux packages (sample):")
                 sb.append(pkgList.take(2000))
             }
         }
@@ -406,34 +357,13 @@ Actions and required parameters:
     }
 
     private suspend fun termuxRun(command: String): ToolExecutionResult {
-        // Wrap the user command in proper POSIX quoting via shellQuote
-        // so that the bash -c argument receives exactly the command string
-        // without risk of shell injection at the wrapping level.
-        val termuxEnvCmd = buildString {
-            append("PATH=/data/data/com.termux/files/usr/bin:")
-            append("/data/data/com.termux/files/usr/sbin:")
-            append("/system/bin:/system/xbin ")
-            append("HOME=/data/data/com.termux/files/home ")
-            append("PREFIX=/data/data/com.termux/files/usr ")
-            append("/data/data/com.termux/files/usr/bin/bash -c ${shellQuote(command)}")
-        }
-        return PrivilegedExecutionManager.executeCommand(termuxEnvCmd).toToolResult()
+        // Delegate to TermuxEnvironmentBridge which injects all required env vars
+        return TermuxEnvironmentBridge.executeInTermux(command)
     }
 
     private suspend fun termuxPkgInstall(packages: String): ToolExecutionResult {
-        val safePkgs = packages.split(Regex("\\s+"))
-            .map { it.replace(Regex("[^a-zA-Z0-9_.\\-+]"), "") }
-            .filter { it.isNotEmpty() }
-            .joinToString(" ")
-        if (safePkgs.isEmpty()) return err("No valid package names.")
-        val cmd = buildString {
-            append("PATH=/data/data/com.termux/files/usr/bin ")
-            append("HOME=/data/data/com.termux/files/home ")
-            append("PREFIX=/data/data/com.termux/files/usr ")
-            append("TERMUX_APP_PACKAGE_MANAGER=apt ")
-            append("/data/data/com.termux/files/usr/bin/pkg install -y $safePkgs 2>&1")
-        }
-        return PrivilegedExecutionManager.executeCommand(cmd).toToolResult()
+        // Delegate to TermuxEnvironmentBridge which handles DEBIAN_FRONTEND + env
+        return TermuxEnvironmentBridge.pkgInstall(packages)
     }
 
     private suspend fun toolBootstrap(): ToolExecutionResult {

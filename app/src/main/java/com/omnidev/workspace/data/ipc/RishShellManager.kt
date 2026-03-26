@@ -279,6 +279,11 @@ class RishShellManager(private val context: Context) {
         val exit = proc.exitValue()
         if (exit == 0) {
             Result.success(stdout.trim().ifBlank { "(no output)" })
+        } else if (stdout.isNotBlank()) {
+            // Non-zero exit but stdout has content: surface it.
+            // Many tools (pkg/apt, pip, python scripts) produce useful output even
+            // when they exit non-zero.
+            Result.success(stdout.trim())
         } else {
             Result.failure(RuntimeException("rish exited $exit. stderr: $stderr"))
         }

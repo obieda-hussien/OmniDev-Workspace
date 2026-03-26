@@ -139,6 +139,8 @@ class CompositeToolManager(
             addAll(AdvancedFileTools.getToolDefinitions())
             addAll(OmniCoreAgentTool.getToolDefinitions())
             addAll(AgentRuntimeTool.getToolDefinitions())
+            addAll(TermuxEnvironmentBridge.getToolDefinitions())
+            addAll(PythonRuntimeManager.getToolDefinitions())
             addAll(LauncherControlTool.getToolDefinitions())
             addAll(WidgetGeneratorTool.getToolDefinitions())
             // ── Dynamic Self-Sandbox Tool ────────────────────────────────────
@@ -618,6 +620,17 @@ class CompositeToolManager(
             "agent_runtime" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 AgentRuntimeTool.execute(context = context ?: return missingContext(), action = action, args = arguments)
+            }
+
+            // ── Termux bridge tool (direct Termux env executor) ──
+            "termux_bridge" -> {
+                TermuxEnvironmentBridge.executeTool(arguments)
+            }
+
+            // ── Autonomous Python runtime manager ──
+            "python_runtime" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                PythonRuntimeManager.execute(action = action, args = arguments)
             }
 
             // ── Universal launcher control tool ──

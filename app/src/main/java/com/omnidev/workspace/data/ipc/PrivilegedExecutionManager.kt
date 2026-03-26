@@ -394,31 +394,73 @@ object PrivilegedExecutionManager {
                 null
             ) as Process
 
-            // MUST read streams concurrently before waitFor() to prevent deadlocks and capture output
-            // Avoid .use {} which closes the stream and breaks the shared fd.
+            // MUST read streams concurrently before waitFor() to prevent pipe-buffer deadlock.
+            // Bounded reads guard against OOM for commands producing large output.
             val stdoutBuffer = StringBuffer()
             val stderrBuffer = StringBuffer()
 
             val stdoutThread = Thread {
-                stdoutBuffer.append(process.inputStream.bufferedReader().readText())
+                try {
+                    process.inputStream.bufferedReader().use { reader ->
+                        reader.lineSequence().forEach { line ->
+                            if (stdoutBuffer.length < MAX_OUTPUT) {
+                                stdoutBuffer.appendLine(line)
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
             }.apply { start() }
 
             val stderrThread = Thread {
-                stderrBuffer.append(process.errorStream.bufferedReader().readText())
+                try {
+                    process.errorStream.bufferedReader().use { reader ->
+                        reader.lineSequence().forEach { line ->
+                            if (stderrBuffer.length < 4_000) {
+                                stderrBuffer.appendLine(line)
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
             }.apply { start() }
 
-            process.waitFor()
-            stdoutThread.join()
-            stderrThread.join()
+            // Use a wait-thread with explicit timeout instead of blocking waitFor()
+            // to guarantee streams are drained and join() never hangs indefinitely.
+            val waitThread = Thread {
+                try { process.waitFor() } catch (_: InterruptedException) {}
+            }.apply { start() }
+            waitThread.join(30_000L)  // 30s max per command
+            if (waitThread.isAlive) {
+                process.destroy()
+                stdoutThread.interrupt()
+                stderrThread.interrupt()
+                throw RuntimeException("Shizuku command timed out after 30s: ${command.take(80)}")
+            }
 
-            val stdout = stdoutBuffer.toString()
-            val stderr = stderrBuffer.toString()
+            stdoutThread.join(2_000L)
+            stderrThread.join(2_000L)
+
+            val stdout = stdoutBuffer.toString().trimEnd()
+            val stderr = stderrBuffer.toString().trimEnd()
             val exit = process.exitValue()
 
-            val finalOutput = if (stderr.isNotBlank()) stderr else stdout
+            // FIX: Always prefer stdout as the primary output.
+            // Only fall back to stderr when stdout is truly empty.
+            // Append stderr as supplemental context when both are present.
+            val finalOutput = when {
+                stdout.isNotBlank() && stderr.isNotBlank() ->
+                    "$stdout\n[stderr]: $stderr"
+                stdout.isNotBlank() -> stdout
+                stderr.isNotBlank() -> stderr
+                else -> "(no output)"
+            }
 
             if (exit == 0) {
                 finalOutput.trim().ifBlank { "(no output)" }
+            } else if (stdout.isNotBlank()) {
+                // Non-zero exit but there IS stdout: surface the output as a success.
+                // Many tools (pkg/apt install, pip install, python scripts with sys.exit)
+                // produce critical output even when they exit != 0.
+                finalOutput.trim()
             } else {
                 throw RuntimeException(
                     "Command exited with code $exit.\nstdout: $stdout\nstderr: $stderr"
@@ -434,31 +476,64 @@ object PrivilegedExecutionManager {
     private fun executeViaRoot(command: String): Result<String> = runCatching {
         val process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
 
-        // Read streams before waitFor() to prevent OS pipe-buffer deadlock.
+        // Read streams concurrently before waitFor() to prevent OS pipe-buffer deadlock.
         val stdoutBuffer = StringBuffer()
         val stderrBuffer = StringBuffer()
 
         val stdoutThread = Thread {
-            stdoutBuffer.append(process.inputStream.bufferedReader().readText())
+            try {
+                process.inputStream.bufferedReader().use { reader ->
+                    reader.lineSequence().forEach { line ->
+                        if (stdoutBuffer.length < MAX_OUTPUT) stdoutBuffer.appendLine(line)
+                    }
+                }
+            } catch (_: Exception) {}
         }.apply { start() }
 
         val stderrThread = Thread {
-            stderrBuffer.append(process.errorStream.bufferedReader().readText())
+            try {
+                process.errorStream.bufferedReader().use { reader ->
+                    reader.lineSequence().forEach { line ->
+                        if (stderrBuffer.length < 4_000) stderrBuffer.appendLine(line)
+                    }
+                }
+            } catch (_: Exception) {}
         }.apply { start() }
 
-        val exit = process.waitFor()
-        stdoutThread.join()
-        stderrThread.join()
+        // API-24-compatible timeout via Thread.join(millis)
+        val waitThread = Thread {
+            try { process.waitFor() } catch (_: InterruptedException) {}
+        }.apply { start() }
+        waitThread.join(30_000L)
+        if (waitThread.isAlive) {
+            process.destroy()
+            stdoutThread.interrupt()
+            stderrThread.interrupt()
+            throw RuntimeException("Root command timed out after 30s")
+        }
 
-        val stdout = stdoutBuffer.toString()
-        val stderr = stderrBuffer.toString()
+        stdoutThread.join(2_000L)
+        stderrThread.join(2_000L)
 
-        val finalOutput = if (stderr.isNotBlank()) stderr else stdout
+        val stdout = stdoutBuffer.toString().trimEnd()
+        val stderr = stderrBuffer.toString().trimEnd()
+        val exit = process.exitValue()
+
+        // FIX: Prioritize stdout; only use stderr when stdout is empty.
+        val finalOutput = when {
+            stdout.isNotBlank() && stderr.isNotBlank() -> "$stdout\n[stderr]: $stderr"
+            stdout.isNotBlank() -> stdout
+            stderr.isNotBlank() -> stderr
+            else -> "(no output)"
+        }
 
         if (exit == 0) {
             finalOutput.trim().ifBlank { "(no output)" }
+        } else if (stdout.isNotBlank()) {
+            // Non-zero exit but stdout has content: surface it.
+            finalOutput.trim()
         } else {
-            throw RuntimeException("Root command exited $exit. stderr: $stderr")
+            throw RuntimeException("Root command exited $exit.\nstdout: $stdout\nstderr: $stderr")
         }
     }
 
