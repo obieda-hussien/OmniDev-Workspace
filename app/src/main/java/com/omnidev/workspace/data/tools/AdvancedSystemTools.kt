@@ -402,6 +402,8 @@ object SystemSettingsTool {
                 when (result) {
                     is ShizukuResult.Success ->
                         ToolExecutionResult("$safeNamespace/$safeKey = ${result.output.trim()}")
+                    is ShizukuResult.PartialSuccess ->
+                        ToolExecutionResult("⚠️ $safeNamespace/$safeKey = ${result.output.trim()}", isError = false)
                     is ShizukuResult.Failure ->
                         ToolExecutionResult(result.reason, isError = true)
                     is ShizukuResult.PermissionRequired ->
