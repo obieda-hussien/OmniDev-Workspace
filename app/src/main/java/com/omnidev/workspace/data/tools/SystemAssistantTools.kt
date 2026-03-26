@@ -231,6 +231,8 @@ object PlannerTool {
                 return when (val r = ShizukuCommandTool.execute(adbCmd)) {
                     is ShizukuResult.Success ->
                         ToolExecutionResult(output = "✅ Alarm set for %02d:%02d via ADB — \"%s\".".format(hour, minute, title))
+                    is ShizukuResult.PartialSuccess ->
+                        ToolExecutionResult(output = "⚠️ Alarm set (partial) via ADB: ${r.output}", isError = false)
                     is ShizukuResult.Failure ->
                         ToolExecutionResult(output = "Failed to set alarm: ${r.reason}", isError = true)
                     is ShizukuResult.PermissionRequired ->
@@ -708,6 +710,10 @@ object AppManagerTool {
             is ShizukuResult.Success -> ToolExecutionResult(
                 output = "✅ Force-stopped $packageName."
             )
+            is ShizukuResult.PartialSuccess -> ToolExecutionResult(
+                output = "⚠️ Force-stop partial: ${result.output}",
+                isError = false
+            )
             is ShizukuResult.Failure -> ToolExecutionResult(
                 output = result.reason,
                 isError = true
@@ -727,6 +733,10 @@ object AppManagerTool {
         return when (val result = ShizukuCommandTool.execute("pm clear $packageName")) {
             is ShizukuResult.Success -> ToolExecutionResult(
                 output = "✅ Cleared all data for $packageName."
+            )
+            is ShizukuResult.PartialSuccess -> ToolExecutionResult(
+                output = "⚠️ Clear data partial: ${result.output}",
+                isError = false
             )
             is ShizukuResult.Failure -> ToolExecutionResult(
                 output = result.reason,
