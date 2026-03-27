@@ -612,11 +612,9 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
             if (!modCheck.isNullOrBlank() && modCheck.firstOrNull()?.isDigit() == true) return "python3 -m yt_dlp"
         } catch (_: Exception) {}
 
-        null
+        return null
     }
 
-
-    }
 
     /**
      * Determine which social platform [url] belongs to.
