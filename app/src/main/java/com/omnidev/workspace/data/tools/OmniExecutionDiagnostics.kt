@@ -162,7 +162,7 @@ Actions:
         }
 
         sb.appendLine("╚═══════════════════════════════════════════════════════════════╝")
-        ToolExecutionResult(sb.toString().trimEnd())
+        return ToolExecutionResult(sb.toString().trimEnd())
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -250,9 +250,9 @@ Actions:
         sb.appendLine("\nlibtermux-exec.so: ${if (ldSo.exists()) "✅ Found" else "⚠️ Not found (Not strictly necessary)"}")
 
         if (out.contains("TERMUX_ENV_OK")) {
-            ToolExecutionResult(sb.append("\n✅ Termux environment is working correctly.").toString())
+            return ToolExecutionResult(sb.append("\n✅ Termux environment is working correctly.").toString())
         } else {
-            ToolExecutionResult(sb.append("\n⚠️ Issue with Termux environment. Try running:\npkg update\npkg upgrade -y").toString())
+            return ToolExecutionResult(sb.append("\n⚠️ Issue with Termux environment. Try running:\npkg update\npkg upgrade -y").toString())
         }
     }
 
