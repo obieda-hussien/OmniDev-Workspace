@@ -3,6 +3,7 @@ package com.omnidev.workspace.data.ipc
 import android.content.Context
 import android.os.Build
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
+import com.omnidev.workspace.data.tools.ShizukuResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
