@@ -592,7 +592,7 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
         try {
             if (TermuxEnvironmentBridge.isTermuxUsable()) {
                 val envPrefix = TermuxEnvironmentBridge.buildEnvPrefix()
-                val cmd = "${envPrefix}${TermuxEnvironmentBridge.TERMUX_BASH} -lc ${shellQuote(\"python3 -m yt_dlp --version 2>/dev/null\")}"
+                val cmd = "${envPrefix}${TermuxEnvironmentBridge.TERMUX_BASH} -lc ${shellQuote("python3 -m yt_dlp --version 2>/dev/null") }"
                 val out = PrivilegedExecutionManager.executeCommand(cmd).getOrNull()?.trim()
                 if (!out.isNullOrBlank() && out.firstOrNull()?.isDigit() == true) {
                     return "${envPrefix}python3 -m yt_dlp"
