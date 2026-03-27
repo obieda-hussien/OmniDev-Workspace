@@ -2,6 +2,7 @@ package com.omnidev.workspace.data.ipc
 
 import android.content.Context
 import android.os.Build
+import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -155,7 +156,7 @@ class RishShellManager(private val context: Context) {
         // Already have a local copy?
         if (localDex.exists() && localDex.length() > 0) return@withContext localDex
 
-        // Copy from standard Shizuku export locations
+        // Copy from standard Shizuku export locations (shared filesystem)
         for (path in SHIZUKU_EXPORT_PATHS) {
             val src = File(path)
             if (src.exists() && src.length() > 0) {
@@ -164,6 +165,14 @@ class RishShellManager(private val context: Context) {
                     localDex
                 }.getOrNull()
             }
+        }
+
+        // Try reading the export path via Shizuku privileged command (if Shizuku backend is available)
+        try {
+            val copied = copyDexViaShizukuCommand()
+            if (copied != null) return@withContext copied
+        } catch (e: Throwable) {
+            android.util.Log.w("RishShellManager", "copyDexViaShizukuCommand failed: ${e.message}")
         }
 
         // Extract from Shizuku APK assets
@@ -240,6 +249,38 @@ class RishShellManager(private val context: Context) {
             localDex
         }
     }.getOrNull()
+
+    private suspend fun copyDexViaShizukuCommand(): File? = withContext(Dispatchers.IO) {
+        if (!ShizukuCommandTool.isAvailable()) return@withContext null
+
+        for (path in SHIZUKU_EXPORT_PATHS) {
+            val cmd = "if [ -f '$path' ] && [ -s '$path' ]; then cp '$path' '${localDex.absolutePath}' && chmod 400 '${localDex.absolutePath}' && echo 'OK'; fi"
+            when (val result = ShizukuCommandTool.execute(cmd)) {
+                is ShizukuResult.Success -> {
+                    if (localDex.exists() && localDex.length() > 0) return@withContext localDex
+                }
+                is ShizukuResult.PartialSuccess -> {
+                    if (localDex.exists() && localDex.length() > 0) return@withContext localDex
+                }
+                else -> continue
+            }
+        }
+
+        // If no existing export path is found, try a fallback cat/cp from any known path.
+        val fallbackCmd = buildString {
+            append("for path in ")
+            append(SHIZUKU_EXPORT_PATHS.joinToString(" "))
+            append("; do ")
+            append("if [ -f \"\$path\" ] && [ -s \"\$path\" ]; then cp \"\$path\" \"${localDex.absolutePath}\" && chmod 400 \"${localDex.absolutePath}\" && echo OK && exit 0; fi; done")
+        }
+        val fallbackResult = ShizukuCommandTool.execute(fallbackCmd)
+        if ((fallbackResult is ShizukuResult.Success || fallbackResult is ShizukuResult.PartialSuccess)
+            && localDex.exists() && localDex.length() > 0) {
+            return@withContext localDex
+        }
+
+        null
+    }
 
     private fun ensureReadOnlyOnApi34(dex: File) {
         if (Build.VERSION.SDK_INT < 34) return
