@@ -550,47 +550,72 @@ Twitter/X, Facebook, Reddit, Twitch, Vimeo, Dailymotion, and 1000+ more via yt-d
      */
     private suspend fun findYtDlp(): String? {
         // Prefer Termux-installed yt-dlp for Android devices, but execute it with Termux env.
-        if (TermuxEnvironmentBridge.isTermuxUsable()) {
-            val termuxYtdlp = TermuxEnvironmentBridge.findBinary("yt-dlp")
-            if (!termuxYtdlp.isNullOrBlank()) {
-                return if (termuxYtdlp.startsWith(TermuxEnvironmentBridge.TERMUX_BIN)) {
-                    "${TermuxEnvironmentBridge.buildEnvPrefix()}${termuxYtdlp}"
+        // Fallback order (most robust):
+        // 1) Absolute Termux binary path (/data/data/com.termux/files/usr/bin/yt-dlp)
+        // 2) TermuxEnvironmentBridge.findBinary("yt-dlp") which probes Termux env via PrivilegedExecutionManager
+        // 3) Termux python module invocation via Termux's python (python3 -m yt_dlp) using Termux env
+        // 4) PrivilegedExecutionManager executing Termux bash invoking python -m yt_dlp
+        // 5) System which yt-dlp
+
+        // 1) Absolute Termux path
+        val absTermux = "$TERMUX_BIN/yt-dlp"
+        try {
+            val f = java.io.File(absTermux)
+            if (f.exists() && f.canExecute()) return absTermux
+        } catch (_: Exception) {}
+
+        // 2) Ask TermuxEnvironmentBridge for a proper binary path (will include Termux env detection)
+        try {
+            val termuxFound = TermuxEnvironmentBridge.findBinary("yt-dlp")
+            if (!termuxFound.isNullOrBlank()) return termuxFound
+        } catch (_: Exception) {}
+
+        // 3) Try Termux python -m yt_dlp via TermuxEnvironmentBridge.runPython
+        try {
+            val py = TermuxEnvironmentBridge.findBinary("python3") ?: TermuxEnvironmentBridge.findBinary("python")
+            if (!py.isNullOrBlank()) {
+                // Use buildEnvPrefix() only if interpreter is in Termux prefix
+                val isTermuxPy = py.startsWith(TermuxEnvironmentBridge.TERMUX_BIN)
+                val checkCmd = if (isTermuxPy) {
+                    "${TermuxEnvironmentBridge.buildEnvPrefix()}${shellQuote(py)} -m yt_dlp --version 2>/dev/null"
                 } else {
-                    termuxYtdlp
+                    "${shellQuote(py)} -m yt_dlp --version 2>/dev/null"
+                }
+                val check = PrivilegedExecutionManager.executeCommand(checkCmd).getOrNull()?.trim()
+                if (!check.isNullOrBlank() && check.firstOrNull()?.isDigit() == true) {
+                    return if (isTermuxPy) "${TermuxEnvironmentBridge.buildEnvPrefix()}${shellQuote(py)} -m yt_dlp" else "${shellQuote(py)} -m yt_dlp"
                 }
             }
+        } catch (_: Exception) {}
 
-            val termuxPyBins = listOf("$TERMUX_BIN/python3", "$TERMUX_BIN/python")
-            val termuxPyModule = termuxPyBins.firstOrNull { pyBin ->
-                PrivilegedExecutionManager.executeCommand(
-                    "${TermuxEnvironmentBridge.buildEnvPrefix()}${shellQuote(pyBin)} -m yt_dlp --version 2>/dev/null"
-                ).getOrNull().let(::normalizeExecOutput)?.firstOrNull()?.isDigit() == true
+        // 4) Try executing Termux bash with python -m yt_dlp via PrivilegedExecutionManager
+        try {
+            if (TermuxEnvironmentBridge.isTermuxUsable()) {
+                val envPrefix = TermuxEnvironmentBridge.buildEnvPrefix()
+                val cmd = "${envPrefix}${TermuxEnvironmentBridge.TERMUX_BASH} -lc ${shellQuote(\"python3 -m yt_dlp --version 2>/dev/null\")}"
+                val out = PrivilegedExecutionManager.executeCommand(cmd).getOrNull()?.trim()
+                if (!out.isNullOrBlank() && out.firstOrNull()?.isDigit() == true) {
+                    return "${envPrefix}python3 -m yt_dlp"
+                }
             }
-            if (termuxPyModule != null) {
-                return "${TermuxEnvironmentBridge.buildEnvPrefix()}${termuxPyModule} -m yt_dlp"
-            }
-        }
+        } catch (_: Exception) {}
 
-        // System PATH binary
-        val sysBin = PrivilegedExecutionManager.executeCommand("which yt-dlp 2>/dev/null")
-            .getOrNull()
-            .let(::normalizeExecOutput)
-            ?.takeIf { it.startsWith("/") && (it.endsWith("/yt-dlp") || it.endsWith("/yt-dlp.exe")) }
-        if (sysBin != null) return sysBin
+        // 5) System which
+        try {
+            val sys = PrivilegedExecutionManager.executeCommand("which yt-dlp 2>/dev/null").getOrNull()?.trim()
+            if (!sys.isNullOrBlank() && (sys.startsWith("/") && (sys.endsWith("/yt-dlp") || sys.endsWith("/yt-dlp.exe")))) return sys
+        } catch (_: Exception) {}
 
-        // System python module
-        val pipCheck = PrivilegedExecutionManager.executeCommand(
-            "python3 -m yt_dlp --version 2>/dev/null"
-        ).getOrNull().let(::normalizeExecOutput)
-        if (!pipCheck.isNullOrBlank() && pipCheck.firstOrNull()?.isDigit() == true) return "python3 -m yt_dlp"
+        // 6) Try system python module
+        try {
+            val modCheck = PrivilegedExecutionManager.executeCommand("python3 -m yt_dlp --version 2>/dev/null").getOrNull()?.trim()
+            if (!modCheck.isNullOrBlank() && modCheck.firstOrNull()?.isDigit() == true) return "python3 -m yt_dlp"
+        } catch (_: Exception) {}
 
-        // System python fallback
-        val pipCheck2 = PrivilegedExecutionManager.executeCommand(
-            "python -m yt_dlp --version 2>/dev/null"
-        ).getOrNull().let(::normalizeExecOutput)
-        if (!pipCheck2.isNullOrBlank() && pipCheck2.firstOrNull()?.isDigit() == true) return "python -m yt_dlp"
+        null
+    }
 
-        return null
+
     }
 
     /**
