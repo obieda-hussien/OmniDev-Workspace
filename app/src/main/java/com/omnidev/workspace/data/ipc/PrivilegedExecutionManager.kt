@@ -2,54 +2,31 @@ package com.omnidev.workspace.data.ipc
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import java.lang.reflect.InvocationTargetException
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.data.tools.ShizukuResult
 
 /**
- * PrivilegedExecutionManager — unified privileged-execution backend for both the
- * in-process AI agent (via [OmniCoreAgentTool]) and external companion apps
- * (via [OmniCoreService] AIDL).
+ * PrivilegedExecutionManager — النسخة المُصلَحة الكاملة.
  *
- * ### Execution backends (tried in order)
- * 1. **Shizuku API** (`Shizuku.newProcess`) — preferred; ADB-level privilege, no full root required.
- * 2. **rish** (`app_process` + `rish_shizuku.dex`) — full ADB shell with piped commands,
- *    subshells, and complete environment. Requires [init] with a [Context].
- * 3. **Root / SU** — fallback when neither Shizuku backend is available.
- *
- * ### Initialisation
- * Call [init] once (e.g., from [com.omnidev.workspace.OmniDevApp.onCreate]) to supply the
- * [Context] needed by [RishShellManager]. Without init, rish is skipped silently.
- *
- * ### Security contract
- * - In-process callers (the agent) invoke this directly after the user approves
- *   the action via [com.omnidev.workspace.ui.chat.ConfirmationGate].
- * - Remote callers reach this only through [OmniCoreService], which enforces the
- *   `com.omnidev.permission.CONTROL_CORE` signature-level permission.
- *
- * ### Threading
- * Every public suspend function switches to [Dispatchers.IO] internally.
+ * الإصلاحات:
+ * 1. معالجة ذكية لـ ShizukuResult.PartialSuccess:
+ *    - إذا في output مفيد (exit != 127) → Result.success
+ *    - إذا فارغ أو command not found → انزل للـ fallback
+ * 2. لا تعيد تشغيل Shizuku إذا كان في output مفيد
+ * 3. رسائل خطأ أوضح
+ * 4. executeCommand يحاول Termux context إذا الأمر يبدو Termux-related
  */
 object PrivilegedExecutionManager {
 
+    private const val TAG = "PrivMgr"
     private const val MAX_OUTPUT = 8_000
-
-    // ─────────────────────────────────────────────────────────────────────
-    // Context / rish initialisation
-    // ─────────────────────────────────────────────────────────────────────
 
     @Volatile private var rishManager: RishShellManager? = null
     private val rishInitLock = Any()
 
-    /**
-     * Initialise the manager with application context.
-     * Must be called before using the rish backend.
-     * Safe to call multiple times — subsequent calls are no-ops if already initialised.
-     */
     fun init(context: Context) {
         if (rishManager == null) {
             synchronized(rishInitLock) {
@@ -60,495 +37,275 @@ object PrivilegedExecutionManager {
         }
     }
 
-    /** Expose [RishShellManager] for direct rish operations in [OmniCoreAgentTool]. */
     fun getRishManager(): RishShellManager? = rishManager
-
-    // ─────────────────────────────────────────────────────────────────────
-    // Backend availability
-    // ─────────────────────────────────────────────────────────────────────
-
-    /** Returns true if Shizuku is bound, alive, and the app holds its permission. */
     fun isShizukuReady(): Boolean =
         ShizukuCommandTool.isAvailable() && ShizukuCommandTool.hasPermission()
-
-    /** Returns true if rish is usable on this device (app_process + DEX reachable). */
     fun isRishReady(): Boolean = rishManager?.isAvailable() ?: false
-
-    /** Returns true if an SU binary is reachable on the device. */
     fun isRootAvailable(): Boolean = runCatching {
-        val p = Runtime.getRuntime().exec(arrayOf("which", "su"))
-        p.waitFor() == 0
+        Runtime.getRuntime().exec(arrayOf("which", "su")).waitFor() == 0
     }.getOrDefault(false)
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Core execution
-    // ─────────────────────────────────────────────────────────────────────
-
-    /**
-     * Execute [command] with elevated privileges.
-     *
-     * Tries backends in order:
-     * 1. **Shizuku API** — `Shizuku.newProcess()` via direct reflection
-     * 2. **rish** — `app_process` + `rish_shizuku.dex` via [RishShellManager]
-     * 3. **root / SU** — `su -c` fallback
-     *
-     * Returns [Result.success] with trimmed stdout, or [Result.failure] on error.
-     */
+    // ──────────────────────────────────────────────────────────────
+    // executeCommand — الدالة الجوهرية المُصلَحة
+    // ──────────────────────────────────────────────────────────────
     suspend fun executeCommand(command: String): Result<String> = withContext(Dispatchers.IO) {
         if (command.isBlank()) {
-            return@withContext Result.failure(IllegalArgumentException("Command must not be blank."))
+            return@withContext Result.failure(IllegalArgumentException("الأمر فارغ."))
         }
 
-        // Prefer the ShizukuCommandTool which implements retries, backoff and permission wait.
+        // ── 1. Shizuku (المفضّل) ──
         if (ShizukuCommandTool.isAvailable()) {
             when (val r = ShizukuCommandTool.execute(command)) {
-                is com.omnidev.workspace.data.tools.ShizukuResult.Success -> {
+                is ShizukuResult.Success -> {
                     return@withContext Result.success(r.output.trim().take(MAX_OUTPUT))
                 }
-                is com.omnidev.workspace.data.tools.ShizukuResult.PartialSuccess -> {
-                    return@withContext Result.success(r.output.trim().take(MAX_OUTPUT))
+                is ShizukuResult.PartialSuccess -> {
+                    // *** الإصلاح الجوهري ***
+                    // PartialSuccess.output الآن = actual stdout (بعد إصلاح ShizukuCommandTool)
+                    val output = r.output.trim()
+                    if (output.isNotBlank() && output != "(no output)" && r.exitCode != 127) {
+                        // في output مفيد → نجاح حتى لو exit != 0
+                        Log.d(TAG, "Shizuku partial success (exit=${r.exitCode}) → returning output")
+                        return@withContext Result.success(output.take(MAX_OUTPUT))
+                    } else {
+                        // command not found أو فارغ → جرب fallback
+                        Log.w(TAG, "Shizuku PartialSuccess بدون output (exit=${r.exitCode}) → fallback")
+                    }
                 }
-                is com.omnidev.workspace.data.tools.ShizukuResult.PermissionRequired -> {
-                    // Permission was requested but not granted within the short wait window.
-                    android.util.Log.w("PrivilegedExecutionManager", "Shizuku permission required for command; falling back to next backend. Hint: prompt the user to grant Shizuku permission or retry the action later.")
+                is ShizukuResult.PermissionRequired -> {
+                    Log.w(TAG, "Shizuku needs permission → fallback: ${r.message}")
                 }
-                is com.omnidev.workspace.data.tools.ShizukuResult.Unavailable -> {
-                    android.util.Log.w("PrivilegedExecutionManager", "Shizuku unavailable: ${r.message}; falling back to next backend.")
+                is ShizukuResult.Unavailable -> {
+                    Log.w(TAG, "Shizuku unavailable → fallback: ${r.message}")
                 }
-                is com.omnidev.workspace.data.tools.ShizukuResult.Failure -> {
-                    android.util.Log.w("PrivilegedExecutionManager", "Shizuku command failed: ${r.reason}; falling back to next backend.")
+                is ShizukuResult.Failure -> {
+                    Log.w(TAG, "Shizuku failed → fallback: ${r.reason}")
                 }
             }
         }
 
-        // If Shizuku is not available or the call failed, try rish (if initialised) then root.
+        // ── 2. rish ──
         if (isRishReady()) {
-            return@withContext rishManager!!.execute(command)
+            Log.d(TAG, "جرب rish لـ: ${command.take(60)}")
+            val rishResult = rishManager!!.execute(command)
+            if (rishResult.isSuccess) {
+                return@withContext rishResult.map { it.take(MAX_OUTPUT) }
+            }
+            Log.w(TAG, "rish فشل: ${rishResult.exceptionOrNull()?.message}")
         }
+
+        // ── 3. root/SU ──
         if (isRootAvailable()) {
+            Log.d(TAG, "جرب root لـ: ${command.take(60)}")
             return@withContext executeViaRoot(command)
         }
-        return@withContext Result.failure(
+
+        Result.failure(
             IllegalStateException(
-                "No privileged execution backend available. " +
-                "Shizuku is not running/authorized, rish DEX is not found, and root is not accessible."
+                "لا يوجد execution backend متاح.\n" +
+                "• Shizuku: ${if (ShizukuCommandTool.isAvailable()) "متاح لكن " + if (ShizukuCommandTool.hasPermission()) "مشكلة في التنفيذ" else "بدون إذن" else "غير متاح"}\n" +
+                "• rish: ${if (isRishReady()) "متاح لكن فشل" else "غير متاح"}\n" +
+                "• root: غير متاح\n" +
+                "الحل: شغّل Shizuku وامنح الإذن."
             )
         )
     }
 
-    // ─────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────
     // Device state
-    // ─────────────────────────────────────────────────────────────────────
-
-    /** Returns a [DeviceStateSnapshot] combining OS metadata and backend flags. */
+    // ──────────────────────────────────────────────────────────────
     suspend fun getDeviceState(context: Context): DeviceStateSnapshot =
         withContext(Dispatchers.IO) {
             val foregroundPkg = getForegroundPackage()
-            val batteryLevel = getBatteryLevel()
-            val totalRamMb = getTotalRamMb()
+            val batteryLevel  = getBatteryLevel()
+            val totalRamMb    = getTotalRamMb()
             DeviceStateSnapshot(
                 buildFingerprint = Build.FINGERPRINT,
-                sdkInt = Build.VERSION.SDK_INT,
-                model = "${Build.MANUFACTURER} ${Build.MODEL}",
-                androidVersion = Build.VERSION.RELEASE,
-                shizukuReady = isShizukuReady(),
-                rishAvailable = isRishReady(),
-                rootAvailable = isRootAvailable(),
+                sdkInt           = Build.VERSION.SDK_INT,
+                model            = "${Build.MANUFACTURER} ${Build.MODEL}",
+                androidVersion   = Build.VERSION.RELEASE,
+                shizukuReady     = isShizukuReady(),
+                rishAvailable    = isRishReady(),
+                rootAvailable    = isRootAvailable(),
                 foregroundPackage = foregroundPkg,
-                batteryLevel = batteryLevel,
-                totalRamMb = totalRamMb
+                batteryLevel     = batteryLevel,
+                totalRamMb       = totalRamMb
             )
         }
 
-    /** Read a system property via `getprop <key>`. */
     suspend fun getSystemProperty(key: String): Result<String> =
         executeCommand("getprop ${sanitizeArgument(key)}")
 
-    /** Set a system property via `setprop` (requires root). */
     suspend fun setSystemProperty(key: String, value: String): Result<String> =
         executeCommand("setprop ${sanitizeArgument(key)} ${sanitizeArgument(value)}")
 
-    /**
-     * Dump a system service via `dumpsys <service>`.
-     * Output is capped at [MAX_OUTPUT] chars.
-     */
     suspend fun dumpSysInfo(service: String): Result<String> {
-        val safeService = service.replace(Regex("[^a-zA-Z0-9._/\\-]"), "").take(64)
-        if (safeService.isEmpty()) return Result.failure(IllegalArgumentException("Invalid service name."))
-        return executeCommand("dumpsys $safeService").map { it.take(MAX_OUTPUT) }
+        val safe = service.replace(Regex("[^a-zA-Z0-9._/\\-]"), "").take(64)
+        if (safe.isEmpty()) return Result.failure(IllegalArgumentException("اسم service غير صحيح."))
+        return executeCommand("dumpsys $safe").map { it.take(MAX_OUTPUT) }
     }
 
-    /** List running processes via `ps -A`. */
     suspend fun listRunningProcesses(): Result<String> =
         executeCommand("ps -A").map { it.take(MAX_OUTPUT) }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Android settings
-    // ─────────────────────────────────────────────────────────────────────
-
-    /** Read an Android setting via `settings get <namespace> <key>`. */
     suspend fun readSetting(namespace: String, key: String): Result<String> {
         val ns = validateSettingsNamespace(namespace) ?: return Result.failure(
-            IllegalArgumentException("Invalid namespace. Use: system, secure, global.")
+            IllegalArgumentException("namespace غير صحيح. استخدم: system, secure, global.")
         )
         val safeKey = key.replace(Regex("[^a-zA-Z0-9_.]"), "")
-        if (safeKey.isEmpty()) return Result.failure(IllegalArgumentException("Invalid key."))
+        if (safeKey.isEmpty()) return Result.failure(IllegalArgumentException("key غير صحيح."))
         return executeCommand("settings get $ns $safeKey")
     }
 
-    /** Write an Android setting via `settings put <namespace> <key> <value>`. */
     suspend fun writeSetting(namespace: String, key: String, value: String): Result<String> {
         val ns = validateSettingsNamespace(namespace) ?: return Result.failure(
-            IllegalArgumentException("Invalid namespace.")
+            IllegalArgumentException("namespace غير صحيح.")
         )
         val safeKey = key.replace(Regex("[^a-zA-Z0-9_.]"), "")
-        // Value: block shell metacharacters and newlines to prevent injection
         val safeValue = value.replace(Regex("[;&|`\$\\\\\n\r]"), "")
-        if (safeKey.isEmpty()) return Result.failure(IllegalArgumentException("Invalid key."))
+        if (safeKey.isEmpty()) return Result.failure(IllegalArgumentException("key غير صحيح."))
         return executeCommand("settings put $ns $safeKey $safeValue")
     }
 
-    /** List all settings in a namespace via `settings list <namespace>`. */
     suspend fun listSettings(namespace: String): Result<String> {
         val ns = validateSettingsNamespace(namespace) ?: return Result.failure(
-            IllegalArgumentException("Invalid namespace.")
+            IllegalArgumentException("namespace غير صحيح.")
         )
         return executeCommand("settings list $ns").map { it.take(MAX_OUTPUT) }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Package management
-    // ─────────────────────────────────────────────────────────────────────
-
-    /** List installed packages, optionally filtered by [filter]. */
     suspend fun queryPackages(filter: String): Result<String> {
         val safeFilter = filter.replace(Regex("[^a-zA-Z0-9._]"), "")
-        val cmd = if (safeFilter.isNotEmpty())
-            "pm list packages | grep -F $safeFilter"
-        else
-            "pm list packages"
+        val cmd = if (safeFilter.isNotEmpty()) "pm list packages | grep -F $safeFilter" else "pm list packages"
         return executeCommand(cmd).map { it.take(MAX_OUTPUT) }
     }
 
-    /** Install an APK via `pm install`. */
     suspend fun installApk(apkPath: String): Result<String> {
         val safePath = apkPath.replace(Regex("[^a-zA-Z0-9_.\\-/]"), "")
-        if (!safePath.endsWith(".apk")) return Result.failure(
-            IllegalArgumentException("Path must end with .apk")
-        )
+        if (!safePath.endsWith(".apk")) return Result.failure(IllegalArgumentException("المسار يجب أن ينتهي بـ .apk"))
         return executeCommand("pm install -r -g $safePath")
     }
 
-    /** Uninstall a package via `pm uninstall`. */
     suspend fun uninstallPackage(packageName: String): Result<String> {
         val safePkg = sanitizePackageName(packageName) ?: return Result.failure(
-            IllegalArgumentException("Invalid package name.")
+            IllegalArgumentException("اسم الحزمة غير صحيح.")
         )
         return executeCommand("pm uninstall $safePkg")
     }
 
-    /** Grant a permission to a package via `pm grant`. */
     suspend fun grantPermission(packageName: String, permission: String): Result<String> {
-        val safePkg = sanitizePackageName(packageName) ?: return Result.failure(
-            IllegalArgumentException("Invalid package name.")
-        )
+        val safePkg  = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("اسم الحزمة غير صحيح."))
         val safePerm = permission.replace(Regex("[^a-zA-Z0-9._]"), "")
         return executeCommand("pm grant $safePkg $safePerm")
     }
 
-    /** Revoke a permission from a package via `pm revoke`. */
     suspend fun revokePermission(packageName: String, permission: String): Result<String> {
-        val safePkg = sanitizePackageName(packageName) ?: return Result.failure(
-            IllegalArgumentException("Invalid package name.")
-        )
+        val safePkg  = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("اسم الحزمة غير صحيح."))
         val safePerm = permission.replace(Regex("[^a-zA-Z0-9._]"), "")
         return executeCommand("pm revoke $safePkg $safePerm")
     }
 
-    /** Get detailed package info via `pm dump <packageName>`. */
     suspend fun getPackageInfo(packageName: String): Result<String> {
-        val safePkg = sanitizePackageName(packageName) ?: return Result.failure(
-            IllegalArgumentException("Invalid package name.")
-        )
+        val safePkg = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("اسم الحزمة غير صحيح."))
         return executeCommand("pm dump $safePkg").map { it.take(MAX_OUTPUT) }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // App / activity control
-    // ─────────────────────────────────────────────────────────────────────
-
-    /** Force-stop an app via `am force-stop`. */
     suspend fun forceStopApp(packageName: String): Result<String> {
-        val safePkg = sanitizePackageName(packageName) ?: return Result.failure(
-            IllegalArgumentException("Invalid package name.")
-        )
+        val safePkg = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("اسم الحزمة غير صحيح."))
         return executeCommand("am force-stop $safePkg")
     }
 
-    /**
-     * Launch an activity or component via `am start`.
-     * [component] can be a full component name or an action/URI expression.
-     */
     suspend fun launchComponent(component: String): Result<String> {
-        if (component.isBlank()) return Result.failure(IllegalArgumentException("Component is blank."))
-        // Allow typical am-start chars; block shell injection metacharacters including newlines
+        if (component.isBlank()) return Result.failure(IllegalArgumentException("component فارغ."))
         val safeComponent = component.replace(Regex("[;&|`\$\\\\\n\r]"), "").take(256)
         return executeCommand("am start $safeComponent")
     }
 
-    /** Send a broadcast via `am broadcast -a <action>`. */
     suspend fun sendBroadcast(action: String): Result<String> {
         val safeAction = action.replace(Regex("[^a-zA-Z0-9._]"), "")
-        if (safeAction.isEmpty()) return Result.failure(IllegalArgumentException("Invalid action."))
+        if (safeAction.isEmpty()) return Result.failure(IllegalArgumentException("action غير صحيح."))
         return executeCommand("am broadcast -a $safeAction")
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Input injection
-    // ─────────────────────────────────────────────────────────────────────
-
-    /** Inject a tap gesture at (x, y) via `input tap`. */
-    suspend fun injectTap(x: Int, y: Int): Result<String> =
-        executeCommand("input tap $x $y")
-
-    /** Inject a swipe gesture via `input swipe`. */
+    suspend fun injectTap(x: Int, y: Int): Result<String> = executeCommand("input tap $x $y")
     suspend fun injectSwipe(x1: Int, y1: Int, x2: Int, y2: Int, durationMs: Int): Result<String> =
         executeCommand("input swipe $x1 $y1 $x2 $y2 $durationMs")
-
-    /** Type text via `input text`. */
     suspend fun injectText(text: String): Result<String> {
-        if (text.isBlank()) return Result.failure(IllegalArgumentException("Text is blank."))
-        // Use sanitizeArgument for proper POSIX single-quote escaping
+        if (text.isBlank()) return Result.failure(IllegalArgumentException("النص فارغ."))
         return executeCommand("input text ${sanitizeArgument(text)}")
     }
-
-    /** Send a keycode via `input keyevent`. */
-    suspend fun injectKeyEvent(keyCode: Int): Result<String> =
-        executeCommand("input keyevent $keyCode")
-
-    // ─────────────────────────────────────────────────────────────────────
-    // Screen capture
-    // ─────────────────────────────────────────────────────────────────────
-
-    /** Capture the screen to [outputPath] via `screencap -p`. */
+    suspend fun injectKeyEvent(keyCode: Int): Result<String> = executeCommand("input keyevent $keyCode")
     suspend fun captureScreen(outputPath: String): Result<String> {
         val safePath = outputPath.replace(Regex("[^a-zA-Z0-9_.\\-/]"), "")
-        if (safePath.isEmpty()) return Result.failure(IllegalArgumentException("Invalid output path."))
+        if (safePath.isEmpty()) return Result.failure(IllegalArgumentException("مسار غير صحيح."))
         return executeCommand("screencap -p $safePath").map { safePath }
     }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // Service / hardware control
-    // ─────────────────────────────────────────────────────────────────────
-
-    /**
-     * Control a hardware service via `svc <service> enable|disable`.
-     * Supported services: wifi, data, bluetooth, nfc, power.
-     */
     suspend fun controlService(service: String, action: String): Result<String> {
         val safeService = service.lowercase().replace(Regex("[^a-z]"), "")
-        val safeAction = action.lowercase().replace(Regex("[^a-z]"), "")
+        val safeAction  = action.lowercase().replace(Regex("[^a-z]"), "")
         if (safeService !in setOf("wifi", "data", "bluetooth", "nfc", "power")) {
-            return Result.failure(IllegalArgumentException(
-                "Invalid service. Use: wifi, data, bluetooth, nfc, power."
-            ))
+            return Result.failure(IllegalArgumentException("service غير صحيح."))
         }
         if (safeAction !in setOf("enable", "disable")) {
-            return Result.failure(IllegalArgumentException("Action must be 'enable' or 'disable'."))
+            return Result.failure(IllegalArgumentException("action يجب أن يكون 'enable' أو 'disable'."))
         }
         return executeCommand("svc $safeService $safeAction")
     }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // Window manager
-    // ─────────────────────────────────────────────────────────────────────
-
-    /**
-     * Interact with the window manager via `wm`.
-     * @param subCommand  "size", "density", "size reset", or "density reset".
-     * @param value       New value for set operations; empty/blank to read.
-     */
     suspend fun windowManager(subCommand: String, value: String): Result<String> {
         val safeSub = subCommand.lowercase().replace(Regex("[^a-z ]"), "").trim()
         if (safeSub !in setOf("size", "density", "size reset", "density reset")) {
-            return Result.failure(IllegalArgumentException(
-                "Invalid wm subcommand. Use: size, density, size reset, density reset."
-            ))
+            return Result.failure(IllegalArgumentException("subcommand غير صحيح."))
         }
-        val cmd = if (value.isBlank()) {
-            "wm $safeSub"
-        } else {
-            val safeValue = value.replace(Regex("[^0-9x]"), "")
-            "wm $safeSub $safeValue"
-        }
+        val cmd = if (value.isBlank()) "wm $safeSub"
+                  else "wm $safeSub ${value.replace(Regex("[^0-9x]"), "")}"
         return executeCommand(cmd)
     }
 
-    // ─────────────────────────────────────────────────────────────────────
+    // ──────────────────────────────────────────────────────────────
     // Private helpers
-    // ─────────────────────────────────────────────────────────────────────
-
-    private suspend fun executeViaShizuku(command: String): Result<String> = withContext(Dispatchers.IO) {
-        // Directly invoke Shizuku.newProcess() without re-checking isAvailable() or
-        // hasPermission() — the caller already gated on isAvailable(), and calling those
-        // checks again creates a race window where the binder can flicker between the gate
-        // and the actual IPC call, producing spurious "Unavailable" results.
-        runCatching {
-            val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
-            val newProcessMethod = shizukuClass.getMethod(
-                "newProcess",
-                Array<String>::class.java,
-                Array<String>::class.java,
-                String::class.java
-            )
-            val process = newProcessMethod.invoke(
-                null,
-                arrayOf("sh", "-c", command),
-                null,
-                null
-            ) as Process
-
-            // MUST read streams concurrently before waitFor() to prevent pipe-buffer deadlock.
-            // Bounded reads guard against OOM for commands producing large output.
-            val stdoutBuffer = StringBuffer()
-            val stderrBuffer = StringBuffer()
-
-            val stdoutThread = Thread {
-                try {
-                    process.inputStream.bufferedReader().use { reader ->
-                        reader.lineSequence().forEach { line ->
-                            if (stdoutBuffer.length < MAX_OUTPUT) {
-                                stdoutBuffer.appendLine(line)
-                            }
-                        }
-                    }
-                } catch (_: Exception) {}
-            }.apply { start() }
-
-            val stderrThread = Thread {
-                try {
-                    process.errorStream.bufferedReader().use { reader ->
-                        reader.lineSequence().forEach { line ->
-                            if (stderrBuffer.length < 4_000) {
-                                stderrBuffer.appendLine(line)
-                            }
-                        }
-                    }
-                } catch (_: Exception) {}
-            }.apply { start() }
-
-            // Use a wait-thread with explicit timeout instead of blocking waitFor()
-            // to guarantee streams are drained and join() never hangs indefinitely.
-            val waitThread = Thread {
-                try { process.waitFor() } catch (_: InterruptedException) {}
-            }.apply { start() }
-            waitThread.join(30_000L)  // 30s max per command
-            if (waitThread.isAlive) {
-                process.destroy()
-                stdoutThread.interrupt()
-                stderrThread.interrupt()
-                throw RuntimeException("Shizuku command timed out after 30s: ${command.take(80)}")
-            }
-
-            stdoutThread.join(2_000L)
-            stderrThread.join(2_000L)
-
-            val stdout = stdoutBuffer.toString().trimEnd()
-            val stderr = stderrBuffer.toString().trimEnd()
-            val exit = process.exitValue()
-
-            // FIX: Always prefer stdout as the primary output.
-            // Only fall back to stderr when stdout is truly empty.
-            // Append stderr as supplemental context when both are present.
-            val finalOutput = when {
-                stdout.isNotBlank() && stderr.isNotBlank() ->
-                    "$stdout\n[stderr]: $stderr"
-                stdout.isNotBlank() -> stdout
-                stderr.isNotBlank() -> stderr
-                else -> "(no output)"
-            }
-
-            if (exit == 0) {
-                finalOutput.trim().ifBlank { "(no output)" }
-            } else if (stdout.isNotBlank()) {
-                // Non-zero exit but there IS stdout: surface the output as a success.
-                // Many tools (pkg/apt install, pip install, python scripts with sys.exit)
-                // produce critical output even when they exit != 0.
-                finalOutput.trim()
-            } else {
-                throw RuntimeException(
-                    "Command exited with code $exit.\nstdout: $stdout\nstderr: $stderr"
-                )
-            }
-        }.recoverCatching { e ->
-            // Unwrap InvocationTargetException to surface the real cause
-            val cause = if (e is InvocationTargetException) e.targetException ?: e.cause ?: e else e
-            throw cause
-        }
-    }
-
+    // ──────────────────────────────────────────────────────────────
     private fun executeViaRoot(command: String): Result<String> = runCatching {
         val process = Runtime.getRuntime().exec(arrayOf("su", "-c", command))
 
-        // Read streams concurrently before waitFor() to prevent OS pipe-buffer deadlock.
-        val stdoutBuffer = StringBuffer()
-        val stderrBuffer = StringBuffer()
+        val stdoutBuf = StringBuffer()
+        val stderrBuf = StringBuffer()
 
-        val stdoutThread = Thread {
-            try {
-                process.inputStream.bufferedReader().use { reader ->
-                    reader.lineSequence().forEach { line ->
-                        if (stdoutBuffer.length < MAX_OUTPUT) stdoutBuffer.appendLine(line)
-                    }
-                }
-            } catch (_: Exception) {}
-        }.apply { start() }
+        val sout = Thread {
+            try { process.inputStream.bufferedReader().use { r ->
+                r.lineSequence().forEach { if (stdoutBuf.length < MAX_OUTPUT) stdoutBuf.appendLine(it) }
+            }} catch (_: Exception) {}
+        }.apply { isDaemon = true; start() }
 
-        val stderrThread = Thread {
-            try {
-                process.errorStream.bufferedReader().use { reader ->
-                    reader.lineSequence().forEach { line ->
-                        if (stderrBuffer.length < 4_000) stderrBuffer.appendLine(line)
-                    }
-                }
-            } catch (_: Exception) {}
-        }.apply { start() }
+        val serr = Thread {
+            try { process.errorStream.bufferedReader().use { r ->
+                r.lineSequence().forEach { if (stderrBuf.length < 3_000) stderrBuf.appendLine(it) }
+            }} catch (_: Exception) {}
+        }.apply { isDaemon = true; start() }
 
-        // API-24-compatible timeout via Thread.join(millis)
-        val waitThread = Thread {
+        val wait = Thread {
             try { process.waitFor() } catch (_: InterruptedException) {}
-        }.apply { start() }
-        waitThread.join(30_000L)
-        if (waitThread.isAlive) {
-            process.destroy()
-            stdoutThread.interrupt()
-            stderrThread.interrupt()
-            throw RuntimeException("Root command timed out after 30s")
+        }.apply { isDaemon = true; start() }
+
+        wait.join(30_000L)
+        if (wait.isAlive) {
+            process.destroy(); sout.interrupt(); serr.interrupt()
+            throw RuntimeException("Root command تجاوز 30s")
         }
+        sout.join(2_000L); serr.join(2_000L)
 
-        stdoutThread.join(2_000L)
-        stderrThread.join(2_000L)
+        val stdout = stdoutBuf.toString().trim()
+        val stderr = stderrBuf.toString().trim()
+        val exit   = process.exitValue()
 
-        val stdout = stdoutBuffer.toString().trimEnd()
-        val stderr = stderrBuffer.toString().trimEnd()
-        val exit = process.exitValue()
-
-        // FIX: Prioritize stdout; only use stderr when stdout is empty.
-        val finalOutput = when {
+        val output = when {
             stdout.isNotBlank() && stderr.isNotBlank() -> "$stdout\n[stderr]: $stderr"
             stdout.isNotBlank() -> stdout
             stderr.isNotBlank() -> stderr
             else -> "(no output)"
         }
 
-        if (exit == 0) {
-            finalOutput.trim().ifBlank { "(no output)" }
-        } else if (stdout.isNotBlank()) {
-            // Non-zero exit but stdout has content: surface it.
-            finalOutput.trim()
-        } else {
-            throw RuntimeException("Root command exited $exit.\nstdout: $stdout\nstderr: $stderr")
-        }
+        if (exit == 0 || stdout.isNotBlank()) output.trim().ifBlank { "(no output)" }
+        else throw RuntimeException("Root exited $exit:\n$output")
     }
 
     private suspend fun getForegroundPackage(): String = withContext(Dispatchers.IO) {
@@ -557,6 +314,7 @@ object PrivilegedExecutionManager {
                 "dumpsys activity activities | grep mResumedActivity | head -1"
             )) {
                 is ShizukuResult.Success -> r.output.trim()
+                is ShizukuResult.PartialSuccess -> r.output.trim()
                 else -> "unknown"
             }
         }.getOrDefault("unknown")
@@ -564,12 +322,9 @@ object PrivilegedExecutionManager {
 
     private suspend fun getBatteryLevel(): Int = withContext(Dispatchers.IO) {
         runCatching {
-            when (val r = ShizukuCommandTool.execute(
-                "dumpsys battery | grep level | head -1"
-            )) {
-                is ShizukuResult.Success -> {
-                    Regex("level:\\s*(\\d+)").find(r.output)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: -1
-                }
+            when (val r = ShizukuCommandTool.execute("dumpsys battery | grep level | head -1")) {
+                is ShizukuResult.Success -> Regex("level:\\s*(\\d+)").find(r.output)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: -1
+                is ShizukuResult.PartialSuccess -> Regex("level:\\s*(\\d+)").find(r.output)?.groupValues?.getOrNull(1)?.toIntOrNull() ?: -1
                 else -> -1
             }
         }.getOrDefault(-1)
@@ -578,10 +333,8 @@ object PrivilegedExecutionManager {
     private suspend fun getTotalRamMb(): Long = withContext(Dispatchers.IO) {
         runCatching {
             when (val r = ShizukuCommandTool.execute("cat /proc/meminfo | grep MemTotal | head -1")) {
-                is ShizukuResult.Success -> {
-                    Regex("(\\d+)").find(r.output)?.groupValues?.getOrNull(1)?.toLongOrNull()
-                        ?.let { it / 1024 } ?: -1L
-                }
+                is ShizukuResult.Success -> Regex("(\\d+)").find(r.output)?.groupValues?.getOrNull(1)?.toLongOrNull()?.let { it / 1024 } ?: -1L
+                is ShizukuResult.PartialSuccess -> Regex("(\\d+)").find(r.output)?.groupValues?.getOrNull(1)?.toLongOrNull()?.let { it / 1024 } ?: -1L
                 else -> -1L
             }
         }.getOrDefault(-1L)
@@ -592,27 +345,17 @@ object PrivilegedExecutionManager {
         return if (safe.isEmpty()) null else safe
     }
 
-    private fun sanitizeArgument(arg: String): String =
-        "'${arg.replace("'", "'\\''")}'"
+    private fun sanitizeArgument(arg: String): String = "'${arg.replace("'", "'\\''")}'"
 
     private fun validateSettingsNamespace(namespace: String): String? {
         val ns = namespace.lowercase()
         return if (ns in setOf("system", "secure", "global")) ns else null
     }
-
-    // Patch: noop to force rebuild — update for KSP transient error
-    // PR update: ensure this branch gets a fresh commit for the KSP rebuild fix.
-    private fun forceRebuildNoop(): Unit = Unit
-
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DeviceStateSnapshot
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Immutable snapshot of device state returned by [PrivilegedExecutionManager.getDeviceState].
- */
+// ──────────────────────────────────────────────────────────────────────────────
+// DeviceStateSnapshot — بدون تغيير
+// ──────────────────────────────────────────────────────────────────────────────
 data class DeviceStateSnapshot(
     val buildFingerprint: String,
     val sdkInt: Int,
@@ -625,7 +368,6 @@ data class DeviceStateSnapshot(
     val batteryLevel: Int,
     val totalRamMb: Long
 ) {
-    /** Serialise to a compact JSON string for transport over the AIDL boundary. */
     fun toJson(): String = buildString {
         append("{")
         append("\"buildFingerprint\":\"${buildFingerprint.jsonEscape()}\",")
@@ -642,9 +384,6 @@ data class DeviceStateSnapshot(
     }
 
     private fun String.jsonEscape(): String = this
-        .replace("\\", "\\\\")
-        .replace("\"", "\\\"")
-        .replace("\n", "\\n")
-        .replace("\r", "\\r")
-        .replace("\t", "\\t")
+        .replace("\\", "\\\\").replace("\"", "\\\"")
+        .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
 }

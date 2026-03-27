@@ -73,6 +73,9 @@ class CompositeToolManager(
         private const val ALARM_MINUTE_MAX = 59
     }
 
+    // ─── Execution Diagnostics ───────────────────────────────────────────────────
+    private val executionDiagnostics = OmniExecutionDiagnostics
+
     /**
      * Lazily constructed agentic-auth tool. Available only when both
      * [settingsRepository] and [apiKeyRepository] are supplied.
@@ -166,6 +169,9 @@ class CompositeToolManager(
         if (requestGitHubAuthTool != null) {
             addAll(RequestGitHubAuthenticationTool.getToolDefinitions())
         }
+
+        // ── Execution Diagnostics Tool ──
+        addAll(executionDiagnostics.getToolDefinitions())
 
         // ── Media control tool ──
         if (context != null) {
@@ -285,6 +291,12 @@ class CompositeToolManager(
         scopePath: String
     ): ToolExecutionResult {
         return when (name) {
+            // ── Execution Diagnostics tool ──
+            "execution_diagnostics" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                executionDiagnostics.execute(action, arguments)
+            }
+
             // ── Memory tools ──
             "remember_fact", "search_knowledge", "update_memory", "delete_memory" ->
                 memoryManager.executeTool(name, arguments)
@@ -595,6 +607,7 @@ class CompositeToolManager(
                     }
                 }
 
+                // Uses AdvancedRootShellTool which uses the fixed PrivilegedExecutionManager
                 val rootResult = AdvancedRootShellTool.execute(command = command)
                 rootResult
             }
