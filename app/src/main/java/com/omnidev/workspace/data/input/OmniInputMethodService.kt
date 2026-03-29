@@ -57,17 +57,19 @@ class OmniInputMethodService : InputMethodService() {
         }
 
         /**
-         * الإضافة الخارقة: دالة لتبديل الكيبورد وإرجاع التحكم للمستخدم
-         * الوكيل ينادي عليها بعد ما يخلص كتابة عشان المستخدم ميعلقش في الكيبورد المخفي
+         * Switches back to the previous IME or the next one in the list.
          */
         fun switchToPreviousKeyboard(): Boolean {
             val service = activeService ?: return false
             return try {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) { // API 28+
                     service.switchToPreviousInputMethod()
                 } else {
-                    service.switchToNextInputMethod(false)
+                    // FIX: Use the parameterless version for API < 28
+                    @Suppress("DEPRECATION")
+                    service.switchToNextInputMethod() 
                 }
+                true
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to switch keyboard", e)
                 false

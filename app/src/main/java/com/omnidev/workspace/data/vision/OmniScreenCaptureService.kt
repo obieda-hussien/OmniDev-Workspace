@@ -60,7 +60,12 @@ class OmniScreenCaptureService : Service() {
 
         // استلام بيانات الصلاحية من الـ Activity
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
-        val resultData = intent?.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)
+        val resultData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent?.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent?.getParcelableExtra(EXTRA_RESULT_DATA)
+        }
 
         if (resultCode != 0 && resultData != null) {
             startCapture(resultCode, resultData)
