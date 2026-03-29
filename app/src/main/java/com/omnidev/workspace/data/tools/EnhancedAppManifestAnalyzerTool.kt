@@ -446,11 +446,12 @@ object EnhancedAppManifestAnalyzerTool {
         try {
             val exportedActs = JSONArray()
             packageInfo.activities?.filter { it.exported }?.forEach { a ->
+                val comp = a as android.content.pm.ComponentInfo
                 val o = JSONObject()
-                o.put("name", a.name)
-                o.put("permission", a.permission)
-                o.put("bareExport", a.exported && a.permission == null)
-                o.put("amStart", "am start -n $pkg/${a.name}")
+                o.put("name", comp.name)
+                o.put("permission", comp.permission)
+                o.put("bareExport", comp.exported && comp.permission == null)
+                o.put("amStart", "am start -n $pkg/${comp.name}")
                 exportedActs.put(o)
             }
             root.put("exportedActivities", exportedActs)
@@ -459,11 +460,12 @@ object EnhancedAppManifestAnalyzerTool {
         try {
             val exportedSvcs = JSONArray()
             packageInfo.services?.filter { it.exported }?.forEach { s ->
+                val comp = s as android.content.pm.ComponentInfo
                 val o = JSONObject()
-                o.put("name", s.name)
-                o.put("permission", s.permission)
-                o.put("bareExport", s.exported && s.permission == null)
-                o.put("amStartService", "am startservice -n $pkg/${s.name}")
+                o.put("name", comp.name)
+                o.put("permission", comp.permission)
+                o.put("bareExport", comp.exported && comp.permission == null)
+                o.put("amStartService", "am startservice -n $pkg/${comp.name}")
                 exportedSvcs.put(o)
             }
             root.put("exportedServices", exportedSvcs)
@@ -472,11 +474,12 @@ object EnhancedAppManifestAnalyzerTool {
         try {
             val exportedRcvs = JSONArray()
             packageInfo.receivers?.filter { it.exported }?.forEach { r ->
+                val comp = r as android.content.pm.ComponentInfo
                 val o = JSONObject()
-                o.put("name", r.name)
-                o.put("permission", r.permission)
-                o.put("bareExport", r.exported && r.permission == null)
-                o.put("amBroadcast", "am broadcast -n $pkg/${r.name} -a <ACTION>")
+                o.put("name", comp.name)
+                o.put("permission", comp.permission)
+                o.put("bareExport", comp.exported && comp.permission == null)
+                o.put("amBroadcast", "am broadcast -n $pkg/${comp.name} -a <ACTION>")
                 exportedRcvs.put(o)
             }
             root.put("exportedReceivers", exportedRcvs)

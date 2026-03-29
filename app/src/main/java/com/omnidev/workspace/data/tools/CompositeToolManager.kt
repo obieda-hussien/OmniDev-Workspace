@@ -17,6 +17,8 @@ import java.text.SimpleDateFormat
 import java.net.URI
 import java.util.Date
 import java.util.Locale
+import android.content.pm.PackageManager
+import android.os.Build
 
 /**
  * Delegates tool execution to [FileToolManager], [MemoryManager], and the suite of

@@ -277,7 +277,7 @@ object AppManifestAnalyzerTool {
                 val exportedProviders = info.providers?.count { it.exported } ?: 0
                 val totalExported = exportedActivities + exportedServices + exportedReceivers + exportedProviders
 
-                val bareExportedActivities = info.activities?.count { it.exported && it.permission == null } ?: 0
+                val bareExportedActivities = info.activities?.count { it.exported && (it as android.content.pm.ComponentInfo).permission == null } ?: 0
                 val bareExportedServices = info.services?.count { it.exported && it.permission == null } ?: 0
                 val bareExportedReceivers = info.receivers?.count { it.exported && it.permission == null } ?: 0
 
@@ -418,10 +418,10 @@ object AppManifestAnalyzerTool {
         if (allowBackup) findings.add("⚠️  ALLOW_BACKUP=true — app data can be extracted via `adb backup`")
         if (isTestOnly) findings.add("ℹ️  TEST_ONLY=true — installed only for testing")
 
-        val bareActivities = packageInfo.activities?.filter { it.exported && it.permission == null } ?: emptyList()
-        val bareServices = packageInfo.services?.filter { it.exported && it.permission == null } ?: emptyList()
-        val bareReceivers = packageInfo.receivers?.filter { it.exported && it.permission == null } ?: emptyList()
-        val bareProviders = packageInfo.providers?.filter { it.exported && it.permission == null } ?: emptyList()
+        val bareActivities = packageInfo.activities?.filter { it.exported && (it as android.content.pm.ComponentInfo).permission == null } ?: emptyList()
+        val bareServices = packageInfo.services?.filter { it.exported && (it as android.content.pm.ComponentInfo).permission == null } ?: emptyList()
+        val bareReceivers = packageInfo.receivers?.filter { it.exported && (it as android.content.pm.ComponentInfo).permission == null } ?: emptyList()
+        val bareProviders = packageInfo.providers?.filter { it.exported && (it as android.content.pm.ComponentInfo).permission == null } ?: emptyList()
 
         if (bareActivities.isNotEmpty()) {
             findings.add("⚠️  ${bareActivities.size} exported Activity(s) with NO permission guard:")
@@ -504,8 +504,9 @@ object AppManifestAnalyzerTool {
                 sb.appendLine("  📤 Exported (${exported.size}):")
                 exported.forEach { activity ->
                     val shortName = activity.name.removePrefix(pkg)
-                    val hasPermission = activity.permission != null
-                    val guard = if (hasPermission) " [🔐 ${activity.permission?.substringAfterLast('.')} ]" else " [🔓 OPEN]"
+                    val comp = activity as android.content.pm.ComponentInfo
+                    val hasPermission = comp.permission != null
+                    val guard = if (hasPermission) " [🔐 ${comp.permission?.substringAfterLast('.')} ]" else " [🔓 OPEN]"
                     sb.appendLine("    • $shortName$guard")
                     sb.appendLine("      ▶ am start -n $pkg/${activity.name}")
                     val intentFilters = resolveActivityIntentFilters(pm, pkg, activity.name)
