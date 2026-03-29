@@ -1,10 +1,12 @@
 package com.omnidev.workspace.data.input
 
+import android.annotation.SuppressLint
 import android.inputmethodservice.InputMethodService
 import android.os.Build
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -67,7 +69,7 @@ class OmniInputMethodService : InputMethodService() {
                 } else {
                     // FIX: Use the legacy method signature for API < 28
                     @Suppress("DEPRECATION")
-                    service.switchToNextInputMethod(false)
+                    service.switchToNextInputMethod()
                 }
                 true
             } catch (e: Exception) {
