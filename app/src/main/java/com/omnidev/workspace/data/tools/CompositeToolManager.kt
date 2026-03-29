@@ -138,6 +138,52 @@ class CompositeToolManager(
             addAll(PackageInstallerTool.getToolDefinitions())
             addAll(AdvancedRootShellTool.getToolDefinitions())
             addAll(AppManifestAnalyzerTool.getToolDefinitions())
+            // Enhanced manifest analyzer companion tool (signatures, native libs, cache)
+            add(ToolDefinition(
+                name = "enhanced_manifest_analyzer",
+                description = "Enhanced manifest analysis: signatures (SHA1/SHA256), native libraries, apk metadata, and exported component counts. Returns JSON.",
+                parameters = listOf(
+                    ToolParameter(name = "target_package", type = "string", description = "Package name of the app to analyze", required = true)
+                )
+            ))
+            add(ToolDefinition(
+                name = "enhanced_intent_resolver",
+                description = "Resolve intents across activities, services, and receivers. Use action, uri, or mime_type.",
+                parameters = listOf(
+                    ToolParameter(name = "action", type = "string", description = "Intent action (default ACTION_VIEW)", required = false),
+                    ToolParameter(name = "uri", type = "string", description = "URI to resolve (e.g., 'https://example.com')", required = false),
+                    ToolParameter(name = "mime_type", type = "string", description = "MIME type to resolve (e.g., 'image/png')", required = false)
+                )
+            ))
+            add(ToolDefinition(
+                name = "enhanced_cached_analysis",
+                description = "Return cached enhanced analysis JSON for a package if available and fresh (1h).",
+                parameters = listOf(
+                    ToolParameter(name = "target_package", type = "string", description = "Package name", required = true)
+                )
+            ))
+            add(ToolDefinition(
+                name = "enhanced_manifest_to_html",
+                description = "Export enhanced manifest analysis to a single-file HTML report stored in cacheDir. Returns absolute file path on success.",
+                parameters = listOf(
+                    ToolParameter(name = "target_package", type = "string", description = "Package name", required = true)
+                )
+            ))
+            // Enhanced network security and attack-surface tools
+            add(ToolDefinition(
+                name = "enhanced_network_security",
+                description = "Extract networkSecurityConfig XML snippets packaged in the APK and run quick heuristics (cleartext/trust-anchors). Returns JSON.",
+                parameters = listOf(
+                    ToolParameter(name = "target_package", type = "string", description = "Package name", required = true)
+                )
+            ))
+            add(ToolDefinition(
+                name = "enhanced_attack_surface",
+                description = "Build an attack-surface JSON listing exported components, bare exports, and useful am/content commands.",
+                parameters = listOf(
+                    ToolParameter(name = "target_package", type = "string", description = "Package name", required = true)
+                )
+            ))
             addAll(WebScraperTool.getToolDefinitions())
             addAll(AdvancedFileTools.getToolDefinitions())
             addAll(OmniCoreAgentTool.getToolDefinitions())
@@ -621,6 +667,71 @@ class CompositeToolManager(
                     targetPackage = arguments["target_package"] ?: return missingArg("target_package"),
                     filter = arguments["filter"]
                 )
+            }
+            "enhanced_manifest_analyzer" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Enhanced manifest analyzer requires Android context.", isError = true)
+                val pkg = arguments["target_package"] ?: return missingArg("target_package")
+                val pm = ctx.packageManager
+                val flags = PackageManager.GET_ACTIVITIES or
+                    PackageManager.GET_SERVICES or
+                    PackageManager.GET_RECEIVERS or
+                    PackageManager.GET_PROVIDERS or
+                    PackageManager.GET_PERMISSIONS or
+                    PackageManager.GET_META_DATA
+                val packageInfo = try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(flags.toLong()))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        pm.getPackageInfo(pkg, flags)
+                    }
+                } catch (e: Exception) { null }
+
+                if (packageInfo == null) return ToolExecutionResult("Package '$pkg' not found.", isError = true)
+                val resultJson = EnhancedAppManifestAnalyzerTool.buildEnhancedJson(ctx, packageInfo)
+                EnhancedAppManifestAnalyzerTool.putCachedAnalysis(ctx, pkg, resultJson)
+                ToolExecutionResult(resultJson.toString(2))
+            }
+            "intent_resolver" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Intent resolver tool requires Android context.", isError = true)
+                AppManifestAnalyzerTool.executeIntentResolver(
+                    context = ctx,
+                    action = arguments["action"],
+                    uri = arguments["uri"],
+                    mimeType = arguments["mime_type"]
+                )
+            }
+            "enhanced_intent_resolver" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Enhanced intent resolver requires Android context.", isError = true)
+                val res = EnhancedAppManifestAnalyzerTool.resolveIntentAll(
+                    context = ctx,
+                    action = arguments["action"],
+                    uri = arguments["uri"],
+                    mimeType = arguments["mime_type"]
+                )
+                ToolExecutionResult(res.toString(2))
+            }
+            "batch_manifest_analyzer" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Batch manifest analyzer requires Android context.", isError = true)
+                AppManifestAnalyzerTool.executeBatch(
+                    context = ctx,
+                    packages = arguments["packages"] ?: return missingArg("packages")
+                )
+            }
+            "enhanced_cached_analysis" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Enhanced cached analysis requires Android context.", isError = true)
+                val pkg = arguments["target_package"] ?: return missingArg("target_package")
+                val cached = EnhancedAppManifestAnalyzerTool.getCachedAnalysis(ctx, pkg)
+                if (cached == null) {
+                    ToolExecutionResult("No fresh cached analysis for '$pkg'.", isError = false)
+                } else {
+                    ToolExecutionResult(cached.toString(2))
+                }
             }
 
             // ── Privileged execution tool (Shizuku / rish / root via PrivilegedExecutionManager) ──
