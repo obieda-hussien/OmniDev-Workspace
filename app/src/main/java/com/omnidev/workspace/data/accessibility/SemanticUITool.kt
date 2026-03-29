@@ -24,6 +24,7 @@ import kotlinx.coroutines.withContext
  * - `back`        — Presses the global BACK button
  * - `home`        — Presses the global HOME button
  * - `tap_xy`      — Fallback: taps at raw X/Y coordinates via gesture dispatch
+ * - `force_type`  — Hardware text injection via Shizuku (Bypasses Termux/WebView limitations)
  *
  * The node IDs (e.g., "N1", "N2") are ephemeral — they are regenerated on every
  * `dump_tree` call. The agent MUST call `dump_tree` first, then reference the
@@ -56,6 +57,7 @@ object SemanticUITool {
                 "'swipe' (gesture swipe by direction), 'tap_xy' (fallback: tap raw coordinates), " +
                 "'force_click' (hardware tap via Shizuku — unstoppable, bypasses app restrictions), " +
                 "'force_long_click' (hardware long-press via Shizuku), " +
+                "'force_type' (hardware text injection via Shizuku — BEST for Termux or complex WebViews), " +
                 "'auto_enable' (auto-enable accessibility service via Shizuku).",
             parameters = listOf(
                 ToolParameter(
@@ -64,20 +66,21 @@ object SemanticUITool {
                     description = "Action: 'dump_tree', 'click', 'long_click', 'type', " +
                         "'scroll', 'back', 'home', 'recents', 'swipe', 'tap_xy', " +
                         "'force_click' (Shizuku hardware tap), " +
-                        "'force_long_click' (Shizuku hardware long-press), or 'auto_enable'.",
+                        "'force_long_click' (Shizuku hardware long-press), " +
+                        "'force_type' (Shizuku hardware typing), or 'auto_enable'.",
                     required = true
                 ),
                 ToolParameter(
                     name = "node_id",
                     type = "string",
                     description = "Semantic node ID from dump_tree output (e.g., 'N3'). " +
-                        "Required for 'click', 'long_click', 'type', 'scroll'.",
+                        "Required for 'click', 'long_click', 'type', 'scroll'. Optional for 'force_type'.",
                     required = false
                 ),
                 ToolParameter(
                     name = "text",
                     type = "string",
-                    description = "Text to type. Required for 'type' action.",
+                    description = "Text to type. Required for 'type' and 'force_type' actions.",
                     required = false
                 ),
                 ToolParameter(
@@ -159,10 +162,11 @@ object SemanticUITool {
                 "tap_xy" -> tapXY(params["x"], params["y"])
                 "force_click" -> forceClick(params["node_id"])
                 "force_long_click" -> forceLongClick(params["node_id"])
+                "force_type" -> forceType(params["text"], params["node_id"])
                 else -> ToolExecutionResult(
                     "Unknown semantic_ui action: '$action'. " +
                         "Supported: dump_tree, click, long_click, type, scroll, back, home, recents, swipe, " +
-                        "tap_xy, force_click, force_long_click, auto_enable.",
+                        "tap_xy, force_click, force_long_click, force_type, auto_enable.",
                     isError = true
                 )
             }
@@ -521,6 +525,33 @@ object SemanticUITool {
         val isError = result.startsWith("❌")
         return ToolExecutionResult(
             if (!isError) "✅ Force-long-clicked [$nodeId] via Shizuku hardware long-press" else result,
+            isError = isError
+        )
+    }
+
+    /**
+     * Force-types text via Shizuku ADB injection.
+     * Solves the Termux / Custom WebView input limitations.
+     */
+    private suspend fun forceType(text: String?, nodeId: String?): ToolExecutionResult {
+        if (text.isNullOrBlank()) {
+            return ToolExecutionResult("Missing 'text' for force_type action.", isError = true)
+        }
+
+        var fallbackNode: AccessibilityNodeInfo? = null
+        if (!nodeId.isNullOrBlank()) {
+            val parseResult = lastParseResult
+            if (parseResult != null) {
+                fallbackNode = parseResult.nodeMap[nodeId.uppercase()]
+            }
+        }
+
+        val result = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            GodModeAccessibility.hybridType(text, fallbackNode)
+        }
+        val isError = result.startsWith("❌")
+        return ToolExecutionResult(
+            if (!isError) "✅ Force-typed text via Shizuku hardware injection" else result,
             isError = isError
         )
     }
