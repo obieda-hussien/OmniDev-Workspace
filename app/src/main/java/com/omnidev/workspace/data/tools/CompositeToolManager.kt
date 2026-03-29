@@ -409,13 +409,13 @@ class CompositeToolManager(
 
             // ── Git manager tool ──
             "git_manager" ->
-                GitManagerTool.executeTool(name, arguments, scopePath)
+                GitManagerTool.executeTool(name, arguments, scopePath ?: "") // <--- FIX HERE
 
             // ── Environment / advanced terminal tools ──
             "advanced_terminal", "setup_build_environment" -> {
                 val env = environmentSetupManager
                     ?: return ToolExecutionResult("Build environment manager not configured.", isError = true)
-                env.executeTool(name, arguments, scopePath)
+                env.executeTool(name, arguments, scopePath ?: "") // <--- FIX HERE
             }
 
             // ── Notification capture tool ──
