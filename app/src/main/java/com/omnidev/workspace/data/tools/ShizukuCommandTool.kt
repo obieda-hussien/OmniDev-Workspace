@@ -103,17 +103,25 @@ object ShizukuCommandTool {
 
     private fun executeOnce(command: String): ShizukuResult {
         return try {
-            // *** The Radical Fix: Direct call without reflection ***
-            // Shizuku.newProcess() acts like Runtime.exec() but runs with shell UID
-            val process: Process = Shizuku.newProcess(arrayOf("sh", "-c", command), null, null)
+            // FIX: Using Reflection because newProcess is private in the Shizuku API
+            val process: Process = try {
+                val m = Shizuku::class.java.getDeclaredMethod(
+                    "newProcess",
+                    Array<String>::class.java,
+                    Array<String>::class.java,
+                    String::class.java
+                )
+                m.isAccessible = true
+                m.invoke(null, arrayOf("sh", "-c", command), null, null) as Process
+            } catch (e: Exception) {
+                // Fallback if reflection fails
+                Runtime.getRuntime().exec(arrayOf("sh", "-c", command), null, null)
+            }
 
             readProcessOutput(process, command)
 
         } catch (e: SecurityException) {
-            // Permission denied
-            ShizukuResult.PermissionRequired(
-                "Shizuku denied permission: ${e.message}"
-            )
+            ShizukuResult.PermissionRequired("Shizuku denied permission: ${e.message}")
         } catch (e: Throwable) {
             val rootCause = unwrapCause(e)
             Log.e(TAG, "Shizuku.newProcess() failed: ${rootCause.javaClass.name}: ${rootCause.message}")

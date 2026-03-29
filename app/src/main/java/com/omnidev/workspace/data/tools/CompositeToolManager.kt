@@ -333,7 +333,7 @@ class CompositeToolManager(
     override suspend fun executeTool(
         name: String,
         arguments: Map<String, String>,
-        scopePath: String
+        scopePath: String? // <--- FIX: Added ? to match interface
     ): ToolExecutionResult {
         return when (name) {
             // ── Execution Diagnostics tool ──

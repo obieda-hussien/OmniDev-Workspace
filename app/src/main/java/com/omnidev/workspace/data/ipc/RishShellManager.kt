@@ -266,14 +266,24 @@ class RishShellManager(private val context: Context) {
      * Executes the command via Shizuku.newProcess() with the rish DEX as CLASSPATH.
      * This executes the command with UID=shell (just like adb shell).
      */
-    private fun runCommandViaShizuku(dex: File, command: String): Result<String> {
+        private fun runCommandViaShizuku(dex: File, command: String): Result<String> {
         return try {
-            // Build the full command: CLASSPATH=<dex> app_process /system/bin rikka.shizuku.Shell --sh -c <cmd>
             val fullCmd = "CLASSPATH=${shellEscape(dex.absolutePath)} $APP_PROCESS /system/bin $SHELL_CLASS --sh -c ${shellEscape(command)}"
 
-            // FIX: Directly use Shizuku.newProcess() instead of Reflection, as it is public in modern Shizuku API (v13+)
-            // Using Runtime.exec() as a fallback defeats the purpose of Shizuku (it falls back to App UID).
-            val process: Process = Shizuku.newProcess(arrayOf("sh", "-c", fullCmd), RISH_ENV, null)
+            // FIX: Restored Reflection for private Shizuku.newProcess
+            val process: Process = try {
+                val m = Shizuku::class.java.getDeclaredMethod(
+                    "newProcess",
+                    Array<String>::class.java,
+                    Array<String>::class.java,
+                    String::class.java
+                )
+                m.isAccessible = true
+                @Suppress("UNCHECKED_CAST")
+                m.invoke(null, arrayOf("sh", "-c", fullCmd), RISH_ENV, null) as Process
+            } catch (e: Exception) {
+                Runtime.getRuntime().exec(arrayOf("sh", "-c", fullCmd), RISH_ENV, null)
+            }
 
             readProcessOutputToResult(process, command)
 

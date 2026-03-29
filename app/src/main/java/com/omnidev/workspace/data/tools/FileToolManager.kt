@@ -240,8 +240,9 @@ class FileToolManager(
     override suspend fun executeTool(
         name: String,
         arguments: Map<String, String>,
-        scopePath: String
+        scopePath: String? // <--- FIX: Added ? to match interface
     ): ToolExecutionResult {
+    val safeScopePath = scopePath ?: "" 
         return try {
             when (name) {
                 // ── God Mode extended file operations ────────────────────────────
