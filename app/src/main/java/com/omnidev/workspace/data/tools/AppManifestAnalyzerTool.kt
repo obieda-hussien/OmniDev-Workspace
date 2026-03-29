@@ -320,7 +320,7 @@ object AppManifestAnalyzerTool {
 
         appendLine("═══ Manifest Analysis: $pkg ═══")
         appendLine("Label      : $label")
-        appendLine("Version    : ${packageInfo.versionName ?: "?"} (code: ${packageInfo.longVersionCode})")
+        appendLine("Version    : ${packageInfo.versionName ?: "?"} (code: ${if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) packageInfo.longVersionCode else packageInfo.versionCode.toLong()})")
         appendLine("Target SDK : ${appInfo?.targetSdkVersion ?: "?"}")
         appendLine("Min SDK    : ${appInfo?.minSdkVersion ?: "?"}")
         appendLine("Install    : ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date(packageInfo.firstInstallTime))}")
