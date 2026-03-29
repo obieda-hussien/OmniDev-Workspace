@@ -65,9 +65,9 @@ class OmniInputMethodService : InputMethodService() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) { // API 28+
                     service.switchToPreviousInputMethod()
                 } else {
-                    // FIX: Use the parameterless version for API < 28
+                    // FIX: Use the legacy method signature for API < 28
                     @Suppress("DEPRECATION")
-                    service.switchToNextInputMethod() 
+                    service.switchToNextInputMethod(false)
                 }
                 true
             } catch (e: Exception) {
