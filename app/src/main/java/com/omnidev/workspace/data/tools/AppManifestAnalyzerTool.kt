@@ -320,7 +320,12 @@ object AppManifestAnalyzerTool {
 
         appendLine("═══ Manifest Analysis: $pkg ═══")
         appendLine("Label      : $label")
-        appendLine("Version    : ${packageInfo.versionName ?: "?"} (code: ${if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) packageInfo.longVersionCode else packageInfo.versionCode.toLong()})")
+        val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            @Suppress("NewApi") packageInfo.longVersionCode
+        } else {
+            packageInfo.versionCode.toLong()
+        }
+        appendLine("Version    : ${packageInfo.versionName ?: "?"} (code: $versionCode)")
         appendLine("Target SDK : ${appInfo?.targetSdkVersion ?: "?"}")
         appendLine("Min SDK    : ${appInfo?.minSdkVersion ?: "?"}")
         appendLine("Install    : ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date(packageInfo.firstInstallTime))}")
@@ -369,7 +374,12 @@ object AppManifestAnalyzerTool {
         root.put("package", pkg)
         root.put("label", appInfo?.let { pm.getApplicationLabel(it).toString() } ?: "Unknown")
         root.put("versionName", packageInfo.versionName ?: "?")
-        root.put("versionCode", packageInfo.longVersionCode)
+        val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            @Suppress("NewApi") packageInfo.longVersionCode
+        } else {
+            packageInfo.versionCode.toLong()
+        }
+        root.put("versionCode", versionCode)
         root.put("targetSdk", appInfo?.targetSdkVersion ?: -1)
         root.put("minSdk", appInfo?.minSdkVersion ?: -1)
 
@@ -706,7 +716,7 @@ object AppManifestAnalyzerTool {
         requested.forEach { perm ->
             try {
                 val pi = pm.getPermissionInfo(perm, 0)
-                val base = pi.protectionLevel and PermissionInfo.PROTECTION_MASK_BASE
+                @Suppress("DEPRECATION") val base = pi.protectionLevel and PermissionInfo.PROTECTION_MASK_BASE
                 when (base) {
                     PermissionInfo.PROTECTION_DANGEROUS -> dangerous.add(perm)
                     PermissionInfo.PROTECTION_SIGNATURE -> signature.add(perm)
@@ -912,7 +922,8 @@ object AppManifestAnalyzerTool {
             permInfo.requestedPermissions?.forEach { perm ->
                 try {
                     val pi = pm.getPermissionInfo(perm, 0)
-                    when (pi.protectionLevel and PermissionInfo.PROTECTION_MASK_BASE) {
+                    val base = @Suppress("DEPRECATION") pi.protectionLevel and PermissionInfo.PROTECTION_MASK_BASE
+                    when (base) {
                         PermissionInfo.PROTECTION_DANGEROUS -> dangerousArr.put(perm)
                         PermissionInfo.PROTECTION_SIGNATURE -> signatureArr.put(perm)
                         else -> normalArr.put(perm)

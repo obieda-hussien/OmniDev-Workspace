@@ -137,7 +137,10 @@ object EnhancedAppManifestAnalyzerTool {
 
         val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             PackageManager.GET_SIGNING_CERTIFICATES
-        } else PackageManager.GET_SIGNATURES
+        } else {
+                @Suppress("DEPRECATION")
+                PackageManager.GET_SIGNATURES
+            }
 
         val installed = try {
             pm.getInstalledPackages(flags)
@@ -303,7 +306,12 @@ object EnhancedAppManifestAnalyzerTool {
         root.put("package", pkg)
         root.put("label", packageInfo.applicationInfo?.let { pm.getApplicationLabel(it).toString() } ?: "?")
         root.put("versionName", packageInfo.versionName ?: "?")
-        root.put("versionCode", packageInfo.longVersionCode)
+        val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            @Suppress("NewApi") packageInfo.longVersionCode
+        } else {
+            packageInfo.versionCode.toLong()
+        }
+        root.put("versionCode", versionCode)
 
         // signatures
         try {

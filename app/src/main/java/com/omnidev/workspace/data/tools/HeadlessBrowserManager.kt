@@ -60,7 +60,7 @@ class HeadlessBrowserManager(context: Context) {
             val wv = WebView(appContext).apply {
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
-                settings.databaseEnabled = true
+                @Suppress("deprecation") settings.databaseEnabled = true
                 settings.loadWithOverviewMode = true
                 settings.useWideViewPort = true
                 settings.blockNetworkImage = true // faster loading

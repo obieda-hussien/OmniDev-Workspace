@@ -1390,7 +1390,7 @@ private fun BubbleInputRow(
                     )
             ) {
                 Icon(
-                    Icons.Filled.Send,
+                    Icons.AutoMirrored.Filled.Send,
                     contentDescription = "Send",
                     tint = if (inputText.isNotBlank())
                         MaterialTheme.colorScheme.onPrimary
