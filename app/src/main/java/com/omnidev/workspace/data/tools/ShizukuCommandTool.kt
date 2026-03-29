@@ -105,11 +105,20 @@ object ShizukuCommandTool {
         return try {
             // *** الإصلاح الجذري: استدعاء مباشر بدون reflection ***
             // Shizuku.newProcess() مشابه لـ Runtime.exec() لكن يشغّل بـ shell UID
-            val process: Process = Shizuku.newProcess(
-                arrayOf("sh", "-c", command),   // cmd array
-                null,                            // env (null = inherit)
-                null                             // workdir (null = /system/bin)
-            )
+            val process: Process = try {
+                val m = Shizuku::class.java.getDeclaredMethod(
+                    "newProcess",
+                    Array<String>::class.java,
+                    Array<String>::class.java,
+                    String::class.java
+                )
+                m.isAccessible = true
+                @Suppress("UNCHECKED_CAST")
+                m.invoke(null, arrayOf("sh", "-c", command), null, null) as Process
+            } catch (e: NoSuchMethodException) {
+                // Fall back to Runtime.exec (app UID) if reflective access fails
+                Runtime.getRuntime().exec(arrayOf("sh", "-c", command), null, null)
+            }
 
             readProcessOutput(process, command)
 

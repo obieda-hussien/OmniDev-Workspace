@@ -271,12 +271,21 @@ class RishShellManager(private val context: Context) {
             // بناء الأمر الكامل: CLASSPATH=<dex> app_process /system/bin rikka.shizuku.Shell --sh -c <cmd>
             val fullCmd = "CLASSPATH=${shellEscape(dex.absolutePath)} $APP_PROCESS /system/bin $SHELL_CLASS --sh -c ${shellEscape(command)}"
 
-            // *** الإصلاح: Shizuku.newProcess() → shell UID ***
-            val process: Process = Shizuku.newProcess(
-                arrayOf("sh", "-c", fullCmd),
-                RISH_ENV,
-                null
-            )
+            // *** الإصلاح: attempt reflective call to Shizuku.newProcess (private in some versions) ***
+            val process: Process = try {
+                val m = Shizuku::class.java.getDeclaredMethod(
+                    "newProcess",
+                    Array<String>::class.java,
+                    Array<String>::class.java,
+                    String::class.java
+                )
+                m.isAccessible = true
+                @Suppress("UNCHECKED_CAST")
+                m.invoke(null, arrayOf("sh", "-c", fullCmd), RISH_ENV, null) as Process
+            } catch (e: NoSuchMethodException) {
+                // Fall back to Runtime.exec (app UID) if reflective access fails
+                Runtime.getRuntime().exec(arrayOf("sh", "-c", fullCmd), RISH_ENV, null)
+            }
 
             readProcessOutputToResult(process, command)
 
