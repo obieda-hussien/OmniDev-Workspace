@@ -58,20 +58,19 @@ class OmniInputMethodService : InputMethodService() {
             return activeService?.currentInputConnection?.getTextBeforeCursor(length, 0)?.toString()
         }
 
-        /**
+                /**
          * Switches back to the previous IME or the next one in the list.
          */
-        @SuppressLint("NewApi")
         fun switchToPreviousKeyboard(): Boolean {
             val service = activeService ?: return false
             return try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) { // API 28+
                     service.switchToPreviousInputMethod()
+                    true
                 } else {
-                    val imm = service.getSystemService(InputMethodManager::class.java)
-                    imm?.switchToNextInputMethod(service.window.windowToken, false)
+                    Log.w(TAG, "switchToPreviousKeyboard requires Android 9+ (API 28+).")
+                    false
                 }
-                true
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to switch keyboard", e)
                 false
