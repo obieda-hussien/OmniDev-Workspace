@@ -987,14 +987,18 @@ object AppManifestAnalyzerTool {
     // Helper: safely read permission property from any ComponentInfo-derived object
     fun getComponentPermission(component: Any?): String? {
         return try {
-            (component as? android.content.pm.PackageItemInfo)?.permission
+            (component as? android.content.pm.PackageItemInfo)?.let {
+                it.javaClass.getField("permission").get(it) as? String
+            }
         } catch (_: Exception) { null }
     }
 
     // Helper: prefer readPermission > writePermission > permission for ProviderInfo
     fun getProviderAnyPermission(provider: android.content.pm.ProviderInfo?): String? {
         return try {
-            provider?.readPermission ?: provider?.writePermission ?: (provider as? android.content.pm.PackageItemInfo)?.permission
+            provider?.readPermission ?: provider?.writePermission ?: (provider as? android.content.pm.PackageItemInfo)?.let {
+                it.javaClass.getField("permission").get(it) as? String
+            }
         } catch (_: Exception) { null }
     }
 
