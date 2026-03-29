@@ -42,7 +42,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
@@ -1390,7 +1390,7 @@ private fun BubbleInputRow(
                     )
             ) {
                 Icon(
-                    Send,
+                    Icons.Filled.Send,
                     contentDescription = "Send",
                     tint = if (inputText.isNotBlank())
                         MaterialTheme.colorScheme.onPrimary
