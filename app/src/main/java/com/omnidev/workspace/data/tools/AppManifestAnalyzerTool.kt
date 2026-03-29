@@ -277,9 +277,9 @@ object AppManifestAnalyzerTool {
                 val exportedProviders = info.providers?.count { it.exported } ?: 0
                 val totalExported = exportedActivities + exportedServices + exportedReceivers + exportedProviders
 
-                val bareExportedActivities = info.activities?.count { it.exported && (it as android.content.pm.ComponentInfo).permission == null } ?: 0
-                val bareExportedServices = info.services?.count { it.exported && it.permission == null } ?: 0
-                val bareExportedReceivers = info.receivers?.count { it.exported && it.permission == null } ?: 0
+                val bareExportedActivities = info.activities?.count { it.exported && getComponentPermission(it) == null } ?: 0
+                val bareExportedServices = info.services?.count { it.exported && getComponentPermission(it) == null } ?: 0
+                val bareExportedReceivers = info.receivers?.count { it.exported && getComponentPermission(it) == null } ?: 0
 
                 val debuggable = (appInfo?.flags?.and(android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) ?: 0) != 0
                 val allowBackup = (appInfo?.flags?.and(android.content.pm.ApplicationInfo.FLAG_ALLOW_BACKUP) ?: 0) != 0
@@ -418,10 +418,10 @@ object AppManifestAnalyzerTool {
         if (allowBackup) findings.add("⚠️  ALLOW_BACKUP=true — app data can be extracted via `adb backup`")
         if (isTestOnly) findings.add("ℹ️  TEST_ONLY=true — installed only for testing")
 
-        val bareActivities = packageInfo.activities?.filter { it.exported && (it as android.content.pm.ComponentInfo).permission == null } ?: emptyList()
-        val bareServices = packageInfo.services?.filter { it.exported && (it as android.content.pm.ComponentInfo).permission == null } ?: emptyList()
-        val bareReceivers = packageInfo.receivers?.filter { it.exported && (it as android.content.pm.ComponentInfo).permission == null } ?: emptyList()
-        val bareProviders = packageInfo.providers?.filter { it.exported && (it as android.content.pm.ComponentInfo).permission == null } ?: emptyList()
+        val bareActivities = packageInfo.activities?.filter { it.exported && getComponentPermission(it) == null } ?: emptyList()
+        val bareServices = packageInfo.services?.filter { it.exported && getComponentPermission(it) == null } ?: emptyList()
+        val bareReceivers = packageInfo.receivers?.filter { it.exported && getComponentPermission(it) == null } ?: emptyList()
+        val bareProviders = packageInfo.providers?.filter { it.exported && getComponentPermission(it) == null } ?: emptyList()
 
         if (bareActivities.isNotEmpty()) {
             findings.add("⚠️  ${bareActivities.size} exported Activity(s) with NO permission guard:")
@@ -505,8 +505,9 @@ object AppManifestAnalyzerTool {
                 exported.forEach { activity ->
                     val shortName = activity.name.removePrefix(pkg)
                     val comp = activity as android.content.pm.ComponentInfo
-                    val hasPermission = comp.permission != null
-                    val guard = if (hasPermission) " [🔐 ${comp.permission?.substringAfterLast('.')} ]" else " [🔓 OPEN]"
+                    val compPerm = getComponentPermission(activity)
+                    val hasPermission = compPerm != null
+                    val guard = if (hasPermission) " [🔐 ${compPerm?.substringAfterLast('.')} ]" else " [🔓 OPEN]"
                     sb.appendLine("    • $shortName$guard")
                     sb.appendLine("      ▶ am start -n $pkg/${activity.name}")
                     val intentFilters = resolveActivityIntentFilters(pm, pkg, activity.name)
@@ -594,7 +595,8 @@ object AppManifestAnalyzerTool {
             sb.appendLine("  📤 Exported (${exported.size}):")
             exported.forEach { svc ->
                 val shortName = svc.name.removePrefix(pkg)
-                val guard = if (svc.permission != null) " [🔐 ${svc.permission?.substringAfterLast('.')} ]" else " [🔓 OPEN]"
+                val compPermSvc = getComponentPermission(svc)
+                val guard = if (compPermSvc != null) " [🔐 ${compPermSvc.substringAfterLast('.')} ]" else " [🔓 OPEN]"
                 val isForeground = svc.flags and android.content.pm.ServiceInfo.FLAG_STOP_WITH_TASK != 0
                 sb.appendLine("    • $shortName$guard${if (isForeground) " [foreground]" else ""}")
                 sb.appendLine("      ▶ am startservice -n $pkg/${svc.name}")
@@ -628,7 +630,8 @@ object AppManifestAnalyzerTool {
             sb.appendLine("  📤 Exported (${exported.size}):")
             exported.forEach { rcv ->
                 val shortName = rcv.name.removePrefix(pkg)
-                val guard = if (rcv.permission != null) " [🔐 ${rcv.permission?.substringAfterLast('.')} ]" else " [🔓 OPEN]"
+                val rcvPerm = getComponentPermission(rcv)
+                val guard = if (rcvPerm != null) " [🔐 ${rcvPerm.substringAfterLast('.')} ]" else " [🔓 OPEN]"
                 sb.appendLine("    • $shortName$guard")
                 sb.appendLine("      ▶ am broadcast -n $pkg/${rcv.name} -a <ACTION>")
             }
@@ -660,8 +663,9 @@ object AppManifestAnalyzerTool {
             sb.appendLine("  📤 Exported (${exported.size}):")
             exported.forEach { prov ->
                 val shortName = prov.name.removePrefix(pkg)
-                val guard = if (prov.readPermission != null || prov.writePermission != null || prov.permission != null) {
-                    " [🔐 R:${prov.readPermission?.substringAfterLast('.') ?: "?"}/W:${prov.writePermission?.substringAfterLast('.') ?: "?"}]"
+                val provPerm = getProviderAnyPermission(prov)
+                val guard = if (provPerm != null) {
+                    " [🔐 ${provPerm.substringAfterLast('.')} ]"
                 } else " [🔓 OPEN]"
                 val grantUri = if (prov.grantUriPermissions) " [grantUri]" else ""
                 sb.appendLine("    • $shortName$guard$grantUri")
@@ -978,6 +982,20 @@ object AppManifestAnalyzerTool {
                 pm.getPackageInfo(pkg, flags)
             }
         } catch (e: PackageManager.NameNotFoundException) { null }
+    }
+
+    // Helper: safely read permission property from any ComponentInfo-derived object
+    fun getComponentPermission(component: Any?): String? {
+        return try {
+            (component as? android.content.pm.ComponentInfo)?.permission
+        } catch (_: Exception) { null }
+    }
+
+    // Helper: prefer readPermission > writePermission > permission for ProviderInfo
+    fun getProviderAnyPermission(provider: android.content.pm.ProviderInfo?): String? {
+        return try {
+            provider?.readPermission ?: provider?.writePermission ?: provider?.permission
+        } catch (_: Exception) { null }
     }
 
     private fun calculateRiskScore(
