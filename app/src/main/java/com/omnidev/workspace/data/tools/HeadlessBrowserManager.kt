@@ -11,6 +11,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -40,6 +41,8 @@ class HeadlessBrowserManager(context: Context) {
     private val nullPayloadErrorJson = """{"ok":false,"result":"","error":"Empty JS payload"}"""
 
     companion object {
+        private const val TAG = "HeadlessBrowser"
+        
         /** Navigation timeout in milliseconds. */
         private const val NAVIGATE_TIMEOUT_MS = 30_000L
 
@@ -50,59 +53,94 @@ class HeadlessBrowserManager(context: Context) {
         private const val MAX_JS_OUTPUT = 8_000
     }
 
-    /**
-     * Lazily initializes the WebView on the main thread.
-     */
-    @SuppressLint("SetJavaScriptEnabled")
-    private suspend fun ensureWebView(): WebView {
-        webView?.let { return it }
-        return withContext(Dispatchers.Main) {
-            val wv = WebView(appContext).apply {
-                settings.javaScriptEnabled = true
-                settings.domStorageEnabled = true
-                @Suppress("deprecation") settings.databaseEnabled = true
-                settings.loadWithOverviewMode = true
-                settings.useWideViewPort = true
-                settings.blockNetworkImage = true // faster loading
-                addJavascriptInterface(jsBridge, "OmniDevJsBridge")
-            }
-            webView = wv
-            wv
-        }
-    }
+    // ─────────────────────────────────────────────────────────────────────
+    // Tool Definition & Routing
+    // ─────────────────────────────────────────────────────────────────────
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
-            name = "browser_navigate",
-            description = "Navigates the headless browser to a URL and waits for the page to fully load " +
-                "(including JavaScript). Returns the page title and a text summary of the DOM content. " +
-                "Use this for dynamic websites (SPAs, login pages) that require JS execution.",
+            name = "headless_browser",
+            description = "A hidden browser engine (like Puppeteer) that allows navigating to URLs, " +
+                "waiting for modern SPA/JS rendering, and extracting or interacting with the DOM via JavaScript. " +
+                "Always call 'navigate' first before attempting to 'execute_js' or 'get_dom'.",
             parameters = listOf(
-                ToolParameter("url", "string", "The URL to navigate to", required = true)
+                ToolParameter(
+                    name = "action",
+                    type = "string",
+                    description = "Action to perform: 'navigate' (loads a URL), 'execute_js' (runs JS code), 'get_dom' (gets text content), 'destroy' (cleans up).",
+                    required = true
+                ),
+                ToolParameter(
+                    name = "url",
+                    type = "string",
+                    description = "The URL to navigate to (required for 'navigate' action).",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "js_code",
+                    type = "string",
+                    description = "JavaScript code to execute in the page context (required for 'execute_js' action).",
+                    required = false
+                )
             )
-        ),
-        ToolDefinition(
-            name = "browser_execute_js",
-            description = "Executes arbitrary JavaScript in the headless browser's current page context. " +
-                "Returns the string result of the script evaluation. Use for interacting with " +
-                "dynamic web pages: filling forms, clicking buttons, extracting DOM content. " +
-                "Example: document.querySelector('#search').value = 'AI'; document.querySelector('.btn').click();",
-            parameters = listOf(
-                ToolParameter("js_code", "string", "JavaScript code to execute in the page context", required = true)
-            )
-        ),
-        ToolDefinition(
-            name = "browser_get_dom",
-            description = "Returns a text-only snapshot of the current page's DOM content (innerText). " +
-                "Useful for reading page content after navigation or JS execution.",
-            parameters = listOf()
         )
     )
 
     /**
+     * Executes the requested action from the AI Agent's tool call.
+     */
+    suspend fun execute(action: String, args: Map<String, String>): ToolExecutionResult {
+        return when (action.lowercase().trim()) {
+            "navigate" -> {
+                val url = args["url"] ?: return ToolExecutionResult("Missing 'url' parameter for navigate.", isError = true)
+                navigate(url)
+            }
+            "execute_js" -> {
+                val code = args["js_code"] ?: return ToolExecutionResult("Missing 'js_code' parameter for execute_js.", isError = true)
+                executeJs(code)
+            }
+            "get_dom" -> {
+                getDom()
+            }
+            "destroy" -> {
+                destroy()
+                ToolExecutionResult("✅ Headless browser destroyed and resources freed.")
+            }
+            else -> ToolExecutionResult(
+                "Unknown headless_browser action: '$action'. Supported: navigate, execute_js, get_dom, destroy.",
+                isError = true
+            )
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Core Engine Methods
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * Lazily initializes the WebView strictly on the main thread.
+     */
+    @SuppressLint("SetJavaScriptEnabled")
+    private suspend fun ensureWebView(): WebView = withContext(Dispatchers.Main) {
+        webView?.let { return@withContext it }
+        
+        val wv = WebView(appContext).apply {
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.loadWithOverviewMode = true
+            settings.useWideViewPort = true
+            // Block images to vastly improve invisible loading speed
+            settings.blockNetworkImage = true 
+            addJavascriptInterface(jsBridge, "OmniDevJsBridge")
+        }
+        webView = wv
+        wv
+    }
+
+    /**
      * Navigates to a URL and waits for the page to fully load.
      */
-    suspend fun navigate(url: String): ToolExecutionResult {
+    private suspend fun navigate(url: String): ToolExecutionResult {
         if (url.isBlank() || (!url.startsWith("http://") && !url.startsWith("https://"))) {
             return ToolExecutionResult("Invalid URL: must start with http:// or https://", isError = true)
         }
@@ -126,18 +164,25 @@ class HeadlessBrowserManager(context: Context) {
                             error: WebResourceError?
                         ) {
                             if (request?.isForMainFrame == true && !deferred.isCompleted) {
-                                deferred.complete("ERROR: ${error?.description ?: "Unknown error"}")
+                                deferred.completeExceptionally(
+                                    RuntimeException("ERROR: ${error?.description ?: "Unknown error"}")
+                                )
                             }
                         }
                     }
                     wv.loadUrl(url)
                 }
 
-                val result = deferred.await()
+                // Wait for the onPageFinished callback
+                val resultUrl = deferred.await()
+                
+                // Allow a small buffer for modern JS frameworks (React/Vue) to render their DOM
+                delay(1500)
+                
                 val title = withContext(Dispatchers.Main) { wv.title ?: "(no title)" }
 
                 ToolExecutionResult(
-                    output = "✅ Navigated to: $result\nPage title: $title\nUse `browser_execute_js` to interact or `browser_get_dom` to read content."
+                    output = "✅ Navigated to: $resultUrl\nPage title: $title\nUse `browser_execute_js` to interact or `browser_get_dom` to read content."
                 )
             }
         } catch (e: Exception) {
@@ -148,10 +193,10 @@ class HeadlessBrowserManager(context: Context) {
     /**
      * Executes JavaScript in the current page context.
      */
-    suspend fun executeJs(jsCode: String): ToolExecutionResult {
-        val wv = webView ?: return ToolExecutionResult(
-            "No page loaded. Call `browser_navigate` first.", isError = true
-        )
+    private suspend fun executeJs(jsCode: String): ToolExecutionResult {
+        if (webView == null) {
+            return ToolExecutionResult("No page loaded. Call `browser_navigate` first.", isError = true)
+        }
 
         if (jsCode.isBlank()) {
             return ToolExecutionResult("Empty JavaScript code.", isError = true)
@@ -164,34 +209,29 @@ class HeadlessBrowserManager(context: Context) {
                 pendingJsResults[token] = deferred
 
                 val wrappedJs = buildAsyncWrapper(jsCode, token)
-                suspendCancellableCoroutine<Unit> { continuation ->
-                    mainHandler.post {
-                        try {
-                            wv.evaluateJavascript(wrappedJs, null)
-                            if (continuation.isActive) continuation.resume(Unit)
-                        } catch (e: Exception) {
-                            if (continuation.isActive) {
-                                continuation.resumeWithException(e)
-                            }
-                        }
-                    }
+                
+                withContext(Dispatchers.Main) {
+                    webView?.evaluateJavascript(wrappedJs, null)
                 }
 
+                // Wait for the JS Bridge to return the payload
                 val result = deferred.await()
                 pendingJsResults.remove(token)
+                
                 val parsed = runCatching { JSONObject(result) }.getOrNull()
                     ?: return@withTimeout ToolExecutionResult(
                         output = "JS ERROR: Invalid async result payload.",
                         isError = true
                     )
+                    
                 if (!parsed.optBoolean("ok")) {
                     return@withTimeout ToolExecutionResult(
                         output = "JS ERROR: ${parsed.optString("error", "Unknown JavaScript error")}",
                         isError = true
                     )
                 }
+                
                 val value = parsed.optString("result", "")
-
                 val truncated = value.length > MAX_JS_OUTPUT
                 val output = if (truncated) {
                     value.take(MAX_JS_OUTPUT) + "\n[TRUNCATED — ${value.length} chars total]"
@@ -203,8 +243,7 @@ class HeadlessBrowserManager(context: Context) {
             }
         } catch (e: Exception) {
             ToolExecutionResult(
-                output = "JS ERROR: ${e.message ?: e.javaClass.simpleName}. " +
-                    "Fix your JS code and retry.",
+                output = "JS ERROR: ${e.message ?: e.javaClass.simpleName}. Fix your JS code and retry.",
                 isError = true
             )
         }
@@ -213,10 +252,10 @@ class HeadlessBrowserManager(context: Context) {
     /**
      * Returns a text-only snapshot of the current page's DOM.
      */
-    suspend fun getDom(): ToolExecutionResult {
-        val wv = webView ?: return ToolExecutionResult(
-            "No page loaded. Call `browser_navigate` first.", isError = true
-        )
+    private suspend fun getDom(): ToolExecutionResult {
+        if (webView == null) {
+            return ToolExecutionResult("No page loaded. Call `browser_navigate` first.", isError = true)
+        }
 
         return executeJs(
             "(function() { " +
@@ -229,7 +268,7 @@ class HeadlessBrowserManager(context: Context) {
     /**
      * Destroys the WebView and releases resources.
      */
-    fun destroy() {
+    private fun destroy() {
         mainHandler.post {
             pendingJsResults.values.forEach { deferred ->
                 if (!deferred.isCompleted) deferred.completeExceptionally(
@@ -241,6 +280,10 @@ class HeadlessBrowserManager(context: Context) {
             webView = null
         }
     }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // JS Bridge & Wrapper
+    // ─────────────────────────────────────────────────────────────────────
 
     private fun buildAsyncWrapper(jsCode: String, token: String): String {
         val quotedCode = JSONObject.quote(jsCode)

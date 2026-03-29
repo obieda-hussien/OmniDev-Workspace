@@ -23,6 +23,7 @@ import java.util.Locale
  * 2) Google Custom Search API (if API key + CX configured)
  * 3) Header-spoofed Google HTML scraping
  * 4) Header-spoofed DuckDuckGo HTML scraping
+ * 5) Header-spoofed Bing HTML scraping
  */
 object WebSearchTool {
 
@@ -82,59 +83,13 @@ object WebSearchTool {
 
         if (deduped.isEmpty()) {
             return@withContext ToolExecutionResult(
-                output = "No results found for: \"$normalizedQuery\"",
+                output = "No results found for: \"$normalizedQuery\". " +
+                         "This might be due to network issues or aggressive bot-blocking by search engines.",
                 isError = false
             )
         }
 
         ToolExecutionResult(formatAsMarkdown(normalizedQuery, deduped))
-    }
-
-    private suspend fun getSearchResults(
-        query: String,
-        serpApiKey: String?,
-        googleApiKey: String?,
-        googleCseCx: String?,
-        maxResults: Int
-    ): List<SearchResult> {
-        val results = mutableListOf<SearchResult>()
-        val errors = mutableListOf<String>()
-        val acceptLanguage = preferredAcceptLanguage(query)
-
-        if (serpApiKey?.isNotBlank() == true) {
-            results += tryProvider("SerpApi", errors) {
-                searchViaSerpApi(query, serpApiKey, acceptLanguage)
-            }
-        }
-
-        if (results.isEmpty() && googleApiKey?.isNotBlank() == true && googleCseCx?.isNotBlank() == true) {
-            results += tryProvider("Google CSE", errors) {
-                searchViaGoogleCse(query, googleApiKey, googleCseCx, acceptLanguage)
-            }
-        }
-
-        if (results.isEmpty()) {
-            results += tryProvider("Google scrape", errors) { scrapeGoogle(query, acceptLanguage) }
-        }
-
-        if (results.isEmpty()) {
-            results += tryProvider("DuckDuckGo scrape", errors) { scrapeDuckDuckGo(query, acceptLanguage) }
-        }
-
-        if (results.isEmpty()) {
-            results += tryProvider("DuckDuckGo lite", errors) {
-                scrapeDuckDuckGoLite(query, acceptLanguage)
-            }
-        }
-
-        if (results.isEmpty()) {
-            results += tryProvider("Bing scrape", errors) { scrapeBing(query, acceptLanguage) }
-        }
-
-        return results
-            .filter { it.title.isNotBlank() && it.url.startsWith("http") }
-            .distinctBy { it.url }
-            .take(maxResults)
     }
 
     suspend fun executeDeep(
@@ -161,15 +116,19 @@ object WebSearchTool {
 
         data class PageResult(val result: SearchResult, val content: String)
 
+        // Fetch all target pages in parallel using coroutines
         val pages: List<PageResult> = coroutineScope {
             targets.map { result ->
                 async(Dispatchers.IO) {
                     val content = withTimeoutOrNull(FETCH_PAGE_TIMEOUT_MS) {
-                        try { fetchPageContent(result.url) } catch (e: Exception) {
+                        try { 
+                            fetchPageContent(result.url) 
+                        } catch (e: Exception) {
                             android.util.Log.w("WebSearchTool", "Failed to fetch ${result.url}: ${e.message}")
                             null
                         }
                     }
+                    // Fallback to snippet if full page fetch fails or times out
                     PageResult(result, content?.takeIf { it.isNotBlank() } ?: result.snippet)
                 }
             }.map { it.await() }
@@ -193,7 +152,59 @@ object WebSearchTool {
         ToolExecutionResult(output = output)
     }
 
+    private suspend fun getSearchResults(
+        query: String,
+        serpApiKey: String?,
+        googleApiKey: String?,
+        googleCseCx: String?,
+        maxResults: Int
+    ): List<SearchResult> {
+        val results = mutableListOf<SearchResult>()
+        val errors = mutableListOf<String>()
+        val acceptLanguage = preferredAcceptLanguage(query)
+
+        if (serpApiKey?.isNotBlank() == true) {
+            results += tryProvider("SerpApi", errors) {
+                searchViaSerpApi(query, serpApiKey, acceptLanguage)
+            }
+        }
+
+        if (results.isEmpty() && googleApiKey?.isNotBlank() == true && googleCseCx?.isNotBlank() == true) {
+            results += tryProvider("Google CSE", errors) {
+                searchViaGoogleCse(query, googleApiKey, googleCseCx, acceptLanguage)
+            }
+        }
+
+        // Unified network layer: All scrapers now use httpGet for consistent retries/timeouts
+        if (results.isEmpty()) {
+            results += tryProvider("Google scrape", errors) { scrapeGoogle(query, acceptLanguage) }
+        }
+
+        if (results.isEmpty()) {
+            results += tryProvider("DuckDuckGo scrape", errors) { scrapeDuckDuckGo(query, acceptLanguage) }
+        }
+
+        if (results.isEmpty()) {
+            results += tryProvider("DuckDuckGo lite", errors) { scrapeDuckDuckGoLite(query, acceptLanguage) }
+        }
+
+        if (results.isEmpty()) {
+            results += tryProvider("Bing scrape", errors) { scrapeBing(query, acceptLanguage) }
+        }
+
+        if (results.isEmpty() && errors.isNotEmpty()) {
+            android.util.Log.e("WebSearchTool", "All search providers failed. Errors: ${errors.joinToString(", ")}")
+        }
+
+        return results
+            .filter { it.title.isNotBlank() && it.url.startsWith("http") }
+            .distinctBy { it.url }
+            .take(maxResults)
+    }
+
     private fun fetchPageContent(url: String): String {
+        // We still use Jsoup.connect here because it handles redirects and massive HTML bodies better
+        // for raw scraping of article content, but with strict timeouts.
         val doc = Jsoup.connect(url)
             .userAgent(desktopUserAgent())
             .timeout(FETCH_PAGE_TIMEOUT_MS.toInt())
@@ -271,14 +282,11 @@ object WebSearchTool {
         }
     }
 
-    private fun scrapeGoogle(query: String, acceptLanguage: String): List<SearchResult> {
+    private suspend fun scrapeGoogle(query: String, acceptLanguage: String): List<SearchResult> {
         val encoded = URLEncoder.encode(query, "UTF-8")
-        val doc = Jsoup.connect("https://www.google.com/search?q=$encoded&hl=en")
-            .userAgent(desktopUserAgent())
-            .header("Accept-Language", acceptLanguage)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-            .timeout(READ_TIMEOUT_MS)
-            .get()
+        // FIX: Route through our robust httpGet with retries, then parse the HTML string
+        val html = httpGet("https://www.google.com/search?q=$encoded&hl=en", acceptLanguage)
+        val doc = Jsoup.parse(html)
 
         return doc.select("div#search div.g").mapNotNull { node ->
             val title = node.selectFirst("h3")?.text()?.trim().orEmpty()
@@ -290,14 +298,11 @@ object WebSearchTool {
         }
     }
 
-    private fun scrapeDuckDuckGo(query: String, acceptLanguage: String): List<SearchResult> {
+    private suspend fun scrapeDuckDuckGo(query: String, acceptLanguage: String): List<SearchResult> {
         val encoded = URLEncoder.encode(query, "UTF-8")
-        val doc = Jsoup.connect("https://duckduckgo.com/html/?q=$encoded")
-            .userAgent(desktopUserAgent())
-            .header("Accept-Language", acceptLanguage)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-            .timeout(READ_TIMEOUT_MS)
-            .get()
+        // FIX: Route through httpGet
+        val html = httpGet("https://duckduckgo.com/html/?q=$encoded", acceptLanguage)
+        val doc = Jsoup.parse(html)
 
         return doc.select("div.result").mapNotNull { result ->
             val anchor = result.selectFirst("a.result__a")
@@ -327,14 +332,11 @@ object WebSearchTool {
         }
     }
 
-    private fun scrapeBing(query: String, acceptLanguage: String): List<SearchResult> {
+    private suspend fun scrapeBing(query: String, acceptLanguage: String): List<SearchResult> {
         val encoded = URLEncoder.encode(query, "UTF-8")
-        val doc = Jsoup.connect("https://www.bing.com/search?q=$encoded")
-            .userAgent(desktopUserAgent())
-            .header("Accept-Language", acceptLanguage)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-            .timeout(READ_TIMEOUT_MS)
-            .get()
+        // FIX: Route through httpGet
+        val html = httpGet("https://www.bing.com/search?q=$encoded", acceptLanguage)
+        val doc = Jsoup.parse(html)
 
         return doc.select("li.b_algo").mapNotNull { node ->
             val anchor = node.selectFirst("h2 a") ?: return@mapNotNull null
@@ -359,18 +361,25 @@ object WebSearchTool {
         return URLDecoder.decode(encoded, "UTF-8")
     }
 
+    /**
+     * Formats search results into standard Markdown syntax for LLM consumption.
+     */
     private fun formatAsMarkdown(query: String, results: List<SearchResult>): String = buildString {
         appendLine("Web search results for: \"$query\"")
         appendLine()
         results.forEachIndexed { index, item ->
-            val safeTitle = escapeHtml(item.title.replace("\n", " ").trim())
-            val safeSnippet = escapeHtml(
-                item.snippet.replace("\n", " ").trim().ifBlank { "No snippet available." }
-            )
-            appendLine("${index + 1}. <a href=\"${item.url}\">$safeTitle</a> - $safeSnippet")
+            // Sanitize brackets to not break Markdown links
+            val safeTitle = item.title.replace("\n", " ").replace("[", "(").replace("]", ")").trim()
+            val safeSnippet = item.snippet.replace("\n", " ").trim().ifBlank { "No snippet available." }
+            
+            // Proper Markdown format: [Title](URL) - Snippet
+            appendLine("${index + 1}. [${safeTitle}](${item.url}) - $safeSnippet")
         }
     }.trimEnd()
 
+    /**
+     * Unified network layer with built-in retry logic and anti-bot headers.
+     */
     private suspend fun httpGet(url: String, acceptLanguage: String): String {
         var lastError: Throwable? = null
         for (attempt in 0 until HTTP_RETRY_COUNT) {
@@ -381,7 +390,9 @@ object WebSearchTool {
                     readTimeout = READ_TIMEOUT_MS
                     setRequestProperty("User-Agent", desktopUserAgent())
                     setRequestProperty("Accept-Language", acceptLanguage)
-                    setRequestProperty("Accept", "application/json,text/html,*/*")
+                    setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                    // Adding referer to reduce chance of bot detection
+                    setRequestProperty("Referer", "https://www.google.com/")
                 }
                 return conn.useAndReadBody()
             } catch (e: Throwable) {
@@ -417,7 +428,7 @@ object WebSearchTool {
     }
 
     private fun desktopUserAgent(): String =
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
     private fun preferredAcceptLanguage(query: String): String =
         if (query.any { Character.UnicodeBlock.of(it) == Character.UnicodeBlock.ARABIC }) {
@@ -441,11 +452,4 @@ object WebSearchTool {
             if (it.isEmpty()) errors.add("$providerName: no results")
         }
     }
-
-    private fun escapeHtml(value: String): String = value
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace("\"", "&quot;")
-        .replace("'", "&#39;")
 }

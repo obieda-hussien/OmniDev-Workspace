@@ -8,32 +8,32 @@ import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
 
 /**
- * ShizukuCommandTool — النسخة المُصلَحة جذرياً.
+ * ShizukuCommandTool — The Radically Fixed Version.
  *
- * ### الإصلاحات الجوهرية في هذه النسخة
+ * ### Core Fixes in this version
  *
- * **Bug #1 — Reflection يسبب NoSuchMethodException / InvocationTargetException**
- * الكود القديم:
+ * **Bug #1 — Reflection causing NoSuchMethodException / InvocationTargetException**
+ * Old code:
  * ```kotlin
  * val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
  * val newProcessMethod = shizukuClass.getMethod("newProcess", ...)
  * val process = newProcessMethod.invoke(null, ...) as Process
  * ```
- * سبب الفشل: `Shizuku.newProcess()` هي static method مكشوفة مباشرة في الـ library،
- * reflection يفشل لأن الـ method signature تتغير بين الإصدارات، أو لأن
- * `Class.forName()` يبحث في classloader غلط على بعض الـ ROM.
- * الإصلاح: استدعاء `Shizuku.newProcess()` مباشرة → لا reflection على الإطلاق.
+ * Cause of failure: `Shizuku.newProcess()` is a public static method exposed directly in the library.
+ * Reflection fails because the method signature changes between versions, or because
+ * `Class.forName()` looks in the wrong classloader on some Custom ROMs.
+ * Fix: Direct call to `Shizuku.newProcess()` → NO reflection at all.
  *
- * **Bug #2 — pipe-buffer deadlock محتمل**
- * القديم كان يبدأ stdout/stderr threads وبعدين waitFor.
- * الإصلاح: threads تبدأ قبل waitFor وبعدين join — نفس التسلسل لكن صحيح.
+ * **Bug #2 — Potential pipe-buffer deadlock**
+ * Old code started stdout/stderr threads AFTER `waitFor`.
+ * Fix: Threads start BEFORE `waitFor` and then join — same sequence but safe from deadlocks.
  *
- * **Bug #3 — output فارغ بسبب stream reading بعد process.waitFor()**
- * بعض الـ streams تُغلق عند waitFor قبل ما threads تقرأها.
- * الإصلاح: threads تبدأ أولاً، ثم waitFor thread، ثم join بالترتيب الصحيح.
+ * **Bug #3 — Empty output due to stream reading after process.waitFor()**
+ * Some streams close upon `waitFor` before threads can read them.
+ * Fix: Read threads start first, then `waitFor` thread, then join in correct order.
  *
- * **Bug #4 — PartialSuccess.output كان رسالة خطأ مش actual stdout**
- * الإصلاح: output = normalizedOutput دائماً.
+ * **Bug #4 — PartialSuccess.output was an error message, not actual stdout**
+ * Fix: `output = normalizedOutput` always.
  */
 object ShizukuCommandTool {
 
@@ -46,7 +46,7 @@ object ShizukuCommandTool {
     private const val PERMISSION_POLL_MS = 200L
 
     const val SHIZUKU_UNAVAILABLE_ERROR: String =
-        "Shizuku غير متاح أو غير مُصرَّح. تأكد من تشغيل Shizuku وإعطاء الصلاحية."
+        "Shizuku is unavailable or unauthorized. Ensure Shizuku is running and permission is granted."
 
     // ──────────────────────────────────────────────────────────────
     // Public API
@@ -55,26 +55,26 @@ object ShizukuCommandTool {
     suspend fun execute(command: String): ShizukuResult {
         return withContext(Dispatchers.IO) {
             if (command.isBlank()) {
-                return@withContext ShizukuResult.Failure("الأمر فارغ.")
+                return@withContext ShizukuResult.Failure("Command is empty.")
             }
 
             if (!isAvailable()) {
                 return@withContext ShizukuResult.Unavailable(SHIZUKU_UNAVAILABLE_ERROR)
             }
 
-            // انتظر الإذن إذا لم يكن ممنوحاً
+            // Wait for permission if not granted
             if (!hasPermission()) {
                 requestAndWaitPermission()
                 if (!hasPermission()) {
                     Log.w(TAG, "Shizuku permission denied after wait")
                     return@withContext ShizukuResult.PermissionRequired(
-                        "يحتاج إذن Shizuku. افتح تطبيق Shizuku واضغط 'منح الإذن'."
+                        "Shizuku permission required. Open the Shizuku app and tap 'Allow'."
                     )
                 }
             }
 
-            // حاول حتى 3 مرات مع exponential backoff
-            var lastResult: ShizukuResult = ShizukuResult.Failure("لم يبدأ التنفيذ")
+            // Attempt up to 3 times with exponential backoff
+            var lastResult: ShizukuResult = ShizukuResult.Failure("Execution did not start")
             for (attempt in 0 until 3) {
                 lastResult = executeOnce(command)
                 when (lastResult) {
@@ -84,7 +84,7 @@ object ShizukuCommandTool {
                     is ShizukuResult.Unavailable      -> return@withContext lastResult
                     is ShizukuResult.Failure -> {
                         val msg = (lastResult as ShizukuResult.Failure).reason
-                        // أعِد المحاولة فقط لأخطاء Shizuku service المؤقتة
+                        // Retry only for temporary Shizuku service errors
                         if (!isRetryableError(msg) || attempt >= 2) {
                             return@withContext lastResult
                         }
@@ -103,46 +103,33 @@ object ShizukuCommandTool {
 
     private fun executeOnce(command: String): ShizukuResult {
         return try {
-            // *** الإصلاح الجذري: استدعاء مباشر بدون reflection ***
-            // Shizuku.newProcess() مشابه لـ Runtime.exec() لكن يشغّل بـ shell UID
-            val process: Process = try {
-                val m = Shizuku::class.java.getDeclaredMethod(
-                    "newProcess",
-                    Array<String>::class.java,
-                    Array<String>::class.java,
-                    String::class.java
-                )
-                m.isAccessible = true
-                @Suppress("UNCHECKED_CAST")
-                m.invoke(null, arrayOf("sh", "-c", command), null, null) as Process
-            } catch (e: NoSuchMethodException) {
-                // Fall back to Runtime.exec (app UID) if reflective access fails
-                Runtime.getRuntime().exec(arrayOf("sh", "-c", command), null, null)
-            }
+            // *** The Radical Fix: Direct call without reflection ***
+            // Shizuku.newProcess() acts like Runtime.exec() but runs with shell UID
+            val process: Process = Shizuku.newProcess(arrayOf("sh", "-c", command), null, null)
 
             readProcessOutput(process, command)
 
         } catch (e: SecurityException) {
-            // إذن مرفوض
+            // Permission denied
             ShizukuResult.PermissionRequired(
-                "Shizuku رفض الأذن: ${e.message}"
+                "Shizuku denied permission: ${e.message}"
             )
         } catch (e: Throwable) {
             val rootCause = unwrapCause(e)
             Log.e(TAG, "Shizuku.newProcess() failed: ${rootCause.javaClass.name}: ${rootCause.message}")
-            ShizukuResult.Failure("خطأ في Shizuku: ${rootCause.message?.take(200)}")
+            ShizukuResult.Failure("Shizuku error: ${rootCause.message?.take(200)}")
         }
     }
 
     /**
-     * يقرأ stdout/stderr من الـ process بشكل آمن مع timeout.
-     * يبدأ threads للقراءة قبل waitFor لتفادي pipe-buffer deadlock.
+     * Safely reads stdout/stderr from the process with a timeout.
+     * Starts reading threads BEFORE waitFor to avoid pipe-buffer deadlock.
      */
     private fun readProcessOutput(process: Process, command: String): ShizukuResult {
         val stdoutBuf = StringBuffer()
         val stderrBuf = StringBuffer()
 
-        // *** الإصلاح: ابدأ القراءة أولاً قبل waitFor لتفادي deadlock ***
+        // *** FIX: Start reading first before waitFor to prevent deadlock ***
         val stdoutThread = Thread {
             try {
                 process.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
@@ -171,7 +158,7 @@ object ShizukuCommandTool {
             } catch (_: Exception) {}
         }.apply { isDaemon = true; start() }
 
-        // انتظر انتهاء الـ process مع timeout
+        // Wait for process to finish with timeout
         val waitThread = Thread {
             try { process.waitFor() } catch (_: InterruptedException) {}
         }.apply { isDaemon = true; start() }
@@ -182,11 +169,11 @@ object ShizukuCommandTool {
             stdoutThread.interrupt()
             stderrThread.interrupt()
             return ShizukuResult.Failure(
-                "انتهى وقت التنفيذ (${COMMAND_TIMEOUT_MS / 1000}s): ${command.take(80)}"
+                "Execution timeout exceeded (${COMMAND_TIMEOUT_MS / 1000}s): ${command.take(80)}"
             )
         }
 
-        // انتظر اكتمال القراءة (timeout قصير)
+        // Wait for read completion (short timeout)
         stdoutThread.join(3_000L)
         stderrThread.join(3_000L)
 
@@ -194,7 +181,7 @@ object ShizukuCommandTool {
         val stderr = stderrBuf.toString().trim()
         val exit = runCatching { process.exitValue() }.getOrDefault(-1)
 
-        // دمج الـ output بذكاء: stdout أولاً، stderr كـ supplementary
+        // Smart output merging: stdout first, stderr as supplementary
         val actualOutput = when {
             stdout.isNotBlank() && stderr.isNotBlank() ->
                 "$stdout\n[stderr]: ${stderr.take(500)}"
@@ -209,16 +196,16 @@ object ShizukuCommandTool {
             exit == 0 ->
                 ShizukuResult.Success(actualOutput.ifBlank { "(no output)" })
             exit == 127 || (stderr.contains("not found", ignoreCase = true) && stdout.isBlank()) ->
-                ShizukuResult.Failure("الأمر غير موجود (exit=$exit): ${stderr.take(200)}")
+                ShizukuResult.Failure("Command not found (exit=$exit): ${stderr.take(200)}")
             stdout.isNotBlank() || stderr.isNotBlank() ->
-                // exit != 0 لكن في output — PartialSuccess مع actual output
+                // exit != 0 but has useful output — PartialSuccess with actual output
                 ShizukuResult.PartialSuccess(
                     output = actualOutput,
                     exitCode = exit
                 )
             else ->
                 ShizukuResult.PartialSuccess(
-                    output = "تنفيذ بدون output (exit=$exit)",
+                    output = "Execution without output (exit=$exit)",
                     exitCode = exit
                 )
         }
@@ -250,8 +237,8 @@ object ShizukuCommandTool {
         e.cause?.let { if (it != e) unwrapCause(it) else e } ?: e
 
     /**
-     * هل الخطأ مؤقت ويستحق إعادة المحاولة؟
-     * (أخطاء service بعيدة / DeadObject يمكن تجاوزها بـ retry)
+     * Is the error temporary and worth retrying?
+     * (Remote service / DeadObject errors can often be bypassed with a retry)
      */
     private fun isRetryableError(message: String): Boolean {
         val lower = message.lowercase()
@@ -263,8 +250,8 @@ object ShizukuCommandTool {
     }
 
     /**
-     * هل الخطأ من نوع Shizuku service exception؟
-     * (للتوافق مع الكود القديم)
+     * Is the error a Shizuku service exception?
+     * (Kept for compatibility with older code)
      */
     fun isShizukuServiceException(error: Throwable): Boolean {
         val cause = unwrapCause(error)
@@ -286,40 +273,40 @@ object ShizukuCommandTool {
 
 sealed class ShizukuResult {
 
-    /** نجح الأمر بـ exit 0 */
+    /** Command succeeded with exit 0 */
     data class Success(val output: String) : ShizukuResult()
 
     /**
-     * الأمر انتهى بـ exit != 0 لكن في output مفيد.
-     * output = actual stdout (مش رسالة خطأ مُنسَّقة).
+     * Command exited with exit != 0 but returned useful output.
+     * output = actual stdout (not formatted error message).
      */
     data class PartialSuccess(val output: String, val exitCode: Int) : ShizukuResult()
 
-    /** فشل كامل — لا output مفيد */
+    /** Total failure — no useful output */
     data class Failure(val reason: String) : ShizukuResult()
 
     data class PermissionRequired(val message: String) : ShizukuResult()
     data class Unavailable(val message: String) : ShizukuResult()
 
-    // ── helpers ──
+    // ── Helpers ──
 
-    /** نص للعرض — دائماً يرجع actual output */
+    /** Display string — always returns actual output where applicable */
     fun toDisplayString(): String = when (this) {
         is Success          -> output
         is PartialSuccess   -> output
-        is Failure          -> "خطأ: $reason"
-        is PermissionRequired -> "يحتاج إذن: $message"
-        is Unavailable      -> "غير متاح: $message"
+        is Failure          -> "Error: $reason"
+        is PermissionRequired -> "Permission required: $message"
+        is Unavailable      -> "Unavailable: $message"
     }
 
-    /** هل في output مفيد؟ */
+    /** Does it contain useful output? */
     fun hasUsefulOutput(): Boolean = when (this) {
         is Success        -> output.isNotBlank() && output != "(no output)"
         is PartialSuccess -> output.isNotBlank() && output != "(no output)"
         else              -> false
     }
 
-    /** استخرج الـ output أو null */
+    /** Extract the output or return null */
     fun outputOrNull(): String? = when (this) {
         is Success        -> output.takeIf { it.isNotBlank() && it != "(no output)" }
         is PartialSuccess -> output.takeIf { it.isNotBlank() && it != "(no output)" }

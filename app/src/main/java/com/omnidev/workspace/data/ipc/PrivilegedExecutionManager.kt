@@ -9,20 +9,20 @@ import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.data.tools.ShizukuResult
 
 /**
- * PrivilegedExecutionManager — النسخة المُصلَحة والمُحسَّنة.
+ * PrivilegedExecutionManager — The patched and improved version.
  *
- * ### Execution Backends (بالأولوية)
+ * ### Execution Backends (By Priority)
  * 1. **Shizuku.newProcess()** — `ShizukuCommandTool.execute()` — shell UID
  * 2. **rish via Shizuku** — `RishShellManager.execute()` — full ADB-equivalent
  * 3. **Root/SU** — `executeViaRoot()` — root shell
  *
- * ### الإصلاحات
- * 1. معالجة صحيحة لـ `ShizukuResult.PartialSuccess`:
- *    - في output مفيد (exit != 127) → نجاح
- *    - فارغ أو command not found → fallback
- * 2. رسائل تشخيصية أوضح عند الفشل
- * 3. `getTermuxBootstrapHints()` — تعليمات تثبيت Termux بدون Termux
- * 4. `installTermuxViaShizuku()` — تحميل وتثبيت Termux APK عبر Shizuku
+ * ### Fixes / Improvements
+ * 1. Proper handling of `ShizukuResult.PartialSuccess`:
+ * - If output is useful (exit != 127) → success
+ * - Empty or command not found → fallback
+ * 2. Clearer diagnostic messages on failure
+ * 3. `getTermuxBootstrapHints()` — Termux installation instructions without Termux
+ * 4. `installTermuxViaShizuku()` — Download and install Termux APK via Shizuku
  */
 object PrivilegedExecutionManager {
 
@@ -59,21 +59,21 @@ object PrivilegedExecutionManager {
     }.getOrDefault(false)
 
     // ──────────────────────────────────────────────────────────────
-    // executeCommand — دالة التنفيذ الجوهرية
+    // executeCommand — The core execution function
     // ──────────────────────────────────────────────────────────────
 
     /**
-     * ينفّذ [command] عبر أفضل backend متاح.
+     * Executes [command] via the best available backend.
      *
      * ### Fallback Chain
-     * Shizuku → rish → Root → Failure (مع تشخيص واضح)
+     * Shizuku → rish → Root → Failure (with clear diagnostics)
      */
     suspend fun executeCommand(command: String): Result<String> = withContext(Dispatchers.IO) {
         if (command.isBlank()) {
-            return@withContext Result.failure(IllegalArgumentException("الأمر فارغ."))
+            return@withContext Result.failure(IllegalArgumentException("Command is empty."))
         }
 
-        // ── 1. Shizuku.newProcess() (الأفضل — shell UID) ──
+        // ── 1. Shizuku.newProcess() (The best — shell UID) ──
         if (ShizukuCommandTool.isAvailable()) {
             when (val r = ShizukuCommandTool.execute(command)) {
                 is ShizukuResult.Success -> {
@@ -83,22 +83,22 @@ object PrivilegedExecutionManager {
                 is ShizukuResult.PartialSuccess -> {
                     val output = r.output.trim()
                     if (output.isNotBlank() && output != "(no output)" && r.exitCode != 127) {
-                        // في output مفيد حتى لو exit != 0 (مثل grep، diff، etc.)
+                        // Useful output exists even if exit != 0 (e.g., grep, diff, etc.)
                         Log.d(TAG, "Shizuku ✅ exit=${r.exitCode} (partial OK): ${command.take(40)}")
                         return@withContext Result.success(output.take(MAX_OUTPUT))
                     } else {
-                        Log.w(TAG, "Shizuku PartialSuccess بدون output (exit=${r.exitCode}) → fallback: ${command.take(40)}")
+                        Log.w(TAG, "Shizuku PartialSuccess without output (exit=${r.exitCode}) → fallback: ${command.take(40)}")
                     }
                 }
                 is ShizukuResult.PermissionRequired ->
-                    Log.w(TAG, "Shizuku بدون إذن → fallback: ${r.message}")
+                    Log.w(TAG, "Shizuku without permission → fallback: ${r.message}")
                 is ShizukuResult.Unavailable ->
-                    Log.w(TAG, "Shizuku غير متاح → fallback: ${r.message}")
+                    Log.w(TAG, "Shizuku unavailable → fallback: ${r.message}")
                 is ShizukuResult.Failure ->
-                    Log.w(TAG, "Shizuku فشل → fallback: ${r.reason}")
+                    Log.w(TAG, "Shizuku failed → fallback: ${r.reason}")
             }
         } else {
-            Log.d(TAG, "Shizuku غير نشط → جرب rish/root")
+            Log.d(TAG, "Shizuku inactive → try rish/root")
         }
 
         // ── 2. rish (full ADB-equivalent shell) ──
@@ -110,7 +110,7 @@ object PrivilegedExecutionManager {
                 Log.d(TAG, "rish ✅: ${command.take(40)}")
                 return@withContext Result.success(out.take(MAX_OUTPUT))
             }
-            Log.w(TAG, "rish فشل: ${rishResult.exceptionOrNull()?.message}")
+            Log.w(TAG, "rish failed: ${rishResult.exceptionOrNull()?.message}")
         }
 
         // ── 3. Root/SU ──
@@ -119,35 +119,35 @@ object PrivilegedExecutionManager {
             return@withContext executeViaRoot(command)
         }
 
-        // ── Failure: تشخيص واضح ──
+        // ── Failure: Clear diagnostics ──
         Result.failure(
             IllegalStateException(buildFailureMessage())
         )
     }
 
     /**
-     * بناء رسالة فشل تشخيصية تشرح لماذا فشل التنفيذ وما الحل.
+     * Builds a diagnostic failure message explaining why execution failed and the solution.
      */
     private fun buildFailureMessage(): String = buildString {
-        appendLine("❌ لا يوجد execution backend متاح.")
+        appendLine("❌ No execution backend available.")
         appendLine()
         val shizukuAvail = ShizukuCommandTool.isAvailable()
         val shizukuPerm  = if (shizukuAvail) ShizukuCommandTool.hasPermission() else false
         appendLine("• Shizuku: ${when {
-            !shizukuAvail -> "❌ غير متاح (Shizuku غير مشغّل)"
-            !shizukuPerm  -> "⚠️ متاح لكن بدون إذن"
-            else          -> "⚠️ متاح لكن فشل التنفيذ"
+            !shizukuAvail -> "❌ Unavailable (Shizuku is not running)"
+            !shizukuPerm  -> "⚠️ Available but without permission"
+            else          -> "⚠️ Available but execution failed"
         }}")
-        appendLine("• rish: ${if (isRishReady()) "⚠️ متاح لكن فشل" else "❌ غير متاح"}")
-        appendLine("• root: ❌ غير متاح")
+        appendLine("• rish: ${if (isRishReady()) "⚠️ Available but failed" else "❌ Unavailable"}")
+        appendLine("• root: ❌ Unavailable")
         appendLine()
-        appendLine("الحل:")
+        appendLine("Solution:")
         if (!shizukuAvail) {
-            appendLine("  1. افتح تطبيق Shizuku وشغّله")
+            appendLine("  1. Open the Shizuku app and start it")
         } else if (!shizukuPerm) {
-            appendLine("  1. افتح Shizuku → امنح الإذن للتطبيق")
+            appendLine("  1. Open Shizuku → Grant permission to the app")
         }
-        appendLine("  2. شغّل: execution_diagnostics action=fix_shizuku")
+        appendLine("  2. Run: execution_diagnostics action=fix_shizuku")
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -181,7 +181,7 @@ object PrivilegedExecutionManager {
 
     suspend fun dumpSysInfo(service: String): Result<String> {
         val safe = service.replace(Regex("[^a-zA-Z0-9._/\\-]"), "").take(64)
-        if (safe.isEmpty()) return Result.failure(IllegalArgumentException("اسم service غير صحيح."))
+        if (safe.isEmpty()) return Result.failure(IllegalArgumentException("Invalid service name."))
         return executeCommand("dumpsys $safe").map { it.take(MAX_OUTPUT) }
     }
 
@@ -190,24 +190,24 @@ object PrivilegedExecutionManager {
 
     suspend fun readSetting(namespace: String, key: String): Result<String> {
         val ns = validateSettingsNamespace(namespace)
-            ?: return Result.failure(IllegalArgumentException("namespace غير صحيح. استخدم: system, secure, global."))
+            ?: return Result.failure(IllegalArgumentException("Invalid namespace. Use: system, secure, global."))
         val safeKey = key.replace(Regex("[^a-zA-Z0-9_.]"), "")
-        if (safeKey.isEmpty()) return Result.failure(IllegalArgumentException("key غير صحيح."))
+        if (safeKey.isEmpty()) return Result.failure(IllegalArgumentException("Invalid key."))
         return executeCommand("settings get $ns $safeKey")
     }
 
     suspend fun writeSetting(namespace: String, key: String, value: String): Result<String> {
         val ns = validateSettingsNamespace(namespace)
-            ?: return Result.failure(IllegalArgumentException("namespace غير صحيح."))
+            ?: return Result.failure(IllegalArgumentException("Invalid namespace."))
         val safeKey   = key.replace(Regex("[^a-zA-Z0-9_.]"), "")
         val safeValue = value.replace(Regex("[;&|`\$\\\\\n\r]"), "")
-        if (safeKey.isEmpty()) return Result.failure(IllegalArgumentException("key غير صحيح."))
+        if (safeKey.isEmpty()) return Result.failure(IllegalArgumentException("Invalid key."))
         return executeCommand("settings put $ns $safeKey $safeValue")
     }
 
     suspend fun listSettings(namespace: String): Result<String> {
         val ns = validateSettingsNamespace(namespace)
-            ?: return Result.failure(IllegalArgumentException("namespace غير صحيح."))
+            ?: return Result.failure(IllegalArgumentException("Invalid namespace."))
         return executeCommand("settings list $ns").map { it.take(MAX_OUTPUT) }
     }
 
@@ -221,48 +221,48 @@ object PrivilegedExecutionManager {
     suspend fun installApk(apkPath: String): Result<String> {
         val safePath = apkPath.replace(Regex("[^a-zA-Z0-9_.\\-/]"), "")
         if (!safePath.endsWith(".apk")) {
-            return Result.failure(IllegalArgumentException("المسار يجب أن ينتهي بـ .apk"))
+            return Result.failure(IllegalArgumentException("Path must end with .apk"))
         }
         return executeCommand("pm install -r -g $safePath")
     }
 
     suspend fun uninstallPackage(packageName: String): Result<String> {
         val safePkg = sanitizePackageName(packageName)
-            ?: return Result.failure(IllegalArgumentException("اسم الحزمة غير صحيح."))
+            ?: return Result.failure(IllegalArgumentException("Invalid package name."))
         return executeCommand("pm uninstall $safePkg")
     }
 
     suspend fun grantPermission(packageName: String, permission: String): Result<String> {
-        val safePkg  = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("اسم الحزمة غير صحيح."))
+        val safePkg  = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("Invalid package name."))
         val safePerm = permission.replace(Regex("[^a-zA-Z0-9._]"), "")
         return executeCommand("pm grant $safePkg $safePerm")
     }
 
     suspend fun revokePermission(packageName: String, permission: String): Result<String> {
-        val safePkg  = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("اسم الحزمة غير صحيح."))
+        val safePkg  = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("Invalid package name."))
         val safePerm = permission.replace(Regex("[^a-zA-Z0-9._]"), "")
         return executeCommand("pm revoke $safePkg $safePerm")
     }
 
     suspend fun getPackageInfo(packageName: String): Result<String> {
-        val safePkg = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("اسم الحزمة غير صحيح."))
+        val safePkg = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("Invalid package name."))
         return executeCommand("pm dump $safePkg").map { it.take(MAX_OUTPUT) }
     }
 
     suspend fun forceStopApp(packageName: String): Result<String> {
-        val safePkg = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("اسم الحزمة غير صحيح."))
+        val safePkg = sanitizePackageName(packageName) ?: return Result.failure(IllegalArgumentException("Invalid package name."))
         return executeCommand("am force-stop $safePkg")
     }
 
     suspend fun launchComponent(component: String): Result<String> {
-        if (component.isBlank()) return Result.failure(IllegalArgumentException("component فارغ."))
+        if (component.isBlank()) return Result.failure(IllegalArgumentException("Component is empty."))
         val safeComponent = component.replace(Regex("[;&|`\$\\\\\n\r]"), "").take(256)
         return executeCommand("am start $safeComponent")
     }
 
     suspend fun sendBroadcast(action: String): Result<String> {
         val safeAction = action.replace(Regex("[^a-zA-Z0-9._]"), "")
-        if (safeAction.isEmpty()) return Result.failure(IllegalArgumentException("action غير صحيح."))
+        if (safeAction.isEmpty()) return Result.failure(IllegalArgumentException("Invalid action."))
         return executeCommand("am broadcast -a $safeAction")
     }
 
@@ -273,7 +273,7 @@ object PrivilegedExecutionManager {
         executeCommand("input swipe $x1 $y1 $x2 $y2 $durationMs")
 
     suspend fun injectText(text: String): Result<String> {
-        if (text.isBlank()) return Result.failure(IllegalArgumentException("النص فارغ."))
+        if (text.isBlank()) return Result.failure(IllegalArgumentException("Text is empty."))
         return executeCommand("input text ${sanitizeArgument(text)}")
     }
 
@@ -282,7 +282,7 @@ object PrivilegedExecutionManager {
 
     suspend fun captureScreen(outputPath: String): Result<String> {
         val safePath = outputPath.replace(Regex("[^a-zA-Z0-9_.\\-/]"), "")
-        if (safePath.isEmpty()) return Result.failure(IllegalArgumentException("مسار غير صحيح."))
+        if (safePath.isEmpty()) return Result.failure(IllegalArgumentException("Invalid path."))
         return executeCommand("screencap -p $safePath").map { safePath }
     }
 
@@ -290,10 +290,10 @@ object PrivilegedExecutionManager {
         val safeService = service.lowercase().replace(Regex("[^a-z]"), "")
         val safeAction  = action.lowercase().replace(Regex("[^a-z]"), "")
         if (safeService !in setOf("wifi", "data", "bluetooth", "nfc", "power")) {
-            return Result.failure(IllegalArgumentException("service غير صحيح."))
+            return Result.failure(IllegalArgumentException("Invalid service."))
         }
         if (safeAction !in setOf("enable", "disable")) {
-            return Result.failure(IllegalArgumentException("action يجب أن يكون 'enable' أو 'disable'."))
+            return Result.failure(IllegalArgumentException("Action must be 'enable' or 'disable'."))
         }
         return executeCommand("svc $safeService $safeAction")
     }
@@ -301,7 +301,7 @@ object PrivilegedExecutionManager {
     suspend fun windowManager(subCommand: String, value: String): Result<String> {
         val safeSub = subCommand.lowercase().replace(Regex("[^a-z ]"), "").trim()
         if (safeSub !in setOf("size", "density", "size reset", "density reset")) {
-            return Result.failure(IllegalArgumentException("subcommand غير صحيح."))
+            return Result.failure(IllegalArgumentException("Invalid subcommand."))
         }
         val cmd = if (value.isBlank()) "wm $safeSub"
                   else "wm $safeSub ${value.replace(Regex("[^0-9x]"), "")}"
@@ -309,65 +309,65 @@ object PrivilegedExecutionManager {
     }
 
     // ──────────────────────────────────────────────────────────────
-    // Termux bootstrap (تثبيت Termux بدون Termux)
+    // Termux bootstrap (Install Termux without Termux)
     // ──────────────────────────────────────────────────────────────
 
     /**
-     * يولِّد تعليمات تثبيت Termux بدون الحاجة لمتجر.
-     * الوكيل يستطيع تنفيذ هذه الخطوات عبر Shizuku.
+     * Generates instructions to install Termux without needing an app store.
+     * The agent can execute these steps via Shizuku.
      */
     fun getTermuxBootstrapHints(): String = buildString {
-        appendLine("=== تثبيت Termux عبر Shizuku (بدون متجر) ===")
+        appendLine("=== Install Termux via Shizuku (Store-free) ===")
         appendLine()
-        appendLine("الطريقة 1 — تحميل APK وتثبيته عبر pm install:")
-        appendLine("""  # تحميل Termux APK من F-Droid""")
+        appendLine("Method 1 — Download APK and install via pm install:")
+        appendLine("""  # Download Termux APK from F-Droid""")
         appendLine("""  curl -L "https://f-droid.org/repo/com.termux_118.apk" \\""")
         appendLine("""       -o /data/local/tmp/termux.apk""")
-        appendLine("""  # أو wget:""")
+        appendLine("""  # Or wget:""")
         appendLine("""  wget -O /data/local/tmp/termux.apk \\""")
         appendLine("""       "https://f-droid.org/repo/com.termux_118.apk"""")
-        appendLine("""  # تثبيت بصلاحيات shell:""")
+        appendLine("""  # Install with shell privileges:""")
         appendLine("""  pm install -r -g /data/local/tmp/termux.apk""")
         appendLine()
-        appendLine("الطريقة 2 — استخدام agent_runtime action=tool_bootstrap:")
+        appendLine("Method 2 — Use agent_runtime action=tool_bootstrap:")
         appendLine("""  agent_runtime action=tool_bootstrap tool=termux""")
         appendLine()
-        appendLine("الطريقة 3 — تثبيت يدوي من F-Droid:")
+        appendLine("Method 3 — Manual installation from F-Droid:")
         appendLine("""  https://f-droid.org/en/packages/com.termux/""")
         appendLine()
-        appendLine("بعد التثبيت شغّل في Termux:")
+        appendLine("After installation, run in Termux:")
         appendLine("""  pkg update && pkg upgrade -y""")
         appendLine("""  pkg install -y python git curl wget nodejs""")
     }
 
     /**
-     * يحاول تحميل وتثبيت Termux APK عبر Shizuku.
-     * يحتاج curl أو wget متاح عبر Shizuku.
+     * Attempts to download and install Termux APK via Shizuku.
+     * Requires curl or wget available via Shizuku.
      */
     suspend fun installTermuxViaShizuku(): Result<String> = withContext(Dispatchers.IO) {
         if (!isShizukuReady()) {
-            return@withContext Result.failure(IllegalStateException("Shizuku غير متاح."))
+            return@withContext Result.failure(IllegalStateException("Shizuku is unavailable."))
         }
 
         val apkUrl = "https://f-droid.org/repo/com.termux_118.apk"
         val apkPath = "/data/local/tmp/termux_install.apk"
         val sb = StringBuilder()
 
-        // تحقق من وجود downloader
+        // Check for downloader presence
         val hasCurl = executeCommand("which curl 2>/dev/null").getOrNull()?.startsWith("/") == true
         val hasWget = executeCommand("which wget 2>/dev/null").getOrNull()?.startsWith("/") == true
 
         if (!hasCurl && !hasWget) {
             return@withContext Result.failure(
                 IllegalStateException(
-                    "لا يوجد curl أو wget. استخدم agent_runtime action=tool_bootstrap tool=termux\n" +
-                    "أو ثبّت Termux يدوياً من F-Droid."
+                    "No curl or wget found. Use agent_runtime action=tool_bootstrap tool=termux\n" +
+                    "or install Termux manually from F-Droid."
                 )
             )
         }
 
-        // تحميل APK
-        sb.appendLine("⬇️ تحميل Termux APK...")
+        // Download APK
+        sb.appendLine("⬇️ Downloading Termux APK...")
         val downloadCmd = if (hasCurl) {
             "curl -L -o '$apkPath' '$apkUrl' 2>&1 && echo DOWNLOAD_OK"
         } else {
@@ -376,22 +376,22 @@ object PrivilegedExecutionManager {
 
         val downloadResult = executeCommand(downloadCmd)
         if (downloadResult.isFailure || downloadResult.getOrDefault("").contains("DOWNLOAD_OK").not()) {
-            return@withContext Result.failure(RuntimeException("فشل التحميل: ${downloadResult.exceptionOrNull()?.message}"))
+            return@withContext Result.failure(RuntimeException("Download failed: ${downloadResult.exceptionOrNull()?.message}"))
         }
-        sb.appendLine("✅ تم التحميل")
+        sb.appendLine("✅ Downloaded")
 
-        // تثبيت APK
-        sb.appendLine("📦 تثبيت Termux...")
+        // Install APK
+        sb.appendLine("📦 Installing Termux...")
         val installResult = executeCommand("pm install -r -g '$apkPath'")
         val installOut = installResult.getOrNull() ?: installResult.exceptionOrNull()?.message ?: ""
         sb.appendLine(installOut)
 
         if (installOut.contains("Success", ignoreCase = true)) {
-            sb.appendLine("✅ تم تثبيت Termux بنجاح!")
-            sb.appendLine("افتح Termux وشغّل: pkg update && pkg install python git")
+            sb.appendLine("✅ Termux installed successfully!")
+            sb.appendLine("Open Termux and run: pkg update && pkg install python git")
             Result.success(sb.toString())
         } else {
-            Result.failure(RuntimeException("فشل التثبيت: $installOut"))
+            Result.failure(RuntimeException("Installation failed: $installOut"))
         }
     }
 
@@ -424,7 +424,7 @@ object PrivilegedExecutionManager {
         wait.join(30_000L)
         if (wait.isAlive) {
             process.destroy(); sout.interrupt(); serr.interrupt()
-            throw RuntimeException("Root command تجاوز 30s")
+            throw RuntimeException("Root command exceeded 30s")
         }
         sout.join(2_000L); serr.join(2_000L)
 
