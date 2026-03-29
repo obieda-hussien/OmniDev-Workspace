@@ -1,0 +1,134 @@
+package com.omnidev.workspace.data.vision
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.PixelFormat
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
+import android.media.ImageReader
+import android.media.projection.MediaProjection
+import android.media.projection.MediaProjectionManager
+import android.os.Binder
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+
+class OmniScreenCaptureService : Service() {
+
+    private val binder = LocalBinder()
+    private var mediaProjection: MediaProjection? = null
+    private var virtualDisplay: VirtualDisplay? = null
+    private var imageReader: ImageReader? = null
+    
+    // متغير لحفظ أحدث لقطة شاشة للوكيل
+    private var latestBitmap: Bitmap? = null
+
+    companion object {
+        const val CHANNEL_ID = "ScreenCaptureServiceChannel"
+        const val NOTIFICATION_ID = 1001
+        
+        // مفاتيح الـ Intent
+        const val EXTRA_RESULT_CODE = "EXTRA_RESULT_CODE"
+        const val EXTRA_RESULT_DATA = "EXTRA_RESULT_DATA"
+    }
+
+    inner class LocalBinder : Binder() {
+        fun getService(): OmniScreenCaptureService = this@OmniScreenCaptureService
+    }
+
+    override fun onBind(intent: Intent): IBinder {
+        return binder
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        createNotificationChannel()
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Omni Agent Vision")
+            .setContentText("الوكيل الذكي يحلل الشاشة الآن...")
+            //.setSmallIcon(R.mipmap.ic_launcher) // تأكد من تغيير هذا للأيقونة الخاصة بك
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+
+        // يجب تشغيل الخدمة في الأمام لأنها Media Projection (إجباري في أندرويد 14+)
+        startForeground(NOTIFICATION_ID, notification)
+
+        // استلام بيانات الصلاحية من الـ Activity
+        val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
+        val resultData = intent?.getParcelableExtra<Intent>(EXTRA_RESULT_DATA)
+
+        if (resultCode != 0 && resultData != null) {
+            startCapture(resultCode, resultData)
+        }
+
+        return START_NOT_STICKY
+    }
+
+    private fun startCapture(resultCode: Int, resultData: Intent) {
+        val projectionManager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        mediaProjection = projectionManager.getMediaProjection(resultCode, resultData)
+
+        val metrics = resources.displayMetrics
+        val width = metrics.widthPixels
+        val height = metrics.heightPixels
+        val density = metrics.densityDpi
+
+        // إنشاء ImageReader لاستقبال الفريمات كصور
+        imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+        
+        virtualDisplay = mediaProjection?.createVirtualDisplay(
+            "OmniAgentDisplay",
+            width, height, density,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+            imageReader?.surface, null, null
+        )
+
+        // مستمع لالتقاط الصور كلما تغيرت الشاشة
+        imageReader?.setOnImageAvailableListener({ reader ->
+            val image = reader.acquireLatestImage()
+            if (image != null) {
+                val planes = image.planes
+                val buffer = planes[0].buffer
+                val pixelStride = planes[0].pixelStride
+                val rowStride = planes[0].rowStride
+                val rowPadding = rowStride - pixelStride * width
+
+                // تحويل الفريم إلى Bitmap ليقوم الوكيل بتحليله
+                val bitmap = Bitmap.createBitmap(width + rowPadding / pixelStride, height, Bitmap.Config.ARGB_8888)
+                bitmap.copyPixelsFromBuffer(buffer)
+                
+                // حفظ آخر لقطة (مع قص الحواف الزائدة)
+                latestBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height)
+                
+                image.close()
+            }
+        }, null)
+    }
+
+    // دالة يستخدمها الوكيل الذكي (AI) للحصول على أحدث صورة للشاشة فوراً
+    fun getLatestFrame(): Bitmap? {
+        return latestBitmap
+    }
+
+    private fun createNotificationChannel() {
+        val serviceChannel = NotificationChannel(
+            CHANNEL_ID,
+            "Omni Vision Service Channel",
+            NotificationManager.IMPORTANCE_LOW
+        )
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(serviceChannel)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        virtualDisplay?.release()
+        imageReader?.close()
+        mediaProjection?.stop()
+    }
+}
