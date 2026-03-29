@@ -447,10 +447,11 @@ object EnhancedAppManifestAnalyzerTool {
             val exportedActs = JSONArray()
             packageInfo.activities?.filter { it.exported }?.forEach { a ->
                 val comp = a as android.content.pm.ComponentInfo
+                val per = AppManifestAnalyzerTool.getComponentPermission(comp)
                 val o = JSONObject()
                 o.put("name", comp.name)
-                o.put("permission", comp.permission)
-                o.put("bareExport", comp.exported && comp.permission == null)
+                o.put("permission", per)
+                o.put("bareExport", comp.exported && per == null)
                 o.put("amStart", "am start -n $pkg/${comp.name}")
                 exportedActs.put(o)
             }
@@ -461,10 +462,11 @@ object EnhancedAppManifestAnalyzerTool {
             val exportedSvcs = JSONArray()
             packageInfo.services?.filter { it.exported }?.forEach { s ->
                 val comp = s as android.content.pm.ComponentInfo
+                val per = AppManifestAnalyzerTool.getComponentPermission(comp)
                 val o = JSONObject()
                 o.put("name", comp.name)
-                o.put("permission", comp.permission)
-                o.put("bareExport", comp.exported && comp.permission == null)
+                o.put("permission", per)
+                o.put("bareExport", comp.exported && per == null)
                 o.put("amStartService", "am startservice -n $pkg/${comp.name}")
                 exportedSvcs.put(o)
             }
@@ -475,10 +477,11 @@ object EnhancedAppManifestAnalyzerTool {
             val exportedRcvs = JSONArray()
             packageInfo.receivers?.filter { it.exported }?.forEach { r ->
                 val comp = r as android.content.pm.ComponentInfo
+                val per = AppManifestAnalyzerTool.getComponentPermission(comp)
                 val o = JSONObject()
                 o.put("name", comp.name)
-                o.put("permission", comp.permission)
-                o.put("bareExport", comp.exported && comp.permission == null)
+                o.put("permission", per)
+                o.put("bareExport", comp.exported && per == null)
                 o.put("amBroadcast", "am broadcast -n $pkg/${comp.name} -a <ACTION>")
                 exportedRcvs.put(o)
             }
@@ -488,11 +491,12 @@ object EnhancedAppManifestAnalyzerTool {
         try {
             val exportedPrv = JSONArray()
             packageInfo.providers?.filter { it.exported }?.forEach { p ->
+                val permissionValue = p.readPermission ?: p.writePermission ?: AppManifestAnalyzerTool.getProviderAnyPermission(p)
                 val o = JSONObject()
                 o.put("name", p.name)
                 o.put("authority", p.authority)
-                o.put("permission", p.readPermission ?: p.writePermission ?: p.permission)
-                o.put("bareExport", p.exported && p.readPermission == null && p.writePermission == null && p.permission == null)
+                o.put("permission", permissionValue)
+                o.put("bareExport", p.exported && p.readPermission == null && p.writePermission == null && permissionValue == null)
                 o.put("queryCmd", p.authority?.split(";")?.joinToString("\n") { auth -> "content query --uri content://$auth/" })
                 exportedPrv.put(o)
             }
