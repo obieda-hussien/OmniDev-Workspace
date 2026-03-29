@@ -1,16 +1,12 @@
 # Add project specific ProGuard rules here.
 # You can control the set of applied configuration files using the
 # proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
 
 # ── Preserve line numbers in stack traces for crash debugging ─────────────────
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
 
 # ── kotlinx.serialization ─────────────────────────────────────────────────────
-# Keep serializable classes and their companions intact so JSON encode/decode works.
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.AnnotationsKt
 -keepclassmembers class kotlinx.serialization.json.** { *** Companion; }
@@ -76,11 +72,18 @@
 -dontwarn org.jsoup.**
 -keep class org.jsoup.** { *; }
 
-# ── OkHttp / Ktor (if used for HTTP) ─────────────────────────────────────────
+# ── Retrofit & OkHttp (إضافة حيوية لمنع كراش الشبكات) ────────────────────────
 -dontwarn okhttp3.**
 -dontwarn okio.**
+-dontwarn retrofit2.**
+-keepattributes Signature, Exceptions
+-keepclasseswithmembers interface * {
+    @retrofit2.http.* <methods>;
+}
+-keep,allowobfuscation,allowshrinking interface retrofit2.Call
+-keep,allowobfuscation,allowshrinking class retrofit2.Response
 
-# ── DataStore ─────────────────────────────────────────────────────────────────
+# ── DataStore & Protobuf ──────────────────────────────────────────────────────
 -keep class * extends com.google.protobuf.GeneratedMessageLite { *; }
 
 # ── Voice Mode (VoiceManager + VoiceAssistantService) ──────────────────────────
@@ -93,3 +96,8 @@
 -keep class com.omnidev.workspace.data.auth.GitHubDeviceFlowManager { *; }
 -keep class com.omnidev.workspace.data.auth.GitHubDeviceFlowManager$DeviceFlowState { *; }
 -keep class com.omnidev.workspace.data.auth.GitHubDeviceFlowManager$DeviceFlowState$* { *; }
+
+# ── Models (حماية أي Data Class بيستخدم للشبكات أو قواعد البيانات) ─────────────
+-keepclassmembers,allowobfuscation class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
