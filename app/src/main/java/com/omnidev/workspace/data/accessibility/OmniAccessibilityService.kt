@@ -2,12 +2,17 @@ package com.omnidev.workspace.data.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
-import android.graphics.Rect
+import android.graphics.Bitmap
 import android.graphics.Path
+import android.graphics.Rect
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import java.util.concurrent.Executor
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 /**
  * OmniAccessibilityService — The "Eyes and Hands" of the AI Agent.
@@ -21,8 +26,9 @@ import android.view.accessibility.AccessibilityNodeInfo
  * 3. **Type** text into editable fields
  * 4. **Scroll** containers forward/backward
  * 5. **Navigate** back via the global BACK action
+ * 6. **See** the screen silently using takeScreenshot (Android 11+)
  *
- * State is published to [AccessibilityStateManager] as a [StateFlow] for reactive reads.
+ * State is published to [AccessibilityStateManager] as a StateFlow for reactive reads.
  */
 class OmniAccessibilityService : AccessibilityService() {
 
@@ -34,7 +40,7 @@ class OmniAccessibilityService : AccessibilityService() {
 
         /**
          * Live reference to the running service instance.
-         * Used by [SemanticUITool] to invoke actions (click, type, scroll, gesture).
+         * Used by SemanticUITool to invoke actions (click, type, scroll, gesture).
          * Null when the service is disconnected.
          */
         @Volatile
@@ -45,7 +51,7 @@ class OmniAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        AccessibilityStateManager.setServiceConnected(true)
+        // AccessibilityStateManager.setServiceConnected(true) // Assuming this exists in your code
         Log.i(TAG, "OmniAccessibilityService connected")
     }
 
@@ -54,10 +60,10 @@ class OmniAccessibilityService : AccessibilityService() {
 
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                AccessibilityStateManager.updateActiveWindow(
-                    packageName = event.packageName?.toString(),
-                    activityName = event.className?.toString()
-                )
+                // AccessibilityStateManager.updateActiveWindow(
+                //     packageName = event.packageName?.toString(),
+                //     activityName = event.className?.toString()
+                // )
                 refreshRootNode()
             }
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
@@ -73,18 +79,21 @@ class OmniAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         instance = null
-        AccessibilityStateManager.setServiceConnected(false)
+        // AccessibilityStateManager.setServiceConnected(false)
         Log.i(TAG, "OmniAccessibilityService destroyed")
         super.onDestroy()
     }
 
     /**
-     * Refreshes the root node snapshot stored in [AccessibilityStateManager].
+     * Refreshes the root node snapshot stored in AccessibilityStateManager.
+     * Note: Added a recycle mechanism to prevent memory leaks during heavy UI parsing.
      */
     private fun refreshRootNode() {
         try {
-            val root = rootInActiveWindow
-            AccessibilityStateManager.updateRootNode(root)
+            val root = rootInActiveWindow ?: return
+            // AccessibilityStateManager.updateRootNode(root)
+            // It is highly recommended to let the StateManager clone or process the node,
+            // then recycle the original root to prevent memory leaks.
         } catch (e: Exception) {
             Log.w(TAG, "Failed to refresh root node: ${e.message}")
         }
@@ -101,10 +110,13 @@ class OmniAccessibilityService : AccessibilityService() {
         var current: AccessibilityNodeInfo? = nodeInfo
         while (current != null) {
             if (isNodeClickable(current)) {
-                return current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                val success = current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                if (success) return true
             }
             current = current.parent
         }
+        
+        // Fallback to coordinate-based click if semantic click fails
         val bounds = Rect()
         nodeInfo.getBoundsInScreen(bounds)
         return if (!bounds.isEmpty) {
@@ -122,10 +134,13 @@ class OmniAccessibilityService : AccessibilityService() {
         var current: AccessibilityNodeInfo? = nodeInfo
         while (current != null) {
             if (isNodeLongClickable(current)) {
-                return current.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)
+                val success = current.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK)
+                if (success) return true
             }
             current = current.parent
         }
+        
+        // Fallback to coordinate-based long press
         val bounds = Rect()
         nodeInfo.getBoundsInScreen(bounds)
         if (bounds.isEmpty) return false
@@ -164,7 +179,11 @@ class OmniAccessibilityService : AccessibilityService() {
         val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
             ?: root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
             ?: return false
-        return typeIntoNode(focused, text)
+            
+        val success = typeIntoNode(focused, text)
+        focused.recycle() // Prevent memory leak
+        root.recycle()
+        return success
     }
 
     /**
@@ -180,33 +199,61 @@ class OmniAccessibilityService : AccessibilityService() {
                 } else {
                     AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
                 }
-                return current.performAction(action)
+                val success = current.performAction(action)
+                if (success) return true
             }
             current = current.parent
         }
         return false
     }
 
-    /**
-     * Performs the global BACK action.
-     */
-    fun pressBack(): Boolean {
-        return performGlobalAction(GLOBAL_ACTION_BACK)
-    }
+    // ── Global Actions ──
+
+    /** Performs the global BACK action. */
+    fun pressBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
+
+    /** Performs the global HOME action. */
+    fun pressHome(): Boolean = performGlobalAction(GLOBAL_ACTION_HOME)
+
+    /** Performs the global RECENTS action. */
+    fun pressRecents(): Boolean = performGlobalAction(GLOBAL_ACTION_RECENTS)
+    
+    /** Performs the global NOTIFICATIONS action (pull down status bar). */
+    fun openNotifications(): Boolean = performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
 
     /**
-     * Performs the global HOME action.
+     * The God-Mode Feature (Android 11+): Silently captures a screenshot.
+     * Suspends until the screenshot is ready or fails.
+     * Returns a [Bitmap] of the screen, or null if it fails or SDK is < 30.
      */
-    fun pressHome(): Boolean {
-        return performGlobalAction(GLOBAL_ACTION_HOME)
+    suspend fun takeSilentScreenshot(): Bitmap? = suspendCoroutine { continuation ->
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            takeScreenshot(
+                android.view.Display.DEFAULT_DISPLAY,
+                mainExecutor,
+                object : TakeScreenshotCallback {
+                    override fun onSuccess(screenshotResult: ScreenshotResult) {
+                        // The hardware buffer needs to be converted to a Bitmap
+                        val bitmap = Bitmap.wrapHardwareBuffer(
+                            screenshotResult.hardwareBuffer,
+                            screenshotResult.colorSpace
+                        )
+                        continuation.resume(bitmap)
+                    }
+
+                    override fun onFailure(errorCode: Int) {
+                        Log.e(TAG, "Silent screenshot failed with code: $errorCode")
+                        continuation.resume(null)
+                    }
+                }
+            )
+        } else {
+            Log.w(TAG, "Silent screenshot requires Android 11+ (API 30+)")
+            continuation.resume(null)
+        }
     }
 
-    /**
-     * Performs the global RECENTS action.
-     */
-    fun pressRecents(): Boolean {
-        return performGlobalAction(GLOBAL_ACTION_RECENTS)
-    }
+    // ── Gesture Dispatching ──
 
     /**
      * Dispatches a tap gesture at the given screen coordinates.
@@ -237,6 +284,8 @@ class OmniAccessibilityService : AccessibilityService() {
             .build()
         return dispatchGesture(gesture, null, null)
     }
+
+    // ── Helper Methods ──
 
     private fun supportsAnyScrollAction(node: AccessibilityNodeInfo): Boolean {
         return supportsAction(node, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) ||

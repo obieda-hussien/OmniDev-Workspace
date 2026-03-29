@@ -1,5 +1,6 @@
 package com.omnidev.workspace.data.accessibility
 
+import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
@@ -15,10 +16,10 @@ import android.view.accessibility.AccessibilityNodeInfo
  *
  * Output format (minified structured text):
  * ```
- * [N1] Button: "Send" (Clickable)
- * [N2] EditText: "Type message..." (Editable)
- * [N3] TextView: "Hello World"
- * [N4] ScrollView (Scrollable, 3 children)
+ * [N1] Button: "Send" (Clickable) {bounds: [100, 800, 300, 950]}
+ * [N2] EditText: "Type message..." (Editable) {bounds: [50, 400, 1000, 550]}
+ * [N3] TextView: "Hello World" {bounds: [0, 100, 1080, 200]}
+ * [N4] ScrollView (Scrollable, 3 children) {bounds: [0, 0, 1080, 1920]}
  * ```
  */
 object SemanticTreeParser {
@@ -37,6 +38,11 @@ object SemanticTreeParser {
 
     /**
      * Parsed result containing the semantic summary string and the node-ID-to-node mapping.
+     * * IMPORTANT MEMORY MANAGEMENT NOTE:
+     * The [nodeMap] holds strong references to [AccessibilityNodeInfo] objects.
+     * The consumer of this ParseResult MUST iterate over `nodeMap.values` and call
+     * `recycle()` on each node once the agent has finished executing its action, 
+     * otherwise the app will suffer from massive memory leaks.
      */
     data class ParseResult(
         /** The minified semantic tree string for LLM consumption. */
@@ -87,7 +93,9 @@ object SemanticTreeParser {
             if (isRelevant) {
                 nodeCounter++
                 val nodeId = "N$nodeCounter"
-                nodeMap[nodeId] = node
+                // Store a copy to prevent the system from recycling it unexpectedly underneath us
+                val nodeCopy = AccessibilityNodeInfo.obtain(node)
+                nodeMap[nodeId] = nodeCopy
 
                 val indent = "  ".repeat(depth.coerceAtMost(6))
                 val line = buildNodeLine(nodeId, node, indent)
@@ -99,6 +107,10 @@ object SemanticTreeParser {
             for (i in 0 until childCount) {
                 val child = node.getChild(i) ?: continue
                 traverse(child, depth + 1)
+                // We recycle the child ONLY if we didn't store it in our map.
+                // However, since we stored a *copy* in the map (nodeCopy), 
+                // it's safe to recycle this iteration's child object here.
+                child.recycle() 
             }
         }
 
@@ -126,6 +138,9 @@ object SemanticTreeParser {
      * or has visible text/description that provides semantic meaning.
      */
     private fun isRelevantNode(node: AccessibilityNodeInfo): Boolean {
+        // CRITICAL FILTER: Ignore off-screen or invisible elements to prevent LLM hallucinations
+        if (!node.isVisibleToUser) return false
+
         // Always include actionable nodes
         if (isNodeActionable(node)) return true
         if (node.isEditable) return true
@@ -174,7 +189,12 @@ object SemanticTreeParser {
         // Text content
         val text = node.text?.toString()?.trim()
         if (!text.isNullOrEmpty()) {
-            append(": \"${truncate(text)}\"")
+            // Mask password fields for safety
+            if (node.isPassword) {
+                append(": \"••••••••\"")
+            } else {
+                append(": \"${truncate(text)}\"")
+            }
         }
 
         // Content description (accessibility label)
@@ -193,10 +213,12 @@ object SemanticTreeParser {
         val hasClickAction = supportsAction(node, AccessibilityNodeInfo.ACTION_CLICK)
         val hasLongClickAction = supportsAction(node, AccessibilityNodeInfo.ACTION_LONG_CLICK)
         val hasScrollAction = supportsAnyScrollAction(node)
+        
         if (node.isClickable || hasClickAction) flags.add("Clickable")
         if (node.isLongClickable || hasLongClickAction) flags.add("LongClickable")
         if (node.isEditable) flags.add("Editable")
         if (node.isScrollable || hasScrollAction) flags.add("Scrollable")
+        if (node.isPassword) flags.add("Password") // Vital for LLM context
         if (node.isCheckable) {
             flags.add(if (node.isChecked) "Checked" else "Unchecked")
         }
@@ -207,6 +229,13 @@ object SemanticTreeParser {
 
         if (flags.isNotEmpty()) {
             append(" (${flags.joinToString(", ")})")
+        }
+
+        // Spatial Awareness: Add screen bounding box so LLM understands layout
+        val bounds = Rect()
+        node.getBoundsInScreen(bounds)
+        if (!bounds.isEmpty) {
+            append(" {bounds: [${bounds.left}, ${bounds.top}, ${bounds.right}, ${bounds.bottom}]}")
         }
 
         // View ID for debugging (if present)
