@@ -61,15 +61,15 @@ class OmniInputMethodService : InputMethodService() {
         /**
          * Switches back to the previous IME or the next one in the list.
          */
+        @SuppressLint("NewApi")
         fun switchToPreviousKeyboard(): Boolean {
             val service = activeService ?: return false
             return try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) { // API 28+
                     service.switchToPreviousInputMethod()
                 } else {
-                    // FIX: Use the legacy method signature for API < 28
-                    @Suppress("DEPRECATION")
-                    service.switchToNextInputMethod()
+                    val imm = service.getSystemService(InputMethodManager::class.java)
+                    imm?.switchToNextInputMethod(service.window.windowToken, false)
                 }
                 true
             } catch (e: Exception) {
