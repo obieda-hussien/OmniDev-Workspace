@@ -28,18 +28,24 @@ class FileToolManagerTest {
     }
 
     @Test
-    fun `getToolDefinitions returns all 8 tools`() {
-        val tools = toolManager.getToolDefinitions()
-        assertEquals(8, tools.size)
-        val names = tools.map { it.name }
-        assertTrue("read_file_lines" in names)
-        assertTrue("search_codebase" in names)
-        assertTrue("patch_file_content" in names)
-        assertTrue("create_file" in names)
-        assertTrue("delete_file" in names)
-        assertTrue("run_terminal" in names)
-        assertTrue("python_runner" in names)
-        assertTrue("web_search" in names)
+    fun `getToolDefinitions returns all 7 core tools`() {
+        val manager = FileToolManager(godModeEnabled = false)
+        val definitions = manager.getToolDefinitions()
+        
+        // التعديل هنا: نغير الرقم من 8 لـ 7
+        assertEquals(7, definitions.size)
+        
+        val names = definitions.map { it.name }
+        assertTrue(names.contains("read_file_lines"))
+        assertTrue(names.contains("search_codebase"))
+        assertTrue(names.contains("patch_file_content"))
+        assertTrue(names.contains("create_file"))
+        assertTrue(names.contains("delete_file"))
+        assertTrue(names.contains("run_terminal"))
+        assertTrue(names.contains("python_runner"))
+        
+        // التأكد إن web_search مابقتش موجودة هنا (اختياري للتأكيد)
+        assertFalse(names.contains("web_search"))
     }
 
     @Test
