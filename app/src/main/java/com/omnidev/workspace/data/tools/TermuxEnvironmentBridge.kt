@@ -246,12 +246,18 @@ object TermuxEnvironmentBridge {
             val uptimeMs  = System.currentTimeMillis() - startedAt
             val uptimeSec = uptimeMs / 1000
             val bufferFill = synchronized(this) { outputBuffer.length }
+            val isAlive = try {
+                process?.exitValue()
+                false
+            } catch (e: IllegalThreadStateException) {
+                true
+            }
             return buildString {
                 appendLine("Session ID    : $id")
                 appendLine("CWD           : ${cwd ?: "(default)"}")
                 appendLine("Uptime        : ${uptimeSec}s")
                 appendLine("Buffer fill   : $bufferFill / $MAX_BUFFER_SIZE chars")
-                appendLine("Process alive : ${(process?.isAlive) ?: false}")
+                appendLine("Process alive : $isAlive")
             }
         }
 
