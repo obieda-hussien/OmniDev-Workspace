@@ -46,6 +46,8 @@ import kotlinx.coroutines.withContext
  * | `screencap`      | Capture the screen to a file                       |
  * | `wm`             | Window manager: get/set display size or density    |
  * | `svc`            | Enable / disable a hardware service                |
+ * | `termux_hints`   | Get Termux bootstrap installation instructions     |
+ * | `termux_install` | Silently install Termux APK via Shizuku            |
  */
 object OmniCoreAgentTool {
 
@@ -91,7 +93,9 @@ Actions and their required parameters:
 • input_keyevent      — keycode: integer keycode (e.g. 4=BACK, 3=HOME, 26=POWER).
 • screencap           — output_path (default /data/local/tmp/omnidev_cap.png).
 • wm                  — sub_command (size/density/size reset/density reset), value (optional new value).
-• svc                 — service (wifi/data/bluetooth/nfc/power), action (enable/disable).
+• svc                 — service (wifi/data/bluetooth/nfc/power), svc_action (enable/disable).
+• termux_hints        — No extra params. Returns instructions to install Termux without an app store.
+• termux_install      — No extra params. Silently downloads and installs Termux APK via Shizuku.
 
 rish (Remote Interactive Shell via Shizuku) — full ADB-equivalent shell:
 • rish_setup          — Prepare rish: locate/extract rish_shizuku.dex, write rish script. Returns status.
@@ -299,6 +303,14 @@ rish (Remote Interactive Shell via Shizuku) — full ADB-equivalent shell:
                 val act = args["svc_action"]
                     ?: return@withContext err("svc requires 'svc_action' (enable or disable)")
                 PrivilegedExecutionManager.controlService(svc, act).toToolResult()
+            }
+            
+            "termux_hints" -> {
+                ToolExecutionResult(PrivilegedExecutionManager.getTermuxBootstrapHints())
+            }
+            
+            "termux_install" -> {
+                PrivilegedExecutionManager.installTermuxViaShizuku().toToolResult()
             }
 
             // ── rish (Remote Interactive Shell) ──────────────────────────

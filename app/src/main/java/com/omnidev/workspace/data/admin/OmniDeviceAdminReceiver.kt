@@ -13,9 +13,11 @@ import android.widget.Toast
  *
  * When the user grants Device Admin status in Settings → Security → Device
  * Administrators, this receiver enables:
- *  - **Lock screen** — agent can lock the device on command
- *  - **Password policy** — agent can enforce minimum PIN/password complexity
- *  - **Wipe data** — factory-reset (extreme; gated behind ConfirmationGate)
+ * - **Lock screen** — agent can lock the device on command
+ * - **Password policy** — agent can enforce minimum PIN/password complexity
+ * - **Wipe data** — factory-reset (extreme; gated behind ConfirmationGate)
+ * - **Disable Camera** — globally disables hardware cameras for security
+ * - **Keyguard Features** — controls what is visible on the lock screen
  *
  * All destructive actions are safeguarded by the ReAct confirmation gate;
  * this class only provides the plumbing.
@@ -36,6 +38,15 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
             return dpm.isAdminActive(getComponentName(context))
         }
 
+        /** * Checks whether this app is the Device Owner (the ultimate God-Mode).
+         * Required for setting password policies on modern Android versions (11+).
+         */
+        fun isDeviceOwner(context: Context): Boolean {
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+                ?: return false
+            return dpm.isDeviceOwnerApp(context.packageName)
+        }
+
         /**
          * Launches the system prompt requesting Device Admin activation.
          *
@@ -47,7 +58,7 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
                 putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, getComponentName(context))
                 putExtra(
                     DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                    explanation ?: "OmniDev needs Device Admin to lock the screen and enforce security policies on your command."
+                    explanation ?: "OmniDev needs Device Admin to lock the screen, disable cameras, and enforce security policies on your command."
                 )
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
@@ -77,7 +88,44 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         }
 
         /**
+         * Disables or enables all device cameras globally.
+         * Perfect for a "Secure Mode" agent routine.
+         * * @return `true` if the policy was applied.
+         */
+        fun setCameraDisabled(context: Context, disabled: Boolean): Boolean {
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+                ?: return false
+            return if (dpm.isAdminActive(getComponentName(context))) {
+                dpm.setCameraDisabled(getComponentName(context), disabled)
+                Log.i(TAG, "Camera disabled state set to: $disabled")
+                true
+            } else {
+                Log.w(TAG, "Cannot change camera state — Device Admin not active")
+                false
+            }
+        }
+
+        /**
+         * Factory resets the device!
+         * EXTREMELY DANGEROUS: Wipes all user data.
+         * * @return `true` if the wipe command was accepted.
+         */
+        fun wipeDeviceData(context: Context): Boolean {
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
+                ?: return false
+            return if (dpm.isAdminActive(getComponentName(context))) {
+                Log.e(TAG, "INITIATING DEVICE FACTORY RESET!")
+                dpm.wipeData(0) // 0 performs a standard data wipe
+                true
+            } else {
+                Log.w(TAG, "Cannot wipe device — Device Admin not active")
+                false
+            }
+        }
+
+        /**
          * Sets the minimum password length (PIN/password).
+         * NOTE: On modern Android, this generally requires Device Owner privileges.
          *
          * @return `true` if the policy was applied, `false` if admin is not active.
          */
@@ -86,9 +134,14 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
             val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
                 ?: return false
             return if (dpm.isAdminActive(getComponentName(context))) {
-                dpm.setPasswordMinimumLength(getComponentName(context), minLength)
-                Log.i(TAG, "Minimum password length set to $minLength")
-                true
+                if (isDeviceOwner(context) || android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.R) {
+                    dpm.setPasswordMinimumLength(getComponentName(context), minLength)
+                    Log.i(TAG, "Minimum password length set to $minLength")
+                    true
+                } else {
+                    Log.w(TAG, "Cannot set password length — Device Owner required on Android 11+")
+                    false
+                }
             } else {
                 Log.w(TAG, "Cannot set password policy — Device Admin not active")
                 false
@@ -133,6 +186,8 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
 
     override fun onPasswordFailed(context: Context, intent: Intent, user: android.os.UserHandle) {
         super.onPasswordFailed(context, intent, user)
+        // This is a great place to trigger the AI agent to take a silent screenshot from the front camera
+        // using the OmniScreenCaptureService or Camera API, to catch whoever is trying to unlock the phone!
         Log.w(TAG, "Password attempt failed")
     }
 }

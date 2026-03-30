@@ -1,23 +1,30 @@
 package com.omnidev.workspace.data.tools
 
+import android.util.Base64
 import android.util.Log
 import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.BufferedReader
+import java.io.BufferedWriter
 import java.io.File
+import java.io.InputStreamReader
+import java.io.OutputStreamWriter
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
- * TermuxEnvironmentBridge — النسخة المُصلَحة والمُحسَّنة.
+ * TermuxEnvironmentBridge — The Ultimate God-Mode CLI & Session Engine.
  *
- * إصلاحات جوهرية:
- * 1. LD_PRELOAD اختياري — يُضاف فقط إذا الملف موجود فعلاً
- * 2. استراتيجيات تنفيذ متعددة بترتيب fallback ذكي:
- *    a) env-prefix مع bash (الطريقة الأصلية المُصلَحة)
- *    b) run-as com.termux (يشغل بـ Termux's UID مباشرة)
- *    c) Termux RUN_COMMAND broadcast (عبر am broadcast)
- *    d) busybox/system fallback
- * 3. PATH يشمل كل binary locations المحتملة
- * 4. تحقق من وجود الملفات قبل استخدامها
+ * * FEATURES:
+ * 1. Persistent Background Sessions: Run background servers (Node, Python) or long builds.
+ * 2. Multi-Threading: Open multiple terminal sessions simultaneously.
+ * 3. Base64 Script Injection: Bypasses all bash quoting/escaping hell for single-shot commands.
+ * 4. CWD Support: Agent can set the Current Working Directory for builds (npm, gradle).
+ * 5. Full Package Management: Native wrappers for pip, pkg, apt, and npm.
  */
 object TermuxEnvironmentBridge {
 
@@ -40,16 +47,13 @@ object TermuxEnvironmentBridge {
     const val TERMUX_APT          = "$TERMUX_BIN/apt"
     private const val TERMUX_EXEC_SO = "$TERMUX_LIB/libtermux-exec.so"
 
-    private const val MAX_OUTPUT = 10_000
+    // Truncates from the END of the log to capture build errors
+    private const val MAX_OUTPUT = 12_000
 
     // ─────────────────────────────────────────────────────────────
-    // Environment building — الإصلاح الجوهري
+    // Environment Building
     // ─────────────────────────────────────────────────────────────
 
-    /**
-     * بيبني environment variables كـ inline shell assignments.
-     * LD_PRELOAD يُضاف فقط إذا الملف موجود فعلاً (إصلاح Bug #2).
-     */
     fun buildTermuxEnv(): Map<String, String> {
         val env = mutableMapOf(
             "HOME"           to TERMUX_HOME,
@@ -62,11 +66,8 @@ object TermuxEnvironmentBridge {
             "PATH"           to buildPath(),
             "LD_LIBRARY_PATH" to buildLdLibraryPath()
         )
-        // *** إصلاح: LD_PRELOAD فقط لو الملف موجود ***
         if (File(TERMUX_EXEC_SO).exists()) {
             env["LD_PRELOAD"] = TERMUX_EXEC_SO
-        } else {
-            Log.d(TAG, "libtermux-exec.so غير موجود — تخطي LD_PRELOAD")
         }
         return env
     }
@@ -79,11 +80,9 @@ object TermuxEnvironmentBridge {
             "/system/xbin",
             "/sbin",
             "/vendor/bin",
-            "/data/local/tmp"
+            "/data/local/tmp",
+            "$TERMUX_PREFIX/lib/python3*/site-packages/bin" // Python global packages
         )
-        // أضف Termux site-packages bin
-        val pyBin = "$TERMUX_PREFIX/lib/python3*/site-packages/bin"
-        paths.add(pyBin)
         return paths.joinToString(":")
     }
 
@@ -99,10 +98,6 @@ object TermuxEnvironmentBridge {
         return paths.joinToString(":")
     }
 
-    /**
-     * يبني prefix string جاهز للـ shell command.
-     * مثال: HOME='/data/..' PATH='...' python3 ...
-     */
     fun buildEnvPrefix(): String =
         buildTermuxEnv()
             .entries
@@ -110,17 +105,15 @@ object TermuxEnvironmentBridge {
             .let { if (it.isNotBlank()) "$it " else "" }
 
     // ─────────────────────────────────────────────────────────────
-    // Availability checks
+    // Availability Checks
     // ─────────────────────────────────────────────────────────────
 
     fun isTermuxUsable(): Boolean = File(TERMUX_BASH).exists()
 
     suspend fun findBinary(name: String): String? = withContext(Dispatchers.IO) {
-        // 1. مباشرة في Termux bin
         val direct = File(TERMUX_BIN, name)
         if (direct.exists() && direct.canExecute()) return@withContext direct.absolutePath
 
-        // 2. عبر which مع Termux env
         if (isTermuxUsable()) {
             val envPfx = buildEnvPrefix()
             val result = PrivilegedExecutionManager.executeCommand(
@@ -129,359 +122,29 @@ object TermuxEnvironmentBridge {
             if (result != null) return@withContext result
         }
 
-        // 3. system which
         PrivilegedExecutionManager.executeCommand(
             "which $name 2>/dev/null || command -v $name 2>/dev/null"
         ).getOrNull()?.trim()?.takeIf { isValidPath(it) }
+    }
+
+    internal suspend fun findPythonInterpreter(): String? = withContext(Dispatchers.IO) {
+        val candidates = listOf(TERMUX_PYTHON3, TERMUX_PYTHON, "/usr/bin/python3", "/system/bin/python3")
+        candidates.firstOrNull { File(it).exists() } ?: findBinary("python3") ?: findBinary("python")
     }
 
     private fun isValidPath(s: String): Boolean =
         s.isNotBlank() && s != "(no output)" && !s.startsWith("ERROR") && s.startsWith("/")
 
     // ─────────────────────────────────────────────────────────────
-    // Core execution — استراتيجيات متعددة
+    // Output Formatting
     // ─────────────────────────────────────────────────────────────
 
-    /**
-     * يُنفِّذ أمر داخل Termux environment بثلاث استراتيجيات:
-     * 1. env-prefix + bash (الأسرع)
-     * 2. run-as com.termux (إذا Termux debuggable)
-     * 3. Termux RUN_COMMAND broadcast (الأبطأ لكن الأكثر توافقاً)
-     */
-    suspend fun executeInTermux(command: String): ToolExecutionResult = withContext(Dispatchers.IO) {
-        if (!isTermuxUsable()) {
-            // حاول system shell كـ last resort
-            return@withContext PrivilegedExecutionManager.executeCommand(command).fold(
-                onSuccess = { ToolExecutionResult(it.ifBlank { "(no output)" }) },
-                onFailure = {
-                    ToolExecutionResult(
-                        "Termux غير مثبت أو bash غير موجود. ثبّت Termux من F-Droid:\n" +
-                        "https://f-droid.org/en/packages/com.termux/",
-                        isError = true
-                    )
-                }
-            )
-        }
-
-        // استراتيجية 1: env-prefix مع Termux bash (الأسرع والمفضّل)
-        val strategy1 = runStrategy1(command)
-        if (strategy1 != null && !strategy1.isError) return@withContext strategy1
-
-        // استراتيجية 2: run-as com.termux
-        val strategy2 = runStrategy2(command)
-        if (strategy2 != null && !strategy2.isError) return@withContext strategy2
-
-        // إرجاع نتيجة استراتيجية 1 حتى لو كانت خطأ (مع رسالة محسّنة)
-        strategy1 ?: ToolExecutionResult("فشل التنفيذ في Termux.", isError = true)
+    private fun smartTruncate(output: String): String {
+        if (output.length <= MAX_OUTPUT) return output.ifBlank { "(no output)" }
+        return "...[TRUNCATED ${output.length - MAX_OUTPUT} chars]...\n" + output.takeLast(MAX_OUTPUT)
     }
 
-    private suspend fun runStrategy1(command: String): ToolExecutionResult? {
-        return try {
-            val envPfx = buildEnvPrefix()
-            val cmd = "${envPfx}${TERMUX_BASH} -c ${shellQuote(command)} 2>&1"
-            PrivilegedExecutionManager.executeCommand(cmd).fold(
-                onSuccess = { ToolExecutionResult(it.take(MAX_OUTPUT).ifBlank { "(no output)" }) },
-                onFailure = { null }
-            )
-        } catch (_: Exception) { null }
-    }
-
-    private suspend fun runStrategy2(command: String): ToolExecutionResult? {
-        // run-as يعمل إذا كان Termux مثبتاً بـ debuggable=true (النسخ من F-Droid)
-        return try {
-            val cmd = "run-as $TERMUX_PKG bash -c ${shellQuote(command)} 2>&1"
-            PrivilegedExecutionManager.executeCommand(cmd).fold(
-                onSuccess = { out ->
-                    if (out.contains("run-as", ignoreCase = true) &&
-                        out.contains("unknown package", ignoreCase = true)) {
-                        null // Termux مش debuggable
-                    } else {
-                        ToolExecutionResult(out.take(MAX_OUTPUT).ifBlank { "(no output)" })
-                    }
-                },
-                onFailure = { null }
-            )
-        } catch (_: Exception) { null }
-    }
-
-    /**
-     * تنفيذ script متعدد الأسطر داخل Termux.
-     * يكتب الـ script في /data/local/tmp ثم يُنفِّذه ويحذفه.
-     */
-    suspend fun executeScriptInTermux(scriptContent: String): ToolExecutionResult =
-        withContext(Dispatchers.IO) {
-            if (!isTermuxUsable()) {
-                return@withContext ToolExecutionResult(
-                    "Termux غير متاح.", isError = true
-                )
-            }
-
-            val tmpPath = "/data/local/tmp/omni_ts_${System.currentTimeMillis()}.sh"
-            val script  = "#!${TERMUX_BASH}\n\n$scriptContent"
-            val b64     = android.util.Base64.encodeToString(
-                script.toByteArray(Charsets.UTF_8), android.util.Base64.NO_WRAP
-            )
-
-            val writeCmd = "echo ${shellQuote(b64)} | base64 -d > ${shellQuote(tmpPath)}" +
-                " && chmod +x ${shellQuote(tmpPath)} && echo WRITE_OK"
-
-            val writeResult = PrivilegedExecutionManager.executeCommand(writeCmd)
-            if (writeResult.isFailure || !writeResult.getOrDefault("").contains("WRITE_OK")) {
-                return@withContext ToolExecutionResult(
-                    "فشل كتابة الـ script: ${writeResult.exceptionOrNull()?.message}",
-                    isError = true
-                )
-            }
-
-            val envPfx = buildEnvPrefix()
-            val execResult = PrivilegedExecutionManager.executeCommand(
-                "${envPfx}${TERMUX_BASH} ${shellQuote(tmpPath)} 2>&1; rm -f ${shellQuote(tmpPath)}"
-            )
-
-            execResult.fold(
-                onSuccess  = { ToolExecutionResult(it.take(MAX_OUTPUT).ifBlank { "(no output)" }) },
-                onFailure  = { ToolExecutionResult("فشل تنفيذ الـ script: ${it.message}", isError = true) }
-            )
-        }
-
-    // ─────────────────────────────────────────────────────────────
-    // Python runner
-    // ─────────────────────────────────────────────────────────────
-
-    suspend fun runPython(code: String, args: String? = null): ToolExecutionResult =
-        withContext(Dispatchers.IO) {
-            val pyBin = findPythonInterpreter()
-                ?: return@withContext ToolExecutionResult(
-                    "Python غير موجود.\n" +
-                    "ثبّت عبر Termux: action=termux_pkg_install packages='python'\n" +
-                    "أو عبر: action=install_python في agent_runtime",
-                    isError = true
-                )
-
-            val argStr = args?.split(Regex("\\s+"))
-                ?.filter { it.isNotBlank() }
-                ?.joinToString(" ") { shellQuote(it) }
-                ?.let { " $it" } ?: ""
-
-            val isTermuxPy = pyBin.startsWith(TERMUX_BIN)
-            val envPfx = if (isTermuxPy) buildEnvPrefix() else ""
-            val cmd = "${envPfx}${pyBin} -c ${shellQuote(code)}$argStr 2>&1"
-
-            PrivilegedExecutionManager.executeCommand(cmd).fold(
-                onSuccess = { ToolExecutionResult(it.take(MAX_OUTPUT).ifBlank { "(no output)" }) },
-                onFailure = {
-                    // إذا فشل مع Termux python، حاول system python
-                    if (isTermuxPy) {
-                        val sysPy = PrivilegedExecutionManager.executeCommand(
-                            "python3 -c ${shellQuote(code)}$argStr 2>&1"
-                        ).getOrNull()
-                        if (sysPy != null) ToolExecutionResult(sysPy.take(MAX_OUTPUT))
-                        else ToolExecutionResult("فشل تشغيل Python: ${it.message}", isError = true)
-                    } else {
-                        ToolExecutionResult("فشل تشغيل Python: ${it.message}", isError = true)
-                    }
-                }
-            )
-        }
-
-    // ─────────────────────────────────────────────────────────────
-    // Package management
-    // ─────────────────────────────────────────────────────────────
-
-    suspend fun pipInstall(packages: String, upgrade: Boolean = false): ToolExecutionResult =
-        withContext(Dispatchers.IO) {
-            val safePkgs = sanitizePackageList(packages)
-                ?: return@withContext ToolExecutionResult("أسماء packages غير صحيحة.", isError = true)
-            val upgradeFlag = if (upgrade) " --upgrade" else ""
-            val envPfx = if (isTermuxUsable()) buildEnvPrefix() else ""
-
-            // Cascade: Termux pip3 → pip3 → python -m pip
-            val commands = buildList {
-                if (isTermuxUsable()) {
-                    add("${envPfx}${TERMUX_PIP3} install$upgradeFlag $safePkgs 2>&1")
-                    add("${envPfx}${TERMUX_PIP} install$upgradeFlag $safePkgs 2>&1")
-                    add("${envPfx}${TERMUX_PYTHON3} -m pip install$upgradeFlag $safePkgs 2>&1")
-                }
-                add("pip3 install$upgradeFlag $safePkgs 2>&1")
-                add("python3 -m pip install$upgradeFlag $safePkgs 2>&1")
-            }
-
-            var lastOutput = "(لم يُحاوَل)"
-            for (cmd in commands) {
-                val result = PrivilegedExecutionManager.executeCommand(cmd)
-                val output = result.getOrNull() ?: continue
-                if (output.contains("Successfully installed", ignoreCase = true) ||
-                    output.contains("already satisfied", ignoreCase = true) ||
-                    output.contains("Requirement already", ignoreCase = true)) {
-                    return@withContext ToolExecutionResult(output.take(MAX_OUTPUT))
-                }
-                lastOutput = output
-            }
-            ToolExecutionResult("فشل pip install:\n$lastOutput", isError = true)
-        }
-
-    suspend fun pkgInstall(packages: String): ToolExecutionResult = withContext(Dispatchers.IO) {
-        if (!isTermuxUsable()) {
-            return@withContext ToolExecutionResult(
-                "Termux غير مثبت. ثبّته من F-Droid:\nhttps://f-droid.org/en/packages/com.termux/",
-                isError = true
-            )
-        }
-        val safePkgs = packages.split(Regex("\\s+"))
-            .map { it.replace(Regex("[^a-zA-Z0-9_.\\-+]"), "") }
-            .filter { it.isNotEmpty() }
-            .joinToString(" ")
-        if (safePkgs.isEmpty()) {
-            return@withContext ToolExecutionResult("لا توجد أسماء packages صحيحة.", isError = true)
-        }
-
-        val envPfx = buildEnvPrefix()
-        val cmd = "${envPfx}DEBIAN_FRONTEND=noninteractive " +
-            "${TERMUX_PKG_MANAGER} install -y $safePkgs 2>&1 " +
-            "|| ${envPfx}DEBIAN_FRONTEND=noninteractive " +
-            "${TERMUX_APT} install -y $safePkgs 2>&1"
-
-        PrivilegedExecutionManager.executeCommand(cmd).fold(
-            onSuccess = { ToolExecutionResult(it.take(MAX_OUTPUT).ifBlank { "(no output)" }) },
-            onFailure = { ToolExecutionResult("فشل pkg install: ${it.message}", isError = true) }
-        )
-    }
-
-    suspend fun pkgUpdate(): ToolExecutionResult = withContext(Dispatchers.IO) {
-        if (!isTermuxUsable()) return@withContext ToolExecutionResult("Termux غير متاح.", isError = true)
-        val envPfx = buildEnvPrefix()
-        PrivilegedExecutionManager.executeCommand(
-            "${envPfx}DEBIAN_FRONTEND=noninteractive ${TERMUX_PKG_MANAGER} update -y 2>&1"
-        ).fold(
-            onSuccess = { ToolExecutionResult(it.take(MAX_OUTPUT).ifBlank { "(no output)" }) },
-            onFailure = { ToolExecutionResult("فشل pkg update: ${it.message}", isError = true) }
-        )
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Status report
-    // ─────────────────────────────────────────────────────────────
-
-    suspend fun statusReport(): ToolExecutionResult = withContext(Dispatchers.IO) {
-        val sb = StringBuilder()
-        sb.appendLine("╔══ بيئة التنفيذ ═══════════════════════════════════════════════╗")
-
-        // Backend
-        val shizuku  = PrivilegedExecutionManager.isShizukuReady()
-        val rishReady = PrivilegedExecutionManager.isRishReady()
-        val root     = PrivilegedExecutionManager.isRootAvailable()
-        sb.appendLine("║ PRIVILEGE BACKEND")
-        sb.appendLine("║   Shizuku : ${if (shizuku) "✅ جاهز" else "❌ غير متاح"}")
-        sb.appendLine("║   rish    : ${if (rishReady) "✅ جاهز" else "❌ غير متاح"}")
-        sb.appendLine("║   Root    : ${if (root) "⚠️ متاح" else "❌ غير موجود"}")
-
-        // Termux
-        sb.appendLine("║")
-        sb.appendLine("║ TERMUX")
-        val termuxOk = isTermuxUsable()
-        sb.appendLine("║   bash    : ${if (termuxOk) "✅ $TERMUX_BASH" else "❌ غير موجود"}")
-        val ldPreload = File(TERMUX_EXEC_SO).exists()
-        sb.appendLine("║   libtermux-exec.so : ${if (ldPreload) "✅ موجود" else "⚠️ غير موجود (تم التخطي)"}")
-
-        // Interpreters
-        sb.appendLine("║")
-        sb.appendLine("║ INTERPRETERS")
-        val tools = listOf("python3", "node", "git", "curl", "wget", "npm")
-        for (tool in tools) {
-            val path = findBinary(tool)
-            val source = when {
-                path == null -> ""
-                path.startsWith(TERMUX_BIN) -> "(Termux)"
-                else -> "(system)"
-            }
-            sb.appendLine("║   ${if (path != null) "✅" else "❌"} $tool${if (path != null) " → $path $source" else " — غير موجود"}")
-        }
-
-        sb.appendLine("╚════════════════════════════════════════════════════════════════╝")
-        ToolExecutionResult(sb.toString().trimEnd())
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Tool definitions
-    // ─────────────────────────────────────────────────────────────
-
-    fun getToolDefinitions(): List<ToolDefinition> = listOf(
-        ToolDefinition(
-            name = "termux_bridge",
-            description = "تنفيذ الأوامر داخل بيئة Termux الكاملة مع إدارة ذكية للـ fallback.\n" +
-                "الإجراءات: status, exec, script, python_run, python_file, pip_install, pkg_install, pkg_update, find_binary",
-            parameters = listOf(
-                ToolParameter("action", "string", "الإجراء المطلوب", required = true),
-                ToolParameter("command", "string", "الأمر لـ exec", required = false),
-                ToolParameter("script", "string", "الـ script لـ script", required = false),
-                ToolParameter("code", "string", "كود Python لـ python_run", required = false),
-                ToolParameter("file_path", "string", "مسار ملف .py", required = false),
-                ToolParameter("packages", "string", "packages لـ pip_install/pkg_install", required = false),
-                ToolParameter("args", "string", "arguments إضافية", required = false),
-                ToolParameter("upgrade", "string", "true للترقية", required = false),
-                ToolParameter("binary", "string", "اسم binary لـ find_binary", required = false)
-            )
-        )
-    )
-
-    suspend fun executeTool(args: Map<String, String>): ToolExecutionResult {
-        return when (val action = args["action"]?.lowercase()?.trim()
-            ?: return ToolExecutionResult("يحتاج 'action'.", isError = true)) {
-            "status"      -> statusReport()
-            "exec"        -> executeInTermux(args["command"]
-                ?: return ToolExecutionResult("يحتاج 'command'.", isError = true))
-            "script"      -> executeScriptInTermux(args["script"]
-                ?: return ToolExecutionResult("يحتاج 'script'.", isError = true))
-            "python_run"  -> runPython(args["code"]
-                ?: return ToolExecutionResult("يحتاج 'code'.", isError = true), args["args"])
-            "python_file" -> {
-                val pyPath = args["file_path"]
-                    ?: return ToolExecutionResult("يحتاج 'file_path'.", isError = true)
-                val pyBin = findPythonInterpreter() ?: return ToolExecutionResult("Python غير موجود.", isError = true)
-                val envPfx = if (pyBin.startsWith(TERMUX_BIN)) buildEnvPrefix() else ""
-                val cmd = "${envPfx}${pyBin} ${shellQuote(pyPath)} ${args["args"] ?: ""} 2>&1"
-                PrivilegedExecutionManager.executeCommand(cmd).fold(
-                    onSuccess = { ToolExecutionResult(it.take(MAX_OUTPUT)) },
-                    onFailure = { ToolExecutionResult("فشل: ${it.message}", isError = true) }
-                )
-            }
-            "pip_install" -> pipInstall(
-                args["packages"] ?: return ToolExecutionResult("يحتاج 'packages'.", isError = true),
-                args["upgrade"]?.lowercase() == "true"
-            )
-            "pkg_install" -> pkgInstall(args["packages"]
-                ?: return ToolExecutionResult("يحتاج 'packages'.", isError = true))
-            "pkg_update"  -> pkgUpdate()
-            "find_binary" -> {
-                val name = args["binary"] ?: return ToolExecutionResult("يحتاج 'binary'.", isError = true)
-                val path = findBinary(name)
-                if (path != null) ToolExecutionResult("✅ $name → $path")
-                else ToolExecutionResult("❌ '$name' غير موجود", isError = true)
-            }
-            else -> ToolExecutionResult("إجراء غير معروف: '$action'.", isError = true)
-        }
-    }
-
-    // ─────────────────────────────────────────────────────────────
-    // Helpers
-    // ─────────────────────────────────────────────────────────────
-
-    internal suspend fun findPythonInterpreter(): String? = withContext(Dispatchers.IO) {
-        // أولوية: Termux python3 → Termux python → system python3 → system python
-        val candidates = listOf(
-            TERMUX_PYTHON3, TERMUX_PYTHON,
-            "/usr/bin/python3", "/usr/bin/python",
-            "/system/bin/python3", "/system/xbin/python3"
-        )
-        // ابحث في المسارات المباشرة أولاً
-        candidates.firstOrNull { File(it).exists() }
-            ?: run {
-                // ثم عبر which
-                PrivilegedExecutionManager.executeCommand(
-                    "which python3 2>/dev/null || which python 2>/dev/null"
-                ).getOrNull()?.trim()?.takeIf { isValidPath(it) }
-            }
-    }
+    internal fun shellQuote(s: String): String = "'${s.replace("'", "'\\''")}'"
 
     private fun sanitizePackageList(packages: String): String? {
         val safe = packages.split(Regex("\\s+"))
@@ -491,5 +154,319 @@ object TermuxEnvironmentBridge {
         return safe.ifBlank { null }
     }
 
-    internal fun shellQuote(s: String): String = "'${s.replace("'", "'\\''")}'"
+    // ─────────────────────────────────────────────────────────────
+    // Persistent Session Manager (The Engine)
+    // ─────────────────────────────────────────────────────────────
+
+    class TerminalSession(val id: String, val cwd: String?) {
+        private var process: Process? = null
+        private var writer: BufferedWriter? = null
+        private val outputBuffer = StringBuffer()
+        private val jobs = mutableListOf<Job>()
+        private val scope = CoroutineScope(Dispatchers.IO)
+        
+        private val MAX_BUFFER_SIZE = 20_000
+
+        fun start(): Boolean {
+            return try {
+                val shell = if (isTermuxUsable()) TERMUX_BASH else "/system/bin/sh"
+                val pb = ProcessBuilder(shell).redirectErrorStream(true)
+                
+                // Inject Termux environment variables directly into the process
+                val env = pb.environment()
+                env.putAll(buildTermuxEnv())
+                
+                if (!cwd.isNullOrBlank()) {
+                    val dir = File(cwd)
+                    if (dir.exists() && dir.isDirectory) pb.directory(dir)
+                }
+
+                process = pb.start()
+                writer = BufferedWriter(OutputStreamWriter(process!!.outputStream))
+                val reader = BufferedReader(InputStreamReader(process!!.inputStream))
+
+                jobs.add(scope.launch {
+                    try {
+                        var line: String?
+                        while (reader.readLine().also { line = it } != null) {
+                            appendOutput(line!!)
+                        }
+                    } catch (_: Exception) {}
+                    appendOutput("\n[Process Terminated]")
+                })
+                
+                appendOutput("Session started: $shell")
+                true
+            } catch (e: Exception) {
+                appendOutput("Failed to start session: ${e.message}")
+                false
+            }
+        }
+
+        @Synchronized
+        private fun appendOutput(text: String) {
+            outputBuffer.append(text).append("\n")
+            if (outputBuffer.length > MAX_BUFFER_SIZE) {
+                outputBuffer.delete(0, outputBuffer.length - MAX_BUFFER_SIZE)
+                outputBuffer.insert(0, "[...TRUNCATED...]\n")
+            }
+        }
+
+        fun sendCommand(cmd: String) {
+            try {
+                appendOutput("$ $cmd")
+                writer?.write("$cmd\n")
+                writer?.flush()
+            } catch (e: Exception) {
+                appendOutput("Error sending command: ${e.message}")
+            }
+        }
+
+        @Synchronized
+        fun readOutputAndClear(): String {
+            val out = outputBuffer.toString()
+            outputBuffer.clear()
+            return out.ifBlank { "(No new output)" }
+        }
+
+        fun stop() {
+            try { writer?.close() } catch (_: Exception) {}
+            try { process?.destroy() } catch (_: Exception) {}
+            jobs.forEach { it.cancel() }
+        }
+    }
+
+    private val sessions = ConcurrentHashMap<String, TerminalSession>()
+
+    // ─────────────────────────────────────────────────────────────
+    // Core Single-Shot Execution (Base64 Injection)
+    // ─────────────────────────────────────────────────────────────
+
+    suspend fun executeSingleShot(command: String, cwd: String? = null): ToolExecutionResult = withContext(Dispatchers.IO) {
+        if (!isTermuxUsable()) {
+            val cdCmd = if (!cwd.isNullOrBlank()) "cd ${shellQuote(cwd)} && " else ""
+            return@withContext PrivilegedExecutionManager.executeCommand("$cdCmd$command").fold(
+                onSuccess = { ToolExecutionResult(smartTruncate(it)) },
+                onFailure = { ToolExecutionResult("System shell failed: ${it.message}", isError = true) }
+            )
+        }
+
+        val scriptContent = buildString {
+            appendLine("#!$TERMUX_BASH")
+            if (!cwd.isNullOrBlank()) appendLine("cd ${shellQuote(cwd)} || { echo 'Failed to cd into $cwd'; exit 1; }")
+            appendLine(command)
+        }
+
+        val tmpPath = "/data/local/tmp/omni_exec_${System.currentTimeMillis()}.sh"
+        val b64 = Base64.encodeToString(scriptContent.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+        
+        val writeCmd = "echo ${shellQuote(b64)} | base64 -d > ${shellQuote(tmpPath)} && chmod +x ${shellQuote(tmpPath)} && echo WRITE_OK"
+        val writeResult = PrivilegedExecutionManager.executeCommand(writeCmd)
+        
+        if (writeResult.isFailure || !writeResult.getOrDefault("").contains("WRITE_OK")) {
+            return@withContext ToolExecutionResult(
+                "Engine failed to inject script: ${writeResult.exceptionOrNull()?.message}",
+                isError = true
+            )
+        }
+
+        val envPfx = buildEnvPrefix()
+        val execCmd = "${envPfx}${TERMUX_BASH} ${shellQuote(tmpPath)} 2>&1; rm -f ${shellQuote(tmpPath)}"
+        
+        PrivilegedExecutionManager.executeCommand(execCmd).fold(
+            onSuccess = { ToolExecutionResult(smartTruncate(it)) },
+            onFailure = { ToolExecutionResult("Execution failed: ${it.message}", isError = true) }
+        )
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Advanced Runners & Package Managers
+    // ─────────────────────────────────────────────────────────────
+
+    suspend fun runPython(code: String, args: String? = null, cwd: String? = null): ToolExecutionResult =
+        withContext(Dispatchers.IO) {
+            val pyBin = findPythonInterpreter()
+                ?: return@withContext ToolExecutionResult("Python not found. Install via 'pkg_install' packages='python'.", isError = true)
+
+            val scriptContent = buildString {
+                appendLine("#!$TERMUX_BASH")
+                if (!cwd.isNullOrBlank()) appendLine("cd ${shellQuote(cwd)} || exit 1")
+                val pyB64 = Base64.encodeToString(code.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+                appendLine("echo ${shellQuote(pyB64)} | base64 -d > script.py")
+                appendLine("$pyBin script.py ${args ?: ""}")
+                appendLine("rm -f script.py")
+            }
+            executeSingleShot(scriptContent, cwd)
+        }
+
+    suspend fun npmCommand(command: String, cwd: String? = null): ToolExecutionResult =
+        withContext(Dispatchers.IO) {
+            val npmBin = findBinary("npm")
+                ?: return@withContext ToolExecutionResult("NPM not found. Install via 'pkg_install' packages='nodejs'.", isError = true)
+            executeSingleShot("$npmBin $command", cwd)
+        }
+
+    suspend fun pipInstall(packages: String, upgrade: Boolean = false): ToolExecutionResult =
+        withContext(Dispatchers.IO) {
+            val safePkgs = sanitizePackageList(packages)
+                ?: return@withContext ToolExecutionResult("Invalid package names provided.", isError = true)
+            val upgradeFlag = if (upgrade) " --upgrade" else ""
+            
+            // Uses executeSingleShot for reliable multi-command cascade
+            val cmd = "pip3 install$upgradeFlag $safePkgs || pip install$upgradeFlag $safePkgs || python3 -m pip install$upgradeFlag $safePkgs"
+            executeSingleShot(cmd)
+        }
+
+    suspend fun pkgInstall(packages: String): ToolExecutionResult = withContext(Dispatchers.IO) {
+        val safePkgs = sanitizePackageList(packages)
+            ?: return@withContext ToolExecutionResult("Invalid package names provided.", isError = true)
+            
+        val cmd = "DEBIAN_FRONTEND=noninteractive pkg install -y $safePkgs || DEBIAN_FRONTEND=noninteractive apt-get install -y $safePkgs"
+        executeSingleShot(cmd)
+    }
+
+    suspend fun pkgUpdate(): ToolExecutionResult = withContext(Dispatchers.IO) {
+        val cmd = "DEBIAN_FRONTEND=noninteractive pkg update -y || DEBIAN_FRONTEND=noninteractive apt-get update -y"
+        executeSingleShot(cmd)
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Status Report
+    // ─────────────────────────────────────────────────────────────
+
+    suspend fun statusReport(): ToolExecutionResult = withContext(Dispatchers.IO) {
+        val sb = StringBuilder()
+        sb.appendLine("╔══ OmniDev CLI Engine Status ══════════════════════════════════╗")
+
+        val shizuku   = PrivilegedExecutionManager.isShizukuReady()
+        val rishReady = PrivilegedExecutionManager.isRishReady()
+        sb.appendLine("║ BACKEND : ${if (shizuku) "✅ Shizuku" else "❌ Offline"} | ${if (rishReady) "✅ rish" else "❌ No rish"}")
+        
+        val termuxOk = isTermuxUsable()
+        sb.appendLine("║ TERMUX  : ${if (termuxOk) "✅ Ready ($TERMUX_BASH)" else "❌ Not Installed"}")
+
+        sb.appendLine("║ INTERPRETERS:")
+        val tools = listOf("python3", "node", "npm", "git", "gcc", "make", "java", "jadx", "apktool")
+        for (tool in tools) {
+            val path = findBinary(tool)
+            sb.appendLine("║   ${if (path != null) "✅" else "❌"} $tool ${if (path != null) "→ $path" else ""}")
+        }
+        sb.appendLine("╚═══════════════════════════════════════════════════════════════╝")
+        ToolExecutionResult(sb.toString().trimEnd())
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Tool Definitions & Routing
+    // ─────────────────────────────────────────────────────────────
+
+    fun getToolDefinitions(): List<ToolDefinition> = listOf(
+        ToolDefinition(
+            name = "termux_bridge",
+            description = """
+                The Ultimate God-Mode CLI & Persistent Session Engine.
+                Run complex commands or manage background servers (Node, Python).
+                
+                Actions:
+                - 'status': Check installed interpreters and shell readiness.
+                - 'exec': Run a single-shot command and wait for output.
+                - 'session_start': Opens a background terminal. Returns a session_id.
+                - 'session_send': Sends a command to a session (requires 'session_id' & 'command').
+                - 'session_read': Reads the current output buffer of a session.
+                - 'session_stop': Kills a specific session.
+                - 'session_list': Lists all active background sessions.
+                - 'session_kill_all': Kills all active sessions.
+                - 'python_run': Run inline Python code safely.
+                - 'npm': Run npm commands (e.g., 'install').
+                - 'pip_install' / 'pkg_install' / 'pkg_update': Native package management.
+                - 'find_binary': Find location of an executable.
+            """.trimIndent(),
+            parameters = listOf(
+                ToolParameter("action", "string", "Action to perform (exec, session_start, session_send, pip_install, etc.)", required = true),
+                ToolParameter("command", "string", "Command to execute (for exec, session_send, npm).", required = false),
+                ToolParameter("session_id", "string", "Session ID (required for session_send, read, stop).", required = false),
+                ToolParameter("cwd", "string", "Current Working Directory (for exec, session_start).", required = false),
+                ToolParameter("code", "string", "Inline Python code.", required = false),
+                ToolParameter("packages", "string", "Packages for pip/pkg install (e.g., 'express react' or 'nodejs git').", required = false),
+                ToolParameter("args", "string", "Extra arguments for python_run.", required = false),
+                ToolParameter("upgrade", "string", "Pass 'true' to upgrade during pip_install.", required = false),
+                ToolParameter("binary", "string", "Binary name for 'find_binary'.", required = false)
+            )
+        )
+    )
+
+    suspend fun executeTool(args: Map<String, String>): ToolExecutionResult {
+        val action = args["action"]?.lowercase()?.trim() ?: return ToolExecutionResult("Missing 'action'.", isError = true)
+        val cwd = args["cwd"]
+        
+        return when (action) {
+            "status" -> statusReport()
+            "exec", "script" -> {
+                val cmd = args["command"] ?: args["script"] ?: return ToolExecutionResult("Missing 'command' parameter.", isError = true)
+                executeSingleShot(cmd, cwd)
+            }
+            "session_start" -> {
+                val id = "sess_" + UUID.randomUUID().toString().take(6)
+                val session = TerminalSession(id, cwd)
+                if (session.start()) {
+                    sessions[id] = session
+                    ToolExecutionResult("✅ Session started. ID: $id\nUse 'session_send' to run commands and 'session_read' to view output.")
+                } else {
+                    ToolExecutionResult("❌ Failed to start session.", isError = true)
+                }
+            }
+            "session_list" -> {
+                if (sessions.isEmpty()) return ToolExecutionResult("No active sessions.")
+                val list = sessions.values.joinToString("\n") { "- ID: ${it.id} (cwd: ${it.cwd ?: "default"})" }
+                ToolExecutionResult("Active Sessions (${sessions.size}):\n$list")
+            }
+            "session_send" -> {
+                val id = args["session_id"] ?: return ToolExecutionResult("Missing 'session_id'.", isError = true)
+                val cmd = args["command"] ?: return ToolExecutionResult("Missing 'command'.", isError = true)
+                val session = sessions[id] ?: return ToolExecutionResult("Session '$id' not found.", isError = true)
+                session.sendCommand(cmd)
+                ToolExecutionResult("Command sent to $id. Call 'session_read' to see the output.")
+            }
+            "session_read" -> {
+                val id = args["session_id"] ?: return ToolExecutionResult("Missing 'session_id'.", isError = true)
+                val session = sessions[id] ?: return ToolExecutionResult("Session '$id' not found.", isError = true)
+                ToolExecutionResult("Output for $id:\n${session.readOutputAndClear()}")
+            }
+            "session_stop" -> {
+                val id = args["session_id"] ?: return ToolExecutionResult("Missing 'session_id'.", isError = true)
+                val session = sessions.remove(id) ?: return ToolExecutionResult("Session '$id' not found.", isError = true)
+                session.stop()
+                ToolExecutionResult("✅ Session '$id' stopped.")
+            }
+            "session_kill_all" -> {
+                val count = sessions.size
+                sessions.values.forEach { it.stop() }
+                sessions.clear()
+                ToolExecutionResult("✅ Killed all $count active sessions.")
+            }
+            "python_run" -> {
+                val code = args["code"] ?: return ToolExecutionResult("Missing 'code'.", isError = true)
+                runPython(code, args["args"], cwd)
+            }
+            "npm" -> {
+                val cmd = args["command"] ?: return ToolExecutionResult("Missing 'command'.", isError = true)
+                npmCommand(cmd, cwd)
+            }
+            "pip_install" -> {
+                val pkgs = args["packages"] ?: return ToolExecutionResult("Missing 'packages' parameter.", isError = true)
+                pipInstall(pkgs, args["upgrade"]?.lowercase() == "true")
+            }
+            "pkg_install" -> {
+                val pkgs = args["packages"] ?: return ToolExecutionResult("Missing 'packages' parameter.", isError = true)
+                pkgInstall(pkgs)
+            }
+            "pkg_update" -> pkgUpdate()
+            "find_binary" -> {
+                val name = args["binary"] ?: return ToolExecutionResult("Missing 'binary' parameter.", isError = true)
+                val path = findBinary(name)
+                if (path != null) ToolExecutionResult("✅ $name located at: $path")
+                else ToolExecutionResult("❌ '$name' not found in path.", isError = true)
+            }
+            else -> ToolExecutionResult("Unknown action: '$action'.", isError = true)
+        }
+    }
 }

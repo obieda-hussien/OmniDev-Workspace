@@ -33,9 +33,12 @@ import kotlinx.coroutines.flow.asStateFlow
  * Requires the `NotificationListenerService` permission (shared with
  * [AgentNotificationService]) for [MediaSessionManager.getActiveSessions].
  *
- * Runs as a foreground `mediaPlayback` service.
+ * Runs as a foreground service to maintain real-time observation of media state.
  */
 class OmniMediaSessionService : Service() {
+
+    private var sessionManager: MediaSessionManager? = null
+    private var activeSessionsListener: MediaSessionManager.OnActiveSessionsChangedListener? = null
 
     companion object {
         private const val TAG = "OmniMediaSession"
@@ -60,7 +63,7 @@ class OmniMediaSessionService : Service() {
             context.stopService(Intent(context, OmniMediaSessionService::class.java))
         }
 
-        // ── Static media control API (callable by the agent) ────────────
+        // ── Static Media Control API (Callable by the Agent) ────────────
 
         /**
          * Sends a transport command to the currently active media session.
@@ -71,8 +74,7 @@ class OmniMediaSessionService : Service() {
          */
         fun controlMedia(context: Context, action: String): String {
             return try {
-                val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE)
-                        as? MediaSessionManager
+                val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager
                     ?: return "MediaSessionManager not available on this device."
 
                 val component = ComponentName(context, AgentNotificationService::class.java)
@@ -82,6 +84,7 @@ class OmniMediaSessionService : Service() {
                     return "No active media sessions found. Make sure music or media is playing."
                 }
 
+                // Take the first active controller (usually the one currently playing or most recently used)
                 val controller = sessions[0]
                 val controls = controller.transportControls
 
@@ -126,12 +129,11 @@ class OmniMediaSessionService : Service() {
         }
 
         /**
-         * Returns information about all active media sessions.
+         * Returns detailed information about all active media sessions.
          */
         fun getActiveMediaInfo(context: Context): String {
             return try {
-                val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE)
-                        as? MediaSessionManager
+                val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager
                     ?: return "MediaSessionManager not available."
 
                 val component = ComponentName(context, AgentNotificationService::class.java)
@@ -147,22 +149,16 @@ class OmniMediaSessionService : Service() {
                         val metadata = controller.metadata
                         val state = controller.playbackState
 
-                        val title = metadata?.getString(
-                            android.media.MediaMetadata.METADATA_KEY_TITLE
-                        ) ?: "Unknown"
-                        val artist = metadata?.getString(
-                            android.media.MediaMetadata.METADATA_KEY_ARTIST
-                        ) ?: "Unknown"
-                        val album = metadata?.getString(
-                            android.media.MediaMetadata.METADATA_KEY_ALBUM
-                        ) ?: ""
+                        val title = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE) ?: "Unknown Title"
+                        val artist = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST) ?: "Unknown Artist"
+                        val album = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_ALBUM) ?: ""
 
                         val playbackStr = when (state?.state) {
                             PlaybackState.STATE_PLAYING -> "▶️ Playing"
                             PlaybackState.STATE_PAUSED -> "⏸️ Paused"
                             PlaybackState.STATE_STOPPED -> "⏹️ Stopped"
                             PlaybackState.STATE_BUFFERING -> "⏳ Buffering"
-                            else -> "⬜ ${state?.state ?: "unknown"}"
+                            else -> "⬜ ${state?.state ?: "Unknown State"}"
                         }
 
                         appendLine("  ${i + 1}. ${controller.packageName}")
@@ -180,7 +176,7 @@ class OmniMediaSessionService : Service() {
         }
     }
 
-    /** Lightweight snapshot of the active media session. */
+    /** Lightweight snapshot of the active media session for UI/StateFlow. */
     data class MediaSessionInfo(
         val packageName: String,
         val title: String?,
@@ -195,13 +191,22 @@ class OmniMediaSessionService : Service() {
         createNotificationChannel()
         val notification = buildNotification("Media session controller active")
 
+        // FIX: Using SPECIAL_USE instead of MEDIA_PLAYBACK. 
+        // Android 14+ crashes if MEDIA_PLAYBACK is used without providing an actual audio session.
+        // We are a controller, not a player.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            try {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            } catch (e: Exception) {
+                // Fallback if SPECIAL_USE is rejected (depends on Manifest declaration)
+                startForeground(NOTIFICATION_ID, notification)
+            }
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
 
         Log.i(TAG, "OmniMediaSessionService created")
+        setupMediaListener()
         updateActiveSession()
     }
 
@@ -212,16 +217,46 @@ class OmniMediaSessionService : Service() {
 
     override fun onDestroy() {
         _activeSession.value = null
+        removeMediaListener()
         Log.i(TAG, "OmniMediaSessionService destroyed")
         super.onDestroy()
     }
 
+    // ── Media Listeners & State Updates ──────────────────────────────────
+
+    private fun setupMediaListener() {
+        try {
+            sessionManager = getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager
+            val component = ComponentName(this, AgentNotificationService::class.java)
+            
+            // FIX: Real-time updates when the user switches tracks or apps.
+            activeSessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { _ ->
+                updateActiveSession()
+            }
+            sessionManager?.addOnActiveSessionsChangedListener(activeSessionsListener!!, component)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Notification listener permission missing for MediaSessionManager.")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to setup media listener", e)
+        }
+    }
+
+    private fun removeMediaListener() {
+        try {
+            activeSessionsListener?.let {
+                sessionManager?.removeOnActiveSessionsChangedListener(it)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to remove media listener", e)
+        }
+    }
+
     private fun updateActiveSession() {
         try {
-            val msm = getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager
-                ?: return
+            val msm = sessionManager ?: getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager ?: return
             val component = ComponentName(this, AgentNotificationService::class.java)
             val sessions = msm.getActiveSessions(component)
+            
             val first = sessions.firstOrNull()
 
             _activeSession.value = first?.let { controller ->
@@ -234,6 +269,7 @@ class OmniMediaSessionService : Service() {
                 )
             }
         } catch (e: Exception) {
+            // Usually SecurityException if Notification Access is revoked while running
             Log.w(TAG, "Failed to update active session", e)
         }
     }
@@ -263,7 +299,7 @@ class OmniMediaSessionService : Service() {
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_launcher_foreground) // Make sure this icon exists
             .setContentTitle("OmniDev Media")
             .setContentText(contentText)
             .setOngoing(true)

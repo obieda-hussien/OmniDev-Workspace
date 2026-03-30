@@ -1,83 +1,76 @@
 package com.omnidev.workspace.data.tools
 
+import android.util.Base64
+import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Advanced root-level file operation tools executed via Shizuku shell.
+ * Advanced root-level file operation tools executed via Shizuku/SU shell.
  *
- * These go beyond the scope-restricted [FileToolManager] and provide
- * Termux-grade file operations for power users with God Mode enabled:
- * - `grep_search`: Recursive grep across any directory
- * - `find_files`: Find files by name pattern, size, or modification time
- * - `file_permissions`: Change file permissions (chmod/chown)
- * - `disk_usage`: Analyze disk usage of directories
- * - `archive_tool`: Create/extract tar/zip archives
+ * * HACKER UPGRADES:
+ * 1. Base64 Script Injection: Prevents regex and path quoting hell.
+ * 2. Toybox Bypasses: Android's native `grep` and `du` lack standard GNU flags 
+ * (like --include or --max-depth). These commands are rewritten using advanced 
+ * POSIX-compliant pipelines (find + xargs) to work flawlessly on native Android.
+ * 3. Busybox Auto-Detection: Automatically utilizes busybox if installed for superior tools.
  */
 object AdvancedFileTools {
 
-    /** Maximum output characters. */
-    private const val MAX_OUTPUT = 8_000
+    private const val MAX_OUTPUT = 12_000
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "grep_search",
-            description = "Recursive grep search across any directory using root access. " +
-                "Searches file contents for a pattern and returns matching lines with file paths. " +
-                "Supports regex patterns. Use for finding code patterns, config values, or log entries " +
-                "across the entire filesystem.",
+            description = "Recursive grep search across any directory using root/Shizuku access. " +
+                "Searches file contents for a regex pattern. Perfect for finding hardcoded secrets, " +
+                "config values, or logs.",
             parameters = listOf(
-                ToolParameter("directory", "string", "Directory to search in (e.g., /sdcard, /data/data/com.app)", required = true),
+                ToolParameter("directory", "string", "Directory to search (e.g., /data/data/com.app)", required = true),
                 ToolParameter("pattern", "string", "Search pattern (regex supported)", required = true),
-                ToolParameter("file_filter", "string", "Optional file name filter (e.g., '*.kt', '*.xml')", required = false),
-                ToolParameter("ignore_case", "string", "Set to 'true' for case-insensitive search", required = false),
-                ToolParameter("max_results", "string", "Maximum number of matching lines to return (default: 50)", required = false)
+                ToolParameter("file_filter", "string", "Optional file name filter (e.g., '*.xml')", required = false),
+                ToolParameter("ignore_case", "string", "Set to 'true' for case-insensitive", required = false),
+                ToolParameter("max_results", "string", "Maximum lines to return (default: 50)", required = false)
             )
         ),
         ToolDefinition(
             name = "find_files",
-            description = "Find files by name pattern, type, size, or modification time using root access. " +
-                "Use for discovering files across the filesystem, finding large files, or locating " +
-                "recently modified files.",
+            description = "Find files by name pattern, type, size, or modification time using root access.",
             parameters = listOf(
                 ToolParameter("directory", "string", "Directory to search in", required = true),
-                ToolParameter("name_pattern", "string", "File name pattern (e.g., '*.apk', 'config*')", required = false),
-                ToolParameter("type", "string", "File type: 'f' (file), 'd' (directory), 'l' (symlink)", required = false),
-                ToolParameter("min_size", "string", "Minimum file size (e.g., '10M', '1G')", required = false),
-                ToolParameter("max_depth", "string", "Maximum directory depth to search (default: 5)", required = false),
-                ToolParameter("newer_than_days", "string", "Only files modified within this many days", required = false)
+                ToolParameter("name_pattern", "string", "File name pattern (e.g., '*.apk')", required = false),
+                ToolParameter("type", "string", "File type: 'f' (file), 'd' (dir), 'l' (symlink)", required = false),
+                ToolParameter("min_size", "string", "Minimum size (e.g., '10M', '1G')", required = false),
+                ToolParameter("max_depth", "string", "Max depth (default: 5)", required = false),
+                ToolParameter("newer_than_days", "string", "Modified within N days", required = false)
             )
         ),
         ToolDefinition(
             name = "file_permissions",
-            description = "Change file permissions or ownership using root access. " +
-                "Supports chmod (permissions) and chown (ownership) operations.",
+            description = "Change file permissions (chmod) or ownership (chown) using root access.",
             parameters = listOf(
                 ToolParameter("path", "string", "Path to file or directory", required = true),
                 ToolParameter("action", "string", "Action: 'chmod' or 'chown'", required = true),
-                ToolParameter("value", "string", "For chmod: permission mode (e.g., '755'). For chown: 'user:group'", required = true),
-                ToolParameter("recursive", "string", "Set to 'true' for recursive operation", required = false)
+                ToolParameter("value", "string", "e.g., '755' or 'system:system'", required = true),
+                ToolParameter("recursive", "string", "Set to 'true' for recursive", required = false)
             )
         ),
         ToolDefinition(
             name = "disk_usage",
-            description = "Analyze disk usage of directories using root access. " +
-                "Shows size of directories sorted by size. Use for finding what's consuming storage.",
+            description = "Analyze disk usage of directories to find storage hogs.",
             parameters = listOf(
-                ToolParameter("path", "string", "Directory path to analyze", required = true),
-                ToolParameter("max_depth", "string", "Maximum depth for du report (default: 2)", required = false),
-                ToolParameter("human_readable", "string", "Set to 'true' for human-readable sizes (default: true)", required = false)
+                ToolParameter("path", "string", "Directory path", required = true),
+                ToolParameter("max_depth", "string", "Max depth (default: 2)", required = false)
             )
         ),
         ToolDefinition(
             name = "archive_tool",
-            description = "Create or extract archives using root access. " +
-                "Supports tar, tar.gz/tgz, tar.bz2, tar.xz, and zip formats.",
+            description = "Create or extract archives (tar.gz, zip) using root access.",
             parameters = listOf(
-                ToolParameter("action", "string", "Action: 'create' or 'extract'", required = true),
+                ToolParameter("action", "string", "'create' or 'extract'", required = true),
                 ToolParameter("archive_path", "string", "Path to the archive file", required = true),
-                ToolParameter("target_path", "string", "For create: directory to archive. For extract: destination directory.", required = true),
-                ToolParameter("format", "string", "Archive format: tar, tar.gz, tgz, tar.bz2, tar.xz, zip. If omitted, inferred from archive_path.", required = false)
+                ToolParameter("target_path", "string", "For create: dir to archive. For extract: destination dir.", required = true),
+                ToolParameter("format", "string", "tar.gz, tgz, zip. (Note: zip creation requires busybox/termux)", required = false)
             )
         )
     )
@@ -93,6 +86,10 @@ object AdvancedFileTools {
         }
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // Action Implementations
+    // ─────────────────────────────────────────────────────────────────────
+
     private suspend fun grepSearch(args: Map<String, String>): ToolExecutionResult {
         val directory = args["directory"] ?: return missingArg("directory")
         val pattern = args["pattern"] ?: return missingArg("pattern")
@@ -100,22 +97,19 @@ object AdvancedFileTools {
         val ignoreCase = args["ignore_case"]?.equals("true", ignoreCase = true) ?: false
         val maxResults = args["max_results"]?.toIntOrNull() ?: 50
 
-        val shellPattern = sanitizeShellArg(pattern)
-        val shellDir = sanitizeShellArg(directory)
-
-        val cmd = buildString {
-            append("grep -rn")
-            if (ignoreCase) append("i")
-            append(" --color=never")
-            append(" -m $maxResults")
-            if (fileFilter != null) {
-                append(" --include=${sanitizeShellArg(fileFilter)}")
-            }
-            append(" -- $shellPattern $shellDir")
-            append(" 2>&1 | head -n $maxResults")
+        // HACK: Android Toybox grep lacks --include. We use `find` piped to `xargs grep`.
+        // /dev/null is passed to grep to force it to print the filename even if only 1 file is passed.
+        val script = buildString {
+            appendLine("DIR=${sanitizeShellArg(directory)}")
+            appendLine("PATTERN=${sanitizeShellArg(pattern)}")
+            
+            val grepFlags = if (ignoreCase) "-inE" else "-nE"
+            val findNameFilter = if (fileFilter != null) "-name ${sanitizeShellArg(fileFilter)}" else ""
+            
+            appendLine("find \"\$DIR\" -type f $findNameFilter -print0 2>/dev/null | xargs -0 grep $grepFlags \"\$PATTERN\" /dev/null 2>/dev/null | head -n $maxResults")
         }
 
-        return executeShellCommand(cmd)
+        return executePrivilegedScript(script, headTruncate = true)
     }
 
     private suspend fun findFiles(args: Map<String, String>): ToolExecutionResult {
@@ -126,18 +120,16 @@ object AdvancedFileTools {
         val maxDepth = args["max_depth"]?.toIntOrNull() ?: 5
         val newerThanDays = args["newer_than_days"]?.toIntOrNull()
 
-        val shellDir = sanitizeShellArg(directory)
-
-        val cmd = buildString {
-            append("find $shellDir -maxdepth $maxDepth")
+        val script = buildString {
+            append("find ${sanitizeShellArg(directory)} -maxdepth $maxDepth")
             if (namePattern != null) append(" -name ${sanitizeShellArg(namePattern)}")
             if (type != null) append(" -type ${sanitizeShellArg(type)}")
             if (minSize != null) append(" -size +${sanitizeShellArg(minSize)}")
             if (newerThanDays != null) append(" -mtime -$newerThanDays")
-            append(" 2>/dev/null | head -n 100")
+            append(" 2>/dev/null | head -n 150")
         }
 
-        return executeShellCommand(cmd)
+        return executePrivilegedScript(script, headTruncate = true)
     }
 
     private suspend fun filePermissions(args: Map<String, String>): ToolExecutionResult {
@@ -146,29 +138,24 @@ object AdvancedFileTools {
         val value = args["value"] ?: return missingArg("value")
         val recursive = args["recursive"]?.equals("true", ignoreCase = true) ?: false
 
-        val shellPath = sanitizeShellArg(path)
-        val shellValue = sanitizeShellArg(value)
-
-        val cmd = when (action) {
-            "chmod" -> "chmod ${if (recursive) "-R " else ""}$shellValue $shellPath && echo 'OK: permissions changed' && ls -la $shellPath"
-            "chown" -> "chown ${if (recursive) "-R " else ""}$shellValue $shellPath && echo 'OK: ownership changed' && ls -la $shellPath"
+        val recFlag = if (recursive) "-R" else ""
+        
+        val script = when (action.lowercase()) {
+            "chmod" -> "chmod $recFlag ${sanitizeShellArg(value)} ${sanitizeShellArg(path)} && echo '✅ Permissions changed' && ls -ld ${sanitizeShellArg(path)}"
+            "chown" -> "chown $recFlag ${sanitizeShellArg(value)} ${sanitizeShellArg(path)} && echo '✅ Ownership changed' && ls -ld ${sanitizeShellArg(path)}"
             else -> return ToolExecutionResult("Unknown action: $action. Use 'chmod' or 'chown'.", isError = true)
         }
 
-        return executeShellCommand(cmd)
+        return executePrivilegedScript(script)
     }
 
     private suspend fun diskUsage(args: Map<String, String>): ToolExecutionResult {
         val path = args["path"] ?: return missingArg("path")
         val maxDepth = args["max_depth"]?.toIntOrNull() ?: 2
-        val humanReadable = args["human_readable"]?.equals("false", ignoreCase = true)?.not() ?: true
 
-        val shellPath = sanitizeShellArg(path)
-        val flags = if (humanReadable) "-h" else ""
-
-        val cmd = "du $flags --max-depth=$maxDepth $shellPath 2>/dev/null | sort -rh | head -n 30"
-
-        return executeShellCommand(cmd)
+        // FIX: Toybox du uses `-d` not `--max-depth`
+        val script = "du -h -d $maxDepth ${sanitizeShellArg(path)} 2>/dev/null | sort -rh | head -n 50"
+        return executePrivilegedScript(script, headTruncate = true)
     }
 
     private suspend fun archiveTool(args: Map<String, String>): ToolExecutionResult {
@@ -177,83 +164,99 @@ object AdvancedFileTools {
         val targetPath = args["target_path"] ?: return missingArg("target_path")
         val format = (args["format"] ?: inferArchiveFormat(archivePath)).lowercase()
 
-        val shellArchive = sanitizeShellArg(archivePath)
-        val shellTarget = sanitizeShellArg(targetPath)
+        val script = buildString {
+            appendLine("ARCHIVE=${sanitizeShellArg(archivePath)}")
+            appendLine("TARGET=${sanitizeShellArg(targetPath)}")
+            
+            // Prefer busybox if available for missing native tools (like zip creation)
+            appendLine("BB=\"\"; if command -v busybox >/dev/null 2>&1; then BB=\"busybox \"; fi")
 
-        val cmd = when {
-            action == "create" && format == "tar" ->
-                "tar -cf $shellArchive -C $shellTarget . && echo 'OK: archive created' && ls -la $shellArchive"
-            action == "create" && (format == "tar.gz" || format == "tgz") ->
-                "tar -czf $shellArchive -C $shellTarget . && echo 'OK: archive created' && ls -la $shellArchive"
-            action == "create" && format == "tar.bz2" ->
-                "tar -cjf $shellArchive -C $shellTarget . && echo 'OK: archive created' && ls -la $shellArchive"
-            action == "create" && format == "tar.xz" ->
-                "tar -cJf $shellArchive -C $shellTarget . && echo 'OK: archive created' && ls -la $shellArchive"
-            action == "create" && format == "zip" ->
-                "cd $shellTarget && zip -r $shellArchive . && echo 'OK: archive created' && ls -la $shellArchive"
-            action == "extract" && format == "tar" ->
-                "mkdir -p $shellTarget && tar -xf $shellArchive -C $shellTarget && echo 'OK: extracted' && ls -la $shellTarget"
-            action == "extract" && (format == "tar.gz" || format == "tgz") ->
-                "mkdir -p $shellTarget && tar -xzf $shellArchive -C $shellTarget && echo 'OK: extracted' && ls -la $shellTarget"
-            action == "extract" && format == "tar.bz2" ->
-                "mkdir -p $shellTarget && tar -xjf $shellArchive -C $shellTarget && echo 'OK: extracted' && ls -la $shellTarget"
-            action == "extract" && format == "tar.xz" ->
-                "mkdir -p $shellTarget && tar -xJf $shellArchive -C $shellTarget && echo 'OK: extracted' && ls -la $shellTarget"
-            action == "extract" && format == "zip" ->
-                "mkdir -p $shellTarget && unzip -o $shellArchive -d $shellTarget && echo 'OK: extracted' && ls -la $shellTarget"
-            else -> return ToolExecutionResult(
-                "Unknown combination: action=$action, format=$format. " +
-                "Supported: create/extract with tar, tar.gz/tgz, tar.bz2, tar.xz, zip",
-                isError = true
-            )
-        }
-
-        return executeShellCommand(cmd)
-    }
-
-    private suspend fun executeShellCommand(command: String): ToolExecutionResult =
-        withContext(Dispatchers.IO) {
-            val result = ShizukuCommandTool.execute(command)
-            when (result) {
-                is ShizukuResult.Success -> {
-                    val output = result.output
-                    val truncated = output.length > MAX_OUTPUT
-                    ToolExecutionResult(
-                        output = if (truncated) output.take(MAX_OUTPUT) + "\n[TRUNCATED]" else output,
-                        truncated = truncated
-                    )
+            when {
+                action == "create" && (format == "tar.gz" || format == "tgz" || format == "tar") -> {
+                    val zFlag = if (format == "tar") "" else "z"
+                    appendLine("cd \"\$TARGET\" && tar -c${zFlag}f \"\$ARCHIVE\" . && echo '✅ Archive created' && ls -lh \"\$ARCHIVE\"")
                 }
-                is ShizukuResult.PartialSuccess -> {
-                    val output = result.output
-                    val truncated = output.length > MAX_OUTPUT
-                    ToolExecutionResult(
-                        output = "⚠️ " + if (truncated) output.take(MAX_OUTPUT) + "\n[TRUNCATED]" else output,
-                        truncated = truncated,
-                        isError = false
-                    )
+                action == "create" && format == "zip" -> {
+                    appendLine("if ! command -v zip >/dev/null 2>&1; then echo '❌ zip binary not found. Use tar.gz instead.'; exit 1; fi")
+                    appendLine("cd \"\$TARGET\" && zip -r \"\$ARCHIVE\" . && echo '✅ Zip created' && ls -lh \"\$ARCHIVE\"")
                 }
-                is ShizukuResult.Failure -> ToolExecutionResult(result.reason, isError = true)
-                is ShizukuResult.PermissionRequired -> ToolExecutionResult(result.message, isError = true)
-                is ShizukuResult.Unavailable -> ToolExecutionResult(result.message, isError = true)
+                action == "extract" && (format == "tar.gz" || format == "tgz" || format == "tar") -> {
+                    val zFlag = if (format == "tar") "" else "z"
+                    appendLine("mkdir -p \"\$TARGET\" && tar -x${zFlag}f \"\$ARCHIVE\" -C \"\$TARGET\" && echo '✅ Extracted' && ls -lh \"\$TARGET\" | head -n 5")
+                }
+                action == "extract" && format == "zip" -> {
+                    appendLine("mkdir -p \"\$TARGET\" && \$BB unzip -o \"\$ARCHIVE\" -d \"\$TARGET\" && echo '✅ Extracted' && ls -lh \"\$TARGET\" | head -n 5")
+                }
+                else -> {
+                    appendLine("echo '❌ Unsupported format ($format) or action ($action). Use tar.gz or zip.'")
+                    appendLine("exit 1")
+                }
             }
         }
 
+        return executePrivilegedScript(script, headTruncate = false)
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Execution Engine
+    // ─────────────────────────────────────────────────────────────────────
+
     /**
-     * Escapes shell metacharacters in an argument to prevent injection.
+     * Executes a complex script via Base64 injection to completely bypass
+     * shell quoting and string interpolation issues.
      */
+    private suspend fun executePrivilegedScript(script: String, headTruncate: Boolean = false): ToolExecutionResult =
+        withContext(Dispatchers.IO) {
+            
+            val tmpPath = "/data/local/tmp/omni_fs_${System.currentTimeMillis()}.sh"
+            val b64 = Base64.encodeToString(script.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+            
+            val writeCmd = "echo ${shellQuote(b64)} | base64 -d > $tmpPath && chmod +x $tmpPath && echo WRITE_OK"
+            val writeResult = PrivilegedExecutionManager.executeCommand(writeCmd)
+            
+            if (writeResult.isFailure || !writeResult.getOrDefault("").contains("WRITE_OK")) {
+                return@withContext ToolExecutionResult(
+                    "Engine failed to inject file script: ${writeResult.exceptionOrNull()?.message}",
+                    isError = true
+                )
+            }
+
+            val execResult = PrivilegedExecutionManager.executeCommand("sh $tmpPath 2>&1; rm -f $tmpPath")
+            
+            execResult.fold(
+                onSuccess = { rawOutput ->
+                    val output = rawOutput.trim().ifBlank { "(no output)" }
+                    val isTruncated = output.length > MAX_OUTPUT
+                    
+                    val finalOutput = if (isTruncated) {
+                        if (headTruncate) {
+                            // Keep the start (e.g., first 50 grep results)
+                            output.take(MAX_OUTPUT) + "\n\n...[TRUNCATED to save tokens]..."
+                        } else {
+                            // Keep the end (e.g., archive errors)
+                            "...[TRUNCATED]...\n\n" + output.takeLast(MAX_OUTPUT)
+                        }
+                    } else output
+                    
+                    ToolExecutionResult(finalOutput, truncated = isTruncated)
+                },
+                onFailure = { ToolExecutionResult("Execution failed: ${it.message}", isError = true) }
+            )
+        }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────────────
+
     private fun sanitizeShellArg(arg: String): String {
-        // Use single quotes to prevent shell expansion; escape any existing single quotes
         return "'${arg.replace("'", "'\\''")}'"
     }
 
     private fun inferArchiveFormat(path: String): String = when {
-        path.endsWith(".tar.gz", ignoreCase = true) -> "tar.gz"
-        path.endsWith(".tgz", ignoreCase = true) -> "tgz"
-        path.endsWith(".tar.bz2", ignoreCase = true) -> "tar.bz2"
-        path.endsWith(".tar.xz", ignoreCase = true) -> "tar.xz"
-        path.endsWith(".tar", ignoreCase = true) -> "tar"
+        path.endsWith(".tar.gz", ignoreCase = true) || path.endsWith(".tgz", ignoreCase = true) -> "tar.gz"
         path.endsWith(".zip", ignoreCase = true) -> "zip"
-        else -> "tar.gz"
+        path.endsWith(".tar", ignoreCase = true) -> "tar"
+        else -> "tar.gz" // Default to native supported
     }
 
     private fun missingArg(name: String) =

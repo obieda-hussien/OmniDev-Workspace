@@ -9,8 +9,9 @@ import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
  * GodModeAccessibility — Shizuku + Accessibility hybrid layer.
  *
  * Provides two God-Mode capabilities:
- * 1. Auto-Enable ...
- * 2. Hybrid Tap ...
+ * 1. Auto-Enable: Silently grants the Accessibility permission without user UI interaction.
+ * 2. Hybrid Tap/Type: Attempts hardware-level ADB injection first (bypassing View restrictions),
+ * and falls back to semantic Accessibility actions if Shizuku is unavailable.
  */
 object GodModeAccessibility {
 
@@ -49,8 +50,9 @@ object GodModeAccessibility {
             }
 
             // Step 3: Write updated services list via unified privileged manager
+            // FIX: Added single quotes around '$newServices' to prevent ADB syntax errors with colons/spaces
             val putResult = PrivilegedExecutionManager.executeCommand(
-                "settings put secure enabled_accessibility_services $newServices"
+                "settings put secure enabled_accessibility_services '$newServices'"
             )
             val putOk = putResult.fold(onSuccess = { true }, onFailure = {
                 Log.e(TAG, "Failed to set accessibility services via privileged backend: ${it.message}")
@@ -94,17 +96,25 @@ object GodModeAccessibility {
 
         val tapCmd = "input tap $centerX $centerY"
         val tapResult = PrivilegedExecutionManager.executeCommand(tapCmd)
-        return tapResult.fold(onSuccess = {
-            "✅ Hardware tap at ($centerX, $centerY)"
-        }, onFailure = { err ->
-            val msg = err.message ?: "unknown error"
-            when {
-                msg.contains("permission", ignoreCase = true) -> "❌ Shizuku permission required (and fallback failed): $msg"
-                msg.contains("shizuku", ignoreCase = true) || msg.contains("not running", ignoreCase = true) ->
-                    "❌ Shizuku unavailable and fallback failed: $msg"
-                else -> "❌ Tap failed: $msg"
+        
+        return tapResult.fold(
+            onSuccess = { "✅ Hardware tap at ($centerX, $centerY)" },
+            onFailure = { err ->
+                // FALLBACK: True Hybrid behavior. If Shizuku fails, use Accessibility.
+                val fallbackSuccess = OmniAccessibilityService.instance?.clickNode(node) == true
+                if (fallbackSuccess) {
+                    "⚠️ Shizuku unavailable. Fell back successfully to Semantic Accessibility Tap."
+                } else {
+                    val msg = err.message ?: "unknown error"
+                    when {
+                        msg.contains("permission", ignoreCase = true) -> "❌ Shizuku permission required (and fallback failed): $msg"
+                        msg.contains("shizuku", ignoreCase = true) || msg.contains("not running", ignoreCase = true) ->
+                            "❌ Shizuku unavailable and fallback failed: $msg"
+                        else -> "❌ Tap failed: $msg"
+                    }
+                }
             }
-        })
+        )
     }
 
     suspend fun hybridLongPress(
@@ -124,16 +134,57 @@ object GodModeAccessibility {
         // `input swipe` with same start/end coordinates acts as a long press
         val swipeCmd = "input swipe $centerX $centerY $centerX $centerY $durationMs"
         val swipeResult = PrivilegedExecutionManager.executeCommand(swipeCmd)
-        return swipeResult.fold(onSuccess = {
-            "✅ Hardware long-press at ($centerX, $centerY) for ${durationMs}ms"
-        }, onFailure = { err ->
-            val msg = err.message ?: "unknown error"
-            when {
-                msg.contains("permission", ignoreCase = true) -> "❌ Shizuku permission required (and fallback failed): $msg"
-                msg.contains("shizuku", ignoreCase = true) || msg.contains("not running", ignoreCase = true) ->
-                    "❌ Shizuku unavailable and fallback failed: $msg"
-                else -> "❌ Long-press failed: $msg"
+        
+        return swipeResult.fold(
+            onSuccess = { "✅ Hardware long-press at ($centerX, $centerY) for ${durationMs}ms" },
+            onFailure = { err ->
+                // FALLBACK: True Hybrid behavior.
+                val fallbackSuccess = OmniAccessibilityService.instance?.longClickNode(node) == true
+                if (fallbackSuccess) {
+                    "⚠️ Shizuku unavailable. Fell back successfully to Semantic Accessibility Long-Press."
+                } else {
+                    val msg = err.message ?: "unknown error"
+                    when {
+                        msg.contains("permission", ignoreCase = true) -> "❌ Shizuku permission required (and fallback failed): $msg"
+                        msg.contains("shizuku", ignoreCase = true) || msg.contains("not running", ignoreCase = true) ->
+                            "❌ Shizuku unavailable and fallback failed: $msg"
+                        else -> "❌ Long-press failed: $msg"
+                    }
+                }
             }
-        })
+        )
+    }
+
+    /**
+     * Types text directly via ADB input.
+     * This solves the "Termux Issue" and bypasses completely any Custom View/WebView IME restrictions.
+     */
+    suspend fun hybridType(text: String, fallbackNode: AccessibilityNodeInfo? = null): String {
+        if (text.isEmpty()) return "❌ Text is empty"
+
+        // Escape single quotes for bash safely: ' -> '\''
+        val escapedText = text.replace("'", "'\\''")
+        val typeCmd = "input text '$escapedText'"
+        
+        val typeResult = PrivilegedExecutionManager.executeCommand(typeCmd)
+        
+        return typeResult.fold(
+            onSuccess = { "✅ Hardware text injection successful" },
+            onFailure = { err ->
+                // FALLBACK: Try Accessibility if a target node was provided
+                var fallbackSuccess = false
+                if (fallbackNode != null) {
+                    fallbackSuccess = OmniAccessibilityService.instance?.typeIntoNode(fallbackNode, text) == true
+                } else {
+                    fallbackSuccess = OmniAccessibilityService.instance?.typeIntoFocusedNode(text) == true
+                }
+
+                if (fallbackSuccess) {
+                    "⚠️ Shizuku unavailable. Fell back successfully to Semantic Accessibility Typing."
+                } else {
+                    "❌ Type failed (Hardware and Fallback): ${err.message}"
+                }
+            }
+        )
     }
 }

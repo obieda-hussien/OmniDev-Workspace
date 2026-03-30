@@ -17,6 +17,8 @@ import java.text.SimpleDateFormat
 import java.net.URI
 import java.util.Date
 import java.util.Locale
+import android.content.pm.PackageManager
+import android.os.Build
 
 /**
  * Delegates tool execution to [FileToolManager], [MemoryManager], and the suite of
@@ -138,6 +140,52 @@ class CompositeToolManager(
             addAll(PackageInstallerTool.getToolDefinitions())
             addAll(AdvancedRootShellTool.getToolDefinitions())
             addAll(AppManifestAnalyzerTool.getToolDefinitions())
+            // Enhanced manifest analyzer companion tool
+            add(ToolDefinition(
+                name = "enhanced_manifest_analyzer",
+                description = "Enhanced manifest analysis: signatures (SHA1/SHA256), native libraries, apk metadata, and exported component counts. Returns JSON.",
+                parameters = listOf(
+                    ToolParameter(name = "target_package", type = "string", description = "Package name of the app to analyze", required = true)
+                )
+            ))
+            add(ToolDefinition(
+                name = "enhanced_intent_resolver",
+                description = "Resolve intents across activities, services, and receivers. Use action, uri, or mime_type.",
+                parameters = listOf(
+                    ToolParameter(name = "action", type = "string", description = "Intent action (default ACTION_VIEW)", required = false),
+                    ToolParameter(name = "uri", type = "string", description = "URI to resolve (e.g., 'https://example.com')", required = false),
+                    ToolParameter(name = "mime_type", type = "string", description = "MIME type to resolve (e.g., 'image/png')", required = false)
+                )
+            ))
+            add(ToolDefinition(
+                name = "enhanced_cached_analysis",
+                description = "Return cached enhanced analysis JSON for a package if available and fresh (1h).",
+                parameters = listOf(
+                    ToolParameter(name = "target_package", type = "string", description = "Package name", required = true)
+                )
+            ))
+            add(ToolDefinition(
+                name = "enhanced_manifest_to_html",
+                description = "Export enhanced manifest analysis to a single-file HTML report stored in cacheDir. Returns absolute file path on success.",
+                parameters = listOf(
+                    ToolParameter(name = "target_package", type = "string", description = "Package name", required = true)
+                )
+            ))
+            // Enhanced network security and attack-surface tools
+            add(ToolDefinition(
+                name = "enhanced_network_security",
+                description = "Extract networkSecurityConfig XML snippets packaged in the APK and run quick heuristics (cleartext/trust-anchors). Returns JSON.",
+                parameters = listOf(
+                    ToolParameter(name = "target_package", type = "string", description = "Package name", required = true)
+                )
+            ))
+            add(ToolDefinition(
+                name = "enhanced_attack_surface",
+                description = "Build an attack-surface JSON listing exported components, bare exports, and useful am/content commands.",
+                parameters = listOf(
+                    ToolParameter(name = "target_package", type = "string", description = "Package name", required = true)
+                )
+            ))
             addAll(WebScraperTool.getToolDefinitions())
             addAll(AdvancedFileTools.getToolDefinitions())
             addAll(OmniCoreAgentTool.getToolDefinitions())
@@ -147,9 +195,6 @@ class CompositeToolManager(
             addAll(LauncherControlTool.getToolDefinitions())
             addAll(WidgetGeneratorTool.getToolDefinitions())
             // ── Dynamic Self-Sandbox Tool ────────────────────────────────────
-            // Always present when context is available — it requires the
-            // PrivilegedExecutionManager (Shizuku/rish/root) which is initialised
-            // from the application context.
             addAll(AgentSandboxTool.getToolDefinitions())
         }
         addAll(SocialMediaTool.getToolDefinitions())
@@ -243,12 +288,12 @@ class CompositeToolManager(
             name = "ime_tool",
             description = "Interact with OmniDev's Input Method Service to type text into any app's " +
                     "input field, read text near the cursor, or delete text. The OmniDev IME must " +
-                    "be enabled and active. Actions: commit_text, delete, get_selected, get_before_cursor, status.",
+                    "be enabled and active. Actions: commit_text, delete, get_selected, get_before_cursor, status, switch_back.",
             parameters = listOf(
                 ToolParameter(
                     name = "action",
                     type = "string",
-                    description = "One of: commit_text, delete, get_selected, get_before_cursor, status",
+                    description = "One of: commit_text, delete, get_selected, get_before_cursor, status, switch_back",
                     required = true
                 ),
                 ToolParameter(
@@ -288,7 +333,7 @@ class CompositeToolManager(
     override suspend fun executeTool(
         name: String,
         arguments: Map<String, String>,
-        scopePath: String
+        scopePath: String? // <--- FIX: Added ? to match interface
     ): ToolExecutionResult {
         return when (name) {
             // ── Execution Diagnostics tool ──
@@ -364,13 +409,13 @@ class CompositeToolManager(
 
             // ── Git manager tool ──
             "git_manager" ->
-                GitManagerTool.executeTool(name, arguments, scopePath)
+                GitManagerTool.executeTool(name, arguments, scopePath ?: "") // <--- FIX HERE
 
             // ── Environment / advanced terminal tools ──
             "advanced_terminal", "setup_build_environment" -> {
                 val env = environmentSetupManager
                     ?: return ToolExecutionResult("Build environment manager not configured.", isError = true)
-                env.executeTool(name, arguments, scopePath)
+                env.executeTool(name, arguments, scopePath ?: "") // <--- FIX HERE
             }
 
             // ── Notification capture tool ──
@@ -426,12 +471,15 @@ class CompositeToolManager(
             // ── Direct network request tool ──
             "network_request" -> NetworkRequestTool.execute(arguments)
 
-            // ── Quality/security tooling (code review, vulnerability scans, tests) ──
+            // ── Quality/security tooling ──
             "quality_security_tool" -> QualitySecurityTool.execute(context = context, args = arguments)
 
             // ── Visual inspector tool ──
-            "visual_inspector" ->
-                VisualInspectorTool.execute()
+            "visual_inspector" -> {
+                val ctx = context ?: return ToolExecutionResult("Context required.", isError = true)
+                VisualInspectorTool.execute(ctx)
+            }
+
 
             // ── Telegram publisher tool ──
             "telegram_publish" -> {
@@ -445,32 +493,31 @@ class CompositeToolManager(
                 )
             }
 
-            // ── Telegram bot tool (bidirectional — send, receive, get_updates, etc.) ──
+            // ── Telegram bot tool ──
             "telegram_bot" -> {
                 val botToken = settingsRepository?.observeTelegramBotToken()?.first()
                 TelegramBotTool.execute(botToken = botToken, args = arguments)
             }
 
-            // ── Discord bot tool (full bidirectional Discord Bot API) ──
+            // ── Discord bot tool ──
             "discord_bot" -> {
                 val botToken = settingsRepository?.observeDiscordBotToken()?.first()
                 DiscordBotTool.execute(botToken = botToken, args = arguments)
             }
 
-            // ── WhatsApp Business Cloud API tool ──
+            // ── WhatsApp tools ──
             "whatsapp" -> {
                 val phoneNumberId = settingsRepository?.observeWhatsAppPhoneNumberId()?.first()
                 val accessToken   = settingsRepository?.observeWhatsAppAccessToken()?.first()
                 WhatsAppTool.execute(phoneNumberId = phoneNumberId, accessToken = accessToken, args = arguments)
             }
 
-            // ── WhatsApp Baileys Bridge tool ──
             "whatsapp_bridge" -> {
                 val bridgeUrl = settingsRepository?.observeWhatsAppBridgeUrl()?.first()
                 WhatsAppBridgeTool.execute(bridgeUrl = bridgeUrl, args = arguments)
             }
 
-            // ── Slack tool (full bidirectional Slack Web API) ──
+            // ── Slack tool ──
             "slack" -> {
                 val slackToken = settingsRepository?.observeSlackBotToken()?.first()
                 SlackTool.execute(token = slackToken, args = arguments)
@@ -503,14 +550,13 @@ class CompositeToolManager(
                 ToolExecutionResult(profiler.execute(name, arguments))
             }
 
-            // ── Discord publisher tool ──
+            // ── Discord & Notion publishers ──
             "publish_to_discord" -> {
                 val discord = discordPublisherTool
                     ?: return ToolExecutionResult("Discord publisher tool not configured.", isError = true)
                 discord.execute(arguments)
             }
 
-            // ── Notion publisher tool ──
             "create_notion_page" -> {
                 val notion = notionPublisherTool
                     ?: return ToolExecutionResult("Notion publisher tool not configured.", isError = true)
@@ -525,7 +571,7 @@ class CompositeToolManager(
                 SystemContactsTool.execute(ctx, searchName)
             }
 
-            // ── UI automation tool (Ghost Finger) ──
+            // ── UI automation tool ──
             "ui_automation" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 UIAutomationTool.execute(action, arguments)
@@ -537,7 +583,7 @@ class CompositeToolManager(
                 SemanticUITool.execute(action, arguments)
             }
 
-            // ── Call log tool ──
+            // ── Call log & SMS tools ──
             "call_log_tool" -> {
                 val ctx = context
                     ?: return ToolExecutionResult("Call log tool requires Android context.", isError = true)
@@ -549,7 +595,6 @@ class CompositeToolManager(
                 )
             }
 
-            // ── SMS reader tool ──
             "sms_reader_tool" -> {
                 val ctx = context
                     ?: return ToolExecutionResult("SMS tool requires Android context.", isError = true)
@@ -606,13 +651,10 @@ class CompositeToolManager(
                         )
                     }
                 }
-
-                // Uses AdvancedRootShellTool which uses the fixed PrivilegedExecutionManager
-                val rootResult = AdvancedRootShellTool.execute(command = command)
-                rootResult
+                AdvancedRootShellTool.execute(command = command)
             }
 
-            // ── App manifest analyzer tool ──
+            // ── App manifest analyzer tools ──
             "app_manifest_analyzer" -> {
                 val ctx = context
                     ?: return ToolExecutionResult("App analyzer tool requires Android context.", isError = true)
@@ -622,8 +664,73 @@ class CompositeToolManager(
                     filter = arguments["filter"]
                 )
             }
+            "enhanced_manifest_analyzer" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Enhanced manifest analyzer requires Android context.", isError = true)
+                val pkg = arguments["target_package"] ?: return missingArg("target_package")
+                val pm = ctx.packageManager
+                val flags = PackageManager.GET_ACTIVITIES or
+                    PackageManager.GET_SERVICES or
+                    PackageManager.GET_RECEIVERS or
+                    PackageManager.GET_PROVIDERS or
+                    PackageManager.GET_PERMISSIONS or
+                    PackageManager.GET_META_DATA
+                val packageInfo = try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(flags.toLong()))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        pm.getPackageInfo(pkg, flags)
+                    }
+                } catch (e: Exception) { null }
 
-            // ── Privileged execution tool (Shizuku / rish / root via PrivilegedExecutionManager) ──
+                if (packageInfo == null) return ToolExecutionResult("Package '$pkg' not found.", isError = true)
+                val resultJson = EnhancedAppManifestAnalyzerTool.buildEnhancedJson(ctx, packageInfo)
+                EnhancedAppManifestAnalyzerTool.putCachedAnalysis(ctx, pkg, resultJson)
+                ToolExecutionResult(resultJson.toString(2))
+            }
+            "intent_resolver" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Intent resolver tool requires Android context.", isError = true)
+                AppManifestAnalyzerTool.executeIntentResolver(
+                    context = ctx,
+                    action = arguments["action"],
+                    uri = arguments["uri"],
+                    mimeType = arguments["mime_type"]
+                )
+            }
+            "enhanced_intent_resolver" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Enhanced intent resolver requires Android context.", isError = true)
+                val res = EnhancedAppManifestAnalyzerTool.resolveIntentAll(
+                    context = ctx,
+                    action = arguments["action"],
+                    uri = arguments["uri"],
+                    mimeType = arguments["mime_type"]
+                )
+                ToolExecutionResult(res.toString(2))
+            }
+            "batch_manifest_analyzer" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Batch manifest analyzer requires Android context.", isError = true)
+                AppManifestAnalyzerTool.executeBatch(
+                    context = ctx,
+                    packages = arguments["packages"] ?: return missingArg("packages")
+                )
+            }
+            "enhanced_cached_analysis" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Enhanced cached analysis requires Android context.", isError = true)
+                val pkg = arguments["target_package"] ?: return missingArg("target_package")
+                val cached = EnhancedAppManifestAnalyzerTool.getCachedAnalysis(ctx, pkg)
+                if (cached == null) {
+                    ToolExecutionResult("No fresh cached analysis for '$pkg'.", isError = false)
+                } else {
+                    ToolExecutionResult(cached.toString(2))
+                }
+            }
+
+            // ── Privileged execution tool ──
             "privileged_tool" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 OmniCoreAgentTool.execute(action = action, args = arguments)
@@ -635,34 +742,22 @@ class CompositeToolManager(
                 AgentRuntimeTool.execute(context = context ?: return missingContext(), action = action, args = arguments)
             }
 
-            // ── Termux bridge tool (direct Termux env executor) ──
-            "termux_bridge" -> {
-                TermuxEnvironmentBridge.executeTool(arguments)
-            }
-
-            // ── Autonomous Python runtime manager ──
+            // ── Termux bridge & Python tools ──
+            "termux_bridge" -> TermuxEnvironmentBridge.executeTool(arguments)
             "python_runtime" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 PythonRuntimeManager.execute(action = action, args = arguments)
             }
 
-            // ── Universal launcher control tool ──
+            // ── System launcher & widget tools ──
             "system_launcher_tool" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 LauncherControlTool.execute(action = action, args = arguments)
             }
+            "widget_generator_tool" -> WidgetGeneratorTool.execute(args = arguments)
 
-            // ── Omni-Widgets UI generation tool ──
-            "widget_generator_tool" -> {
-                WidgetGeneratorTool.execute(args = arguments)
-            }
-
-            // ── Dynamic Self-Sandbox Tool ─────────────────────────────────────
-            // Runs shell scripts in an ephemeral, UUID-keyed /data/local/tmp/
-            // sandbox that is always wiped after execution.
-            "sandbox_execution_tool" -> {
-                AgentSandboxTool.executeTool(arguments)
-            }
+            // ── Dynamic Self-Sandbox Tool ──
+            "sandbox_execution_tool" -> AgentSandboxTool.executeTool(arguments)
 
             // ── Social media / video tool ──
             "social_media_video" -> {
@@ -670,13 +765,13 @@ class CompositeToolManager(
                 SocialMediaTool.execute(context = context, action = action, args = arguments)
             }
 
-            // ── Network traffic monitor (VPN-based) ──
+            // ── Network monitor tool ──
             "network_monitor" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 NetworkMonitorTool.execute(context = context ?: return missingContext(), action = action, args = arguments)
             }
 
-            // ── Autofill assistant tool ──
+            // ── Autofill & Omni-Link tools ──
             "autofill_assist" -> {
                 val ctx = context ?: return missingContext()
                 val settings = settingsRepository
@@ -689,8 +784,6 @@ class CompositeToolManager(
                     args = arguments
                 )
             }
-
-            // ── Omni-Link universal extension tool ──
             "omni_link" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 val ctx = context ?: return missingContext()
@@ -705,35 +798,17 @@ class CompositeToolManager(
                 vmm.executeTool(name, arguments)
             }
 
-            // ── Web scraper tool (Deep Research) ──
-            "web_scraper" -> {
-                WebScraperTool.execute(
-                    url = arguments["url"] ?: return missingArg("url"),
-                    selector = arguments["selector"]
-                )
+            // ── Web scraper tool (Updated for new Unified Router) ──
+            "web_scraper", "scrape_multiple" -> {
+                WebScraperTool.executeTool(name, arguments)
             }
 
-            "scrape_multiple" -> {
-                val rawUrls = arguments["urls"] ?: return missingArg("urls")
-                val urls = rawUrls.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                WebScraperTool.executeMultiple(urls = urls, selector = arguments["selector"])
-            }
-
-            // ── Headless browser tools (Ghost Browser) ──
-            "browser_navigate" -> {
+            // ── Headless browser tools (Updated for new Unified Router) ──
+            "headless_browser" -> {
                 val browser = headlessBrowserManager
                     ?: return ToolExecutionResult("Headless browser not configured.", isError = true)
-                browser.navigate(url = arguments["url"] ?: return missingArg("url"))
-            }
-            "browser_execute_js" -> {
-                val browser = headlessBrowserManager
-                    ?: return ToolExecutionResult("Headless browser not configured.", isError = true)
-                browser.executeJs(jsCode = arguments["js_code"] ?: return missingArg("js_code"))
-            }
-            "browser_get_dom" -> {
-                val browser = headlessBrowserManager
-                    ?: return ToolExecutionResult("Headless browser not configured.", isError = true)
-                browser.getDom()
+                val action = arguments["action"] ?: return missingArg("action")
+                browser.execute(action, arguments)
             }
 
             // ── Advanced root file tools ──
@@ -741,14 +816,12 @@ class CompositeToolManager(
                 AdvancedFileTools.executeTool(name, arguments)
             }
 
-            // ── Agentic GitHub authentication tool ──
+            // ── GitHub auth & Clipboard tools ──
             "request_github_auth" -> {
                 val authTool = requestGitHubAuthTool
                     ?: return ToolExecutionResult("GitHub auth tool requires settingsRepository and apiKeyRepository.", isError = true)
                 authTool.execute(requestedScopes = arguments["requested_scopes"])
             }
-
-            // ── Clipboard tool ──
             "clipboard" -> clipboardTool?.execute(arguments)
                 ?: ToolExecutionResult("Clipboard tool unavailable (no context).", isError = true)
 
@@ -825,7 +898,7 @@ class CompositeToolManager(
                 }
             }
 
-            // ── Input Method (IME) tool ──
+            // ── Input Method (IME) tool (Updated with switch_back) ──
             "ime_tool" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 when (action.lowercase()) {
@@ -850,6 +923,11 @@ class CompositeToolManager(
                         val len = arguments["length"]?.toIntOrNull() ?: 100
                         val text = OmniInputMethodService.getTextBeforeCursor(len)
                         ToolExecutionResult(text ?: "(no text or IME not active)")
+                    }
+                    "switch_back" -> {
+                        val success = OmniInputMethodService.switchToPreviousKeyboard()
+                        if (success) ToolExecutionResult("✅ Switched back to the previous keyboard.")
+                        else ToolExecutionResult("Failed to switch keyboard automatically. The user may need to change it manually.", isError = true)
                     }
                     "status" -> {
                         val active = OmniInputMethodService.isActive.value
@@ -964,11 +1042,16 @@ class CompositeToolManager(
     }
 
     private fun fireViewIntentFallback(ctx: Context, viewUrl: String): ToolExecutionResult {
-        return AndroidIntentTool.fire(
-            context = ctx,
-            action = Intent.ACTION_VIEW,
-            extraUri = viewUrl
-        ).toDisplayString().let { ToolExecutionResult(it) }
+        // Assume AndroidIntentTool exists and handles firing the intent
+        // If not imported, this will rely on your local package scope
+        val resultString = runCatching {
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(viewUrl))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(intent)
+            "✅ View intent fired for: $viewUrl"
+        }.getOrElse { "❌ Failed to fire view intent: ${it.message}" }
+        
+        return ToolExecutionResult(resultString)
     }
 
     private fun fireSetAlarmIntentFallback(

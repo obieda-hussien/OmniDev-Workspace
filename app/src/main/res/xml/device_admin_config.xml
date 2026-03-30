@@ -1,17 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <device-admin xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-policies>
-        <!-- Lock the screen on agent command -->
         <force-lock />
-        <!-- Set minimum password complexity -->
-        <limit-password />
-        <!-- Factory reset (extreme; gated behind ConfirmationGate) -->
+        
         <wipe-data />
-        <!-- Expire the device password after N days -->
-        <expire-password />
-        <!-- Maximum failed password attempts before wipe -->
+        
         <watch-login />
-        <!-- Set auto-lock timeout -->
+
+        <disable-camera />
+
+        <disable-keyguard-features />
+
+        <limit-password />
+        
         <reset-password />
+        
+        <expire-password />
     </uses-policies>
 </device-admin>

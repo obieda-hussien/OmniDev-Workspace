@@ -1,58 +1,53 @@
 package com.omnidev.workspace.data.tools
 
+import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Captures and analyzes Android logcat output filtered to a specific package.
+ * Captures and analyzes Android logcat output precisely filtered to a specific package.
  *
- * The tool dumps the in-memory logcat ring buffer, filters lines that mention
- * the requested package name, and further narrows to crash/error/warning
- * severity depending on the caller's request.
- *
- * When Shizuku is available and authorized the tool uses an elevated shell
- * for logcat access (useful on user-builds where per-app log isolation is
- * enforced). Otherwise it falls back to a standard [ProcessBuilder] call
- * which works on debug/eng builds and emulators.
+ * * FIXES & UPGRADES:
+ * 1. Process ID (PID) Resolution: Android logcat does NOT print package names on every line
+ * of a Stacktrace. We must resolve the package to its PID first to get full crash logs.
+ * 2. Tail-Reading: Grabs logs from the bottom up to ensure the newest crashes are captured 
+ * before token limits are hit.
+ * 3. Strict Privilege Routing: Android 13+ blocks normal apps from reading cross-app logcat.
+ * This now strictly routes through the PrivilegedExecutionManager.
  */
 object LogcatAnalyzerTool {
 
-    /** Maximum characters returned in a single result to guard context window usage. */
-    private const val MAX_OUTPUT_CHARS = 8_000
-
-    /** Timeout in seconds for the logcat dump process. */
-    private const val LOGCAT_TIMEOUT_SECONDS = 15L
+    /** Maximum characters returned in a single result to protect the LLM context window. */
+    private const val MAX_OUTPUT_CHARS = 12_000
 
     // ──────────────────────────────────────────────
     //  Tool Definitions
     // ──────────────────────────────────────────────
 
-    /**
-     * Returns the tool definitions for inclusion in the AI function-calling schema.
-     */
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "analyze_logcat",
-            description = "Capture and analyze Android logcat output for a specific package. " +
-                "Filters for crashes (FATAL EXCEPTION) and errors. Useful for debugging runtime failures.",
+            description = "Capture and analyze Android system logs (logcat) for a specific app. " +
+                "CRITICAL for debugging app crashes, ANRs, or runtime errors. " +
+                "Automatically resolves the package to its PID to capture full multi-line stacktraces.",
             parameters = listOf(
                 ToolParameter(
                     name = "packageName",
                     type = "string",
-                    description = "Package name to filter logcat for (e.g., com.example.app)",
+                    description = "Exact package name to debug (e.g., 'com.example.app').",
                     required = true
                 ),
                 ToolParameter(
-                    name = "lastMinutes",
+                    name = "lines",
                     type = "string",
-                    description = "Number of minutes of logs to capture (default: 5)",
+                    description = "Number of recent log lines to fetch (default: 500).",
                     required = false
                 ),
                 ToolParameter(
                     name = "severity",
                     type = "string",
-                    description = "Minimum severity: 'crash', 'error', 'warning', 'all' (default: 'error')",
+                    description = "Filter level: 'crash' (FATAL only), 'error' (E/), 'warning' (W/ & E/), 'all' (no filter). Default: 'error'.",
                     required = false
                 )
             )
@@ -60,197 +55,161 @@ object LogcatAnalyzerTool {
     )
 
     // ──────────────────────────────────────────────
-    //  Execution
+    //  Execution Router
     // ──────────────────────────────────────────────
 
-    /**
-     * Captures logcat output, filters it by [packageName] and [severity], and returns
-     * a [ToolExecutionResult] with the matching lines.
-     *
-     * @param packageName Android application ID to filter for.
-     * @param lastMinutes Approximate number of minutes of history to include. Used as a
-     *                    hint — the actual buffer depth depends on the device.
-     * @param severity    One of `"crash"`, `"error"`, `"warning"`, or `"all"`.
-     * @return Filtered logcat output or a "no errors found" message.
-     */
-    suspend fun execute(
-        packageName: String,
-        lastMinutes: Int = 5,
-        severity: String = "error"
-    ): ToolExecutionResult = withContext(Dispatchers.IO) {
-        try {
-            val rawOutput = captureLogcat(packageName, lastMinutes)
-            val filteredLines = filterBySeverity(rawOutput, severity)
-
-            if (filteredLines.isEmpty()) {
-                return@withContext ToolExecutionResult(
-                    output = "No errors found for $packageName in the last $lastMinutes minutes.",
-                    isError = false
-                )
-            }
-
-            val joined = filteredLines.joinToString("\n")
-            val truncated = joined.length > MAX_OUTPUT_CHARS
-            val output = if (truncated) {
-                joined.take(MAX_OUTPUT_CHARS) + "\n[TRUNCATED]"
-            } else {
-                joined
-            }
-
-            ToolExecutionResult(output = output, isError = false, truncated = truncated)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            ToolExecutionResult(
-                output = "Failed to capture logcat: ${e.message}",
-                isError = true
-            )
-        }
-    }
-
-    // ──────────────────────────────────────────────
-    //  Dispatcher
-    // ──────────────────────────────────────────────
-
-    /**
-     * Dispatches a tool call by [name] with the given [arguments] map.
-     *
-     * @param name      Must be `"analyze_logcat"`.
-     * @param arguments Key-value argument map from the AI model.
-     * @return The result of the tool execution.
-     */
     suspend fun executeTool(
         name: String,
         arguments: Map<String, String>
     ): ToolExecutionResult {
         if (name != "analyze_logcat") {
-            return ToolExecutionResult(
-                output = "Unknown tool: $name",
-                isError = true
-            )
+            return ToolExecutionResult("Unknown tool: $name", isError = true)
         }
 
-        val packageName = arguments["packageName"]
-            ?: return ToolExecutionResult(
-                output = "Missing required parameter: packageName",
-                isError = true
-            )
+        val packageName = arguments["packageName"]?.trim()
+            ?: return ToolExecutionResult("Missing required parameter: packageName", isError = true)
 
-        val lastMinutes = arguments["lastMinutes"]?.toIntOrNull() ?: 5
-        val severity = arguments["severity"] ?: "error"
+        val lines = arguments["lines"]?.toIntOrNull() ?: 500
+        val severity = arguments["severity"]?.trim() ?: "error"
 
-        return execute(packageName, lastMinutes, severity)
+        return execute(packageName, lines, severity)
     }
 
     // ──────────────────────────────────────────────
-    //  Internal helpers
+    //  Core Logic
     // ──────────────────────────────────────────────
 
-    /**
-     * Captures the logcat ring-buffer dump filtered to lines containing [packageName].
-     *
-     * Attempts Shizuku first for elevated access (needed on user-builds); falls back
-     * to a local [ProcessBuilder] invocation.
-     */
-    private suspend fun captureLogcat(packageName: String, lastMinutes: Int): List<String> {
-        // Try Shizuku for elevated logcat access (e.g., user builds with log isolation).
-        if (ShizukuCommandTool.isAvailable() && ShizukuCommandTool.hasPermission()) {
-            // Sanitize inputs to prevent shell injection — only allow package-name-safe chars.
-            val safePackage = packageName.replace(Regex("[^a-zA-Z0-9._]"), "")
-            val safeMinutes = lastMinutes.coerceIn(1, 60)
-            // Avoid shell interpolation — use logcat's built-in time filter and grep safely.
-            // Pass the grep pattern as a literal argument rather than through shell expansion.
-            val result = ShizukuCommandTool.execute(
-                "logcat -d -v threadtime -t '${safeMinutes}m' | grep -F '$safePackage'"
-            )
-            if (result is ShizukuResult.Success) {
-                return result.output.lines().filter { it.isNotBlank() }
+    suspend fun execute(
+        packageName: String,
+        lines: Int = 500,
+        severity: String = "error"
+    ): ToolExecutionResult = withContext(Dispatchers.IO) {
+        try {
+            // 1. Ensure Privileged Access (Required for Android 13+)
+            if (!PrivilegedExecutionManager.isShizukuReady() && !PrivilegedExecutionManager.isRishReady() && !PrivilegedExecutionManager.isRootAvailable()) {
+                return@withContext ToolExecutionResult(
+                    "Logcat analysis failed: Privileged access (Shizuku/Root) is required on modern Android to read cross-app logs.",
+                    isError = true
+                )
             }
-        }
 
-        // Fallback: standard ProcessBuilder (works on debug builds / emulators).
-        return captureLogcatViaProcess(packageName)
+            // 2. Resolve Package to PIDs
+            // Apps can have multiple processes (e.g., com.app and com.app:service). We need all their PIDs.
+            val pids = getProcessIdsForPackage(packageName)
+            
+            // 3. Fetch Logs
+            val rawLines = if (pids.isEmpty()) {
+                // App is not running. Fallback to a dumb text-grep across the whole logcat history
+                // Note: This misses multi-line stacktraces because 'grep' only matches the exact line.
+                fetchLogsByTextGrep(packageName, lines)
+            } else {
+                // App is running. Use proper PID filtering to get intact stacktraces.
+                fetchLogsByPids(pids, lines)
+            }
+
+            if (rawLines.isEmpty()) {
+                return@withContext ToolExecutionResult(
+                    "No logs found for $packageName. The app might not have logged anything recently, or the buffer has rolled over."
+                )
+            }
+
+            // 4. Apply Severity Filtering
+            val filteredLines = filterBySeverity(rawLines, severity)
+
+            if (filteredLines.isEmpty()) {
+                return@withContext ToolExecutionResult(
+                    "No logs matching severity '$severity' found for $packageName in the recent buffer."
+                )
+            }
+
+            // 5. Format and Truncate (Keeping the tail/newest logs)
+            val joined = filteredLines.joinToString("\n")
+            val truncated = joined.length > MAX_OUTPUT_CHARS
+            
+            val output = if (truncated) {
+                "...[TRUNCATED ${joined.length - MAX_OUTPUT_CHARS} chars to save tokens]...\n" + joined.takeLast(MAX_OUTPUT_CHARS)
+            } else {
+                joined
+            }
+
+            val header = "── Logcat Analysis: $packageName (PIDs: ${if (pids.isEmpty()) "Not Running" else pids.joinToString()}) ──\n"
+            
+            ToolExecutionResult(output = header + output, isError = false, truncated = truncated)
+
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            ToolExecutionResult("Failed to analyze logcat: ${e.message}", isError = true)
+        }
     }
 
+    // ──────────────────────────────────────────────
+    //  Private Helpers
+    // ──────────────────────────────────────────────
+
     /**
-     * Runs `logcat -d -v threadtime` through [ProcessBuilder] and filters output
-     * to lines containing [packageName].
-     *
-     * Uses the API-24-compatible timeout pattern: a dedicated wait-thread joined with
-     * a millisecond timeout, followed by [Process.destroy] on timeout.
+     * Finds all active Process IDs (PIDs) associated with a given package name.
      */
-    private fun captureLogcatViaProcess(packageName: String): List<String> {
-        val process = ProcessBuilder("logcat", "-d", "-v", "threadtime")
-            .redirectErrorStream(true)
-            .start()
-
-        // Read output on a dedicated thread to prevent pipe-buffer deadlock.
-        // StringBuffer is used for thread safety in case readerThread is still
-        // draining after join() times out.
-        val outputBuffer = StringBuffer()
-        val readerThread = Thread {
-            try {
-                process.inputStream.bufferedReader().use { reader ->
-                    reader.lineSequence().forEach { line ->
-                        if (outputBuffer.length < MAX_OUTPUT_CHARS * 2) {
-                            outputBuffer.appendLine(line)
-                        }
-                    }
-                }
-            } catch (_: Exception) { /* process killed — exit gracefully */ }
-        }
-        readerThread.start()
-
-        // API-24-compatible timeout: Thread.join(millis) has been available since API 1.
-        val waitThread = Thread {
-            try { process.waitFor() } catch (_: InterruptedException) { /* timeout handling */ }
-        }
-        waitThread.start()
-        waitThread.join(LOGCAT_TIMEOUT_SECONDS * 1000L)
-
-        val completed = !waitThread.isAlive
-        if (!completed) {
-            process.destroy()
-            readerThread.interrupt()
+    private suspend fun getProcessIdsForPackage(packageName: String): List<String> {
+        val safePackage = packageName.replace(Regex("[^a-zA-Z0-9._]"), "")
+        val result = PrivilegedExecutionManager.executeCommand("pidof $safePackage")
+        
+        return if (result.isSuccess) {
+            result.getOrDefault("").split(Regex("\\s+")).filter { it.isNotBlank() && it.all { char -> char.isDigit() } }
         } else {
-            readerThread.join(2_000L)
+            emptyList()
         }
-
-        return outputBuffer.toString()
-            .lines()
-            .filter { it.contains(packageName) && it.isNotBlank() }
     }
 
     /**
-     * Filters a list of logcat lines to only those matching the requested [severity].
-     *
-     * Severity levels (most → least restrictive):
-     * - `"crash"` — FATAL EXCEPTION / `E/AndroidRuntime`
-     * - `"error"` — any `E/` tag (includes crashes)
-     * - `"warning"` — any `W/` or `E/` tag
-     * - `"all"` — no filtering
+     * Highly accurate logcat fetch using process IDs. Preserves stacktraces completely.
+     */
+    private suspend fun fetchLogsByPids(pids: List<String>, maxLines: Int): List<String> {
+        // Build a regex pattern for grep: "^\d+ +\d+ +\d+ +\d+ +(PID1|PID2) "
+        // This matches the PID column in standard logcat output reliably
+        val pidRegex = pids.joinToString("|")
+        val safeLines = maxLines.coerceIn(100, 5000)
+        
+        // We dump a larger chunk of logcat, grep the PIDs, and then take the tail
+        val cmd = "logcat -d -v threadtime -t ${safeLines * 3} | grep -E '^\\S+\\s+\\S+\\s+($pidRegex)\\s+' | tail -n $safeLines"
+        
+        val result = PrivilegedExecutionManager.executeCommand(cmd)
+        return result.getOrDefault("").lines().filter { it.isNotBlank() }
+    }
+
+    /**
+     * Fallback for when the app is dead/crashed and we don't have its PID.
+     * We just grep the text. Stacktraces might be broken here, but it's better than nothing.
+     */
+    private suspend fun fetchLogsByTextGrep(packageName: String, maxLines: Int): List<String> {
+        val safePackage = packageName.replace(Regex("[^a-zA-Z0-9._]"), "")
+        val safeLines = maxLines.coerceIn(100, 5000)
+        
+        val cmd = "logcat -d -v threadtime -t ${safeLines * 3} | grep -F '$safePackage' | tail -n $safeLines"
+        
+        val result = PrivilegedExecutionManager.executeCommand(cmd)
+        return result.getOrDefault("").lines().filter { it.isNotBlank() }
+    }
+
+    /**
+     * Fast string-based severity filtering. Avoids heavy Regex inside loops.
+     * Assumes standard `threadtime` format: "MM-DD HH:MM:SS.mmm PID TID LEVEL/Tag: Message"
      */
     private fun filterBySeverity(lines: List<String>, severity: String): List<String> {
-        return when (severity.lowercase()) {
-            "crash" -> lines.filter { line ->
-                line.contains("FATAL EXCEPTION") || line.contains("E/AndroidRuntime")
-            }
-            "error" -> lines.filter { line ->
-                line.contains("FATAL EXCEPTION") ||
-                    line.contains("E/AndroidRuntime") ||
-                    line.contains(" E/") || Regex(" E( |$)").containsMatchIn(line)
-            }
-            "warning" -> lines.filter { line ->
-                line.contains("FATAL EXCEPTION") ||
-                    line.contains("E/AndroidRuntime") ||
-                    line.contains(" E/") || Regex(" E( |$)").containsMatchIn(line) ||
-                    line.contains(" W/") || Regex(" W( |$)").containsMatchIn(line)
-            }
-            "all" -> lines
-            else -> lines.filter { line ->
-                line.contains(" E/") || Regex(" E( |$)").containsMatchIn(line) ||
-                    line.contains("FATAL EXCEPTION") ||
-                    line.contains("E/AndroidRuntime")
+        val targetSeverity = severity.lowercase().trim()
+        
+        if (targetSeverity == "all") return lines
+
+        return lines.filter { line ->
+            // In 'threadtime', the 5th token is usually "LEVEL/Tag" (e.g., "E/AndroidRuntime:")
+            // A fast heuristic is checking if " E/" or " F/" exists, or doing a basic split.
+            val isCrash = line.contains("FATAL EXCEPTION", ignoreCase = true) || line.contains("E/AndroidRuntime")
+            
+            when (targetSeverity) {
+                "crash" -> isCrash
+                "error" -> isCrash || line.contains(" E/") || line.contains(" F/")
+                "warning" -> isCrash || line.contains(" E/") || line.contains(" F/") || line.contains(" W/")
+                else -> isCrash || line.contains(" E/") // Default to error
             }
         }
     }

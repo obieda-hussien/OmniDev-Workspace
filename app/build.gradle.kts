@@ -12,7 +12,7 @@ android {
 
     defaultConfig {
         applicationId = "com.omnidev.workspace"
-        minSdk = 24
+        minSdk = 24 // ممتاز، بيدعم أجهزة كتير، بس الوظائف الخارقة هتشتغل من 11+
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
@@ -20,7 +20,6 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // ── NDK / llama.cpp native inference ──────────────────────────────
-        // arm64-v8a covers all modern Android phones; x86_64 keeps emulators working.
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
@@ -37,7 +36,6 @@ android {
         }
     }
 
-    // CMake entry point — path is relative to the module root (app/)
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
@@ -47,9 +45,9 @@ android {
 
     buildTypes {
         release {
-            // TODO: Replace with production release keystore before Google Play publishing
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
+            isShrinkResources = true // لتقليل حجم التطبيق بعد الـ Proguard
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -57,22 +55,21 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        // تم الترقية لـ Java 17 (مطلوب لأندرويد 14+ و Compose الحديث)
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"
     }
     buildFeatures {
         compose = true
         aidl = true
+        buildConfig = true // عشان تقدر تستخدم متغيرات الـ Build في الكود
     }
 }
 
 // ── Auto-initialise llama.cpp git submodule before native build ──────────────
-// If the submodule directory is empty (fresh clone, CI without --recursive),
-// run `git submodule update` automatically so CMake finds the real llama.cpp
-// source and compiles the inference-capable library instead of the stub.
 val initLlamaCppSubmodule by tasks.registering {
     val marker = file("src/main/cpp/llama.cpp/CMakeLists.txt")
     onlyIf { !marker.exists() }
@@ -86,14 +83,12 @@ val initLlamaCppSubmodule by tasks.registering {
         } catch (e: Exception) {
             logger.warn(
                 "Could not auto-init llama.cpp submodule (${e.message}). " +
-                "The stub library will be compiled — on-device inference will not be available. " +
-                "To fix: run `git submodule update --init --recursive` manually."
+                "The stub library will be compiled — on-device inference will not be available."
             )
         }
     }
 }
 
-// Hook into every task that configures or runs the CMake / native build.
 tasks.configureEach {
     if (name.startsWith("configureCMake") ||
         name.startsWith("buildCMake") ||
@@ -103,12 +98,12 @@ tasks.configureEach {
 }
 
 dependencies {
-    // Core
+    // ── Core & Lifecycle ──
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
 
-    // Compose BOM
+    // ── Compose BOM & UI ──
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
@@ -116,38 +111,52 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
 
-    // Navigation
-    implementation(libs.androidx.navigation.compose)
+    // ── Window Management (للفقاعة العائمة والنوافذ) ──
+    implementation(libs.androidx.window)
 
-    // ViewModel
+    // ── Navigation & ViewModel ──
+    implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
-    // DataStore
+    // ── Data & Storage (Room + DataStore) ──
     implementation(libs.androidx.datastore.preferences)
-
-    // Coroutines
-    implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.kotlinx.coroutines.android)
-
-    // Serialization
-    implementation(libs.kotlinx.serialization.json)
-
-    // Room Database
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
 
-    // Shizuku — privileged shell / ADB command execution (power-user tools)
+    // ── Coroutines & Serialization ──
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.serialization.json)
+
+    // ── Shizuku (The God-Mode Key) ──
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
 
-    // Chrome Custom Tabs — used for OAuth 2.0 browser-based auth flows
+    // ── Web Scraping & Auth ──
     implementation(libs.androidx.browser)
-
-    // Jsoup — HTML parsing for web scraper tool (HTML → token-optimized Markdown)
     implementation(libs.jsoup)
 
-    // Testing
+    // ==========================================================
+    // 🚀 أسلحة الوكيل الذكي (AI Agent Libraries)
+    // ==========================================================
+    
+    // 1. Networking (OkHttp/Retrofit) لخدمات التليجرام وجلب البيانات
+    implementation(libs.okhttp)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.kotlinx.serialization)
+    
+    // 2. WorkManager للعمليات المجدولة في الخلفية
+    implementation(libs.androidx.work.runtime.ktx)
+    
+    // 3. CameraX & ML Kit (لتحليل الشاشة وقراءة النصوص OCR)
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.mlkit.text.recognition)
+
+    // ── Testing ──
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)

@@ -13,11 +13,11 @@ import kotlinx.coroutines.withContext
  *
  * Use this tool BEFORE calling [CommunicationTool] when you only have a person's
  * name — it returns the matching phone numbers so that `communicate_tool` can be
- * invoked with a real number.
+ * invoked with a clean, dialable number.
  *
- * **Safety contract:** Requires [Manifest.permission.READ_CONTACTS].  If that
- * permission has not been granted the tool returns a graceful error message instead
- * of throwing.
+ * **Safety contract:** Requires [Manifest.permission.READ_CONTACTS]. If that
+ * permission has not been granted, the tool returns a graceful error message instead
+ * of throwing an exception.
  */
 object SystemContactsTool {
 
@@ -27,7 +27,7 @@ object SystemContactsTool {
             description = "CRITICAL: Use this tool IMMEDIATELY when the user asks to find a " +
                 "person's phone number or search contacts. DO NOT use codebase search or terminal " +
                 "commands for this. Queries the device's system contacts and returns all matching " +
-                "names and phone numbers for the given search term.",
+                "names and cleanly formatted phone numbers for the given search term.",
             parameters = listOf(
                 ToolParameter(
                     name = "searchName",
@@ -41,13 +41,13 @@ object SystemContactsTool {
 
     suspend fun execute(context: Context, searchName: String): ToolExecutionResult =
         withContext(Dispatchers.IO) {
-            // Guard: permission check
+            // Guard: Permission check
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS)
                 != PackageManager.PERMISSION_GRANTED
             ) {
                 return@withContext ToolExecutionResult(
                     output = "Permission required: READ_CONTACTS has not been granted. " +
-                        "Please grant the Contacts permission to this app in Settings and try again.",
+                        "Please ask the user to grant the Contacts permission in Settings.",
                     isError = true
                 )
             }
@@ -63,8 +63,15 @@ object SystemContactsTool {
             // a literal substring (% and _ would otherwise act as wildcards).
             val escapedName = searchName.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
-            val results = mutableListOf<String>()
+            // Data class to hold and normalize contact data
+            data class ContactEntry(val name: String, val rawNumber: String) {
+                // Strip everything except plus signs and digits for Intent compatibility
+                val cleanNumber: String = rawNumber.replace(Regex("[^+\\d]"), "")
+            }
 
+            val rawContacts = mutableSetOf<ContactEntry>()
+
+            // Query the Contacts Provider
             val cursor = context.contentResolver.query(
                 ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                 arrayOf(
@@ -77,19 +84,42 @@ object SystemContactsTool {
             )
 
             cursor?.use { c ->
-                val nameCol = c.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
-                val numberCol = c.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                val nameCol = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
+                val numberCol = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+
+                // Safety check for valid columns
+                if (nameCol == -1 || numberCol == -1) return@use
+
                 while (c.moveToNext()) {
-                    val name = c.getString(nameCol) ?: continue
-                    val number = c.getString(numberCol) ?: continue
-                    results.add("Name: $name, Phone: $number")
+                    val name = c.getString(nameCol)?.trim() ?: continue
+                    val number = c.getString(numberCol)?.trim() ?: continue
+                    if (number.isNotBlank()) {
+                        rawContacts.add(ContactEntry(name, number))
+                    }
                 }
             }
 
-            if (results.isEmpty()) {
-                ToolExecutionResult(output = "No contacts found matching \"$searchName\" in device system contacts.")
-            } else {
-                ToolExecutionResult(output = results.joinToString("\n"))
+            if (rawContacts.isEmpty()) {
+                return@withContext ToolExecutionResult(
+                    output = "❌ No contacts found matching \"$searchName\" in the device's system contacts."
+                )
             }
+
+            // Deduplicate and group by name to handle linked accounts (WhatsApp, Google, etc.)
+            // returning the exact same name with the exact same phone number multiple times.
+            val groupedContacts = rawContacts.groupBy { it.name }
+            
+            val formattedOutput = buildString {
+                appendLine("Found ${groupedContacts.size} matching contact(s):")
+                groupedContacts.forEach { (name, entries) ->
+                    appendLine("- **$name**")
+                    // Distinct by clean number to remove duplicate sync-account entries
+                    entries.distinctBy { it.cleanNumber }.forEach { entry ->
+                        appendLine("  📞 `${entry.cleanNumber}` (Raw: ${entry.rawNumber})")
+                    }
+                }
+            }.trimEnd()
+
+            ToolExecutionResult(output = formattedOutput)
         }
 }
