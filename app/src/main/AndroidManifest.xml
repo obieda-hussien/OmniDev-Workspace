@@ -163,7 +163,6 @@
         android:largeHeap="true"
         android:usesCleartextTraffic="true"
         android:hardwareAccelerated="true"
-        android:extractNativeLibs="false"
         android:directBootAware="true"
         android:persistent="true"
         android:networkSecurityConfig="@xml/network_security_config"

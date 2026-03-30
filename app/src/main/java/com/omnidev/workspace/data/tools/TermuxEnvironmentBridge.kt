@@ -6,8 +6,10 @@ import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import java.io.BufferedReader
 import java.io.BufferedWriter
 import java.io.File
@@ -17,14 +19,19 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * TermuxEnvironmentBridge — The Ultimate God-Mode CLI & Session Engine.
+ * TermuxEnvironmentBridge — The Ultimate God-Mode CLI & Persistent Session Engine.
  *
- * * FEATURES:
+ * FEATURES v2:
  * 1. Persistent Background Sessions: Run background servers (Node, Python) or long builds.
  * 2. Multi-Threading: Open multiple terminal sessions simultaneously.
  * 3. Base64 Script Injection: Bypasses all bash quoting/escaping hell for single-shot commands.
  * 4. CWD Support: Agent can set the Current Working Directory for builds (npm, gradle).
  * 5. Full Package Management: Native wrappers for pip, pkg, apt, and npm.
+ * 6. NEW: Timeout support for exec (default 60s, configurable up to 600s).
+ * 7. NEW: session_peek — reads buffer WITHOUT clearing (safe monitoring).
+ * 8. NEW: session_info — per-session uptime, cwd, buffer fill, process liveness.
+ * 9. NEW: env_info — dumps the exact Termux environment that will be injected.
+ * 10. NEW: which — shorthand alias for find_binary.
  */
 object TermuxEnvironmentBridge {
 
@@ -164,7 +171,8 @@ object TermuxEnvironmentBridge {
         private val outputBuffer = StringBuffer()
         private val jobs = mutableListOf<Job>()
         private val scope = CoroutineScope(Dispatchers.IO)
-        
+        private val startedAt = System.currentTimeMillis()
+
         private val MAX_BUFFER_SIZE = 20_000
 
         fun start(): Boolean {
@@ -225,8 +233,26 @@ object TermuxEnvironmentBridge {
         @Synchronized
         fun readOutputAndClear(): String {
             val out = outputBuffer.toString()
-            outputBuffer.clear()
+            outputBuffer.delete(0, outputBuffer.length)
             return out.ifBlank { "(No new output)" }
+        }
+
+        /** Read buffer WITHOUT clearing it — safe for monitoring without consuming output. */
+        @Synchronized
+        fun peekOutput(): String = outputBuffer.toString().ifBlank { "(No output yet)" }
+
+        /** Human-readable session status summary. */
+        fun info(): String {
+            val uptimeMs  = System.currentTimeMillis() - startedAt
+            val uptimeSec = uptimeMs / 1000
+            val bufferFill = synchronized(this) { outputBuffer.length }
+            return buildString {
+                appendLine("Session ID    : $id")
+                appendLine("CWD           : ${cwd ?: "(default)"}")
+                appendLine("Uptime        : ${uptimeSec}s")
+                appendLine("Buffer fill   : $bufferFill / $MAX_BUFFER_SIZE chars")
+                appendLine("Process alive : ${(process?.isAlive) ?: false}")
+            }
         }
 
         fun stop() {
@@ -397,12 +423,17 @@ object TermuxEnvironmentBridge {
     suspend fun executeTool(args: Map<String, String>): ToolExecutionResult {
         val action = args["action"]?.lowercase()?.trim() ?: return ToolExecutionResult("Missing 'action'.", isError = true)
         val cwd = args["cwd"]
-        
+        val timeoutMs = ((args["timeout_seconds"]?.toLongOrNull() ?: 60L).coerceIn(1L, 600L)) * 1000L
+
         return when (action) {
             "status" -> statusReport()
             "exec", "script" -> {
                 val cmd = args["command"] ?: args["script"] ?: return ToolExecutionResult("Missing 'command' parameter.", isError = true)
-                executeSingleShot(cmd, cwd)
+                try {
+                    withTimeout(timeoutMs) { executeSingleShot(cmd, cwd) }
+                } catch (_: TimeoutCancellationException) {
+                    ToolExecutionResult("⏱️  Command timed out after ${timeoutMs / 1000}s. Use timeout_seconds= to extend (max 600).", isError = true)
+                }
             }
             "session_start" -> {
                 val id = "sess_" + UUID.randomUUID().toString().take(6)
@@ -430,6 +461,16 @@ object TermuxEnvironmentBridge {
                 val id = args["session_id"] ?: return ToolExecutionResult("Missing 'session_id'.", isError = true)
                 val session = sessions[id] ?: return ToolExecutionResult("Session '$id' not found.", isError = true)
                 ToolExecutionResult("Output for $id:\n${session.readOutputAndClear()}")
+            }
+            "session_peek" -> {
+                val id = args["session_id"] ?: return ToolExecutionResult("Missing 'session_id'.", isError = true)
+                val session = sessions[id] ?: return ToolExecutionResult("Session '$id' not found.", isError = true)
+                ToolExecutionResult("[PEEK — buffer NOT cleared]\n${session.peekOutput()}")
+            }
+            "session_info" -> {
+                val id = args["session_id"] ?: return ToolExecutionResult("Missing 'session_id'.", isError = true)
+                val session = sessions[id] ?: return ToolExecutionResult("Session '$id' not found.", isError = true)
+                ToolExecutionResult(session.info())
             }
             "session_stop" -> {
                 val id = args["session_id"] ?: return ToolExecutionResult("Missing 'session_id'.", isError = true)
@@ -460,11 +501,22 @@ object TermuxEnvironmentBridge {
                 pkgInstall(pkgs)
             }
             "pkg_update" -> pkgUpdate()
-            "find_binary" -> {
-                val name = args["binary"] ?: return ToolExecutionResult("Missing 'binary' parameter.", isError = true)
+            "find_binary", "which" -> {
+                val name = args["binary"] ?: args["command"] ?: return ToolExecutionResult("Missing 'binary' parameter.", isError = true)
                 val path = findBinary(name)
                 if (path != null) ToolExecutionResult("✅ $name located at: $path")
-                else ToolExecutionResult("❌ '$name' not found in path.", isError = true)
+                else ToolExecutionResult("❌ '$name' not found in PATH.", isError = true)
+            }
+            "env_info" -> {
+                val env = buildTermuxEnv()
+                val formatted = buildString {
+                    appendLine("═══ Termux Injected Environment ═══")
+                    env.entries.sortedBy { it.key }.forEach { (k, v) ->
+                        appendLine("  $k = $v")
+                    }
+                    appendLine("  Termux usable: ${isTermuxUsable()}")
+                }
+                ToolExecutionResult(formatted)
             }
             else -> ToolExecutionResult("Unknown action: '$action'.", isError = true)
         }

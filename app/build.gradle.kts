@@ -67,6 +67,14 @@ android {
         aidl = true
         buildConfig = true // عشان تقدر تستخدم متغيرات الـ Build في الكود
     }
+
+    packaging {
+        jniLibs {
+            // Replaces android:extractNativeLibs="false" in AndroidManifest.xml
+            // (AGP 7.1+ preferred location for this flag)
+            useLegacyPackaging = false
+        }
+    }
 }
 
 // ── Auto-initialise llama.cpp git submodule before native build ──────────────
