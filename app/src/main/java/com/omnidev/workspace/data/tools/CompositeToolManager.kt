@@ -196,6 +196,9 @@ class CompositeToolManager(
             addAll(WidgetGeneratorTool.getToolDefinitions())
             // ── Dynamic Self-Sandbox Tool ────────────────────────────────────
             addAll(AgentSandboxTool.getToolDefinitions())
+            addAll(PermissionManagerTool.getToolDefinitions())
+            addAll(VPNControlTool.getToolDefinitions())
+            addAll(SystemPowerTool.getToolDefinitions())
         }
         addAll(SocialMediaTool.getToolDefinitions())
         if (context != null) {
@@ -709,6 +712,25 @@ class CompositeToolManager(
                     mimeType = arguments["mime_type"]
                 )
                 ToolExecutionResult(res.toString(2))
+            }
+            "check_permission" -> {
+                val ctx = context ?: return ToolExecutionResult("Permission tool requires Android context.", isError = true)
+                val perm = arguments["permission"] ?: return missingArg("permission")
+                ToolExecutionResult(PermissionManagerTool.checkPermission(ctx, perm))
+            }
+            "request_permission" -> {
+                val ctx = context ?: return ToolExecutionResult("Permission tool requires Android context.", isError = true)
+                val perm = arguments["permission"] ?: return missingArg("permission")
+                PermissionManagerTool.requestPermission(ctx, perm)
+            }
+            "vpn_control" -> {
+                val ctx = context ?: return ToolExecutionResult("VPN tool requires Android context.", isError = true)
+                val action = arguments["action"] ?: return missingArg("action")
+                VPNControlTool.execute(ctx, action, arguments)
+            }
+            "system_power" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                SystemPowerTool.execute(action)
             }
             "batch_manifest_analyzer" -> {
                 val ctx = context
