@@ -1,14 +1,9 @@
 package com.omnidev.workspace.data.media
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
-import android.app.Service
-import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
+import android.app.*
+import android.content.*
 import android.content.pm.ServiceInfo
+import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
@@ -24,16 +19,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Controls media playback across all apps on the device.
- *
- * Uses [MediaSessionManager] to discover active media sessions and issue
- * transport commands (play, pause, skip, stop) — the agent can orchestrate
- * music / podcast / video playback without opening the target app.
- *
- * Requires the `NotificationListenerService` permission (shared with
- * [AgentNotificationService]) for [MediaSessionManager.getActiveSessions].
- *
- * Runs as a foreground `mediaPlayback` service.
+ * OmniMediaSessionService — The Agent's global remote control for device media.
+ * * Monitors all active media sessions (Spotify, YouTube, Music players) in real-time
+ * and provides an interface for the AI to observe and control playback.
  */
 class OmniMediaSessionService : Service() {
 
@@ -45,7 +33,6 @@ class OmniMediaSessionService : Service() {
         private val _activeSession = MutableStateFlow<MediaSessionInfo?>(null)
         val activeSession: StateFlow<MediaSessionInfo?> = _activeSession.asStateFlow()
 
-        /** Convenience method to start the service. */
         fun start(context: Context) {
             val intent = Intent(context, OmniMediaSessionService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -55,220 +42,193 @@ class OmniMediaSessionService : Service() {
             }
         }
 
-        /** Convenience method to stop the service. */
         fun stop(context: Context) {
             context.stopService(Intent(context, OmniMediaSessionService::class.java))
         }
 
-        // ── Static media control API (callable by the agent) ────────────
+        // ── Static Control API for AI Tools ────────────────────────────
 
-        /**
-         * Sends a transport command to the currently active media session.
-         *
-         * @param context Application context for MediaSessionManager access.
-         * @param action  One of: `play`, `pause`, `stop`, `next`, `previous`.
-         * @return Human-readable result description.
-         */
         fun controlMedia(context: Context, action: String): String {
             return try {
-                val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE)
-                        as? MediaSessionManager
-                    ?: return "MediaSessionManager not available on this device."
+                val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager
+                    ?: return "❌ MediaSessionManager unavailable."
 
                 val component = ComponentName(context, AgentNotificationService::class.java)
                 val sessions = msm.getActiveSessions(component)
 
-                if (sessions.isEmpty()) {
-                    return "No active media sessions found. Make sure music or media is playing."
-                }
+                if (sessions.isEmpty()) return "❌ No active media sessions found."
 
                 val controller = sessions[0]
                 val controls = controller.transportControls
 
-                when (action.lowercase()) {
-                    "play" -> {
-                        controls.play()
-                        "▶️ Play command sent to ${controller.packageName}"
-                    }
-                    "pause" -> {
-                        controls.pause()
-                        "⏸️ Pause command sent to ${controller.packageName}"
-                    }
-                    "stop" -> {
-                        controls.stop()
-                        "⏹️ Stop command sent to ${controller.packageName}"
-                    }
-                    "next", "skip" -> {
-                        controls.skipToNext()
-                        "⏭️ Skip to next sent to ${controller.packageName}"
-                    }
-                    "previous", "prev" -> {
-                        controls.skipToPrevious()
-                        "⏮️ Skip to previous sent to ${controller.packageName}"
-                    }
+                when (action.lowercase().trim()) {
+                    "play" -> { controls.play(); "▶️ Playing ${controller.packageName}" }
+                    "pause" -> { controls.pause(); "⏸️ Paused ${controller.packageName}" }
+                    "stop" -> { controls.stop(); "⏹️ Stopped ${controller.packageName}" }
+                    "next", "skip" -> { controls.skipToNext(); "⏭️ Skipped to next" }
+                    "previous", "prev" -> { controls.skipToPrevious(); "⏮️ Skipped to previous" }
                     "toggle" -> {
-                        val state = controller.playbackState?.state
-                        if (state == PlaybackState.STATE_PLAYING) {
+                        if (controller.playbackState?.state == PlaybackState.STATE_PLAYING) {
                             controls.pause()
-                            "⏸️ Toggled: Pause sent to ${controller.packageName}"
+                            "⏸️ Toggled Pause"
                         } else {
                             controls.play()
-                            "▶️ Toggled: Play sent to ${controller.packageName}"
+                            "▶️ Toggled Play"
                         }
                     }
-                    else -> "Unknown media action '$action'. Use: play, pause, stop, next, previous, toggle."
+                    else -> "❓ Unknown action: $action"
                 }
             } catch (e: SecurityException) {
-                "Media control requires Notification Access permission. Enable it in Settings → Notifications → Device & app notifications."
+                "⚠️ Notification Access Required."
             } catch (e: Exception) {
-                "Media control error: ${e.message}"
+                "❌ Error: ${e.message}"
             }
         }
 
-        /**
-         * Returns information about all active media sessions.
-         */
         fun getActiveMediaInfo(context: Context): String {
             return try {
-                val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE)
-                        as? MediaSessionManager
-                    ?: return "MediaSessionManager not available."
+                val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager
+                    ?: return "MediaSessionManager unavailable."
 
                 val component = ComponentName(context, AgentNotificationService::class.java)
                 val sessions = msm.getActiveSessions(component)
 
-                if (sessions.isEmpty()) {
-                    return "No active media sessions."
-                }
+                if (sessions.isEmpty()) return "No media playing."
 
                 buildString {
-                    appendLine("Active Media Sessions (${sessions.size}):")
-                    for ((i, controller) in sessions.withIndex()) {
-                        val metadata = controller.metadata
+                    appendLine("🎵 Active Sessions (${sessions.size}):")
+                    sessions.forEachIndexed { i, controller ->
+                        val meta = controller.metadata
                         val state = controller.playbackState
-
-                        val title = metadata?.getString(
-                            android.media.MediaMetadata.METADATA_KEY_TITLE
-                        ) ?: "Unknown"
-                        val artist = metadata?.getString(
-                            android.media.MediaMetadata.METADATA_KEY_ARTIST
-                        ) ?: "Unknown"
-                        val album = metadata?.getString(
-                            android.media.MediaMetadata.METADATA_KEY_ALBUM
-                        ) ?: ""
-
-                        val playbackStr = when (state?.state) {
+                        val title = meta?.getString(MediaMetadata.METADATA_KEY_TITLE) ?: "Unknown"
+                        val artist = meta?.getString(MediaMetadata.METADATA_KEY_ARTIST) ?: "Unknown"
+                        val playback = when (state?.state) {
                             PlaybackState.STATE_PLAYING -> "▶️ Playing"
                             PlaybackState.STATE_PAUSED -> "⏸️ Paused"
-                            PlaybackState.STATE_STOPPED -> "⏹️ Stopped"
-                            PlaybackState.STATE_BUFFERING -> "⏳ Buffering"
-                            else -> "⬜ ${state?.state ?: "unknown"}"
+                            else -> "⬜ Idle"
                         }
-
-                        appendLine("  ${i + 1}. ${controller.packageName}")
-                        appendLine("     Title: $title")
-                        appendLine("     Artist: $artist")
-                        if (album.isNotBlank()) appendLine("     Album: $album")
-                        appendLine("     Status: $playbackStr")
+                        appendLine("${i + 1}. [${controller.packageName}] $title - $artist ($playback)")
                     }
                 }
-            } catch (e: SecurityException) {
-                "Notification Access permission required for media session info."
-            } catch (e: Exception) {
-                "Error reading media sessions: ${e.message}"
-            }
+            } catch (e: Exception) { "Error: ${e.message}" }
         }
     }
 
-    /** Lightweight snapshot of the active media session. */
+    private lateinit var mediaSessionManager: MediaSessionManager
+    private var currentController: MediaController? = null
+
+    // Real-time metadata callback
+    private val controllerCallback = object : MediaController.Callback() {
+        override fun onMetadataChanged(metadata: MediaMetadata?) { updateActiveSession() }
+        override fun onPlaybackStateChanged(state: PlaybackState?) { updateActiveSession() }
+        override fun onSessionDestroyed() { updateActiveSession() }
+    }
+
+    // Listener for when apps start/stop playing music
+    private val sessionsChangedListener = MediaSessionManager.OnActiveSessionsChangedListener { 
+        Log.d(TAG, "Active sessions changed")
+        updateActiveSession()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        mediaSessionManager = getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
+        
+        createNotificationChannel()
+        startForegroundServiceWithType()
+
+        try {
+            val component = ComponentName(this, AgentNotificationService::class.java)
+            mediaSessionManager.addOnActiveSessionsChangedListener(sessionsChangedListener, component)
+            updateActiveSession()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to register sessions listener", e)
+        }
+    }
+
+    private fun startForegroundServiceWithType() {
+        val notification = buildNotification("Monitoring media playback...")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    override fun onDestroy() {
+        mediaSessionManager.removeOnActiveSessionsChangedListener(sessionsChangedListener)
+        currentController?.unregisterCallback(controllerCallback)
+        _activeSession.value = null
+        super.onDestroy()
+    }
+
+    private fun updateActiveSession() {
+        try {
+            val component = ComponentName(this, AgentNotificationService::class.java)
+            val sessions = mediaSessionManager.getActiveSessions(component)
+            val first = sessions.firstOrNull()
+
+            // Handle Callback registration for the new primary controller
+            if (first != currentController) {
+                currentController?.unregisterCallback(controllerCallback)
+                currentController = first
+                currentController?.registerCallback(controllerCallback)
+            }
+
+            _activeSession.value = first?.let { controller ->
+                val meta = controller.metadata
+                val title = meta?.getString(MediaMetadata.METADATA_KEY_TITLE)
+                val artist = meta?.getString(MediaMetadata.METADATA_KEY_ARTIST)
+                
+                // Update Foreground Notification dynamically
+                val status = if (controller.playbackState?.state == PlaybackState.STATE_PLAYING) "Playing" else "Paused"
+                updateNotification("${title ?: "Unknown"} - ${artist ?: "Unknown"} ($status)")
+
+                MediaSessionInfo(
+                    packageName = controller.packageName,
+                    title = title,
+                    artist = artist,
+                    isPlaying = controller.playbackState?.state == PlaybackState.STATE_PLAYING
+                )
+            } ?: run {
+                updateNotification("No active media")
+                null
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Update session failed", e)
+        }
+    }
+
+    private fun updateNotification(text: String) {
+        val nm = getSystemService(NotificationManager::class.java)
+        nm?.notify(NOTIFICATION_ID, buildNotification(text))
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(CHANNEL_ID, "Media Control", NotificationManager.IMPORTANCE_LOW)
+            getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
+        }
+    }
+
+    private fun buildNotification(text: String): Notification {
+        val pi = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("OmniDev Media")
+            .setContentText(text)
+            .setOngoing(true)
+            .setSilent(true)
+            .setContentIntent(pi)
+            .build()
+    }
+
     data class MediaSessionInfo(
         val packageName: String,
         val title: String?,
         val artist: String?,
         val isPlaying: Boolean
     )
-
-    override fun onBind(intent: Intent?): IBinder? = null
-
-    override fun onCreate() {
-        super.onCreate()
-        createNotificationChannel()
-        val notification = buildNotification("Media session controller active")
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
-
-        Log.i(TAG, "OmniMediaSessionService created")
-        updateActiveSession()
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        updateActiveSession()
-        return START_STICKY
-    }
-
-    override fun onDestroy() {
-        _activeSession.value = null
-        Log.i(TAG, "OmniMediaSessionService destroyed")
-        super.onDestroy()
-    }
-
-    private fun updateActiveSession() {
-        try {
-            val msm = getSystemService(Context.MEDIA_SESSION_SERVICE) as? MediaSessionManager
-                ?: return
-            val component = ComponentName(this, AgentNotificationService::class.java)
-            val sessions = msm.getActiveSessions(component)
-            val first = sessions.firstOrNull()
-
-            _activeSession.value = first?.let { controller ->
-                val metadata = controller.metadata
-                MediaSessionInfo(
-                    packageName = controller.packageName,
-                    title = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_TITLE),
-                    artist = metadata?.getString(android.media.MediaMetadata.METADATA_KEY_ARTIST),
-                    isPlaying = controller.playbackState?.state == PlaybackState.STATE_PLAYING
-                )
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to update active session", e)
-        }
-    }
-
-    // ── Notification ─────────────────────────────────────────────────────
-
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "OmniDev Media Control",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Media session control for OmniDev AI"
-                setShowBadge(false)
-            }
-            val nm = getSystemService(NotificationManager::class.java)
-            nm?.createNotificationChannel(channel)
-        }
-    }
-
-    private fun buildNotification(contentText: String): Notification {
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-
-        return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("OmniDev Media")
-            .setContentText(contentText)
-            .setOngoing(true)
-            .setSilent(true)
-            .setContentIntent(pendingIntent)
-            .build()
-    }
 }
