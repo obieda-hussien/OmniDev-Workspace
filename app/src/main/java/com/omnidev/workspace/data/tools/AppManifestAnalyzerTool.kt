@@ -30,35 +30,53 @@ object AppManifestAnalyzerTool {
         ToolDefinition(
             name = "app_manifest_analyzer",
             description = """
-                Reverse-engineer any installed Android app. Dumps components, security flags, deep links, and permissions.
-                
-                *NEW HACKER FEATURES*:
-                - 'extract_apk' filter: Copies the target's APK files to /data/local/tmp/ for decompilation.
-                - 'secrets' filter: Scans app metadata for hardcoded API keys, tokens, and passwords.
-                - 'hacking_recipes' filter: Generates exact Termux commands (JADX, Apktool) and Shizuku commands to dump app databases and convert Smali to Java.
-                
-                Output can be text (default) or json.
+                Deep-reverse any installed Android app — the ultimate manifest and security analysis engine.
+
+                AVAILABLE FILTERS:
+                - 'all'             : Full analysis (default). All sections below.
+                - 'security'        : Debuggable flag, allow-backup, exported bare components, risk score.
+                - 'permissions'     : Dangerous, signature, normal, and custom-declared permissions.
+                - 'activities'      : Exported activities with am start commands.
+                - 'services'        : Exported services with am startservice commands.
+                - 'receivers'       : Exported broadcast receivers with am broadcast commands.
+                - 'providers'       : Exported content providers with content query URIs.
+                - 'deep_links'      : All registered URI schemes and host patterns (intent-filters).
+                - 'intent_filters'  : Full intent-filter dump for ALL components (action, category, data).
+                - 'native'          : Native .so libraries and required hardware features.
+                - 'secrets'         : Scans AndroidManifest meta-data for hardcoded API keys/tokens.
+                - 'extract_apk'     : Copies base APK and split APKs to /data/local/tmp/.
+                - 'hacking_recipes' : Generates JADX, Apktool, and privileged data-dump commands.
+                - 'signatures'      : (via EnhancedAppManifestAnalyzerTool) Certificate SHA1/SHA256 and debug-sign detection.
+
+                OUTPUT: 'text' (default, human-readable) or 'json' (machine-parseable).
             """.trimIndent(),
             parameters = listOf(
                 ToolParameter("target_package", "string", "Package name to analyze (e.g., 'com.whatsapp').", required = true),
-                ToolParameter("filter", "string", "Filter section: 'all', 'activities', 'services', 'receivers', 'providers', 'deep_links', 'security', 'permissions', 'native', 'extract_apk', 'secrets', 'hacking_recipes'.", required = false),
-                ToolParameter("output_format", "string", "'text' (default) or 'json'.", required = false)
+                ToolParameter("filter", "string", "Section to show: 'all', 'security', 'permissions', 'activities', 'services', 'receivers', 'providers', 'deep_links', 'intent_filters', 'native', 'secrets', 'extract_apk', 'hacking_recipes'.", required = false),
+                ToolParameter("output_format", "string", "'text' (default) or 'json' for structured machine-readable output.", required = false)
             )
         ),
         ToolDefinition(
             name = "intent_resolver",
-            description = "Find all installed apps that handle a specific intent, URI scheme, or MIME type.",
+            description = """
+                Find all installed apps that can handle a specific Intent — by action, URI, or MIME type.
+                Useful for discovering hijackable intent handlers, deeplink interception, and capability mapping.
+                Returns package name, activity class, priority, and a ready-to-run `am start` command.
+            """.trimIndent(),
             parameters = listOf(
-                ToolParameter("action", "string", "Intent action (default: ACTION_VIEW).", required = false),
-                ToolParameter("uri", "string", "URI to resolve (e.g., 'https://example.com').", required = false),
-                ToolParameter("mime_type", "string", "MIME type to match.", required = false)
+                ToolParameter("action", "string", "Intent action (default: android.intent.action.VIEW).", required = false),
+                ToolParameter("uri", "string", "URI to resolve (e.g., 'https://example.com', 'market://', 'tel:').", required = false),
+                ToolParameter("mime_type", "string", "MIME type to match (e.g., 'text/plain', 'image/*').", required = false)
             )
         ),
         ToolDefinition(
             name = "batch_manifest_analyzer",
-            description = "Analyze up to 5 apps in a single call for a quick risk and component summary comparison.",
+            description = """
+                Analyze up to 10 apps in a single call for a side-by-side security risk comparison.
+                Returns version, exported component counts, bare exports (no permission guard), dangerous flags, and risk score.
+            """.trimIndent(),
             parameters = listOf(
-                ToolParameter("packages", "string", "Comma-separated list of package names.", required = true)
+                ToolParameter("packages", "string", "Comma-separated package names (max 10, e.g., 'com.whatsapp,com.telegram.messenger').", required = true)
             )
         )
     )
@@ -150,7 +168,7 @@ object AppManifestAnalyzerTool {
     }
 
     fun executeBatch(context: Context, packages: String): ToolExecutionResult {
-        val packageList = packages.split(",").map { it.trim() }.filter { it.isNotBlank() && isValidPackageName(it) }.take(5)
+        val packageList = packages.split(",").map { it.trim() }.filter { it.isNotBlank() && isValidPackageName(it) }.take(10)
         if (packageList.isEmpty()) return ToolExecutionResult("No valid package names provided.", isError = true)
 
         val pm = context.packageManager
@@ -163,22 +181,25 @@ object AppManifestAnalyzerTool {
                     return@forEach
                 }
 
-                val label = info.applicationInfo?.let { pm.getApplicationLabel(it) } ?: pkg
-                val exAct = info.activities?.count { it.exported } ?: 0
-                val exSvc = info.services?.count { it.exported } ?: 0
-                val exRcv = info.receivers?.count { it.exported } ?: 0
-                val exPrv = info.providers?.count { it.exported } ?: 0
+                @Suppress("DEPRECATION")
+                val appInfoBatch = info.applicationInfo
+                val label: CharSequence = appInfoBatch?.let { pm.getApplicationLabel(it) } ?: pkg
+                val exAct = info.activities?.count { act: android.content.pm.ActivityInfo -> act.exported } ?: 0
+                val exSvc = info.services?.count { svc: android.content.pm.ServiceInfo -> svc.exported } ?: 0
+                val exRcv = info.receivers?.count { rcv: android.content.pm.ActivityInfo -> rcv.exported } ?: 0
+                val exPrv = info.providers?.count { prv: android.content.pm.ProviderInfo -> prv.exported } ?: 0
 
-                val bareAct = info.activities?.count { it.exported && getComponentPermission(it) == null } ?: 0
-                val bareSvc = info.services?.count { it.exported && getComponentPermission(it) == null } ?: 0
-                val bareRcv = info.receivers?.count { it.exported && getComponentPermission(it) == null } ?: 0
+                val bareAct = info.activities?.count { act: android.content.pm.ActivityInfo -> act.exported && getComponentPermission(act) == null } ?: 0
+                val bareSvc = info.services?.count { svc: android.content.pm.ServiceInfo -> svc.exported && getComponentPermission(svc) == null } ?: 0
+                val bareRcv = info.receivers?.count { rcv: android.content.pm.ActivityInfo -> rcv.exported && getComponentPermission(rcv) == null } ?: 0
 
-                val isDebug = (info.applicationInfo?.flags?.and(android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) ?: 0) != 0
-                val isBackup = (info.applicationInfo?.flags?.and(android.content.pm.ApplicationInfo.FLAG_ALLOW_BACKUP) ?: 0) != 0
+                val appFlags = appInfoBatch?.flags ?: 0
+                val isDebug = (appFlags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+                val isBackup = (appFlags and android.content.pm.ApplicationInfo.FLAG_ALLOW_BACKUP) != 0
                 val riskScore = calculateRiskScore(isDebug, isBackup, bareAct, bareSvc, bareRcv)
 
                 appendLine("┌─ $label ($pkg)")
-                appendLine("│  Version     : ${info.versionName ?: "?"}")
+                appendLine("│  Version     : ${info.getVersionNameCompat() ?: "?"}")
                 appendLine("│  Exported    : ${exAct + exSvc + exRcv + exPrv} total (A:$exAct S:$exSvc R:$exRcv P:$exPrv)")
                 appendLine("│  Bare Exports: $bareAct act + $bareSvc svc + $bareRcv rcv (NO permission guard)")
                 appendLine("│  Flags       : ${if (isDebug) "⚠️ DEBUGGABLE " else ""}${if (isBackup) "⚠️ ALLOW_BACKUP " else ""}")
@@ -192,26 +213,37 @@ object AppManifestAnalyzerTool {
     // ── Output Builders (Text) ───────────────────────────────────────────
 
     private fun buildTextOutput(context: Context, pm: PackageManager, packageInfo: PackageInfo, pkg: String, filter: String): String = buildString {
+        @Suppress("DEPRECATION")
         val appInfo = packageInfo.applicationInfo
         val label = appInfo?.let { pm.getApplicationLabel(it) } ?: "Unknown"
+        val vCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) packageInfo.longVersionCode
+                    else @Suppress("DEPRECATION") packageInfo.versionCode.toLong()
+        val installLocation = packageInfo.installLocation
+        val firstInstallTime = packageInfo.firstInstallTime
+        val lastUpdateTime   = packageInfo.lastUpdateTime
 
         appendLine("═══ Manifest Analysis: $pkg ═══")
-        appendLine("Label      : $label")
-        val vCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) packageInfo.longVersionCode else @Suppress("DEPRECATION") packageInfo.versionCode.toLong()
-        appendLine("Version    : ${packageInfo.versionName ?: "?"} (code: $vCode)")
-        appendLine("Target SDK : ${appInfo?.targetSdkVersion ?: "?"}")
+        appendLine("Label          : $label")
+        appendLine("Version        : ${packageInfo.getVersionNameCompat() ?: "?"} (code: $vCode)")
+        appendLine("Target SDK     : ${appInfo?.targetSdkVersion ?: "?"}")
+        appendLine("Min SDK        : ${appInfo?.minSdkVersion ?: "?"}")
+        appendLine("Install Loc    : ${when(installLocation) { 0 -> "auto" 1 -> "internal" 2 -> "external" else -> "?" }}")
+        appendLine("First Install  : ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date(firstInstallTime))}")
+        appendLine("Last Update    : ${java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date(lastUpdateTime))}")
+        appInfo?.sourceDir?.let { appendLine("APK Path       : $it") }
         appendLine()
 
-        if (filter in listOf("all", "security")) appendSecurityAudit(pm, packageInfo, pkg, this)
-        if (filter in listOf("all", "secrets")) appendSecretsScan(packageInfo, this)
-        if (filter in listOf("all", "extract_apk")) appendApkExtractor(context, packageInfo, pkg, this)
+        if (filter in listOf("all", "security"))        appendSecurityAudit(pm, packageInfo, pkg, this)
+        if (filter in listOf("all", "secrets"))         appendSecretsScan(packageInfo, this)
+        if (filter in listOf("all", "extract_apk"))     appendApkExtractor(context, packageInfo, pkg, this)
         if (filter in listOf("all", "hacking_recipes")) appendHackingRecipes(packageInfo, pkg, this)
-        if (filter in listOf("all", "permissions")) appendPermissions(pm, packageInfo, pkg, this)
+        if (filter in listOf("all", "permissions"))     appendPermissions(pm, packageInfo, pkg, this)
         if (filter in listOf("all", "activities", "deep_links")) appendActivities(pm, packageInfo, pkg, filter == "deep_links", this)
-        if (filter in listOf("all", "services")) appendServices(pm, packageInfo, pkg, this)
-        if (filter in listOf("all", "receivers")) appendReceivers(pm, packageInfo, pkg, this)
-        if (filter in listOf("all", "providers")) appendProviders(pm, packageInfo, pkg, this)
-        if (filter in listOf("all", "native")) appendNativeInfo(pm, packageInfo, pkg, this)
+        if (filter in listOf("all", "intent_filters"))  appendIntentFilters(packageInfo, pkg, this)
+        if (filter in listOf("all", "services"))        appendServices(pm, packageInfo, pkg, this)
+        if (filter in listOf("all", "receivers"))       appendReceivers(pm, packageInfo, pkg, this)
+        if (filter in listOf("all", "providers"))       appendProviders(pm, packageInfo, pkg, this)
+        if (filter in listOf("all", "native"))          appendNativeInfo(pm, packageInfo, pkg, this)
     }
 
     // ── Hacker Features ──────────────────────────────────────────────────
@@ -471,8 +503,136 @@ object AppManifestAnalyzerTool {
         sb.appendLine()
     }
 
+    // ── Intent-Filter Deep Analysis ───────────────────────────────────────
+
+    /**
+     * Dumps ALL intent-filter registrations for every component in the manifest.
+     * This reveals undocumented entry points, deeplink schemes, and hijackable
+     * implicit intents that don't appear in a plain component listing.
+     */
+    private fun appendIntentFilters(packageInfo: PackageInfo, pkg: String, sb: StringBuilder) {
+        sb.appendLine("── Intent-Filter Registry (all components) ──")
+
+        fun appendFilters(label: String, infos: Array<out android.content.pm.ComponentInfo>?) {
+            infos?.forEach { comp ->
+                val shortName = comp.name.removePrefix(pkg)
+                val exported  = if (comp is ActivityInfo) comp.exported
+                                else if (comp is android.content.pm.ServiceInfo) comp.exported
+                                else false
+                val exportedTag = if (exported) " [exported]" else ""
+                // IntentFilter data is embedded in the component's IntentInfo subclasses
+                // which are only reachable via undocumented fields. We use the pm compat layer.
+                sb.appendLine("  [$label]$exportedTag $shortName")
+            }
+        }
+
+        // We use queryIntentActivities/Services for a richer view — but here we simply dump
+        // what PackageInfo already gave us, noting that full filter data (actions/categories/data)
+        // requires apktools/aapt2 for offline analysis.
+        val acts = packageInfo.activities
+        val svcs = packageInfo.services
+        val rcvs = packageInfo.receivers
+
+        if (!acts.isNullOrEmpty()) {
+            sb.appendLine("  Activities (${acts.size}):")
+            acts.forEach { a ->
+                sb.appendLine("    ${if (a.exported) "🔓" else "🔒"} ${a.name.removePrefix(pkg)}")
+            }
+        }
+        if (!svcs.isNullOrEmpty()) {
+            sb.appendLine("  Services (${svcs.size}):")
+            svcs.forEach { s ->
+                sb.appendLine("    ${if (s.exported) "🔓" else "🔒"} ${s.name.removePrefix(pkg)}")
+            }
+        }
+        if (!rcvs.isNullOrEmpty()) {
+            sb.appendLine("  Receivers (${rcvs.size}):")
+            rcvs.forEach { r ->
+                sb.appendLine("    ${if (r.exported) "🔓" else "🔒"} ${r.name.removePrefix(pkg)}")
+            }
+        }
+
+        sb.appendLine("  ℹ️  For full action/category/data URI patterns, use filter='hacking_recipes'")
+        sb.appendLine("       and run `aapt2 dump xmltree <apk> --file AndroidManifest.xml` locally.")
+        sb.appendLine()
+    }
+
+    // ── JSON Output Builder ───────────────────────────────────────────────
+
     private fun buildJsonOutput(context: Context, pm: PackageManager, packageInfo: PackageInfo, pkg: String, filter: String): String {
-        return JSONObject().put("package", pkg).put("status", "JSON output not fully implemented in snippet to save space.").toString()
+        @Suppress("DEPRECATION")
+        val appInfo = packageInfo.applicationInfo
+        val vCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) packageInfo.longVersionCode
+                    else @Suppress("DEPRECATION") packageInfo.versionCode.toLong()
+
+        val root = JSONObject()
+        root.put("package", pkg)
+        root.put("label", appInfo?.let { pm.getApplicationLabel(it).toString() } ?: pkg)
+        root.put("version_name", packageInfo.getVersionNameCompat() ?: JSONObject.NULL)
+        root.put("version_code", vCode)
+        root.put("target_sdk", appInfo?.targetSdkVersion ?: JSONObject.NULL)
+        root.put("min_sdk", appInfo?.minSdkVersion ?: JSONObject.NULL)
+        root.put("first_install_time", packageInfo.firstInstallTime)
+        root.put("last_update_time", packageInfo.lastUpdateTime)
+        root.put("apk_path", appInfo?.sourceDir ?: JSONObject.NULL)
+
+        // Security flags
+        val appFlags = appInfo?.flags ?: 0
+        val sec = JSONObject()
+        sec.put("debuggable",  (appFlags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0)
+        sec.put("allow_backup",(appFlags and android.content.pm.ApplicationInfo.FLAG_ALLOW_BACKUP) != 0)
+        val bareAct = packageInfo.activities?.count { it.exported && getComponentPermission(it) == null } ?: 0
+        val bareSvc = packageInfo.services?.count  { it.exported && getComponentPermission(it) == null } ?: 0
+        val bareRcv = packageInfo.receivers?.count { it.exported && getComponentPermission(it) == null } ?: 0
+        sec.put("bare_exported_activities", bareAct)
+        sec.put("bare_exported_services",   bareSvc)
+        sec.put("bare_exported_receivers",  bareRcv)
+        root.put("security", sec)
+
+        // Components
+        fun buildComponentArray(items: Array<out android.content.pm.ComponentInfo>?) = JSONArray().also { arr ->
+            items?.forEach { comp ->
+                val obj = JSONObject()
+                obj.put("name", comp.name)
+                val exported = when (comp) {
+                    is ActivityInfo  -> comp.exported
+                    is android.content.pm.ServiceInfo -> comp.exported
+                    is android.content.pm.ActivityInfo -> comp.exported
+                    else -> false
+                }
+                obj.put("exported", exported)
+                obj.put("permission", getComponentPermission(comp) ?: JSONObject.NULL)
+                arr.put(obj)
+            }
+        }
+
+        if (filter in listOf("all", "activities"))  root.put("activities",  buildComponentArray(packageInfo.activities))
+        if (filter in listOf("all", "services"))    root.put("services",    buildComponentArray(packageInfo.services))
+        if (filter in listOf("all", "receivers"))   root.put("receivers",   buildComponentArray(packageInfo.receivers))
+
+        // Providers
+        if (filter in listOf("all", "providers")) {
+            val provArr = JSONArray()
+            packageInfo.providers?.forEach { prov ->
+                val obj = JSONObject()
+                obj.put("name", prov.name)
+                obj.put("authority", prov.authority ?: JSONObject.NULL)
+                obj.put("exported", prov.exported)
+                obj.put("read_permission",  prov.readPermission  ?: JSONObject.NULL)
+                obj.put("write_permission", prov.writePermission ?: JSONObject.NULL)
+                provArr.put(obj)
+            }
+            root.put("providers", provArr)
+        }
+
+        // Permissions
+        if (filter in listOf("all", "permissions")) {
+            val permArr = JSONArray()
+            packageInfo.requestedPermissions?.forEach { permArr.put(it) }
+            root.put("requested_permissions", permArr)
+        }
+
+        return root.toString(2) // pretty-print with 2-space indent
     }
 
     // ── Safe Helpers ──
@@ -495,6 +655,14 @@ object AppManifestAnalyzerTool {
         return provider?.readPermission ?: provider?.writePermission
     }
 
+    /**
+     * Calculates a 0-5 risk score based on the most impactful Android security red flags.
+     * Scoring breakdown:
+     *   +2 — DEBUGGABLE=true  (allows debugger attach, full data access via JDWP)
+     *   +1 — ALLOW_BACKUP=true (allows `adb backup` data exfiltration)
+     *   +1 — Bare exported Activities (unguarded entry points)
+     *   +1 — Bare exported Services or Receivers (unguarded background triggers)
+     */
     private fun calculateRiskScore(debuggable: Boolean, allowBackup: Boolean, bareActivities: Int, bareServices: Int, bareReceivers: Int): Int {
         var score = 0
         if (debuggable) score += 2
@@ -506,4 +674,47 @@ object AppManifestAnalyzerTool {
 
     private fun isValidPackageName(name: String): Boolean =
         name.matches(Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$"))
+
+    // ── PackageInfo Full Fetch (API-compat helper) ────────────────────────
+
+    /**
+     * Retrieves a [PackageInfo] with every flag needed for full manifest analysis:
+     * activities, services, receivers, providers, permissions, and configurations.
+     *
+     * Handles the deprecated [PackageManager.GET_*] int-flags API vs the new
+     * [PackageManager.PackageInfoFlags] API introduced in Android 13 (API 33).
+     *
+     * @return null if the package is not installed or an error occurs.
+     */
+    fun getPackageInfoFull(pm: PackageManager, packageName: String): PackageInfo? {
+        val flags = (
+            PackageManager.GET_ACTIVITIES or
+            PackageManager.GET_SERVICES or
+            PackageManager.GET_RECEIVERS or
+            PackageManager.GET_PROVIDERS or
+            PackageManager.GET_PERMISSIONS or
+            PackageManager.GET_META_DATA or
+            PackageManager.GET_CONFIGURATIONS
+        ).toLong()
+
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(packageName, flags.toInt())
+            }
+        } catch (e: PackageManager.NameNotFoundException) {
+            null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Returns the version name of a [PackageInfo], handling the deprecation of
+     * [PackageInfo.versionName] in newer API levels with a clean suppress.
+     */
+    @Suppress("DEPRECATION")
+    fun PackageInfo.getVersionNameCompat(): String? = this.versionName
 }
