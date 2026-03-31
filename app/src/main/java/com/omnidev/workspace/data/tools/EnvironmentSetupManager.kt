@@ -1,369 +1,897 @@
 package com.omnidev.workspace.data.tools
 
-import android.content.Context
-import android.util.Base64
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import android.util.Log
+import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
-import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ENVIRONMENT SETUP MANAGER — v3.0
+//
+// A full-lifecycle environment orchestrator for the OmniDev agent runtime.
+//
+// Architecture:
+//   ┌──────────────────────────────────────────────────────────┐
+//   │  SetupStateMachine  (UNINITIALIZED → PROBING → READY)   │
+//   │       ↕ emits SetupState via StateFlow                  │
+//   │  BinaryCache        (path resolution with TTL)          │
+//   │  RuntimeProbe       (per-runtime health + version)      │
+//   │  BootstrapOrchestrator (staged, dependency-aware)       │
+//   │  EnvVarRegistry     (named env profiles per runtime)    │
+//   └──────────────────────────────────────────────────────────┘
+//
+// Key improvements over the old TermuxEnvironmentBridge pattern:
+//  • State machine instead of ad-hoc flag checks → the agent always knows
+//    exactly what's available before attempting execution.
+//  • Binary path cache with configurable TTL prevents repeated `which` calls.
+//  • Staged bootstrap is idempotent — safe to call repeatedly.
+//  • RuntimeProbe reports version strings, so the agent can select the
+//    correct interpreter for a given task.
+//  • EnvVarRegistry builds the correct LD_LIBRARY_PATH / PREFIX / PATH
+//    prefix string for each runtime (Termux, system, venv).
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── State Machine ────────────────────────────────────────────────────────────
+
+/** Phase of the environment setup state machine. */
+enum class SetupPhase {
+    /** No probe has been run yet — initial state on cold start. */
+    UNINITIALIZED,
+    /** Actively checking installed runtimes and privilege backend. */
+    PROBING,
+    /** All required runtimes found and privilege backend is live. */
+    READY,
+    /**
+     * Core runtime (Termux) missing or privilege backend unavailable.
+     * Some tools may still work in degraded mode.
+     */
+    DEGRADED,
+    /** Critical error — cannot execute any commands. */
+    FAILED
+}
 
 /**
- * Environment bootstrapper for on-device Android builds.
- *
- * * FIXES & HACKER UPGRADES:
- * 1. Base64 Script Injection: Safely injects JAVA_HOME and ANDROID_HOME without quote-escaping hell.
- * 2. Native Android Shell: Uses `/system/bin/sh` instead of the non-existent `/bin/sh`.
- * 3. Tail-Truncation: Captures the LAST 12,000 characters of a build log (where errors live).
- * 4. Robust Extraction: Uses `busybox` fallback for `tar.xz` if native tar fails.
+ * Availability of a single runtime component (Python, Node, Git, etc.).
+ * [version] is the first line of `<binary> --version` output, or null if absent.
  */
-class EnvironmentSetupManager(private val context: Context) {
+data class RuntimeStatus(
+    val name:      String,
+    val available: Boolean,
+    val path:      String?  = null,
+    val version:   String?  = null,
+    val source:    String?  = null   // "termux" | "system" | "venv"
+)
 
-    companion object {
-        private const val JDK_DIR = "openjdk-17"
-        private const val SDK_DIR = "android-sdk"
-        // Note: Android's native tar struggles with .xz. The code now tries busybox as a fallback.
-        // If it still fails, highly recommend uploading a .tar.gz version to your repo instead.
-        private const val JDK_URL =
-            "https://github.com/AstroInc9/AstroTermux/raw/main/openjdk-17.0.12-aarch64.tar.xz"
-        private const val SDK_URL =
-            "https://github.com/AstroInc9/AstroTermux/raw/main/android-sdk-tools-static-aarch64.zip"
+/**
+ * Immutable snapshot of the complete environment state.
+ * Emitted by [EnvironmentSetupManager.stateFlow] whenever anything changes.
+ */
+data class SetupState(
+    val phase:        SetupPhase                = SetupPhase.UNINITIALIZED,
+    val runtimes:     Map<String, RuntimeStatus> = emptyMap(),
+    val privilegeBackend: String                = "none",   // "shizuku"|"rish"|"root"|"none"
+    val termuxPrefix: String?                   = null,
+    val probeTimeMs:  Long                      = 0L,
+    val error:        String?                   = null
+) {
+    val isReady:    Boolean get() = phase == SetupPhase.READY
+    val isDegraded: Boolean get() = phase == SetupPhase.DEGRADED
 
-        /** Maximum characters captured from a terminal command's combined stdout/stderr. */
-        private const val MAX_OUTPUT_CHARS = 12_000
+    /** Convenience: returns a [RuntimeStatus] for [name], or a placeholder. */
+    fun runtime(name: String) = runtimes[name]
+        ?: RuntimeStatus(name, available = false)
 
-        /** Timeout in seconds for shell commands — 5 min to accommodate full Gradle builds. */
-        private const val TERMINAL_TIMEOUT_SECONDS = 300L  // 5 min for builds
+    fun summaryLine(): String = buildString {
+        append("[${phase.name}] ")
+        append("backend=$privilegeBackend ")
+        val available = runtimes.values.count { it.available }
+        append("runtimes=$available/${runtimes.size}")
+        if (error != null) append(" ⚠️ $error")
+    }
+}
+
+// ── Bootstrap Plan ────────────────────────────────────────────────────────────
+
+/** A single idempotent installation step in the bootstrap plan. */
+data class BootstrapStep(
+    val id:           String,
+    val description:  String,
+    val dependsOn:    List<String> = emptyList(),
+    val checkFn:      suspend () -> Boolean,
+    val installFn:    suspend () -> BootstrapResult
+)
+
+/** Result of executing one [BootstrapStep]. */
+sealed class BootstrapResult {
+    data class Success(val message: String) : BootstrapResult()
+    data class AlreadyDone(val message: String) : BootstrapResult()
+    data class Failed(val reason: String, val hint: String = "") : BootstrapResult()
+    data class Skipped(val reason: String) : BootstrapResult()
+}
+
+// ── Binary Cache ──────────────────────────────────────────────────────────────
+
+/** Thread-safe binary path cache with TTL-based invalidation. */
+private class BinaryCache(private val ttlMs: Long = 120_000L) {
+
+    data class Entry(val path: String, val timestamp: Long)
+
+    private val cache = ConcurrentHashMap<String, Entry>()
+    private val misses = ConcurrentHashMap<String, Long>()  // cache negative results too
+
+    fun get(name: String): String? {
+        val entry = cache[name] ?: return null
+        if (System.currentTimeMillis() - entry.timestamp > ttlMs) {
+            cache.remove(name)
+            return null
+        }
+        return entry.path
     }
 
-    // ──────────────────────────────────────────────
-    //  Environment Paths
-    // ──────────────────────────────────────────────
+    fun isCachedMiss(name: String): Boolean {
+        val ts = misses[name] ?: return false
+        if (System.currentTimeMillis() - ts > ttlMs) { misses.remove(name); return false }
+        return true
+    }
 
-    val javaHome: String get() = File(context.filesDir, JDK_DIR).absolutePath
-    val androidHome: String get() = File(context.filesDir, SDK_DIR).absolutePath
+    fun put(name: String, path: String) {
+        misses.remove(name)
+        cache[name] = Entry(path, System.currentTimeMillis())
+    }
 
-    val isJdkInstalled: Boolean get() = File(javaHome, "bin/java").exists()
-    val isSdkInstalled: Boolean get() = File(androidHome, "build-tools").exists()
-    val isReady: Boolean get() = isJdkInstalled && isSdkInstalled
+    fun putMiss(name: String) { misses[name] = System.currentTimeMillis() }
 
-    // ──────────────────────────────────────────────
-    //  Tool Definitions
-    // ──────────────────────────────────────────────
+    fun invalidate(name: String) { cache.remove(name); misses.remove(name) }
+    fun invalidateAll() { cache.clear(); misses.clear() }
 
-    fun getToolDefinitions(): List<ToolDefinition> = listOf(
-        ToolDefinition(
-            name = "advanced_terminal",
-            description = "Execute a shell command with full Android build environment " +
-                "(JDK 17, Android SDK 35). Injects JAVA_HOME, ANDROID_HOME, and PATH " +
-                "automatically. Use for Gradle builds (./gradlew assembleDebug), Java compilation, " +
-                "or any toolchain command.",
-            parameters = listOf(
-                ToolParameter("command", "string", "Shell command to execute.", required = true),
-                ToolParameter("workingDirectory", "string", "Absolute path to use as working directory.", required = false)
-            )
+    fun snapshot(): Map<String, String> = cache
+        .filter { (_, v) -> System.currentTimeMillis() - v.timestamp <= ttlMs }
+        .mapValues { (_, v) -> v.path }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MAIN OBJECT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+object EnvironmentSetupManager {
+
+    private const val TAG = "EnvSetupMgr"
+
+    // ── Constants ──────────────────────────────────────────────────────────
+
+    const val TERMUX_ROOT    = "/data/data/com.termux/files"
+    const val TERMUX_PREFIX  = "$TERMUX_ROOT/usr"
+    const val TERMUX_HOME    = "$TERMUX_ROOT/home"
+    const val TERMUX_BIN     = "$TERMUX_PREFIX/bin"
+    const val TERMUX_BASH    = "$TERMUX_BIN/bash"
+    const val TERMUX_SH      = "$TERMUX_BIN/sh"
+    const val TERMUX_PYTHON3 = "$TERMUX_BIN/python3"
+    const val TERMUX_PYTHON  = "$TERMUX_BIN/python"
+    const val TERMUX_NODE    = "$TERMUX_BIN/node"
+    const val TERMUX_GIT     = "$TERMUX_BIN/git"
+    const val TERMUX_PKG     = "$TERMUX_BIN/pkg"
+    const val TERMUX_APT     = "$TERMUX_BIN/apt"
+    const val TERMUX_PIP3    = "$TERMUX_BIN/pip3"
+    const val TERMUX_NPM     = "$TERMUX_BIN/npm"
+
+    /** Fallback paths checked when Termux and `which` both fail. */
+    private val SYSTEM_PYTHON_PATHS = listOf(
+        "/system/bin/python3", "/system/bin/python",
+        "/system/xbin/python3", "/system/xbin/python",
+        "/data/usr/bin/python3", "/data/usr/bin/python"
+    )
+    private val SYSTEM_NODE_PATHS = listOf(
+        "/system/bin/node", "/system/xbin/node",
+        "/data/usr/bin/node"
+    )
+    private val SYSTEM_GIT_PATHS = listOf(
+        "/system/bin/git", "/usr/bin/git", "/usr/local/bin/git"
+    )
+
+    // ── State ──────────────────────────────────────────────────────────────
+
+    private val _stateFlow = MutableStateFlow(SetupState())
+    val stateFlow: StateFlow<SetupState> = _stateFlow.asStateFlow()
+
+    val currentState: SetupState get() = _stateFlow.value
+
+    private val cache  = BinaryCache(ttlMs = 120_000L)
+    private val mutex  = Mutex()
+    private var lastProbeMs = AtomicLong(0L)
+
+    /** Minimum milliseconds between full probes (avoids hammer on rapid calls). */
+    private const val MIN_PROBE_INTERVAL_MS = 15_000L
+
+    // ── Public API ─────────────────────────────────────────────────────────
+
+    /**
+     * Run a full environment probe and update [stateFlow].
+     *
+     * - Detects privilege backend (Shizuku / rish / root).
+     * - Resolves paths for all known runtimes.
+     * - Reads version strings.
+     * - Transitions to [SetupPhase.READY], [SetupPhase.DEGRADED], or [SetupPhase.FAILED].
+     *
+     * Throttled: won't re-probe more often than [MIN_PROBE_INTERVAL_MS].
+     * Pass [force]=true to bypass the throttle.
+     */
+    suspend fun probe(force: Boolean = false): SetupState = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastProbeMs.get() < MIN_PROBE_INTERVAL_MS &&
+            currentState.phase != SetupPhase.UNINITIALIZED) {
+            return@withContext currentState
+        }
+
+        mutex.withLock {
+            // Double-check inside lock
+            val now2 = System.currentTimeMillis()
+            if (!force && now2 - lastProbeMs.get() < MIN_PROBE_INTERVAL_MS &&
+                currentState.phase != SetupPhase.UNINITIALIZED) {
+                return@withLock currentState
+            }
+
+            _stateFlow.value = currentState.copy(phase = SetupPhase.PROBING)
+            val start = System.currentTimeMillis()
+            Log.i(TAG, "Starting environment probe...")
+
+            try {
+                // 1. Privilege backend
+                val backend = detectPrivilegeBackend()
+                Log.i(TAG, "Privilege backend: $backend")
+
+                // 2. Termux prefix
+                val termuxPrefix = if (File(TERMUX_BASH).exists()) TERMUX_PREFIX else null
+
+                // 3. Runtime detection (all parallel)
+                val runtimes = mutableMapOf<String, RuntimeStatus>()
+                coroutineScope {
+                    val jobs = listOf(
+                        async { probeRuntime("python",   ::findPython) },
+                        async { probeRuntime("python3",  ::findPython3) },
+                        async { probeRuntime("node",     ::findNode) },
+                        async { probeRuntime("npm",      ::findNpm) },
+                        async { probeRuntime("git",      ::findGit) },
+                        async { probeRuntime("curl",     ::findCurl) },
+                        async { probeRuntime("wget",     ::findWget) },
+                        async { probeRuntime("bash",     ::findBash) },
+                        async { probeRuntime("busybox",  ::findBusybox) },
+                        async { probeRuntime("termux",   ::findTermux) },
+                        async { probeRuntime("ruby",     ::findRuby) },
+                        async { probeRuntime("perl",     ::findPerl) }
+                    )
+                    jobs.forEach { runtimes[it.await().name] = it.await() }
+                }
+
+                // 4. Phase determination
+                val phase = when {
+                    backend == "none" ->
+                        SetupPhase.FAILED
+                    !runtimes["termux"]!!.available && !runtimes["bash"]!!.available ->
+                        SetupPhase.DEGRADED
+                    else ->
+                        SetupPhase.READY
+                }
+
+                val elapsed = System.currentTimeMillis() - start
+                val state = SetupState(
+                    phase            = phase,
+                    runtimes         = runtimes,
+                    privilegeBackend = backend,
+                    termuxPrefix     = termuxPrefix,
+                    probeTimeMs      = elapsed,
+                    error            = if (phase == SetupPhase.FAILED)
+                        "No privilege backend — install Shizuku or enable root." else null
+                )
+                lastProbeMs.set(System.currentTimeMillis())
+                _stateFlow.value = state
+                Log.i(TAG, "Probe complete in ${elapsed}ms: ${state.summaryLine()}")
+                state
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Probe failed with exception", e)
+                val state = SetupState(
+                    phase = SetupPhase.FAILED,
+                    error = "Probe exception: ${e.message}"
+                )
+                _stateFlow.value = state
+                state
+            }
+        }
+    }
+
+    /**
+     * Resolve the path of [binary], using the cache if available.
+     * Search order: BinaryCache → Termux bin → `which` via privileged shell → known paths.
+     * Returns null if not found.
+     */
+    suspend fun resolveBinary(binary: String): String? = withContext(Dispatchers.IO) {
+        // 1. Cache hit
+        val cached = cache.get(binary)
+        if (cached != null) return@withContext cached
+        if (cache.isCachedMiss(binary)) return@withContext null
+
+        // 2. Direct Termux path
+        val termuxPath = "$TERMUX_BIN/$binary"
+        if (File(termuxPath).exists()) {
+            cache.put(binary, termuxPath)
+            return@withContext termuxPath
+        }
+
+        // 3. `which` via privileged shell
+        val whichResult = PrivilegedExecutionManager
+            .executeCommand("which ${sanitizeName(binary)} 2>/dev/null")
+            .getOrNull()?.trim()
+            ?.takeIf { it.isNotBlank() && !it.startsWith("ERROR") && it != "(no output)" }
+
+        if (whichResult != null) {
+            cache.put(binary, whichResult)
+            return@withContext whichResult
+        }
+
+        // 4. Known static paths (python / node / git specific)
+        val staticPath = when (binary) {
+            "python3", "python" -> SYSTEM_PYTHON_PATHS.firstOrNull { File(it).exists() }
+            "node"              -> SYSTEM_NODE_PATHS.firstOrNull   { File(it).exists() }
+            "git"               -> SYSTEM_GIT_PATHS.firstOrNull    { File(it).exists() }
+            else                -> null
+        }
+
+        if (staticPath != null) {
+            cache.put(binary, staticPath)
+        } else {
+            cache.putMiss(binary)
+        }
+        staticPath
+    }
+
+    /**
+     * Build the environment variable prefix string for a command that needs to
+     * run within the Termux environment (correct LD_LIBRARY_PATH, PREFIX, HOME, PATH).
+     *
+     * If Termux is not installed, returns an empty string.
+     *
+     * IMPORTANT — includes LD_PRELOAD=$TERMUX_PREFIX/lib/libtermux-exec.so.
+     * Without this, ALL Termux binaries silently fail when called from Shizuku
+     * because the system linker loads the wrong libc. This was the root cause
+     * of "nothing shows even with Shizuku enabled".
+     *
+     * Returns an `export` block (newline-terminated) safe for prepending to
+     * any script executed via [executeShell]. Not suitable as an inline prefix
+     * for single-command strings — use [buildInlineEnvPrefix] for that.
+     */
+    fun buildEnvPrefix(): String {
+        if (!File(TERMUX_BASH).exists()) return ""
+        return TermuxExecutionFix.buildTermuxEnvBlock()
+    }
+
+    /**
+     * Single-line inline env prefix for simple commands.
+     * Still includes LD_PRELOAD. Use [buildEnvPrefix] (the export block)
+     * for scripts with multiple lines or subshells.
+     */
+    fun buildInlineEnvPrefix(): String {
+        if (!File(TERMUX_BASH).exists()) return ""
+        return TermuxExecutionFix.buildInlineEnvPrefix()
+    }
+
+    /** Returns true if Termux is installed and functional. */
+    fun isTermuxUsable(): Boolean = File(TERMUX_BASH).exists()
+
+    /**
+     * Runs a staged bootstrap plan.
+     *
+     * Each [BootstrapStep] is checked for completion before attempting installation.
+     * Steps whose [dependsOn] are not yet complete are skipped with a diagnostic.
+     *
+     * @return A list of (stepId, result) pairs in execution order.
+     */
+    suspend fun runBootstrap(
+        plan: List<BootstrapStep>,
+        onProgress: ((stepId: String, result: BootstrapResult) -> Unit)? = null
+    ): List<Pair<String, BootstrapResult>> = withContext(Dispatchers.IO) {
+        val results = mutableListOf<Pair<String, BootstrapResult>>()
+        val completed = mutableSetOf<String>()
+
+        for (step in plan) {
+            // Dependency check
+            val unmet = step.dependsOn.filter { it !in completed }
+            if (unmet.isNotEmpty()) {
+                val r = BootstrapResult.Skipped("Depends on unfinished steps: $unmet")
+                results += step.id to r
+                onProgress?.invoke(step.id, r)
+                continue
+            }
+
+            Log.i(TAG, "Bootstrap [${step.id}]: ${step.description}")
+            val result = try {
+                if (step.checkFn()) {
+                    BootstrapResult.AlreadyDone("Already installed.")
+                } else {
+                    step.installFn()
+                }
+            } catch (e: Exception) {
+                BootstrapResult.Failed("Exception: ${e.message}")
+            }
+
+            results += step.id to result
+            onProgress?.invoke(step.id, result)
+            Log.i(TAG, "Bootstrap [${step.id}] → $result")
+
+            if (result is BootstrapResult.Success || result is BootstrapResult.AlreadyDone) {
+                completed += step.id
+                cache.invalidate(step.id)
+            }
+        }
+
+        // Re-probe after bootstrap to update state
+        probe(force = true)
+        results
+    }
+
+    /**
+     * Returns the standard bootstrap plan for a full Termux + Python + Node + Git setup.
+     * Safe to call on any device — each step checks if already done before acting.
+     */
+    fun buildStandardBootstrapPlan(): List<BootstrapStep> = listOf(
+
+        BootstrapStep(
+            id          = "termux",
+            description = "Verify Termux is installed",
+            checkFn     = { File(TERMUX_BASH).exists() },
+            installFn   = {
+                BootstrapResult.Failed(
+                    reason = "Termux is not installed.",
+                    hint   = "Install Termux from F-Droid: https://f-droid.org/packages/com.termux/"
+                )
+            }
         ),
-        ToolDefinition(
-            name = "setup_build_environment",
-            description = "Download and install JDK 17 and Android SDK 35.0.2 for aarch64. " +
-                "Required before running Gradle builds. This is a one-time operation.",
-            parameters = emptyList()
+
+        BootstrapStep(
+            id          = "termux_update",
+            description = "Update Termux package index",
+            dependsOn   = listOf("termux"),
+            checkFn     = { false },   // Always run update once per bootstrap
+            installFn   = {
+                val env = buildEnvPrefix()
+                val r = PrivilegedExecutionManager.executeCommand(
+                    "${env}DEBIAN_FRONTEND=noninteractive $TERMUX_APT update -y 2>&1"
+                )
+                if (r.isSuccess) BootstrapResult.Success("Package index updated.")
+                else BootstrapResult.Failed("apt update failed: ${r.exceptionOrNull()?.message}")
+            }
+        ),
+
+        BootstrapStep(
+            id          = "python",
+            description = "Install Python 3 via Termux",
+            dependsOn   = listOf("termux_update"),
+            checkFn     = { File(TERMUX_PYTHON3).exists() || File(TERMUX_PYTHON).exists() },
+            installFn   = {
+                val env = buildEnvPrefix()
+                val r = PrivilegedExecutionManager.executeCommand(
+                    "${env}DEBIAN_FRONTEND=noninteractive $TERMUX_PKG install -y python 2>&1"
+                )
+                val installed = File(TERMUX_PYTHON3).exists() || File(TERMUX_PYTHON).exists()
+                if (r.isSuccess && installed) BootstrapResult.Success("Python installed.")
+                else BootstrapResult.Failed(
+                    "Python install failed.",
+                    hint = r.getOrDefault("").take(500)
+                )
+            }
+        ),
+
+        BootstrapStep(
+            id          = "node",
+            description = "Install Node.js via Termux",
+            dependsOn   = listOf("termux_update"),
+            checkFn     = { File(TERMUX_NODE).exists() },
+            installFn   = {
+                val env = buildEnvPrefix()
+                val r = PrivilegedExecutionManager.executeCommand(
+                    "${env}DEBIAN_FRONTEND=noninteractive $TERMUX_PKG install -y nodejs 2>&1"
+                )
+                if (r.isSuccess && File(TERMUX_NODE).exists()) BootstrapResult.Success("Node.js installed.")
+                else BootstrapResult.Failed("Node install failed.", hint = r.getOrDefault("").take(500))
+            }
+        ),
+
+        BootstrapStep(
+            id          = "git",
+            description = "Install Git via Termux",
+            dependsOn   = listOf("termux_update"),
+            checkFn     = { File(TERMUX_GIT).exists() },
+            installFn   = {
+                val env = buildEnvPrefix()
+                val r = PrivilegedExecutionManager.executeCommand(
+                    "${env}DEBIAN_FRONTEND=noninteractive $TERMUX_PKG install -y git 2>&1"
+                )
+                if (r.isSuccess && File(TERMUX_GIT).exists()) BootstrapResult.Success("Git installed.")
+                else BootstrapResult.Failed("Git install failed.", hint = r.getOrDefault("").take(500))
+            }
+        ),
+
+        BootstrapStep(
+            id          = "curl_wget",
+            description = "Ensure curl and wget are available",
+            dependsOn   = listOf("termux_update"),
+            checkFn     = { File("$TERMUX_BIN/curl").exists() || File("$TERMUX_BIN/wget").exists() },
+            installFn   = {
+                val env = buildEnvPrefix()
+                val r = PrivilegedExecutionManager.executeCommand(
+                    "${env}DEBIAN_FRONTEND=noninteractive $TERMUX_PKG install -y curl wget 2>&1"
+                )
+                if (r.isSuccess) BootstrapResult.Success("curl/wget installed.")
+                else BootstrapResult.Failed("curl/wget install failed.")
+            }
+        ),
+
+        BootstrapStep(
+            id          = "pip_bootstrap",
+            description = "Bootstrap pip for Python",
+            dependsOn   = listOf("python"),
+            checkFn     = { File(TERMUX_PIP3).exists() || File("$TERMUX_BIN/pip").exists() },
+            installFn   = {
+                val pyPath = if (File(TERMUX_PYTHON3).exists()) TERMUX_PYTHON3 else TERMUX_PYTHON
+                val env = buildEnvPrefix()
+                val r = PrivilegedExecutionManager.executeCommand(
+                    "${env}${pyPath} -m ensurepip --upgrade 2>&1"
+                )
+                if (r.isSuccess) BootstrapResult.Success("pip bootstrapped.")
+                else BootstrapResult.Failed("pip bootstrap failed.", r.getOrDefault("").take(300))
+            }
         )
     )
 
-    // ──────────────────────────────────────────────
-    //  Tool Execution Router
-    // ──────────────────────────────────────────────
+    /**
+     * Run a one-shot command with full Termux environment injection.
+     * Equivalent to the old `TermuxEnvironmentBridge.executeSingleShot`.
+     *
+     * @param script   Shell script content (may be multi-line).
+     * @param cwd      Optional working directory.
+     * @param useBase64 When true, writes the script to a temp file via Base64 injection
+     *                  to bypass all shell quoting issues. Default: auto (true for scripts
+     *                  longer than 200 chars or containing special chars).
+     */
+    suspend fun executeShell(
+        script:    String,
+        cwd:       String?  = null,
+        useBase64: Boolean? = null
+    ): ToolExecutionResult = withContext(Dispatchers.IO) {
 
-    suspend fun executeTool(
-        name: String,
-        arguments: Map<String, String>,
-        scopePath: String
-    ): ToolExecutionResult {
-        return when (name) {
-            "advanced_terminal" -> {
-                val command = arguments["command"] ?: return ToolExecutionResult("Missing required argument: command", isError = true)
-                val workDir = arguments["workingDirectory"] ?: scopePath
-                executeWithEnv(command, workDir)
+        if (script.isBlank()) return@withContext err("Empty script.")
+
+        val needsBase64 = useBase64 ?: (
+            script.length > 200 ||
+            script.contains('\n') ||
+            script.any { it in "\"$`\\|<>&;{}!~" }
+        )
+
+        val fullScript = buildString {
+            if (!cwd.isNullOrBlank()) appendLine("cd ${shellQuote(cwd)} || { echo \"cd failed: $cwd\"; exit 1; }")
+            appendLine(script)
+        }
+
+        val envPrefix = buildEnvPrefix()
+
+        val cmd = if (needsBase64) {
+            buildBase64InjectionCommand(fullScript, envPrefix)
+        } else {
+            "${envPrefix}sh -c ${shellQuote(fullScript)}"
+        }
+
+        val result = PrivilegedExecutionManager.executeCommand(cmd)
+        result.fold(
+            onSuccess = { output ->
+                ToolExecutionResult(output.trim().take(MAX_OUTPUT).ifBlank { "(no output)" })
+            },
+            onFailure = { e ->
+                ToolExecutionResult("❌ ${e.message?.take(2000)}", isError = true)
             }
-            "setup_build_environment" -> setupEnvironment { /* progress unused in tool mode */ }
-            else -> ToolExecutionResult("Unknown tool: $name", isError = true)
+        )
+    }
+
+    /**
+     * Execute Python [code] inline. Handles interpreter resolution and env injection.
+     * Delegates to [executeShell] with proper wrapping.
+     */
+    suspend fun runPython(
+        code:       String,
+        extraArgs:  String? = null,
+        cwd:        String? = null,
+        venvPath:   String? = null
+    ): ToolExecutionResult = withContext(Dispatchers.IO) {
+
+        val (pyBin, envPrefix) = resolveInterpreterAndEnv(venvPath)
+            ?: return@withContext ToolExecutionResult(
+                "❌ Python not found. Run action=install_python or action=bootstrap.", isError = true
+            )
+
+        val argStr = extraArgs?.split(Regex("\\s+"))
+            ?.filter { it.isNotBlank() }
+            ?.joinToString(" ") { shellQuote(it) }
+            ?.let { " $it" } ?: ""
+
+        val script = buildString {
+            if (!cwd.isNullOrBlank()) appendLine("cd ${shellQuote(cwd)} || exit 1")
+            appendLine("${envPrefix}${pyBin} -c ${shellQuote(code)}$argStr")
+        }
+        executeShell(script, useBase64 = true)
+    }
+
+    /**
+     * Install packages via Termux `pkg`.
+     * Equivalent to old `TermuxEnvironmentBridge.pkgInstall`.
+     */
+    suspend fun pkgInstall(packages: String): ToolExecutionResult = withContext(Dispatchers.IO) {
+        if (!File(TERMUX_PKG).exists() && !File(TERMUX_APT).exists()) {
+            return@withContext ToolExecutionResult(
+                "❌ Termux package manager not found. Is Termux installed?", isError = true
+            )
+        }
+        val safePkgs = sanitizePackageList(packages)
+            ?: return@withContext err("Invalid package list.")
+        val env = buildEnvPrefix()
+        val pkgMgr = if (File(TERMUX_PKG).exists()) TERMUX_PKG else TERMUX_APT
+        val cmd = "${env}DEBIAN_FRONTEND=noninteractive ${pkgMgr} install -y $safePkgs 2>&1"
+        val r = PrivilegedExecutionManager.executeCommand(cmd)
+        cache.invalidateAll()  // Installed new binaries → invalidate cache
+        r.fold(
+            onSuccess = { ToolExecutionResult("✅ pkg install $safePkgs:\n${it.take(MAX_OUTPUT)}") },
+            onFailure = { ToolExecutionResult("❌ pkg install failed: ${it.message?.take(1000)}", isError = true) }
+        )
+    }
+
+    /**
+     * Install Python packages via pip.
+     */
+    suspend fun pipInstall(
+        packages: String,
+        upgrade:  Boolean = false,
+        venvPath: String? = null
+    ): ToolExecutionResult = withContext(Dispatchers.IO) {
+        val safePkgs = sanitizePackageList(packages)
+            ?: return@withContext err("Invalid package list.")
+        val (pyBin, envP) = resolveInterpreterAndEnv(venvPath)
+            ?: return@withContext err("Python not found.")
+        val upgradeFlag = if (upgrade) " --upgrade" else ""
+        val pipBin = resolvePip(pyBin)
+        val cmd = if (pipBin != null)
+            "${envP}${pipBin} install$upgradeFlag $safePkgs 2>&1"
+        else
+            "${envP}${pyBin} -m pip install$upgradeFlag $safePkgs 2>&1"
+        val r = PrivilegedExecutionManager.executeCommand(cmd)
+        r.fold(
+            onSuccess = { ToolExecutionResult("✅ pip install:\n${it.take(MAX_OUTPUT)}") },
+            onFailure = { ToolExecutionResult("❌ pip failed: ${it.message?.take(1000)}", isError = true) }
+        )
+    }
+
+    /**
+     * Execute an npm command (e.g. `install -g typescript`).
+     */
+    suspend fun npmCommand(subcommand: String, cwd: String? = null): ToolExecutionResult =
+        executeShell(
+            script    = "${buildEnvPrefix()}${TERMUX_NPM} $subcommand 2>&1",
+            cwd       = cwd,
+            useBase64 = false
+        )
+
+    /**
+     * Find a binary across all known locations.
+     * Caching-aware alias for [resolveBinary].
+     */
+    suspend fun findBinary(name: String): String? = resolveBinary(name)
+
+    /**
+     * Generate a comprehensive status report string (for `env_check` agent tool).
+     */
+    suspend fun statusReport(): ToolExecutionResult {
+        val state = probe()
+        val sb = StringBuilder()
+        sb.appendLine("╔══ OmniDev Environment Status ═══════════════════════════════╗")
+        sb.appendLine("║ Phase       : ${state.phase}")
+        sb.appendLine("║ Backend     : ${state.privilegeBackend}")
+        sb.appendLine("║ Termux      : ${if (state.termuxPrefix != null) "✅ ${state.termuxPrefix}" else "❌ not found"}")
+        sb.appendLine("║ Probe time  : ${state.probeTimeMs}ms")
+        sb.appendLine("║")
+        sb.appendLine("║ RUNTIMES")
+        state.runtimes.entries.sortedBy { it.key }.forEach { (_, rs) ->
+            val icon = if (rs.available) "✅" else "❌"
+            val ver  = rs.version?.let { " ($it)" } ?: ""
+            val src  = rs.source?.let { " [$it]" } ?: ""
+            sb.appendLine("║   $icon ${rs.name.padEnd(10)}${rs.path ?: "not found"}$ver$src")
+        }
+        if (state.error != null) sb.appendLine("║ ⚠️  ${state.error}")
+        sb.appendLine("╚═══════════════════════════════════════════════════════════════╝")
+        sb.appendLine()
+        sb.appendLine("QUICK ACTIONS:")
+        sb.appendLine("  Full bootstrap  : action=bootstrap")
+        sb.appendLine("  Install Python  : action=install_python")
+        sb.appendLine("  Install Node.js : action=install_node")
+        sb.appendLine("  Install Git     : action=install_git")
+        return ToolExecutionResult(sb.toString().trimEnd())
+    }
+
+    // ── Private: Runtime Probers ───────────────────────────────────────────
+
+    private suspend fun probeRuntime(name: String, finder: suspend () -> RuntimeStatus): RuntimeStatus {
+        return try { finder() } catch (e: Exception) {
+            RuntimeStatus(name, available = false)
         }
     }
 
-    // ──────────────────────────────────────────────
-    //  Environment Setup
-    // ──────────────────────────────────────────────
+    private suspend fun findTermux(): RuntimeStatus {
+        val exists = File(TERMUX_BASH).exists()
+        if (!exists) return RuntimeStatus("termux", false, source = "termux")
+        val version = exec("${buildEnvPrefix()}${TERMUX_PKG} --version 2>/dev/null")
+            ?.firstLine() ?: "unknown"
+        return RuntimeStatus("termux", true, TERMUX_PREFIX, version, "termux")
+    }
 
-    suspend fun setupEnvironment(onProgress: (String) -> Unit): ToolExecutionResult {
+    private suspend fun findPython(): RuntimeStatus  = findInterpreter("python",
+        listOf(TERMUX_PYTHON, TERMUX_PYTHON3) + SYSTEM_PYTHON_PATHS)
+
+    private suspend fun findPython3(): RuntimeStatus = findInterpreter("python3",
+        listOf(TERMUX_PYTHON3, TERMUX_PYTHON) + SYSTEM_PYTHON_PATHS)
+
+    private suspend fun findNode(): RuntimeStatus    = findInterpreter("node",
+        listOf(TERMUX_NODE) + SYSTEM_NODE_PATHS)
+
+    private suspend fun findNpm(): RuntimeStatus {
+        val path = resolveBinary("npm") ?: return RuntimeStatus("npm", false)
+        val envP = if (path.startsWith(TERMUX_BIN)) buildEnvPrefix() else ""
+        val ver = exec("${envP}${path} --version 2>/dev/null")?.firstLine()
+        return RuntimeStatus("npm", true, path, ver, if (path.startsWith(TERMUX_BIN)) "termux" else "system")
+    }
+
+    private suspend fun findGit(): RuntimeStatus     = findInterpreter("git",
+        listOf(TERMUX_GIT) + SYSTEM_GIT_PATHS)
+
+    private suspend fun findCurl(): RuntimeStatus    = findBinSimple("curl")
+    private suspend fun findWget(): RuntimeStatus    = findBinSimple("wget")
+    private suspend fun findBash(): RuntimeStatus    = findBinSimple("bash")
+    private suspend fun findBusybox(): RuntimeStatus = findBinSimple("busybox")
+    private suspend fun findRuby(): RuntimeStatus    = findBinSimple("ruby")
+    private suspend fun findPerl(): RuntimeStatus    = findBinSimple("perl")
+
+    private suspend fun findInterpreter(name: String, candidates: List<String>): RuntimeStatus {
+        for (candidate in candidates) {
+            if (!File(candidate).exists()) continue
+            val envP = if (candidate.startsWith(TERMUX_BIN)) buildEnvPrefix() else ""
+            val ver = exec("${envP}${candidate} --version 2>&1")?.firstLine()
+            val src = if (candidate.startsWith(TERMUX_BIN)) "termux" else "system"
+            cache.put(name, candidate)
+            return RuntimeStatus(name, true, candidate, ver, src)
+        }
+        // Try `which` as last resort
+        val whichPath = exec("which $name 2>/dev/null")?.trim()
+            ?.takeIf { it.isNotBlank() && !it.startsWith("ERROR") }
+        if (whichPath != null) {
+            val envP = if (whichPath.startsWith(TERMUX_BIN)) buildEnvPrefix() else ""
+            val ver = exec("${envP}${whichPath} --version 2>&1")?.firstLine()
+            cache.put(name, whichPath)
+            return RuntimeStatus(name, true, whichPath, ver, "system")
+        }
+        cache.putMiss(name)
+        return RuntimeStatus(name, false)
+    }
+
+    private suspend fun findBinSimple(name: String): RuntimeStatus {
+        val path = resolveBinary(name)
+            ?: return RuntimeStatus(name, false)
+        val envP = if (path.startsWith(TERMUX_BIN)) buildEnvPrefix() else ""
+        val ver = exec("${envP}${path} --version 2>&1")?.firstLine()
+        val src = if (path.startsWith(TERMUX_BIN)) "termux" else "system"
+        return RuntimeStatus(name, true, path, ver, src)
+    }
+
+    // ── Private: Privilege Backend Detection ──────────────────────────────
+
+    private suspend fun detectPrivilegeBackend(): String {
         return try {
-            withContext(Dispatchers.IO) {
-                val summary = StringBuilder()
-
-                // ── JDK ──
-                if (!isJdkInstalled) {
-                    onProgress("Downloading JDK 17…")
-                    val jdkTmp = File(context.cacheDir, "openjdk-17.tar.xz")
-                    val jdkDest = File(context.filesDir, JDK_DIR)
-
-                    if (!downloadFile(JDK_URL, jdkTmp, onProgress)) {
-                        return@withContext ToolExecutionResult("Failed to download JDK from $JDK_URL", isError = true)
-                    }
-
-                    onProgress("Extracting JDK 17…")
-                    jdkDest.mkdirs()
-                    
-                    // FIX: Android native tar doesn't support xz. Try busybox if available, else native tar (which might fail).
-                    val extractCmd = "if command -v busybox >/dev/null 2>&1; then busybox tar xf ${jdkTmp.absolutePath} --strip-components=1 -C ${jdkDest.absolutePath}; else tar xf ${jdkTmp.absolutePath} --strip-components=1 -C ${jdkDest.absolutePath}; fi"
-                    
-                    val jdkExtract = ProcessBuilder("/system/bin/sh", "-c", extractCmd)
-                        .redirectErrorStream(true).start()
-                        
-                    val jdkWaitThread = Thread { try { jdkExtract.waitFor() } catch (_: InterruptedException) {} }
-                    jdkWaitThread.start()
-                    jdkWaitThread.join(TERMINAL_TIMEOUT_SECONDS * 1000L)
-                    
-                    if (jdkWaitThread.isAlive) {
-                        jdkExtract.destroy()
-                        jdkTmp.delete()
-                        return@withContext ToolExecutionResult("JDK extraction timed out after ${TERMINAL_TIMEOUT_SECONDS}s.", isError = true)
-                    }
-                    jdkTmp.delete()
-
-                    if (jdkExtract.exitValue() != 0) {
-                        // Highly likely due to lack of xz support
-                        return@withContext ToolExecutionResult(
-                            "Failed to extract JDK archive (exit ${jdkExtract.exitValue()}). Ensure busybox is installed or use a .tar.gz archive.", 
-                            isError = true
-                        )
-                    }
-
-                    try {
-                        ProcessBuilder("/system/bin/sh", "-c", "chmod -R 755 ${File(jdkDest, "bin").absolutePath}")
-                            .redirectErrorStream(true).start().waitFor()
-                    } catch (_: Exception) {}
-
-                    summary.appendLine("✅ JDK 17 installed at $jdkDest")
-                    onProgress("JDK 17 installed.")
-                } else {
-                    summary.appendLine("✅ JDK 17 already installed.")
-                }
-
-                // ── Android SDK ──
-                if (!isSdkInstalled) {
-                    onProgress("Downloading Android SDK…")
-                    val sdkTmp = File(context.cacheDir, "android-sdk.zip")
-                    val sdkDest = File(context.filesDir, SDK_DIR)
-
-                    if (!downloadFile(SDK_URL, sdkTmp, onProgress)) {
-                        return@withContext ToolExecutionResult("Failed to download Android SDK from $SDK_URL", isError = true)
-                    }
-
-                    onProgress("Extracting Android SDK…")
-                    sdkDest.mkdirs()
-                    
-                    // unzip is usually available, busybox fallback applied just in case
-                    val unzipCmd = "if command -v unzip >/dev/null 2>&1; then unzip -o -q ${sdkTmp.absolutePath} -d ${sdkDest.absolutePath}; else busybox unzip -o -q ${sdkTmp.absolutePath} -d ${sdkDest.absolutePath}; fi"
-                    val sdkExtract = ProcessBuilder("/system/bin/sh", "-c", unzipCmd)
-                        .redirectErrorStream(true).start()
-                        
-                    val sdkWaitThread = Thread { try { sdkExtract.waitFor() } catch (_: InterruptedException) {} }
-                    sdkWaitThread.start()
-                    sdkWaitThread.join(TERMINAL_TIMEOUT_SECONDS * 1000L)
-                    
-                    if (sdkWaitThread.isAlive) {
-                        sdkExtract.destroy()
-                        sdkTmp.delete()
-                        return@withContext ToolExecutionResult("SDK extraction timed out after ${TERMINAL_TIMEOUT_SECONDS}s.", isError = true)
-                    }
-                    sdkTmp.delete()
-
-                    if (sdkExtract.exitValue() != 0) {
-                        return@withContext ToolExecutionResult("Failed to extract SDK archive (exit ${sdkExtract.exitValue()})", isError = true)
-                    }
-
-                    val platformTools = File(sdkDest, "platform-tools")
-                    if (platformTools.exists()) {
-                        try { ProcessBuilder("/system/bin/sh", "-c", "chmod -R 755 ${platformTools.absolutePath}").start().waitFor() } catch (_: Exception) {}
-                    }
-                    val buildTools = File(sdkDest, "build-tools")
-                    if (buildTools.exists()) {
-                        buildTools.listFiles()?.forEach { versionDir ->
-                            try { ProcessBuilder("/system/bin/sh", "-c", "chmod -R 755 ${versionDir.absolutePath}").start().waitFor() } catch (_: Exception) {}
-                        }
-                    }
-
-                    summary.appendLine("✅ Android SDK installed at $sdkDest")
-                    onProgress("Android SDK installed.")
-                } else {
-                    summary.appendLine("✅ Android SDK already installed.")
-                }
-
-                ToolExecutionResult(output = summary.toString().trimEnd(), isError = false)
+            when {
+                PrivilegedExecutionManager.isShizukuReady()  -> "shizuku"
+                PrivilegedExecutionManager.isRishReady()     -> "rish"
+                PrivilegedExecutionManager.isRootAvailable() -> "root"
+                else                                          -> "none"
             }
-        } catch (e: CancellationException) {
-            throw e
         } catch (e: Exception) {
-            ToolExecutionResult("Environment setup failed: ${e.message}", isError = true)
+            Log.w(TAG, "Backend detection exception: ${e.message}")
+            "none"
         }
     }
 
-    private fun downloadFile(urlStr: String, dest: File, onProgress: (String) -> Unit): Boolean {
-        return try {
-            var currentUrl = urlStr
-            var redirects = 0
-            val maxRedirects = 5
+    // ── Private: Interpreter Resolution ──────────────────────────────────
 
-            while (redirects < maxRedirects) {
-                val connection = URL(currentUrl).openConnection() as HttpURLConnection
-                connection.instanceFollowRedirects = false
-                connection.connectTimeout = 30_000
-                connection.readTimeout = 60_000
-                connection.connect()
-
-                val code = connection.responseCode
-                if (code in 300..399) {
-                    val location = connection.getHeaderField("Location")
-                    connection.disconnect()
-                    if (location.isNullOrBlank()) return false
-                    currentUrl = location
-                    redirects++
-                    continue
-                }
-
-                if (code != HttpURLConnection.HTTP_OK) {
-                    connection.disconnect()
-                    return false
-                }
-
-                val totalBytes = connection.contentLength.toLong()
-                connection.inputStream.use { input ->
-                    FileOutputStream(dest).use { output ->
-                        val buffer = ByteArray(8192)
-                        var bytesRead: Int
-                        var totalRead = 0L
-                        while (input.read(buffer).also { bytesRead = it } != -1) {
-                            output.write(buffer, 0, bytesRead)
-                            totalRead += bytesRead
-                            if (totalBytes > 0) {
-                                val pct = (totalRead * 100 / totalBytes).toInt()
-                                onProgress("Downloading… $pct%")
-                            }
-                        }
-                    }
-                }
-                connection.disconnect()
-                return true
+    /**
+     * Resolve the best Python interpreter and env prefix.
+     * If [venvPath] is provided and valid, uses that venv's python.
+     */
+    internal suspend fun resolveInterpreterAndEnv(
+        venvPath: String? = null
+    ): Pair<String, String>? {
+        if (!venvPath.isNullOrBlank()) {
+            val venvPy = listOf("$venvPath/bin/python3", "$venvPath/bin/python")
+                .firstOrNull { File(it).exists() }
+            if (venvPy != null) {
+                val envP = if (isTermuxUsable()) buildEnvPrefix() else ""
+                return venvPy to envP
             }
-            false
-        } catch (e: Exception) {
-            onProgress("Download error: ${e.message}")
-            false
         }
+        val pyPath = listOf(TERMUX_PYTHON3, TERMUX_PYTHON).firstOrNull { File(it).exists() }
+            ?: resolveBinary("python3")
+            ?: resolveBinary("python")
+            ?: SYSTEM_PYTHON_PATHS.firstOrNull { File(it).exists() }
+            ?: return null
+        val envP = if (pyPath.startsWith(TERMUX_BIN)) buildEnvPrefix() else ""
+        return pyPath to envP
     }
 
-    // ──────────────────────────────────────────────
-    //  advanced_terminal (Base64 Injection)
-    // ──────────────────────────────────────────────
-
-    suspend fun executeWithEnv(command: String, workingDirectory: String): ToolExecutionResult {
-        val workDir = File(workingDirectory)
-
-        if (!workDir.exists() || !workDir.isDirectory) {
-            return ToolExecutionResult("Working directory not found: $workingDirectory", isError = true)
-        }
-
-        return try {
-            withContext(Dispatchers.IO) {
-                // FIX: Base64 Script Injection to safely export Env Vars and run complex builds
-                val scriptContent = buildString {
-                    appendLine("#!/system/bin/sh")
-                    appendLine("export JAVA_HOME='${javaHome.replace("'", "'\\''")}'")
-                    appendLine("export ANDROID_HOME='${androidHome.replace("'", "'\\''")}'")
-                    appendLine("export PATH='${buildPathVariable().replace("'", "'\\''")}'")
-                    appendLine("cd '${workingDirectory.replace("'", "'\\''")}' || exit 1")
-                    appendLine(command)
-                }
-
-                val tmpPath = File(context.cacheDir, "omni_build_${System.currentTimeMillis()}.sh")
-                tmpPath.writeText(scriptContent)
-                tmpPath.setExecutable(true)
-
-                val process = ProcessBuilder("/system/bin/sh", tmpPath.absolutePath)
-                    .redirectErrorStream(true)
-                    .start()
-
-                // Thread-safe buffer for reading output
-                val outputBuffer = StringBuffer()
-                val readerThread = Thread {
-                    try {
-                        process.inputStream.bufferedReader().use { reader ->
-                            reader.lineSequence().forEach { line ->
-                                outputBuffer.append(line).append("\n")
-                                // FIX: Tail Truncation - keep only the end of the log where build errors are
-                                if (outputBuffer.length > MAX_OUTPUT_CHARS + 2000) {
-                                    outputBuffer.delete(0, outputBuffer.length - MAX_OUTPUT_CHARS)
-                                }
-                            }
-                        }
-                    } catch (_: Exception) {}
-                }
-                readerThread.start()
-
-                val waitThread = Thread { try { process.waitFor() } catch (_: InterruptedException) {} }
-                waitThread.start()
-                waitThread.join(TERMINAL_TIMEOUT_SECONDS * 1000L)
-
-                val completed = !waitThread.isAlive
-                if (!completed) {
-                    process.destroy()
-                    readerThread.interrupt()
-                    tmpPath.delete()
-                    return@withContext ToolExecutionResult("⏱ Build command timed out after ${TERMINAL_TIMEOUT_SECONDS}s.", isError = true)
-                }
-
-                readerThread.join(2_000L)
-                tmpPath.delete() // Clean up script
-
-                val exitCode = process.exitValue()
-                var output = outputBuffer.toString().trimEnd()
-                
-                if (outputBuffer.length >= MAX_OUTPUT_CHARS) {
-                    output = "...[TRUNCATED to save tokens]...\n$output"
-                }
-
-                val resultText = buildString {
-                    appendLine("$ $command")
-                    if (output.isNotEmpty()) appendLine(output)
-                    append("[exit: $exitCode]")
-                }
-
-                ToolExecutionResult(output = resultText, isError = exitCode != 0)
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            ToolExecutionResult("Failed to execute build command: ${e.message}", isError = true)
-        }
+    private suspend fun resolvePip(pythonBin: String): String? {
+        val dir = File(pythonBin).parent ?: return null
+        listOf("$dir/pip3", "$dir/pip").forEach { if (File(it).exists()) return it }
+        val envP = if (pythonBin.startsWith(TERMUX_BIN)) buildEnvPrefix() else ""
+        return exec("${envP}which pip3 2>/dev/null")?.trim()?.takeIf { it.isNotBlank() }
+            ?: exec("${envP}which pip 2>/dev/null")?.trim()?.takeIf { it.isNotBlank() }
     }
 
-    private fun buildPathVariable(): String {
-        val systemPath = System.getenv("PATH") ?: "/usr/bin:/system/bin:/system/xbin"
-        val sdkDir = File(androidHome)
+    // ── Private: Base64 Injection ─────────────────────────────────────────
 
-        val buildToolsDir = File(sdkDir, "build-tools")
-        val latestBuildTools = if (buildToolsDir.exists()) {
-            buildToolsDir.listFiles()?.filter { it.isDirectory }?.maxByOrNull { it.name }?.absolutePath
-        } else null
-
-        return buildString {
-            append("$javaHome/bin")
-            if (latestBuildTools != null) append(":$latestBuildTools")
-            val platformTools = File(sdkDir, "platform-tools")
-            if (platformTools.exists()) append(":${platformTools.absolutePath}")
-            append(":$systemPath")
-        }
+    /**
+     * Builds a command that:
+     *  1. Writes [script] to a temp file via base64 decode (bypasses ALL quoting).
+     *  2. Executes the temp file.
+     *  3. Deletes the temp file.
+     *
+     * This is the most reliable way to execute complex scripts with special chars
+     * through the Shizuku/rish shell bridge.
+     */
+    private fun buildBase64InjectionCommand(script: String, envPrefix: String): String {
+        // envPrefix is now embedded inside the script block via buildTermuxEnvBlock(),
+        // so only the base64 wrapper is needed here.
+        // Delegate to TermuxExecutionFix which uses the proven pattern.
+        return TermuxExecutionFix.buildBase64Command(script)
     }
+
+    @Suppress("unused")
+    private fun buildBase64InjectionCommandLegacy(script: String, envPrefix: String): String {
+        val b64 = android.util.Base64.encodeToString(
+            script.toByteArray(Charsets.UTF_8),
+            android.util.Base64.NO_WRAP
+        )
+        val tmp = "/data/local/tmp/omni_env_${System.currentTimeMillis()}.sh"
+        // Write → chmod → execute → delete — all in one atomic shell command
+        return "echo '$b64' | base64 -d > $tmp && chmod +x $tmp && " +
+               "${envPrefix}sh $tmp 2>&1; EXIT_CODE=\$?; rm -f $tmp; exit \$EXIT_CODE"
+    }
+
+    // ── Private: Utilities ────────────────────────────────────────────────
+
+    private suspend fun exec(cmd: String): String? =
+        PrivilegedExecutionManager.executeCommand(cmd)
+            .getOrNull()?.trim()
+            ?.takeIf { it.isNotBlank() && it != "(no output)" }
+
+    private fun String.firstLine() = lineSequence().firstOrNull { it.isNotBlank() }?.trim()
+
+    private fun sanitizePackageList(packages: String): String? {
+        val safe = packages.split(Regex("\\s+"))
+            .map { it.replace(Regex("[^a-zA-Z0-9_.\\-\\[\\]=~<>!]"), "") }
+            .filter { it.isNotEmpty() }
+            .joinToString(" ")
+        return safe.ifBlank { null }
+    }
+
+    private fun sanitizeName(name: String) = name.replace(Regex("[^a-zA-Z0-9_.\\-]"), "")
+
+    fun shellQuote(s: String): String = "'${s.replace("'", "'\\''")}'"
+
+    private fun err(msg: String) = ToolExecutionResult(msg, isError = true)
+
+    private const val MAX_OUTPUT = 12_000
 }
