@@ -59,7 +59,7 @@ class MainActivity : ComponentActivity() {
 
         // Composite tool manager: file tools + memory + system assistant + build environment
         val fileToolManager = FileToolManager()
-        val environmentSetupManager = EnvironmentSetupManager(applicationContext)
+        val environmentSetupManager = EnvironmentSetupManager
         val godEyeProfilerTool = GodEyeProfilerTool(applicationContext, ShizukuCommandTool)
         val discordPublisherTool = com.omnidev.workspace.data.tools.DiscordPublisherTool(settingsRepository)
         val notionPublisherTool = com.omnidev.workspace.data.tools.NotionPublisherTool(settingsRepository)
