@@ -753,7 +753,7 @@ object TermuxEnvironmentBridge {
             isAlive.set(false)
             try { writer?.write("exit 0\n"); writer?.flush() } catch (_: Exception) {}
             try { writer?.close() } catch (_: Exception) {}
-            try { process?.destroyForcibly() } catch (_: Exception) {}
+            try { process?.destroy() } catch (_: Exception) {}
             scope.cancel()
             Log.i(TAG, "Session [$id] stopped.")
         }
