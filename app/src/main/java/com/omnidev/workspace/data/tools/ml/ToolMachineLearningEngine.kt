@@ -85,7 +85,7 @@ class ToolMachineLearningEngine(
             timestamp = System.currentTimeMillis(),
             toolName = toolName,
             parameters = parameters,
-            success = result.success,
+            success = !result.isError,
             executionTimeMs = executionTimeMs,
             resultSize = result.output.length,
             contextualData = contextualData
@@ -100,7 +100,7 @@ class ToolMachineLearningEngine(
         }
 
         // تحديث الإحصائيات
-        updateToolStats(toolName, result.success, executionTimeMs)
+        updateToolStats(toolName, !result.isError, executionTimeMs)
         
         // تحديث التسلسلات
         updateSequences(toolName)
@@ -185,7 +185,7 @@ class ToolMachineLearningEngine(
         }
         
         // فحص معدل النجاح
-        if (!result.success && stats.successRate > 0.9) {
+        if (result.isError && stats.successRate > 0.9) {
             anomalies.add("فشل غير متوقع (معدل النجاح الطبيعي: ${(stats.successRate * 100).toInt()}%)")
             anomalyScore += 0.4
         }

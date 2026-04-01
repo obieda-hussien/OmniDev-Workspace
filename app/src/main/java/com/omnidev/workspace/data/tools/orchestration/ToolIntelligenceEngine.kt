@@ -55,7 +55,7 @@ class ToolIntelligenceEngine(
         val context: ExecutionContext
     )
     
-    private data class ExecutionContext(
+    internal data class ExecutionContext(
         val previousTool: String?,
         val timeOfDay: Int, // 0-23
         val dayOfWeek: Int, // 1-7

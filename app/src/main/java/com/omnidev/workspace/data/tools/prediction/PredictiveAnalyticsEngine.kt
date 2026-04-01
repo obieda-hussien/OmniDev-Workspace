@@ -763,35 +763,35 @@ object PredictiveAnalyticsEngine {
             try {
                 when (action) {
                     "forecast" -> {
-                        val seriesId = args["series_id"] as? String ?: return@withContext ToolExecutionResult.failure("Missing series_id")
+                        val seriesId = args["series_id"] as? String ?: return@withContext ToolExecutionResult("Missing series_id", isError = true)
                         val steps = (args["steps"] as? String)?.toIntOrNull() ?: 10
-                        val series = timeSeriesCache[seriesId] ?: return@withContext ToolExecutionResult.failure("Series not found")
+                        val series = timeSeriesCache[seriesId] ?: return@withContext ToolExecutionResult("Series not found", isError = true)
                         
                         val forecast = forecastTimeSeries(series, steps)
-                        ToolExecutionResult.success(forecast.toString())
+                        ToolExecutionResult(forecast.toString())
                     }
                     
                     "detect_anomalies" -> {
-                        val seriesId = args["series_id"] as? String ?: return@withContext ToolExecutionResult.failure("Missing series_id")
-                        val series = timeSeriesCache[seriesId] ?: return@withContext ToolExecutionResult.failure("Series not found")
+                        val seriesId = args["series_id"] as? String ?: return@withContext ToolExecutionResult("Missing series_id", isError = true)
+                        val series = timeSeriesCache[seriesId] ?: return@withContext ToolExecutionResult("Series not found", isError = true)
                         
                         val anomalies = detectAnomalies(series)
-                        ToolExecutionResult.success("Found ${anomalies.size} anomalies")
+                        ToolExecutionResult("Found ${anomalies.size} anomalies")
                     }
                     
                     "analyze_trend" -> {
-                        val seriesId = args["series_id"] as? String ?: return@withContext ToolExecutionResult.failure("Missing series_id")
-                        val series = timeSeriesCache[seriesId] ?: return@withContext ToolExecutionResult.failure("Series not found")
+                        val seriesId = args["series_id"] as? String ?: return@withContext ToolExecutionResult("Missing series_id", isError = true)
+                        val series = timeSeriesCache[seriesId] ?: return@withContext ToolExecutionResult("Series not found", isError = true)
                         
                         val trend = analyzeTrend(series)
-                        ToolExecutionResult.success(trend.toString())
+                        ToolExecutionResult(trend.toString())
                     }
                     
-                    else -> ToolExecutionResult.failure("Unknown action: $action")
+                    else -> ToolExecutionResult("Unknown action: $action", isError = true)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error in predictive analytics", e)
-                ToolExecutionResult.failure("Error: ${e.message}")
+                ToolExecutionResult("Error: ${e.message}", isError = true)
             }
         }
 }
