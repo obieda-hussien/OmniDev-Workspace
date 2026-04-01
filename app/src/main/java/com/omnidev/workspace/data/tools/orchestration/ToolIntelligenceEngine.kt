@@ -2,10 +2,8 @@ package com.omnidev.workspace.data.tools.orchestration
 
 import android.content.Context
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.exp
-import kotlin.math.ln
 
 /**
  * ToolIntelligenceEngine - محرك الذكاء الاصطناعي للأدوات
@@ -95,7 +93,7 @@ class ToolIntelligenceEngine(
     /**
      * يتنبأ بأفضل أداة للمهمة الحالية
      */
-    fun predictBestTool(
+    internal fun predictBestTool(
         taskDescription: String,
         availableTools: List<String>,
         currentContext: ExecutionContext
@@ -175,7 +173,7 @@ class ToolIntelligenceEngine(
     /**
      * يحدث نموذج التعلم بعد تنفيذ الأداة
      */
-    suspend fun recordExecution(
+    internal suspend fun recordExecution(
         toolName: String,
         parameters: Map<String, String>,
         executionTimeMs: Long,

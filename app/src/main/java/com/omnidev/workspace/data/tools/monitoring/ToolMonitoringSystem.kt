@@ -1,12 +1,9 @@
 package com.omnidev.workspace.data.tools.monitoring
 
-import android.content.Context
-import android.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
-import kotlin.system.measureTimeMillis
 
 /**
  * ToolMonitoringSystem — نظام مراقبة وتتبع شامل لجميع الأدوات
@@ -20,6 +17,9 @@ import kotlin.system.measureTimeMillis
  */
 object ToolMonitoringSystem {
     private const val TAG = "ToolMonitor"
+
+    // Shared scope for fire-and-forget event emissions
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     
     // ═══════════════════════════════════════════════════════════════
     // البيانات المراقبة
@@ -102,7 +102,7 @@ object ToolMonitoringSystem {
         totalExecutions.incrementAndGet()
         
         // إرسال حدث البدء
-        CoroutineScope(Dispatchers.Default).launch {
+        scope.launch {
             realtimeEvents.emit(
                 MonitoringEvent.ToolStarted(toolName, traceId, trace.startTime)
             )
@@ -164,7 +164,7 @@ object ToolMonitoringSystem {
         }
         
         // إرسال الأحداث
-        CoroutineScope(Dispatchers.Default).launch {
+        scope.launch {
             realtimeEvents.emit(
                 MonitoringEvent.ToolCompleted(trace.toolName, traceId, durationMs, success)
             )

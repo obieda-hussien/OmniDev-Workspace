@@ -83,10 +83,6 @@ class CompositeToolManager(
     // ─── Execution Diagnostics ───────────────────────────────────────────────────
     private val executionDiagnostics = OmniExecutionDiagnostics
 
-    /** PredictiveAnalyticsEngine — time-series forecasting & anomaly detection. */
-    private val predictiveAnalyticsEngine: PredictiveAnalyticsEngine? =
-        if (context != null) PredictiveAnalyticsEngine(context) else null
-
     /**
      * Lazily constructed agentic-auth tool. Available only when both
      * [settingsRepository] and [apiKeyRepository] are supplied.
@@ -342,22 +338,20 @@ class CompositeToolManager(
         }
 
         // ── Predictive Analytics tool ──
-        if (predictiveAnalyticsEngine != null) {
-            add(ToolDefinition(
-                name = "predictive_analytics",
-                description = "Time-series forecasting and anomaly detection. Actions: forecast (predict future values), " +
-                        "detect_anomalies (find outliers), analyze_trend (classify trend direction). " +
-                        "Requires a series_id loaded via the engine.",
-                parameters = listOf(
-                    ToolParameter(name = "action", type = "string",
-                        description = "One of: forecast, detect_anomalies, analyze_trend", required = true),
-                    ToolParameter(name = "series_id", type = "string",
-                        description = "ID of the time-series to analyse", required = true),
-                    ToolParameter(name = "steps", type = "string",
-                        description = "Number of steps to forecast (default: 10)", required = false)
-                )
-            ))
-        }
+        add(ToolDefinition(
+            name = "predictive_analytics",
+            description = "Time-series forecasting and anomaly detection. Actions: forecast (predict future values), " +
+                    "detect_anomalies (find outliers), analyze_trend (classify trend direction). " +
+                    "Requires a series_id loaded via the engine.",
+            parameters = listOf(
+                ToolParameter(name = "action", type = "string",
+                    description = "One of: forecast, detect_anomalies, analyze_trend", required = true),
+                ToolParameter(name = "series_id", type = "string",
+                    description = "ID of the time-series to analyse", required = true),
+                ToolParameter(name = "steps", type = "string",
+                    description = "Number of steps to forecast (default: 10)", required = false)
+            )
+        ))
 
         // ── Security Analyzer tool ──
         if (context != null) {
@@ -1081,10 +1075,8 @@ class CompositeToolManager(
 
             // ── Predictive Analytics tool ──
             "predictive_analytics" -> {
-                val engine = predictiveAnalyticsEngine
-                    ?: return ToolExecutionResult("Predictive analytics engine unavailable (requires Android context).", isError = true)
                 val action = arguments["action"] ?: return missingArg("action")
-                engine.execute(action, arguments)
+                PredictiveAnalyticsEngine.execute(action, arguments)
             }
 
             // ── Security Analyzer tool ──

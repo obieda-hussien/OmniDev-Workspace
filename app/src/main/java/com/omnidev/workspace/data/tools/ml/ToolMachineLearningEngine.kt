@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import com.omnidev.workspace.data.tools.ToolExecutionResult
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -486,13 +485,13 @@ class ToolMachineLearningEngine(
             if (success) stats.successCount++
             
             // تحديث المتوسطات
-            val n = stats.executionCount
-            stats.avgExecutionTime = ((stats.avgExecutionTime * (n - 1)) + executionTimeMs) / n
+            val n = stats.executionCount.toDouble()
+            stats.avgExecutionTime = ((stats.avgExecutionTime * (n - 1.0)) + executionTimeMs.toDouble()) / n
             
             // تحديث الانحراف المعياري
-            val diff = executionTimeMs - stats.avgExecutionTime
+            val diff = executionTimeMs.toDouble() - stats.avgExecutionTime
             stats.stdDevExecutionTime = sqrt(
-                ((stats.stdDevExecutionTime * stats.stdDevExecutionTime * (n - 1)) + diff * diff) / n
+                ((stats.stdDevExecutionTime * stats.stdDevExecutionTime * (n - 1.0)) + diff * diff) / n
             )
             
             stats.successRate = stats.successCount.toDouble() / stats.executionCount
