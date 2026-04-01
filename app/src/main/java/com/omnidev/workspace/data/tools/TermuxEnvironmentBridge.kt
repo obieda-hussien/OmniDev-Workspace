@@ -113,7 +113,7 @@ data class TermuxBridgeStatus(
  * Thread-safe binary path cache with TTL-based invalidation.
  * Avoids repeated `which` calls during the same session.
  */
-private class BinaryCache(private val ttlMs: Long = 120_000L) {
+private class TermuxBinaryCache(private val ttlMs: Long = 120_000L) {
 
     private data class Entry(val path: String, val ts: Long)
 
@@ -205,7 +205,7 @@ object TermuxEnvironmentBridge {
 
     // ── 5.2  Internal State ───────────────────────────────────────────────────
 
-    private val binaryCache = BinaryCache(ttlMs = 120_000L)
+    private val binaryCache = TermuxBinaryCache(ttlMs = 120_000L)
     private val probeMutex  = Mutex()
     private val lastProbeMs = AtomicLong(0L)
 

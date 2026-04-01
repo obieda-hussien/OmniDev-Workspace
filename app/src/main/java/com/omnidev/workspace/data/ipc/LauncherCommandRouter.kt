@@ -52,7 +52,7 @@ class LauncherCommandRouter(
         fileToolManager = fileToolManager,
         memoryManager = memoryManager,
         context = appContext,
-        environmentSetupManager = EnvironmentSetupManager(appContext),
+        environmentSetupManager = EnvironmentSetupManager,
         settingsRepository = settingsRepository,
         godEyeProfilerTool = GodEyeProfilerTool(appContext, ShizukuCommandTool),
         discordPublisherTool = DiscordPublisherTool(settingsRepository),

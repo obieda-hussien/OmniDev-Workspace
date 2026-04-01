@@ -894,4 +894,131 @@ object EnvironmentSetupManager {
     private fun err(msg: String) = ToolExecutionResult(msg, isError = true)
 
     private const val MAX_OUTPUT = 12_000
+
+    // ── ToolManager API ────────────────────────────────────────────────────
+
+    fun getToolDefinitions(): List<ToolDefinition> = listOf(
+        ToolDefinition(
+            name = "advanced_terminal",
+            description = """
+                Full-lifecycle shell & runtime engine backed by the Termux environment.
+                Actions:
+                - 'status': Probe all runtimes and report availability.
+                - 'exec'  : Run a one-shot shell script/command and return output.
+                - 'python_run': Execute inline Python code.
+                - 'npm'   : Run an npm sub-command (e.g., 'install').
+                - 'pip_install': Install Python packages via pip.
+                - 'pkg_install': Install Termux packages via pkg/apt.
+                - 'pkg_update' : Update all installed Termux packages.
+                - 'bootstrap'  : Run the full 8-step idempotent bootstrap plan.
+                - 'find_binary': Resolve the path of an executable.
+            """.trimIndent(),
+            parameters = listOf(
+                ToolParameter("action", "string", "Action to perform (status, exec, python_run, npm, pip_install, pkg_install, pkg_update, bootstrap, find_binary)", required = true),
+                ToolParameter("command", "string", "Shell command or npm sub-command to run.", required = false),
+                ToolParameter("code", "string", "Inline Python code (for python_run).", required = false),
+                ToolParameter("packages", "string", "Space-separated package list (for pip_install / pkg_install).", required = false),
+                ToolParameter("binary", "string", "Binary name to locate (for find_binary).", required = false),
+                ToolParameter("cwd", "string", "Working directory.", required = false)
+            )
+        ),
+        ToolDefinition(
+            name = "setup_build_environment",
+            description = "Bootstrap or inspect the Termux-based build environment. Alias for advanced_terminal.",
+            parameters = listOf(
+                ToolParameter("action", "string", "Action (status, bootstrap, pkg_install, pip_install, exec, python_run)", required = true),
+                ToolParameter("command", "string", "Shell command to run.", required = false),
+                ToolParameter("packages", "string", "Packages to install.", required = false),
+                ToolParameter("code", "string", "Inline Python code.", required = false),
+                ToolParameter("cwd", "string", "Working directory.", required = false)
+            )
+        )
+    )
+
+    suspend fun executeTool(
+        name: String,
+        arguments: Map<String, String>,
+        scopePath: String? = null
+    ): ToolExecutionResult {
+        val action = arguments["action"]?.lowercase()?.trim()
+            ?: return ToolExecutionResult("Missing required argument 'action'.", isError = true)
+        val cwd = arguments["cwd"]?.takeIf { it.isNotBlank() } ?: scopePath
+
+        return when (action) {
+            "status", "env_check" -> statusReport()
+
+            "exec", "script", "shell" -> {
+                val cmd = arguments["command"] ?: arguments["script"]
+                    ?: return ToolExecutionResult("Missing 'command' argument for action '$action'.", isError = true)
+                executeShell(cmd, cwd)
+            }
+
+            "python_run", "python" -> {
+                val code = arguments["code"]
+                    ?: return ToolExecutionResult("Missing 'code' argument for python_run.", isError = true)
+                runPython(code, arguments["args"], cwd)
+            }
+
+            "npm" -> {
+                val cmd = arguments["command"]
+                    ?: return ToolExecutionResult("Missing 'command' argument for npm.", isError = true)
+                npmCommand(cmd, cwd)
+            }
+
+            "pip_install", "pip" -> {
+                val packages = arguments["packages"]
+                    ?: return ToolExecutionResult("Missing 'packages' argument for pip_install.", isError = true)
+                pipInstall(packages)
+            }
+
+            "pkg_install", "pkg" -> {
+                val packages = arguments["packages"]
+                    ?: return ToolExecutionResult("Missing 'packages' argument for pkg_install.", isError = true)
+                pkgInstall(packages)
+            }
+
+            "pkg_update", "update" -> {
+                val updateCmd = "${buildEnvPrefix()}DEBIAN_FRONTEND=noninteractive pkg upgrade -y 2>&1"
+                val r = PrivilegedExecutionManager.executeCommand(updateCmd)
+                cache.invalidateAll()
+                r.fold(
+                    onSuccess = { ToolExecutionResult("✅ pkg upgrade:\n${it.take(MAX_OUTPUT)}") },
+                    onFailure = { ToolExecutionResult("❌ pkg upgrade failed: ${it.message?.take(1000)}", isError = true) }
+                )
+            }
+
+            "bootstrap", "setup" -> {
+                val plan = buildStandardBootstrapPlan()
+                val results = runBootstrap(plan)
+                val summary = results.joinToString("\n") { (id, r) ->
+                    val icon = when (r) {
+                        is BootstrapResult.Success    -> "✅"
+                        is BootstrapResult.AlreadyDone -> "✔️ "
+                        is BootstrapResult.Skipped    -> "⏭️ "
+                        is BootstrapResult.Failed     -> "❌"
+                    }
+                    "$icon $id: ${when (r) {
+                        is BootstrapResult.Success     -> r.message
+                        is BootstrapResult.AlreadyDone -> r.message
+                        is BootstrapResult.Skipped     -> r.reason
+                        is BootstrapResult.Failed      -> r.reason
+                    }}"
+                }
+                ToolExecutionResult("Bootstrap complete:\n$summary")
+            }
+
+            "find_binary" -> {
+                val binary = arguments["binary"]
+                    ?: return ToolExecutionResult("Missing 'binary' argument for find_binary.", isError = true)
+                val path = findBinary(binary)
+                if (path != null) ToolExecutionResult("✅ $binary → $path")
+                else ToolExecutionResult("❌ '$binary' not found.", isError = true)
+            }
+
+            else -> ToolExecutionResult(
+                "Unknown action '$action'. Valid actions: status, exec, python_run, npm, pip_install, pkg_install, pkg_update, bootstrap, find_binary.",
+                isError = true
+            )
+        }
+    }
 }
