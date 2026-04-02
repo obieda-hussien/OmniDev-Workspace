@@ -62,4 +62,63 @@ JNIEXPORT void JNICALL
 Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeFreeModel(
         JNIEnv*, jobject, jlong) {}
 
+// ─── New TurboQuant / V2 / cache-aware stubs ─────────────────────────────────
+
+JNIEXPORT jlong JNICALL
+Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeLoadModelTurbo(
+        JNIEnv*, jobject,
+        jstring, jint, jint, jint, jboolean,
+        jint, jint, jint, jint, jfloatArray, jint)
+{
+    LOGW("nativeLoadModelTurbo: stub — llama.cpp submodule not initialised.");
+    return 0;
+}
+
+JNIEXPORT void JNICALL
+Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeStartGenerationV2(
+        JNIEnv* env, jobject,
+        jlong, jstring, jint, jfloat, jfloat, jint, jfloat, jfloat, jint, jlong,
+        jobject callback)
+{
+    LOGW("nativeStartGenerationV2: stub — no inference possible");
+    jclass  cbClass  = env->GetObjectClass(callback);
+    jmethodID onToken = env->GetMethodID(cbClass, "onToken", "(Ljava/lang/String;Z)V");
+    if (onToken) {
+        jstring msg = env->NewStringUTF(
+            "[STUB] llama.cpp submodule not initialised. "
+            "Run `git submodule update --init --recursive` and rebuild the app.");
+        env->CallVoidMethod(callback, onToken, msg, (jboolean)JNI_TRUE);
+        env->DeleteLocalRef(msg);
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeStartGenerationWithCache(
+        JNIEnv* env, jobject,
+        jlong, jstring, jint, jint, jfloat, jfloat, jint, jfloat, jfloat, jint, jlong,
+        jobject callback)
+{
+    LOGW("nativeStartGenerationWithCache: stub — no inference possible");
+    jclass  cbClass  = env->GetObjectClass(callback);
+    jmethodID onToken = env->GetMethodID(cbClass, "onToken", "(Ljava/lang/String;Z)V");
+    if (onToken) {
+        jstring msg = env->NewStringUTF(
+            "[STUB] llama.cpp submodule not initialised. "
+            "Run `git submodule update --init --recursive` and rebuild the app.");
+        env->CallVoidMethod(callback, onToken, msg, (jboolean)JNI_TRUE);
+        env->DeleteLocalRef(msg);
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeClearKVCache(
+        JNIEnv*, jobject, jlong) {}
+
+JNIEXPORT jlong JNICALL
+Java_com_omnidev_workspace_data_localllm_LlamaCppInferenceEngine_nativeGetMemoryUsage(
+        JNIEnv*, jobject, jlong)
+{
+    return 0;
+}
+
 } // extern "C"

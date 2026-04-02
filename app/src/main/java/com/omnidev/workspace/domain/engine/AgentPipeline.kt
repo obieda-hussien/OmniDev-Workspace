@@ -954,7 +954,16 @@ Rules:
                         )
                     } else {
                         com.omnidev.workspace.data.debug.DebugLogManager.appendError("AgentPipeline", e)
-                        onFatalError("API call failed after $normalMaxAttempts attempt(s) (iteration $iteration): ${e.message}")
+                        val isNetworkTimeout = e is java.net.SocketTimeoutException ||
+                                e is java.net.SocketException ||
+                                e is java.io.IOException && e.message?.contains("timeout", ignoreCase = true) == true
+                        val userMsg = if (isNetworkTimeout) {
+                            "Network timeout after $normalMaxAttempts attempt(s) (iteration $iteration). " +
+                            "Check your internet connection and try again."
+                        } else {
+                            "API call failed after $normalMaxAttempts attempt(s) (iteration $iteration): ${e.message}"
+                        }
+                        onFatalError(userMsg)
                     }
                     return null
                 }

@@ -12,6 +12,11 @@ import com.omnidev.workspace.data.ipc.OmniCoreAgentTool
 import com.omnidev.workspace.data.media.OmniMediaSessionService
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.sync.OmniSyncService
+import com.omnidev.workspace.data.tools.automation.IntelligentAutomationEngine
+import com.omnidev.workspace.data.tools.monitoring.ToolMonitoringSystem
+import com.omnidev.workspace.data.tools.prediction.PredictiveAnalyticsEngine
+import com.omnidev.workspace.data.tools.security.AdvancedSecurityAnalyzer
+import com.omnidev.workspace.data.tools.voice.AdvancedVoiceCommandEngine
 import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.net.URI
@@ -331,6 +336,88 @@ class CompositeToolManager(
                 )
             ))
         }
+
+        // ── Predictive Analytics tool ──
+        add(ToolDefinition(
+            name = "predictive_analytics",
+            description = "Time-series forecasting and anomaly detection. Actions: forecast (predict future values), " +
+                    "detect_anomalies (find outliers), analyze_trend (classify trend direction). " +
+                    "Requires a series_id loaded via the engine.",
+            parameters = listOf(
+                ToolParameter(name = "action", type = "string",
+                    description = "One of: forecast, detect_anomalies, analyze_trend", required = true),
+                ToolParameter(name = "series_id", type = "string",
+                    description = "ID of the time-series to analyse", required = true),
+                ToolParameter(name = "steps", type = "string",
+                    description = "Number of steps to forecast (default: 10)", required = false)
+            )
+        ))
+
+        // ── Security Analyzer tool ──
+        if (context != null) {
+            add(ToolDefinition(
+                name = "security_analyzer",
+                description = "Advanced static/dynamic security analysis for installed Android apps. " +
+                        "Actions: analyze (full report), scan_all (scan all user apps), " +
+                        "quick_scan (fast permission + network check).",
+                parameters = listOf(
+                    ToolParameter(name = "action", type = "string",
+                        description = "One of: analyze, scan_all, quick_scan", required = true),
+                    ToolParameter(name = "package_name", type = "string",
+                        description = "Target package name (required for analyze/quick_scan)", required = false)
+                )
+            ))
+        }
+
+        // ── Intelligent Automation tool ──
+        add(ToolDefinition(
+            name = "intelligent_automation",
+            description = "Manage and execute smart automation workflows. Actions: execute_workflow, " +
+                    "list_workflows, get_statistics, get_patterns. Workflows can chain tool calls, " +
+                    "API calls, conditions, loops, and parallel branches.",
+            parameters = listOf(
+                ToolParameter(name = "action", type = "string",
+                    description = "One of: execute_workflow, list_workflows, get_statistics, get_patterns",
+                    required = true),
+                ToolParameter(name = "workflow_id", type = "string",
+                    description = "Workflow ID to execute (required for execute_workflow)", required = false)
+            )
+        ))
+
+        // ── Voice Commands tool ──
+        if (context != null) {
+            add(ToolDefinition(
+                name = "voice_commands",
+                description = "Manage the voice command engine. Actions: initialize, start_listening, " +
+                        "stop_listening, speak (TTS), get_stats, get_history.",
+                parameters = listOf(
+                    ToolParameter(name = "action", type = "string",
+                        description = "One of: initialize, start_listening, stop_listening, speak, get_stats, get_history",
+                        required = true),
+                    ToolParameter(name = "text", type = "string",
+                        description = "Text to speak (for speak action)", required = false),
+                    ToolParameter(name = "continuous", type = "string",
+                        description = "true for continuous listening (for start_listening)", required = false)
+                )
+            ))
+        }
+
+        // ── Tool Monitoring tool ──
+        add(ToolDefinition(
+            name = "tool_monitoring",
+            description = "Inspect real-time tool execution metrics and performance. Actions: " +
+                    "get_metrics (metrics for a specific tool), get_all_metrics, most_used, " +
+                    "slowest, most_failed.",
+            parameters = listOf(
+                ToolParameter(name = "action", type = "string",
+                    description = "One of: get_metrics, get_all_metrics, most_used, slowest, most_failed",
+                    required = true),
+                ToolParameter(name = "tool_name", type = "string",
+                    description = "Tool name (for get_metrics action)", required = false),
+                ToolParameter(name = "limit", type = "string",
+                    description = "Max results to return (default: 10)", required = false)
+            )
+        ))
     }
 
     override suspend fun executeTool(
@@ -983,6 +1070,120 @@ class CompositeToolManager(
                         ToolExecutionResult("Sync status: $state | Last sync: $lastStr")
                     }
                     else -> ToolExecutionResult("Unknown sync_service action '$action'.", isError = true)
+                }
+            }
+
+            // ── Predictive Analytics tool ──
+            "predictive_analytics" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                PredictiveAnalyticsEngine.execute(action, arguments)
+            }
+
+            // ── Security Analyzer tool ──
+            "security_analyzer" -> {
+                val ctx = context ?: return missingContext()
+                val action = arguments["action"] ?: return missingArg("action")
+                when (action) {
+                    "analyze", "quick_scan" -> {
+                        val pkg = arguments["package_name"] ?: return missingArg("package_name")
+                        val report = AdvancedSecurityAnalyzer.analyzePackage(ctx, pkg)
+                        if (action == "analyze") {
+                            ToolExecutionResult(report.toString())
+                        } else {
+                            ToolExecutionResult("Risk score: ${report.overallRiskScore}/100 | Vulnerabilities: ${report.vulnerabilities.size} | " +
+                                    "Dangerous permissions: ${report.permissions.dangerous.size}")
+                        }
+                    }
+                    "scan_all" -> {
+                        val packages = ctx.packageManager.getInstalledPackages(0).map { it.packageName }
+                        ToolExecutionResult("Found ${packages.size} installed packages. Use 'analyze' with a specific package_name for detailed analysis.")
+                    }
+                    else -> ToolExecutionResult("Unknown security_analyzer action '$action'.", isError = true)
+                }
+            }
+
+            // ── Intelligent Automation tool ──
+            "intelligent_automation" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                when (action) {
+                    "execute_workflow" -> {
+                        val wfId = arguments["workflow_id"] ?: return missingArg("workflow_id")
+                        val result = IntelligentAutomationEngine.executeWorkflow(wfId)
+                        val succeeded = result.status == IntelligentAutomationEngine.ExecutionStatus.COMPLETED
+                        ToolExecutionResult(if (succeeded) "Workflow '$wfId' completed." else "Workflow '$wfId' ended with status ${result.status}: ${result.error ?: ""}")
+                    }
+                    "list_workflows" -> {
+                        val stats = IntelligentAutomationEngine.getStatistics()
+                        ToolExecutionResult(stats.toString())
+                    }
+                    "get_statistics" -> ToolExecutionResult(IntelligentAutomationEngine.getStatistics().toString())
+                    "get_patterns" -> {
+                        val patterns = IntelligentAutomationEngine.getLearnedPatterns()
+                        ToolExecutionResult("Learned ${patterns.size} patterns.")
+                    }
+                    else -> ToolExecutionResult("Unknown intelligent_automation action '$action'.", isError = true)
+                }
+            }
+
+            // ── Voice Commands tool ──
+            "voice_commands" -> {
+                val ctx = context ?: return missingContext()
+                val action = arguments["action"] ?: return missingArg("action")
+                when (action) {
+                    "initialize" -> {
+                        val result = AdvancedVoiceCommandEngine.initialize(ctx)
+                        if (result.isSuccess) ToolExecutionResult(result.getOrDefault("Voice engine initialized."))
+                        else ToolExecutionResult("Init failed: ${result.exceptionOrNull()?.message}", isError = true)
+                    }
+                    "start_listening" -> {
+                        val continuous = arguments["continuous"]?.toBooleanStrictOrNull() ?: false
+                        val result = AdvancedVoiceCommandEngine.startListening(continuous)
+                        if (result.isSuccess) ToolExecutionResult(result.getOrDefault("Listening started."))
+                        else ToolExecutionResult("Failed: ${result.exceptionOrNull()?.message}", isError = true)
+                    }
+                    "stop_listening" -> {
+                        val result = AdvancedVoiceCommandEngine.stopListening()
+                        if (result.isSuccess) ToolExecutionResult(result.getOrDefault("Listening stopped."))
+                        else ToolExecutionResult("Failed: ${result.exceptionOrNull()?.message}", isError = true)
+                    }
+                    "speak" -> {
+                        val text = arguments["text"] ?: return missingArg("text")
+                        AdvancedVoiceCommandEngine.speak(text)
+                        ToolExecutionResult("Speaking: $text")
+                    }
+                    "get_stats" -> ToolExecutionResult(AdvancedVoiceCommandEngine.getStats().toString())
+                    "get_history" -> ToolExecutionResult(AdvancedVoiceCommandEngine.getHistory().joinToString("\n") { it.toString() })
+                    else -> ToolExecutionResult("Unknown voice_commands action '$action'.", isError = true)
+                }
+            }
+
+            // ── Tool Monitoring tool ──
+            "tool_monitoring" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                val limit = arguments["limit"]?.toIntOrNull() ?: 10
+                when (action) {
+                    "get_metrics" -> {
+                        val toolName = arguments["tool_name"] ?: return missingArg("tool_name")
+                        val metrics = ToolMonitoringSystem.getToolMetrics(toolName)
+                        ToolExecutionResult(metrics?.toString() ?: "No metrics for tool '$toolName'.")
+                    }
+                    "get_all_metrics" -> {
+                        val all = ToolMonitoringSystem.getAllMetrics()
+                        ToolExecutionResult("Tracking ${all.size} tools.")
+                    }
+                    "most_used" -> {
+                        val top = ToolMonitoringSystem.getMostUsedTools(limit)
+                        ToolExecutionResult(top.joinToString("\n") { (n, c) -> "$n: $c executions" })
+                    }
+                    "slowest" -> {
+                        val top = ToolMonitoringSystem.getSlowestTools(limit)
+                        ToolExecutionResult(top.joinToString("\n") { (n, t) -> "$n: ${"%.0f".format(t)}ms avg" })
+                    }
+                    "most_failed" -> {
+                        val top = ToolMonitoringSystem.getMostFailedTools(limit)
+                        ToolExecutionResult(top.joinToString("\n") { (n, c) -> "$n: $c failures" })
+                    }
+                    else -> ToolExecutionResult("Unknown tool_monitoring action '$action'.", isError = true)
                 }
             }
 
