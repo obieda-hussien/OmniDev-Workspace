@@ -98,6 +98,10 @@ data class AgentConfig(
      */
     val sessionDigestMaxChars: Int = 1_800,
     /**
+     * Maximum number of historical messages summarized into digest.
+     */
+    val sessionDigestMaxMessages: Int = 40,
+    /**
      * Per-tool execution timeout used by the tool orchestrator.
      */
     val toolExecutionTimeoutMs: Long = 30_000L,
@@ -653,12 +657,21 @@ Rules:
                 return@channelFlow
             }
 
+            val immediateWindow = config.recentMessagesWindow.coerceAtLeast(2)
             if (messages.size - lastDigestMessageCount >= config.sessionDigestUpdateEveryNMessages) {
-                sessionDigest = buildSessionDigest(messages, config.sessionDigestMaxChars)
+                val olderHistory = if (messages.size > immediateWindow) {
+                    messages.dropLast(immediateWindow)
+                } else {
+                    emptyList()
+                }
+                sessionDigest = buildSessionDigest(
+                    messages = olderHistory,
+                    maxChars = config.sessionDigestMaxChars,
+                    maxMessages = config.sessionDigestMaxMessages
+                )
                 lastDigestMessageCount = messages.size
             }
 
-            val immediateWindow = config.recentMessagesWindow.coerceAtLeast(2)
             val hierarchicalMessages = if (messages.size > immediateWindow) {
                 messages.takeLast(immediateWindow)
             } else {
@@ -1165,9 +1178,13 @@ Rules:
         return result
     }
 
-    private fun buildSessionDigest(messages: List<ChatMessage>, maxChars: Int): String {
+    private fun buildSessionDigest(
+        messages: List<ChatMessage>,
+        maxChars: Int,
+        maxMessages: Int
+    ): String {
         if (messages.isEmpty()) return ""
-        val bounded = messages.takeLast(40)
+        val bounded = messages.takeLast(maxMessages.coerceAtLeast(6))
 
         val userGoals = bounded
             .filter { it.role == MessageRole.USER }

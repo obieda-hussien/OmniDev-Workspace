@@ -27,6 +27,8 @@ class ToolIntelligenceEngine(
     companion object {
         private const val TAG = "ToolIntelligence"
         private const val PREFS_NAME = "tool_intelligence_engine"
+        // Versioned snapshot key. Future schema changes should write a new key (e.g. state_v2)
+        // and optionally attempt best-effort migration from older keys during restore().
         private const val PREFS_KEY_STATE = "state_v1"
         
         // Hyperparameters

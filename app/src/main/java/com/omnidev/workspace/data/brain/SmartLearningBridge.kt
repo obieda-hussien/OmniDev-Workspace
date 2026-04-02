@@ -12,6 +12,7 @@ import com.omnidev.workspace.data.tools.monitoring.ToolMonitoringSystem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
@@ -87,7 +88,13 @@ class SmartLearningBridge(
         persistenceJob = scope.launch(Dispatchers.IO) {
             while (isActive) {
                 kotlinx.coroutines.delay(PERSIST_INTERVAL_MS)
-                intelligenceEngine?.persist()
+                try {
+                    intelligenceEngine?.persist()
+                } catch (ce: CancellationException) {
+                    throw ce
+                } catch (e: Exception) {
+                    Log.w(TAG, "⚠️ periodic persist failed: ${e.message}")
+                }
             }
         }
     }
