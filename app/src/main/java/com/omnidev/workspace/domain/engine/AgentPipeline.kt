@@ -141,7 +141,16 @@ class AgentPipeline(
     private val streamingCompletionProvider: (suspend (CompletionRequest, suspend (String) -> Unit) -> CompletionResponse)? = null,
     private val config: AgentConfig = AgentConfig(),
     private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null,
-    private val memoryManager: com.omnidev.workspace.data.tools.MemoryManager? = null
+    private val memoryManager: com.omnidev.workspace.data.tools.MemoryManager? = null,
+    /**
+     * SmartLearningBridge — الجسر الذكي للتعلم والوعي
+     * عند توفيره يُعزّز الـ Agent بـ:
+     * - وعي كامل بالأدوات والبيئة
+     * - ذاكرة تنفيذ دائمة عبر الجلسات
+     * - حقن سياق ذكي في System Prompt
+     * - تعلم مستمر من كل عملية تنفيذ
+     */
+    private val smartLearningBridge: com.omnidev.workspace.data.brain.SmartLearningBridge? = null
 ) {
 
     companion object {
@@ -522,6 +531,22 @@ Rules:
                 appendLine()
                 append(knowledge)
             }
+            // ═══════════════════════════════════════════════════════════════
+            // 🧠 SMART LEARNING BRIDGE CONTEXT INJECTION
+            // يحقن وعي الأدوات + ذاكرة التنفيذ + أفضل الممارسات المكتسبة
+            // هذا ما يجعل الـ Agent يتصرف كـ Claude Code / GitHub Copilot Agent
+            // ═══════════════════════════════════════════════════════════════
+            smartLearningBridge?.let { bridge ->
+                kotlinx.coroutines.runBlocking {
+                    try {
+                        val brainContext = bridge.buildFullContextEnrichment()
+                        if (brainContext.isNotBlank()) {
+                            appendLine()
+                            append(brainContext)
+                        }
+                    } catch (_: Exception) { /* لا نوقف التنفيذ إذا فشل حقن السياق */ }
+                }
+            }
             // Tool routing directory — prevents hallucinated use of codebase tools for OS tasks
             append(TOOL_DIRECTORY.trimIndent())
             appendLine()
@@ -760,6 +785,8 @@ Rules:
                     arguments = toolCall.arguments,
                     iteration = iteration
                 ))
+                // سجّل وقت بداية التنفيذ لحساب الوقت الفعلي لاحقاً
+                smartLearningBridge?.onToolExecutionStart(toolCall.name)
             }
 
             // ── Execute tools: parallel when enabled and >1 call, sequential otherwise ──
@@ -806,6 +833,23 @@ Rules:
                     isError = result.isError,
                     iteration = iteration
                 ))
+
+                // ═══════════════════════════════════════════════════════════════
+                // 🧠 SMART LEARNING HOOK — يتعلم من كل عملية تنفيذ
+                // يُرسل نتيجة التنفيذ لـ SmartLearningBridge لتحديث:
+                // - ToolExecutionJournal (الذاكرة الدائمة)
+                // - ToolAwarenessEngine (الوعي بالأدوات)
+                // - ToolIntelligenceEngine (التعلم بالتعزيز)
+                // - ToolMachineLearningEngine (التنبؤ)
+                // ═══════════════════════════════════════════════════════════════
+                smartLearningBridge?.let { bridge ->
+                    bridge.onToolExecutionEnd(
+                        toolName = toolCall.name,
+                        parameters = toolCall.arguments,
+                        result = result,
+                        agentContext = userMessage.take(200)
+                    )
+                }
             }
 
             // Add tool results as a TOOL message for the next iteration

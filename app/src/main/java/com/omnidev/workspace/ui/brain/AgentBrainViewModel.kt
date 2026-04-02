@@ -1,0 +1,99 @@
+package com.omnidev.workspace.ui.brain
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.omnidev.workspace.data.brain.SmartLearningBridge
+import com.omnidev.workspace.data.brain.ToolExecutionJournal
+import com.omnidev.workspace.data.brain.ToolAwarenessEngine
+import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
+import com.omnidev.workspace.data.db.entities.SystemKnowledgeEntry
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+/**
+ * ViewModel لشاشة Agent Brain Dashboard
+ */
+class AgentBrainViewModel(
+    private val bridge: SmartLearningBridge,
+    private val journal: ToolExecutionJournal,
+    private val awarenessEngine: ToolAwarenessEngine
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow(AgentBrainUiState())
+    val uiState: StateFlow<AgentBrainUiState> = _uiState.asStateFlow()
+
+    init {
+        loadData()
+        observeRealtimeData()
+    }
+
+    private fun loadData() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            try {
+                val report = bridge.generatePerformanceReport()
+                val awarenessStats = awarenessEngine.getStats()
+
+                _uiState.update { state ->
+                    state.copy(
+                        isLoading = false,
+                        totalExecutions = report.totalToolExecutions,
+                        successRate = report.overallSuccessRate,
+                        bestTool = report.bestTool ?: "—",
+                        worstTool = report.worstTool ?: "—",
+                        mostUsedTool = report.mostUsedTool ?: "—",
+                        problematicTools = report.problematicTools,
+                        totalKnowledge = report.totalKnowledgeEntries,
+                        environmentStatus = report.environmentStatus,
+                        sessionToolCount = report.sessionToolCount,
+                        awarenessStats = awarenessStats
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoading = false, error = e.message) }
+            }
+        }
+    }
+
+    private fun observeRealtimeData() {
+        viewModelScope.launch {
+            journal.observeRecentExecutions().collect { entries ->
+                _uiState.update { state ->
+                    state.copy(recentExecutions = entries.take(20))
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            awarenessEngine.observeKnowledge().collect { entries ->
+                _uiState.update { state ->
+                    state.copy(recentKnowledge = entries.take(10))
+                }
+            }
+        }
+    }
+
+    fun refresh() = loadData()
+
+    fun clearError() = _uiState.update { it.copy(error = null) }
+}
+
+data class AgentBrainUiState(
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val totalExecutions: Int = 0,
+    val successRate: Float = 0f,
+    val bestTool: String = "—",
+    val worstTool: String = "—",
+    val mostUsedTool: String = "—",
+    val problematicTools: List<String> = emptyList(),
+    val totalKnowledge: Int = 0,
+    val environmentStatus: String = "",
+    val sessionToolCount: Int = 0,
+    val recentExecutions: List<ToolExecutionEntry> = emptyList(),
+    val recentKnowledge: List<SystemKnowledgeEntry> = emptyList(),
+    val awarenessStats: ToolAwarenessEngine.AwarenessStats? = null
+)

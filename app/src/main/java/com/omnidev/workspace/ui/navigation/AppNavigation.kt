@@ -5,11 +5,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.omnidev.workspace.OmniDevApp
 import com.omnidev.workspace.data.db.OmniDevDatabase
 import com.omnidev.workspace.data.repository.AnalyticsRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.ui.analytics.AnalyticsDashboardScreen
 import com.omnidev.workspace.ui.analytics.AnalyticsDashboardViewModel
+import com.omnidev.workspace.ui.brain.AgentBrainDashboard
+import com.omnidev.workspace.ui.brain.AgentBrainViewModel
 import com.omnidev.workspace.ui.chat.ChatScreen
 import com.omnidev.workspace.ui.chat.ChatViewModel
 import com.omnidev.workspace.ui.debug.DebugScreen
@@ -42,6 +45,7 @@ object Routes {
     const val TOOL_REGISTRY = "tool_registry"
     const val PROFILE = "profile"
     const val ANALYTICS = "analytics"
+    const val AGENT_BRAIN = "agent_brain"  // شاشة عقل الـ Agent الجديدة
 }
 
 /**
@@ -83,7 +87,8 @@ fun AppNavigation(
                 onNavigateToScheduledTasks = { navController.navigate(Routes.SCHEDULED_TASKS) },
                 onNavigateToToolRegistry = { navController.navigate(Routes.TOOL_REGISTRY) },
                 onNavigateToProfile = { navController.navigate(Routes.PROFILE) },
-                onNavigateToAnalytics = { navController.navigate(Routes.ANALYTICS) }
+                onNavigateToAnalytics = { navController.navigate(Routes.ANALYTICS) },
+                onNavigateToAgentBrain = { navController.navigate(Routes.AGENT_BRAIN) }
             )
         }
 
@@ -151,6 +156,22 @@ fun AppNavigation(
             )
             AnalyticsDashboardScreen(
                 viewModel = analyticsViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 🧠 Agent Brain Dashboard — لوحة تحكم عقل الـ Agent
+        // ═══════════════════════════════════════════════════════════════
+        composable(Routes.AGENT_BRAIN) {
+            val app = OmniDevApp.instance
+            val agentBrainViewModel = AgentBrainViewModel(
+                bridge = app.smartLearningBridge,
+                journal = app.toolExecutionJournal,
+                awarenessEngine = app.toolAwarenessEngine
+            )
+            AgentBrainDashboard(
+                viewModel = agentBrainViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

@@ -1,7 +1,7 @@
 # 🧠 OmniDev Workspace — خريطة ذهنية شاملة (Mental Map)
 
 > **الغرض:** قراءة واحدة توفر **100% من السياق** — بدون الحاجة لقراءة الملفات التفصيلية كل مرة.  
-> **آخر تحديث:** 2026-04-01  
+> **آخر تحديث:** 2026-04-02  
 > **الهدف:** توفير ألف tokens وإعطاء أي AI Agent صورة فورية شاملة
 
 ---
@@ -10,16 +10,68 @@
 
 | المقياس | القيمة |
 |---------|--------|
-| **إجمالي ملفات Kotlin** | 151 ملف |
-| **إجمالي أسطر الكود** | ~56,743 سطر |
+| **إجمالي ملفات Kotlin** | 163 ملف |
+| **إجمالي أسطر الكود** | ~60,000+ سطر |
 | **أدوات (Tools)** | 57 أداة |
-| **حجم أدوات Tools** | 27,488 سطر |
 | **خدمات (Services)** | 12 خدمة |
 | **واجهات AIDL** | 5 واجهات |
+| **إصدار قاعدة البيانات** | v7 (تمت إضافة Agent Brain) |
 | **الحد الأدنى SDK** | 24 |
 | **الحد الأقصى SDK** | 35 |
 | **اللغة** | Kotlin 2.0 |
 | **الواجهة** | Jetpack Compose + Material 3 |
+
+---
+
+## 🆕 نظام Agent Brain الجديد (إضافة 2026-04-02)
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║              🧠 AGENT BRAIN SYSTEM (NEW)                        ║
+║         يجعل الـ Agent مثل Claude Code / GitHub Copilot Agent   ║
+╚══════════════════════════════════════════════════════════════════╝
+
+data/brain/
+├── SmartLearningBridge.kt      ← الجسر الذكي المنسق (القلب الجديد)
+├── ToolExecutionJournal.kt     ← مجلة التنفيذ الدائمة (الذاكرة الكاملة)
+└── ToolAwarenessEngine.kt      ← محرك الوعي بالأدوات والبيئة
+
+data/db/
+├── entities/
+│   ├── ToolExecutionEntry.kt   ← كيان سجل التنفيذ
+│   └── SystemKnowledgeEntry.kt ← كيان قاعدة معرفة النظام
+└── dao/
+    ├── ToolExecutionDao.kt     ← DAO للوصول لسجل التنفيذ
+    └── SystemKnowledgeDao.kt   ← DAO لقاعدة معرفة النظام
+
+ui/brain/
+├── AgentBrainDashboard.kt      ← واجهة Compose لعرض حالة الذكاء
+└── AgentBrainViewModel.kt      ← ViewModel للوحة تحكم Brain
+```
+
+### كيف يعمل:
+```
+كل تنفيذ أداة ↓
+SmartLearningBridge.onToolExecutionEnd()
+    ├── ToolExecutionJournal  → حفظ دائم في SQLite
+    ├── ToolAwarenessEngine   → تعلم من الخطأ/النجاح
+    ├── ToolIntelligenceEngine → تحديث Q-Learning
+    ├── ToolMachineLearningEngine → تحديث النماذج
+    └── ToolMonitoringSystem  → مراقبة الأداء
+
+في كل System Prompt ↓
+SmartLearningBridge.buildFullContextEnrichment()
+    ├── وعي البيئة (Termux, Shizuku, Git, Python, etc.)
+    ├── ذاكرة التنفيذ (إحصائيات، أخطاء، أنماط)
+    ├── أفضل الممارسات المكتسبة
+    └── توصيات الأداة التالية
+```
+
+### قاعدة البيانات (v7):
+```sql
+tool_execution_log:    سجل كل تنفيذ أداة بتفاصيله الكاملة
+system_knowledge:      قاعدة معرفة بيئة النظام والأدوات
+```
 
 ---
 

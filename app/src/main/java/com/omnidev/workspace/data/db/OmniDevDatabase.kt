@@ -9,14 +9,20 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.omnidev.workspace.data.db.dao.ChatMessageDao
 import com.omnidev.workspace.data.db.dao.ChatSessionDao
 import com.omnidev.workspace.data.db.dao.KnowledgeDao
+import com.omnidev.workspace.data.db.dao.SystemKnowledgeDao
+import com.omnidev.workspace.data.db.dao.ToolExecutionDao
 import com.omnidev.workspace.data.db.entities.ChatMessageEntity
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
 import com.omnidev.workspace.data.db.entities.KnowledgeSnippet
+import com.omnidev.workspace.data.db.entities.SystemKnowledgeEntry
+import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
 
 /**
  * Single Room database instance for all persisted OmniDev data:
  * - Knowledge snippets (long-term memory)
  * - Chat sessions and their message history
+ * - Tool execution log (agent brain memory — ADDED v7)
+ * - System knowledge base (environment awareness — ADDED v7)
  *
  * Version history:
  *  1 → initial schema
@@ -25,10 +31,17 @@ import com.omnidev.workspace.data.db.entities.KnowledgeSnippet
  *  4 → added `discordChannelId` column to `chat_sessions`
  *  5 → added `whatsappJid` column to `chat_sessions`
  *  6 → added `consoleEntriesJson` column to `chat_messages`
+ *  7 → added `tool_execution_log` and `system_knowledge` tables (Agent Brain)
  */
 @Database(
-    entities = [KnowledgeSnippet::class, ChatSessionEntity::class, ChatMessageEntity::class],
-    version = 6,
+    entities = [
+        KnowledgeSnippet::class,
+        ChatSessionEntity::class,
+        ChatMessageEntity::class,
+        ToolExecutionEntry::class,
+        SystemKnowledgeEntry::class
+    ],
+    version = 7,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -36,6 +49,8 @@ abstract class OmniDevDatabase : RoomDatabase() {
     abstract fun knowledgeDao(): KnowledgeDao
     abstract fun chatSessionDao(): ChatSessionDao
     abstract fun chatMessageDao(): ChatMessageDao
+    abstract fun toolExecutionDao(): ToolExecutionDao
+    abstract fun systemKnowledgeDao(): SystemKnowledgeDao
 
     companion object {
         @Volatile private var INSTANCE: OmniDevDatabase? = null
@@ -78,6 +93,67 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from v6 → v7:
+         * - Adds `tool_execution_log` table for permanent agent memory
+         * - Adds `system_knowledge` table for environment & tool awareness
+         */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // جدول سجل تنفيذ الأدوات
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS tool_execution_log (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        toolName TEXT NOT NULL,
+                        parametersJson TEXT NOT NULL DEFAULT '{}',
+                        resultSummary TEXT NOT NULL DEFAULT '',
+                        success INTEGER NOT NULL,
+                        executionTimeMs INTEGER NOT NULL,
+                        resultSize INTEGER NOT NULL DEFAULT 0,
+                        agentContext TEXT NOT NULL DEFAULT '',
+                        previousToolName TEXT NOT NULL DEFAULT '',
+                        sessionId TEXT NOT NULL DEFAULT '',
+                        agentMode TEXT NOT NULL DEFAULT '',
+                        errorMessage TEXT NOT NULL DEFAULT '',
+                        resultQuality REAL NOT NULL DEFAULT 0.5,
+                        hourOfDay INTEGER NOT NULL DEFAULT 0,
+                        dayOfWeek INTEGER NOT NULL DEFAULT 1,
+                        learningNote TEXT NOT NULL DEFAULT '',
+                        flaggedForReview INTEGER NOT NULL DEFAULT 0,
+                        timestamp INTEGER NOT NULL
+                    )
+                """.trimIndent())
+
+                // فهرس لتسريع البحث بالأداة والجلسة
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_tool ON tool_execution_log(toolName)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_session ON tool_execution_log(sessionId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_time ON tool_execution_log(timestamp)")
+
+                // جدول قاعدة المعرفة بالنظام
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS system_knowledge (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        knowledgeType TEXT NOT NULL,
+                        subject TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        confidence REAL NOT NULL DEFAULT 1.0,
+                        verificationCount INTEGER NOT NULL DEFAULT 1,
+                        isValid INTEGER NOT NULL DEFAULT 1,
+                        source TEXT NOT NULL DEFAULT 'agent_discovery',
+                        searchTags TEXT NOT NULL DEFAULT '',
+                        injectionPriority INTEGER NOT NULL DEFAULT 5,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                """.trimIndent())
+
+                // فهرس لتسريع البحث
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_sys_knowledge_type ON system_knowledge(knowledgeType)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_sys_knowledge_subject ON system_knowledge(subject)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_sys_knowledge_priority ON system_knowledge(injectionPriority)")
+            }
+        }
+
         fun getInstance(context: Context): OmniDevDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -85,7 +161,14 @@ abstract class OmniDevDatabase : RoomDatabase() {
                     OmniDevDatabase::class.java,
                     "omnidev_workspace.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                    .addMigrations(
+                        MIGRATION_1_2,
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5,
+                        MIGRATION_5_6,
+                        MIGRATION_6_7
+                    )
                     .build().also { INSTANCE = it }
             }
     }
