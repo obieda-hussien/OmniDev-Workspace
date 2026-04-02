@@ -141,7 +141,16 @@ class AgentPipeline(
     private val streamingCompletionProvider: (suspend (CompletionRequest, suspend (String) -> Unit) -> CompletionResponse)? = null,
     private val config: AgentConfig = AgentConfig(),
     private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null,
-    private val memoryManager: com.omnidev.workspace.data.tools.MemoryManager? = null
+    private val memoryManager: com.omnidev.workspace.data.tools.MemoryManager? = null,
+    /**
+     * SmartLearningBridge — الجسر الذكي للتعلم والوعي
+     * عند توفيره يُعزّز الـ Agent بـ:
+     * - وعي كامل بالأدوات والبيئة
+     * - ذاكرة تنفيذ دائمة عبر الجلسات
+     * - حقن سياق ذكي في System Prompt
+     * - تعلم مستمر من كل عملية تنفيذ
+     */
+    private val smartLearningBridge: com.omnidev.workspace.data.brain.SmartLearningBridge? = null
 ) {
 
     companion object {
@@ -484,6 +493,8 @@ Rules:
 
         // Build the complete system prompt with tool definitions
         val toolDefs = toolManager.getToolDefinitions()
+        // Register tool definitions with the brain so it is aware of all available capabilities
+        smartLearningBridge?.registerTools(toolDefs)
         val toolSchemaText = toolDefs.joinToString("\n\n") { tool ->
             buildString {
                 appendLine("### Tool: ${tool.name}")
@@ -495,6 +506,11 @@ Rules:
                 }
             }
         }
+
+        // Compute brain context enrichment outside buildString (it's a suspend call)
+        val brainContext = try {
+            smartLearningBridge?.buildFullContextEnrichment() ?: ""
+        } catch (_: Exception) { "" }
 
         val systemPrompt = buildString {
             append(effectiveBasePrompt)
@@ -521,6 +537,15 @@ Rules:
             memoryManager?.buildKnowledgeContext()?.let { knowledge ->
                 appendLine()
                 append(knowledge)
+            }
+            // ═══════════════════════════════════════════════════════════════
+            // 🧠 SMART LEARNING BRIDGE CONTEXT INJECTION
+            // يحقن وعي الأدوات + ذاكرة التنفيذ + أفضل الممارسات المكتسبة
+            // هذا ما يجعل الـ Agent يتصرف كـ Claude Code / GitHub Copilot Agent
+            // ═══════════════════════════════════════════════════════════════
+            if (brainContext.isNotBlank()) {
+                appendLine()
+                append(brainContext)
             }
             // Tool routing directory — prevents hallucinated use of codebase tools for OS tasks
             append(TOOL_DIRECTORY.trimIndent())
@@ -760,6 +785,8 @@ Rules:
                     arguments = toolCall.arguments,
                     iteration = iteration
                 ))
+                // سجّل وقت بداية التنفيذ بمعرف فريد لكل استدعاء (لدعم التوازي)
+                smartLearningBridge?.onToolExecutionStart(toolCall.name, callId = toolCall.id)
             }
 
             // ── Execute tools: parallel when enabled and >1 call, sequential otherwise ──
@@ -806,6 +833,31 @@ Rules:
                     isError = result.isError,
                     iteration = iteration
                 ))
+
+                // ═══════════════════════════════════════════════════════════════
+                // 🧠 SMART LEARNING HOOK — يتعلم من كل عملية تنفيذ
+                // يُرسل نتيجة التنفيذ لـ SmartLearningBridge لتحديث:
+                // - ToolExecutionJournal (الذاكرة الدائمة)
+                // - ToolAwarenessEngine (الوعي بالأدوات)
+                // - ToolIntelligenceEngine (التعلم بالتعزيز)
+                // - ToolMachineLearningEngine (التنبؤ)
+                // ═══════════════════════════════════════════════════════════════
+                smartLearningBridge?.let { bridge ->
+                    val redactedContext = userMessage.take(200)
+                        // Redact key=value / key: value style (headers, assignments)
+                        .replace(Regex("(?i)(key|token|secret|password|otp|bearer)[=:\\s]+\\S+"), "$1=[REDACTED]")
+                        // Redact JSON string values for sensitive keys
+                        .replace(Regex("(?i)\"(api_?key|token|secret|password|otp)\"\\s*:\\s*\"[^\"]+\""), "\"$1\":\"[REDACTED]\"")
+                        // Redact URL query params
+                        .replace(Regex("(?i)(key|token|secret|password|otp)=([^&\\s\"]+)"), "$1=[REDACTED]")
+                    bridge.onToolExecutionEnd(
+                        toolName = toolCall.name,
+                        parameters = toolCall.arguments,
+                        result = result,
+                        agentContext = redactedContext,
+                        callId = toolCall.id
+                    )
+                }
             }
 
             // Add tool results as a TOOL message for the next iteration

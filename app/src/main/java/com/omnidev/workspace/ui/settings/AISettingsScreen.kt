@@ -108,7 +108,8 @@ fun AISettingsScreen(
     onNavigateToScheduledTasks: () -> Unit = {},
     onNavigateToToolRegistry: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
-    onNavigateToAnalytics: () -> Unit = {}
+    onNavigateToAnalytics: () -> Unit = {},
+    onNavigateToAgentBrain: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -301,6 +302,15 @@ fun AISettingsScreen(
                 title = "📊 Analytics Dashboard",
                 subtitle = "View token usage, cost breakdown, tool statistics, and agent run history",
                 onClick = onNavigateToAnalytics
+            )
+
+            // ═══════════════════════════════════════════════════════════════
+            // 🧠 Agent Brain Dashboard — نظام الذاكرة والوعي الذكي
+            // ═══════════════════════════════════════════════════════════════
+            SettingsNavCard(
+                title = "🧠 Agent Brain",
+                subtitle = "نظام الذاكرة والوعي بالأدوات — سجل التنفيذ، الأنماط المكتسبة، وحالة التعلم",
+                onClick = onNavigateToAgentBrain
             )
 
             Spacer(modifier = Modifier.height(24.dp))
