@@ -1,7 +1,6 @@
 package com.omnidev.workspace.data.db
 
 import android.content.Context
-import android.database.DatabaseUtils
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -190,10 +189,8 @@ abstract class OmniDevDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
 
-                val oldTableExists = DatabaseUtils.longForQuery(
-                    db,
-                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='tool_execution_log'",
-                    null
+                val oldTableExists = db.scalarLong(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='tool_execution_log'"
                 ) > 0
 
                 if (oldTableExists) {
@@ -243,16 +240,8 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         """.trimIndent()
                     )
 
-                    val sourceCount = DatabaseUtils.longForQuery(
-                        db,
-                        "SELECT COUNT(*) FROM tool_execution_log",
-                        null
-                    )
-                    val targetCount = DatabaseUtils.longForQuery(
-                        db,
-                        "SELECT COUNT(*) FROM tool_execution_log_new",
-                        null
-                    )
+                    val sourceCount = db.scalarLong("SELECT COUNT(*) FROM tool_execution_log")
+                    val targetCount = db.scalarLong("SELECT COUNT(*) FROM tool_execution_log_new")
                     check(targetCount == sourceCount) {
                         "tool_execution_log migration row count mismatch: source=$sourceCount target=$targetCount"
                     }
@@ -267,6 +256,11 @@ abstract class OmniDevDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_time ON tool_execution_log(timestamp)")
             }
         }
+
+        private fun SupportSQLiteDatabase.scalarLong(sql: String): Long =
+            query(sql).use { cursor ->
+                if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+            }
 
         fun getInstance(context: Context): OmniDevDatabase =
             INSTANCE ?: synchronized(this) {
