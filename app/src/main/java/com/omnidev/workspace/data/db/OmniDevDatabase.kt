@@ -32,6 +32,7 @@ import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
  *  5 → added `whatsappJid` column to `chat_sessions`
  *  6 → added `consoleEntriesJson` column to `chat_messages`
  *  7 → added `tool_execution_log` and `system_knowledge` tables (Agent Brain)
+ *  8 → normalize `tool_execution_log` schema to match Room entity metadata
  */
 @Database(
     entities = [
@@ -41,7 +42,7 @@ import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
         ToolExecutionEntry::class,
         SystemKnowledgeEntry::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -154,6 +155,64 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from v7 → v8:
+         * Rebuilds `tool_execution_log` to a canonical schema so databases created from older
+         * entity metadata (without defaults/indices) and migrated databases are both valid.
+         */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS index_tool_log_tool")
+                db.execSQL("DROP INDEX IF EXISTS index_tool_log_session")
+                db.execSQL("DROP INDEX IF EXISTS index_tool_log_time")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS tool_execution_log_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        toolName TEXT NOT NULL,
+                        parametersJson TEXT NOT NULL DEFAULT '{}',
+                        resultSummary TEXT NOT NULL DEFAULT '',
+                        success INTEGER NOT NULL,
+                        executionTimeMs INTEGER NOT NULL,
+                        resultSize INTEGER NOT NULL DEFAULT 0,
+                        agentContext TEXT NOT NULL DEFAULT '',
+                        previousToolName TEXT NOT NULL DEFAULT '',
+                        sessionId TEXT NOT NULL DEFAULT '',
+                        agentMode TEXT NOT NULL DEFAULT '',
+                        errorMessage TEXT NOT NULL DEFAULT '',
+                        resultQuality REAL NOT NULL DEFAULT 0.5,
+                        hourOfDay INTEGER NOT NULL DEFAULT 0,
+                        dayOfWeek INTEGER NOT NULL DEFAULT 1,
+                        learningNote TEXT NOT NULL DEFAULT '',
+                        flaggedForReview INTEGER NOT NULL DEFAULT 0,
+                        timestamp INTEGER NOT NULL
+                    )
+                """.trimIndent())
+
+                db.execSQL("""
+                    INSERT INTO tool_execution_log_new (
+                        id, toolName, parametersJson, resultSummary, success, executionTimeMs,
+                        resultSize, agentContext, previousToolName, sessionId, agentMode,
+                        errorMessage, resultQuality, hourOfDay, dayOfWeek, learningNote,
+                        flaggedForReview, timestamp
+                    )
+                    SELECT
+                        id, toolName, parametersJson, resultSummary, success, executionTimeMs,
+                        resultSize, agentContext, previousToolName, sessionId, agentMode,
+                        errorMessage, resultQuality, hourOfDay, dayOfWeek, learningNote,
+                        flaggedForReview, timestamp
+                    FROM tool_execution_log
+                """.trimIndent())
+
+                db.execSQL("DROP TABLE tool_execution_log")
+                db.execSQL("ALTER TABLE tool_execution_log_new RENAME TO tool_execution_log")
+
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_tool ON tool_execution_log(toolName)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_session ON tool_execution_log(sessionId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_time ON tool_execution_log(timestamp)")
+            }
+        }
+
         fun getInstance(context: Context): OmniDevDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -167,7 +226,8 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         MIGRATION_3_4,
                         MIGRATION_4_5,
                         MIGRATION_5_6,
-                        MIGRATION_6_7
+                        MIGRATION_6_7,
+                        MIGRATION_7_8
                     )
                     .build().also { INSTANCE = it }
             }
