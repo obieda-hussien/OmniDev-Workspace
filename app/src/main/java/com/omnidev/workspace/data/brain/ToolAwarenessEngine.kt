@@ -99,7 +99,7 @@ class ToolAwarenessEngine(
             appendLine("CPU ABI: ${Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"}")
         }
 
-        saveKnowledge(
+        saveOrUpdateKnowledge(
             type = TYPE_SYSTEM_INFO,
             subject = "device_info",
             content = deviceInfo,
@@ -110,19 +110,19 @@ class ToolAwarenessEngine(
         // حالة Android API
         val apiLevel = Build.VERSION.SDK_INT
         when {
-            apiLevel >= 33 -> saveKnowledge(
-                TYPE_SYSTEM_INFO, "android_api",
-                "Android 13+ (API $apiLevel): كامل القدرات. MediaStore محدود، Scoped Storage إلزامي.",
+            apiLevel >= 33 -> saveOrUpdateKnowledge(
+                type = TYPE_SYSTEM_INFO, subject = "android_api",
+                content = "Android 13+ (API $apiLevel): كامل القدرات. MediaStore محدود، Scoped Storage إلزامي.",
                 priority = 2
             )
-            apiLevel >= 30 -> saveKnowledge(
-                TYPE_SYSTEM_INFO, "android_api",
-                "Android 11+ (API $apiLevel): Scoped Storage. بعض عمليات الملفات تحتاج MANAGE_EXTERNAL_STORAGE.",
+            apiLevel >= 30 -> saveOrUpdateKnowledge(
+                type = TYPE_SYSTEM_INFO, subject = "android_api",
+                content = "Android 11+ (API $apiLevel): Scoped Storage. بعض عمليات الملفات تحتاج MANAGE_EXTERNAL_STORAGE.",
                 priority = 2
             )
-            apiLevel >= 26 -> saveKnowledge(
-                TYPE_SYSTEM_INFO, "android_api",
-                "Android 8+ (API $apiLevel): JobScheduler متاح. Background Limits مُطبَّقة.",
+            apiLevel >= 26 -> saveOrUpdateKnowledge(
+                type = TYPE_SYSTEM_INFO, subject = "android_api",
+                content = "Android 8+ (API $apiLevel): JobScheduler متاح. Background Limits مُطبَّقة.",
                 priority = 3
             )
         }
@@ -264,7 +264,7 @@ class ToolAwarenessEngine(
         val practices = listOf(
             Triple(
                 "file_operations",
-                "عند قراءة الملفات: استخدم read_file للملفات الصغيرة. للملفات الكبيرة (+1MB) استخدم search_files أو grep_search أولاً لتحديد المقطع المطلوب.",
+                "عند قراءة الملفات: استخدم read_file_lines للملفات الصغيرة. للملفات الكبيرة (+1MB) استخدم find_files أو grep_search أولاً لتحديد المقطع المطلوب.",
                 "file,read,performance"
             ),
             Triple(
@@ -300,7 +300,7 @@ class ToolAwarenessEngine(
         )
 
         practices.forEach { (subject, content, tags) ->
-            saveKnowledge(
+            saveOrUpdateKnowledge(
                 type = TYPE_BEST_PRACTICE,
                 subject = subject,
                 content = content,
@@ -512,7 +512,8 @@ class ToolAwarenessEngine(
         content: String,
         confidence: Float = 1.0f,
         priority: Int = 5,
-        tags: String = ""
+        tags: String = "",
+        source: String = "auto_discovery"
     ) {
         val existing = systemKnowledgeDao.getBySubject(subject).firstOrNull { it.knowledgeType == type }
         if (existing != null) {
@@ -525,7 +526,7 @@ class ToolAwarenessEngine(
                 )
             )
         } else {
-            saveKnowledge(type, subject, content, confidence, priority, tags)
+            saveKnowledge(type, subject, content, confidence, priority, tags, source)
         }
     }
 

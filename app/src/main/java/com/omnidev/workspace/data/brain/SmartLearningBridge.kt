@@ -78,10 +78,20 @@ class SmartLearningBridge(
     }
 
     /**
-     * تسجيل بداية تنفيذ أداة
+     * تسجيل تعريفات الأدوات المتاحة في محرك الوعي
+     * يُستدعى من AgentPipeline لتسجيل قدرات الأدوات فور توفرها
      */
-    fun onToolExecutionStart(toolName: String) {
-        toolExecutionStartTimes[toolName] = System.currentTimeMillis()
+    suspend fun registerTools(tools: List<ToolDefinition>) = withContext(Dispatchers.IO) {
+        awarenessEngine.initialize(tools)
+    }
+
+    /**
+     * تسجيل بداية تنفيذ أداة
+     * @param toolName اسم الأداة
+     * @param callId معرف فريد لهذا الاستدعاء المحدد (يتيح تتبع نفس الأداة بالتوازي)
+     */
+    fun onToolExecutionStart(toolName: String, callId: String = toolName) {
+        toolExecutionStartTimes[callId] = System.currentTimeMillis()
     }
 
     /**
@@ -89,14 +99,16 @@ class SmartLearningBridge(
      * onToolExecutionEnd — قلب نظام التعلم
      * ══════════════════════════════════════════════════════
      * يُستدعى بعد كل تنفيذ أداة ليوزع التعلم على كل المحركات
+     * @param callId معرف فريد مطابق لما مُرّر إلى onToolExecutionStart
      */
     suspend fun onToolExecutionEnd(
         toolName: String,
         parameters: Map<String, Any?>,
         result: ToolExecutionResult,
-        agentContext: String = ""
+        agentContext: String = "",
+        callId: String = toolName
     ) = withContext(Dispatchers.Default) {
-        val startTime = toolExecutionStartTimes.remove(toolName) ?: System.currentTimeMillis()
+        val startTime = toolExecutionStartTimes.remove(callId) ?: System.currentTimeMillis()
         val executionTimeMs = System.currentTimeMillis() - startTime
 
         // ─── 1. تسجيل في المجلة الدائمة ─────────────────────────────

@@ -165,10 +165,12 @@ fun AppNavigation(
         // ═══════════════════════════════════════════════════════════════
         composable(Routes.AGENT_BRAIN) {
             val app = OmniDevApp.instance
-            val agentBrainViewModel = AgentBrainViewModel(
-                bridge = app.smartLearningBridge,
-                journal = app.toolExecutionJournal,
-                awarenessEngine = app.toolAwarenessEngine
+            val agentBrainViewModel: AgentBrainViewModel = viewModel(
+                factory = AgentBrainViewModel.factory(
+                    bridge = app.smartLearningBridge,
+                    journal = app.toolExecutionJournal,
+                    awarenessEngine = app.toolAwarenessEngine
+                )
             )
             AgentBrainDashboard(
                 viewModel = agentBrainViewModel,

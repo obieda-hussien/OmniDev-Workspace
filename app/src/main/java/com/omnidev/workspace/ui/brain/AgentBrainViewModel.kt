@@ -1,6 +1,7 @@
 package com.omnidev.workspace.ui.brain
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.omnidev.workspace.data.brain.SmartLearningBridge
 import com.omnidev.workspace.data.brain.ToolExecutionJournal
@@ -79,6 +80,18 @@ class AgentBrainViewModel(
     fun refresh() = loadData()
 
     fun clearError() = _uiState.update { it.copy(error = null) }
+
+    companion object {
+        fun factory(
+            bridge: SmartLearningBridge,
+            journal: ToolExecutionJournal,
+            awarenessEngine: ToolAwarenessEngine
+        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                AgentBrainViewModel(bridge, journal, awarenessEngine) as T
+        }
+    }
 }
 
 data class AgentBrainUiState(

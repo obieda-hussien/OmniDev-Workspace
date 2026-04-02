@@ -493,6 +493,8 @@ Rules:
 
         // Build the complete system prompt with tool definitions
         val toolDefs = toolManager.getToolDefinitions()
+        // Register tool definitions with the brain so it is aware of all available capabilities
+        smartLearningBridge?.registerTools(toolDefs)
         val toolSchemaText = toolDefs.joinToString("\n\n") { tool ->
             buildString {
                 appendLine("### Tool: ${tool.name}")
@@ -504,6 +506,11 @@ Rules:
                 }
             }
         }
+
+        // Compute brain context enrichment outside buildString (it's a suspend call)
+        val brainContext = try {
+            smartLearningBridge?.buildFullContextEnrichment() ?: ""
+        } catch (_: Exception) { "" }
 
         val systemPrompt = buildString {
             append(effectiveBasePrompt)
@@ -536,16 +543,9 @@ Rules:
             // يحقن وعي الأدوات + ذاكرة التنفيذ + أفضل الممارسات المكتسبة
             // هذا ما يجعل الـ Agent يتصرف كـ Claude Code / GitHub Copilot Agent
             // ═══════════════════════════════════════════════════════════════
-            smartLearningBridge?.let { bridge ->
-                kotlinx.coroutines.runBlocking {
-                    try {
-                        val brainContext = bridge.buildFullContextEnrichment()
-                        if (brainContext.isNotBlank()) {
-                            appendLine()
-                            append(brainContext)
-                        }
-                    } catch (_: Exception) { /* لا نوقف التنفيذ إذا فشل حقن السياق */ }
-                }
+            if (brainContext.isNotBlank()) {
+                appendLine()
+                append(brainContext)
             }
             // Tool routing directory — prevents hallucinated use of codebase tools for OS tasks
             append(TOOL_DIRECTORY.trimIndent())
@@ -785,8 +785,8 @@ Rules:
                     arguments = toolCall.arguments,
                     iteration = iteration
                 ))
-                // سجّل وقت بداية التنفيذ لحساب الوقت الفعلي لاحقاً
-                smartLearningBridge?.onToolExecutionStart(toolCall.name)
+                // سجّل وقت بداية التنفيذ بمعرف فريد لكل استدعاء (لدعم التوازي)
+                smartLearningBridge?.onToolExecutionStart(toolCall.name, callId = toolCall.id)
             }
 
             // ── Execute tools: parallel when enabled and >1 call, sequential otherwise ──
@@ -843,11 +843,19 @@ Rules:
                 // - ToolMachineLearningEngine (التنبؤ)
                 // ═══════════════════════════════════════════════════════════════
                 smartLearningBridge?.let { bridge ->
+                    val redactedContext = userMessage.take(200)
+                        // Redact key=value / key: value style (headers, assignments)
+                        .replace(Regex("(?i)(key|token|secret|password|otp|bearer)[=:\\s]+\\S+"), "$1=[REDACTED]")
+                        // Redact JSON string values for sensitive keys
+                        .replace(Regex("(?i)\"(api_?key|token|secret|password|otp)\"\\s*:\\s*\"[^\"]+\""), "\"$1\":\"[REDACTED]\"")
+                        // Redact URL query params
+                        .replace(Regex("(?i)(key|token|secret|password|otp)=([^&\\s\"]+)"), "$1=[REDACTED]")
                     bridge.onToolExecutionEnd(
                         toolName = toolCall.name,
                         parameters = toolCall.arguments,
                         result = result,
-                        agentContext = userMessage.take(200)
+                        agentContext = redactedContext,
+                        callId = toolCall.id
                     )
                 }
             }
