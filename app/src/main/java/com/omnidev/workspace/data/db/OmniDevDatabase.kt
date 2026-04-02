@@ -1,6 +1,7 @@
 package com.omnidev.workspace.data.db
 
 import android.content.Context
+import android.database.DatabaseUtils
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -189,22 +190,76 @@ abstract class OmniDevDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
 
-                db.execSQL("""
-                    INSERT INTO tool_execution_log_new (
-                        id, toolName, parametersJson, resultSummary, success, executionTimeMs,
-                        resultSize, agentContext, previousToolName, sessionId, agentMode,
-                        errorMessage, resultQuality, hourOfDay, dayOfWeek, learningNote,
-                        flaggedForReview, timestamp
-                    )
-                    SELECT
-                        id, toolName, parametersJson, resultSummary, success, executionTimeMs,
-                        resultSize, agentContext, previousToolName, sessionId, agentMode,
-                        errorMessage, resultQuality, hourOfDay, dayOfWeek, learningNote,
-                        flaggedForReview, timestamp
-                    FROM tool_execution_log
-                """.trimIndent())
+                val oldTableExists = DatabaseUtils.longForQuery(
+                    db,
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='tool_execution_log'",
+                    null
+                ) > 0
 
-                db.execSQL("DROP TABLE tool_execution_log")
+                if (oldTableExists) {
+                    val existingColumns = mutableSetOf<String>()
+                    db.query("PRAGMA table_info(tool_execution_log)").use { cursor ->
+                        val nameIndex = cursor.getColumnIndex("name")
+                        while (cursor.moveToNext()) {
+                            existingColumns += cursor.getString(nameIndex)
+                        }
+                    }
+
+                    val insertColumns = mutableListOf<String>()
+                    val selectExpressions = mutableListOf<String>()
+
+                    fun addColumn(column: String, fallback: String) {
+                        insertColumns += column
+                        selectExpressions += if (existingColumns.contains(column)) column else fallback
+                    }
+
+                    if (existingColumns.contains("id")) {
+                        insertColumns += "id"
+                        selectExpressions += "id"
+                    }
+                    addColumn("toolName", "''")
+                    addColumn("parametersJson", "'{}'")
+                    addColumn("resultSummary", "''")
+                    addColumn("success", "0")
+                    addColumn("executionTimeMs", "0")
+                    addColumn("resultSize", "0")
+                    addColumn("agentContext", "''")
+                    addColumn("previousToolName", "''")
+                    addColumn("sessionId", "''")
+                    addColumn("agentMode", "''")
+                    addColumn("errorMessage", "''")
+                    addColumn("resultQuality", "0.5")
+                    addColumn("hourOfDay", "0")
+                    addColumn("dayOfWeek", "1")
+                    addColumn("learningNote", "''")
+                    addColumn("flaggedForReview", "0")
+                    addColumn("timestamp", "0")
+
+                    db.execSQL(
+                        """
+                        INSERT INTO tool_execution_log_new (${insertColumns.joinToString(", ")})
+                        SELECT ${selectExpressions.joinToString(", ")}
+                        FROM tool_execution_log
+                        """.trimIndent()
+                    )
+
+                    val sourceCount = DatabaseUtils.longForQuery(
+                        db,
+                        "SELECT COUNT(*) FROM tool_execution_log",
+                        null
+                    )
+                    val targetCount = DatabaseUtils.longForQuery(
+                        db,
+                        "SELECT COUNT(*) FROM tool_execution_log_new",
+                        null
+                    )
+                    check(targetCount == sourceCount) {
+                        "tool_execution_log migration row count mismatch: source=$sourceCount target=$targetCount"
+                    }
+
+                    db.execSQL("DROP TABLE tool_execution_log")
+                }
+
                 db.execSQL("ALTER TABLE tool_execution_log_new RENAME TO tool_execution_log")
 
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_tool ON tool_execution_log(toolName)")
