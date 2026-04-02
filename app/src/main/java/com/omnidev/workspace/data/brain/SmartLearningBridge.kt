@@ -125,7 +125,7 @@ class SmartLearningBridge(
         scope.launch {
             mlEngine?.recordExecution(
                 toolName = toolName,
-                parameters = parameters,
+                parameters = parameters.mapNotNull { (k, v) -> v?.let { k to it } }.toMap(),
                 result = result,
                 executionTimeMs = executionTimeMs,
                 contextualData = mapOf(

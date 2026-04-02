@@ -99,7 +99,7 @@ class OmniDevApp : Application() {
             // 3. إنشاء مكونات التعلم الذكي
             val intelligenceEngine = ToolIntelligenceEngine(applicationContext, appScope)
             val mlEngine = ToolMachineLearningEngine(applicationContext)
-            val monitoringSystem = ToolMonitoringSystem.getInstance()
+            val monitoringSystem = ToolMonitoringSystem
 
             // 4. إنشاء الجسر الذكي المنسق
             smartLearningBridge = SmartLearningBridge(
