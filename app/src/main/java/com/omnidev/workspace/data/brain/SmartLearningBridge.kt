@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 import java.util.concurrent.ConcurrentHashMap
@@ -57,6 +58,7 @@ class SmartLearningBridge(
         // حدود حقن السياق في System Prompt
         private const val MAX_CONTEXT_CHARS = 2000
         private const val MAX_TOOL_HISTORY_ITEMS = 5
+        private const val PERSIST_INTERVAL_MS = 30_000L
     }
 
     // ─── الحالة ───────────────────────────────────────────────────────
@@ -64,6 +66,7 @@ class SmartLearningBridge(
     private val sessionToolHistory = mutableListOf<String>()
     private val toolExecutionStartTimes = ConcurrentHashMap<String, Long>()
     private var sessionId: String = "session_${System.currentTimeMillis()}"
+    private var persistenceJob: kotlinx.coroutines.Job? = null
 
     // ─── دورة حياة الجلسة ─────────────────────────────────────────────
 
@@ -74,7 +77,19 @@ class SmartLearningBridge(
         sessionId = "session_${System.currentTimeMillis()}"
         sessionToolHistory.clear()
         journal.startNewSession(agentMode)
+        intelligenceEngine?.restore()
+        startPersistenceLoop()
         Log.d(TAG, "🚀 جلسة جديدة بدأت: $sessionId | وضع: $agentMode")
+    }
+
+    private fun startPersistenceLoop() {
+        persistenceJob?.cancel()
+        persistenceJob = scope.launch(Dispatchers.IO) {
+            while (isActive) {
+                kotlinx.coroutines.delay(PERSIST_INTERVAL_MS)
+                intelligenceEngine?.persist()
+            }
+        }
     }
 
     /**
