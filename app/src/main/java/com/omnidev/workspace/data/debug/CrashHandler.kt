@@ -18,6 +18,7 @@ class CrashHandler private constructor(
         try {
             // Write synchronously — the process is about to die.
             DebugLogManager.writeCrash(throwable)
+            DebugLogManager.markPendingCrashRedirect()
         } catch (e: Throwable) {
             // If crash reporting itself fails, log to logcat so it is still visible via ADB.
             Log.e("CrashHandler", "Failed to write crash report", e)

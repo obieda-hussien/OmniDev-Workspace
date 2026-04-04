@@ -8,6 +8,7 @@ import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.ModelTier
 import com.omnidev.workspace.data.model.ToolCallResult
 import com.omnidev.workspace.data.tools.ToolManager
+import com.omnidev.workspace.data.tools.orchestration.ToolOrchestrator
 import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
@@ -82,6 +83,36 @@ data class AgentConfig(
      * THOROUGH-class tasks where quality is more important than speed.
      */
     val enableSelfReflection: Boolean = false
+    ,
+    /**
+     * Hierarchical context window for the "immediate" chat slice.
+     * Older history is compacted into a rolling session digest.
+     */
+    val recentMessagesWindow: Int = 18,
+    /**
+     * Rebuild rolling session digest every N newly added messages.
+     */
+    val sessionDigestUpdateEveryNMessages: Int = 6,
+    /**
+     * Maximum characters reserved for session digest injection.
+     */
+    val sessionDigestMaxChars: Int = 1_800,
+    /**
+     * Maximum number of historical messages summarized into digest.
+     */
+    val sessionDigestMaxMessages: Int = 40,
+    /**
+     * Per-tool execution timeout used by the tool orchestrator.
+     */
+    val toolExecutionTimeoutMs: Long = 30_000L,
+    /**
+     * Retry attempts for tool execution failures.
+     */
+    val toolExecutionMaxRetries: Int = 1,
+    /**
+     * Base backoff delay for tool execution retries.
+     */
+    val toolExecutionBaseRetryDelayMs: Long = 500L
 ) {
     companion object {
         /** Preset for cost-sensitive runs: fewer iterations, lower token budget. */
@@ -150,7 +181,8 @@ class AgentPipeline(
      * - حقن سياق ذكي في System Prompt
      * - تعلم مستمر من كل عملية تنفيذ
      */
-    private val smartLearningBridge: com.omnidev.workspace.data.brain.SmartLearningBridge? = null
+    private val smartLearningBridge: com.omnidev.workspace.data.brain.SmartLearningBridge? = null,
+    private val toolOrchestrator: ToolOrchestrator = ToolOrchestrator()
 ) {
 
     companion object {
@@ -575,6 +607,8 @@ Rules:
                 attachments = userAttachments
             ))
         }
+        var sessionDigest = ""
+        var lastDigestMessageCount = 0
 
         // Resolve the API key for this model's provider (injected into every request)
         val resolvedApiKey: String? = apiKeyRepository?.getApiKey(model.provider)
@@ -623,17 +657,50 @@ Rules:
                 return@channelFlow
             }
 
-            // Context window trimming — drop oldest non-system messages when approaching limit
-            val trimmedMessages = if (config.enableMemoryTrimming) {
-                trimMessagesForContextWindow(messages, model.contextWindow - config.contextWindowBuffer)
+            val immediateWindow = config.recentMessagesWindow.coerceAtLeast(2)
+            if (messages.size - lastDigestMessageCount >= config.sessionDigestUpdateEveryNMessages) {
+                val olderHistory = if (messages.size > immediateWindow) {
+                    messages.dropLast(immediateWindow)
+                } else {
+                    emptyList()
+                }
+                sessionDigest = buildSessionDigest(
+                    messages = olderHistory,
+                    maxChars = config.sessionDigestMaxChars,
+                    maxMessages = config.sessionDigestMaxMessages
+                )
+                lastDigestMessageCount = messages.size
+            }
+
+            val hierarchicalMessages = if (messages.size > immediateWindow) {
+                messages.takeLast(immediateWindow)
             } else {
                 messages.toList()
+            }
+
+            // Context window trimming — drop oldest non-system messages when approaching limit
+            val trimmedMessages = if (config.enableMemoryTrimming) {
+                trimMessagesForContextWindow(hierarchicalMessages, model.contextWindow - config.contextWindowBuffer)
+            } else {
+                hierarchicalMessages
+            }
+
+            val effectiveSystemPrompt = if (sessionDigest.isBlank()) {
+                systemPrompt
+            } else {
+                buildString {
+                    append(systemPrompt)
+                    appendLine()
+                    appendLine()
+                    appendLine("## Session Digest (hierarchical context)")
+                    append(sessionDigest)
+                }
             }
 
             val request = CompletionRequest(
                 modelId = modelId,
                 messages = trimmedMessages,
-                systemPrompt = systemPrompt,
+                systemPrompt = effectiveSystemPrompt,
                 maxTokens = model.maxOutputTokens,
                 enableThinking = enableDeepThinking && model.supportsThinking,
                 targetContext = scopePath,
@@ -798,22 +865,54 @@ Rules:
                     coroutineScope {
                         response.toolCalls.map { toolCall ->
                             async {
-                                toolManager.executeTool(
-                                    name = toolCall.name,
-                                    arguments = toolCall.arguments,
-                                    scopePath = scopePath
-                                )
+                                val result = toolOrchestrator.executeTool(
+                                    toolName = toolCall.name,
+                                    cacheKey = null,
+                                    timeoutMs = config.toolExecutionTimeoutMs,
+                                    maxRetries = config.toolExecutionMaxRetries,
+                                    baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs
+                                ) {
+                                    toolManager.executeTool(
+                                        name = toolCall.name,
+                                        arguments = toolCall.arguments,
+                                        scopePath = scopePath
+                                    )
+                                }
+                                if (result.isSuccess) {
+                                    result.getOrThrow()
+                                } else {
+                                    com.omnidev.workspace.data.tools.ToolExecutionResult(
+                                        output = result.exceptionOrNull()?.message ?: "Tool execution failed",
+                                        isError = true
+                                    )
+                                }
                             }
                         }.awaitAll()
                     }
                 } else {
                     // Sequential fallback for single calls or when parallel is disabled
                     response.toolCalls.map { toolCall ->
-                        toolManager.executeTool(
-                            name = toolCall.name,
-                            arguments = toolCall.arguments,
-                            scopePath = scopePath
-                        )
+                        val result = toolOrchestrator.executeTool(
+                            toolName = toolCall.name,
+                            cacheKey = null,
+                            timeoutMs = config.toolExecutionTimeoutMs,
+                            maxRetries = config.toolExecutionMaxRetries,
+                            baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs
+                        ) {
+                            toolManager.executeTool(
+                                name = toolCall.name,
+                                arguments = toolCall.arguments,
+                                scopePath = scopePath
+                            )
+                        }
+                        if (result.isSuccess) {
+                            result.getOrThrow()
+                        } else {
+                            com.omnidev.workspace.data.tools.ToolExecutionResult(
+                                output = result.exceptionOrNull()?.message ?: "Tool execution failed",
+                                isError = true
+                            )
+                        }
                     }
                 }
 
@@ -1078,6 +1177,47 @@ Rules:
         result.add(0, keepFirst)
         return result
     }
+
+    private fun buildSessionDigest(
+        messages: List<ChatMessage>,
+        maxChars: Int,
+        maxMessages: Int
+    ): String {
+        if (messages.isEmpty()) return ""
+        val bounded = messages.takeLast(maxMessages.coerceAtLeast(6))
+
+        val userGoals = bounded
+            .filter { it.role == MessageRole.USER }
+            .takeLast(4)
+            .map { it.content.trim().replace("\n", " ").take(220) }
+            .filter { it.isNotBlank() }
+
+        val toolObservations = bounded
+            .filter { it.role == MessageRole.TOOL }
+            .takeLast(5)
+            .map { it.content.trim().replace("\n", " ").take(220) }
+            .filter { it.isNotBlank() }
+
+        val decisions = bounded
+            .filter { it.role == MessageRole.ASSISTANT }
+            .takeLast(4)
+            .map { it.content.trim().replace("\n", " ").take(220) }
+            .filter { it.isNotBlank() }
+
+        val digest = buildString {
+            appendLine("Goals:")
+            if (userGoals.isEmpty()) appendLine("- (none)")
+            userGoals.forEach { appendLine("- $it") }
+            appendLine("Recent decisions:")
+            if (decisions.isEmpty()) appendLine("- (none)")
+            decisions.forEach { appendLine("- $it") }
+            appendLine("Recent tool observations:")
+            if (toolObservations.isEmpty()) appendLine("- (none)")
+            toolObservations.forEach { appendLine("- $it") }
+        }
+
+        return if (digest.length > maxChars) digest.take(maxChars) + "\n[...digest truncated...]" else digest
+    }
 }
 
 /**
@@ -1152,4 +1292,3 @@ data class SwarmTask(
 enum class SwarmTaskStatus {
     PENDING, IN_PROGRESS, COMPLETED, FAILED
 }
-

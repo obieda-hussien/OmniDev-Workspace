@@ -2,6 +2,7 @@ package com.omnidev.workspace.data.debug
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -39,6 +40,7 @@ data class DebugEntry(
 object DebugLogManager {
 
     private const val LOG_DIR = "debug_logs"
+    private const val CRASH_REDIRECT_MARKER_FILE = "pending_crash_redirect.flag"
     private const val DATE_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS"
     private const val FILE_DATE_FORMAT = "yyyyMMdd_HHmmss_SSS"
     // Single-thread executor for async log writes. This executor lives for the entire
@@ -67,6 +69,34 @@ object DebugLogManager {
             detail = stackTrace(throwable),
             ts = ts
         )
+    }
+
+    /** Mark that the next launch should open the debug console. */
+    fun markPendingCrashRedirect() {
+        if (!::logDir.isInitialized) return
+        val marker = File(logDir, CRASH_REDIRECT_MARKER_FILE)
+        if (marker.exists()) return
+        try {
+            if (!marker.createNewFile()) {
+                Log.w(TAG, "Failed to create crash redirect marker: ${marker.absolutePath}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating crash redirect marker", e)
+        }
+    }
+
+    /**
+     * Returns true once after a fatal crash was recorded, then clears the marker.
+     * Intended to route the next app launch directly to debug diagnostics.
+     */
+    fun consumePendingCrashRedirect(): Boolean {
+        if (!::logDir.isInitialized) return false
+        val marker = File(logDir, CRASH_REDIRECT_MARKER_FILE)
+        if (!marker.exists()) return false
+        if (!marker.delete() && marker.exists()) {
+            Log.w(TAG, "Failed to delete crash redirect marker: ${marker.absolutePath}")
+        }
+        return true
     }
 
     /** Append a caught exception as an error log entry (async). */
@@ -224,3 +254,4 @@ object DebugLogManager {
         return sw.toString()
     }
 }
+    private const val TAG = "DebugLogManager"

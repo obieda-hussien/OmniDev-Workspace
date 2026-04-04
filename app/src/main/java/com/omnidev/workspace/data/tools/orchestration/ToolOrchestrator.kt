@@ -3,6 +3,7 @@ package com.omnidev.workspace.data.tools.orchestration
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.math.max
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
@@ -36,9 +37,23 @@ class ToolOrchestrator {
         var totalExecutions: Long = 0,
         var successCount: Long = 0,
         var failureCount: Long = 0,
+        var consecutiveFailures: Int = 0,
         var avgExecutionTime: Long = 0,
-        var lastExecutionTime: Long = 0
-    )
+        var lastExecutionTime: Long = 0,
+        var lastError: String? = null
+    ) {
+        val successRate: Double
+            get() = if (totalExecutions == 0L) 1.0 else successCount.toDouble() / totalExecutions.toDouble()
+
+        val reputationScore: Double
+            get() {
+                val speedScore = when {
+                    avgExecutionTime <= 0L -> 1.0
+                    else -> (5000.0 / avgExecutionTime.toDouble()).coerceIn(0.1, 1.0)
+                }
+                return (successRate * 0.8 + speedScore * 0.2).coerceIn(0.0, 1.0)
+            }
+    }
     
     enum class CircuitState { CLOSED, OPEN, HALF_OPEN }
     
@@ -63,16 +78,23 @@ class ToolOrchestrator {
         }
         
         fun canExecute(): Boolean {
+            val now = System.currentTimeMillis()
+            val dynamicTimeoutMs = currentTimeoutMs()
             return when (state) {
                 CircuitState.CLOSED -> true
                 CircuitState.OPEN -> {
-                    if (System.currentTimeMillis() - lastFailureTime > timeout.inWholeMilliseconds) {
+                    if (now - lastFailureTime > dynamicTimeoutMs) {
                         state = CircuitState.HALF_OPEN
                         true
                     } else false
                 }
                 CircuitState.HALF_OPEN -> true
             }
+        }
+
+        private fun currentTimeoutMs(): Long {
+            val multiplier = max(1, failureCount / threshold)
+            return timeout.inWholeMilliseconds * multiplier
         }
     }
     
@@ -83,6 +105,9 @@ class ToolOrchestrator {
         toolName: String,
         cacheKey: String? = null,
         cacheTTL: Duration = 5.minutes,
+        timeoutMs: Long = 30_000L,
+        maxRetries: Int = 2,
+        baseRetryDelayMs: Long = 500L,
         execution: suspend () -> T
     ): Result<T> = withContext(Dispatchers.IO) {
         // Check cache
@@ -109,15 +134,31 @@ class ToolOrchestrator {
         val metrics = executionMetrics.getOrPut(toolName) { ToolMetrics() }
         val startTime = System.currentTimeMillis()
         
-        val result = try {
-            val output = execution()
-            breaker.recordSuccess()
-            metrics.successCount++
-            Result.success(output)
-        } catch (e: Exception) {
-            breaker.recordFailure()
-            metrics.failureCount++
-            Result.failure(e)
+        var attempt = 0
+        var result: Result<T>
+        while (true) {
+            result = try {
+                val output = withTimeout(timeoutMs) { execution() }
+                breaker.recordSuccess()
+                metrics.successCount++
+                metrics.consecutiveFailures = 0
+                metrics.lastError = null
+                Result.success(output)
+            } catch (e: Exception) {
+                breaker.recordFailure()
+                metrics.failureCount++
+                metrics.consecutiveFailures++
+                metrics.lastError = e.message
+                if (attempt >= maxRetries) {
+                    Result.failure(e)
+                } else {
+                    val delayMs = baseRetryDelayMs * (1L shl attempt)
+                    delay(delayMs.coerceAtMost(10_000L))
+                    attempt++
+                    continue
+                }
+            }
+            break
         }
         
         // Update metrics
@@ -131,7 +172,7 @@ class ToolOrchestrator {
         // Cache successful results
         if (result.isSuccess && cacheKey != null) {
             executionCache[cacheKey] = CachedResult(
-                result = result.getOrThrow()!!,
+                result = result.getOrThrow() as Any,
                 timestamp = System.currentTimeMillis(),
                 ttl = cacheTTL
             )

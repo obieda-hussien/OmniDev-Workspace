@@ -32,6 +32,7 @@ import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
  *  5 → added `whatsappJid` column to `chat_sessions`
  *  6 → added `consoleEntriesJson` column to `chat_messages`
  *  7 → added `tool_execution_log` and `system_knowledge` tables (Agent Brain)
+ *  8 → normalize `tool_execution_log` and `system_knowledge` schemas to match Room entity metadata
  */
 @Database(
     entities = [
@@ -41,7 +42,7 @@ import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
         ToolExecutionEntry::class,
         SystemKnowledgeEntry::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -154,6 +155,196 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from v7 → v8:
+         * Rebuilds `tool_execution_log` to a canonical schema so databases created from older
+         * entity metadata (without defaults/indices) and migrated databases are both valid.
+         */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS index_tool_log_tool")
+                db.execSQL("DROP INDEX IF EXISTS index_tool_log_session")
+                db.execSQL("DROP INDEX IF EXISTS index_tool_log_time")
+
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS tool_execution_log_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        toolName TEXT NOT NULL,
+                        parametersJson TEXT NOT NULL DEFAULT '{}',
+                        resultSummary TEXT NOT NULL DEFAULT '',
+                        success INTEGER NOT NULL,
+                        executionTimeMs INTEGER NOT NULL,
+                        resultSize INTEGER NOT NULL DEFAULT 0,
+                        agentContext TEXT NOT NULL DEFAULT '',
+                        previousToolName TEXT NOT NULL DEFAULT '',
+                        sessionId TEXT NOT NULL DEFAULT '',
+                        agentMode TEXT NOT NULL DEFAULT '',
+                        errorMessage TEXT NOT NULL DEFAULT '',
+                        resultQuality REAL NOT NULL DEFAULT 0.5,
+                        hourOfDay INTEGER NOT NULL DEFAULT 0,
+                        dayOfWeek INTEGER NOT NULL DEFAULT 1,
+                        learningNote TEXT NOT NULL DEFAULT '',
+                        flaggedForReview INTEGER NOT NULL DEFAULT 0,
+                        timestamp INTEGER NOT NULL
+                    )
+                """.trimIndent())
+
+                val oldTableExists = db.scalarLong(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='tool_execution_log'"
+                ) > 0
+
+                if (oldTableExists) {
+                    val existingColumns = mutableSetOf<String>()
+                    db.query("PRAGMA table_info(tool_execution_log)").use { cursor ->
+                        val nameIndex = cursor.getColumnIndex("name")
+                        while (cursor.moveToNext()) {
+                            existingColumns += cursor.getString(nameIndex)
+                        }
+                    }
+
+                    val insertColumns = mutableListOf<String>()
+                    val selectExpressions = mutableListOf<String>()
+
+                    fun addColumn(column: String, fallback: String) {
+                        insertColumns += column
+                        selectExpressions += if (existingColumns.contains(column)) column else fallback
+                    }
+
+                    if (existingColumns.contains("id")) {
+                        insertColumns += "id"
+                        selectExpressions += "id"
+                    }
+                    addColumn("toolName", "''")
+                    addColumn("parametersJson", "'{}'")
+                    addColumn("resultSummary", "''")
+                    addColumn("success", "0")
+                    addColumn("executionTimeMs", "0")
+                    addColumn("resultSize", "0")
+                    addColumn("agentContext", "''")
+                    addColumn("previousToolName", "''")
+                    addColumn("sessionId", "''")
+                    addColumn("agentMode", "''")
+                    addColumn("errorMessage", "''")
+                    addColumn("resultQuality", "0.5")
+                    addColumn("hourOfDay", "0")
+                    addColumn("dayOfWeek", "1")
+                    addColumn("learningNote", "''")
+                    addColumn("flaggedForReview", "0")
+                    addColumn("timestamp", "0")
+
+                    db.execSQL(
+                        """
+                        INSERT INTO tool_execution_log_new (${insertColumns.joinToString(", ")})
+                        SELECT ${selectExpressions.joinToString(", ")}
+                        FROM tool_execution_log
+                        """.trimIndent()
+                    )
+
+                    val sourceCount = db.scalarLong("SELECT COUNT(*) FROM tool_execution_log")
+                    val targetCount = db.scalarLong("SELECT COUNT(*) FROM tool_execution_log_new")
+                    check(targetCount == sourceCount) {
+                        "tool_execution_log migration row count mismatch: source=$sourceCount target=$targetCount"
+                    }
+
+                    db.execSQL("DROP TABLE tool_execution_log")
+                }
+
+                db.execSQL("ALTER TABLE tool_execution_log_new RENAME TO tool_execution_log")
+
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_tool ON tool_execution_log(toolName)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_session ON tool_execution_log(sessionId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_time ON tool_execution_log(timestamp)")
+
+                // Normalize system_knowledge schema to match Room metadata:
+                // no SQL defaults and no indices at v8.
+                db.execSQL("DROP INDEX IF EXISTS index_sys_knowledge_type")
+                db.execSQL("DROP INDEX IF EXISTS index_sys_knowledge_subject")
+                db.execSQL("DROP INDEX IF EXISTS index_sys_knowledge_priority")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS system_knowledge_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        knowledgeType TEXT NOT NULL,
+                        subject TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        confidence REAL NOT NULL,
+                        verificationCount INTEGER NOT NULL,
+                        isValid INTEGER NOT NULL,
+                        source TEXT NOT NULL,
+                        searchTags TEXT NOT NULL,
+                        injectionPriority INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                """.trimIndent())
+
+                val systemKnowledgeTableExists = db.scalarLong(
+                    "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='system_knowledge')"
+                ) == 1L
+                if (systemKnowledgeTableExists) {
+                    val currentTimeMillisExpr = "(strftime('%s','now') * 1000)"
+                    val existingColumns = mutableSetOf<String>()
+                    db.query("PRAGMA table_info(system_knowledge)").use { cursor ->
+                        val nameIndex = cursor.getColumnIndex("name")
+                        while (cursor.moveToNext()) {
+                            existingColumns += cursor.getString(nameIndex)
+                        }
+                    }
+
+                    val insertColumns = mutableListOf<String>()
+                    val selectExpressions = mutableListOf<String>()
+
+                    fun addColumnWithFallback(column: String, fallback: String) {
+                        insertColumns += column
+                        selectExpressions += if (existingColumns.contains(column)) column else fallback
+                    }
+
+                    if (existingColumns.contains("id")) {
+                        insertColumns += "id"
+                        selectExpressions += "id"
+                    }
+                    addColumnWithFallback("knowledgeType", "''")
+                    addColumnWithFallback("subject", "''")
+                    addColumnWithFallback("content", "''")
+                    // Align fallback values with SystemKnowledgeEntry defaults when data is absent.
+                    addColumnWithFallback("confidence", "1.0")
+                    addColumnWithFallback("verificationCount", "1")
+                    addColumnWithFallback("isValid", "1")
+                    addColumnWithFallback("source", "'agent_discovery'")
+                    addColumnWithFallback("searchTags", "''")
+                    addColumnWithFallback("injectionPriority", "5")
+                    // If legacy rows are missing timestamps, backfill with migration-time value.
+                    addColumnWithFallback("createdAt", currentTimeMillisExpr)
+                    addColumnWithFallback("updatedAt", currentTimeMillisExpr)
+
+                    db.execSQL(
+                        """
+                        INSERT INTO system_knowledge_new (${insertColumns.joinToString(", ")})
+                        SELECT ${selectExpressions.joinToString(", ")}
+                        FROM system_knowledge
+                        """.trimIndent()
+                    )
+
+                    val sourceCount = db.scalarLong("SELECT COUNT(*) FROM system_knowledge")
+                    val targetCount = db.scalarLong("SELECT COUNT(*) FROM system_knowledge_new")
+                    check(targetCount == sourceCount) {
+                        "system_knowledge migration row count mismatch: source=$sourceCount target=$targetCount"
+                    }
+
+                    db.execSQL("DROP TABLE system_knowledge")
+                }
+
+                // Always materialize canonical `system_knowledge`:
+                // - if legacy table existed: copied rows then swap
+                // - if missing unexpectedly: create an empty valid table instead of crashing
+                db.execSQL("ALTER TABLE system_knowledge_new RENAME TO system_knowledge")
+            }
+        }
+
+        private fun SupportSQLiteDatabase.scalarLong(sql: String): Long =
+            query(sql).use { cursor ->
+                if (cursor.moveToFirst()) cursor.getLong(0) else 0L
+            }
+
         fun getInstance(context: Context): OmniDevDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -167,7 +358,8 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         MIGRATION_3_4,
                         MIGRATION_4_5,
                         MIGRATION_5_6,
-                        MIGRATION_6_7
+                        MIGRATION_6_7,
+                        MIGRATION_7_8
                     )
                     .build().also { INSTANCE = it }
             }

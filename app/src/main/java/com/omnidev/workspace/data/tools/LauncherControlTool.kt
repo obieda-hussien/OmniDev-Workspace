@@ -1,6 +1,7 @@
 package com.omnidev.workspace.data.tools
 
 import com.omnidev.workspace.data.ipc.LauncherConnectionManager
+import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 import org.json.JSONObject
 
 /**
@@ -22,6 +23,7 @@ import org.json.JSONObject
  * informative error is returned instead of crashing.
  */
 object LauncherControlTool {
+    private const val KEYEVENT_HOME = 3
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
@@ -46,13 +48,9 @@ object LauncherControlTool {
         )
     )
 
-    fun execute(action: String, args: Map<String, String>): ToolExecutionResult {
+    suspend fun execute(action: String, args: Map<String, String>): ToolExecutionResult {
         val launcher = LauncherConnectionManager.getLauncherInterface()
-            ?: return ToolExecutionResult(
-                output = errorJson("Current launcher does not support OmniDev protocol. " +
-                    "Ensure the default launcher has the OmniDev IPC service enabled."),
-                isError = true
-            )
+            ?: return fallbackWhenLauncherUnavailable(action)
 
         val normalized = action.trim().lowercase()
         val succeeded = runCatching {
@@ -133,4 +131,24 @@ object LauncherControlTool {
         .put("ok", false)
         .put("error", message)
         .toString()
+
+    private suspend fun fallbackWhenLauncherUnavailable(action: String): ToolExecutionResult {
+        val normalized = action.trim().lowercase()
+        if (normalized == "go_home" && PrivilegedExecutionManager.isShizukuReady()) {
+            val result = ShizukuCommandTool.execute("input keyevent $KEYEVENT_HOME")
+            if (result is ShizukuResult.Success || result is ShizukuResult.PartialSuccess) {
+                return ToolExecutionResult(successJson(normalized))
+            }
+            return ToolExecutionResult(
+                output = errorJson("Failed to execute home action via Shizuku fallback."),
+                isError = true
+            )
+        }
+
+        return ToolExecutionResult(
+            output = errorJson("Current launcher does not support OmniDev protocol. " +
+                "Ensure the default launcher has the OmniDev IPC service enabled."),
+            isError = true
+        )
+    }
 }

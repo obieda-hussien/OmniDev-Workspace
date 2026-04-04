@@ -1,11 +1,13 @@
 package com.omnidev.workspace.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.omnidev.workspace.OmniDevApp
+import com.omnidev.workspace.data.debug.DebugLogManager
 import com.omnidev.workspace.data.db.OmniDevDatabase
 import com.omnidev.workspace.data.repository.AnalyticsRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
@@ -60,10 +62,17 @@ fun AppNavigation(
     database: OmniDevDatabase
 ) {
     val navController = rememberNavController()
+    val startDestination = remember {
+        if (DebugLogManager.consumePendingCrashRedirect()) {
+            Routes.DEBUG
+        } else {
+            Routes.CHAT
+        }
+    }
 
     NavHost(
         navController = navController,
-        startDestination = Routes.CHAT
+        startDestination = startDestination
     ) {
         composable(Routes.CHAT) {
             ChatScreen(

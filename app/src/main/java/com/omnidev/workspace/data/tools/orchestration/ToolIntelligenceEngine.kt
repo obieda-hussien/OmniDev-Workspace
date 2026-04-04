@@ -1,7 +1,11 @@
 package com.omnidev.workspace.data.tools.orchestration
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.*
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.exp
 
@@ -22,6 +26,10 @@ class ToolIntelligenceEngine(
     
     companion object {
         private const val TAG = "ToolIntelligence"
+        private const val PREFS_NAME = "tool_intelligence_engine"
+        // Versioned snapshot key. Future schema changes should write a new key (e.g. state_v2)
+        // and optionally attempt best-effort migration from older keys during restore().
+        private const val PREFS_KEY_STATE = "state_v1"
         
         // Hyperparameters
         private const val LEARNING_RATE = 0.1
@@ -85,6 +93,7 @@ class ToolIntelligenceEngine(
     private val toolTransitions = ConcurrentHashMap<Pair<String, String>, Int>()
     
     private var explorationRate = EXPLORATION_RATE_INITIAL
+    private val json = Json { ignoreUnknownKeys = true }
     
     // ═══════════════════════════════════════════════════════════════
     // Core Intelligence Functions
@@ -444,18 +453,130 @@ class ToolIntelligenceEngine(
         val avgExecutionTime: Long,
         val usageCount: Int
     )
+
+    @Serializable
+    private data class EngineSnapshot(
+        val explorationRate: Double,
+        val toolStates: List<ToolStateSnapshot>,
+        val detectedPatterns: List<ToolPatternSnapshot>,
+        val transitions: List<TransitionSnapshot>
+    )
+
+    @Serializable
+    private data class ToolStateSnapshot(
+        val toolName: String,
+        val qValue: Double,
+        val executionCount: Int,
+        val successCount: Int,
+        val avgExecutionTime: Long,
+        val lastUsed: Long,
+        val contextualPreferences: Map<String, Double>
+    )
+
+    @Serializable
+    private data class ToolPatternSnapshot(
+        val key: String,
+        val sequence: List<String>,
+        val frequency: Int,
+        val avgSuccessRate: Float,
+        val lastSeen: Long
+    )
+
+    @Serializable
+    private data class TransitionSnapshot(
+        val fromTool: String,
+        val toTool: String,
+        val count: Int
+    )
     
     /**
      * حفظ البيانات للاستمرارية
      */
     suspend fun persist() = withContext(Dispatchers.IO) {
-        // TODO: حفظ toolStates و detectedPatterns في قاعدة البيانات
+        try {
+            val snapshot = EngineSnapshot(
+                explorationRate = explorationRate,
+                toolStates = toolStates.values.map { state ->
+                    ToolStateSnapshot(
+                        toolName = state.toolName,
+                        qValue = state.qValue,
+                        executionCount = state.executionCount,
+                        successCount = state.successCount,
+                        avgExecutionTime = state.avgExecutionTime,
+                        lastUsed = state.lastUsed,
+                        contextualPreferences = state.contextualPreferences.toMap()
+                    )
+                },
+                detectedPatterns = detectedPatterns.map { (key, pattern) ->
+                    ToolPatternSnapshot(
+                        key = key,
+                        sequence = pattern.sequence,
+                        frequency = pattern.frequency,
+                        avgSuccessRate = pattern.avgSuccessRate,
+                        lastSeen = pattern.lastSeen
+                    )
+                },
+                transitions = toolTransitions.map { (pair, count) ->
+                    TransitionSnapshot(
+                        fromTool = pair.first,
+                        toTool = pair.second,
+                        count = count
+                    )
+                }
+            )
+
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(PREFS_KEY_STATE, json.encodeToString(snapshot))
+                .apply()
+        } catch (e: Exception) {
+            Log.w(TAG, "persist() failed: ${e.message}")
+        }
     }
     
     /**
      * استعادة البيانات
      */
     suspend fun restore() = withContext(Dispatchers.IO) {
-        // TODO: تحميل البيانات من قاعدة البيانات
+        try {
+            val payload = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(PREFS_KEY_STATE, null)
+                ?: return@withContext
+
+            val snapshot = json.decodeFromString<EngineSnapshot>(payload)
+
+            toolStates.clear()
+            snapshot.toolStates.forEach { state ->
+                toolStates[state.toolName] = ToolState(
+                    toolName = state.toolName,
+                    qValue = state.qValue,
+                    executionCount = state.executionCount,
+                    successCount = state.successCount,
+                    avgExecutionTime = state.avgExecutionTime,
+                    lastUsed = state.lastUsed,
+                    contextualPreferences = ConcurrentHashMap(state.contextualPreferences)
+                )
+            }
+
+            detectedPatterns.clear()
+            snapshot.detectedPatterns.forEach { pattern ->
+                detectedPatterns[pattern.key] = ToolPattern(
+                    sequence = pattern.sequence,
+                    frequency = pattern.frequency,
+                    avgSuccessRate = pattern.avgSuccessRate,
+                    lastSeen = pattern.lastSeen
+                )
+            }
+
+            toolTransitions.clear()
+            snapshot.transitions.forEach { transition ->
+                toolTransitions[Pair(transition.fromTool, transition.toTool)] = transition.count
+            }
+
+            explorationRate = snapshot.explorationRate
+                .coerceIn(MIN_EXPLORATION_RATE, EXPLORATION_RATE_INITIAL)
+        } catch (e: Exception) {
+            Log.w(TAG, "restore() failed: ${e.message}")
+        }
     }
 }
