@@ -278,7 +278,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
                 """.trimIndent())
 
                 val oldSystemTableExists = db.scalarLong(
-                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='system_knowledge'"
+                    "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='system_knowledge')"
                 ) > 0
                 if (oldSystemTableExists) {
                     val existingColumns = mutableSetOf<String>()
@@ -292,7 +292,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
                     val insertColumns = mutableListOf<String>()
                     val selectExpressions = mutableListOf<String>()
 
-                    fun addSystemColumn(column: String, fallback: String) {
+                    fun mapSystemColumn(column: String, fallback: String) {
                         insertColumns += column
                         selectExpressions += if (existingColumns.contains(column)) column else fallback
                     }
@@ -301,17 +301,19 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         insertColumns += "id"
                         selectExpressions += "id"
                     }
-                    addSystemColumn("knowledgeType", "''")
-                    addSystemColumn("subject", "''")
-                    addSystemColumn("content", "''")
-                    addSystemColumn("confidence", "1.0")
-                    addSystemColumn("verificationCount", "1")
-                    addSystemColumn("isValid", "1")
-                    addSystemColumn("source", "'agent_discovery'")
-                    addSystemColumn("searchTags", "''")
-                    addSystemColumn("injectionPriority", "5")
-                    addSystemColumn("createdAt", "0")
-                    addSystemColumn("updatedAt", "0")
+                    mapSystemColumn("knowledgeType", "''")
+                    mapSystemColumn("subject", "''")
+                    mapSystemColumn("content", "''")
+                    // Keep behavior aligned with entity defaults where possible.
+                    mapSystemColumn("confidence", "1.0")
+                    mapSystemColumn("verificationCount", "1")
+                    mapSystemColumn("isValid", "1")
+                    mapSystemColumn("source", "'agent_discovery'")
+                    mapSystemColumn("searchTags", "''")
+                    mapSystemColumn("injectionPriority", "5")
+                    // Fallback to epoch-like sentinel if legacy rows don't have timestamps.
+                    mapSystemColumn("createdAt", "0")
+                    mapSystemColumn("updatedAt", "0")
 
                     db.execSQL(
                         """
