@@ -235,7 +235,7 @@ object CopilotSessionManager {
 
             val cleared = legacyPrefs.edit().clear().commit()
             if (!cleared) {
-                Log.w(TAG, "Legacy session prefs clear failed after secure migration")
+                throw IllegalStateException("Failed to clear legacy plaintext session storage after secure migration")
             }
         }
     }
