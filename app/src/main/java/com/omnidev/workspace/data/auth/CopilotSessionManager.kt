@@ -1,7 +1,10 @@
 package com.omnidev.workspace.data.auth
 
+import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import com.omnidev.workspace.OmniDevApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -39,8 +42,9 @@ object CopilotSessionManager {
 
     private const val TAG = "CopilotSessionManager"
 
-    // SharedPreferences file name (private to app)
+    // SharedPreferences file names (private to app)
     private const val PREFS_NAME = "copilot_session_v1"
+    private const val SECURE_PREFS_NAME = "copilot_session_secure_v1"
 
     // Preference keys
     private const val KEY_SESSION_TOKEN  = "session_token"
@@ -177,8 +181,60 @@ object CopilotSessionManager {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private fun prefs(): SharedPreferences =
-        OmniDevApp.instance.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+    private fun prefs(): SharedPreferences = SecurePrefsHolder.getOrCreate(OmniDevApp.instance)
+
+    private object SecurePrefsHolder {
+        @Volatile
+        private var cached: SharedPreferences? = null
+
+        fun getOrCreate(context: Context): SharedPreferences {
+            cached?.let { return it }
+            return synchronized(this) {
+                cached ?: run {
+                    val securePrefs = try {
+                        val masterKey = MasterKey.Builder(context)
+                            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                            .build()
+                        EncryptedSharedPreferences.create(
+                            context,
+                            SECURE_PREFS_NAME,
+                            masterKey,
+                            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                        )
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to initialize encrypted prefs, using legacy prefs fallback", e)
+                        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    }
+
+                    migrateLegacyPrefsIfNeeded(context, securePrefs)
+                    securePrefs.also { cached = it }
+                }
+            }
+        }
+
+        private fun migrateLegacyPrefsIfNeeded(context: Context, securePrefs: SharedPreferences) {
+            val legacyPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            if (legacyPrefs.all.isEmpty()) return
+
+            if (!securePrefs.contains(KEY_SESSION_TOKEN)) {
+                legacyPrefs.getString(KEY_SESSION_TOKEN, null)?.let {
+                    securePrefs.edit().putString(KEY_SESSION_TOKEN, it).apply()
+                }
+            }
+            if (!securePrefs.contains(KEY_TOKEN_EXPIRY)) {
+                val expiry = legacyPrefs.getLong(KEY_TOKEN_EXPIRY, 0L)
+                if (expiry > 0L) securePrefs.edit().putLong(KEY_TOKEN_EXPIRY, expiry).apply()
+            }
+            if (!securePrefs.contains(KEY_MODEL_IDS)) {
+                legacyPrefs.getString(KEY_MODEL_IDS, null)?.let {
+                    securePrefs.edit().putString(KEY_MODEL_IDS, it).apply()
+                }
+            }
+
+            legacyPrefs.edit().clear().apply()
+        }
+    }
 
     /**
      * Exchanges a GitHub OAuth token for a short-lived Copilot session token.
