@@ -277,10 +277,10 @@ abstract class OmniDevDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
 
-                val oldSystemTableExists = db.scalarLong(
+                val systemKnowledgeTableExists = db.scalarLong(
                     "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='system_knowledge')"
                 ) > 0
-                if (oldSystemTableExists) {
+                if (systemKnowledgeTableExists) {
                     val existingColumns = mutableSetOf<String>()
                     db.query("PRAGMA table_info(system_knowledge)").use { cursor ->
                         val nameIndex = cursor.getColumnIndex("name")
@@ -332,6 +332,9 @@ abstract class OmniDevDatabase : RoomDatabase() {
                     db.execSQL("DROP TABLE system_knowledge")
                 }
 
+                // Always materialize canonical `system_knowledge`:
+                // - if legacy table existed: copied rows then swap
+                // - if missing unexpectedly: create an empty valid table instead of crashing
                 db.execSQL("ALTER TABLE system_knowledge_new RENAME TO system_knowledge")
             }
         }
