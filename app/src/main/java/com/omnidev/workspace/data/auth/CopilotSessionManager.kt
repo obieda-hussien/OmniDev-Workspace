@@ -218,7 +218,7 @@ object CopilotSessionManager {
             val legacyPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             if (legacyPrefs.all.isEmpty()) return
 
-            securePrefs.edit().apply {
+            val migrated = securePrefs.edit().apply {
                 if (!securePrefs.contains(KEY_SESSION_TOKEN)) {
                     legacyPrefs.getString(KEY_SESSION_TOKEN, null)?.let {
                         putString(KEY_SESSION_TOKEN, it)
@@ -233,7 +233,12 @@ object CopilotSessionManager {
                         putString(KEY_MODEL_IDS, it)
                     }
                 }
-            }.apply()
+            }.commit()
+            if (!migrated) {
+                throw IllegalStateException(
+                    "Failed to persist secure session migration before clearing legacy plaintext storage."
+                )
+            }
 
             val cleared = legacyPrefs.edit().clear().commit()
             if (!cleared) {

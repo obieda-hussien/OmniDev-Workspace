@@ -32,7 +32,7 @@ import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
  *  5 → added `whatsappJid` column to `chat_sessions`
  *  6 → added `consoleEntriesJson` column to `chat_messages`
  *  7 → added `tool_execution_log` and `system_knowledge` tables (Agent Brain)
- *  8 → normalize `tool_execution_log` schema to match Room entity metadata
+ *  8 → normalize `tool_execution_log` and `system_knowledge` schemas to match Room entity metadata
  */
 @Database(
     entities = [
