@@ -118,10 +118,10 @@ object UIReplicaPipelineTool {
         args: Map<String, String>
     ): ToolExecutionResult {
         val generatedCode = args["generated_code"]?.trim()
-        val shouldForceCapture = args["force_capture"]?.trim()?.equals("true", ignoreCase = true) == true
+        val shouldForceCapture = getBooleanArg(args, "force_capture")
         val needsCapture = shouldForceCapture || lastCapture == null
 
-        val captureResult = if (needsCapture) {
+        val captureResult: ToolExecutionResult? = if (needsCapture) {
             val ctx = context ?: return ToolExecutionResult(
                 "orchestrate_replica requires Android context when capture is needed.",
                 isError = true
@@ -131,19 +131,39 @@ object UIReplicaPipelineTool {
             null
         }
 
+        if (captureResult?.isError == true) {
+            return ToolExecutionResult(
+                output = "orchestrate_replica capture phase failed.\n${captureResult.output}",
+                isError = true
+            )
+        }
+
         if (generatedCode.isNullOrBlank()) {
-            return captureResult ?: ToolExecutionResult(
-                "orchestrate_replica finished. Capture is already available. Pass generated_code for validation."
+            if (captureResult != null) {
+                return ToolExecutionResult(
+                    output = captureResult.output + "\n\nNext step: provide generated_code to run validation.",
+                    isError = false
+                )
+            }
+
+            return ToolExecutionResult(
+                "orchestrate_replica requires generated_code parameter for validation (using cached capture).",
+                isError = true
             )
         }
 
         val validationResult = validateCode(args)
+        val usingFreshCapture = captureResult != null
+        val referenceMode = if (usingFreshCapture) "fresh capture" else "cached capture"
         val mergedOutput = buildString {
-            appendLine("UI replica orchestration completed.")
-            captureResult?.let {
+            appendLine("UI replica orchestration completed (reference: $referenceMode).")
+            if (usingFreshCapture) {
                 appendLine()
                 appendLine("Capture phase:")
-                appendLine(it.output)
+                appendLine(captureResult?.output.orEmpty())
+            } else {
+                appendLine()
+                appendLine("Capture phase: Skipped (using previously captured reference).")
             }
             appendLine()
             appendLine("Validation phase:")
@@ -152,7 +172,7 @@ object UIReplicaPipelineTool {
 
         return ToolExecutionResult(
             output = mergedOutput.trim(),
-            isError = (captureResult?.isError == true) || validationResult.isError
+            isError = validationResult.isError
         )
     }
 
@@ -322,6 +342,10 @@ object UIReplicaPipelineTool {
         val end = output.indexOf(endTag)
         if (start == -1 || end == -1 || end <= start) return null
         return output.substring(start + startTag.length, end).trim().ifBlank { null }
+    }
+
+    private fun getBooleanArg(args: Map<String, String>, key: String): Boolean {
+        return args[key]?.trim()?.equals("true", ignoreCase = true) == true
     }
 
     private fun extractExpectedTexts(reference: String): List<String> {
