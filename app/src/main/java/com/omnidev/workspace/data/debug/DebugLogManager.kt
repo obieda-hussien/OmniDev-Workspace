@@ -73,7 +73,10 @@ object DebugLogManager {
     /** Mark that the next launch should open the debug console. */
     fun markPendingCrashRedirect() {
         if (!::logDir.isInitialized) return
-        File(logDir, CRASH_REDIRECT_MARKER_FILE).writeText(timestamp(), Charsets.UTF_8)
+        val marker = File(logDir, CRASH_REDIRECT_MARKER_FILE)
+        if (!marker.exists()) {
+            marker.createNewFile()
+        }
     }
 
     /**
@@ -83,9 +86,9 @@ object DebugLogManager {
     fun consumePendingCrashRedirect(): Boolean {
         if (!::logDir.isInitialized) return false
         val marker = File(logDir, CRASH_REDIRECT_MARKER_FILE)
-        val exists = marker.exists()
-        if (exists) marker.delete()
-        return exists
+        if (!marker.exists()) return false
+        if (!marker.delete() && marker.exists()) return false
+        return true
     }
 
     /** Append a caught exception as an error log entry (async). */
