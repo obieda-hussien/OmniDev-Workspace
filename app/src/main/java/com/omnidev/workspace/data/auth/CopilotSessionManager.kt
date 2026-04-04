@@ -188,7 +188,6 @@ object CopilotSessionManager {
         private var cached: SharedPreferences? = null
 
         fun getOrCreate(context: Context): SharedPreferences {
-            cached?.let { return it }
             return synchronized(this) {
                 cached ?: run {
                     val securePrefs = try {
