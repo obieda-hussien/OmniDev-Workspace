@@ -42,12 +42,13 @@ object UIReplicaPipelineTool {
             description = "Integrated screen-to-code pipeline. " +
                 "Use action=capture_reference to launch app + capture screenshot + UI dump " +
                 "(Accessibility first, Shizuku XML fallback). " +
-                "Use action=validate_code to score generated code similarity and get refinement guidance.",
+                "Use action=validate_code to score generated code similarity and get refinement guidance. " +
+                "Use action=orchestrate_replica to run capture+validation together in one call.",
             parameters = listOf(
                 ToolParameter(
                     name = "action",
                     type = "string",
-                    description = "One of: capture_reference, validate_code",
+                    description = "One of: capture_reference, validate_code, orchestrate_replica",
                     required = true
                 ),
                 ToolParameter(
@@ -79,6 +80,12 @@ object UIReplicaPipelineTool {
                     type = "string",
                     description = "Optional semantic tree override for validation (uses last captured if omitted).",
                     required = false
+                ),
+                ToolParameter(
+                    name = "force_capture",
+                    type = "string",
+                    description = "For action=orchestrate_replica. true/false. If true, refresh capture before validation.",
+                    required = false
                 )
             )
         )
@@ -98,11 +105,55 @@ object UIReplicaPipelineTool {
                 }
             }
             "validate_code" -> validateCode(args)
+            "orchestrate_replica" -> orchestrateReplica(context, args)
             else -> ToolExecutionResult(
-                "Unknown action '$action'. Valid actions: capture_reference, validate_code.",
+                "Unknown action '$action'. Valid actions: capture_reference, validate_code, orchestrate_replica.",
                 isError = true
             )
         }
+    }
+
+    private suspend fun orchestrateReplica(
+        context: Context?,
+        args: Map<String, String>
+    ): ToolExecutionResult {
+        val generatedCode = args["generated_code"]?.trim()
+        val shouldForceCapture = args["force_capture"]?.trim()?.equals("true", ignoreCase = true) == true
+        val needsCapture = shouldForceCapture || lastCapture == null
+
+        val captureResult = if (needsCapture) {
+            val ctx = context ?: return ToolExecutionResult(
+                "orchestrate_replica requires Android context when capture is needed.",
+                isError = true
+            )
+            captureReference(ctx, args)
+        } else {
+            null
+        }
+
+        if (generatedCode.isNullOrBlank()) {
+            return captureResult ?: ToolExecutionResult(
+                "orchestrate_replica finished. Capture is already available. Pass generated_code for validation."
+            )
+        }
+
+        val validationResult = validateCode(args)
+        val mergedOutput = buildString {
+            appendLine("UI replica orchestration completed.")
+            captureResult?.let {
+                appendLine()
+                appendLine("Capture phase:")
+                appendLine(it.output)
+            }
+            appendLine()
+            appendLine("Validation phase:")
+            appendLine(validationResult.output)
+        }
+
+        return ToolExecutionResult(
+            output = mergedOutput.trim(),
+            isError = (captureResult?.isError == true) || validationResult.isError
+        )
     }
 
     private suspend fun captureReference(context: Context, args: Map<String, String>): ToolExecutionResult {
