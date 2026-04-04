@@ -279,7 +279,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
 
                 val systemKnowledgeTableExists = db.scalarLong(
                     "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='system_knowledge')"
-                ) > 0
+                ) == 1L
                 if (systemKnowledgeTableExists) {
                     val existingColumns = mutableSetOf<String>()
                     db.query("PRAGMA table_info(system_knowledge)").use { cursor ->
@@ -292,7 +292,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
                     val insertColumns = mutableListOf<String>()
                     val selectExpressions = mutableListOf<String>()
 
-                    fun mapSystemColumn(column: String, fallback: String) {
+                    fun addColumnWithFallback(column: String, fallback: String) {
                         insertColumns += column
                         selectExpressions += if (existingColumns.contains(column)) column else fallback
                     }
@@ -301,19 +301,19 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         insertColumns += "id"
                         selectExpressions += "id"
                     }
-                    mapSystemColumn("knowledgeType", "''")
-                    mapSystemColumn("subject", "''")
-                    mapSystemColumn("content", "''")
-                    // Keep behavior aligned with entity defaults where possible.
-                    mapSystemColumn("confidence", "1.0")
-                    mapSystemColumn("verificationCount", "1")
-                    mapSystemColumn("isValid", "1")
-                    mapSystemColumn("source", "'agent_discovery'")
-                    mapSystemColumn("searchTags", "''")
-                    mapSystemColumn("injectionPriority", "5")
-                    // Fallback to epoch-like sentinel if legacy rows don't have timestamps.
-                    mapSystemColumn("createdAt", "0")
-                    mapSystemColumn("updatedAt", "0")
+                    addColumnWithFallback("knowledgeType", "''")
+                    addColumnWithFallback("subject", "''")
+                    addColumnWithFallback("content", "''")
+                    // Align fallback values with SystemKnowledgeEntry defaults when data is absent.
+                    addColumnWithFallback("confidence", "1.0")
+                    addColumnWithFallback("verificationCount", "1")
+                    addColumnWithFallback("isValid", "1")
+                    addColumnWithFallback("source", "'agent_discovery'")
+                    addColumnWithFallback("searchTags", "''")
+                    addColumnWithFallback("injectionPriority", "5")
+                    // Use 0 only as a sentinel for missing legacy timestamps.
+                    addColumnWithFallback("createdAt", "0")
+                    addColumnWithFallback("updatedAt", "0")
 
                     db.execSQL(
                         """
