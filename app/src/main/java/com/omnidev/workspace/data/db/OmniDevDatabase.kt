@@ -281,6 +281,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
                     "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='system_knowledge')"
                 ) == 1L
                 if (systemKnowledgeTableExists) {
+                    val currentTimeMillisExpr = "(strftime('%s','now') * 1000)"
                     val existingColumns = mutableSetOf<String>()
                     db.query("PRAGMA table_info(system_knowledge)").use { cursor ->
                         val nameIndex = cursor.getColumnIndex("name")
@@ -312,8 +313,8 @@ abstract class OmniDevDatabase : RoomDatabase() {
                     addColumnWithFallback("searchTags", "''")
                     addColumnWithFallback("injectionPriority", "5")
                     // If legacy rows are missing timestamps, backfill with migration-time value.
-                    addColumnWithFallback("createdAt", "(strftime('%s','now') * 1000)")
-                    addColumnWithFallback("updatedAt", "(strftime('%s','now') * 1000)")
+                    addColumnWithFallback("createdAt", currentTimeMillisExpr)
+                    addColumnWithFallback("updatedAt", currentTimeMillisExpr)
 
                     db.execSQL(
                         """
