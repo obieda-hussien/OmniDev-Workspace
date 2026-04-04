@@ -66,6 +66,7 @@ class SmartLearningBridge(
 
     private val sessionToolHistory = mutableListOf<String>()
     private val toolExecutionStartTimes = ConcurrentHashMap<String, Long>()
+    private val availableToolNames = ConcurrentHashMap.newKeySet<String>()
     private var sessionId: String = "session_${System.currentTimeMillis()}"
     private var persistenceJob: kotlinx.coroutines.Job? = null
 
@@ -104,6 +105,8 @@ class SmartLearningBridge(
      * يُستدعى من AgentPipeline لتسجيل قدرات الأدوات فور توفرها
      */
     suspend fun registerTools(tools: List<ToolDefinition>) = withContext(Dispatchers.IO) {
+        availableToolNames.clear()
+        availableToolNames.addAll(tools.map { it.name })
         awarenessEngine.initialize(tools)
     }
 
@@ -280,15 +283,48 @@ class SmartLearningBridge(
         if (sessionToolHistory.isEmpty()) return@withContext null
 
         val lastTool = sessionToolHistory.lastOrNull() ?: return@withContext null
+        val context = buildExecutionContext()
+        val availableTools = availableToolNames.toList()
+
+        // استخدام RL Intelligence Engine للتوصية
+        val rlPrediction = if (availableTools.isNotEmpty()) {
+            intelligenceEngine?.predictBestTool(
+                taskDescription = "Next tool after $lastTool",
+                availableTools = availableTools,
+                currentContext = context
+            )
+        } else {
+            null
+        }
 
         // استخدام ML Engine للتنبؤ
         val mlPrediction = mlEngine?.predictNextTool(
             currentTool = lastTool,
             recentTools = sessionToolHistory.takeLast(3),
             contextualData = mapOf(
-                "hour" to Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+                "hour" to context.timeOfDay
             )
         )
+
+        // أقوى توصية: اتفاق RL + ML
+        if (rlPrediction != null && mlPrediction != null && mlPrediction.confidence > 0.6) {
+            val topMl = mlPrediction.suggestedTools.maxByOrNull { it.second }?.first
+            if (topMl != null && topMl == rlPrediction.recommendedTool && rlPrediction.confidence > 0.55f) {
+                return@withContext "بعد $lastTool، الأداة الأقوى: $topMl (اتفاق RL+ML)"
+            }
+        }
+
+        // RL كمسار أساسي إذا كانت الثقة جيدة
+        if (rlPrediction != null && rlPrediction.confidence > 0.6f) {
+            val alternatives = rlPrediction.alternatives
+                .take(2)
+                .joinToString(" أو ") { "${it.name} (${(it.score * 100).toInt()}%)" }
+            return@withContext if (alternatives.isBlank()) {
+                "بعد $lastTool، الأداة المقترحة: ${rlPrediction.recommendedTool} (${(rlPrediction.confidence * 100).toInt()}%)"
+            } else {
+                "بعد $lastTool، الأداة المقترحة: ${rlPrediction.recommendedTool} (${(rlPrediction.confidence * 100).toInt()}%) — بدائل: $alternatives"
+            }
+        }
 
         if (mlPrediction != null && mlPrediction.confidence > 0.6) {
             val suggested = mlPrediction.suggestedTools.take(2)
