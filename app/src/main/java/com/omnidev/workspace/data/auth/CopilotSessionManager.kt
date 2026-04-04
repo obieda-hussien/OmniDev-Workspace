@@ -203,8 +203,7 @@ object CopilotSessionManager {
                             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
                         )
                     } catch (e: Exception) {
-                        Log.e(TAG, "Failed to initialize encrypted prefs, using legacy prefs fallback", e)
-                        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                        throw IllegalStateException("Failed to initialize encrypted session storage", e)
                     }
 
                     migrateLegacyPrefsIfNeeded(context, securePrefs)
@@ -234,7 +233,10 @@ object CopilotSessionManager {
                 }
             }.apply()
 
-            legacyPrefs.edit().clear().apply()
+            val cleared = legacyPrefs.edit().clear().commit()
+            if (!cleared) {
+                Log.w(TAG, "Legacy session prefs clear failed after secure migration")
+            }
         }
     }
 
