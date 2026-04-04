@@ -1,6 +1,7 @@
 package com.omnidev.workspace.data.tools
 
 import com.omnidev.workspace.data.ipc.LauncherConnectionManager
+import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 import org.json.JSONObject
 
 /**
@@ -48,11 +49,7 @@ object LauncherControlTool {
 
     fun execute(action: String, args: Map<String, String>): ToolExecutionResult {
         val launcher = LauncherConnectionManager.getLauncherInterface()
-            ?: return ToolExecutionResult(
-                output = errorJson("Current launcher does not support OmniDev protocol. " +
-                    "Ensure the default launcher has the OmniDev IPC service enabled."),
-                isError = true
-            )
+            ?: return fallbackWhenLauncherUnavailable(action)
 
         val normalized = action.trim().lowercase()
         val succeeded = runCatching {
@@ -133,4 +130,24 @@ object LauncherControlTool {
         .put("ok", false)
         .put("error", message)
         .toString()
+
+    private fun fallbackWhenLauncherUnavailable(action: String): ToolExecutionResult {
+        val normalized = action.trim().lowercase()
+        if (normalized == "go_home" && PrivilegedExecutionManager.isShizukuReady()) {
+            val fallback = runCatching {
+                kotlinx.coroutines.runBlocking {
+                    PrivilegedExecutionManager.executeCommand("input keyevent 3")
+                }
+            }.getOrNull()?.isSuccess == true
+            if (fallback) {
+                return ToolExecutionResult(successJson(normalized))
+            }
+        }
+
+        return ToolExecutionResult(
+            output = errorJson("Current launcher does not support OmniDev protocol. " +
+                "Ensure the default launcher has the OmniDev IPC service enabled."),
+            isError = true
+        )
+    }
 }

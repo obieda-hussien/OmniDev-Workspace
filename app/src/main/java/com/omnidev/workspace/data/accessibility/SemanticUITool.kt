@@ -34,6 +34,7 @@ object SemanticUITool {
 
     /** Delay (ms) to wait for accessibility service to connect after auto-enable. */
     private const val ACCESSIBILITY_SERVICE_CONNECTION_DELAY_MS = 1500L
+    private const val ACCESSIBILITY_SERVICE_MAX_WAIT_MS = 7000L
 
     /**
      * Holds the latest parse result from [SemanticTreeParser].
@@ -130,8 +131,7 @@ object SemanticUITool {
                 // Try auto-enable via Shizuku before giving up
                 if (ShizukuCommandTool.isAvailable() && ShizukuCommandTool.hasPermission()) {
                     val enableResult = GodModeAccessibility.autoEnableOmniVision()
-                    // Wait briefly for the service to connect
-                    kotlinx.coroutines.delay(ACCESSIBILITY_SERVICE_CONNECTION_DELAY_MS)
+                    waitForAccessibilityConnection()
                     if (!AccessibilityStateManager.isServiceConnected.value) {
                         return@withContext ToolExecutionResult(
                             "⚠️ Accessibility Service auto-enable attempted: $enableResult\n" +
@@ -171,6 +171,14 @@ object SemanticUITool {
                 )
             }
         }
+
+    private suspend fun waitForAccessibilityConnection() {
+        var waitedMs = 0L
+        while (!AccessibilityStateManager.isServiceConnected.value && waitedMs < ACCESSIBILITY_SERVICE_MAX_WAIT_MS) {
+            kotlinx.coroutines.delay(ACCESSIBILITY_SERVICE_CONNECTION_DELAY_MS)
+            waitedMs += ACCESSIBILITY_SERVICE_CONNECTION_DELAY_MS
+        }
+    }
 
     // ── Action implementations ──
 
