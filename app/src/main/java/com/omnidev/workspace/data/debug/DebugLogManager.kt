@@ -2,6 +2,7 @@ package com.omnidev.workspace.data.debug
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -74,8 +75,13 @@ object DebugLogManager {
     fun markPendingCrashRedirect() {
         if (!::logDir.isInitialized) return
         val marker = File(logDir, CRASH_REDIRECT_MARKER_FILE)
-        if (!marker.exists()) {
-            marker.createNewFile()
+        if (marker.exists()) return
+        try {
+            if (!marker.createNewFile()) {
+                Log.w(TAG, "Failed to create crash redirect marker: ${marker.absolutePath}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating crash redirect marker", e)
         }
     }
 
@@ -87,7 +93,9 @@ object DebugLogManager {
         if (!::logDir.isInitialized) return false
         val marker = File(logDir, CRASH_REDIRECT_MARKER_FILE)
         if (!marker.exists()) return false
-        if (!marker.delete() && marker.exists()) return false
+        if (!marker.delete() && marker.exists()) {
+            Log.w(TAG, "Failed to delete crash redirect marker: ${marker.absolutePath}")
+        }
         return true
     }
 
@@ -246,3 +254,4 @@ object DebugLogManager {
         return sw.toString()
     }
 }
+    private const val TAG = "DebugLogManager"
