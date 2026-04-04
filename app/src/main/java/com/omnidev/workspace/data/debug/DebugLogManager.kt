@@ -39,6 +39,7 @@ data class DebugEntry(
 object DebugLogManager {
 
     private const val LOG_DIR = "debug_logs"
+    private const val CRASH_REDIRECT_MARKER_FILE = "pending_crash_redirect.flag"
     private const val DATE_FORMAT = "yyyy-MM-dd HH:mm:ss.SSS"
     private const val FILE_DATE_FORMAT = "yyyyMMdd_HHmmss_SSS"
     // Single-thread executor for async log writes. This executor lives for the entire
@@ -67,6 +68,24 @@ object DebugLogManager {
             detail = stackTrace(throwable),
             ts = ts
         )
+    }
+
+    /** Mark that the next launch should open the debug console. */
+    fun markPendingCrashRedirect() {
+        if (!::logDir.isInitialized) return
+        File(logDir, CRASH_REDIRECT_MARKER_FILE).writeText(timestamp(), Charsets.UTF_8)
+    }
+
+    /**
+     * Returns true once after a fatal crash was recorded, then clears the marker.
+     * Intended to route the next app launch directly to debug diagnostics.
+     */
+    fun consumePendingCrashRedirect(): Boolean {
+        if (!::logDir.isInitialized) return false
+        val marker = File(logDir, CRASH_REDIRECT_MARKER_FILE)
+        val exists = marker.exists()
+        if (exists) marker.delete()
+        return exists
     }
 
     /** Append a caught exception as an error log entry (async). */
