@@ -254,6 +254,83 @@ abstract class OmniDevDatabase : RoomDatabase() {
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_tool ON tool_execution_log(toolName)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_session ON tool_execution_log(sessionId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_time ON tool_execution_log(timestamp)")
+
+                // Normalize system_knowledge schema to match Room metadata:
+                // no SQL defaults and no indices at v8.
+                db.execSQL("DROP INDEX IF EXISTS index_sys_knowledge_type")
+                db.execSQL("DROP INDEX IF EXISTS index_sys_knowledge_subject")
+                db.execSQL("DROP INDEX IF EXISTS index_sys_knowledge_priority")
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS system_knowledge_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        knowledgeType TEXT NOT NULL,
+                        subject TEXT NOT NULL,
+                        content TEXT NOT NULL,
+                        confidence REAL NOT NULL,
+                        verificationCount INTEGER NOT NULL,
+                        isValid INTEGER NOT NULL,
+                        source TEXT NOT NULL,
+                        searchTags TEXT NOT NULL,
+                        injectionPriority INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                """.trimIndent())
+
+                val oldSystemTableExists = db.scalarLong(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='system_knowledge'"
+                ) > 0
+                if (oldSystemTableExists) {
+                    val existingColumns = mutableSetOf<String>()
+                    db.query("PRAGMA table_info(system_knowledge)").use { cursor ->
+                        val nameIndex = cursor.getColumnIndex("name")
+                        while (cursor.moveToNext()) {
+                            existingColumns += cursor.getString(nameIndex)
+                        }
+                    }
+
+                    val insertColumns = mutableListOf<String>()
+                    val selectExpressions = mutableListOf<String>()
+
+                    fun addSystemColumn(column: String, fallback: String) {
+                        insertColumns += column
+                        selectExpressions += if (existingColumns.contains(column)) column else fallback
+                    }
+
+                    if (existingColumns.contains("id")) {
+                        insertColumns += "id"
+                        selectExpressions += "id"
+                    }
+                    addSystemColumn("knowledgeType", "''")
+                    addSystemColumn("subject", "''")
+                    addSystemColumn("content", "''")
+                    addSystemColumn("confidence", "1.0")
+                    addSystemColumn("verificationCount", "1")
+                    addSystemColumn("isValid", "1")
+                    addSystemColumn("source", "'agent_discovery'")
+                    addSystemColumn("searchTags", "''")
+                    addSystemColumn("injectionPriority", "5")
+                    addSystemColumn("createdAt", "0")
+                    addSystemColumn("updatedAt", "0")
+
+                    db.execSQL(
+                        """
+                        INSERT INTO system_knowledge_new (${insertColumns.joinToString(", ")})
+                        SELECT ${selectExpressions.joinToString(", ")}
+                        FROM system_knowledge
+                        """.trimIndent()
+                    )
+
+                    val sourceCount = db.scalarLong("SELECT COUNT(*) FROM system_knowledge")
+                    val targetCount = db.scalarLong("SELECT COUNT(*) FROM system_knowledge_new")
+                    check(targetCount == sourceCount) {
+                        "system_knowledge migration row count mismatch: source=$sourceCount target=$targetCount"
+                    }
+
+                    db.execSQL("DROP TABLE system_knowledge")
+                }
+
+                db.execSQL("ALTER TABLE system_knowledge_new RENAME TO system_knowledge")
             }
         }
 
