@@ -275,6 +275,7 @@ object UIReplicaPipelineTool {
             .filter { it.isNotBlank() && it != "••••••••" && !it.startsWith("bounds:", ignoreCase = true) }
             .distinct()
             .take(40)
+            .toList()
     }
 
     private fun extractComponentHints(reference: String): List<String> {
@@ -290,6 +291,7 @@ object UIReplicaPipelineTool {
             .filter { it.isNotBlank() }
             .distinct()
             .take(20)
+            .toList()
     }
 
     private fun normalizeComponentType(raw: String): String {
