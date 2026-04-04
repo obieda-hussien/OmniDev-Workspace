@@ -17,6 +17,12 @@ object UIReplicaPipelineTool {
 
     private const val MAX_RAW_DUMP_CHARS = 40_000
     private const val DEFAULT_WAIT_MS = 1_500L
+    private const val DEFAULT_EMPTY_SIGNAL_SCORE = 0.60
+    private const val TEXT_SCORE_WEIGHT = 0.65
+    private const val STRUCTURE_SCORE_WEIGHT = 0.35
+    private const val HIGH_SIMILARITY_THRESHOLD = 85
+    private const val MEDIUM_SIMILARITY_THRESHOLD = 70
+    private const val TARGET_SIMILARITY_THRESHOLD = HIGH_SIMILARITY_THRESHOLD
 
     data class CaptureBundle(
         val packageName: String?,
@@ -184,19 +190,27 @@ object UIReplicaPipelineTool {
         val expectedTexts = extractExpectedTexts(semanticSource)
         val matchedTexts = expectedTexts.filter { generatedCode.contains(it, ignoreCase = true) }
 
-        val textScore = if (expectedTexts.isEmpty()) 0.60 else matchedTexts.size.toDouble() / expectedTexts.size.toDouble()
+        val textScore = if (expectedTexts.isEmpty()) {
+            DEFAULT_EMPTY_SIGNAL_SCORE
+        } else {
+            matchedTexts.size.toDouble() / expectedTexts.size.toDouble()
+        }
 
         val expectedComponents = extractComponentHints(semanticSource)
         val expectedKeywords = expectedComponents
             .flatMap { componentKeywordsForLanguage(it, targetLanguage) }
             .distinct()
         val matchedKeywords = expectedKeywords.filter { generatedCode.contains(it, ignoreCase = true) }
-        val structureScore = if (expectedKeywords.isEmpty()) 0.60 else matchedKeywords.size.toDouble() / expectedKeywords.size.toDouble()
+        val structureScore = if (expectedKeywords.isEmpty()) {
+            DEFAULT_EMPTY_SIGNAL_SCORE
+        } else {
+            matchedKeywords.size.toDouble() / expectedKeywords.size.toDouble()
+        }
 
-        val totalScore = (((textScore * 0.65) + (structureScore * 0.35)) * 100.0).roundToInt()
+        val totalScore = (((textScore * TEXT_SCORE_WEIGHT) + (structureScore * STRUCTURE_SCORE_WEIGHT)) * 100.0).roundToInt()
         val similarityLabel = when {
-            totalScore >= 85 -> "High similarity"
-            totalScore >= 70 -> "Medium similarity"
+            totalScore >= HIGH_SIMILARITY_THRESHOLD -> "High similarity"
+            totalScore >= MEDIUM_SIMILARITY_THRESHOLD -> "Medium similarity"
             else -> "Low similarity"
         }
 
@@ -210,8 +224,8 @@ object UIReplicaPipelineTool {
         if (missingKeywords.isNotEmpty()) {
             recommendations += "Align layout/component structure: ${missingKeywords.joinToString(", ")}"
         }
-        if (totalScore < 70) {
-            recommendations += "Regenerate and re-run validate_code until similarity is >= 85."
+        if (totalScore < MEDIUM_SIMILARITY_THRESHOLD) {
+            recommendations += "Regenerate and re-run validate_code until similarity is >= $TARGET_SIMILARITY_THRESHOLD."
         }
 
         val result = buildString {
@@ -226,7 +240,7 @@ object UIReplicaPipelineTool {
             }
         }.trim()
 
-        return ToolExecutionResult(output = result, isError = totalScore < 70)
+        return ToolExecutionResult(output = result, isError = totalScore < MEDIUM_SIMILARITY_THRESHOLD)
     }
 
     private fun launchPackage(context: Context, packageName: String): String {
