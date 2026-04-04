@@ -203,7 +203,10 @@ object CopilotSessionManager {
                             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
                         )
                     } catch (e: Exception) {
-                        throw IllegalStateException("Failed to initialize encrypted session storage", e)
+                        throw IllegalStateException(
+                            "Failed to initialize encrypted session storage (Keystore unavailable, key invalidated, or secure prefs corruption).",
+                            e
+                        )
                     }
 
                     migrateLegacyPrefsIfNeeded(context, securePrefs)
@@ -235,7 +238,9 @@ object CopilotSessionManager {
 
             val cleared = legacyPrefs.edit().clear().commit()
             if (!cleared) {
-                throw IllegalStateException("Failed to clear legacy plaintext session storage after secure migration")
+                throw IllegalStateException(
+                    "Failed to clear legacy plaintext session storage after secure migration (storage/permission issue)."
+                )
             }
         }
     }
