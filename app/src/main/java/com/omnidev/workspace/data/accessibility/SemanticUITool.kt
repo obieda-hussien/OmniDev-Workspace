@@ -7,6 +7,8 @@ import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.tools.ToolExecutionResult
 import com.omnidev.workspace.data.tools.ToolParameter
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 /**
@@ -32,8 +34,6 @@ import kotlinx.coroutines.withContext
  */
 object SemanticUITool {
 
-    /** Delay (ms) to wait for accessibility service to connect after auto-enable. */
-    private const val ACCESSIBILITY_SERVICE_CONNECTION_DELAY_MS = 1500L
     private const val ACCESSIBILITY_SERVICE_MAX_WAIT_MS = 7000L
 
     /**
@@ -172,11 +172,14 @@ object SemanticUITool {
             }
         }
 
+    /**
+     * Waits for accessibility connection readiness for up to [ACCESSIBILITY_SERVICE_MAX_WAIT_MS].
+     * Returns silently whether the service connected before timeout or not.
+     */
     private suspend fun waitForAccessibilityConnection() {
-        var waitedMs = 0L
-        while (!AccessibilityStateManager.isServiceConnected.value && waitedMs < ACCESSIBILITY_SERVICE_MAX_WAIT_MS) {
-            kotlinx.coroutines.delay(ACCESSIBILITY_SERVICE_CONNECTION_DELAY_MS)
-            waitedMs += ACCESSIBILITY_SERVICE_CONNECTION_DELAY_MS
+        if (AccessibilityStateManager.isServiceConnected.value) return
+        withTimeoutOrNull(ACCESSIBILITY_SERVICE_MAX_WAIT_MS) {
+            AccessibilityStateManager.isServiceConnected.first { it }
         }
     }
 

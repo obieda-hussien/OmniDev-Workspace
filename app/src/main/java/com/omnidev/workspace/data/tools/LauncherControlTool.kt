@@ -23,6 +23,7 @@ import org.json.JSONObject
  * informative error is returned instead of crashing.
  */
 object LauncherControlTool {
+    private const val KEYEVENT_HOME = 3
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
@@ -47,7 +48,7 @@ object LauncherControlTool {
         )
     )
 
-    fun execute(action: String, args: Map<String, String>): ToolExecutionResult {
+    suspend fun execute(action: String, args: Map<String, String>): ToolExecutionResult {
         val launcher = LauncherConnectionManager.getLauncherInterface()
             ?: return fallbackWhenLauncherUnavailable(action)
 
@@ -131,17 +132,17 @@ object LauncherControlTool {
         .put("error", message)
         .toString()
 
-    private fun fallbackWhenLauncherUnavailable(action: String): ToolExecutionResult {
+    private suspend fun fallbackWhenLauncherUnavailable(action: String): ToolExecutionResult {
         val normalized = action.trim().lowercase()
         if (normalized == "go_home" && PrivilegedExecutionManager.isShizukuReady()) {
-            val fallback = runCatching {
-                kotlinx.coroutines.runBlocking {
-                    PrivilegedExecutionManager.executeCommand("input keyevent 3")
-                }
-            }.getOrNull()?.isSuccess == true
-            if (fallback) {
+            val result = ShizukuCommandTool.execute("input keyevent $KEYEVENT_HOME")
+            if (result is ShizukuResult.Success || result is ShizukuResult.PartialSuccess) {
                 return ToolExecutionResult(successJson(normalized))
             }
+            return ToolExecutionResult(
+                output = errorJson("Failed to execute home action via Shizuku fallback."),
+                isError = true
+            )
         }
 
         return ToolExecutionResult(
