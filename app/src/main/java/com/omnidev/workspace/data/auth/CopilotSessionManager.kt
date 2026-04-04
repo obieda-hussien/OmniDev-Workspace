@@ -217,20 +217,22 @@ object CopilotSessionManager {
             val legacyPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             if (legacyPrefs.all.isEmpty()) return
 
-            if (!securePrefs.contains(KEY_SESSION_TOKEN)) {
-                legacyPrefs.getString(KEY_SESSION_TOKEN, null)?.let {
-                    securePrefs.edit().putString(KEY_SESSION_TOKEN, it).apply()
+            securePrefs.edit().apply {
+                if (!securePrefs.contains(KEY_SESSION_TOKEN)) {
+                    legacyPrefs.getString(KEY_SESSION_TOKEN, null)?.let {
+                        putString(KEY_SESSION_TOKEN, it)
+                    }
                 }
-            }
-            if (!securePrefs.contains(KEY_TOKEN_EXPIRY)) {
-                val expiry = legacyPrefs.getLong(KEY_TOKEN_EXPIRY, 0L)
-                if (expiry > 0L) securePrefs.edit().putLong(KEY_TOKEN_EXPIRY, expiry).apply()
-            }
-            if (!securePrefs.contains(KEY_MODEL_IDS)) {
-                legacyPrefs.getString(KEY_MODEL_IDS, null)?.let {
-                    securePrefs.edit().putString(KEY_MODEL_IDS, it).apply()
+                if (!securePrefs.contains(KEY_TOKEN_EXPIRY)) {
+                    val expiry = legacyPrefs.getLong(KEY_TOKEN_EXPIRY, 0L)
+                    if (expiry > 0L) putLong(KEY_TOKEN_EXPIRY, expiry)
                 }
-            }
+                if (!securePrefs.contains(KEY_MODEL_IDS)) {
+                    legacyPrefs.getString(KEY_MODEL_IDS, null)?.let {
+                        putString(KEY_MODEL_IDS, it)
+                    }
+                }
+            }.apply()
 
             legacyPrefs.edit().clear().apply()
         }
