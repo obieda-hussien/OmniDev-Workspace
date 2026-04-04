@@ -311,9 +311,9 @@ abstract class OmniDevDatabase : RoomDatabase() {
                     addColumnWithFallback("source", "'agent_discovery'")
                     addColumnWithFallback("searchTags", "''")
                     addColumnWithFallback("injectionPriority", "5")
-                    // Use 0 only as a sentinel for missing legacy timestamps.
-                    addColumnWithFallback("createdAt", "0")
-                    addColumnWithFallback("updatedAt", "0")
+                    // If legacy rows are missing timestamps, backfill with migration-time value.
+                    addColumnWithFallback("createdAt", "(strftime('%s','now') * 1000)")
+                    addColumnWithFallback("updatedAt", "(strftime('%s','now') * 1000)")
 
                     db.execSQL(
                         """
