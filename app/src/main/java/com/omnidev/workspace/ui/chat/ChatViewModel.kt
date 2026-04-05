@@ -134,6 +134,14 @@ class ChatViewModel(
          */
         private const val CHAT_SYSTEM_PROMPT =
             "You are a helpful, concise assistant. Answer questions directly. If the user asks you to write or edit code, be precise and professional."
+        private const val CHECKPOINT_CONSOLE_TAIL_SIZE = 8
+        private const val CHECKPOINT_DEEP_THINKING_PREVIEW_CHARS = 120
+        private const val CHECKPOINT_ERROR_PREVIEW_CHARS = 160
+        private const val CHECKPOINT_TOOL_PARAMS_PREVIEW_CHARS = 140
+        private val CHECKPOINT_SECRET_ASSIGNMENT_REGEX =
+            Regex("(?i)(\\b(?:api_?key|key|token|secret|password|otp)\\b)\\s*(?:=|:)\\s*(?:\"[^\"]+\"|[^\\s,&\"']+)")
+        private val CHECKPOINT_BEARER_REGEX =
+            Regex("(?i)(\\bAuthorization\\b\\s*:\\s*Bearer\\s+|\\bbearer\\b\\s+)([^\\s,;]+)")
     }
 
     private val _uiState = MutableStateFlow(ChatUiState())
@@ -539,6 +547,7 @@ class ChatViewModel(
         )
         val sessionId = _uiState.value.currentSessionId
         val currentConsole = _uiState.value.consoleEntries
+        val persistableSessionId = sessionId.takeIf { isPersistableSessionId(it) }
 
         currentAgentJob?.cancel()
         currentAgentJob = null
@@ -552,9 +561,9 @@ class ChatViewModel(
                     else it.messageConsoleEntries
                 )
             }
-            if (sessionId != null && sessionId >= 0L) {
+            if (persistableSessionId != null) {
                 viewModelScope.launch {
-                    chatRepository?.saveMessage(sessionId, checkpoint, currentConsole)
+                    chatRepository?.saveMessage(persistableSessionId, checkpoint, currentConsole)
                 }
             }
         }
@@ -863,6 +872,7 @@ class ChatViewModel(
                     state = _uiState.value
                 )
                 val currentConsole = _uiState.value.consoleEntries
+                val persistableSessionId = sessionId.takeIf { isPersistableSessionId(it) }
                 _uiState.update {
                     it.copy(
                         messages = if (checkpoint != null) it.messages + checkpoint else it.messages,
@@ -877,9 +887,9 @@ class ChatViewModel(
                             AgentConsoleEntry.ErrorEntry(event.message)
                     )
                 }
-                if (checkpoint != null && sessionId >= 0L) {
+                if (checkpoint != null && persistableSessionId != null) {
                     viewModelScope.launch {
-                        chatRepository?.saveMessage(sessionId, checkpoint, currentConsole)
+                        chatRepository?.saveMessage(persistableSessionId, checkpoint, currentConsole)
                     }
                 }
             }
@@ -895,24 +905,24 @@ class ChatViewModel(
         state: ChatUiState
     ): ChatMessage? {
         val partial = state.streamingContent?.trim().orEmpty()
-        val consoleTail = state.consoleEntries.takeLast(8)
+        val consoleTail = state.consoleEntries.takeLast(CHECKPOINT_CONSOLE_TAIL_SIZE)
 
         if (partial.isBlank() && consoleTail.isEmpty()) return null
 
         val progressLines = consoleTail.mapNotNull { entry ->
             when (entry) {
                 is AgentConsoleEntry.ToolEntry ->
-                    "• Tool call: ${entry.toolName}(${entry.params})"
+                    "• Tool call: ${entry.toolName}(${sanitizeCheckpointText(entry.params, CHECKPOINT_TOOL_PARAMS_PREVIEW_CHARS)})"
                 is AgentConsoleEntry.ResultEntry ->
                     "• Tool result: ${entry.toolName} → ${entry.snippet}"
                 is AgentConsoleEntry.ThinkingEntry ->
                     "• Iteration ${entry.iteration}: thinking"
                 is AgentConsoleEntry.DeepThinkingEntry ->
-                    "• Deep thinking: ${entry.snippet.take(120)}"
+                    "• Deep thinking: ${sanitizeCheckpointText(entry.snippet, CHECKPOINT_DEEP_THINKING_PREVIEW_CHARS)}"
                 is AgentConsoleEntry.TokenEntry ->
                     "• Tokens used: ${entry.totalTokens}"
                 is AgentConsoleEntry.ErrorEntry ->
-                    "• Error observed: ${entry.message.take(160)}"
+                    "• Error observed: ${sanitizeCheckpointText(entry.message, CHECKPOINT_ERROR_PREVIEW_CHARS)}"
                 is AgentConsoleEntry.ReplyEntry -> null
             }
         }
@@ -938,6 +948,18 @@ class ChatViewModel(
             role = MessageRole.ASSISTANT,
             content = checkpoint
         )
+    }
+
+    private fun isPersistableSessionId(sessionId: Long?): Boolean = sessionId != null && sessionId >= 0L
+
+    private fun sanitizeCheckpointText(value: String, maxChars: Int): String {
+        return value
+            .replace(CHECKPOINT_SECRET_ASSIGNMENT_REGEX) { match ->
+                val key = match.groupValues[1]
+                "$key=[REDACTED]"
+            }
+            .replace(CHECKPOINT_BEARER_REGEX, "$1[REDACTED]")
+            .take(maxChars)
     }
 
     /** Maps [SwarmEvent]s to UI state updates and console entries. */
