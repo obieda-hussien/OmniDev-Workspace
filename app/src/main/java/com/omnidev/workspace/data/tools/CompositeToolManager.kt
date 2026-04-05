@@ -116,6 +116,7 @@ class CompositeToolManager(
         addAll(TaskManagerTool.getToolDefinitions())
         addAll(N8nAutomationTool.getToolDefinitions())
         addAll(VisualInspectorTool.getToolDefinitions())
+        addAll(UIReplicaPipelineTool.getToolDefinitions())
         addAll(TelegramPublisherTool.getToolDefinitions())
         addAll(TelegramBotTool.getToolDefinitions())
         addAll(DiscordBotTool.getToolDefinitions())
@@ -568,6 +569,16 @@ class CompositeToolManager(
             "visual_inspector" -> {
                 val ctx = context ?: return ToolExecutionResult("Context required.", isError = true)
                 VisualInspectorTool.execute(ctx)
+            }
+
+            // ── UI replica pipeline tool ──
+            "ui_replica_pipeline" -> {
+                val action = arguments["action"] ?: return missingArg("action")
+                UIReplicaPipelineTool.execute(
+                    context = context,
+                    action = action,
+                    args = arguments
+                )
             }
 
 

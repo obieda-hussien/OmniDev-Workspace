@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.ComponentName
 import android.net.Uri
 import android.net.VpnService
 import android.os.Build
@@ -12,6 +13,8 @@ import android.provider.Settings
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.omnidev.workspace.MainActivity
+import com.omnidev.workspace.data.accessibility.AccessibilityStateManager
+import com.omnidev.workspace.data.accessibility.OmniAccessibilityService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -75,9 +78,16 @@ object PermissionManagerTool {
     }
 
     private fun isAccessibilityServiceEnabled(context: Context): Boolean {
-        val expectedService = "${context.packageName}/com.omnidev.workspace.data.accessibility.OmniAccessibilityService"
+        if (AccessibilityStateManager.isServiceConnected.value) return true
+        val expectedComponent = ComponentName(context, OmniAccessibilityService::class.java)
+        val expectedShort = expectedComponent.flattenToShortString()
+        val expectedFull = expectedComponent.flattenToString()
         val enabledServices = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES)
-        return enabledServices?.contains(expectedService) == true
+            ?: return false
+        return enabledServices
+            .split(':')
+            .map { it.trim() }
+            .any { it == expectedShort || it == expectedFull }
     }
 
     private fun isNotificationListenerEnabled(context: Context): Boolean {
