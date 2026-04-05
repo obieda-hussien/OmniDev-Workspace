@@ -29,6 +29,8 @@ class ChatRepository(
          * the live UI — only the persisted copy is capped.
          */
         private const val MAX_STORED_MESSAGE_CHARS = 10_000
+        private const val SESSION_STATUS_SEPARATOR = " • Status: "
+        private const val DEFAULT_SESSION_TITLE = "New conversation"
     }
 
     /** Observe all sessions ordered newest-first (for the navigation drawer). */
@@ -45,6 +47,21 @@ class ChatRepository(
      */
     suspend fun touchSession(sessionId: Long, title: String) {
         sessionDao.updateTitleAndTimestamp(sessionId, title, System.currentTimeMillis())
+    }
+
+    /**
+     * Persists the latest run status into the session title so it is visible in history.
+     * Existing status suffixes are replaced; the original title is preserved.
+     */
+    suspend fun updateSessionRunStatus(sessionId: Long, statusLabel: String) {
+        val session = sessionDao.getById(sessionId) ?: return
+        val baseTitle = session.title.substringBefore(SESSION_STATUS_SEPARATOR).trim()
+        val normalizedBase = baseTitle.ifBlank { DEFAULT_SESSION_TITLE }
+        sessionDao.updateTitleAndTimestamp(
+            id = sessionId,
+            title = "$normalizedBase$SESSION_STATUS_SEPARATOR$statusLabel",
+            timestamp = System.currentTimeMillis()
+        )
     }
 
     /**

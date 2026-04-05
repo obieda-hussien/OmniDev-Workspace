@@ -138,6 +138,10 @@ class ChatViewModel(
         private const val CHECKPOINT_DEEP_THINKING_PREVIEW_CHARS = 120
         private const val CHECKPOINT_ERROR_PREVIEW_CHARS = 160
         private const val CHECKPOINT_TOOL_PARAMS_PREVIEW_CHARS = 140
+        private const val USER_STOPPED_MESSAGE = "⏹ Run stopped by user."
+        private const val STATUS_USER_STOPPED = "Stopped by user"
+        private const val STATUS_INTERRUPTED = "Stopped by guard/timeout"
+        private const val STATUS_COMPLETED = "Completed"
         private val CHECKPOINT_SECRET_ASSIGNMENT_REGEX =
             Regex("(?i)(\\b(?:api_?key|key|token|secret|password|otp)\\b)\\s*(?:=|:)\\s*(?:\"[^\"]+\"|[^\\s,&\"']+)")
         private val CHECKPOINT_BEARER_REGEX =
@@ -542,9 +546,10 @@ class ChatViewModel(
      */
     fun cancelCurrentRun() {
         val checkpoint = buildInterruptionCheckpointMessage(
-            reason = "⏹ Run stopped by user.",
+            reason = USER_STOPPED_MESSAGE,
             state = _uiState.value
         )
+        val statusMessage = checkpoint ?: buildRunStatusMessage(USER_STOPPED_MESSAGE)
         val sessionId = _uiState.value.currentSessionId
         val currentConsole = _uiState.value.consoleEntries
         val persistableSessionId = sessionId.takeIf { isPersistableSessionId(it) }
@@ -552,19 +557,18 @@ class ChatViewModel(
         currentAgentJob?.cancel()
         currentAgentJob = null
 
-        if (checkpoint != null) {
-            _uiState.update {
-                it.copy(
-                    messages = it.messages + checkpoint,
-                    messageConsoleEntries = if (currentConsole.isNotEmpty())
-                        it.messageConsoleEntries + (checkpoint.timestamp to currentConsole)
-                    else it.messageConsoleEntries
-                )
-            }
-            if (persistableSessionId != null) {
-                viewModelScope.launch {
-                    chatRepository?.saveMessage(persistableSessionId, checkpoint, currentConsole)
-                }
+        _uiState.update {
+            it.copy(
+                messages = it.messages + statusMessage,
+                messageConsoleEntries = if (currentConsole.isNotEmpty())
+                    it.messageConsoleEntries + (statusMessage.timestamp to currentConsole)
+                else it.messageConsoleEntries
+            )
+        }
+        if (persistableSessionId != null) {
+            viewModelScope.launch {
+                chatRepository?.saveMessage(persistableSessionId, statusMessage, currentConsole)
+                chatRepository?.updateSessionRunStatus(persistableSessionId, STATUS_USER_STOPPED)
             }
         }
 
@@ -573,7 +577,7 @@ class ChatViewModel(
                 isProcessing = false,
                 agentStatus = null,
                 streamingContent = null,
-                errorMessage = "⏹ Run stopped by user."
+                errorMessage = USER_STOPPED_MESSAGE
             )
         }
     }
@@ -671,6 +675,7 @@ class ChatViewModel(
             content = response.content
         )
         chatRepository?.saveMessage(sessionId, assistantMessage)
+        chatRepository?.updateSessionRunStatus(sessionId, STATUS_COMPLETED)
         _uiState.update {
             it.copy(
                 messages = it.messages + assistantMessage,
@@ -850,6 +855,7 @@ class ChatViewModel(
                 val currentConsole = _uiState.value.consoleEntries
                 viewModelScope.launch {
                     chatRepository?.saveMessage(sessionId, assistantMessage, currentConsole)
+                    chatRepository?.updateSessionRunStatus(sessionId, STATUS_COMPLETED)
                 }
                 _uiState.update {
                     it.copy(
@@ -890,6 +896,14 @@ class ChatViewModel(
                 if (checkpoint != null && persistableSessionId != null) {
                     viewModelScope.launch {
                         chatRepository?.saveMessage(persistableSessionId, checkpoint, currentConsole)
+                        chatRepository?.updateSessionRunStatus(persistableSessionId, STATUS_INTERRUPTED)
+                    }
+                } else if (persistableSessionId != null) {
+                    val statusMessage = buildRunStatusMessage(event.message)
+                    _uiState.update { it.copy(messages = it.messages + statusMessage) }
+                    viewModelScope.launch {
+                        chatRepository?.saveMessage(persistableSessionId, statusMessage, currentConsole)
+                        chatRepository?.updateSessionRunStatus(persistableSessionId, STATUS_INTERRUPTED)
                     }
                 }
             }
@@ -951,6 +965,11 @@ class ChatViewModel(
     }
 
     private fun isPersistableSessionId(sessionId: Long?): Boolean = sessionId != null && sessionId >= 0L
+
+    private fun buildRunStatusMessage(statusText: String): ChatMessage = ChatMessage(
+        role = MessageRole.ASSISTANT,
+        content = "Run status: $statusText"
+    )
 
     private fun sanitizeCheckpointText(value: String, maxChars: Int): String {
         return value
@@ -1053,6 +1072,7 @@ class ChatViewModel(
                 val currentConsole = _uiState.value.consoleEntries
                 viewModelScope.launch {
                     chatRepository?.saveMessage(sessionId, assistantMessage, currentConsole)
+                    chatRepository?.updateSessionRunStatus(sessionId, STATUS_COMPLETED)
                 }
                 _uiState.update {
                     it.copy(
@@ -1079,9 +1099,11 @@ class ChatViewModel(
                     )
                 }
 
-            is SwarmEvent.Error ->
+            is SwarmEvent.Error -> {
+                val statusMessage = buildRunStatusMessage(event.message)
                 _uiState.update {
                     it.copy(
+                        messages = it.messages + statusMessage,
                         isProcessing = false,
                         agentStatus = null,
                         errorMessage = event.message,
@@ -1090,6 +1112,13 @@ class ChatViewModel(
                             AgentConsoleEntry.ErrorEntry(event.message)
                     )
                 }
+                if (isPersistableSessionId(sessionId)) {
+                    viewModelScope.launch {
+                        chatRepository?.saveMessage(sessionId, statusMessage, _uiState.value.consoleEntries)
+                        chatRepository?.updateSessionRunStatus(sessionId, STATUS_INTERRUPTED)
+                    }
+                }
+            }
         }
     }
 
