@@ -533,8 +533,32 @@ class ChatViewModel(
      * in-flight network calls and tool executions.
      */
     fun cancelCurrentRun() {
+        val checkpoint = buildInterruptionCheckpointMessage(
+            reason = "⏹ Run stopped by user.",
+            state = _uiState.value
+        )
+        val sessionId = _uiState.value.currentSessionId
+        val currentConsole = _uiState.value.consoleEntries
+
         currentAgentJob?.cancel()
         currentAgentJob = null
+
+        if (checkpoint != null) {
+            _uiState.update {
+                it.copy(
+                    messages = it.messages + checkpoint,
+                    messageConsoleEntries = if (currentConsole.isNotEmpty())
+                        it.messageConsoleEntries + (checkpoint.timestamp to currentConsole)
+                    else it.messageConsoleEntries
+                )
+            }
+            if (sessionId != null && sessionId >= 0L) {
+                viewModelScope.launch {
+                    chatRepository?.saveMessage(sessionId, checkpoint, currentConsole)
+                }
+            }
+        }
+
         _uiState.update {
             it.copy(
                 isProcessing = false,
@@ -834,8 +858,17 @@ class ChatViewModel(
             }
 
             is AgentEvent.Error -> {
+                val checkpoint = buildInterruptionCheckpointMessage(
+                    reason = event.message,
+                    state = _uiState.value
+                )
+                val currentConsole = _uiState.value.consoleEntries
                 _uiState.update {
                     it.copy(
+                        messages = if (checkpoint != null) it.messages + checkpoint else it.messages,
+                        messageConsoleEntries = if (checkpoint != null && currentConsole.isNotEmpty())
+                            it.messageConsoleEntries + (checkpoint.timestamp to currentConsole)
+                        else it.messageConsoleEntries,
                         isProcessing = false,
                         agentStatus = null,
                         errorMessage = event.message,
@@ -844,8 +877,67 @@ class ChatViewModel(
                             AgentConsoleEntry.ErrorEntry(event.message)
                     )
                 }
+                if (checkpoint != null && sessionId >= 0L) {
+                    viewModelScope.launch {
+                        chatRepository?.saveMessage(sessionId, checkpoint, currentConsole)
+                    }
+                }
             }
         }
+    }
+
+    /**
+     * Builds a compact assistant checkpoint message so follow-up prompts like "continue"
+     * can resume from the latest known progress instead of restarting from scratch.
+     */
+    private fun buildInterruptionCheckpointMessage(
+        reason: String,
+        state: ChatUiState
+    ): ChatMessage? {
+        val partial = state.streamingContent?.trim().orEmpty()
+        val consoleTail = state.consoleEntries.takeLast(8)
+
+        if (partial.isBlank() && consoleTail.isEmpty()) return null
+
+        val progressLines = consoleTail.mapNotNull { entry ->
+            when (entry) {
+                is AgentConsoleEntry.ToolEntry ->
+                    "• Tool call: ${entry.toolName}(${entry.params})"
+                is AgentConsoleEntry.ResultEntry ->
+                    "• Tool result: ${entry.toolName} → ${entry.snippet}"
+                is AgentConsoleEntry.ThinkingEntry ->
+                    "• Iteration ${entry.iteration}: thinking"
+                is AgentConsoleEntry.DeepThinkingEntry ->
+                    "• Deep thinking: ${entry.snippet.take(120)}"
+                is AgentConsoleEntry.TokenEntry ->
+                    "• Tokens used: ${entry.totalTokens}"
+                is AgentConsoleEntry.ErrorEntry ->
+                    "• Error observed: ${entry.message.take(160)}"
+                is AgentConsoleEntry.ReplyEntry -> null
+            }
+        }
+
+        val checkpoint = buildString {
+            appendLine("Execution checkpoint (auto-saved)")
+            appendLine("Reason: $reason")
+            if (partial.isNotBlank()) {
+                appendLine()
+                appendLine("Partial response:")
+                appendLine(partial)
+            }
+            if (progressLines.isNotEmpty()) {
+                appendLine()
+                appendLine("Latest progress:")
+                progressLines.forEach { appendLine(it) }
+            }
+            appendLine()
+            append("Continue from this checkpoint; do not restart previous finished steps.")
+        }
+
+        return ChatMessage(
+            role = MessageRole.ASSISTANT,
+            content = checkpoint
+        )
     }
 
     /** Maps [SwarmEvent]s to UI state updates and console entries. */
