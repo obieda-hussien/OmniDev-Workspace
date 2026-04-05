@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Sample backup rules file; see: https://developer.android.com/guide/topics/data/autobackup
+   Uncomment and modify as necessary for your application's backup needs.
+   Note that there is no need to include Google Play files when building your APK without
+   temporary Google Play specific files.
+
+   If your app already has a backup file, you can merge this sample's contents into it.
+
+   Always exclude files, if possible.
+
+   Note that full-backup-content is deprecated in Android 12 and higher,
+   as it's replaced by an improved version with dataExtractionRules.
+   (This file is still required, but it's now ignored on Android 12+.)
+-->
+<full-backup-content>
+    <!--
+    <include domain="sharedpref" path="."/>
+    <exclude domain="sharedpref" path="device.xml"/>
+    -->
+</full-backup-content>

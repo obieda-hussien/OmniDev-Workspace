@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Sample data extraction rules file; see: https://developer.android.com/about/versions/12/backup-restore
+   Uncomment and modify as necessary for your application's backup needs.
+   Note that there is no need to include Google Play files when building your APK without
+   temporary Google Play specific files.
+
+   If your app already has a backup file, you can merge this sample's contents into it.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- TODO: Use <include> and <exclude> tags to control what is backed up.
+        <include .../>
+        <exclude .../>
+        -->
+    </cloud-backup>
+    <!--
+    <device-transfer>
+        <include .../>
+        <exclude .../>
+    </device-transfer>
+    -->
+</data-extraction-rules>

@@ -1,0 +1,715 @@
+package com.omnidev.workspace.ui.brain
+
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.omnidev.workspace.data.brain.ToolAwarenessEngine
+import com.omnidev.workspace.data.db.entities.SystemKnowledgeEntry
+import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
+import java.text.SimpleDateFormat
+import java.util.*
+
+/**
+ * ══════════════════════════════════════════════════════════════════════════════
+ * AgentBrainDashboard — لوحة تحكم عقل الـ Agent
+ * ══════════════════════════════════════════════════════════════════════════════
+ *
+ * تعرض:
+ * 1. إحصائيات أداء الأدوات في الوقت الفعلي
+ * 2. سجل آخر التنفيذات
+ * 3. قاعدة المعرفة المكتسبة
+ * 4. حالة البيئة والنظام
+ * 5. مؤشر التعلم والتحسين
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AgentBrainDashboard(
+    viewModel: AgentBrainViewModel,
+    onNavigateBack: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    var selectedTab by remember { mutableStateOf(0) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // أيقونة النبض الحي
+                        PulsingDot()
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "🧠 Agent Brain",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp
+                            )
+                            Text(
+                                text = "نظام الذاكرة والوعي الذكي",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "رجوع")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { viewModel.refresh() }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "تحديث")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            )
+        }
+    ) { paddingValues ->
+        if (uiState.isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize().padding(paddingValues),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+            return@Scaffold
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // ─── بطاقات الإحصائيات السريعة ─────────────────────────────
+            StatsHeaderRow(uiState)
+
+            // ─── التبويبات ───────────────────────────────────────────────
+            ScrollableTabRow(
+                selectedTabIndex = selectedTab,
+                edgePadding = 12.dp,
+                containerColor = MaterialTheme.colorScheme.surface
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = { Text("📊 الأداء") }
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = { Text("📔 السجل") }
+                )
+                Tab(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    text = { Text("🧠 المعرفة") }
+                )
+                Tab(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    text = { Text("🌐 البيئة") }
+                )
+            }
+
+            // ─── محتوى التبويبات ─────────────────────────────────────────
+            when (selectedTab) {
+                0 -> PerformanceTab(uiState)
+                1 -> ExecutionLogTab(uiState.recentExecutions)
+                2 -> KnowledgeTab(uiState.recentKnowledge)
+                3 -> EnvironmentTab(uiState.awarenessStats)
+            }
+        }
+    }
+}
+
+// ─── إحصائيات في الأعلى ──────────────────────────────────────────────────
+
+@Composable
+private fun StatsHeaderRow(state: AgentBrainUiState) {
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            MiniStatCard(
+                icon = "⚡",
+                value = state.totalExecutions.toString(),
+                label = "عملية",
+                color = Color(0xFF2196F3)
+            )
+        }
+        item {
+            MiniStatCard(
+                icon = "✅",
+                value = "${(state.successRate * 100).toInt()}%",
+                label = "نجاح",
+                color = if (state.successRate > 0.8f) Color(0xFF4CAF50) else Color(0xFFFF9800)
+            )
+        }
+        item {
+            MiniStatCard(
+                icon = "🧠",
+                value = state.totalKnowledge.toString(),
+                label = "معرفة",
+                color = Color(0xFF9C27B0)
+            )
+        }
+        item {
+            MiniStatCard(
+                icon = "🔧",
+                value = state.sessionToolCount.toString(),
+                label = "أداة/جلسة",
+                color = Color(0xFF00BCD4)
+            )
+        }
+        if (state.problematicTools.isNotEmpty()) {
+            item {
+                MiniStatCard(
+                    icon = "⚠️",
+                    value = state.problematicTools.size.toString(),
+                    label = "مشكلة",
+                    color = Color(0xFFF44336)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MiniStatCard(
+    icon: String,
+    value: String,
+    label: String,
+    color: Color
+) {
+    Card(
+        modifier = Modifier.width(90.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = color.copy(alpha = 0.12f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(icon, fontSize = 20.sp)
+            Text(
+                text = value,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = color
+            )
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+        }
+    }
+}
+
+// ─── تبويب الأداء ────────────────────────────────────────────────────────
+
+@Composable
+private fun PerformanceTab(state: AgentBrainUiState) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // أفضل وأسوأ الأدوات
+        item {
+            InfoCard(
+                title = "🏆 أداء الأدوات",
+                content = buildString {
+                    appendLine("🥇 الأفضل: ${state.bestTool}")
+                    appendLine("🥉 الأسوأ: ${state.worstTool}")
+                    appendLine("🔥 الأكثر استخداماً: ${state.mostUsedTool}")
+                }
+            )
+        }
+
+        // الأدوات المشكلة
+        if (state.problematicTools.isNotEmpty()) {
+            item {
+                WarningCard(
+                    title = "⚠️ أدوات تحتاج انتباه",
+                    items = state.problematicTools
+                )
+            }
+        }
+
+        // مستوى التعلم
+        item {
+            LearningProgressCard(
+                totalExecutions = state.totalExecutions,
+                successRate = state.successRate
+            )
+        }
+    }
+}
+
+// ─── تبويب السجل ────────────────────────────────────────────────────────
+
+@Composable
+private fun ExecutionLogTab(entries: List<ToolExecutionEntry>) {
+    if (entries.isEmpty()) {
+        EmptyState(message = "لا توجد عمليات مسجلة بعد")
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        items(entries, key = { it.id }) { entry ->
+            ExecutionEntryCard(entry)
+        }
+    }
+}
+
+@Composable
+private fun ExecutionEntryCard(entry: ToolExecutionEntry) {
+    val bgColor = if (entry.success)
+        Color(0xFF4CAF50).copy(alpha = 0.08f)
+    else
+        Color(0xFFF44336).copy(alpha = 0.08f)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = bgColor),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // أيقونة الحالة
+            Text(
+                text = if (entry.success) "✅" else "❌",
+                fontSize = 18.sp
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = entry.toolName,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+                if (entry.errorMessage.isNotBlank()) {
+                    Text(
+                        text = entry.errorMessage,
+                        fontSize = 11.sp,
+                        color = Color(0xFFF44336),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                } else if (entry.learningNote.isNotBlank()) {
+                    Text(
+                        text = entry.learningNote,
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "${entry.executionTimeMs}ms",
+                    fontSize = 11.sp,
+                    color = when {
+                        entry.executionTimeMs < 500 -> Color(0xFF4CAF50)
+                        entry.executionTimeMs < 3000 -> Color(0xFFFF9800)
+                        else -> Color(0xFFF44336)
+                    }
+                )
+                Text(
+                    text = formatTimestamp(entry.timestamp),
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                )
+            }
+        }
+    }
+}
+
+// ─── تبويب المعرفة ───────────────────────────────────────────────────────
+
+@Composable
+private fun KnowledgeTab(entries: List<SystemKnowledgeEntry>) {
+    if (entries.isEmpty()) {
+        EmptyState(message = "لم يكتسب الـ Agent معرفة بعد")
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        items(entries, key = { it.id }) { entry ->
+            KnowledgeEntryCard(entry)
+        }
+    }
+}
+
+@Composable
+private fun KnowledgeEntryCard(entry: SystemKnowledgeEntry) {
+    val (icon, color) = when (entry.knowledgeType) {
+        ToolAwarenessEngine.TYPE_BEST_PRACTICE -> "💡" to Color(0xFF4CAF50)
+        ToolAwarenessEngine.TYPE_WARNING -> "⚠️" to Color(0xFFFF9800)
+        ToolAwarenessEngine.TYPE_TOOL_LIMITATION -> "🚫" to Color(0xFFF44336)
+        ToolAwarenessEngine.TYPE_ENVIRONMENT -> "🌐" to Color(0xFF2196F3)
+        ToolAwarenessEngine.TYPE_PATTERN -> "🔗" to Color(0xFF9C27B0)
+        ToolAwarenessEngine.TYPE_SYSTEM_INFO -> "📱" to Color(0xFF00BCD4)
+        else -> "ℹ️" to Color(0xFF607D8B)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = color.copy(alpha = 0.06f)
+        ),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Text(icon, fontSize = 16.sp, modifier = Modifier.padding(top = 2.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = entry.subject,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        color = color
+                    )
+                    Text(
+                        text = "${(entry.confidence * 100).toInt()}%",
+                        fontSize = 11.sp,
+                        color = color.copy(alpha = 0.7f)
+                    )
+                }
+                Text(
+                    text = entry.content,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+// ─── تبويب البيئة ────────────────────────────────────────────────────────
+
+@Composable
+private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
+    if (stats == null) {
+        EmptyState(message = "جاري اكتشاف البيئة...")
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // حالة الأدوات البيئية
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        "🌐 البيئات المتاحة",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    stats.environmentCache.forEach { (env, available) ->
+                        EnvironmentRow(
+                            name = env.replaceFirstChar { it.uppercase() },
+                            available = available == "true"
+                        )
+                    }
+                }
+            }
+        }
+
+        // توزيع المعرفة
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        "📊 توزيع قاعدة المعرفة (${stats.totalKnowledge} إجمالي)",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    stats.byType.entries.sortedByDescending { it.value }.forEach { (type, count) ->
+                        KnowledgeTypeRow(type = type, count = count)
+                    }
+                }
+            }
+        }
+
+        // حالة الإعداد
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (stats.isInitialized)
+                        Color(0xFF4CAF50).copy(alpha = 0.1f)
+                    else
+                        Color(0xFFFF9800).copy(alpha = 0.1f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        if (stats.isInitialized) "✅" else "⏳",
+                        fontSize = 22.sp
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            if (stats.isInitialized) "النظام مُعدّ ومُتعلِّم" else "النظام يعمل على الاكتشاف",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            if (stats.isInitialized) "الـ Agent واعٍ ببيئته تماماً"
+                            else "الـ Agent يكتشف القدرات المتاحة...",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─── مكونات مساعدة ───────────────────────────────────────────────────────
+
+@Composable
+private fun InfoCard(title: String, content: String) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                content.trim(),
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun WarningCard(title: String, items: List<String>) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFF44336).copy(alpha = 0.08f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFFF44336))
+            Spacer(modifier = Modifier.height(6.dp))
+            items.forEach { item ->
+                Text(
+                    "• $item",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LearningProgressCard(totalExecutions: Int, successRate: Float) {
+    val progressColor = when {
+        successRate > 0.85f -> Color(0xFF4CAF50)
+        successRate > 0.6f -> Color(0xFFFF9800)
+        else -> Color(0xFFF44336)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = progressColor.copy(alpha = 0.08f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🎯 مستوى التعلم", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    text = when {
+                        totalExecutions < 20 -> "مبتدئ"
+                        totalExecutions < 100 -> "متوسط"
+                        totalExecutions < 500 -> "متقدم"
+                        else -> "خبير"
+                    },
+                    fontWeight = FontWeight.Bold,
+                    color = progressColor,
+                    fontSize = 13.sp
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            LinearProgressIndicator(
+                progress = { successRate },
+                modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                color = progressColor,
+                trackColor = progressColor.copy(alpha = 0.2f)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "معدل النجاح: ${(successRate * 100).toInt()}% | التنفيذات: $totalExecutions",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun EnvironmentRow(name: String, available: Boolean) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(name, fontSize = 13.sp)
+        Badge(
+            containerColor = if (available) Color(0xFF4CAF50) else Color(0xFF9E9E9E)
+        ) {
+            Text(
+                if (available) "متاح" else "غير متاح",
+                fontSize = 10.sp,
+                color = Color.White,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun KnowledgeTypeRow(type: String, count: Int) {
+    val label = when (type) {
+        ToolAwarenessEngine.TYPE_BEST_PRACTICE -> "💡 أفضل الممارسات"
+        ToolAwarenessEngine.TYPE_TOOL_CAPABILITY -> "🔧 قدرات الأدوات"
+        ToolAwarenessEngine.TYPE_TOOL_LIMITATION -> "🚫 قيود الأدوات"
+        ToolAwarenessEngine.TYPE_SYSTEM_INFO -> "📱 معلومات النظام"
+        ToolAwarenessEngine.TYPE_ENVIRONMENT -> "🌐 بيئات التشغيل"
+        ToolAwarenessEngine.TYPE_WARNING -> "⚠️ تحذيرات"
+        ToolAwarenessEngine.TYPE_PATTERN -> "🔗 أنماط مكتشفة"
+        else -> "ℹ️ $type"
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, fontSize = 12.sp)
+        Text(
+            count.toString(),
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
+private fun EmptyState(message: String) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("🧠", fontSize = 48.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                message,
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun PulsingDot() {
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = EaseInOut),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alpha"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(8.dp)
+            .clip(CircleShape)
+            .background(Color(0xFF4CAF50).copy(alpha = alpha))
+    )
+}
+
+private fun formatTimestamp(timestamp: Long): String {
+    val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    return sdf.format(Date(timestamp))
+}
