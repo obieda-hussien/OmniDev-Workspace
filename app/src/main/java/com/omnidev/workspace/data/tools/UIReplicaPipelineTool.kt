@@ -571,7 +571,7 @@ object UIReplicaPipelineTool {
     private suspend fun <T> withRetry(maxRetries: Int = MAX_RETRY_ATTEMPTS, block: suspend () -> T): T {
         repeat(maxRetries) { attempt ->
             try {
-                block()
+                return block()
             } catch (e: Exception) {
                 if (attempt == maxRetries - 1) throw PipelineException.RetryExhaustedException(
                     "Operation failed after $maxRetries retries: ${e.message}"
