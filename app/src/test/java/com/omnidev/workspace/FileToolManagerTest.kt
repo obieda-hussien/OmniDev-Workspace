@@ -28,23 +28,23 @@ class FileToolManagerTest {
     }
 
     @Test
-    fun `getToolDefinitions returns all 7 core tools`() {
+    fun `getToolDefinitions returns all 9 core tools`() {
         val manager = FileToolManager(godModeEnabled = false)
         val definitions = manager.getToolDefinitions()
-        
-        // التعديل هنا: نغير الرقم من 8 لـ 7
-        assertEquals(7, definitions.size)
-        
+
+        assertEquals(9, definitions.size)
+
         val names = definitions.map { it.name }
         assertTrue(names.contains("read_file_lines"))
         assertTrue(names.contains("search_codebase"))
         assertTrue(names.contains("patch_file_content"))
+        assertTrue(names.contains("multi_read"))
+        assertTrue(names.contains("multi_patch_file_content"))
         assertTrue(names.contains("create_file"))
         assertTrue(names.contains("delete_file"))
         assertTrue(names.contains("run_terminal"))
         assertTrue(names.contains("python_runner"))
-        
-        // التأكد إن web_search مابقتش موجودة هنا (اختياري للتأكيد)
+
         assertFalse(names.contains("web_search"))
     }
 
@@ -209,5 +209,170 @@ class FileToolManagerTest {
 
         assertTrue(result.isError)
         assertTrue(result.output.contains("SCOPE VIOLATION"))
+    }
+
+    // ── multi_read tests ──────────────────────────────────────────────────────
+
+    @Test
+    fun `multi_read reads multiple files`() = runTest {
+        val file1 = tempDir.newFile("multi1.txt")
+        val file2 = tempDir.newFile("multi2.txt")
+        file1.writeText("Hello from file1")
+        file2.writeText("Hello from file2")
+
+        val filePaths = """["${file1.absolutePath}","${file2.absolutePath}"]"""
+        val result = toolManager.executeTool(
+            name = "multi_read",
+            arguments = mapOf("filePaths" to filePaths),
+            scopePath = scopePath
+        )
+
+        assertFalse(result.isError)
+        assertTrue(result.output.contains("Hello from file1"))
+        assertTrue(result.output.contains("Hello from file2"))
+    }
+
+    @Test
+    fun `multi_read with line range returns only requested lines`() = runTest {
+        val file = tempDir.newFile("ranged.txt")
+        file.writeText((1..20).joinToString("\n") { "Line $it" })
+
+        val filePaths = """["${file.absolutePath}"]"""
+        val result = toolManager.executeTool(
+            name = "multi_read",
+            arguments = mapOf(
+                "filePaths" to filePaths,
+                "startLine" to "3",
+                "endLine" to "5"
+            ),
+            scopePath = scopePath
+        )
+
+        assertFalse(result.isError)
+        assertTrue(result.output.contains("Line 3"))
+        assertTrue(result.output.contains("Line 5"))
+        assertFalse(result.output.contains("Line 2"))
+        assertFalse(result.output.contains("Line 6"))
+    }
+
+    @Test
+    fun `multi_read returns error for invalid JSON`() = runTest {
+        val result = toolManager.executeTool(
+            name = "multi_read",
+            arguments = mapOf("filePaths" to "not-a-json-array"),
+            scopePath = scopePath
+        )
+
+        assertTrue(result.isError)
+        assertTrue(result.output.contains("filePaths must be a valid JSON array"))
+    }
+
+    @Test
+    fun `multi_read enforces max files limit`() = runTest {
+        val paths = (1..21).joinToString(",") { "\"$scopePath/file$it.txt\"" }
+        val result = toolManager.executeTool(
+            name = "multi_read",
+            arguments = mapOf("filePaths" to "[$paths]"),
+            scopePath = scopePath
+        )
+
+        assertTrue(result.isError)
+        assertTrue(result.output.contains("Too many files"))
+    }
+
+    @Test
+    fun `multi_read handles non-string path entries gracefully`() = runTest {
+        val result = toolManager.executeTool(
+            name = "multi_read",
+            arguments = mapOf("filePaths" to "[123, 456]"),
+            scopePath = scopePath
+        )
+
+        // org.json coerces numeric entries to "123", "456"; they resolve as non-existent files
+        assertFalse(result.isError)
+        assertTrue(result.output.contains("File not found") || result.output.contains("Invalid path"))
+    }
+
+    // ── multi_patch_file_content tests ────────────────────────────────────────
+
+    @Test
+    fun `multi_patch_file_content applies all patches`() = runTest {
+        val file1 = tempDir.newFile("patch1.kt")
+        val file2 = tempDir.newFile("patch2.kt")
+        file1.writeText("val x = 1")
+        file2.writeText("val y = 2")
+
+        val operations = """[
+            {"filePath":"${file1.absolutePath}","searchSnippet":"val x = 1","replaceSnippet":"val x = 100"},
+            {"filePath":"${file2.absolutePath}","searchSnippet":"val y = 2","replaceSnippet":"val y = 200"}
+        ]"""
+
+        val result = toolManager.executeTool(
+            name = "multi_patch_file_content",
+            arguments = mapOf("operations" to operations),
+            scopePath = scopePath
+        )
+
+        assertFalse(result.isError)
+        assertEquals("val x = 100", file1.readText())
+        assertEquals("val y = 200", file2.readText())
+    }
+
+    @Test
+    fun `multi_patch_file_content returns error for invalid JSON`() = runTest {
+        val result = toolManager.executeTool(
+            name = "multi_patch_file_content",
+            arguments = mapOf("operations" to "not-valid-json"),
+            scopePath = scopePath
+        )
+
+        assertTrue(result.isError)
+        assertTrue(result.output.contains("operations must be a valid JSON array"))
+    }
+
+    @Test
+    fun `multi_patch_file_content enforces max operations limit`() = runTest {
+        val ops = (1..21).joinToString(",") {
+            """{"filePath":"$scopePath/f$it.txt","searchSnippet":"x","replaceSnippet":"y"}"""
+        }
+        val result = toolManager.executeTool(
+            name = "multi_patch_file_content",
+            arguments = mapOf("operations" to "[$ops]"),
+            scopePath = scopePath
+        )
+
+        assertTrue(result.isError)
+        assertTrue(result.output.contains("Too many patch operations"))
+    }
+
+    @Test
+    fun `multi_patch_file_content reports partial failure`() = runTest {
+        val goodFile = tempDir.newFile("good_patch.kt")
+        goodFile.writeText("val a = 1")
+
+        val operations = """[
+            {"filePath":"${goodFile.absolutePath}","searchSnippet":"NONEXISTENT","replaceSnippet":"x"}
+        ]"""
+
+        val result = toolManager.executeTool(
+            name = "multi_patch_file_content",
+            arguments = mapOf("operations" to operations),
+            scopePath = scopePath
+        )
+
+        assertTrue(result.isError)
+        assertTrue(result.output.contains("Patch operation 1 failed"))
+    }
+
+    @Test
+    fun `multi_patch_file_content returns error for operation missing required fields`() = runTest {
+        val result = toolManager.executeTool(
+            name = "multi_patch_file_content",
+            arguments = mapOf("operations" to """[{"filePath":"some/path.kt"}]"""),
+            scopePath = scopePath
+        )
+
+        assertTrue(result.isError)
+        assertTrue(result.output.contains("filePath, searchSnippet, and replaceSnippet"))
     }
 }
