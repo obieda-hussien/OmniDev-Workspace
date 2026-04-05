@@ -51,7 +51,8 @@ class OmniAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        // AccessibilityStateManager.setServiceConnected(true) // Assuming this exists in your code
+        AccessibilityStateManager.setServiceConnected(true)
+        refreshRootNode()
         Log.i(TAG, "OmniAccessibilityService connected")
     }
 
@@ -60,10 +61,10 @@ class OmniAccessibilityService : AccessibilityService() {
 
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                // AccessibilityStateManager.updateActiveWindow(
-                //     packageName = event.packageName?.toString(),
-                //     activityName = event.className?.toString()
-                // )
+                AccessibilityStateManager.updateActiveWindow(
+                    packageName = event.packageName?.toString(),
+                    activityName = event.className?.toString()
+                )
                 refreshRootNode()
             }
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
@@ -79,7 +80,7 @@ class OmniAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         instance = null
-        // AccessibilityStateManager.setServiceConnected(false)
+        AccessibilityStateManager.setServiceConnected(false)
         Log.i(TAG, "OmniAccessibilityService destroyed")
         super.onDestroy()
     }
@@ -91,9 +92,8 @@ class OmniAccessibilityService : AccessibilityService() {
     private fun refreshRootNode() {
         try {
             val root = rootInActiveWindow ?: return
-            // AccessibilityStateManager.updateRootNode(root)
-            // It is highly recommended to let the StateManager clone or process the node,
-            // then recycle the original root to prevent memory leaks.
+            // AccessibilityStateManager.updateRootNode() recycles any previously held root node.
+            AccessibilityStateManager.updateRootNode(root)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to refresh root node: ${e.message}")
         }
