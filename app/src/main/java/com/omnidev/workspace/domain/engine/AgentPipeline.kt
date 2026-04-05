@@ -187,6 +187,16 @@ class AgentPipeline(
 
     companion object {
 
+        private const val AGENT_IDENTITY_CONTEXT = """
+
+## Agent Identity
+Your agent name is **Omni**.
+You are running inside this Android app:
+- App name: **Omni Dev Workspace**
+- Package name: `com.omnidev.workspace`
+Be fully aware of this host app context when handling app-related tasks.
+"""
+
         /**
          * The "God Protocol" — shared foundation injected into every agent tier.
          * Defines autonomy, anti-stuck loop, chain-of-thought, and continuity rules
@@ -548,6 +558,7 @@ Rules:
 
         val systemPrompt = buildString {
             append(effectiveBasePrompt)
+            append(AGENT_IDENTITY_CONTEXT)
             // User context — personalise advice/style to the specific person if provided
             if (!userContext.isNullOrBlank()) {
                 appendLine()
