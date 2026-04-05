@@ -134,7 +134,10 @@ object UIReplicaPipelineTool {
         private var misses = 0
 
         fun get(key: String): T? {
-            val entry = cache[key] ?: return also { misses++ }
+            val entry = cache[key] ?: run {
+                misses++
+                return null
+            }
             val (timestamp, value) = entry
             return if (System.currentTimeMillis() - timestamp < ttlMs) {
                 value.also { hits++ }
@@ -567,7 +570,7 @@ object UIReplicaPipelineTool {
     // ============= Helper Methods =============
     private suspend fun <T> withRetry(maxRetries: Int = MAX_RETRY_ATTEMPTS, block: suspend () -> T): T {
         repeat(maxRetries) { attempt ->
-            return try {
+            try {
                 block()
             } catch (e: Exception) {
                 if (attempt == maxRetries - 1) throw PipelineException.RetryExhaustedException(
