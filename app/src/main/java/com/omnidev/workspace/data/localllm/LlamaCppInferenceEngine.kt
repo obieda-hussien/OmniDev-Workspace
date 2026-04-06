@@ -225,7 +225,7 @@ enum class ModelFamily {
                 "phi-3" in f || "phi3" in f                             -> PHI3
                 "gemma" in f                                            -> GEMMA
                 "qwen" in f                                             -> QWEN
-                "bitnet" in f || "b1.58" in f                          -> BITNET
+                "bitnet" in f || "b1.58" in f || "i2_s" in f           -> BITNET
                 else                                                    -> UNKNOWN
             }
         }

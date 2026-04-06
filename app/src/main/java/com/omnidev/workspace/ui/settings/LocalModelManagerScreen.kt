@@ -2,6 +2,7 @@ package com.omnidev.workspace.ui.settings
 
 import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -135,8 +136,20 @@ fun LocalModelManagerScreen(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) {
-            val fileName = uri.lastPathSegment?.lowercase() ?: ""
-            if (!fileName.endsWith(".gguf") && !fileName.contains(".gguf")) {
+            // Resolve the actual display name via ContentResolver so we validate the real
+            // filename rather than uri.lastPathSegment, which for Downloads-provider URIs
+            // returns a raw document ID (e.g. "msf:1234") rather than the file name.
+            val displayName: String = try {
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    cursor.moveToFirst()
+                    if (idx >= 0) cursor.getString(idx) else null
+                } ?: uri.lastPathSegment
+            } catch (_: Exception) {
+                uri.lastPathSegment
+            } ?: ""
+            val fileNameLower = displayName.lowercase()
+            if (!fileNameLower.endsWith(".gguf") && !fileNameLower.contains(".gguf")) {
                 statusMessage = "❌ Selected file does not appear to be a .gguf model. Please select a valid GGUF file."
                 return@rememberLauncherForActivityResult
             }
