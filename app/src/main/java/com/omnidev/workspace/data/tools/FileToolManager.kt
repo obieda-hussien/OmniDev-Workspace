@@ -18,6 +18,14 @@ import java.io.IOException
  * - `read_file_lines`: Read specific line range from a file (avoids loading entire files).
  * - `search_codebase`: Regex search across a directory tree with line-level snippets.
  * - `patch_file_content`: Find-and-replace within a file without rewriting the whole document.
+ * - `multi_read`: Read multiple files in one call with optional line range.
+ * - `multi_patch_file_content`: Apply multiple patch operations in one request.
+ * - `delete_text`: Remove text occurrences from a file (all/first/last), optionally on one line.
+ * - `clear_file`: Truncate all content from a file (file is preserved, just emptied).
+ * - `delete_lines`: Delete a contiguous range of lines from a file.
+ * - `insert_lines`: Insert text before a specific line number.
+ * - `replace_lines`: Replace a line range with new content.
+ * - `append_to_file`: Append text to the end of an existing file.
  * - `create_file`: Create a new file with content.
  * - `delete_file`: Delete a file.
  * - `run_terminal`: Execute a shell command in the Target Context directory.
@@ -134,6 +142,67 @@ class FileToolManager(
                 description = "Apply multiple patch operations in one request. operations is a JSON array of objects with filePath, searchSnippet, and replaceSnippet.",
                 parameters = listOf(
                     ToolParameter("operations", "string", "JSON array of patch operations.", required = true)
+                )
+            ),
+            ToolDefinition(
+                name = "delete_text",
+                description = "Remove occurrences of a text snippet from a file. " +
+                    "Use occurrences='all' (default) to remove every match, 'first' to remove only the first, " +
+                    "or 'last' to remove only the last. " +
+                    "Provide lineNumber to restrict removal to a single line.",
+                parameters = listOf(
+                    ToolParameter("filePath", "string", "Absolute path to the file.", required = true),
+                    ToolParameter("text", "string", "Exact text to remove.", required = true),
+                    ToolParameter("occurrences", "string", "Which occurrences to remove: 'all' (default), 'first', or 'last'.", required = false),
+                    ToolParameter("lineNumber", "integer", "Optional 1-indexed line number. When set, only removes from that line.", required = false)
+                )
+            ),
+            ToolDefinition(
+                name = "clear_file",
+                description = "Clear (truncate) all content from a file, leaving it empty. The file itself is preserved.",
+                parameters = listOf(
+                    ToolParameter("filePath", "string", "Absolute path to the file to clear.", required = true)
+                )
+            ),
+            ToolDefinition(
+                name = "delete_lines",
+                description = "Delete a contiguous range of lines from a file. Lines after the deleted range shift up. " +
+                    "If endLine is omitted, only startLine is deleted.",
+                parameters = listOf(
+                    ToolParameter("filePath", "string", "Absolute path to the file.", required = true),
+                    ToolParameter("startLine", "integer", "First line to delete (1-indexed).", required = true),
+                    ToolParameter("endLine", "integer", "Last line to delete (1-indexed, inclusive). Defaults to startLine.", required = false)
+                )
+            ),
+            ToolDefinition(
+                name = "insert_lines",
+                description = "Insert text before a specific line in a file. Existing lines at and after lineNumber are shifted down. " +
+                    "Use lineNumber=1 to prepend; use a number greater than the last line to append.",
+                parameters = listOf(
+                    ToolParameter("filePath", "string", "Absolute path to the file.", required = true),
+                    ToolParameter("content", "string", "Text to insert.", required = true),
+                    ToolParameter("lineNumber", "integer", "1-indexed line before which to insert content.", required = true)
+                )
+            ),
+            ToolDefinition(
+                name = "replace_lines",
+                description = "Replace a range of lines (startLine..endLine, inclusive) with new content. " +
+                    "The replacement may have a different number of lines than the deleted range.",
+                parameters = listOf(
+                    ToolParameter("filePath", "string", "Absolute path to the file.", required = true),
+                    ToolParameter("startLine", "integer", "First line to replace (1-indexed).", required = true),
+                    ToolParameter("endLine", "integer", "Last line to replace (1-indexed, inclusive).", required = true),
+                    ToolParameter("content", "string", "New content to replace the specified lines.", required = true)
+                )
+            ),
+            ToolDefinition(
+                name = "append_to_file",
+                description = "Append text to the end of an existing file. " +
+                    "Set addNewline='true' (default) to ensure a newline separates existing content from appended text.",
+                parameters = listOf(
+                    ToolParameter("filePath", "string", "Absolute path to the file.", required = true),
+                    ToolParameter("content", "string", "Text to append.", required = true),
+                    ToolParameter("addNewline", "string", "Prepend a newline before appended text if the file is non-empty. Default: 'true'.", required = false)
                 )
             ),
             ToolDefinition(
@@ -293,6 +362,12 @@ class FileToolManager(
                 "patch_file_content" -> patchFileContent(arguments, safeScopePath)
                 "multi_read" -> multiRead(arguments, safeScopePath)
                 "multi_patch_file_content" -> multiPatchFileContent(arguments, safeScopePath)
+                "delete_text" -> deleteText(arguments, safeScopePath)
+                "clear_file" -> clearFile(arguments, safeScopePath)
+                "delete_lines" -> deleteLines(arguments, safeScopePath)
+                "insert_lines" -> insertLines(arguments, safeScopePath)
+                "replace_lines" -> replaceLines(arguments, safeScopePath)
+                "append_to_file" -> appendToFile(arguments, safeScopePath)
                 "create_file" -> createFile(arguments, safeScopePath)
                 "delete_file" -> deleteFile(arguments, safeScopePath)
                 "run_terminal" -> runTerminal(arguments, safeScopePath)
@@ -745,6 +820,324 @@ class FileToolManager(
         }
 
         return ToolExecutionResult(output = outputs.joinToString("\n"))
+    }
+
+    // ──────────────────────────────────────────────
+    //  Shared helpers for new text-manipulation tools
+    // ──────────────────────────────────────────────
+
+    /**
+     * Read file content handling both normal and God Mode paths.
+     * Returns null if the file does not exist or cannot be read.
+     */
+    private suspend fun readFileContentOrNull(filePath: String): String? {
+        return if (godModeEnabled) {
+            when (val r = GodModeFileRouter.readFile(filePath, godMode = true)) {
+                is GodModeResult.Success -> r.content
+                else -> null
+            }
+        } else {
+            val f = File(filePath)
+            if (f.exists() && f.isFile) f.readText() else null
+        }
+    }
+
+    /**
+     * Write file content handling both normal and God Mode paths.
+     * Returns an error message string on failure, or null on success.
+     */
+    private suspend fun writeFileContentOrError(filePath: String, content: String): String? {
+        return if (godModeEnabled) {
+            when (val r = GodModeFileRouter.writeFile(filePath, content, false, godMode = true)) {
+                is GodModeResult.Failure -> "God Mode write failed: ${r.reason}"
+                else -> null
+            }
+        } else {
+            try { File(filePath).writeText(content); null }
+            catch (e: Exception) { "Write failed: ${e.message}" }
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  delete_text
+    // ──────────────────────────────────────────────
+
+    private suspend fun deleteText(args: Map<String, String>, scopePath: String): ToolExecutionResult {
+        val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
+        val text = requireArg(args, "text")
+        val occurrences = args["occurrences"]?.lowercase() ?: "all"
+        val lineNumber = args["lineNumber"]?.toIntOrNull()
+
+        if (occurrences !in listOf("all", "first", "last")) {
+            return ToolExecutionResult("occurrences must be 'all', 'first', or 'last'.", isError = true)
+        }
+
+        validateScope(filePath, scopePath)
+
+        val content = readFileContentOrNull(filePath)
+            ?: return ToolExecutionResult("File not found: $filePath", isError = true)
+
+        val newContent: String = if (lineNumber != null) {
+            val lines = content.lines().toMutableList()
+            if (lineNumber < 1 || lineNumber > lines.size) {
+                return ToolExecutionResult(
+                    "lineNumber $lineNumber is out of range (file has ${lines.size} lines).",
+                    isError = true
+                )
+            }
+            val idx = lineNumber - 1
+            val oldLine = lines[idx]
+            if (!oldLine.contains(text)) {
+                return ToolExecutionResult(
+                    "Text not found on line $lineNumber of $filePath.",
+                    isError = true
+                )
+            }
+            lines[idx] = when (occurrences) {
+                "first" -> oldLine.replaceFirst(text, "")
+                "last"  -> {
+                    val lastIdx = oldLine.lastIndexOf(text)
+                    oldLine.substring(0, lastIdx) + oldLine.substring(lastIdx + text.length)
+                }
+                else    -> oldLine.replace(text, "")
+            }
+            lines.joinToString("\n")
+        } else {
+            if (!content.contains(text)) {
+                return ToolExecutionResult("Text not found in $filePath.", isError = true)
+            }
+            when (occurrences) {
+                "first" -> content.replaceFirst(text, "")
+                "last"  -> {
+                    val lastIdx = content.lastIndexOf(text)
+                    content.substring(0, lastIdx) + content.substring(lastIdx + text.length)
+                }
+                else    -> content.replace(text, "")
+            }
+        }
+
+        val gate = confirmationGate
+        if (gate != null) {
+            val diff = generateUnifiedDiff(filePath, content, newContent)
+            val approved = gate.invoke("Delete text in: $filePath", diff.ifEmpty { null })
+            if (!approved) return ToolExecutionResult("User cancelled delete_text for $filePath.", isError = true)
+        }
+
+        val err = writeFileContentOrError(filePath, newContent)
+        if (err != null) return ToolExecutionResult(err, isError = true)
+
+        val scope = if (lineNumber != null) " on line $lineNumber" else ""
+        val godNote = if (godModeEnabled) " [🔓 God Mode]" else ""
+        return ToolExecutionResult("✅ Deleted text ($occurrences)$scope from $filePath.$godNote")
+    }
+
+    // ──────────────────────────────────────────────
+    //  clear_file
+    // ──────────────────────────────────────────────
+
+    private suspend fun clearFile(args: Map<String, String>, scopePath: String): ToolExecutionResult {
+        val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
+
+        validateScope(filePath, scopePath)
+
+        val exists = if (godModeEnabled) {
+            when (GodModeFileRouter.statFile(filePath, godMode = true)) {
+                is GodModeResult.Success -> true
+                else -> false
+            }
+        } else {
+            File(filePath).let { it.exists() && it.isFile }
+        }
+
+        if (!exists) return ToolExecutionResult("File not found: $filePath", isError = true)
+
+        val gate = confirmationGate
+        if (gate != null) {
+            val approved = gate.invoke("Clear all content from: $filePath", null)
+            if (!approved) return ToolExecutionResult("User cancelled clear_file for $filePath.", isError = true)
+        }
+
+        val err = writeFileContentOrError(filePath, "")
+        if (err != null) return ToolExecutionResult(err, isError = true)
+
+        val godNote = if (godModeEnabled) " [🔓 God Mode]" else ""
+        return ToolExecutionResult("✅ Cleared all content from $filePath.$godNote")
+    }
+
+    // ──────────────────────────────────────────────
+    //  delete_lines
+    // ──────────────────────────────────────────────
+
+    private suspend fun deleteLines(args: Map<String, String>, scopePath: String): ToolExecutionResult {
+        val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
+        val startLine = requireArg(args, "startLine").toIntOrNull()
+            ?: return ToolExecutionResult("startLine must be an integer.", isError = true)
+        val endLine = args["endLine"]?.toIntOrNull() ?: startLine
+
+        if (startLine < 1) return ToolExecutionResult("startLine must be ≥ 1.", isError = true)
+        if (endLine < startLine) return ToolExecutionResult("endLine must be ≥ startLine.", isError = true)
+
+        validateScope(filePath, scopePath)
+
+        val content = readFileContentOrNull(filePath)
+            ?: return ToolExecutionResult("File not found: $filePath", isError = true)
+
+        val lines = content.lines()
+        if (startLine > lines.size) {
+            return ToolExecutionResult(
+                "startLine $startLine is beyond end of file (${lines.size} lines).",
+                isError = true
+            )
+        }
+
+        val effectiveEnd = minOf(endLine, lines.size)
+        // Keep lines outside [startLine-1, effectiveEnd-1] (0-indexed, inclusive)
+        val newContent = lines
+            .filterIndexed { idx, _ -> idx < startLine - 1 || idx >= effectiveEnd }
+            .joinToString("\n")
+
+        val gate = confirmationGate
+        if (gate != null) {
+            val diff = generateUnifiedDiff(filePath, content, newContent)
+            val approved = gate.invoke("Delete lines $startLine–$effectiveEnd in: $filePath", diff.ifEmpty { null })
+            if (!approved) return ToolExecutionResult("User cancelled delete_lines for $filePath.", isError = true)
+        }
+
+        val err = writeFileContentOrError(filePath, newContent)
+        if (err != null) return ToolExecutionResult(err, isError = true)
+
+        val deleted = effectiveEnd - startLine + 1
+        val godNote = if (godModeEnabled) " [🔓 God Mode]" else ""
+        return ToolExecutionResult("✅ Deleted $deleted line(s) ($startLine–$effectiveEnd) from $filePath.$godNote")
+    }
+
+    // ──────────────────────────────────────────────
+    //  insert_lines
+    // ──────────────────────────────────────────────
+
+    private suspend fun insertLines(args: Map<String, String>, scopePath: String): ToolExecutionResult {
+        val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
+        val insertContent = requireArg(args, "content")
+        val lineNumber = requireArg(args, "lineNumber").toIntOrNull()
+            ?: return ToolExecutionResult("lineNumber must be an integer.", isError = true)
+
+        if (lineNumber < 1) return ToolExecutionResult("lineNumber must be ≥ 1.", isError = true)
+
+        validateScope(filePath, scopePath)
+
+        val content = readFileContentOrNull(filePath)
+            ?: return ToolExecutionResult("File not found: $filePath", isError = true)
+
+        val lines = content.lines().toMutableList()
+        // Insert before lineNumber (1-indexed); clamp to end if lineNumber > list size
+        val insertIdx = (lineNumber - 1).coerceIn(0, lines.size)
+        val insertLines = insertContent.lines()
+        lines.addAll(insertIdx, insertLines)
+        val newContent = lines.joinToString("\n")
+
+        val gate = confirmationGate
+        if (gate != null) {
+            val diff = generateUnifiedDiff(filePath, content, newContent)
+            val approved = gate.invoke("Insert ${insertLines.size} line(s) before line $lineNumber in: $filePath", diff.ifEmpty { null })
+            if (!approved) return ToolExecutionResult("User cancelled insert_lines for $filePath.", isError = true)
+        }
+
+        val err = writeFileContentOrError(filePath, newContent)
+        if (err != null) return ToolExecutionResult(err, isError = true)
+
+        val godNote = if (godModeEnabled) " [🔓 God Mode]" else ""
+        return ToolExecutionResult(
+            "✅ Inserted ${insertLines.size} line(s) before line $lineNumber in $filePath.$godNote"
+        )
+    }
+
+    // ──────────────────────────────────────────────
+    //  replace_lines
+    // ──────────────────────────────────────────────
+
+    private suspend fun replaceLines(args: Map<String, String>, scopePath: String): ToolExecutionResult {
+        val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
+        val startLine = requireArg(args, "startLine").toIntOrNull()
+            ?: return ToolExecutionResult("startLine must be an integer.", isError = true)
+        val endLine = requireArg(args, "endLine").toIntOrNull()
+            ?: return ToolExecutionResult("endLine must be an integer.", isError = true)
+        val replaceContent = requireArg(args, "content")
+
+        if (startLine < 1) return ToolExecutionResult("startLine must be ≥ 1.", isError = true)
+        if (endLine < startLine) return ToolExecutionResult("endLine must be ≥ startLine.", isError = true)
+
+        validateScope(filePath, scopePath)
+
+        val content = readFileContentOrNull(filePath)
+            ?: return ToolExecutionResult("File not found: $filePath", isError = true)
+
+        val lines = content.lines().toMutableList()
+        if (startLine > lines.size) {
+            return ToolExecutionResult(
+                "startLine $startLine is beyond end of file (${lines.size} lines).",
+                isError = true
+            )
+        }
+
+        val effectiveEnd = minOf(endLine, lines.size)
+        val replacementLines = replaceContent.lines()
+
+        // Remove the old lines and insert the new ones
+        val head = lines.subList(0, startLine - 1).toList()
+        val tail = lines.subList(effectiveEnd, lines.size).toList()
+        val newContent = (head + replacementLines + tail).joinToString("\n")
+
+        val gate = confirmationGate
+        if (gate != null) {
+            val diff = generateUnifiedDiff(filePath, content, newContent)
+            val approved = gate.invoke(
+                "Replace lines $startLine–$effectiveEnd (${effectiveEnd - startLine + 1} lines → ${replacementLines.size} lines) in: $filePath",
+                diff.ifEmpty { null }
+            )
+            if (!approved) return ToolExecutionResult("User cancelled replace_lines for $filePath.", isError = true)
+        }
+
+        val err = writeFileContentOrError(filePath, newContent)
+        if (err != null) return ToolExecutionResult(err, isError = true)
+
+        val godNote = if (godModeEnabled) " [🔓 God Mode]" else ""
+        return ToolExecutionResult(
+            "✅ Replaced ${effectiveEnd - startLine + 1} line(s) ($startLine–$effectiveEnd) with " +
+                "${replacementLines.size} new line(s) in $filePath.$godNote"
+        )
+    }
+
+    // ──────────────────────────────────────────────
+    //  append_to_file
+    // ──────────────────────────────────────────────
+
+    private suspend fun appendToFile(args: Map<String, String>, scopePath: String): ToolExecutionResult {
+        val filePath = normalizePath(requireArg(args, "filePath"), scopePath)
+        val appendContent = requireArg(args, "content")
+        val addNewline = args["addNewline"]?.lowercase() != "false" // default true
+
+        validateScope(filePath, scopePath)
+
+        val existing = readFileContentOrNull(filePath)
+            ?: return ToolExecutionResult("File not found: $filePath", isError = true)
+
+        val separator = if (addNewline && existing.isNotEmpty() && !existing.endsWith("\n")) "\n" else ""
+        val newContent = existing + separator + appendContent
+
+        val gate = confirmationGate
+        if (gate != null) {
+            val diff = generateUnifiedDiff(filePath, existing, newContent)
+            val approved = gate.invoke("Append to: $filePath", diff.ifEmpty { null })
+            if (!approved) return ToolExecutionResult("User cancelled append_to_file for $filePath.", isError = true)
+        }
+
+        val err = writeFileContentOrError(filePath, newContent)
+        if (err != null) return ToolExecutionResult(err, isError = true)
+
+        val godNote = if (godModeEnabled) " [🔓 God Mode]" else ""
+        return ToolExecutionResult(
+            "✅ Appended ${appendContent.length} character(s) to $filePath.$godNote"
+        )
     }
 
     // ──────────────────────────────────────────────
