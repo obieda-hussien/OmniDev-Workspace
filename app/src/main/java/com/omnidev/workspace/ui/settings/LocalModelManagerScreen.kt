@@ -16,12 +16,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -31,12 +33,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -44,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.omnidev.workspace.data.localllm.LlamaCppInferenceEngine
 import com.omnidev.workspace.data.localllm.LocalEngineHolder
@@ -100,13 +106,17 @@ private val SUGGESTED_MODELS = listOf(
     )
 )
 
+/** Preset context-window sizes available in the dropdown list. */
+private val CONTEXT_SIZE_PRESETS = listOf(512, 1024, 2048, 4096, 8192, 16384, 32768)
+
 /**
  * Screen for managing on-device local LLM models (Bring Your Own Model).
  *
  * Provides:
  * - Section A: Suggested lightweight models with external HuggingFace links
  *   (includes standard GGUF models and BitNet i2_s GGUF models — all run via llama.cpp)
- * - Section B: File picker to select a local .gguf file with persistable URI permission
+ * - Section B: Inference settings — user-configurable context size, threads, temperature
+ * - Section C: File picker to select a local .gguf file with persistable URI permission
  * - Status display showing loaded model name and inference readiness
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -117,19 +127,50 @@ fun LocalModelManagerScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val cpuCount = remember { Runtime.getRuntime().availableProcessors() }
 
     var loadedModelName by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
 
+    // ── Inference settings state ──────────────────────────────────────────
+    // contextSizeText: the field the user types into (validated on save/load)
+    var contextSizeText by remember { mutableStateOf("") }
+    // threadsText: user-specified CPU threads ("" = auto)
+    var threadsText by remember { mutableStateOf("") }
+    // temperature slider (0.0–2.0)
+    var temperature by remember { mutableFloatStateOf(0.7f) }
+
+    // Load saved settings from DataStore
     LaunchedEffect(Unit) {
         loadedModelName = settingsRepository.observeLocalModelName().first()
+        val savedCtx = settingsRepository.observeLocalModelContextSize().first()
+        val savedThreads = settingsRepository.observeLocalModelThreads().first()
+        val savedTemp = settingsRepository.observeLocalModelTemperature().first()
+        if (savedCtx != null) contextSizeText = savedCtx.toString()
+        if (savedThreads != null) threadsText = savedThreads.toString()
+        if (savedTemp != null) temperature = savedTemp
+
         val savedUri = settingsRepository.observeLocalModelUri().first()
         if (savedUri != null && !LocalEngineHolder.engine.isLoaded) {
             val uri = Uri.parse(savedUri)
-            val result = LocalEngineHolder.engine.loadModel(context, uri)
+            val ctxSize = contextSizeText.trim().toIntOrNull()
+            val threads = threadsText.trim().toIntOrNull()
+            val result = LocalEngineHolder.llamaCppEngine.loadModel(context, uri, ctxSize, threads)
             loadedModelName = result.getOrNull()
         }
+    }
+
+    // Helper: read current settings, save them, and return the parsed values
+    fun saveAndGetSettings(): Pair<Int?, Int?> {
+        val ctxSize = contextSizeText.trim().toIntOrNull()
+        val threads = threadsText.trim().toIntOrNull()
+        scope.launch {
+            settingsRepository.setLocalModelContextSize(ctxSize)
+            settingsRepository.setLocalModelThreads(threads)
+            settingsRepository.setLocalModelTemperature(temperature)
+        }
+        return ctxSize to threads
     }
 
     val modelPickerLauncher = rememberLauncherForActivityResult(
@@ -166,7 +207,8 @@ fun LocalModelManagerScreen(
             scope.launch {
                 isLoading = true
                 statusMessage = "Loading model…"
-                val result = LocalEngineHolder.engine.loadModel(context, uri)
+                val (ctxSize, threads) = saveAndGetSettings()
+                val result = LocalEngineHolder.llamaCppEngine.loadModel(context, uri, ctxSize, threads)
                 isLoading = false
                 if (result.isSuccess) {
                     val name = result.getOrThrow()
@@ -286,6 +328,167 @@ fun LocalModelManagerScreen(
                         }
                     }
                 }
+            }
+
+            HorizontalDivider()
+
+            // ── Section: Inference Settings ──
+            Text(
+                "⚙️ Inference Settings",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                "Settings are saved automatically and applied when loading a model. " +
+                    "Leave a field blank to use automatic defaults.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // Context size field
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = contextSizeText,
+                    onValueChange = { contextSizeText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Context Size (tokens)") },
+                    placeholder = { Text("e.g. 4096  (blank = auto)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    supportingText = {
+                        val parsed = contextSizeText.trim().toIntOrNull()
+                        if (parsed != null) {
+                            Text("Selected: $parsed tokens")
+                        } else if (contextSizeText.isBlank()) {
+                            Text("Auto (adaptive based on free RAM)")
+                        } else {
+                            Text("Enter a number", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                )
+                IconButton(
+                    onClick = {
+                        contextSizeText = ""
+                        scope.launch { settingsRepository.setLocalModelContextSize(null) }
+                    }
+                ) {
+                    Icon(Icons.Filled.Restore, contentDescription = "Reset to auto")
+                }
+            }
+
+            // Quick-select preset buttons for common context sizes
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                CONTEXT_SIZE_PRESETS.forEach { preset ->
+                    val label = when {
+                        preset >= 1024 -> "${preset / 1024}K"
+                        else -> "$preset"
+                    }
+                    val isSelected = contextSizeText.trim().toIntOrNull() == preset
+                    if (isSelected) {
+                        Button(
+                            onClick = { contextSizeText = preset.toString() },
+                            modifier = Modifier.weight(1f)
+                        ) { Text(label, style = MaterialTheme.typography.labelSmall) }
+                    } else {
+                        OutlinedButton(
+                            onClick = { contextSizeText = preset.toString() },
+                            modifier = Modifier.weight(1f)
+                        ) { Text(label, style = MaterialTheme.typography.labelSmall) }
+                    }
+                }
+            }
+
+            // Threads field
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = threadsText,
+                    onValueChange = { threadsText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("CPU Threads") },
+                    placeholder = { Text("e.g. 4  (blank = auto)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    supportingText = {
+                        val parsed = threadsText.trim().toIntOrNull()
+                        when {
+                            parsed != null -> Text("$parsed / $cpuCount available cores")
+                            threadsText.isBlank() -> Text("Auto (detected: $cpuCount cores)")
+                            else -> Text("Enter a number", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                )
+                IconButton(
+                    onClick = {
+                        threadsText = ""
+                        scope.launch { settingsRepository.setLocalModelThreads(null) }
+                    }
+                ) {
+                    Icon(Icons.Filled.Restore, contentDescription = "Reset to auto")
+                }
+            }
+
+            // Temperature slider
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Temperature", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        String.format("%.2f", temperature),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Slider(
+                    value = temperature,
+                    onValueChange = { temperature = it },
+                    onValueChangeFinished = {
+                        scope.launch { settingsRepository.setLocalModelTemperature(temperature) }
+                    },
+                    valueRange = 0f..2f,
+                    steps = 39, // 40 intervals → each step = 0.05 temperature units
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("0.0 (deterministic)", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("2.0 (creative)", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            // Save settings button
+            Button(
+                onClick = {
+                    val (ctxSize, threads) = saveAndGetSettings()
+                    statusMessage = buildString {
+                        append("✅ Settings saved — ")
+                        append("context: ${ctxSize?.toString() ?: "auto"}, ")
+                        append("threads: ${threads?.toString() ?: "auto"}, ")
+                        append("temp: ${String.format("%.2f", temperature)}")
+                        if (LocalEngineHolder.engine.isLoaded) {
+                            append(". Reload the model to apply.")
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Save Settings")
             }
 
             HorizontalDivider()

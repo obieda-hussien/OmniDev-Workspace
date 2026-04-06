@@ -429,6 +429,10 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
 
     // ── Public API ─────────────────────────────────────────────────────────
 
+    /** Implements the [LocalInferenceEngine] interface — delegates to the full overload. */
+    override suspend fun loadModel(context: Context, modelUri: Uri): Result<String> =
+        loadModel(context, modelUri, userContextSize = null, userThreads = null)
+
     /**
      * Loads a GGUF model from [modelUri], optionally configuring TurboQuant KV cache.
      *
@@ -436,10 +440,20 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
      *  1. Release any previously-loaded model.
      *  2. Detect model family from filename for prompt template selection.
      *  3. Compute TurboQuant rotation matrix R on Kotlin side (Hadamard or random).
-     *  4. Pass R + TurboQuant config to [nativeLoadModel].
+     *  4. Pass R + TurboQuant config to [nativeLoadModelTurbo].
      *  5. Keep FD open (file://) or copy to cacheDir (content://).
+     *
+     * @param userContextSize User-specified context window size in tokens. When provided,
+     *   the adaptive RAM-based selection is skipped and the user's value is used directly.
+     * @param userThreads     User-specified number of CPU threads. When provided,
+     *   auto-detection is skipped and the user's value is used directly.
      */
-    override suspend fun loadModel(context: Context, modelUri: Uri): Result<String> =
+    suspend fun loadModel(
+        context: Context,
+        modelUri: Uri,
+        userContextSize: Int?,
+        userThreads: Int?
+    ): Result<String> =
         withContext(Dispatchers.IO) {
             if (!isNativeAvailable) {
                 return@withContext Result.failure(IllegalStateException(
@@ -484,14 +498,27 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                     if (rotMatrix.size == 1 && rotMatrix[0].isNaN()) "native WHT"
                     else "${rotMatrix.size} floats (headDim=$DEFAULT_HEAD_DIM)")
 
-                // ── Adapt context size to available RAM ───────────────────
-                val adaptedContext = adaptContextSizeForMemory(fileSizeMB, freeRamMB, tqConfig.targetContextSize)
+                // ── Resolve context size ──────────────────────────────────
+                // When the user has explicitly set a context size, use it directly.
+                // Otherwise fall back to the adaptive RAM-based selection.
+                val adaptedContext = if (userContextSize != null) {
+                    Log.i(TAG, "Using user-specified context size: $userContextSize tokens")
+                    userContextSize
+                } else {
+                    adaptContextSizeForMemory(fileSizeMB, freeRamMB, tqConfig.targetContextSize)
+                }
+
+                // ── Resolve thread count ──────────────────────────────────
+                val cpuCores = if (userThreads != null) {
+                    Log.i(TAG, "Using user-specified thread count: $userThreads")
+                    userThreads.coerceIn(1, MAX_INFERENCE_THREADS)
+                } else {
+                    Runtime.getRuntime().availableProcessors()
+                        .coerceAtMost(MAX_INFERENCE_THREADS)
+                        .let { adaptThreadCount(fileSizeMB, it) }
+                }
 
                 // ── Load ─────────────────────────────────────────────────
-                val cpuCores = Runtime.getRuntime().availableProcessors()
-                    .coerceAtMost(MAX_INFERENCE_THREADS)
-                    .let { adaptThreadCount(fileSizeMB, it) }
-
                 val ctx = nativeLoadModelTurbo(
                     modelPath        = modelPath,
                     nThreads         = cpuCores,
