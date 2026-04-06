@@ -1,5 +1,6 @@
 package com.omnidev.workspace.data.localllm
 
+import android.app.ActivityManager
 import android.content.Context
 import android.net.Uri
 import android.os.Debug
@@ -462,7 +463,8 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
 
                 // ── Memory pre-check ─────────────────────────────────────
                 val fileSizeMB = try { pfd.statSize / 1_048_576L } catch (_: Exception) { -1L }
-                checkMemoryHeadroom(fileSizeMB)
+                val freeRamMB  = getAvailableRamMB(context)
+                checkMemoryHeadroom(fileSizeMB, freeRamMB)
 
                 // ── Resolve model path ────────────────────────────────────
                 val (modelPath, newTempFile) = resolveModelPath(context, modelUri, pfd)
@@ -482,6 +484,9 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                     if (rotMatrix.size == 1 && rotMatrix[0].isNaN()) "native WHT"
                     else "${rotMatrix.size} floats (headDim=$DEFAULT_HEAD_DIM)")
 
+                // ── Adapt context size to available RAM ───────────────────
+                val adaptedContext = adaptContextSizeForMemory(fileSizeMB, freeRamMB, tqConfig.targetContextSize)
+
                 // ── Load ─────────────────────────────────────────────────
                 val cpuCores = Runtime.getRuntime().availableProcessors()
                     .coerceAtMost(MAX_INFERENCE_THREADS)
@@ -490,7 +495,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 val ctx = nativeLoadModelTurbo(
                     modelPath        = modelPath,
                     nThreads         = cpuCores,
-                    contextSize      = tqConfig.targetContextSize,
+                    contextSize      = adaptedContext,
                     batchSize        = DEFAULT_BATCH_SIZE,
                     useGpu           = false,
                     kvCacheQuantType = KVCacheQuantType.TURBO_QUANT.nativeId,
@@ -512,7 +517,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 if (ctx == 0L) {
                     newTempFile?.delete()
                     activePfd?.close(); activePfd = null
-                    return@withContext Result.failure(buildLoadFailureException(modelName, tqConfig))
+                    return@withContext Result.failure(buildLoadFailureException(modelName, tqConfig, adaptedContext))
                 }
 
                 nativeCtxPtr     = ctx
@@ -522,7 +527,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 trackHeapPeak()
 
                 val compressionInfo = "(TurboQuant ${tqConfig.quantBits}b keys / " +
-                    "${tqConfig.valueBits}b values, ctx=${tqConfig.targetContextSize}, " +
+                    "${tqConfig.valueBits}b values, ctx=${adaptedContext}, " +
                     "compression ~${String.format("%.1f", tqConfig.estimatedCompressionRatio())}×)"
                 Log.i(TAG, "Model loaded: $modelName $compressionInfo ctx=0x${ctx.toString(16)}")
                 Result.success(modelName)
@@ -766,14 +771,58 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
         }
     }
 
-    private fun checkMemoryHeadroom(fileSizeMB: Long) {
+    private fun checkMemoryHeadroom(fileSizeMB: Long, freeRamMB: Long) {
         if (fileSizeMB <= 0) return
-        val nativeHeapFreeMB = (Debug.getNativeHeapSize() -
-                Debug.getNativeHeapAllocatedSize()) / 1_048_576L
-        Log.i(TAG, "Model: ${fileSizeMB}MB | Free native heap: ${nativeHeapFreeMB}MB")
-        if (fileSizeMB > nativeHeapFreeMB / OOM_HEADROOM_FACTOR) {
-            Log.w(TAG, "Low memory warning — model may fail to load or cause OOM during inference")
+        Log.i(TAG, "Model: ${fileSizeMB}MB | Available system RAM: ${freeRamMB}MB")
+        if (fileSizeMB > freeRamMB / OOM_HEADROOM_FACTOR) {
+            Log.w(TAG, "Low memory warning — model (${fileSizeMB}MB) may not fit in available RAM (${freeRamMB}MB free)")
         }
+    }
+
+    /**
+     * Selects an appropriate context size based on available system RAM and model size.
+     * When available headroom (free RAM minus model size) is limited, the context window
+     * is reduced in power-of-two steps so the native loader has a better chance of success.
+     *
+     * Threshold rationale (headroom = freeRAM − modelSize):
+     *  - Headroom < 256 MB : device is critically low; use 512-token minimum to attempt load
+     *  - Headroom < 512 MB : ~1 MB KV-cache at 512 ctx; 2K is the practical minimum for coherent output
+     *  - Headroom < 1024 MB: 4K context covers most single-turn tasks on low-end 4 GB devices
+     *  - Headroom < 1536 MB: 8K context works well for mid-range 4-6 GB devices with small models
+     *  - Headroom < 2048 MB: 16K context suits devices with ≥6 GB RAM and lightweight models
+     *  - Headroom ≥ 2048 MB: use the full requested context (default 32K with TurboQuant)
+     *
+     * All returned values are powers of two to satisfy [TurboQuantConfig.targetContextSize] constraints.
+     *
+     * @return A power-of-two context size ≤ [requestedContext].
+     */
+    private fun adaptContextSizeForMemory(
+        fileSizeMB: Long,
+        freeRamMB: Long,
+        requestedContext: Int
+    ): Int {
+        val headroomMB = (freeRamMB - fileSizeMB.coerceAtLeast(0L)).coerceAtLeast(0L)
+        val adapted = when {
+            headroomMB < 256  -> minOf(requestedContext, 512)
+            headroomMB < 512  -> minOf(requestedContext, 2_048)
+            headroomMB < 1024 -> minOf(requestedContext, 4_096)
+            headroomMB < 1536 -> minOf(requestedContext, 8_192)
+            headroomMB < 2048 -> minOf(requestedContext, 16_384)
+            else              -> requestedContext
+        }
+        if (adapted < requestedContext) {
+            Log.i(TAG, "Context reduced $requestedContext → $adapted tokens " +
+                "(freeRAM=${freeRamMB}MB, model=${fileSizeMB}MB, headroom=${headroomMB}MB)")
+        }
+        return adapted
+    }
+
+    /** Returns available system RAM in megabytes using [ActivityManager.MemoryInfo]. */
+    private fun getAvailableRamMB(context: Context): Long {
+        val actMgr = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val memInfo = ActivityManager.MemoryInfo()
+        actMgr.getMemoryInfo(memInfo)
+        return memInfo.availMem / 1_048_576L
     }
 
     /**
@@ -785,15 +834,20 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
         return if (fileSizeMB > 4_096) (cores / 2).coerceAtLeast(2) else cores
     }
 
-    private fun buildLoadFailureException(modelName: String, config: TurboQuantConfig): IOException {
+    private fun buildLoadFailureException(
+        modelName: String,
+        config: TurboQuantConfig,
+        adaptedContext: Int = config.targetContextSize
+    ): IOException {
         val isBitNet = ModelFamily.detectFrom(modelName) == ModelFamily.BITNET
         val hint = if (isBitNet)
             "BitNet models require ≥${MIN_BITNET_RAM_GB}GB free RAM and a GGUF from " +
             "microsoft/bitnet_b1_58-2B-4T-gguf (HuggingFace)."
         else
             "Ensure the file is a valid, non-corrupted GGUF model and the device has " +
-            "sufficient RAM. With TurboQuant (${config.quantBits}b) the context window " +
-            "is set to ${config.targetContextSize} tokens — try reducing if RAM is limited."
+            "sufficient RAM. Loading was attempted with a $adaptedContext-token context window " +
+            "(TurboQuant ${config.quantBits}b) — try a smaller or more quantized model " +
+            "(Q4_K_S / IQ4_XS), or close background apps to free RAM."
         return IOException("llama.cpp failed to load \"$modelName\". $hint")
     }
 

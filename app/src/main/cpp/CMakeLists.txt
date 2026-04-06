@@ -63,4 +63,11 @@ if(LLAMA_CPP_REAL)
         "${LLAMA_CPP_SRC}/include"
         "${LLAMA_CPP_SRC}/ggml/include")
     target_link_libraries(llama_jni PRIVATE llama ggml android log)
+else()
+    # Stub fallback — compiled when neither submodule nor FetchContent is available
+    # (e.g. fully offline builds). LlamaCppInferenceEngine detects this via nativeIsStub()
+    # and disables inference rather than crashing with UnsatisfiedLinkError.
+    message(WARNING "[llama_jni] No llama.cpp source available — compiling stub (inference disabled)")
+    add_library(llama_jni SHARED llama_jni_stub.cpp)
+    target_link_libraries(llama_jni PRIVATE android log)
 endif()
