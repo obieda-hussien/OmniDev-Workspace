@@ -74,7 +74,8 @@ class MainActivity : ComponentActivity() {
             notionPublisherTool = notionPublisherTool,
             vectorMemoryManager = VectorMemoryManager(database.knowledgeDao()),
             apiKeyRepository = apiKeyRepository,
-            headlessBrowserManager = HeadlessBrowserManager(applicationContext)
+            headlessBrowserManager = HeadlessBrowserManager(applicationContext),
+            chatRepository = chatRepository
         )
 
         // Real HTTP completion provider
@@ -126,7 +127,8 @@ class MainActivity : ComponentActivity() {
             swarmOrchestrator = swarmOrchestrator,
             apiKeyRepository = apiKeyRepository,
             fileToolManager = fileToolManager,
-            autoHealBuildUseCase = autoHealBuildUseCase
+            autoHealBuildUseCase = autoHealBuildUseCase,
+            compositeToolManager = toolManager
         )
         val providersViewModel = ProvidersViewModel(apiKeyRepository)
 

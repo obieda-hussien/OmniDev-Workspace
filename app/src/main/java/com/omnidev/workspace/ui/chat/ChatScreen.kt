@@ -57,6 +57,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Stop
@@ -128,6 +129,9 @@ import java.util.Locale
  * - User/Assistant message bubbles with Markdown rendering
  * - Multi-modal attachment picker
  */
+
+private const val REPLY_PREVIEW_MAX_CHARS = 120
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
@@ -356,9 +360,14 @@ fun ChatScreen(
                         item { EmptyStateContent() }
                     }
                     items(uiState.messages, key = { it.timestamp }) { message ->
+                        val replyToMessage = message.replyToMessageId?.let { id ->
+                            uiState.messages.find { it.messageId == id }
+                        }
                         MessageBubble(
                             message = message,
-                            consoleEntries = uiState.messageConsoleEntries[message.timestamp]
+                            consoleEntries = uiState.messageConsoleEntries[message.timestamp],
+                            replyToMessage = replyToMessage,
+                            onReply = { viewModel.setReplyingTo(it) }
                         )
                     }
                     // Show partial streaming response while the model is still generating
@@ -402,7 +411,9 @@ fun ChatScreen(
                     isListening = uiState.isListening,
                     partialTranscript = uiState.partialTranscript,
                     onMicClick = { viewModel.startListening() },
-                    onMicRelease = { viewModel.stopListening() }
+                    onMicRelease = { viewModel.stopListening() },
+                    replyingTo = uiState.replyingTo,
+                    onDismissReply = { viewModel.clearReplyingTo() }
                 )
             }
         }
@@ -954,10 +965,13 @@ private fun groupSessionsByDate(sessions: List<ChatSessionEntity>): Map<String, 
 //  Message Bubble with Markdown + Parsed Tags
 // ──────────────────────────────────────────────
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(
     message: ChatMessage,
-    consoleEntries: List<AgentConsoleEntry>? = null
+    consoleEntries: List<AgentConsoleEntry>? = null,
+    replyToMessage: ChatMessage? = null,
+    onReply: (ChatMessage) -> Unit = {}
 ) {
     val isUser = message.role == MessageRole.USER
     val alignment = if (isUser) Alignment.End else Alignment.Start
@@ -972,6 +986,7 @@ private fun MessageBubble(
     val parsed = if (!isUser) MessageFormatter.parse(message.content) else null
 
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val copyText = parsed?.cleanText?.ifBlank { null } ?: message.content
 
     Column(
@@ -1044,7 +1059,15 @@ private fun MessageBubble(
             }
 
             Card(
-                modifier = Modifier.widthIn(max = 320.dp),
+                modifier = Modifier
+                    .widthIn(max = 320.dp)
+                    .combinedClickable(
+                        onClick = {},
+                        onLongClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onReply(message)
+                        }
+                    ),
                 shape = RoundedCornerShape(
                     topStart = if (isUser) 16.dp else 4.dp,
                     topEnd = if (isUser) 4.dp else 16.dp,
@@ -1053,42 +1076,82 @@ private fun MessageBubble(
                 ),
                 colors = CardDefaults.cardColors(containerColor = backgroundColor)
             ) {
-                Box {
-                    SelectionContainer {
-                        if (isUser) {
-                            Text(
-                                text = message.content,
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(12.dp)
+                Column {
+                    // Quoted reply header — shown when this message is a reply to another
+                    if (replyToMessage != null) {
+                        val quoteSenderLabel = if (replyToMessage.role == MessageRole.USER) "You" else "OmniDev"
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f),
+                                    RoundedCornerShape(topStart = if (isUser) 16.dp else 4.dp, topEnd = if (isUser) 4.dp else 16.dp)
+                                )
+                                .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(3.dp)
+                                    .height(32.dp)
+                                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
                             )
-                        } else {
-                            // Assistant: show only the clean text (tags extracted to expandable blocks)
-                            val displayText = parsed?.cleanText?.ifBlank { null } ?: message.content
-                            MarkdownText(
-                                text = displayText,
-                                // Extra end padding reserves space for the 32dp copy button
-                                modifier = Modifier.padding(start = 12.dp, end = 36.dp, top = 12.dp, bottom = 12.dp)
-                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = quoteSenderLabel,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = replyToMessage.content.take(REPLY_PREVIEW_MAX_CHARS).replace("\n", " "),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                                )
+                            }
                         }
                     }
-                    // Copy button — top-right corner of the bubble
-                    IconButton(
-                        onClick = {
-                            val clipboard = context.getSystemService(ClipboardManager::class.java)
-                            clipboard?.setPrimaryClip(ClipData.newPlainText("OmniDev", copyText))
-                            Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
-                        },
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .size(32.dp)
-                            .padding(4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.ContentCopy,
-                            contentDescription = "Copy message",
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                        )
+
+                    Box {
+                        SelectionContainer {
+                            if (isUser) {
+                                Text(
+                                    text = message.content,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(12.dp)
+                                )
+                            } else {
+                                // Assistant: show only the clean text (tags extracted to expandable blocks)
+                                val displayText = parsed?.cleanText?.ifBlank { null } ?: message.content
+                                MarkdownText(
+                                    text = displayText,
+                                    // Extra end padding reserves space for the 32dp copy button
+                                    modifier = Modifier.padding(start = 12.dp, end = 36.dp, top = 12.dp, bottom = 12.dp)
+                                )
+                            }
+                        }
+                        // Copy button — top-right corner of the bubble
+                        IconButton(
+                            onClick = {
+                                val clipboard = context.getSystemService(ClipboardManager::class.java)
+                                clipboard?.setPrimaryClip(ClipData.newPlainText("OmniDev", copyText))
+                                Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                            },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(32.dp)
+                                .padding(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.ContentCopy,
+                                contentDescription = "Copy message",
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                            )
+                        }
                     }
                 }
             }
@@ -1230,9 +1293,75 @@ private fun ChatInputBar(
     isListening: Boolean = false,
     partialTranscript: String? = null,
     onMicClick: () -> Unit = {},
-    onMicRelease: () -> Unit = {}
+    onMicRelease: () -> Unit = {},
+    replyingTo: ChatMessage? = null,
+    onDismissReply: () -> Unit = {}
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
+        // Reply-preview bar — shown above attachments when user is replying to a message
+        if (replyingTo != null) {
+            val senderLabel = if (replyingTo.role == MessageRole.USER) "You" else "OmniDev"
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Reply,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(3.dp)
+                            .height(36.dp)
+                            .background(
+                                MaterialTheme.colorScheme.primary,
+                                RoundedCornerShape(2.dp)
+                            )
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = senderLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = replyingTo.content.take(REPLY_PREVIEW_MAX_CHARS).replace("\n", " "),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                    IconButton(
+                        onClick = onDismissReply,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Cancel reply",
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+
         if (pendingAttachments.isNotEmpty()) {
             Row(
                 modifier = Modifier

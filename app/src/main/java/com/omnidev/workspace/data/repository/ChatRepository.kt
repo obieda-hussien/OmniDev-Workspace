@@ -69,6 +69,9 @@ class ChatRepository(
      * Content is truncated to [MAX_STORED_MESSAGE_CHARS] chars to keep DB size manageable.
      * The full text is always visible in the live in-memory UI state.
      *
+     * The [ChatMessage.messageId] is preserved exactly as-is so callers can later look up
+     * the message by its stable UUID (e.g. to resolve a reply reference).
+     *
      * @param consoleEntries Agent console entries to persist alongside this message (assistant only).
      */
     suspend fun saveMessage(
@@ -82,7 +85,9 @@ class ChatRepository(
                 role = message.role.name,
                 content = message.content.take(MAX_STORED_MESSAGE_CHARS),
                 timestamp = message.timestamp,
-                consoleEntriesJson = AgentConsoleSerializer.serialize(consoleEntries)
+                consoleEntriesJson = AgentConsoleSerializer.serialize(consoleEntries),
+                messageId = message.messageId,
+                replyToMessageId = message.replyToMessageId
             )
         )
 
@@ -99,7 +104,9 @@ class ChatRepository(
             ChatMessage(
                 role = runCatching { MessageRole.valueOf(entity.role) }.getOrDefault(MessageRole.USER),
                 content = entity.content,
-                timestamp = entity.timestamp
+                timestamp = entity.timestamp,
+                messageId = entity.messageId.ifBlank { entity.id.toString() },
+                replyToMessageId = entity.replyToMessageId
             )
         }
         val consoleMap = entities
@@ -109,6 +116,36 @@ class ChatRepository(
             }
         return messages to consoleMap
     }
+
+    /**
+     * Looks up a single [ChatMessage] by its stable [messageId] UUID.
+     * Returns null when no message with that ID exists in the given session.
+     */
+    suspend fun getMessageById(messageId: String): ChatMessage? {
+        val entity = messageDao.getByMessageId(messageId) ?: return null
+        return ChatMessage(
+            role = runCatching { MessageRole.valueOf(entity.role) }.getOrDefault(MessageRole.USER),
+            content = entity.content,
+            timestamp = entity.timestamp,
+            messageId = entity.messageId.ifBlank { entity.id.toString() },
+            replyToMessageId = entity.replyToMessageId
+        )
+    }
+
+    /**
+     * Searches messages in the given session whose content contains [query] (case-insensitive
+     * substring match via SQL LIKE). Returns matching [ChatMessage] objects ordered by time.
+     */
+    suspend fun searchMessages(sessionId: Long, query: String): List<ChatMessage> =
+        messageDao.searchByContent(sessionId, query).map { entity ->
+            ChatMessage(
+                role = runCatching { MessageRole.valueOf(entity.role) }.getOrDefault(MessageRole.USER),
+                content = entity.content,
+                timestamp = entity.timestamp,
+                messageId = entity.messageId.ifBlank { entity.id.toString() },
+                replyToMessageId = entity.replyToMessageId
+            )
+        }
 
     /** Deletes a session and all its messages (cascade delete handles messages). */
     suspend fun deleteSession(sessionId: Long) = sessionDao.deleteById(sessionId)

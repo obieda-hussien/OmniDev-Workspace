@@ -50,7 +50,8 @@ class CompositeToolManager(
     private val notionPublisherTool: NotionPublisherTool? = null,
     val vectorMemoryManager: VectorMemoryManager? = null,
     val headlessBrowserManager: HeadlessBrowserManager? = null,
-    private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null
+    private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null,
+    private val chatRepository: com.omnidev.workspace.data.repository.ChatRepository? = null
 ) : ToolManager {
     companion object {
         /**
@@ -93,6 +94,33 @@ class CompositeToolManager(
         else null
 
     private val clipboardTool: ClipboardTool? = if (context != null) ClipboardTool(context) else null
+
+    /**
+     * Current session ID used by the [search_messages] tool to scope message searches.
+     * Set by the ViewModel each time a session is opened or created.
+     */
+    @Volatile
+    var currentSessionId: Long? = null
+
+    // ─── search_messages tool definition ─────────────────────────────────────────
+    private val searchMessagesToolDefinition = ToolDefinition(
+        name = "search_messages",
+        description = "Searches the current chat session's message history for messages whose content contains the given query string. Returns matching messages with their messageId, role, timestamp, and a content excerpt.",
+        parameters = listOf(
+            com.omnidev.workspace.data.tools.ToolParameter(
+                name = "query",
+                type = "string",
+                description = "The text to search for (case-insensitive substring match).",
+                required = true
+            ),
+            com.omnidev.workspace.data.tools.ToolParameter(
+                name = "limit",
+                type = "integer",
+                description = "Maximum number of results to return (default: 10, max: 100). Returns the most recent matching messages.",
+                required = false
+            )
+        )
+    )
 
     override fun getToolDefinitions(): List<ToolDefinition> = buildList {
         addAll(fileToolManager.getToolDefinitions().filterNot { it.name == "web_search" })
@@ -222,6 +250,11 @@ class CompositeToolManager(
         }
         if (requestGitHubAuthTool != null) {
             addAll(RequestGitHubAuthenticationTool.getToolDefinitions())
+        }
+
+        // ── Chat message search tool ──
+        if (chatRepository != null) {
+            add(searchMessagesToolDefinition)
         }
 
         // ── Execution Diagnostics Tool ──
@@ -431,6 +464,32 @@ class CompositeToolManager(
             "execution_diagnostics" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 executionDiagnostics.execute(action, arguments)
+            }
+
+            // ── Chat message search tool ──
+            "search_messages" -> {
+                val repo = chatRepository
+                    ?: return ToolExecutionResult("search_messages is not available in this context.", isError = true)
+                val query = arguments["query"]?.trim()
+                    ?: return ToolExecutionResult("Missing required argument: query.", isError = true)
+                if (query.isBlank()) return ToolExecutionResult("query must not be blank.", isError = true)
+                val limit = arguments["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 10
+                val sessionId = currentSessionId
+                    ?: return ToolExecutionResult("No active session — search_messages requires an open chat session.", isError = true)
+                // searchByContent returns results in chronological (ASC) order;
+                // takeLast gives the most recent `limit` matches.
+                val matches = repo.searchMessages(sessionId, query).takeLast(limit)
+                if (matches.isEmpty()) {
+                    ToolExecutionResult("No messages found matching \"$query\".")
+                } else {
+                    val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+                    val lines = matches.map { msg ->
+                        val time = fmt.format(java.util.Date(msg.timestamp))
+                        val excerpt = msg.content.take(200).replace("\n", " ")
+                        "[${msg.messageId}] [${msg.role.name}] [$time] $excerpt"
+                    }
+                    ToolExecutionResult("Found ${matches.size} message(s) matching \"$query\":\n${lines.joinToString("\n")}")
+                }
             }
 
             // ── Memory tools ──

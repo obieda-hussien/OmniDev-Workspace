@@ -5,6 +5,11 @@ import kotlinx.serialization.Serializable
 
 /**
  * Represents a single message in the AI conversation, including tool calls and results.
+ *
+ * @property messageId Stable UUID string identifying this message. Generated on creation;
+ *   restored from the database when loading past messages so references stay consistent.
+ * @property replyToMessageId When non-null, this message is a reply to the message with the
+ *   given [messageId]. Drives the WhatsApp-style quoted-reply UI and agent context injection.
  */
 @Serializable
 data class ChatMessage(
@@ -14,7 +19,9 @@ data class ChatMessage(
     val toolResults: List<ToolCallResult> = emptyList(),
     val thinkingContent: String? = null,
     val attachments: List<AttachmentMeta> = emptyList(),
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val messageId: String = java.util.UUID.randomUUID().toString(),
+    val replyToMessageId: String? = null
 )
 
 @Serializable
