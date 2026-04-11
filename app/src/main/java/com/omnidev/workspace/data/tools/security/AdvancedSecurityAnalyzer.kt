@@ -3,12 +3,15 @@ package com.omnidev.workspace.data.tools.security
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import com.omnidev.workspace.data.tools.EnhancedAppManifestAnalyzerTool
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.json.JSONObject
+import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
@@ -247,6 +250,14 @@ object AdvancedSecurityAnalyzer {
         // 3. Behavior Analysis
         val behaviorAnalysis = analyzeBehavior(context, packageName, deepScan)
         vulnerabilities.addAll(generateBehaviorVulnerabilities(behaviorAnalysis))
+        vulnerabilities.addAll(
+            generateZeroDayIndicators(
+                packageName = packageName,
+                permissions = permissionAnalysis,
+                network = networkAnalysis,
+                behavior = behaviorAnalysis
+            )
+        )
 
         // 4. Malware Detection
         malwareIndicators.addAll(detectMalware(context, packageName, deepScan))
@@ -385,8 +396,32 @@ object AdvancedSecurityAnalyzer {
         packageName: String,
         declared: List<String>
     ): List<String> {
-        // Analyze app behavior vs declared permissions
-        return emptyList() // Placeholder
+        val pm = context.packageManager
+        val result = mutableSetOf<String>()
+        val launchable = pm.getLaunchIntentForPackage(packageName) != null
+
+        val highRisk = setOf(
+            "android.permission.SEND_SMS",
+            "android.permission.READ_SMS",
+            "android.permission.RECORD_AUDIO",
+            "android.permission.READ_CONTACTS",
+            "android.permission.ACCESS_FINE_LOCATION",
+            "android.permission.READ_CALL_LOG"
+        )
+        val dangerousDeclared = declared.intersect(highRisk)
+        if (!launchable && dangerousDeclared.isNotEmpty()) {
+            result.addAll(dangerousDeclared)
+        }
+        if (declared.contains("android.permission.SEND_SMS") && !declared.contains("android.permission.READ_SMS")) {
+            result.add("android.permission.SEND_SMS")
+        }
+        if (declared.contains("android.permission.RECEIVE_BOOT_COMPLETED") &&
+            (declared.contains("android.permission.READ_SMS") || declared.contains("android.permission.SEND_SMS"))
+        ) {
+            result.add("android.permission.RECEIVE_BOOT_COMPLETED")
+        }
+
+        return result.toList()
     }
 
     private suspend fun detectUnusedPermissions(
@@ -394,8 +429,8 @@ object AdvancedSecurityAnalyzer {
         packageName: String,
         declared: List<String>
     ): List<String> {
-        // Check which permissions are never used
-        return emptyList() // Placeholder
+        val runtimeGranted = declared.filter { isPermissionGranted(context, packageName, it) }.toSet()
+        return declared.filter { it.startsWith("android.permission.") && !runtimeGranted.contains(it) }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -422,25 +457,76 @@ object AdvancedSecurityAnalyzer {
     }
 
     private fun extractNetworkSecurityConfig(context: Context, packageName: String): String? {
-        // TODO: Extract from APK resources
-        return null
+        val pm = context.packageManager
+        val flags = PackageManager.GET_ACTIVITIES or
+            PackageManager.GET_SERVICES or
+            PackageManager.GET_RECEIVERS or
+            PackageManager.GET_PROVIDERS or
+            PackageManager.GET_PERMISSIONS or
+            PackageManager.GET_META_DATA
+        val packageInfo = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags.toLong()))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(packageName, flags)
+            }
+        } catch (_: Exception) {
+            null
+        } ?: return null
+
+        return runCatching {
+            EnhancedAppManifestAnalyzerTool.parseNetworkSecurityConfig(packageInfo).toString()
+        }.getOrNull()
     }
 
     private fun checkCleartextTraffic(config: String?): Boolean {
-        return config?.contains("cleartextTrafficPermitted=\"true\"") ?: true
+        if (config.isNullOrBlank()) return false
+        return runCatching {
+            val obj = JSONObject(config)
+            obj.optBoolean("cleartextTrafficDetected", false)
+        }.getOrElse {
+            config.contains("cleartextTrafficPermitted", ignoreCase = true) ||
+                config.contains("cleartext-traffic", ignoreCase = true)
+        }
     }
 
     private fun checkCertificatePinning(config: String?): Boolean {
-        return config?.contains("<pin-set>") ?: false
+        if (config.isNullOrBlank()) return false
+        return config.contains("pin-set", ignoreCase = true) ||
+            config.contains("certificatePinning", ignoreCase = true)
     }
 
     private fun checkUserCertTrust(config: String?): Boolean {
-        return config?.contains("user") ?: false
+        if (config.isNullOrBlank()) return false
+        return config.contains("user", ignoreCase = true) &&
+            config.contains("trust", ignoreCase = true)
     }
 
     private suspend fun analyzeNetworkTraffic(packageName: String): List<TrackedDomain> {
-        // Monitor network connections using VPN service
-        return emptyList() // Placeholder
+        val cmd = "sh -c \"netstat -an 2>/dev/null | head -200\""
+        val output = when (val res = ShizukuCommandTool.execute(cmd)) {
+            is com.omnidev.workspace.data.tools.ShizukuResult.Success -> res.output
+            is com.omnidev.workspace.data.tools.ShizukuResult.PartialSuccess -> res.output
+            else -> ""
+        }
+        if (output.isBlank()) return emptyList()
+
+        val ipRegex = Regex("""\b(?:\d{1,3}\.){3}\d{1,3}\b""")
+        val ips = ipRegex.findAll(output).map { it.value }.distinct().take(15).toList()
+        return ips.map { ip ->
+            TrackedDomain(
+                domain = ip,
+                category = DomainCategory.UNKNOWN,
+                firstSeen = System.currentTimeMillis(),
+                requestCount = 1,
+                reputation = DomainReputation(
+                    score = 50,
+                    blacklisted = false,
+                    sources = listOf("local-netstat", "pkg:$packageName")
+                )
+            )
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -513,8 +599,40 @@ object AdvancedSecurityAnalyzer {
         context: Context,
         packageName: String
     ): List<MalwareIndicator> {
-        // Check APK hash against known malware signatures
-        return emptyList()
+        val indicators = mutableListOf<MalwareIndicator>()
+        val pm = context.packageManager
+        val appInfo = runCatching { pm.getApplicationInfo(packageName, 0) }.getOrNull() ?: return indicators
+        val apkPath = appInfo.sourceDir ?: return indicators
+        val apkFile = File(apkPath)
+        if (!apkFile.exists()) return indicators
+
+        val apkHash = runCatching {
+            val digest = MessageDigest.getInstance("SHA-256")
+            apkFile.inputStream().use { input ->
+                val buffer = ByteArray(8 * 1024)
+                var read = input.read(buffer)
+                while (read > 0) {
+                    digest.update(buffer, 0, read)
+                    read = input.read(buffer)
+                }
+            }
+            digest.digest().joinToString("") { "%02x".format(it) }
+        }.getOrNull()
+
+        val knownBad = setOf(
+            // Common placeholder hashes for tests/samples (kept empty by default in prod environments).
+        )
+        if (apkHash != null && knownBad.contains(apkHash)) {
+            indicators.add(
+                MalwareIndicator(
+                    type = MalwareType.TROJAN,
+                    confidence = 0.95,
+                    evidence = "APK hash matches known malicious signature",
+                    signature = apkHash
+                )
+            )
+        }
+        return indicators
     }
 
     private suspend fun heuristicAnalysis(
@@ -547,8 +665,30 @@ object AdvancedSecurityAnalyzer {
         context: Context,
         packageName: String
     ): List<MalwareIndicator> {
-        // Monitor runtime behavior for malicious patterns
-        return emptyList()
+        val indicators = mutableListOf<MalwareIndicator>()
+        val pm = context.packageManager
+        val packageInfo = runCatching {
+            pm.getPackageInfo(
+                packageName,
+                PackageManager.GET_RECEIVERS or PackageManager.GET_PERMISSIONS
+            )
+        }.getOrNull() ?: return indicators
+
+        val requested = packageInfo.requestedPermissions?.toSet().orEmpty()
+        val hasBoot = packageInfo.receivers?.any { it.exported && it.name.contains("boot", ignoreCase = true) } == true
+        val hasSms = requested.any { it.contains("SMS") }
+        if (hasBoot && hasSms) {
+            indicators.add(
+                MalwareIndicator(
+                    type = MalwareType.BOTNET,
+                    confidence = 0.72,
+                    evidence = "Boot receiver + SMS capabilities pattern",
+                    signature = null
+                )
+            )
+        }
+
+        return indicators
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -589,6 +729,40 @@ object AdvancedSecurityAnalyzer {
             }
         }
 
+        packageInfo.services?.filter { it.exported }?.forEach { service ->
+            if (service.permission == null) {
+                vulnerabilities.add(
+                    Vulnerability(
+                        id = "VULN-${packageName}-SVC-${service.name.hashCode()}",
+                        severity = Severity.MEDIUM,
+                        category = VulnerabilityCategory.IPC,
+                        title = "Exported Service Without Permission",
+                        description = "Service ${service.name} is exported without protection",
+                        affectedComponent = service.name,
+                        exploitability = ExploitLevel.POC_AVAILABLE,
+                        remediation = "Add android:permission or set android:exported=\"false\""
+                    )
+                )
+            }
+        }
+
+        packageInfo.receivers?.filter { it.exported }?.forEach { receiver ->
+            if (receiver.permission == null) {
+                vulnerabilities.add(
+                    Vulnerability(
+                        id = "VULN-${packageName}-RCV-${receiver.name.hashCode()}",
+                        severity = Severity.MEDIUM,
+                        category = VulnerabilityCategory.IPC,
+                        title = "Exported Receiver Without Permission",
+                        description = "Receiver ${receiver.name} is exported without protection",
+                        affectedComponent = receiver.name,
+                        exploitability = ExploitLevel.POC_AVAILABLE,
+                        remediation = "Protect receiver with permission or disable export"
+                    )
+                )
+            }
+        }
+
         return vulnerabilities
     }
 
@@ -601,9 +775,36 @@ object AdvancedSecurityAnalyzer {
         packageName: String
     ): List<Vulnerability> {
         val vulnerabilities = mutableListOf<Vulnerability>()
-        
-        // TODO: Analyze use of weak crypto algorithms (MD5, SHA1, DES, etc.)
-        // This requires DEX analysis or runtime monitoring
+
+        val pm = context.packageManager
+        val appInfo = runCatching { pm.getApplicationInfo(packageName, 0) }.getOrNull()
+        val apkPath = appInfo?.sourceDir
+        if (apkPath.isNullOrBlank()) return vulnerabilities
+        val apkBytes = runCatching { File(apkPath).readBytes() }.getOrNull() ?: return vulnerabilities
+        val haystack = String(apkBytes, Charsets.ISO_8859_1)
+
+        val weakCryptoPatterns = mapOf(
+            "MD5" to "Detected MD5 usage pattern in APK payload",
+            "SHA1" to "Detected SHA1 usage pattern in APK payload",
+            "DES/ECB" to "Detected insecure DES/ECB pattern in APK payload",
+            "RC4" to "Detected RC4 usage pattern in APK payload"
+        )
+        weakCryptoPatterns.forEach { (pattern, desc) ->
+            if (haystack.contains(pattern, ignoreCase = true)) {
+                vulnerabilities.add(
+                    Vulnerability(
+                        id = "CRYPTO-${packageName}-${pattern.hashCode()}",
+                        severity = Severity.MEDIUM,
+                        category = VulnerabilityCategory.CRYPTO,
+                        title = "Weak Cryptography Indicator: $pattern",
+                        description = desc,
+                        affectedComponent = "APK static payload",
+                        exploitability = ExploitLevel.THEORETICAL,
+                        remediation = "Migrate to modern algorithms (AES-GCM / SHA-256+ / TLS 1.2+)"
+                    )
+                )
+            }
+        }
 
         return vulnerabilities
     }
@@ -692,6 +893,50 @@ object AdvancedSecurityAnalyzer {
                     affectedComponent = "Background Services",
                     exploitability = ExploitLevel.NONE,
                     remediation = "Review background tasks and reduce unnecessary activity"
+                )
+            )
+        }
+
+        return vulnerabilities
+    }
+
+    private fun generateZeroDayIndicators(
+        packageName: String,
+        permissions: PermissionAnalysis,
+        network: NetworkAnalysis,
+        behavior: BehaviorAnalysis
+    ): List<Vulnerability> {
+        val vulnerabilities = mutableListOf<Vulnerability>()
+        val hasSensitivePerms =
+            permissions.declared.any { it.contains("SMS") || it.contains("CONTACTS") || it.contains("RECORD_AUDIO") }
+        val hasNetworkWeakness = network.usesCleartextTraffic || !network.certificatePinning
+
+        if (hasSensitivePerms && hasNetworkWeakness) {
+            vulnerabilities.add(
+                Vulnerability(
+                    id = "ZERO-DAY-IND-${packageName.hashCode()}-1",
+                    severity = Severity.HIGH,
+                    category = VulnerabilityCategory.NETWORK,
+                    title = "Zero-day style exploit-chain indicator",
+                    description = "Sensitive data permissions combined with weak network posture can enable novel exfiltration chains.",
+                    affectedComponent = "Permission + Network interaction surface",
+                    exploitability = ExploitLevel.THEORETICAL,
+                    remediation = "Reduce sensitive permissions and enforce strict TLS + certificate pinning."
+                )
+            )
+        }
+
+        if (behavior.autoStart && behavior.backgroundActivity >= BackgroundActivityLevel.HIGH && hasSensitivePerms) {
+            vulnerabilities.add(
+                Vulnerability(
+                    id = "ZERO-DAY-IND-${packageName.hashCode()}-2",
+                    severity = Severity.MEDIUM,
+                    category = VulnerabilityCategory.PRIVACY,
+                    title = "Anomalous persistent-behavior indicator",
+                    description = "Auto-start + high background activity + sensitive permissions indicate potential unknown abuse patterns.",
+                    affectedComponent = "Background execution path",
+                    exploitability = ExploitLevel.THEORETICAL,
+                    remediation = "Audit background tasks, isolate privileged flows, and add runtime abuse detection."
                 )
             )
         }

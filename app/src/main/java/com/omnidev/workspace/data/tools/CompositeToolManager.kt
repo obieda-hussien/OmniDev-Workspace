@@ -908,6 +908,79 @@ class CompositeToolManager(
                     ToolExecutionResult(cached.toString(2))
                 }
             }
+            "enhanced_network_security" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Enhanced network security requires Android context.", isError = true)
+                val pkg = arguments["target_package"] ?: return missingArg("target_package")
+                val pm = ctx.packageManager
+                val flags = PackageManager.GET_ACTIVITIES or
+                    PackageManager.GET_SERVICES or
+                    PackageManager.GET_RECEIVERS or
+                    PackageManager.GET_PROVIDERS or
+                    PackageManager.GET_PERMISSIONS or
+                    PackageManager.GET_META_DATA
+                val packageInfo = try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(flags.toLong()))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        pm.getPackageInfo(pkg, flags)
+                    }
+                } catch (e: Exception) { null }
+                if (packageInfo == null) return ToolExecutionResult("Package '$pkg' not found.", isError = true)
+                val resultJson = EnhancedAppManifestAnalyzerTool.parseNetworkSecurityConfig(packageInfo)
+                ToolExecutionResult(resultJson.toString(2))
+            }
+            "enhanced_attack_surface" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Enhanced attack-surface analysis requires Android context.", isError = true)
+                val pkg = arguments["target_package"] ?: return missingArg("target_package")
+                val pm = ctx.packageManager
+                val flags = PackageManager.GET_ACTIVITIES or
+                    PackageManager.GET_SERVICES or
+                    PackageManager.GET_RECEIVERS or
+                    PackageManager.GET_PROVIDERS or
+                    PackageManager.GET_PERMISSIONS or
+                    PackageManager.GET_META_DATA
+                val packageInfo = try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(flags.toLong()))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        pm.getPackageInfo(pkg, flags)
+                    }
+                } catch (e: Exception) { null }
+                if (packageInfo == null) return ToolExecutionResult("Package '$pkg' not found.", isError = true)
+                val resultJson = EnhancedAppManifestAnalyzerTool.buildAttackSurface(ctx, packageInfo)
+                ToolExecutionResult(resultJson.toString(2))
+            }
+            "enhanced_manifest_to_html" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Enhanced manifest HTML export requires Android context.", isError = true)
+                val pkg = arguments["target_package"] ?: return missingArg("target_package")
+                val pm = ctx.packageManager
+                val flags = PackageManager.GET_ACTIVITIES or
+                    PackageManager.GET_SERVICES or
+                    PackageManager.GET_RECEIVERS or
+                    PackageManager.GET_PROVIDERS or
+                    PackageManager.GET_PERMISSIONS or
+                    PackageManager.GET_META_DATA
+                val packageInfo = try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(flags.toLong()))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        pm.getPackageInfo(pkg, flags)
+                    }
+                } catch (e: Exception) { null }
+                if (packageInfo == null) return ToolExecutionResult("Package '$pkg' not found.", isError = true)
+                val path = EnhancedAppManifestAnalyzerTool.exportEnhancedReportToHtml(ctx, packageInfo)
+                if (path.isNullOrBlank()) {
+                    ToolExecutionResult("Failed to export HTML report for '$pkg'.", isError = true)
+                } else {
+                    ToolExecutionResult(path)
+                }
+            }
 
             // ── Privileged execution tool ──
             "privileged_tool" -> {
@@ -1156,7 +1229,11 @@ class CompositeToolManager(
                 when (action) {
                     "analyze", "quick_scan" -> {
                         val pkg = arguments["package_name"] ?: return missingArg("package_name")
-                        val report = AdvancedSecurityAnalyzer.analyzePackage(ctx, pkg)
+                        val report = AdvancedSecurityAnalyzer.analyzePackage(
+                            context = ctx,
+                            packageName = pkg,
+                            deepScan = action == "analyze"
+                        )
                         if (action == "analyze") {
                             ToolExecutionResult(report.toString())
                         } else {

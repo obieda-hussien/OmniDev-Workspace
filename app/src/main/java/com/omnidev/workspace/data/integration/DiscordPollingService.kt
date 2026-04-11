@@ -425,7 +425,7 @@ class DiscordPollingService : Service() {
             }
             OmniMode.AGENT -> {
                 val modelId = settingsRepository.observeModelIdForRole(ModelRole.AGENT).first()
-                    ?: ModelRegistry.getDefaultModelForRole(ModelRole.CHAT).id
+                    ?: ModelRegistry.getDefaultModelForRole(ModelRole.AGENT).id
                 val replyBuilder = StringBuilder()
                 runCatching {
                     agentPipeline.execute(
@@ -452,7 +452,7 @@ class DiscordPollingService : Service() {
             }
             OmniMode.SWARM -> {
                 val orchestratorModelId = settingsRepository.observeModelIdForRole(ModelRole.SWARM_ORCHESTRATOR).first()
-                    ?: ModelRegistry.getDefaultModelForRole(ModelRole.CHAT).id
+                    ?: ModelRegistry.getDefaultModelForRole(ModelRole.SWARM_ORCHESTRATOR).id
                 val workerModelId = settingsRepository.observeModelIdForRole(ModelRole.SWARM_WORKER).first()
                     ?: orchestratorModelId
                 val replyBuilder = StringBuilder()
