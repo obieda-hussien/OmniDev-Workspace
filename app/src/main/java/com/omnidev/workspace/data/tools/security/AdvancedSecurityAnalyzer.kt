@@ -234,6 +234,33 @@ object AdvancedSecurityAnalyzer {
     }
 
     @Serializable
+    data class ExploitationInsightsSummary(
+        val packageName: String,
+        val generatedAt: Long,
+        val insights: List<ExploitationInsight>
+    )
+
+    @Serializable
+    data class ExploitationInsight(
+        val vulnerabilityId: String,
+        val title: String,
+        val verificationStatus: VerificationStatus,
+        val exploitabilityScore: Int,
+        val attackPathHypothesis: String,
+        val safeValidationChecks: List<String>,
+        val remediationPriority: RemediationPriority,
+        val priorityReason: String
+    )
+
+    @Serializable
+    enum class RemediationPriority {
+        P0,
+        P1,
+        P2,
+        P3
+    }
+
+    @Serializable
     enum class MalwareType {
         TROJAN, SPYWARE, ADWARE, RANSOMWARE, ROOTKIT, BOTNET, BACKDOOR, UNKNOWN
     }
@@ -1131,6 +1158,143 @@ object AdvancedSecurityAnalyzer {
         }
         return "Exploitability assessed as $score/100 based on severity=${vulnerability.severity}, " +
             "exploitability=${vulnerability.exploitability}, status=$statusText."
+    }
+
+    fun inferExploitationInsights(
+        report: SecurityReport,
+        vulnerabilityId: String? = null
+    ): ExploitationInsightsSummary {
+        val verification = verifyVulnerabilities(report, vulnerabilityId)
+        val vulnerabilityById = report.vulnerabilities.associateBy { it.id }
+
+        val insights = verification.results.mapNotNull { verified ->
+            val vulnerability = vulnerabilityById[verified.vulnerabilityId] ?: return@mapNotNull null
+            val priority = deriveRemediationPriority(
+                score = verified.exploitabilityScore,
+                severity = vulnerability.severity,
+                status = verified.verificationStatus
+            )
+
+            ExploitationInsight(
+                vulnerabilityId = vulnerability.id,
+                title = vulnerability.title,
+                verificationStatus = verified.verificationStatus,
+                exploitabilityScore = verified.exploitabilityScore,
+                attackPathHypothesis = buildAttackPathHypothesis(vulnerability, verified.verificationStatus),
+                safeValidationChecks = buildSafeValidationChecks(vulnerability, report),
+                remediationPriority = priority,
+                priorityReason = buildPriorityReason(vulnerability, verified.verificationStatus, verified.exploitabilityScore, priority)
+            )
+        }
+
+        return ExploitationInsightsSummary(
+            packageName = report.packageName,
+            generatedAt = System.currentTimeMillis(),
+            insights = insights
+        )
+    }
+
+    private fun buildAttackPathHypothesis(
+        vulnerability: Vulnerability,
+        status: VerificationStatus
+    ): String {
+        val confidence = when (status) {
+            VerificationStatus.VERIFIED -> "High-confidence hypothesis"
+            VerificationStatus.LIKELY -> "Medium-confidence hypothesis"
+            VerificationStatus.UNVERIFIED -> "Low-confidence hypothesis"
+        }
+
+        val categoryPath = when (vulnerability.category) {
+            VulnerabilityCategory.NETWORK ->
+                "network interception or API traffic tampering leading to data exposure or session compromise."
+            VulnerabilityCategory.PERMISSION ->
+                "abuse of granted dangerous capabilities to access sensitive data or device resources."
+            VulnerabilityCategory.CRYPTO ->
+                "cryptographic weakness reducing confidentiality/integrity guarantees for local or transmitted data."
+            VulnerabilityCategory.IPC ->
+                "intent/component interaction abuse to trigger unauthorized internal flows."
+            VulnerabilityCategory.STORAGE ->
+                "unauthorized local data access through weak storage boundaries."
+            VulnerabilityCategory.WEBVIEW ->
+                "web content abuse path through permissive WebView configuration."
+            VulnerabilityCategory.AUTHENTICATION ->
+                "authentication bypass or token misuse causing unauthorized account access."
+            VulnerabilityCategory.INJECTION ->
+                "input manipulation against unsafe handlers to alter app behavior."
+            VulnerabilityCategory.NATIVE ->
+                "native layer memory-safety weakness that could impact process integrity."
+            VulnerabilityCategory.PRIVACY ->
+                "tracking/data leakage behavior enabling unauthorized profiling or exfiltration."
+        }
+
+        return "$confidence: ${vulnerability.title} may enable $categoryPath"
+    }
+
+    private fun buildSafeValidationChecks(
+        vulnerability: Vulnerability,
+        report: SecurityReport
+    ): List<String> {
+        val checks = mutableListOf<String>()
+
+        checks += "Re-run static analysis on the same APK build and compare finding stability."
+        checks += "Validate finding metadata against manifest/component declarations in a controlled test environment."
+
+        if (vulnerability.id == "NET-CLEARTEXT" || report.networkAnalysis.usesCleartextTraffic) {
+            checks += "Confirm cleartext policy flags (`usesCleartextTraffic` / network security config) without sending sensitive data."
+        }
+        if (vulnerability.id == "NET-NO-PINNING" || !report.networkAnalysis.certificatePinning) {
+            checks += "Perform certificate-pinning presence check via static config inspection and TLS handshake observation in staging."
+        }
+        if (vulnerability.id.startsWith("PERM-")) {
+            checks += "Audit runtime permission grant paths and verify feature necessity for each dangerous permission."
+        }
+        if (vulnerability.id.startsWith("CRYPTO-")) {
+            checks += "Validate crypto usage through code review for algorithm/mode/key-management policy compliance."
+        }
+        if (vulnerability.id.contains("-ACT-") || vulnerability.id.contains("-SVC-") || vulnerability.id.contains("-RCV-")) {
+            checks += "Check exported component intent filters and required permissions with non-invasive intent simulation."
+        }
+        if (vulnerability.id.startsWith("ZERO-DAY-IND-")) {
+            checks += "Correlate telemetry signals over multiple runs to reduce false positives before escalation."
+        }
+
+        return checks.distinct()
+    }
+
+    private fun deriveRemediationPriority(
+        score: Int,
+        severity: Severity,
+        status: VerificationStatus
+    ): RemediationPriority {
+        val severityWeight = when (severity) {
+            Severity.CRITICAL -> 25
+            Severity.HIGH -> 15
+            Severity.MEDIUM -> 5
+            Severity.LOW -> 0
+            Severity.INFO -> -10
+        }
+        val statusWeight = when (status) {
+            VerificationStatus.VERIFIED -> 10
+            VerificationStatus.LIKELY -> 0
+            VerificationStatus.UNVERIFIED -> -10
+        }
+
+        val total = (score + severityWeight + statusWeight).coerceIn(0, 140)
+        return when {
+            total >= 95 -> RemediationPriority.P0
+            total >= 75 -> RemediationPriority.P1
+            total >= 50 -> RemediationPriority.P2
+            else -> RemediationPriority.P3
+        }
+    }
+
+    private fun buildPriorityReason(
+        vulnerability: Vulnerability,
+        status: VerificationStatus,
+        score: Int,
+        priority: RemediationPriority
+    ): String {
+        return "Priority $priority assigned from score=$score, severity=${vulnerability.severity}, status=$status."
     }
 
     private fun calculateRiskScore(

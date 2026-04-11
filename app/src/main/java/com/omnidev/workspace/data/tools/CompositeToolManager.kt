@@ -394,14 +394,15 @@ class CompositeToolManager(
                 description = "Advanced static/dynamic security analysis for installed Android apps. " +
                         "Actions: analyze (full report), scan_all (scan all user apps), " +
                         "quick_scan (fast permission + network check), " +
-                        "verify_findings (confirm findings + exploitability scoring).",
+                        "verify_findings (confirm findings + exploitability scoring), " +
+                        "infer_exploitation_paths (hypothesized abuse paths + safe validation checks + remediation priority).",
                 parameters = listOf(
                     ToolParameter(name = "action", type = "string",
-                        description = "One of: analyze, scan_all, quick_scan, verify_findings", required = true),
+                        description = "One of: analyze, scan_all, quick_scan, verify_findings, infer_exploitation_paths", required = true),
                     ToolParameter(name = "package_name", type = "string",
-                        description = "Target package name (required for analyze/quick_scan/verify_findings)", required = false),
+                        description = "Target package name (required for analyze/quick_scan/verify_findings/infer_exploitation_paths)", required = false),
                     ToolParameter(name = "vulnerability_id", type = "string",
-                        description = "Optional vulnerability id to verify a single finding for verify_findings action", required = false)
+                        description = "Optional vulnerability id to focus a single finding for verify_findings/infer_exploitation_paths", required = false)
                 )
             ))
         }
@@ -1228,6 +1229,35 @@ class CompositeToolManager(
                                 "- [${result.verificationStatus}] ${result.vulnerabilityId} | " +
                                         "exploitability=${result.exploitabilityScore}/100 | ${result.title}"
                             }
+                            ToolExecutionResult(if (details.isBlank()) header else "$header\n$details")
+                        }
+                    }
+                    "infer_exploitation_paths" -> {
+                        val pkg = arguments["package_name"] ?: return missingArg("package_name")
+                        val report = AdvancedSecurityAnalyzer.analyzePackage(
+                            context = ctx,
+                            packageName = pkg,
+                            deepScan = true
+                        )
+                        val vulnerabilityId = arguments["vulnerability_id"]
+                        val insights = AdvancedSecurityAnalyzer.inferExploitationInsights(
+                            report = report,
+                            vulnerabilityId = vulnerabilityId
+                        )
+                        if (insights.insights.isEmpty() && !vulnerabilityId.isNullOrBlank()) {
+                            ToolExecutionResult(
+                                "No vulnerability found with id '$vulnerabilityId' in package '$pkg'.",
+                                isError = true
+                            )
+                        } else {
+                            val details = insights.insights.joinToString("\n") { item ->
+                                val checks = item.safeValidationChecks.take(2).joinToString(" | ")
+                                "- [${item.remediationPriority}] ${item.vulnerabilityId} | " +
+                                        "score=${item.exploitabilityScore}/100 | status=${item.verificationStatus}\n" +
+                                        "  hypothesis: ${item.attackPathHypothesis}\n" +
+                                        "  safe_checks: $checks"
+                            }
+                            val header = "Exploitation insights for $pkg: findings=${insights.insights.size}"
                             ToolExecutionResult(if (details.isBlank()) header else "$header\n$details")
                         }
                     }

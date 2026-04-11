@@ -278,7 +278,7 @@ All tools are registered and dispatched by `CompositeToolManager` (`data/tools/C
 | Tool Name | Description |
 |-----------|-------------|
 | `predictive_analytics` | Time-series forecasting (forecast, detect_anomalies, analyze_trend) via `PredictiveAnalyticsEngine` |
-| `security_analyzer` | Advanced APK security analysis (analyze, scan_all, quick_scan, verify_findings) via `AdvancedSecurityAnalyzer` |
+| `security_analyzer` | Advanced APK security analysis (analyze, scan_all, quick_scan, verify_findings, infer_exploitation_paths) via `AdvancedSecurityAnalyzer` |
 | `intelligent_automation` | Workflow automation engine (execute_workflow, list_workflows, get_statistics, get_patterns) via `IntelligentAutomationEngine` |
 | `voice_commands` | Voice command engine (initialize, start_listening, stop_listening, speak, get_stats, get_history) via `AdvancedVoiceCommandEngine` |
 | `tool_monitoring` | Real-time tool performance metrics (get_metrics, get_all_metrics, most_used, slowest, most_failed) via `ToolMonitoringSystem` |
@@ -317,7 +317,7 @@ Singleton real-time metrics collector. Tracks execution count, success rate, ave
 Workflow automation system. Supports complex workflows with: sequential/parallel actions, conditional branches, loops, API calls, tool calls, wait steps, and custom scripts. Learns user patterns and adapts. Exposed as `intelligent_automation` tool.
 
 ### AdvancedSecurityAnalyzer (`data/tools/security/`)
-Deep static + dynamic security analysis for Android packages. Analyses permissions, native libraries, network configuration, cryptographic practices, component exposure, malware indicators, and generates risk scores. Supports `verify_findings` to validate detections and provide exploitability scoring per finding. Exposed as `security_analyzer` tool.
+Deep static + dynamic security analysis for Android packages. Analyses permissions, native libraries, network configuration, cryptographic practices, component exposure, malware indicators, and generates risk scores. Supports `verify_findings` to validate detections with exploitability scoring, and `infer_exploitation_paths` to provide safe attack-path hypotheses, non-invasive validation checks, and remediation prioritization. Exposed as `security_analyzer` tool.
 
 ### AdvancedVoiceCommandEngine (`data/tools/voice/`)
 Full voice command pipeline: SpeechRecognizer integration, wake-word detection (`omnidev`, `أومني ديف`), NLP command matching, Text-to-Speech feedback, command history, and multi-language support (Arabic/English). Exposed as `voice_commands` tool.
