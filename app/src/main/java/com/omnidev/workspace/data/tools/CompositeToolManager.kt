@@ -912,21 +912,7 @@ class CompositeToolManager(
                 val ctx = context
                     ?: return ToolExecutionResult("Enhanced network security requires Android context.", isError = true)
                 val pkg = arguments["target_package"] ?: return missingArg("target_package")
-                val pm = ctx.packageManager
-                val flags = PackageManager.GET_ACTIVITIES or
-                    PackageManager.GET_SERVICES or
-                    PackageManager.GET_RECEIVERS or
-                    PackageManager.GET_PROVIDERS or
-                    PackageManager.GET_PERMISSIONS or
-                    PackageManager.GET_META_DATA
-                val packageInfo = try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(flags.toLong()))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        pm.getPackageInfo(pkg, flags)
-                    }
-                } catch (e: Exception) { null }
+                val packageInfo = loadEnhancedPackageInfo(ctx, pkg)
                 if (packageInfo == null) return ToolExecutionResult("Package '$pkg' not found.", isError = true)
                 val resultJson = EnhancedAppManifestAnalyzerTool.parseNetworkSecurityConfig(packageInfo)
                 ToolExecutionResult(resultJson.toString(2))
@@ -935,21 +921,7 @@ class CompositeToolManager(
                 val ctx = context
                     ?: return ToolExecutionResult("Enhanced attack-surface analysis requires Android context.", isError = true)
                 val pkg = arguments["target_package"] ?: return missingArg("target_package")
-                val pm = ctx.packageManager
-                val flags = PackageManager.GET_ACTIVITIES or
-                    PackageManager.GET_SERVICES or
-                    PackageManager.GET_RECEIVERS or
-                    PackageManager.GET_PROVIDERS or
-                    PackageManager.GET_PERMISSIONS or
-                    PackageManager.GET_META_DATA
-                val packageInfo = try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(flags.toLong()))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        pm.getPackageInfo(pkg, flags)
-                    }
-                } catch (e: Exception) { null }
+                val packageInfo = loadEnhancedPackageInfo(ctx, pkg)
                 if (packageInfo == null) return ToolExecutionResult("Package '$pkg' not found.", isError = true)
                 val resultJson = EnhancedAppManifestAnalyzerTool.buildAttackSurface(ctx, packageInfo)
                 ToolExecutionResult(resultJson.toString(2))
@@ -958,21 +930,7 @@ class CompositeToolManager(
                 val ctx = context
                     ?: return ToolExecutionResult("Enhanced manifest HTML export requires Android context.", isError = true)
                 val pkg = arguments["target_package"] ?: return missingArg("target_package")
-                val pm = ctx.packageManager
-                val flags = PackageManager.GET_ACTIVITIES or
-                    PackageManager.GET_SERVICES or
-                    PackageManager.GET_RECEIVERS or
-                    PackageManager.GET_PROVIDERS or
-                    PackageManager.GET_PERMISSIONS or
-                    PackageManager.GET_META_DATA
-                val packageInfo = try {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        pm.getPackageInfo(pkg, PackageManager.PackageInfoFlags.of(flags.toLong()))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        pm.getPackageInfo(pkg, flags)
-                    }
-                } catch (e: Exception) { null }
+                val packageInfo = loadEnhancedPackageInfo(ctx, pkg)
                 if (packageInfo == null) return ToolExecutionResult("Package '$pkg' not found.", isError = true)
                 val path = EnhancedAppManifestAnalyzerTool.exportEnhancedReportToHtml(ctx, packageInfo)
                 if (path.isNullOrBlank()) {
@@ -1345,6 +1303,26 @@ class CompositeToolManager(
 
     private fun missingContext() =
         ToolExecutionResult("Context not available for this operation.", isError = true)
+
+    private fun loadEnhancedPackageInfo(ctx: Context, packageName: String): android.content.pm.PackageInfo? {
+        val pm = ctx.packageManager
+        val flags = PackageManager.GET_ACTIVITIES or
+            PackageManager.GET_SERVICES or
+            PackageManager.GET_RECEIVERS or
+            PackageManager.GET_PROVIDERS or
+            PackageManager.GET_PERMISSIONS or
+            PackageManager.GET_META_DATA
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags.toLong()))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(packageName, flags)
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
 
     private fun extractUrlFromAmStartViewCommand(command: String): String? {
         if (!command.contains("am start", ignoreCase = true)) return null

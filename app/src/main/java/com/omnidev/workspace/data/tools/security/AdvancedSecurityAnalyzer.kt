@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import com.omnidev.workspace.data.tools.EnhancedAppManifestAnalyzerTool
-import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -14,6 +13,7 @@ import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import java.util.zip.ZipFile
 
 /**
  * Advanced Security Analyzer - نظام التحليل الأمني المتقدم
@@ -412,9 +412,6 @@ object AdvancedSecurityAnalyzer {
         if (!launchable && dangerousDeclared.isNotEmpty()) {
             result.addAll(dangerousDeclared)
         }
-        if (declared.contains("android.permission.SEND_SMS") && !declared.contains("android.permission.READ_SMS")) {
-            result.add("android.permission.SEND_SMS")
-        }
         if (declared.contains("android.permission.RECEIVE_BOOT_COMPLETED") &&
             (declared.contains("android.permission.READ_SMS") || declared.contains("android.permission.SEND_SMS"))
         ) {
@@ -424,13 +421,15 @@ object AdvancedSecurityAnalyzer {
         return result.toList()
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private suspend fun detectUnusedPermissions(
         context: Context,
         packageName: String,
         declared: List<String>
     ): List<String> {
-        val runtimeGranted = declared.filter { isPermissionGranted(context, packageName, it) }.toSet()
-        return declared.filter { it.startsWith("android.permission.") && !runtimeGranted.contains(it) }
+        // Static manifest-only analysis cannot reliably prove runtime "unused" permissions.
+        // Returning an empty list avoids misleading false positives.
+        return emptyList()
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -484,7 +483,8 @@ object AdvancedSecurityAnalyzer {
         if (config.isNullOrBlank()) return false
         return runCatching {
             val obj = JSONObject(config)
-            obj.optBoolean("cleartextTrafficDetected", false)
+            obj.optBoolean("cleartextTrafficDetected", false) ||
+                obj.optBoolean("cleartextTrafficPermitted", false)
         }.getOrElse {
             config.contains("cleartextTrafficPermitted", ignoreCase = true) ||
                 config.contains("cleartext-traffic", ignoreCase = true)
@@ -503,30 +503,11 @@ object AdvancedSecurityAnalyzer {
             config.contains("trust", ignoreCase = true)
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private suspend fun analyzeNetworkTraffic(packageName: String): List<TrackedDomain> {
-        val cmd = "sh -c \"netstat -an 2>/dev/null | head -200\""
-        val output = when (val res = ShizukuCommandTool.execute(cmd)) {
-            is com.omnidev.workspace.data.tools.ShizukuResult.Success -> res.output
-            is com.omnidev.workspace.data.tools.ShizukuResult.PartialSuccess -> res.output
-            else -> ""
-        }
-        if (output.isBlank()) return emptyList()
-
-        val ipRegex = Regex("""\b(?:\d{1,3}\.){3}\d{1,3}\b""")
-        val ips = ipRegex.findAll(output).map { it.value }.distinct().take(15).toList()
-        return ips.map { ip ->
-            TrackedDomain(
-                domain = ip,
-                category = DomainCategory.UNKNOWN,
-                firstSeen = System.currentTimeMillis(),
-                requestCount = 1,
-                reputation = DomainReputation(
-                    score = 50,
-                    blacklisted = false,
-                    sources = listOf("local-netstat", "pkg:$packageName")
-                )
-            )
-        }
+        // Package-attributed live traffic requires a dedicated VPN/UID-aware collector.
+        // Avoid returning misleading cross-app network data.
+        return emptyList()
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -619,7 +600,7 @@ object AdvancedSecurityAnalyzer {
             digest.digest().joinToString("") { "%02x".format(it) }
         }.getOrNull()
 
-        val knownBad = setOf(
+        val knownBad = setOf<String>(
             // Common placeholder hashes for tests/samples (kept empty by default in prod environments).
         )
         if (apkHash != null && knownBad.contains(apkHash)) {
@@ -675,7 +656,19 @@ object AdvancedSecurityAnalyzer {
         }.getOrNull() ?: return indicators
 
         val requested = packageInfo.requestedPermissions?.toSet().orEmpty()
-        val hasBoot = packageInfo.receivers?.any { it.exported && it.name.contains("boot", ignoreCase = true) } == true
+        val hasBoot = runCatching {
+            val bootIntent = android.content.Intent(android.content.Intent.ACTION_BOOT_COMPLETED)
+            val receivers = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.queryBroadcastReceivers(
+                    bootIntent,
+                    PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                pm.queryBroadcastReceivers(bootIntent, PackageManager.MATCH_ALL)
+            }
+            receivers.any { it.activityInfo?.packageName == packageName }
+        }.getOrDefault(false)
         val hasSms = requested.any { it.contains("SMS") }
         if (hasBoot && hasSms) {
             indicators.add(
@@ -780,17 +773,14 @@ object AdvancedSecurityAnalyzer {
         val appInfo = runCatching { pm.getApplicationInfo(packageName, 0) }.getOrNull()
         val apkPath = appInfo?.sourceDir
         if (apkPath.isNullOrBlank()) return vulnerabilities
-        val apkBytes = runCatching { File(apkPath).readBytes() }.getOrNull() ?: return vulnerabilities
-        val haystack = String(apkBytes, Charsets.ISO_8859_1)
-
         val weakCryptoPatterns = mapOf(
-            "MD5" to "Detected MD5 usage pattern in APK payload",
-            "SHA1" to "Detected SHA1 usage pattern in APK payload",
-            "DES/ECB" to "Detected insecure DES/ECB pattern in APK payload",
-            "RC4" to "Detected RC4 usage pattern in APK payload"
+            "MessageDigest.getInstance(\"MD5\")" to "Detected MD5 usage indicator in DEX payload",
+            "MessageDigest.getInstance(\"SHA1\")" to "Detected SHA-1 usage indicator in DEX payload",
+            "Cipher.getInstance(\"DES/ECB" to "Detected insecure DES/ECB usage indicator in DEX payload",
+            "Cipher.getInstance(\"RC4" to "Detected RC4 usage indicator in DEX payload"
         )
         weakCryptoPatterns.forEach { (pattern, desc) ->
-            if (haystack.contains(pattern, ignoreCase = true)) {
+            if (containsDexPattern(apkPath, pattern)) {
                 vulnerabilities.add(
                     Vulnerability(
                         id = "CRYPTO-${packageName}-${pattern.hashCode()}",
@@ -807,6 +797,39 @@ object AdvancedSecurityAnalyzer {
         }
 
         return vulnerabilities
+    }
+
+    private fun containsDexPattern(apkPath: String, pattern: String): Boolean {
+        return runCatching {
+            ZipFile(apkPath).use { zip ->
+                val entries = zip.entries().asSequence()
+                    .filter { !it.isDirectory && it.name.startsWith("classes") && it.name.endsWith(".dex") }
+                entries.any { entry ->
+                    zip.getInputStream(entry).use { input ->
+                        streamContainsPattern(input = input, pattern = pattern)
+                    }
+                }
+            }
+        }.getOrDefault(false)
+    }
+
+    private fun streamContainsPattern(input: java.io.InputStream, pattern: String): Boolean {
+        val patternLower = pattern.lowercase()
+        val buffer = ByteArray(8 * 1024)
+        var carry = ""
+        val maxCarrySize = (pattern.length * 2).coerceAtLeast(64)
+        var read = input.read(buffer)
+        while (read > 0) {
+            val chunk = buildString(carry.length + read) {
+                append(carry)
+                append(String(buffer, 0, read, Charsets.ISO_8859_1))
+            }
+            val lower = chunk.lowercase()
+            if (lower.contains(patternLower)) return true
+            carry = chunk.takeLast(maxCarrySize)
+            read = input.read(buffer)
+        }
+        return false
     }
 
     // ═══════════════════════════════════════════════════════════
