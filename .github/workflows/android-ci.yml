@@ -29,7 +29,6 @@ permissions:
 
 env:
   JAVA_VERSION: "17"
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dkotlin.incremental=false"
   GRADLE_BUILD_ACTION_CACHE_DEBUG_ENABLED: false
   MAX_DEBUG_APK_SIZE_KB: 81920
@@ -57,7 +56,7 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Cache Gradle + native build dirs
         uses: actions/cache@v5
@@ -94,7 +93,7 @@ jobs:
 
       - name: Upload quality reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: quality-reports-${{ github.run_number }}
           path: |
@@ -126,7 +125,7 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Grant gradlew permission
         run: chmod +x gradlew
@@ -140,7 +139,7 @@ jobs:
 
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: unit-test-reports-${{ github.run_number }}
           path: |
@@ -192,7 +191,7 @@ jobs:
 
       - name: Upload OWASP report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dependency-check-report-${{ github.run_number }}
           path: '**/build/reports/dependency-check-report.*'
@@ -232,7 +231,7 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Grant gradlew permission
         run: chmod +x gradlew
@@ -252,7 +251,7 @@ jobs:
           fi
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: app-debug-${{ github.run_number }}
           path: app/build/outputs/apk/debug/*.apk
@@ -290,7 +289,7 @@ jobs:
           cache: gradle
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Grant gradlew permission
         run: chmod +x gradlew
@@ -309,7 +308,7 @@ jobs:
             -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
 
       - name: Upload release APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: app-release-${{ github.run_number }}
           path: app/build/outputs/apk/release/*.apk
