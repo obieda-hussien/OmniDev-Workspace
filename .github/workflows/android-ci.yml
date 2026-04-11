@@ -32,6 +32,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dkotlin.incremental=false"
   GRADLE_BUILD_ACTION_CACHE_DEBUG_ENABLED: false
+  MAX_DEBUG_APK_SIZE_KB: 30720
 
 jobs:
   code-quality:
@@ -46,7 +47,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
           submodules: recursive
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
@@ -67,7 +67,7 @@ jobs:
             ~/.gradle/wrapper
             app/.cxx
             ~/.cmake
-          key: quality-${{ runner.os }}-${{ hashFiles('**/*.gradle.kts', '**/libs.versions.toml') }}
+          key: quality-${{ runner.os }}-${{ hashFiles('settings.gradle.kts', 'build.gradle.kts', 'app/build.gradle.kts', 'gradle/libs.versions.toml') }}
           restore-keys: |
             quality-${{ runner.os }}-
 
@@ -244,7 +244,7 @@ jobs:
         run: |
           APK_PATH="$(find app/build/outputs/apk/debug -name '*.apk' | head -1)"
           SIZE_KB="$(du -k "$APK_PATH" | cut -f1)"
-          MAX_KB=30720
+          MAX_KB="${{ env.MAX_DEBUG_APK_SIZE_KB }}"
           echo "APK size: ${SIZE_KB}KB / max ${MAX_KB}KB"
           if [ "$SIZE_KB" -gt "$MAX_KB" ]; then
             echo "APK size exceeds limit"
@@ -281,8 +281,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v5
@@ -316,6 +314,10 @@ jobs:
           name: app-release-${{ github.run_number }}
           path: app/build/outputs/apk/release/*.apk
           retention-days: 30
+
+      - name: Cleanup keystore file
+        if: always()
+        run: rm -f "${{ env.KEYSTORE_PATH }}"
 
       - name: Create GitHub Release (tag builds)
         if: startsWith(github.ref, 'refs/tags/v')
