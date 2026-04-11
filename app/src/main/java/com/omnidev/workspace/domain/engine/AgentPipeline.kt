@@ -329,6 +329,30 @@ You are a Senior Linux Sysadmin. NEVER blindly assume a command succeeded. Follo
 """
 
         /**
+         * Agent V2 execution framework:
+         * - Structured phases (Analyze → Implement → Verify → Report)
+         * - Stronger context continuity and decision logging
+         * - Intent-aware tool orchestration with safe parallelism
+         * - Mandatory self-validation and corrective retries
+         * - Pre-response quality gates
+         */
+        private const val AGENT_V2_EXECUTION_PROTOCOL = """
+
+## AGENT V2 EXECUTION FRAMEWORK (MANDATORY)
+Execute every task in four phases:
+1. ANALYZE: identify objective, constraints, and affected files/tools.
+2. IMPLEMENT: apply the smallest correct change set.
+3. VERIFY: run checks relevant to the change (build/tests/lint/tool verification).
+4. REPORT: summarize exactly what changed and why.
+
+Rules:
+- Maintain continuity: track decisions, assumptions, and failed attempts within the same run.
+- Prefer intent-matched tools and parallelize only independent, non-conflicting calls.
+- On verification failure, self-correct and retry with a different strategy before giving up.
+- Apply quality gates before final answer: no unresolved errors, no unverified claims, no unexplained scope expansion.
+"""
+
+        /**
          * Autonomous memory management directive injected into every system prompt.
          * Instructs the agent to behave like MemGPT — proactively reading and writing
          * long-term memory without waiting for explicit user instructions.
@@ -574,6 +598,8 @@ Rules:
             // Self-verification directive — forces the agent to verify results, check exit codes,
             // and read back changes instead of blindly assuming success.
             append(SELF_VERIFY_DIRECTIVE)
+            // Agent V2 execution framework — phased execution + orchestration + quality gates.
+            append(AGENT_V2_EXECUTION_PROTOCOL)
             // Autonomous memory directive — always injected so the agent proactively manages memory
             if (memoryManager != null) {
                 append(MEMORY_DIRECTIVE.trimIndent())
