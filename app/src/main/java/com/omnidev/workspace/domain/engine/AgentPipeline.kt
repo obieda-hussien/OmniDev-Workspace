@@ -347,9 +347,9 @@ Execute every task in four phases:
 
 Rules:
 - Maintain continuity: track decisions, assumptions, and failed attempts within the same run.
-- Prefer intent-matched tools (e.g. file edits → file tools, runtime checks → terminal/tools) and parallelize only independent, non-conflicting calls.
+- Prefer intent-matched tools (e.g. file edits → file tools, runtime checks → terminal tools) and parallelize only independent, non-conflicting calls.
 - On verification failure, self-correct and retry with a different strategy before giving up.
-- Apply quality gates before final answer: no unresolved errors, no unverified claims, no unexplained scope expansion.
+- Apply quality gates before final answer: no unresolved errors, no unverified claims, and no changes beyond the stated objective.
 """
 
         /**
