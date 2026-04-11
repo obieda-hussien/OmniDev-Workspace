@@ -536,6 +536,17 @@ Rules:
         userContext: String? = null
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.Started)
+        var activePhase: AgentExecutionPhase? = null
+        suspend fun transitionPhase(phase: AgentExecutionPhase, detail: String? = null) {
+            if (activePhase != phase) {
+                activePhase = phase
+                send(AgentEvent.PhaseChanged(phase = phase, detail = detail))
+            }
+        }
+        transitionPhase(
+            AgentExecutionPhase.ANALYZE,
+            "Reviewing request, context, and constraints"
+        )
 
         val model = ModelRegistry.findModelById(modelId)
             ?: run {
@@ -771,6 +782,10 @@ Rules:
 
             // ── No tool calls → Final answer ──
             if (response.toolCalls.isEmpty()) {
+                transitionPhase(
+                    AgentExecutionPhase.VERIFY,
+                    "Validating completeness before final response"
+                )
                 val assistantMessage = ChatMessage(
                     role = MessageRole.ASSISTANT,
                     content = response.content,
@@ -843,6 +858,10 @@ Rules:
                     response.content
                 }
 
+                transitionPhase(
+                    AgentExecutionPhase.REPORT,
+                    "Publishing final answer"
+                )
                 send(AgentEvent.FinalAnswer(
                     content = finalContent,
                     totalIterations = iteration,
@@ -853,6 +872,10 @@ Rules:
             }
 
             // ── Tool calls present → Execute and observe ──
+            transitionPhase(
+                AgentExecutionPhase.IMPLEMENT,
+                "Executing planned tool operations"
+            )
             val assistantMessage = ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = response.content,
@@ -1260,6 +1283,16 @@ Rules:
 }
 
 /**
+ * High-level execution phases surfaced to UI consumers (e.g. Agent Console).
+ */
+enum class AgentExecutionPhase {
+    ANALYZE,
+    IMPLEMENT,
+    VERIFY,
+    REPORT
+}
+
+/**
  * Events emitted by the [AgentPipeline] during ReAct loop execution.
  * These drive the UI's real-time streaming display.
  */
@@ -1293,6 +1326,12 @@ sealed class AgentEvent {
         val iterationTokens: Int,
         val totalTokens: Int,
         val budget: Int?
+    ) : AgentEvent()
+
+    /** High-level Agent V2 phase transition (Analyze/Implement/Verify/Report). */
+    data class PhaseChanged(
+        val phase: AgentExecutionPhase,
+        val detail: String? = null
     ) : AgentEvent()
 
     /** A streaming text delta chunk from the model's SSE response. */
