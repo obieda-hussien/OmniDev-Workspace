@@ -6,7 +6,7 @@ on:
     tags:
       - "v*.*.*"
   pull_request:
-    branches: [ main, develop, feature/tools-dev-bugfix ]
+    branches: [ main, develop ]
   workflow_dispatch:
     inputs:
       build_release:
@@ -206,7 +206,6 @@ jobs:
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
-          cache: true
 
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@v4
