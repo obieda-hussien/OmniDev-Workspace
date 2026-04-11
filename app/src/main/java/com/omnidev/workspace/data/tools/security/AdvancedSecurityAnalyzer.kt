@@ -207,6 +207,33 @@ object AdvancedSecurityAnalyzer {
     )
 
     @Serializable
+    data class VerificationSummary(
+        val packageName: String,
+        val verifiedCount: Int,
+        val likelyCount: Int,
+        val unverifiedCount: Int,
+        val results: List<VerificationResult>
+    )
+
+    @Serializable
+    data class VerificationResult(
+        val vulnerabilityId: String,
+        val title: String,
+        val severity: Severity,
+        val verificationStatus: VerificationStatus,
+        val exploitabilityScore: Int, // 0-100
+        val exploitabilityReason: String,
+        val evidence: List<String>
+    )
+
+    @Serializable
+    enum class VerificationStatus {
+        VERIFIED,
+        LIKELY,
+        UNVERIFIED
+    }
+
+    @Serializable
     enum class MalwareType {
         TROJAN, SPYWARE, ADWARE, RANSOMWARE, ROOTKIT, BOTNET, BACKDOOR, UNKNOWN
     }
@@ -970,6 +997,141 @@ object AdvancedSecurityAnalyzer {
     // ═══════════════════════════════════════════════════════════
     // Risk Calculation
     // ═══════════════════════════════════════════════════════════
+
+    fun verifyVulnerabilities(
+        report: SecurityReport,
+        vulnerabilityId: String? = null
+    ): VerificationSummary {
+        val selected = if (vulnerabilityId.isNullOrBlank()) {
+            report.vulnerabilities
+        } else {
+            report.vulnerabilities.filter { it.id.equals(vulnerabilityId, ignoreCase = true) }
+        }
+
+        val results = selected.map { vulnerability ->
+            val (status, evidence) = deriveVerificationStatus(vulnerability, report)
+            val score = calculateExploitabilityScore(vulnerability, status)
+            VerificationResult(
+                vulnerabilityId = vulnerability.id,
+                title = vulnerability.title,
+                severity = vulnerability.severity,
+                verificationStatus = status,
+                exploitabilityScore = score,
+                exploitabilityReason = buildExploitabilityReason(vulnerability, status, score),
+                evidence = evidence
+            )
+        }
+
+        return VerificationSummary(
+            packageName = report.packageName,
+            verifiedCount = results.count { it.verificationStatus == VerificationStatus.VERIFIED },
+            likelyCount = results.count { it.verificationStatus == VerificationStatus.LIKELY },
+            unverifiedCount = results.count { it.verificationStatus == VerificationStatus.UNVERIFIED },
+            results = results
+        )
+    }
+
+    private fun deriveVerificationStatus(
+        vulnerability: Vulnerability,
+        report: SecurityReport
+    ): Pair<VerificationStatus, List<String>> {
+        val evidence = mutableListOf<String>()
+
+        vulnerability.cveId?.let {
+            evidence += "Linked CVE/CWE reference: $it"
+        }
+
+        when (vulnerability.id) {
+            "NET-CLEARTEXT" -> {
+                if (report.networkAnalysis.usesCleartextTraffic) {
+                    evidence += "Manifest/network policy allows cleartext traffic."
+                    return VerificationStatus.VERIFIED to evidence
+                }
+            }
+            "NET-NO-PINNING" -> {
+                if (!report.networkAnalysis.certificatePinning) {
+                    evidence += "No certificate pinning configuration detected."
+                    return VerificationStatus.VERIFIED to evidence
+                }
+            }
+        }
+
+        if (vulnerability.id.startsWith("PERM-")) {
+            val permissionMatched = report.permissions.dangerous.any { dangerous ->
+                vulnerability.title.contains(dangerous.name, ignoreCase = true)
+            }
+            if (permissionMatched) {
+                evidence += "Dangerous permission confirmed in manifest."
+                return VerificationStatus.VERIFIED to evidence
+            }
+        }
+
+        if (vulnerability.id.contains("-ACT-") || vulnerability.id.contains("-SVC-") || vulnerability.id.contains("-RCV-")) {
+            evidence += "Exported component identified from PackageManager metadata."
+            return VerificationStatus.VERIFIED to evidence
+        }
+
+        if (vulnerability.id.startsWith("CRYPTO-")) {
+            evidence += "Static DEX pattern match suggests weak cryptography usage."
+            return VerificationStatus.LIKELY to evidence
+        }
+
+        if (vulnerability.id.startsWith("ZERO-DAY-IND-")) {
+            evidence += "Heuristic multi-signal correlation indicator."
+            return VerificationStatus.LIKELY to evidence
+        }
+
+        if (evidence.isNotEmpty()) {
+            return VerificationStatus.LIKELY to evidence
+        }
+
+        evidence += "No deterministic proof artifact was captured for this finding."
+        return VerificationStatus.UNVERIFIED to evidence
+    }
+
+    private fun calculateExploitabilityScore(
+        vulnerability: Vulnerability,
+        verificationStatus: VerificationStatus
+    ): Int {
+        var score = when (vulnerability.exploitability) {
+            ExploitLevel.ACTIVE_EXPLOIT -> 95
+            ExploitLevel.POC_AVAILABLE -> 80
+            ExploitLevel.THEORETICAL -> 50
+            ExploitLevel.DIFFICULT -> 25
+            ExploitLevel.NONE -> 5
+        }
+
+        score += when (vulnerability.severity) {
+            Severity.CRITICAL -> 15
+            Severity.HIGH -> 10
+            Severity.MEDIUM -> 0
+            Severity.LOW -> -10
+            Severity.INFO -> -20
+        }
+
+        score += when (verificationStatus) {
+            VerificationStatus.VERIFIED -> 10
+            VerificationStatus.LIKELY -> 0
+            VerificationStatus.UNVERIFIED -> -15
+        }
+
+        if (!vulnerability.cveId.isNullOrBlank()) score += 10
+        return score.coerceIn(0, 100)
+    }
+
+    private fun buildExploitabilityReason(
+        vulnerability: Vulnerability,
+        verificationStatus: VerificationStatus,
+        score: Int
+    ): String {
+        val statusText = when (verificationStatus) {
+            VerificationStatus.VERIFIED -> "verified"
+            VerificationStatus.LIKELY -> "likely"
+            VerificationStatus.UNVERIFIED -> "unverified"
+        }
+        return "Exploitability assessed as $score/100 based on severity=${vulnerability.severity}, " +
+            "exploitability=${vulnerability.exploitability}, status=$statusText."
+    }
 
     private fun calculateRiskScore(
         vulnerabilities: List<Vulnerability>,
