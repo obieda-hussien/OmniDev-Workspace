@@ -440,6 +440,16 @@ private fun KnowledgeEntryCard(
     var editedSubject by remember(entry.id) { mutableStateOf(entry.subject) }
     var editedContent by remember(entry.id) { mutableStateOf(entry.content) }
     var editedConfidence by remember(entry.id) { mutableStateOf(entry.confidence.toString()) }
+    var validationError by remember(entry.id) { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(showEditDialog, entry.id, entry.subject, entry.content, entry.confidence) {
+        if (showEditDialog) {
+            editedSubject = entry.subject
+            editedContent = entry.content
+            editedConfidence = entry.confidence.toString()
+            validationError = null
+        }
+    }
 
     val (icon, color) = when (entry.knowledgeType) {
         ToolAwarenessEngine.TYPE_BEST_PRACTICE -> "💡" to Color(0xFF4CAF50)
@@ -526,9 +536,15 @@ private fun KnowledgeEntryCard(
                 TextButton(
                     onClick = {
                         val confidence = editedConfidence.toFloatOrNull()
-                        if (!editedSubject.isBlank() && !editedContent.isBlank() && confidence != null) {
+                        if (!editedSubject.isBlank() &&
+                            !editedContent.isBlank() &&
+                            confidence != null &&
+                            confidence in 0f..1f
+                        ) {
                             onUpdateEntry(entry.id, editedSubject, editedContent, confidence)
                             showEditDialog = false
+                        } else {
+                            validationError = "تحقق من الحقول: الثقة يجب أن تكون بين 0.0 و 1.0"
                         }
                     }
                 ) { Text("حفظ") }
@@ -557,6 +573,13 @@ private fun KnowledgeEntryCard(
                         label = { Text("الثقة (0.0 - 1.0)") },
                         singleLine = true
                     )
+                    validationError?.let {
+                        Text(
+                            text = it,
+                            color = Color(0xFFF44336),
+                            fontSize = 11.sp
+                        )
+                    }
                 }
             }
         )

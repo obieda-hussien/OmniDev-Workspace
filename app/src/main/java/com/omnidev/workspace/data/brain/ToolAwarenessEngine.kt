@@ -549,7 +549,11 @@ class ToolAwarenessEngine(
         content: String,
         confidence: Float
     ) = withContext(Dispatchers.IO) {
-        val existing = systemKnowledgeDao.getById(id) ?: return@withContext
+        val existing = systemKnowledgeDao.getById(id)
+        if (existing == null) {
+            Log.w(TAG, "⚠️ updateKnowledgeEntry: entry not found (id=$id)")
+            return@withContext
+        }
         systemKnowledgeDao.update(
             existing.copy(
                 subject = subject,
