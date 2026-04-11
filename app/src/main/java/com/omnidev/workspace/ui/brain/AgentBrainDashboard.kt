@@ -137,8 +137,17 @@ fun AgentBrainDashboard(
             // ─── محتوى التبويبات ─────────────────────────────────────────
             when (selectedTab) {
                 0 -> PerformanceTab(uiState)
-                1 -> ExecutionLogTab(uiState.recentExecutions)
-                2 -> KnowledgeTab(uiState.recentKnowledge)
+                1 -> ExecutionLogTab(
+                    entries = uiState.recentExecutions,
+                    onDeleteEntry = viewModel::deleteExecution
+                )
+                2 -> KnowledgeTab(
+                    entries = uiState.recentKnowledge,
+                    onDeleteEntry = viewModel::deleteKnowledge,
+                    onUpdateEntry = { id, subject, content, confidence ->
+                        viewModel.updateKnowledge(id, subject, content, confidence)
+                    }
+                )
                 3 -> EnvironmentTab(uiState.awarenessStats)
             }
         }
@@ -278,7 +287,10 @@ private fun PerformanceTab(state: AgentBrainUiState) {
 // ─── تبويب السجل ────────────────────────────────────────────────────────
 
 @Composable
-private fun ExecutionLogTab(entries: List<ToolExecutionEntry>) {
+private fun ExecutionLogTab(
+    entries: List<ToolExecutionEntry>,
+    onDeleteEntry: (Long) -> Unit
+) {
     if (entries.isEmpty()) {
         EmptyState(message = "لا توجد عمليات مسجلة بعد")
         return
@@ -290,13 +302,16 @@ private fun ExecutionLogTab(entries: List<ToolExecutionEntry>) {
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         items(entries, key = { it.id }) { entry ->
-            ExecutionEntryCard(entry)
+            ExecutionEntryCard(entry = entry, onDeleteEntry = onDeleteEntry)
         }
     }
 }
 
 @Composable
-private fun ExecutionEntryCard(entry: ToolExecutionEntry) {
+private fun ExecutionEntryCard(
+    entry: ToolExecutionEntry,
+    onDeleteEntry: (Long) -> Unit
+) {
     val bgColor = if (entry.success)
         Color(0xFF4CAF50).copy(alpha = 0.08f)
     else
@@ -359,6 +374,17 @@ private fun ExecutionEntryCard(entry: ToolExecutionEntry) {
                     fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                 )
+                IconButton(
+                    onClick = { onDeleteEntry(entry.id) },
+                    modifier = Modifier.size(20.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "حذف السجل",
+                        tint = Color(0xFFF44336),
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
             }
         }
     }
@@ -367,10 +393,19 @@ private fun ExecutionEntryCard(entry: ToolExecutionEntry) {
 // ─── تبويب المعرفة ───────────────────────────────────────────────────────
 
 @Composable
-private fun KnowledgeTab(entries: List<SystemKnowledgeEntry>) {
+private fun KnowledgeTab(
+    entries: List<SystemKnowledgeEntry>,
+    onDeleteEntry: (Long) -> Unit,
+    onUpdateEntry: (Long, String, String, Float) -> Unit
+) {
     if (entries.isEmpty()) {
         EmptyState(message = "لم يكتسب الـ Agent معرفة بعد")
         return
+    }
+
+    var selectedType by remember { mutableStateOf("ALL") }
+    val filteredEntries = remember(entries, selectedType) {
+        if (selectedType == "ALL") entries else entries.filter { it.knowledgeType == selectedType }
     }
 
     LazyColumn(
@@ -378,14 +413,34 @@ private fun KnowledgeTab(entries: List<SystemKnowledgeEntry>) {
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        items(entries, key = { it.id }) { entry ->
-            KnowledgeEntryCard(entry)
+        item {
+            KnowledgeTypeFilters(
+                selectedType = selectedType,
+                entries = entries,
+                onTypeSelected = { selectedType = it }
+            )
+        }
+        items(filteredEntries, key = { it.id }) { entry ->
+            KnowledgeEntryCard(
+                entry = entry,
+                onDeleteEntry = onDeleteEntry,
+                onUpdateEntry = onUpdateEntry
+            )
         }
     }
 }
 
 @Composable
-private fun KnowledgeEntryCard(entry: SystemKnowledgeEntry) {
+private fun KnowledgeEntryCard(
+    entry: SystemKnowledgeEntry,
+    onDeleteEntry: (Long) -> Unit,
+    onUpdateEntry: (Long, String, String, Float) -> Unit
+) {
+    var showEditDialog by remember { mutableStateOf(false) }
+    var editedSubject by remember(entry.id) { mutableStateOf(entry.subject) }
+    var editedContent by remember(entry.id) { mutableStateOf(entry.content) }
+    var editedConfidence by remember(entry.id) { mutableStateOf(entry.confidence.toString()) }
+
     val (icon, color) = when (entry.knowledgeType) {
         ToolAwarenessEngine.TYPE_BEST_PRACTICE -> "💡" to Color(0xFF4CAF50)
         ToolAwarenessEngine.TYPE_WARNING -> "⚠️" to Color(0xFFFF9800)
@@ -433,7 +488,98 @@ private fun KnowledgeEntryCard(entry: SystemKnowledgeEntry) {
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    IconButton(
+                        onClick = { showEditDialog = true },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "تعديل المعرفة",
+                            tint = color,
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = { onDeleteEntry(entry.id) },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "حذف المعرفة",
+                            tint = Color(0xFFF44336),
+                            modifier = Modifier.size(15.dp)
+                        )
+                    }
+                }
             }
+        }
+    }
+
+    if (showEditDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val confidence = editedConfidence.toFloatOrNull()
+                        if (!editedSubject.isBlank() && !editedContent.isBlank() && confidence != null) {
+                            onUpdateEntry(entry.id, editedSubject, editedContent, confidence)
+                            showEditDialog = false
+                        }
+                    }
+                ) { Text("حفظ") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = false }) { Text("إلغاء") }
+            },
+            title = { Text("تعديل المعرفة") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = editedSubject,
+                        onValueChange = { editedSubject = it },
+                        label = { Text("العنوان") },
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = editedContent,
+                        onValueChange = { editedContent = it },
+                        label = { Text("المحتوى") },
+                        minLines = 3
+                    )
+                    OutlinedTextField(
+                        value = editedConfidence,
+                        onValueChange = { editedConfidence = it },
+                        label = { Text("الثقة (0.0 - 1.0)") },
+                        singleLine = true
+                    )
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun KnowledgeTypeFilters(
+    selectedType: String,
+    entries: List<SystemKnowledgeEntry>,
+    onTypeSelected: (String) -> Unit
+) {
+    val types = listOf("ALL") + entries.map { it.knowledgeType }.distinct().sorted()
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(types) { type ->
+            FilterChip(
+                selected = selectedType == type,
+                onClick = { onTypeSelected(type) },
+                label = {
+                    val count = if (type == "ALL") entries.size else entries.count { it.knowledgeType == type }
+                    Text("${knowledgeTypeLabel(type)} ($count)")
+                }
+            )
         }
     }
 }
@@ -643,16 +789,7 @@ private fun EnvironmentRow(name: String, available: Boolean) {
 
 @Composable
 private fun KnowledgeTypeRow(type: String, count: Int) {
-    val label = when (type) {
-        ToolAwarenessEngine.TYPE_BEST_PRACTICE -> "💡 أفضل الممارسات"
-        ToolAwarenessEngine.TYPE_TOOL_CAPABILITY -> "🔧 قدرات الأدوات"
-        ToolAwarenessEngine.TYPE_TOOL_LIMITATION -> "🚫 قيود الأدوات"
-        ToolAwarenessEngine.TYPE_SYSTEM_INFO -> "📱 معلومات النظام"
-        ToolAwarenessEngine.TYPE_ENVIRONMENT -> "🌐 بيئات التشغيل"
-        ToolAwarenessEngine.TYPE_WARNING -> "⚠️ تحذيرات"
-        ToolAwarenessEngine.TYPE_PATTERN -> "🔗 أنماط مكتشفة"
-        else -> "ℹ️ $type"
-    }
+    val label = knowledgeTypeLabel(type)
 
     Row(
         modifier = Modifier
@@ -668,6 +805,21 @@ private fun KnowledgeTypeRow(type: String, count: Int) {
             color = MaterialTheme.colorScheme.primary
         )
     }
+}
+
+private fun knowledgeTypeLabel(type: String): String = when (type) {
+    "ALL" -> "📚 كل المعرفة"
+    ToolAwarenessEngine.TYPE_BEST_PRACTICE -> "💡 أفضل الممارسات"
+    ToolAwarenessEngine.TYPE_TOOL_CAPABILITY -> "🔧 قدرات الأدوات"
+    ToolAwarenessEngine.TYPE_TOOL_LIMITATION -> "🚫 قيود الأدوات"
+    ToolAwarenessEngine.TYPE_SYSTEM_INFO -> "📱 معلومات النظام"
+    ToolAwarenessEngine.TYPE_ENVIRONMENT -> "🌐 بيئات التشغيل"
+    ToolAwarenessEngine.TYPE_WARNING -> "⚠️ تحذيرات"
+    ToolAwarenessEngine.TYPE_PATTERN -> "🔗 أنماط مكتشفة"
+    ToolAwarenessEngine.TYPE_SYSTEM_CAPABILITY -> "🧩 قدرات النظام"
+    ToolAwarenessEngine.TYPE_TOOL_REQUIREMENT -> "📌 متطلبات الأدوات"
+    ToolAwarenessEngine.TYPE_TOOL_DEPENDENCY -> "🔀 تبعيات الأدوات"
+    else -> "ℹ️ $type"
 }
 
 @Composable

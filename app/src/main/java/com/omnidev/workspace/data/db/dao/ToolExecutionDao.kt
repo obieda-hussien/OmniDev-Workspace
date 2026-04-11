@@ -85,6 +85,9 @@ interface ToolExecutionDao {
     @Query("DELETE FROM tool_execution_log WHERE id NOT IN (SELECT id FROM tool_execution_log ORDER BY timestamp DESC LIMIT :keepCount)")
     suspend fun keepOnlyLatest(keepCount: Int = 5000)
 
+    @Query("DELETE FROM tool_execution_log WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
     // ─── Flow للواجهة ────────────────────────────────────────────────
 
     @Query("SELECT * FROM tool_execution_log ORDER BY timestamp DESC LIMIT 50")

@@ -80,6 +80,7 @@ class MainActivity : ComponentActivity() {
 
         // Real HTTP completion provider
         val completionService = CompletionService()
+        val app = OmniDevApp.instance
         val completionProvider: suspend (com.omnidev.workspace.data.model.CompletionRequest) -> com.omnidev.workspace.data.model.CompletionResponse =
             completionService::invoke
 
@@ -91,7 +92,8 @@ class MainActivity : ComponentActivity() {
             },
             config = AgentConfig.THOROUGH,
             apiKeyRepository = apiKeyRepository,
-            memoryManager = memoryManager
+            memoryManager = memoryManager,
+            smartLearningBridge = app.smartLearningBridge
         )
 
         // Swarm orchestrator for Team Agents mode
@@ -100,6 +102,7 @@ class MainActivity : ComponentActivity() {
             completionProvider = completionProvider,
             apiKeyRepository = apiKeyRepository,
             memoryManager = memoryManager,
+            smartLearningBridge = app.smartLearningBridge,
             streamingCompletionProvider = { request, onChunk ->
                 completionService.stream(request, onChunk)
             }
