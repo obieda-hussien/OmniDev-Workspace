@@ -955,7 +955,8 @@ private fun parseInlineMarkdown(text: String): AnnotatedString {
                                 color = LinkColor,
                                 textDecoration = TextDecoration.Underline
                             )) { append(linkText) }
-                            addLink(LinkAnnotation.Url(url), startIdx, length)
+                            val endIdx = length
+                            addLink(LinkAnnotation.Url(url), startIdx, endIdx)
                             pos = closeParen + 1
                         } else { append(text[pos]); pos++ }
                     } else { append(text[pos]); pos++ }
