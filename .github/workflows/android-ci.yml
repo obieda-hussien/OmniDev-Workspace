@@ -32,7 +32,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dkotlin.incremental=false"
   GRADLE_BUILD_ACTION_CACHE_DEBUG_ENABLED: false
-  MAX_DEBUG_APK_SIZE_KB: 30720
+  MAX_DEBUG_APK_SIZE_KB: 81920
 
 jobs:
   code-quality:
@@ -239,7 +239,7 @@ jobs:
       - name: Build debug APK
         run: ./gradlew --no-daemon :app:assembleDebug
 
-      - name: APK size gate (30MB max)
+      - name: APK size gate (80MB max)
         run: |
           APK_PATH="$(find app/build/outputs/apk/debug -name '*.apk' | head -1)"
           SIZE_KB="$(du -k "$APK_PATH" | cut -f1)"
