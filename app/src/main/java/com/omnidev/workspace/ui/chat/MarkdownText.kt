@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.ClickableText
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
@@ -29,7 +29,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -147,7 +146,6 @@ fun MarkdownText(
     modifier: Modifier = Modifier,
     style: TextStyle = MaterialTheme.typography.bodyMedium
 ) {
-    val uriHandler = LocalUriHandler.current
     Column(modifier = modifier) {
         val segments = parseMarkdownSegments(text)
         segments.forEach { segment ->
@@ -159,22 +157,14 @@ fun MarkdownText(
                 is MarkdownSegment.InlineContent -> {
                     if (segment.annotated.text.isNotBlank()) {
                         val textDir = if (segment.isRtl) TextDirection.Rtl else TextDirection.Ltr
-                        ClickableText(
+                        Text(
                             text = segment.annotated,
                             style = style.copy(
                                 fontSize = segment.fontSize ?: style.fontSize,
                                 fontWeight = segment.fontWeight ?: style.fontWeight,
                                 textDirection = textDir
                             ),
-                            modifier = Modifier.fillMaxWidth(),
-                            onClick = { offset ->
-                                segment.annotated.getStringAnnotations("URL", offset, offset)
-                                    .firstOrNull()?.let { ann ->
-                                        try { uriHandler.openUri(ann.item) } catch (e: Exception) {
-                                            android.util.Log.d("MarkdownText", "Cannot open URI: ${e.message}")
-                                        }
-                                    }
-                            }
+                            modifier = Modifier.fillMaxWidth()
                         )
                         if (segment.addSpacingAfter) Spacer(Modifier.height(4.dp))
                     }
@@ -184,7 +174,7 @@ fun MarkdownText(
                     Spacer(Modifier.height(4.dp))
                 }
                 is MarkdownSegment.ListItem -> {
-                    ListItemBlock(segment = segment, baseStyle = style, uriHandler = uriHandler)
+                    ListItemBlock(segment = segment, baseStyle = style)
                 }
                 is MarkdownSegment.Table -> {
                     TableBlock(segment = segment, isRtl = segment.isRtl)
@@ -296,7 +286,6 @@ private fun CodeBlock(code: String, language: String?) {
 /** Blockquote with a coloured vertical bar; bar on left for LTR, right for RTL. */
 @Composable
 private fun BlockQuoteBlock(content: String, isRtl: Boolean, baseStyle: TextStyle) {
-    val uriHandler = LocalUriHandler.current
     val annotated = parseInlineMarkdown(content)
     Row(
         modifier = Modifier
@@ -313,7 +302,7 @@ private fun BlockQuoteBlock(content: String, isRtl: Boolean, baseStyle: TextStyl
             )
             Spacer(Modifier.width(10.dp))
         }
-        ClickableText(
+        Text(
             text = annotated,
             style = baseStyle.copy(
                 fontStyle = FontStyle.Italic,
@@ -322,15 +311,7 @@ private fun BlockQuoteBlock(content: String, isRtl: Boolean, baseStyle: TextStyl
             ),
             modifier = Modifier
                 .weight(1f)
-                .padding(vertical = 8.dp),
-            onClick = { offset ->
-                annotated.getStringAnnotations("URL", offset, offset)
-                    .firstOrNull()?.let { ann ->
-                        try { uriHandler.openUri(ann.item) } catch (e: Exception) {
-                            android.util.Log.d("MarkdownText", "Cannot open URI: ${e.message}")
-                        }
-                    }
-            }
+                .padding(vertical = 8.dp)
         )
         if (isRtl) {
             Spacer(Modifier.width(10.dp))
@@ -348,8 +329,7 @@ private fun BlockQuoteBlock(content: String, isRtl: Boolean, baseStyle: TextStyl
 @Composable
 private fun ListItemBlock(
     segment: MarkdownSegment.ListItem,
-    baseStyle: TextStyle,
-    uriHandler: androidx.compose.ui.platform.UriHandler
+    baseStyle: TextStyle
 ) {
     val indentDp = (segment.indent * 12).dp
     val textDir = if (segment.isRtl) TextDirection.Rtl else TextDirection.Ltr
@@ -394,7 +374,7 @@ private fun ListItemBlock(
             }
         }
         Spacer(Modifier.width(4.dp))
-        ClickableText(
+        Text(
             text = segment.content,
             style = baseStyle.copy(
                 textDecoration = if (segment.checked == true) TextDecoration.LineThrough else null,
@@ -403,15 +383,7 @@ private fun ListItemBlock(
                 else MaterialTheme.colorScheme.onSurface,
                 textDirection = textDir
             ),
-            modifier = Modifier.weight(1f),
-            onClick = { offset ->
-                segment.content.getStringAnnotations("URL", offset, offset)
-                    .firstOrNull()?.let { ann ->
-                        try { uriHandler.openUri(ann.item) } catch (e: Exception) {
-                            android.util.Log.d("MarkdownText", "Cannot open URI: ${e.message}")
-                        }
-                    }
-            }
+            modifier = Modifier.weight(1f)
         )
     }
 }
@@ -978,12 +950,12 @@ private fun parseInlineMarkdown(text: String): AnnotatedString {
                         if (closeParen > closeBracket + 2) {
                             val linkText = text.substring(pos + 1, closeBracket)
                             val url = text.substring(closeBracket + 2, closeParen)
-                            pushStringAnnotation("URL", url)
+                            val startIdx = length
                             withStyle(SpanStyle(
                                 color = LinkColor,
                                 textDecoration = TextDecoration.Underline
                             )) { append(linkText) }
-                            pop()
+                            addLink(LinkAnnotation.Url(url), startIdx, length)
                             pos = closeParen + 1
                         } else { append(text[pos]); pos++ }
                     } else { append(text[pos]); pos++ }

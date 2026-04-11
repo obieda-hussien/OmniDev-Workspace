@@ -102,6 +102,7 @@ jobs:
             **/build/reports/lint-results*.xml
             **/build/reports/ktlint/**
             **/build/reports/detekt/**
+          if-no-files-found: ignore
           retention-days: 7
 
   test:
