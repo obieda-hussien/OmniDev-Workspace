@@ -2,7 +2,7 @@ name: Android CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop, feature/tools-dev-bugfix ]
+    branches: [ main, develop ]
     tags:
       - "v*.*.*"
   pull_request:
@@ -199,14 +199,14 @@ jobs:
           retention-days: 14
 
       - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.33.1
         with:
           scan-type: fs
           scan-ref: .
           format: sarif
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
-          cache: false
+          cache: true
 
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@v4
@@ -332,7 +332,7 @@ jobs:
     name: Pipeline Summary
     runs-on: ubuntu-latest
     if: always()
-    needs: [ code-quality, test, security-scan, android-debug, android-release ]
+    needs: [ code-quality, test, security-scan, android-debug ]
 
     steps:
       - name: Write job summary
@@ -346,5 +346,5 @@ jobs:
             echo "| Unit Tests | ${{ needs.test.result }} |"
             echo "| Security Scan | ${{ needs.security-scan.result }} |"
             echo "| Android Debug | ${{ needs.android-debug.result }} |"
-            echo "| Android Release | ${{ needs.android-release.result }} |"
+            echo "| Android Release | conditional (tag/manual dispatch) |"
           } >> "$GITHUB_STEP_SUMMARY"
