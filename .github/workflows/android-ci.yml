@@ -67,7 +67,7 @@ jobs:
             ~/.gradle/wrapper
             app/.cxx
             ~/.cmake
-          key: quality-${{ runner.os }}-${{ hashFiles('settings.gradle.kts', 'build.gradle.kts', 'app/build.gradle.kts', 'gradle/libs.versions.toml') }}
+          key: quality-${{ runner.os }}-${{ hashFiles('settings.gradle.kts', 'build.gradle.kts', 'app/build.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             quality-${{ runner.os }}-
 
@@ -246,7 +246,7 @@ jobs:
           MAX_KB="${{ env.MAX_DEBUG_APK_SIZE_KB }}"
           echo "APK size: ${SIZE_KB}KB / max ${MAX_KB}KB"
           if [ "$SIZE_KB" -gt "$MAX_KB" ]; then
-            echo "APK size exceeds limit"
+            echo "APK size ${SIZE_KB}KB exceeds maximum ${MAX_KB}KB"
             exit 1
           fi
 
