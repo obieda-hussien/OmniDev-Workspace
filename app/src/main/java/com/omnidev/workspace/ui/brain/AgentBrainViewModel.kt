@@ -63,7 +63,7 @@ class AgentBrainViewModel(
         viewModelScope.launch {
             journal.observeRecentExecutions().collect { entries ->
                 _uiState.update { state ->
-                    state.copy(recentExecutions = entries.take(20))
+                    state.copy(recentExecutions = entries)
                 }
             }
         }
@@ -71,7 +71,7 @@ class AgentBrainViewModel(
         viewModelScope.launch {
             awarenessEngine.observeKnowledge().collect { entries ->
                 _uiState.update { state ->
-                    state.copy(recentKnowledge = entries.take(10))
+                    state.copy(recentKnowledge = entries)
                 }
             }
         }
@@ -80,6 +80,34 @@ class AgentBrainViewModel(
     fun refresh() = loadData()
 
     fun clearError() = _uiState.update { it.copy(error = null) }
+
+    fun deleteExecution(entryId: Long) {
+        viewModelScope.launch {
+            journal.deleteExecutionById(entryId)
+        }
+    }
+
+    fun deleteKnowledge(entryId: Long) {
+        viewModelScope.launch {
+            awarenessEngine.invalidateKnowledgeById(entryId)
+        }
+    }
+
+    fun updateKnowledge(
+        entryId: Long,
+        subject: String,
+        content: String,
+        confidence: Float
+    ) {
+        viewModelScope.launch {
+            awarenessEngine.updateKnowledgeEntry(
+                id = entryId,
+                subject = subject,
+                content = content,
+                confidence = confidence
+            )
+        }
+    }
 
     companion object {
         fun factory(

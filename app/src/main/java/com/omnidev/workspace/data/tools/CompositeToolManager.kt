@@ -393,12 +393,16 @@ class CompositeToolManager(
                 name = "security_analyzer",
                 description = "Advanced static/dynamic security analysis for installed Android apps. " +
                         "Actions: analyze (full report), scan_all (scan all user apps), " +
-                        "quick_scan (fast permission + network check).",
+                        "quick_scan (fast permission + network check), " +
+                        "verify_findings (confirm findings + exploitability scoring), " +
+                        "infer_exploitation_paths (hypothesized abuse paths + safe validation checks + remediation priority).",
                 parameters = listOf(
                     ToolParameter(name = "action", type = "string",
-                        description = "One of: analyze, scan_all, quick_scan", required = true),
+                        description = "One of: analyze, scan_all, quick_scan, verify_findings, infer_exploitation_paths", required = true),
                     ToolParameter(name = "package_name", type = "string",
-                        description = "Target package name (required for analyze/quick_scan)", required = false)
+                        description = "Target package name (required for analyze/quick_scan/verify_findings/infer_exploitation_paths)", required = false),
+                    ToolParameter(name = "vulnerability_id", type = "string",
+                        description = "Optional vulnerability id to focus a single finding for verify_findings/infer_exploitation_paths", required = false)
                 )
             ))
         }
@@ -908,6 +912,37 @@ class CompositeToolManager(
                     ToolExecutionResult(cached.toString(2))
                 }
             }
+            "enhanced_network_security" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Enhanced network security requires Android context.", isError = true)
+                val pkg = arguments["target_package"] ?: return missingArg("target_package")
+                val packageInfo = loadEnhancedPackageInfo(ctx, pkg)
+                if (packageInfo == null) return ToolExecutionResult("Package '$pkg' not found.", isError = true)
+                val resultJson = EnhancedAppManifestAnalyzerTool.parseNetworkSecurityConfig(packageInfo)
+                ToolExecutionResult(resultJson.toString(2))
+            }
+            "enhanced_attack_surface" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Enhanced attack-surface analysis requires Android context.", isError = true)
+                val pkg = arguments["target_package"] ?: return missingArg("target_package")
+                val packageInfo = loadEnhancedPackageInfo(ctx, pkg)
+                if (packageInfo == null) return ToolExecutionResult("Package '$pkg' not found.", isError = true)
+                val resultJson = EnhancedAppManifestAnalyzerTool.buildAttackSurface(ctx, packageInfo)
+                ToolExecutionResult(resultJson.toString(2))
+            }
+            "enhanced_manifest_to_html" -> {
+                val ctx = context
+                    ?: return ToolExecutionResult("Enhanced manifest HTML export requires Android context.", isError = true)
+                val pkg = arguments["target_package"] ?: return missingArg("target_package")
+                val packageInfo = loadEnhancedPackageInfo(ctx, pkg)
+                if (packageInfo == null) return ToolExecutionResult("Package '$pkg' not found.", isError = true)
+                val path = EnhancedAppManifestAnalyzerTool.exportEnhancedReportToHtml(ctx, packageInfo)
+                if (path.isNullOrBlank()) {
+                    ToolExecutionResult("Failed to export HTML report for '$pkg'.", isError = true)
+                } else {
+                    ToolExecutionResult(path)
+                }
+            }
 
             // ── Privileged execution tool ──
             "privileged_tool" -> {
@@ -1156,12 +1191,74 @@ class CompositeToolManager(
                 when (action) {
                     "analyze", "quick_scan" -> {
                         val pkg = arguments["package_name"] ?: return missingArg("package_name")
-                        val report = AdvancedSecurityAnalyzer.analyzePackage(ctx, pkg)
+                        val report = AdvancedSecurityAnalyzer.analyzePackage(
+                            context = ctx,
+                            packageName = pkg,
+                            deepScan = action == "analyze"
+                        )
                         if (action == "analyze") {
                             ToolExecutionResult(report.toString())
                         } else {
                             ToolExecutionResult("Risk score: ${report.overallRiskScore}/100 | Vulnerabilities: ${report.vulnerabilities.size} | " +
                                     "Dangerous permissions: ${report.permissions.dangerous.size}")
+                        }
+                    }
+                    "verify_findings" -> {
+                        val pkg = arguments["package_name"] ?: return missingArg("package_name")
+                        val report = AdvancedSecurityAnalyzer.analyzePackage(
+                            context = ctx,
+                            packageName = pkg,
+                            deepScan = true
+                        )
+                        val vulnerabilityId = arguments["vulnerability_id"]
+                        val verification = AdvancedSecurityAnalyzer.verifyVulnerabilities(
+                            report = report,
+                            vulnerabilityId = vulnerabilityId
+                        )
+
+                        if (verification.results.isEmpty() && !vulnerabilityId.isNullOrBlank()) {
+                            ToolExecutionResult(
+                                "No vulnerability found with id '$vulnerabilityId' in package '$pkg'.",
+                                isError = true
+                            )
+                        } else {
+                            val header = "Verification summary for $pkg: " +
+                                    "verified=${verification.verifiedCount}, likely=${verification.likelyCount}, " +
+                                    "unverified=${verification.unverifiedCount}"
+                            val details = verification.results.joinToString("\n") { result ->
+                                "- [${result.verificationStatus}] ${result.vulnerabilityId} | " +
+                                        "exploitability=${result.exploitabilityScore}/100 | ${result.title}"
+                            }
+                            ToolExecutionResult(if (details.isBlank()) header else "$header\n$details")
+                        }
+                    }
+                    "infer_exploitation_paths" -> {
+                        val pkg = arguments["package_name"] ?: return missingArg("package_name")
+                        val report = AdvancedSecurityAnalyzer.analyzePackage(
+                            context = ctx,
+                            packageName = pkg,
+                            deepScan = true
+                        )
+                        val vulnerabilityId = arguments["vulnerability_id"]
+                        val insights = AdvancedSecurityAnalyzer.inferExploitationInsights(
+                            report = report,
+                            vulnerabilityId = vulnerabilityId
+                        )
+                        if (insights.insights.isEmpty() && !vulnerabilityId.isNullOrBlank()) {
+                            ToolExecutionResult(
+                                "No vulnerability found with id '$vulnerabilityId' in package '$pkg'.",
+                                isError = true
+                            )
+                        } else {
+                            val details = insights.insights.joinToString("\n") { item ->
+                                val checks = item.safeValidationChecks.take(2).joinToString(" | ")
+                                "- [${item.remediationPriority}] ${item.vulnerabilityId} | " +
+                                        "score=${item.exploitabilityScore}/100 | status=${item.verificationStatus}\n" +
+                                        "  hypothesis: ${item.attackPathHypothesis}\n" +
+                                        "  safe_checks: $checks"
+                            }
+                            val header = "Exploitation insights for $pkg: findings=${insights.insights.size}"
+                            ToolExecutionResult(if (details.isBlank()) header else "$header\n$details")
                         }
                     }
                     "scan_all" -> {
@@ -1268,6 +1365,26 @@ class CompositeToolManager(
 
     private fun missingContext() =
         ToolExecutionResult("Context not available for this operation.", isError = true)
+
+    private fun loadEnhancedPackageInfo(ctx: Context, packageName: String): android.content.pm.PackageInfo? {
+        val pm = ctx.packageManager
+        val flags = PackageManager.GET_ACTIVITIES or
+            PackageManager.GET_SERVICES or
+            PackageManager.GET_RECEIVERS or
+            PackageManager.GET_PROVIDERS or
+            PackageManager.GET_PERMISSIONS or
+            PackageManager.GET_META_DATA
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags.toLong()))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(packageName, flags)
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
 
     private fun extractUrlFromAmStartViewCommand(command: String): String? {
         if (!command.contains("am start", ignoreCase = true)) return null

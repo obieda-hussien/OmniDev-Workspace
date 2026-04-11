@@ -25,6 +25,9 @@ interface SystemKnowledgeDao {
     @Query("SELECT * FROM system_knowledge WHERE subject = :subject AND isValid = 1")
     suspend fun getBySubject(subject: String): List<SystemKnowledgeEntry>
 
+    @Query("SELECT * FROM system_knowledge WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): SystemKnowledgeEntry?
+
     @Query("""
         SELECT * FROM system_knowledge 
         WHERE isValid = 1 AND (
@@ -48,6 +51,9 @@ interface SystemKnowledgeDao {
     @Query("UPDATE system_knowledge SET isValid = 0 WHERE subject = :subject AND knowledgeType = :type")
     suspend fun invalidate(subject: String, type: String)
 
+    @Query("UPDATE system_knowledge SET isValid = 0, updatedAt = :now WHERE id = :id")
+    suspend fun invalidateById(id: Long, now: Long = System.currentTimeMillis())
+
     @Query("UPDATE system_knowledge SET verificationCount = verificationCount + 1, updatedAt = :now WHERE id = :id")
     suspend fun incrementVerification(id: Long, now: Long = System.currentTimeMillis())
 
@@ -59,6 +65,9 @@ interface SystemKnowledgeDao {
 
     @Query("SELECT * FROM system_knowledge ORDER BY updatedAt DESC LIMIT 5")
     fun observeRecent(): Flow<List<SystemKnowledgeEntry>>
+
+    @Query("SELECT * FROM system_knowledge WHERE isValid = 1 ORDER BY updatedAt DESC LIMIT :limit")
+    fun observeAllValid(limit: Int = 300): Flow<List<SystemKnowledgeEntry>>
 
     @Query("DELETE FROM system_knowledge WHERE isValid = 0 AND updatedAt < :before")
     suspend fun cleanupInvalid(before: Long)

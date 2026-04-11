@@ -68,6 +68,14 @@ sealed class AgentConsoleEntry {
         override val id: Long = nextId()
     ) : AgentConsoleEntry()
 
+    /** Agent V2 phase transition event (Analyze/Implement/Verify/Report). */
+    data class PhaseEntry(
+        val phase: String,
+        val detail: String? = null,
+        override val timestamp: Long = System.currentTimeMillis(),
+        override val id: Long = nextId()
+    ) : AgentConsoleEntry()
+
     /** The agent has finished its ReAct loop and is generating the final reply. */
     data class ReplyEntry(
         override val timestamp: Long = System.currentTimeMillis(),

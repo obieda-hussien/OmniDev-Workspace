@@ -541,7 +541,32 @@ class ToolAwarenessEngine(
 
     // ─── Flow للواجهة ─────────────────────────────────────────────────
 
-    fun observeKnowledge(): Flow<List<SystemKnowledgeEntry>> = systemKnowledgeDao.observeRecent()
+    fun observeKnowledge(): Flow<List<SystemKnowledgeEntry>> = systemKnowledgeDao.observeAllValid()
+
+    suspend fun updateKnowledgeEntry(
+        id: Long,
+        subject: String,
+        content: String,
+        confidence: Float
+    ) = withContext(Dispatchers.IO) {
+        val existing = systemKnowledgeDao.getById(id)
+        if (existing == null) {
+            Log.w(TAG, "⚠️ updateKnowledgeEntry: entry not found (id=$id)")
+            return@withContext
+        }
+        systemKnowledgeDao.update(
+            existing.copy(
+                subject = subject,
+                content = content,
+                confidence = confidence.coerceIn(0f, 1f),
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+    }
+
+    suspend fun invalidateKnowledgeById(id: Long) = withContext(Dispatchers.IO) {
+        systemKnowledgeDao.invalidateById(id)
+    }
 
     // ─── إحصائيات ────────────────────────────────────────────────────
 

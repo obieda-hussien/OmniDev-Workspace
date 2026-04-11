@@ -3,14 +3,17 @@ package com.omnidev.workspace.data.tools.security
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
-import com.omnidev.workspace.data.tools.ShizukuCommandTool
+import com.omnidev.workspace.data.tools.EnhancedAppManifestAnalyzerTool
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.json.JSONObject
+import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import java.util.zip.ZipFile
 
 /**
  * Advanced Security Analyzer - نظام التحليل الأمني المتقدم
@@ -204,6 +207,60 @@ object AdvancedSecurityAnalyzer {
     )
 
     @Serializable
+    data class VerificationSummary(
+        val packageName: String,
+        val verifiedCount: Int,
+        val likelyCount: Int,
+        val unverifiedCount: Int,
+        val results: List<VerificationResult>
+    )
+
+    @Serializable
+    data class VerificationResult(
+        val vulnerabilityId: String,
+        val title: String,
+        val severity: Severity,
+        val verificationStatus: VerificationStatus,
+        val exploitabilityScore: Int, // 0-100
+        val exploitabilityReason: String,
+        val evidence: List<String>
+    )
+
+    @Serializable
+    enum class VerificationStatus {
+        VERIFIED,
+        LIKELY,
+        UNVERIFIED
+    }
+
+    @Serializable
+    data class ExploitationInsightsSummary(
+        val packageName: String,
+        val generatedAt: Long,
+        val insights: List<ExploitationInsight>
+    )
+
+    @Serializable
+    data class ExploitationInsight(
+        val vulnerabilityId: String,
+        val title: String,
+        val verificationStatus: VerificationStatus,
+        val exploitabilityScore: Int,
+        val attackPathHypothesis: String,
+        val safeValidationChecks: List<String>,
+        val remediationPriority: RemediationPriority,
+        val priorityReason: String
+    )
+
+    @Serializable
+    enum class RemediationPriority {
+        P0,
+        P1,
+        P2,
+        P3
+    }
+
+    @Serializable
     enum class MalwareType {
         TROJAN, SPYWARE, ADWARE, RANSOMWARE, ROOTKIT, BOTNET, BACKDOOR, UNKNOWN
     }
@@ -247,6 +304,14 @@ object AdvancedSecurityAnalyzer {
         // 3. Behavior Analysis
         val behaviorAnalysis = analyzeBehavior(context, packageName, deepScan)
         vulnerabilities.addAll(generateBehaviorVulnerabilities(behaviorAnalysis))
+        vulnerabilities.addAll(
+            generateZeroDayIndicators(
+                packageName = packageName,
+                permissions = permissionAnalysis,
+                network = networkAnalysis,
+                behavior = behaviorAnalysis
+            )
+        )
 
         // 4. Malware Detection
         malwareIndicators.addAll(detectMalware(context, packageName, deepScan))
@@ -385,17 +450,40 @@ object AdvancedSecurityAnalyzer {
         packageName: String,
         declared: List<String>
     ): List<String> {
-        // Analyze app behavior vs declared permissions
-        return emptyList() // Placeholder
+        val pm = context.packageManager
+        val result = mutableSetOf<String>()
+        val launchable = pm.getLaunchIntentForPackage(packageName) != null
+
+        val highRisk = setOf(
+            "android.permission.SEND_SMS",
+            "android.permission.READ_SMS",
+            "android.permission.RECORD_AUDIO",
+            "android.permission.READ_CONTACTS",
+            "android.permission.ACCESS_FINE_LOCATION",
+            "android.permission.READ_CALL_LOG"
+        )
+        val dangerousDeclared = declared.intersect(highRisk)
+        if (!launchable && dangerousDeclared.isNotEmpty()) {
+            result.addAll(dangerousDeclared)
+        }
+        if (declared.contains("android.permission.RECEIVE_BOOT_COMPLETED") &&
+            (declared.contains("android.permission.READ_SMS") || declared.contains("android.permission.SEND_SMS"))
+        ) {
+            result.add("android.permission.RECEIVE_BOOT_COMPLETED")
+        }
+
+        return result.toList()
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private suspend fun detectUnusedPermissions(
         context: Context,
         packageName: String,
         declared: List<String>
     ): List<String> {
-        // Check which permissions are never used
-        return emptyList() // Placeholder
+        // Static manifest-only analysis cannot reliably prove runtime "unused" permissions.
+        // Returning an empty list avoids misleading false positives.
+        return emptyList()
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -422,25 +510,58 @@ object AdvancedSecurityAnalyzer {
     }
 
     private fun extractNetworkSecurityConfig(context: Context, packageName: String): String? {
-        // TODO: Extract from APK resources
-        return null
+        val pm = context.packageManager
+        val flags = PackageManager.GET_ACTIVITIES or
+            PackageManager.GET_SERVICES or
+            PackageManager.GET_RECEIVERS or
+            PackageManager.GET_PROVIDERS or
+            PackageManager.GET_PERMISSIONS or
+            PackageManager.GET_META_DATA
+        val packageInfo = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags.toLong()))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(packageName, flags)
+            }
+        } catch (_: Exception) {
+            null
+        } ?: return null
+
+        return runCatching {
+            EnhancedAppManifestAnalyzerTool.parseNetworkSecurityConfig(packageInfo).toString()
+        }.getOrNull()
     }
 
     private fun checkCleartextTraffic(config: String?): Boolean {
-        return config?.contains("cleartextTrafficPermitted=\"true\"") ?: true
+        if (config.isNullOrBlank()) return false
+        return runCatching {
+            val obj = JSONObject(config)
+            obj.optBoolean("cleartextTrafficDetected", false) ||
+                obj.optBoolean("cleartextTrafficPermitted", false)
+        }.getOrElse {
+            config.contains("cleartextTrafficPermitted", ignoreCase = true) ||
+                config.contains("cleartext-traffic", ignoreCase = true)
+        }
     }
 
     private fun checkCertificatePinning(config: String?): Boolean {
-        return config?.contains("<pin-set>") ?: false
+        if (config.isNullOrBlank()) return false
+        return config.contains("pin-set", ignoreCase = true) ||
+            config.contains("certificatePinning", ignoreCase = true)
     }
 
     private fun checkUserCertTrust(config: String?): Boolean {
-        return config?.contains("user") ?: false
+        if (config.isNullOrBlank()) return false
+        return config.contains("user", ignoreCase = true) &&
+            config.contains("trust", ignoreCase = true)
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private suspend fun analyzeNetworkTraffic(packageName: String): List<TrackedDomain> {
-        // Monitor network connections using VPN service
-        return emptyList() // Placeholder
+        // Package-attributed live traffic requires a dedicated VPN/UID-aware collector.
+        // Avoid returning misleading cross-app network data.
+        return emptyList()
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -513,8 +634,40 @@ object AdvancedSecurityAnalyzer {
         context: Context,
         packageName: String
     ): List<MalwareIndicator> {
-        // Check APK hash against known malware signatures
-        return emptyList()
+        val indicators = mutableListOf<MalwareIndicator>()
+        val pm = context.packageManager
+        val appInfo = runCatching { pm.getApplicationInfo(packageName, 0) }.getOrNull() ?: return indicators
+        val apkPath = appInfo.sourceDir ?: return indicators
+        val apkFile = File(apkPath)
+        if (!apkFile.exists()) return indicators
+
+        val apkHash = runCatching {
+            val digest = MessageDigest.getInstance("SHA-256")
+            apkFile.inputStream().use { input ->
+                val buffer = ByteArray(8 * 1024)
+                var read = input.read(buffer)
+                while (read > 0) {
+                    digest.update(buffer, 0, read)
+                    read = input.read(buffer)
+                }
+            }
+            digest.digest().joinToString("") { "%02x".format(it) }
+        }.getOrNull()
+
+        val knownBad = setOf<String>(
+            // Common placeholder hashes for tests/samples (kept empty by default in prod environments).
+        )
+        if (apkHash != null && knownBad.contains(apkHash)) {
+            indicators.add(
+                MalwareIndicator(
+                    type = MalwareType.TROJAN,
+                    confidence = 0.95,
+                    evidence = "APK hash matches known malicious signature",
+                    signature = apkHash
+                )
+            )
+        }
+        return indicators
     }
 
     private suspend fun heuristicAnalysis(
@@ -547,8 +700,42 @@ object AdvancedSecurityAnalyzer {
         context: Context,
         packageName: String
     ): List<MalwareIndicator> {
-        // Monitor runtime behavior for malicious patterns
-        return emptyList()
+        val indicators = mutableListOf<MalwareIndicator>()
+        val pm = context.packageManager
+        val packageInfo = runCatching {
+            pm.getPackageInfo(
+                packageName,
+                PackageManager.GET_RECEIVERS or PackageManager.GET_PERMISSIONS
+            )
+        }.getOrNull() ?: return indicators
+
+        val requested = packageInfo.requestedPermissions?.toSet().orEmpty()
+        val hasBoot = runCatching {
+            val bootIntent = android.content.Intent(android.content.Intent.ACTION_BOOT_COMPLETED)
+            val receivers = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.queryBroadcastReceivers(
+                    bootIntent,
+                    PackageManager.ResolveInfoFlags.of(PackageManager.MATCH_ALL.toLong())
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                pm.queryBroadcastReceivers(bootIntent, PackageManager.MATCH_ALL)
+            }
+            receivers.any { it.activityInfo?.packageName == packageName }
+        }.getOrDefault(false)
+        val hasSms = requested.any { it.contains("SMS") }
+        if (hasBoot && hasSms) {
+            indicators.add(
+                MalwareIndicator(
+                    type = MalwareType.BOTNET,
+                    confidence = 0.72,
+                    evidence = "Boot receiver + SMS capabilities pattern",
+                    signature = null
+                )
+            )
+        }
+
+        return indicators
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -589,6 +776,40 @@ object AdvancedSecurityAnalyzer {
             }
         }
 
+        packageInfo.services?.filter { it.exported }?.forEach { service ->
+            if (service.permission == null) {
+                vulnerabilities.add(
+                    Vulnerability(
+                        id = "VULN-${packageName}-SVC-${service.name.hashCode()}",
+                        severity = Severity.MEDIUM,
+                        category = VulnerabilityCategory.IPC,
+                        title = "Exported Service Without Permission",
+                        description = "Service ${service.name} is exported without protection",
+                        affectedComponent = service.name,
+                        exploitability = ExploitLevel.POC_AVAILABLE,
+                        remediation = "Add android:permission or set android:exported=\"false\""
+                    )
+                )
+            }
+        }
+
+        packageInfo.receivers?.filter { it.exported }?.forEach { receiver ->
+            if (receiver.permission == null) {
+                vulnerabilities.add(
+                    Vulnerability(
+                        id = "VULN-${packageName}-RCV-${receiver.name.hashCode()}",
+                        severity = Severity.MEDIUM,
+                        category = VulnerabilityCategory.IPC,
+                        title = "Exported Receiver Without Permission",
+                        description = "Receiver ${receiver.name} is exported without protection",
+                        affectedComponent = receiver.name,
+                        exploitability = ExploitLevel.POC_AVAILABLE,
+                        remediation = "Protect receiver with permission or disable export"
+                    )
+                )
+            }
+        }
+
         return vulnerabilities
     }
 
@@ -601,11 +822,68 @@ object AdvancedSecurityAnalyzer {
         packageName: String
     ): List<Vulnerability> {
         val vulnerabilities = mutableListOf<Vulnerability>()
-        
-        // TODO: Analyze use of weak crypto algorithms (MD5, SHA1, DES, etc.)
-        // This requires DEX analysis or runtime monitoring
+
+        val pm = context.packageManager
+        val appInfo = runCatching { pm.getApplicationInfo(packageName, 0) }.getOrNull()
+        val apkPath = appInfo?.sourceDir
+        if (apkPath.isNullOrBlank()) return vulnerabilities
+        val weakCryptoPatterns = mapOf(
+            "MessageDigest.getInstance(\"MD5\")" to "Detected MD5 usage indicator in DEX payload",
+            "MessageDigest.getInstance(\"SHA1\")" to "Detected SHA-1 usage indicator in DEX payload",
+            "Cipher.getInstance(\"DES/ECB" to "Detected insecure DES/ECB usage indicator in DEX payload",
+            "Cipher.getInstance(\"RC4" to "Detected RC4 usage indicator in DEX payload"
+        )
+        weakCryptoPatterns.forEach { (pattern, desc) ->
+            if (containsDexPattern(apkPath, pattern)) {
+                vulnerabilities.add(
+                    Vulnerability(
+                        id = "CRYPTO-${packageName}-${pattern.hashCode()}",
+                        severity = Severity.MEDIUM,
+                        category = VulnerabilityCategory.CRYPTO,
+                        title = "Weak Cryptography Indicator: $pattern",
+                        description = desc,
+                        affectedComponent = "APK static payload",
+                        exploitability = ExploitLevel.THEORETICAL,
+                        remediation = "Migrate to modern algorithms (AES-GCM / SHA-256+ / TLS 1.2+)"
+                    )
+                )
+            }
+        }
 
         return vulnerabilities
+    }
+
+    private fun containsDexPattern(apkPath: String, pattern: String): Boolean {
+        return runCatching {
+            ZipFile(apkPath).use { zip ->
+                val entries = zip.entries().asSequence()
+                    .filter { !it.isDirectory && it.name.startsWith("classes") && it.name.endsWith(".dex") }
+                entries.any { entry ->
+                    zip.getInputStream(entry).use { input ->
+                        streamContainsPattern(input = input, pattern = pattern)
+                    }
+                }
+            }
+        }.getOrDefault(false)
+    }
+
+    private fun streamContainsPattern(input: java.io.InputStream, pattern: String): Boolean {
+        val patternLower = pattern.lowercase()
+        val buffer = ByteArray(8 * 1024)
+        var carry = ""
+        val maxCarrySize = (pattern.length * 2).coerceAtLeast(64)
+        var read = input.read(buffer)
+        while (read > 0) {
+            val chunk = buildString(carry.length + read) {
+                append(carry)
+                append(String(buffer, 0, read, Charsets.ISO_8859_1))
+            }
+            val lower = chunk.lowercase()
+            if (lower.contains(patternLower)) return true
+            carry = chunk.takeLast(maxCarrySize)
+            read = input.read(buffer)
+        }
+        return false
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -699,9 +977,325 @@ object AdvancedSecurityAnalyzer {
         return vulnerabilities
     }
 
+    private fun generateZeroDayIndicators(
+        packageName: String,
+        permissions: PermissionAnalysis,
+        network: NetworkAnalysis,
+        behavior: BehaviorAnalysis
+    ): List<Vulnerability> {
+        val vulnerabilities = mutableListOf<Vulnerability>()
+        val hasSensitivePerms =
+            permissions.declared.any { it.contains("SMS") || it.contains("CONTACTS") || it.contains("RECORD_AUDIO") }
+        val hasNetworkWeakness = network.usesCleartextTraffic || !network.certificatePinning
+
+        if (hasSensitivePerms && hasNetworkWeakness) {
+            vulnerabilities.add(
+                Vulnerability(
+                    id = "ZERO-DAY-IND-${packageName.hashCode()}-1",
+                    severity = Severity.HIGH,
+                    category = VulnerabilityCategory.NETWORK,
+                    title = "Zero-day style exploit-chain indicator",
+                    description = "Sensitive data permissions combined with weak network posture can enable novel exfiltration chains.",
+                    affectedComponent = "Permission + Network interaction surface",
+                    exploitability = ExploitLevel.THEORETICAL,
+                    remediation = "Reduce sensitive permissions and enforce strict TLS + certificate pinning."
+                )
+            )
+        }
+
+        if (behavior.autoStart && behavior.backgroundActivity >= BackgroundActivityLevel.HIGH && hasSensitivePerms) {
+            vulnerabilities.add(
+                Vulnerability(
+                    id = "ZERO-DAY-IND-${packageName.hashCode()}-2",
+                    severity = Severity.MEDIUM,
+                    category = VulnerabilityCategory.PRIVACY,
+                    title = "Anomalous persistent-behavior indicator",
+                    description = "Auto-start + high background activity + sensitive permissions indicate potential unknown abuse patterns.",
+                    affectedComponent = "Background execution path",
+                    exploitability = ExploitLevel.THEORETICAL,
+                    remediation = "Audit background tasks, isolate privileged flows, and add runtime abuse detection."
+                )
+            )
+        }
+
+        return vulnerabilities
+    }
+
     // ═══════════════════════════════════════════════════════════
     // Risk Calculation
     // ═══════════════════════════════════════════════════════════
+
+    fun verifyVulnerabilities(
+        report: SecurityReport,
+        vulnerabilityId: String? = null
+    ): VerificationSummary {
+        val selected = if (vulnerabilityId.isNullOrBlank()) {
+            report.vulnerabilities
+        } else {
+            report.vulnerabilities.filter { it.id.equals(vulnerabilityId, ignoreCase = true) }
+        }
+
+        val results = selected.map { vulnerability ->
+            val (status, evidence) = deriveVerificationStatus(vulnerability, report)
+            val score = calculateExploitabilityScore(vulnerability, status)
+            VerificationResult(
+                vulnerabilityId = vulnerability.id,
+                title = vulnerability.title,
+                severity = vulnerability.severity,
+                verificationStatus = status,
+                exploitabilityScore = score,
+                exploitabilityReason = buildExploitabilityReason(vulnerability, status, score),
+                evidence = evidence
+            )
+        }
+
+        return VerificationSummary(
+            packageName = report.packageName,
+            verifiedCount = results.count { it.verificationStatus == VerificationStatus.VERIFIED },
+            likelyCount = results.count { it.verificationStatus == VerificationStatus.LIKELY },
+            unverifiedCount = results.count { it.verificationStatus == VerificationStatus.UNVERIFIED },
+            results = results
+        )
+    }
+
+    private fun deriveVerificationStatus(
+        vulnerability: Vulnerability,
+        report: SecurityReport
+    ): Pair<VerificationStatus, List<String>> {
+        val evidence = mutableListOf<String>()
+
+        vulnerability.cveId?.let {
+            evidence += "Linked CVE/CWE reference: $it"
+        }
+
+        when (vulnerability.id) {
+            "NET-CLEARTEXT" -> {
+                if (report.networkAnalysis.usesCleartextTraffic) {
+                    evidence += "Manifest/network policy allows cleartext traffic."
+                    return VerificationStatus.VERIFIED to evidence
+                }
+            }
+            "NET-NO-PINNING" -> {
+                if (!report.networkAnalysis.certificatePinning) {
+                    evidence += "No certificate pinning configuration detected."
+                    return VerificationStatus.VERIFIED to evidence
+                }
+            }
+        }
+
+        if (vulnerability.id.startsWith("PERM-")) {
+            val permissionMatched = report.permissions.dangerous.any { dangerous ->
+                vulnerability.title.contains(dangerous.name, ignoreCase = true)
+            }
+            if (permissionMatched) {
+                evidence += "Dangerous permission confirmed in manifest."
+                return VerificationStatus.VERIFIED to evidence
+            }
+        }
+
+        if (vulnerability.id.contains("-ACT-") || vulnerability.id.contains("-SVC-") || vulnerability.id.contains("-RCV-")) {
+            evidence += "Exported component identified from PackageManager metadata."
+            return VerificationStatus.VERIFIED to evidence
+        }
+
+        if (vulnerability.id.startsWith("CRYPTO-")) {
+            evidence += "Static DEX pattern match suggests weak cryptography usage."
+            return VerificationStatus.LIKELY to evidence
+        }
+
+        if (vulnerability.id.startsWith("ZERO-DAY-IND-")) {
+            evidence += "Heuristic multi-signal correlation indicator."
+            return VerificationStatus.LIKELY to evidence
+        }
+
+        if (evidence.isNotEmpty()) {
+            return VerificationStatus.LIKELY to evidence
+        }
+
+        evidence += "No deterministic proof artifact was captured for this finding."
+        return VerificationStatus.UNVERIFIED to evidence
+    }
+
+    private fun calculateExploitabilityScore(
+        vulnerability: Vulnerability,
+        verificationStatus: VerificationStatus
+    ): Int {
+        var score = when (vulnerability.exploitability) {
+            ExploitLevel.ACTIVE_EXPLOIT -> 95
+            ExploitLevel.POC_AVAILABLE -> 80
+            ExploitLevel.THEORETICAL -> 50
+            ExploitLevel.DIFFICULT -> 25
+            ExploitLevel.NONE -> 5
+        }
+
+        score += when (vulnerability.severity) {
+            Severity.CRITICAL -> 15
+            Severity.HIGH -> 10
+            Severity.MEDIUM -> 0
+            Severity.LOW -> -10
+            Severity.INFO -> -20
+        }
+
+        score += when (verificationStatus) {
+            VerificationStatus.VERIFIED -> 10
+            VerificationStatus.LIKELY -> 0
+            VerificationStatus.UNVERIFIED -> -15
+        }
+
+        if (!vulnerability.cveId.isNullOrBlank()) score += 10
+        return score.coerceIn(0, 100)
+    }
+
+    private fun buildExploitabilityReason(
+        vulnerability: Vulnerability,
+        verificationStatus: VerificationStatus,
+        score: Int
+    ): String {
+        val statusText = when (verificationStatus) {
+            VerificationStatus.VERIFIED -> "verified"
+            VerificationStatus.LIKELY -> "likely"
+            VerificationStatus.UNVERIFIED -> "unverified"
+        }
+        return "Exploitability assessed as $score/100 based on severity=${vulnerability.severity}, " +
+            "exploitability=${vulnerability.exploitability}, status=$statusText."
+    }
+
+    fun inferExploitationInsights(
+        report: SecurityReport,
+        vulnerabilityId: String? = null
+    ): ExploitationInsightsSummary {
+        val verification = verifyVulnerabilities(report, vulnerabilityId)
+        val vulnerabilityById = report.vulnerabilities.associateBy { it.id }
+
+        val insights = verification.results.mapNotNull { verified ->
+            val vulnerability = vulnerabilityById[verified.vulnerabilityId] ?: return@mapNotNull null
+            val priority = deriveRemediationPriority(
+                score = verified.exploitabilityScore,
+                severity = vulnerability.severity,
+                status = verified.verificationStatus
+            )
+
+            ExploitationInsight(
+                vulnerabilityId = vulnerability.id,
+                title = vulnerability.title,
+                verificationStatus = verified.verificationStatus,
+                exploitabilityScore = verified.exploitabilityScore,
+                attackPathHypothesis = buildAttackPathHypothesis(vulnerability, verified.verificationStatus),
+                safeValidationChecks = buildSafeValidationChecks(vulnerability, report),
+                remediationPriority = priority,
+                priorityReason = buildPriorityReason(vulnerability, verified.verificationStatus, verified.exploitabilityScore, priority)
+            )
+        }
+
+        return ExploitationInsightsSummary(
+            packageName = report.packageName,
+            generatedAt = System.currentTimeMillis(),
+            insights = insights
+        )
+    }
+
+    private fun buildAttackPathHypothesis(
+        vulnerability: Vulnerability,
+        status: VerificationStatus
+    ): String {
+        val confidence = when (status) {
+            VerificationStatus.VERIFIED -> "High-confidence hypothesis"
+            VerificationStatus.LIKELY -> "Medium-confidence hypothesis"
+            VerificationStatus.UNVERIFIED -> "Low-confidence hypothesis"
+        }
+
+        val categoryPath = when (vulnerability.category) {
+            VulnerabilityCategory.NETWORK ->
+                "network interception or API traffic tampering leading to data exposure or session compromise."
+            VulnerabilityCategory.PERMISSION ->
+                "abuse of granted dangerous capabilities to access sensitive data or device resources."
+            VulnerabilityCategory.CRYPTO ->
+                "cryptographic weakness reducing confidentiality/integrity guarantees for local or transmitted data."
+            VulnerabilityCategory.IPC ->
+                "intent/component interaction abuse to trigger unauthorized internal flows."
+            VulnerabilityCategory.STORAGE ->
+                "unauthorized local data access through weak storage boundaries."
+            VulnerabilityCategory.WEBVIEW ->
+                "web content abuse path through permissive WebView configuration."
+            VulnerabilityCategory.AUTHENTICATION ->
+                "authentication bypass or token misuse causing unauthorized account access."
+            VulnerabilityCategory.INJECTION ->
+                "input manipulation against unsafe handlers to alter app behavior."
+            VulnerabilityCategory.NATIVE ->
+                "native layer memory-safety weakness that could impact process integrity."
+            VulnerabilityCategory.PRIVACY ->
+                "tracking/data leakage behavior enabling unauthorized profiling or exfiltration."
+        }
+
+        return "$confidence: ${vulnerability.title} may enable $categoryPath"
+    }
+
+    private fun buildSafeValidationChecks(
+        vulnerability: Vulnerability,
+        report: SecurityReport
+    ): List<String> {
+        val checks = mutableListOf<String>()
+
+        checks += "Re-run static analysis on the same APK build and compare finding stability."
+        checks += "Validate finding metadata against manifest/component declarations in a controlled test environment."
+
+        if (vulnerability.id == "NET-CLEARTEXT" || report.networkAnalysis.usesCleartextTraffic) {
+            checks += "Confirm cleartext policy flags (`usesCleartextTraffic` / network security config) without sending sensitive data."
+        }
+        if (vulnerability.id == "NET-NO-PINNING" || !report.networkAnalysis.certificatePinning) {
+            checks += "Perform certificate-pinning presence check via static config inspection and TLS handshake observation in staging."
+        }
+        if (vulnerability.id.startsWith("PERM-")) {
+            checks += "Audit runtime permission grant paths and verify feature necessity for each dangerous permission."
+        }
+        if (vulnerability.id.startsWith("CRYPTO-")) {
+            checks += "Validate crypto usage through code review for algorithm/mode/key-management policy compliance."
+        }
+        if (vulnerability.id.contains("-ACT-") || vulnerability.id.contains("-SVC-") || vulnerability.id.contains("-RCV-")) {
+            checks += "Check exported component intent filters and required permissions with non-invasive intent simulation."
+        }
+        if (vulnerability.id.startsWith("ZERO-DAY-IND-")) {
+            checks += "Correlate telemetry signals over multiple runs to reduce false positives before escalation."
+        }
+
+        return checks.distinct()
+    }
+
+    private fun deriveRemediationPriority(
+        score: Int,
+        severity: Severity,
+        status: VerificationStatus
+    ): RemediationPriority {
+        val severityWeight = when (severity) {
+            Severity.CRITICAL -> 25
+            Severity.HIGH -> 15
+            Severity.MEDIUM -> 5
+            Severity.LOW -> 0
+            Severity.INFO -> -10
+        }
+        val statusWeight = when (status) {
+            VerificationStatus.VERIFIED -> 10
+            VerificationStatus.LIKELY -> 0
+            VerificationStatus.UNVERIFIED -> -10
+        }
+
+        val total = (score + severityWeight + statusWeight).coerceIn(0, 140)
+        return when {
+            total >= 95 -> RemediationPriority.P0
+            total >= 75 -> RemediationPriority.P1
+            total >= 50 -> RemediationPriority.P2
+            else -> RemediationPriority.P3
+        }
+    }
+
+    private fun buildPriorityReason(
+        vulnerability: Vulnerability,
+        status: VerificationStatus,
+        score: Int,
+        priority: RemediationPriority
+    ): String {
+        return "Priority $priority assigned from score=$score, severity=${vulnerability.severity}, status=$status."
+    }
 
     private fun calculateRiskScore(
         vulnerabilities: List<Vulnerability>,

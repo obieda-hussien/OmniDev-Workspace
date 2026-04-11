@@ -21,6 +21,7 @@ import com.omnidev.workspace.data.voice.VoiceManager
 import com.omnidev.workspace.domain.attachment.AttachmentProcessor
 import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
+import com.omnidev.workspace.domain.engine.AgentExecutionPhase
 import com.omnidev.workspace.domain.engine.AgentEvent
 import com.omnidev.workspace.domain.engine.AgentPipeline
 import com.omnidev.workspace.domain.engine.IntentClassifier
@@ -866,6 +867,18 @@ class ChatViewModel(
                     )
                 }
 
+            is AgentEvent.PhaseChanged ->
+                _uiState.update {
+                    it.copy(
+                        agentStatus = "Phase: ${event.phase.displayLabel}",
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.PhaseEntry(
+                                phase = event.phase.displayLabel,
+                                detail = event.detail
+                            )
+                    )
+                }
+
             is AgentEvent.Reflecting ->
                 _uiState.update {
                     it.copy(agentStatus = "🔍 Self-reflection (reviewing draft answer)...")
@@ -964,6 +977,8 @@ class ChatViewModel(
                     "• Deep thinking: ${sanitizeCheckpointText(entry.snippet, CHECKPOINT_DEEP_THINKING_PREVIEW_CHARS)}"
                 is AgentConsoleEntry.TokenEntry ->
                     "• Tokens used: ${entry.totalTokens}"
+                is AgentConsoleEntry.PhaseEntry ->
+                    "• Phase: ${entry.phase}${entry.detail?.let { " — ${sanitizeCheckpointText(it, CHECKPOINT_TOOL_PARAMS_PREVIEW_CHARS)}" } ?: ""}"
                 is AgentConsoleEntry.ErrorEntry ->
                     "• Error observed: ${sanitizeCheckpointText(entry.message, CHECKPOINT_ERROR_PREVIEW_CHARS)}"
                 is AgentConsoleEntry.ReplyEntry -> null
@@ -999,6 +1014,14 @@ class ChatViewModel(
         role = MessageRole.ASSISTANT,
         content = "Run status: $statusText"
     )
+
+    private val AgentExecutionPhase.displayLabel: String
+        get() = when (this) {
+            AgentExecutionPhase.ANALYZE -> "Analyze"
+            AgentExecutionPhase.IMPLEMENT -> "Implement"
+            AgentExecutionPhase.VERIFY -> "Verify"
+            AgentExecutionPhase.REPORT -> "Report"
+        }
 
     private fun sanitizeCheckpointText(value: String, maxChars: Int): String {
         return value
