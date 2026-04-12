@@ -44,20 +44,21 @@ object VulnResearchToolchain {
      */
     suspend fun setupTools(
         context: Context,
-        onProgress: (String) -> Unit = {}
-    ): JSONObject = withContext(Dispatchers.IO) {
-        val results = JSONObject()
-        val tools = listOf(
+        tools: List<OmniNativeToolsManager.Tool> = listOf(
             OmniNativeToolsManager.Tool.AAPT2,
             OmniNativeToolsManager.Tool.BUSYBOX,
             OmniNativeToolsManager.Tool.JADX,
             OmniNativeToolsManager.Tool.APKTOOL,
             OmniNativeToolsManager.Tool.PYTHON
-        )
+        ),
+        installTimeoutMs: Long = 3_600_000L,
+        onProgress: (String) -> Unit = {}
+    ): JSONObject = withContext(Dispatchers.IO) {
+        val results = JSONObject()
 
         tools.forEach { tool ->
             onProgress("Installing ${tool.displayName}...")
-            val result = OmniNativeToolsManager.ensure(context, tool)
+            val result = OmniNativeToolsManager.ensure(context, tool, installTimeoutMs = installTimeoutMs)
             results.put(tool.name, if (result.isSuccess) "✅ installed" else "❌ ${result.exceptionOrNull()?.message}")
             onProgress("${tool.displayName}: ${if (result.isSuccess) "done" else "failed"}")
         }

@@ -52,7 +52,10 @@ object ShizukuCommandTool {
     // Public API
     // ──────────────────────────────────────────────────────────────
 
-    suspend fun execute(command: String): ShizukuResult {
+    suspend fun execute(
+        command: String,
+        timeoutMs: Long = COMMAND_TIMEOUT_MS
+    ): ShizukuResult {
         return withContext(Dispatchers.IO) {
             if (command.isBlank()) {
                 return@withContext ShizukuResult.Failure("Command is empty.")
@@ -76,7 +79,7 @@ object ShizukuCommandTool {
             // Attempt up to 3 times with exponential backoff
             var lastResult: ShizukuResult = ShizukuResult.Failure("Execution did not start")
             for (attempt in 0 until 3) {
-                lastResult = executeOnce(command)
+                lastResult = executeOnce(command, timeoutMs)
                 when (lastResult) {
                     is ShizukuResult.Success,
                     is ShizukuResult.PartialSuccess   -> return@withContext lastResult
@@ -101,7 +104,7 @@ object ShizukuCommandTool {
     // Core execution — FIXED: Direct Shizuku.newProcess() call
     // ──────────────────────────────────────────────────────────────
 
-    private fun executeOnce(command: String): ShizukuResult {
+    private fun executeOnce(command: String, timeoutMs: Long): ShizukuResult {
         return try {
             // FIX: Using Reflection because newProcess is private in the Shizuku API
             val process: Process = try {
@@ -118,7 +121,7 @@ object ShizukuCommandTool {
                 Runtime.getRuntime().exec(arrayOf("sh", "-c", command), null, null)
             }
 
-            readProcessOutput(process, command)
+            readProcessOutput(process, command, timeoutMs)
 
         } catch (e: SecurityException) {
             ShizukuResult.PermissionRequired("Shizuku denied permission: ${e.message}")
@@ -133,7 +136,7 @@ object ShizukuCommandTool {
      * Safely reads stdout/stderr from the process with a timeout.
      * Starts reading threads BEFORE waitFor to avoid pipe-buffer deadlock.
      */
-    private fun readProcessOutput(process: Process, command: String): ShizukuResult {
+    private fun readProcessOutput(process: Process, command: String, timeoutMs: Long): ShizukuResult {
         val stdoutBuf = StringBuffer()
         val stderrBuf = StringBuffer()
 
@@ -171,13 +174,13 @@ object ShizukuCommandTool {
             try { process.waitFor() } catch (_: InterruptedException) {}
         }.apply { isDaemon = true; start() }
 
-        waitThread.join(COMMAND_TIMEOUT_MS)
+        waitThread.join(timeoutMs)
         if (waitThread.isAlive) {
             process.destroy()
             stdoutThread.interrupt()
             stderrThread.interrupt()
             return ShizukuResult.Failure(
-                "Execution timeout exceeded (${COMMAND_TIMEOUT_MS / 1000}s): ${command.take(80)}"
+                "Execution timeout exceeded (${timeoutMs / 1000}s): ${command.take(80)}"
             )
         }
 

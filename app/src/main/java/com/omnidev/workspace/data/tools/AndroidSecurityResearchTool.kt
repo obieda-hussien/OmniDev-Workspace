@@ -91,7 +91,7 @@ Full autonomous vulnerability research pipeline for installed Android apps.
 Self-contained — downloads aapt2, jadx, apktool, and Python 3.12 on demand via Shizuku.
 
 Actions:
-  setup_tools         → Download & install all research tools. Run this first.
+  setup_tools         → Download & install research tools (all by default, or a selected subset).
   tools_status        → Show which tools are installed and their sizes.
 
   aapt2_analyze       → Deep APK analysis via aapt2: binary manifest, permissions, strings.
@@ -148,6 +148,19 @@ Output is formatted for readability. Use output_format=json for machine parsing.
                     type = "string",
                     description = "Comma-separated phases for full_pipeline: aapt2,dex_scan,decompile,decode_smali,secret_hunt. " +
                             "Default: all phases.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "tool_list",
+                    type = "string",
+                    description = "For action=setup_tools: comma-separated tools to install. " +
+                            "Supported: aapt2,busybox,jadx,apktool,python,dex2jar. Default: all core tools.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "setup_timeout_seconds",
+                    type = "string",
+                    description = "For action=setup_tools: per-tool install timeout in seconds (30-3600). Default: 3600 (1 hour).",
                     required = false
                 ),
                 ToolParameter(
@@ -217,15 +230,31 @@ Output is formatted for readability. Use output_format=json for machine parsing.
             // ── Tool management ───────────────────────────────────────────────
 
             "setup_tools" -> {
+                val selectedTools = parseToolSelection(args["tool_list"])
+                if (selectedTools.isEmpty()) {
+                    return@withContext ToolExecutionResult(
+                        "No valid tools requested in 'tool_list'. Supported: aapt2,busybox,jadx,apktool,python,dex2jar.",
+                        isError = true
+                    )
+                }
+                val installTimeoutMs = (args["setup_timeout_seconds"]?.toLongOrNull() ?: 3600L)
+                    .coerceIn(30L, 3600L) * 1_000L
                 val progressLines = mutableListOf<String>()
-                val result = VulnResearchToolchain.setupTools(context) { msg ->
+                val result = VulnResearchToolchain.setupTools(
+                    context = context,
+                    tools = selectedTools,
+                    installTimeoutMs = installTimeoutMs
+                ) { msg ->
                     progressLines.add(msg)
                 }
                 val output = buildString {
                     appendLine("═══ Tool Setup Complete ═══")
                     appendLine()
+                    appendLine("Requested tools: ${selectedTools.joinToString(", ") { it.displayName }}")
+                    appendLine("Per-tool timeout: ${installTimeoutMs / 1000}s")
+                    appendLine()
                     appendLine("Installation Results:")
-                    OmniNativeToolsManager.Tool.values().forEach { tool ->
+                    selectedTools.forEach { tool ->
                         val status = result.optString(tool.name, "unknown")
                         appendLine("  ${tool.displayName.padEnd(15)} $status")
                     }
@@ -1180,6 +1209,34 @@ summary{cursor:pointer;font-weight:bold}
         score >= 40 -> "🟡 MEDIUM RISK"
         score >= 20 -> "🟢 LOW RISK"
         else        -> "⚪ MINIMAL RISK"
+    }
+
+    private fun parseToolSelection(raw: String?): List<OmniNativeToolsManager.Tool> {
+        if (raw.isNullOrBlank()) {
+            return listOf(
+                OmniNativeToolsManager.Tool.AAPT2,
+                OmniNativeToolsManager.Tool.BUSYBOX,
+                OmniNativeToolsManager.Tool.JADX,
+                OmniNativeToolsManager.Tool.APKTOOL,
+                OmniNativeToolsManager.Tool.PYTHON
+            )
+        }
+
+        val aliasToTool = mapOf(
+            "aapt2" to OmniNativeToolsManager.Tool.AAPT2,
+            "busybox" to OmniNativeToolsManager.Tool.BUSYBOX,
+            "jadx" to OmniNativeToolsManager.Tool.JADX,
+            "jadx-cli" to OmniNativeToolsManager.Tool.JADX,
+            "apktool" to OmniNativeToolsManager.Tool.APKTOOL,
+            "python" to OmniNativeToolsManager.Tool.PYTHON,
+            "python3" to OmniNativeToolsManager.Tool.PYTHON,
+            "dex2jar" to OmniNativeToolsManager.Tool.DEX2JAR
+        )
+
+        return raw.split(",")
+            .map { it.trim().lowercase() }
+            .mapNotNull { aliasToTool[it] }
+            .distinct()
     }
 
     private fun missingPkg() = ToolExecutionResult(

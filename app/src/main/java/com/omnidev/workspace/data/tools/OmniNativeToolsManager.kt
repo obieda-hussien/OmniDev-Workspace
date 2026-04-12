@@ -43,6 +43,7 @@ object OmniNativeToolsManager {
     private const val CONNECT_TIMEOUT_MS = 30_000
     private const val READ_TIMEOUT_MS = 120_000
     private const val DEFAULT_EXEC_TIMEOUT_MS = 45_000L
+    private const val DEFAULT_INSTALL_TIMEOUT_MS = 3_600_000L
 
     // ─── Tool Registry ────────────────────────────────────────────────────────
 
@@ -174,12 +175,16 @@ object OmniNativeToolsManager {
      *
      * @return Result.success(executable file) or Result.failure(exception)
      */
-    suspend fun ensure(context: Context, tool: Tool): Result<File> = withContext(Dispatchers.IO) {
+    suspend fun ensure(
+        context: Context,
+        tool: Tool,
+        installTimeoutMs: Long = DEFAULT_INSTALL_TIMEOUT_MS
+    ): Result<File> = withContext(Dispatchers.IO) {
         downloadLock.withLock {
             if (isInstalled(context, tool)) {
                 return@withLock Result.success(execFile(context, tool))
             }
-            download(context, tool)
+            download(context, tool, installTimeoutMs)
         }
     }
 
@@ -339,55 +344,60 @@ object OmniNativeToolsManager {
 
     // ─── Download & Install ───────────────────────────────────────────────────
 
-    private suspend fun download(context: Context, tool: Tool): Result<File> =
-        withContext(Dispatchers.IO) {
+    private suspend fun download(
+        context: Context,
+        tool: Tool,
+        installTimeoutMs: Long
+    ): Result<File> = withContext(Dispatchers.IO) {
             val spec = TOOL_REGISTRY[tool]
                 ?: return@withContext Result.failure(IllegalArgumentException("No spec for $tool"))
             val dir  = root(context)
             val temp = File(dir, "work/tmp_${tool.name}_${System.currentTimeMillis()}")
-
-            installProgress[tool] = 0
-
-            try {
-                // 1. Download (try primary, then fallback)
-                val downloaded = tryDownload(spec.primaryUrl, spec.fallbackUrl, temp) { pct ->
-                    installProgress[tool] = (pct * 0.7).toInt()  // 0–70%
-                }
-                if (!downloaded) {
-                    return@withContext Result.failure(Exception("Download failed for ${tool.displayName}"))
-                }
-
-                // 2. Verify hash (if provided)
-                if (spec.sha256 != null && sha256(temp) != spec.sha256) {
-                    temp.delete()
-                    return@withContext Result.failure(Exception("SHA-256 mismatch for ${tool.displayName}"))
-                }
-
-                installProgress[tool] = 75
-
-                // 3. Extract / install
-                val destFile = install(context, tool, temp, spec)
-
-                // 4. chmod via Shizuku (handles SELinux context issues on some ROMs)
-                if (spec.executableRelPath.startsWith("bin/")) {
-                    val r = ShizukuCommandTool.execute("chmod 755 '${destFile.absolutePath}'")
-                    if (r !is ShizukuResult.Success && r !is ShizukuResult.PartialSuccess) {
-                        // chmod without Shizuku as fallback
-                        destFile.setExecutable(true, false)
+            val installResult = withTimeoutOrNull(installTimeoutMs) {
+                installProgress[tool] = 0
+                try {
+                    // 1. Download (try primary, then fallback)
+                    val downloaded = tryDownload(spec.primaryUrl, spec.fallbackUrl, temp) { pct ->
+                        installProgress[tool] = (pct * 0.7).toInt()  // 0–70%
                     }
+                    if (!downloaded) {
+                        return@withTimeoutOrNull Result.failure<File>(Exception("Download failed for ${tool.displayName}"))
+                    }
+
+                    // 2. Verify hash (if provided)
+                    if (spec.sha256 != null && sha256(temp) != spec.sha256) {
+                        temp.delete()
+                        return@withTimeoutOrNull Result.failure<File>(Exception("SHA-256 mismatch for ${tool.displayName}"))
+                    }
+
+                    installProgress[tool] = 75
+
+                    // 3. Extract / install
+                    val destFile = install(context, tool, temp, spec, installTimeoutMs)
+
+                    // 4. chmod via Shizuku (handles SELinux context issues on some ROMs)
+                    if (spec.executableRelPath.startsWith("bin/")) {
+                        val r = ShizukuCommandTool.execute("chmod 755 '${destFile.absolutePath}'")
+                        if (r !is ShizukuResult.Success && r !is ShizukuResult.PartialSuccess) {
+                            // chmod without Shizuku as fallback
+                            destFile.setExecutable(true, false)
+                        }
+                    }
+
+                    installProgress[tool] = 100
+                    Log.i(TAG, "✅ ${tool.displayName} installed → ${destFile.absolutePath}")
+                    Result.success(destFile)
+                } catch (e: Exception) {
+                    Log.e(TAG, "❌ Failed to install ${tool.displayName}: ${e.message}")
+                    Result.failure<File>(e)
+                } finally {
+                    temp.delete()
+                    installProgress.remove(tool)
                 }
-
-                installProgress[tool] = 100
-                Log.i(TAG, "✅ ${tool.displayName} installed → ${destFile.absolutePath}")
-                Result.success(destFile)
-
-            } catch (e: Exception) {
-                Log.e(TAG, "❌ Failed to install ${tool.displayName}: ${e.message}")
-                Result.failure(e)
-            } finally {
-                temp.delete()
-                installProgress.remove(tool)
             }
+            installResult ?: Result.failure(
+                Exception("Install timed out after ${installTimeoutMs / 1000}s for ${tool.displayName}")
+            )
         }
 
     private fun tryDownload(
@@ -438,7 +448,8 @@ object OmniNativeToolsManager {
         context: Context,
         tool: Tool,
         source: File,
-        spec: ToolSpec
+        spec: ToolSpec,
+        installTimeoutMs: Long
     ): File = withContext(Dispatchers.IO) {
         val dir  = root(context)
         val dest = File(dir, spec.executableRelPath).also { it.parentFile?.mkdirs() }
@@ -453,7 +464,7 @@ object OmniNativeToolsManager {
         val archiveName = spec.archiveFilename.lowercase()
         when {
             archiveName.endsWith(".tar.gz") || archiveName.endsWith(".tgz") ->
-                extractTarGz(source, dest, spec, dir, tool)
+                extractTarGz(source, dest, spec, dir, tool, installTimeoutMs)
             archiveName.endsWith(".zip") || archiveName.endsWith(".jar") ->
                 extractZip(source, dest, spec, dir)
             else -> source.copyTo(dest, overwrite = true)
@@ -466,14 +477,16 @@ object OmniNativeToolsManager {
         dest: File,
         spec: ToolSpec,
         dir: File,
-        tool: Tool
+        tool: Tool,
+        installTimeoutMs: Long
     ) = withContext(Dispatchers.IO) {
         // Use Shizuku for tar extraction — avoids Java tar parsing edge cases
         val extractDir = File(dir, "work/extract_${tool.name}")
         extractDir.mkdirs()
 
         val tarResult = ShizukuCommandTool.execute(
-            "tar -xzf '${source.absolutePath}' -C '${extractDir.absolutePath}' 2>&1"
+            "tar -xzf '${source.absolutePath}' -C '${extractDir.absolutePath}' 2>&1",
+            timeoutMs = installTimeoutMs
         )
         if (tarResult !is ShizukuResult.Success && tarResult !is ShizukuResult.PartialSuccess) {
             throw Exception("tar extraction failed: ${tarResult.toDisplayString()}")
@@ -488,7 +501,10 @@ object OmniNativeToolsManager {
             val pythonRoot = extractDir.listFiles()?.firstOrNull { it.isDirectory }
                 ?: extractDir
 
-            ShizukuCommandTool.execute("cp -r '${pythonRoot.absolutePath}' '${runtimeDest.absolutePath}'")
+            ShizukuCommandTool.execute(
+                "cp -r '${pythonRoot.absolutePath}' '${runtimeDest.absolutePath}'",
+                timeoutMs = installTimeoutMs
+            )
 
             // Symlink or copy python3.12 → python3
             val py312 = File(runtimeDest, "bin/python3.12")
