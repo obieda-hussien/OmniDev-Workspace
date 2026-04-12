@@ -231,9 +231,7 @@ class CompositeToolManager(
             addAll(WidgetGeneratorTool.getToolDefinitions())
             // ── Dynamic Self-Sandbox Tool ────────────────────────────────────
             addAll(AgentSandboxTool.getToolDefinitions())
-            if (context != null) {
-                addAll(AndroidSecurityResearchTool.getToolDefinitions())
-            }
+            addAll(AndroidSecurityResearchTool.getToolDefinitions())
             addAll(PermissionManagerTool.getToolDefinitions())
             addAll(VPNControlTool.getToolDefinitions())
             addAll(SystemPowerTool.getToolDefinitions())
