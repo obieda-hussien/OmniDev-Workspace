@@ -461,7 +461,7 @@ object AndroidVulnResearchEngine {
                                     "Invalid path segment"
                                 }
                                 // Use parameterized queries ONLY:
-                                return db.query(TABLE, projection, "$ID_COLUMN = ?", arrayOf(segment), null, null, sortOrder)
+                                return db.query(TABLE, projection, "${'$'}ID_COLUMN = ?", arrayOf(segment), null, null, sortOrder)
                             }
                         """.trimIndent(),
                         manifestChange = """
@@ -1180,8 +1180,8 @@ object AndroidVulnResearchEngine {
                     ShizukuCommandTool.execute(cmd)
                 }
                 val output = when (result) {
-                    is ShizukuResult.Success -> result.stdout
-                    is ShizukuResult.PartialSuccess -> result.stdout
+                    is ShizukuResult.Success -> result.output
+                    is ShizukuResult.PartialSuccess -> result.output
                     else -> ""
                 }
 
@@ -1263,8 +1263,8 @@ object AndroidVulnResearchEngine {
                     ShizukuCommandTool.execute(baseCmd)
                 }
                 val baseOutput = when (baseResult) {
-                    is ShizukuResult.Success -> baseResult.stdout
-                    is ShizukuResult.PartialSuccess -> baseResult.stdout
+                    is ShizukuResult.Success -> baseResult.output
+                    is ShizukuResult.PartialSuccess -> baseResult.output
                     else -> ""
                 }
 
@@ -1276,8 +1276,8 @@ object AndroidVulnResearchEngine {
                             ShizukuCommandTool.execute(sqliCmd)
                         }
                         val sqliOutput = when (sqliResult) {
-                            is ShizukuResult.Success -> sqliResult.stdout
-                            is ShizukuResult.PartialSuccess -> sqliResult.stdout
+                            is ShizukuResult.Success -> sqliResult.output
+                            is ShizukuResult.PartialSuccess -> sqliResult.output
                             else -> ""
                         }
 
@@ -1317,7 +1317,7 @@ object AndroidVulnResearchEngine {
                                         
                                         private fun buildSafeSelection(uri: Uri): String {
                                             val id = ContentUris.parseId(uri)  // Parse from path, not query param
-                                            return "$ID_COL = $id"
+                                            return "${'$'}ID_COL = ${'$'}id"
                                         }
                                     """.trimIndent(),
                                     manifestChange = null,
@@ -1359,8 +1359,8 @@ object AndroidVulnResearchEngine {
             ShizukuCommandTool.execute("logcat -d -t 200 *:E 2>&1 | grep -i '$pkg\\|AndroidRuntime\\|FATAL' | head -30")
         }
         val logcatOutput = when (logcatResult) {
-            is ShizukuResult.Success -> logcatResult.stdout
-            is ShizukuResult.PartialSuccess -> logcatResult.stdout
+            is ShizukuResult.Success -> logcatResult.output
+            is ShizukuResult.PartialSuccess -> logcatResult.output
             else -> ""
         }
 
@@ -1424,9 +1424,9 @@ object AndroidVulnResearchEngine {
                     ShizukuCommandTool.execute(firstPoC.shellCommand)
                 }
                 val output = when (result) {
-                    is ShizukuResult.Success -> result.stdout
-                    is ShizukuResult.PartialSuccess -> result.stdout
-                    is ShizukuResult.Failure -> "FAILURE: ${result.error}"
+                    is ShizukuResult.Success -> result.output
+                    is ShizukuResult.PartialSuccess -> result.output
+                    is ShizukuResult.Failure -> "FAILURE: ${result.reason}"
                     null -> "TIMEOUT"
                     else -> "UNKNOWN"
                 }
