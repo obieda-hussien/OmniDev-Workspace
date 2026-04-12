@@ -1,78 +1,112 @@
 package com.omnidev.workspace.data.tools.security
 
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
 import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.tools.ToolExecutionResult
 import com.omnidev.workspace.data.tools.ToolParameter
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// AndroidSecurityResearchTool — Agent interface for AndroidVulnResearchEngine
+// ════════════════════════════════════════════════════════════════════════════════
+// AndroidSecurityResearchTool  v2.0
 //
-// Exposes the full 4-phase vulnerability research pipeline as a single agent tool.
-// Designed after the DARPA AI Cyber Challenge scaffolding architecture:
-//   → Structured workflow (not just "scan") 
-//   → Phased output (discovery → verification → PoC → patch)
-//   → Self-contained research session with JSON output for agent parsing
-// ═══════════════════════════════════════════════════════════════════════════════
+// Full autonomous vulnerability research pipeline — now with:
+//   • Self-contained tool download (aapt2, jadx, apktool, Python) via Shizuku
+//   • Binary AXML manifest decoding via aapt2 (no more garbage output)
+//   • Full APK decompilation to Java source via jadx
+//   • Python-based DEX scanner + secret hunter across source tree
+//   • Complete 4-phase pipeline with parallel execution
+//
+// Zero Termux dependency — everything runs through Shizuku shell.
+// ════════════════════════════════════════════════════════════════════════════════
 object AndroidSecurityResearchTool {
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "android_security_research",
             description = """
-                Full autonomous vulnerability research pipeline for installed Android apps.
-                Inspired by DARPA's AI Cyber Challenge and Anthropic's Project Glasswing approach.
-                
-                Actions:
-                  full_research    → Run all 4 phases: static discovery + dynamic probing + exploit verification + patch generation.
-                                     Most comprehensive. Returns full JSON report with PoC commands and Kotlin patches.
-                  static_only      → Phase 1 only: DEX analysis, manifest, native libs, crypto. Fast (no shell execution).
-                  dynamic_probe    → Phase 2 only: Live intent fuzzing, ContentProvider SQL injection, deep link injection.
-                                     Requires Shizuku. Runs controlled shell probes against the target app.
-                  verify_exploits  → Phase 3 only: Takes existing findings and executes safe PoC commands to confirm them.
-                                     Upgrades UNVERIFIED findings to CONFIRMED or FALSE_POSITIVE.
-                  generate_patches → Phase 4 only: Generate consolidated Kotlin/Java patches + Manifest changes + ProGuard rules.
-                  list_apps        → List all installed user apps with basic security posture (risk score).
-                  export_report    → Export last research report as HTML file to external storage.
-                  
-                Output format: JSON with fields:
-                  riskScore (0-100), findings (array), confirmedCount, topPriorities, patchBundle.
-                  Each finding includes: id, category, cwe, severity, cvss, title, description,
-                  location, evidence, verificationStatus, exploitPoCs (with shell commands), remediation.
+Full autonomous vulnerability research pipeline for installed Android apps.
+Self-contained — downloads aapt2, jadx, apktool, and Python 3.12 on demand via Shizuku.
+
+Actions:
+  setup_tools         → Download & install all research tools. Run this first.
+  tools_status        → Show which tools are installed and their sizes.
+
+  aapt2_analyze       → Deep APK analysis via aapt2: binary manifest, permissions, strings.
+                        Decodes binary AXML format — much more accurate than text grep.
+  dex_scan            → Python-powered DEX scanner: AWS keys, JWTs, weak crypto, cleartext URLs.
+  decompile           → Full APK decompilation to Java source via jadx.
+  scan_secrets        → Secret hunter across decompiled source (run after decompile).
+  quick_python        → Run a custom Python snippet against the APK. APK_PATH is pre-set.
+  full_pipeline       → All phases in parallel: aapt2 + DEX scan + decompile + secrets.
+
+  full_research       → Static + manifest + native + crypto analysis (original engine).
+  static_only         → Phase 1 only: DEX analysis, manifest, native libs, crypto.
+  dynamic_probe       → Phase 2: Live intent fuzzing, ContentProvider probing (needs Shizuku).
+  verify_exploits     → Phase 3: Execute safe PoC commands to confirm findings.
+  generate_patches    → Phase 4: Kotlin/Java patches + Manifest changes + ProGuard rules.
+  list_apps           → List all user apps with basic security posture.
+  export_report       → Export full research report as HTML to external storage.
+
+Output is formatted for readability. Use output_format=json for machine parsing.
             """.trimIndent(),
             parameters = listOf(
                 ToolParameter(
                     name = "action",
                     type = "string",
-                    description = "One of: full_research, static_only, dynamic_probe, verify_exploits, generate_patches, list_apps, export_report",
+                    description = "One of: setup_tools, tools_status, aapt2_analyze, dex_scan, decompile, " +
+                            "scan_secrets, quick_python, full_pipeline, full_research, static_only, " +
+                            "dynamic_probe, verify_exploits, generate_patches, list_apps, export_report",
                     required = true
                 ),
                 ToolParameter(
                     name = "package_name",
                     type = "string",
-                    description = "Target app package name (e.g., 'com.whatsapp'). Required for all actions except list_apps.",
+                    description = "Target app package name (e.g., 'com.whatsapp'). Required for most actions.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "python_script",
+                    type = "string",
+                    description = "Python script content for action=quick_python. APK_PATH variable is pre-set.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "source_dir",
+                    type = "string",
+                    description = "Path to decompiled source directory for action=scan_secrets. " +
+                            "If omitted, uses jadx output from a previous decompile action.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "pipeline_phases",
+                    type = "string",
+                    description = "Comma-separated phases for full_pipeline: aapt2,dex_scan,decompile,secret_hunt. " +
+                            "Default: all phases.",
                     required = false
                 ),
                 ToolParameter(
                     name = "severity_filter",
                     type = "string",
-                    description = "Filter output by minimum severity: CRITICAL, HIGH, MEDIUM, LOW, INFO. Default: all.",
+                    description = "Filter findings by minimum severity: CRITICAL, HIGH, MEDIUM, LOW, INFO.",
                     required = false
                 ),
                 ToolParameter(
                     name = "include_patches",
                     type = "string",
-                    description = "Whether to include full patch code in output. 'true' (default) or 'false' (summary only).",
+                    description = "Include full patch code in generate_patches output: 'true' (default) or 'false'.",
                     required = false
                 ),
                 ToolParameter(
                     name = "max_results",
                     type = "string",
-                    description = "Limit number of findings in output (default: 50).",
+                    description = "Limit number of findings (default: 50).",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "output_format",
+                    type = "string",
+                    description = "'text' (default) or 'json' for machine-readable output.",
                     required = false
                 )
             )
@@ -84,14 +118,184 @@ object AndroidSecurityResearchTool {
         action: String,
         args: Map<String, String>
     ): ToolExecutionResult = withContext(Dispatchers.IO) {
-        val pkg = args["package_name"]?.trim()
+        val pkg            = args["package_name"]?.trim()
         val severityFilter = args["severity_filter"]?.uppercase()?.let {
             runCatching { Severity.valueOf(it) }.getOrNull()
         }
         val includePatches = args["include_patches"]?.lowercase() != "false"
-        val maxResults = args["max_results"]?.toIntOrNull()?.coerceIn(1, 200) ?: 50
+        val maxResults     = args["max_results"]?.toIntOrNull()?.coerceIn(1, 200) ?: 50
+        val jsonOutput     = args["output_format"]?.lowercase() == "json"
+
+        // ── Initialise tool manager ───────────────────────────────────────────
+        OmniNativeToolsManager.init(context)
 
         when (action.lowercase().trim()) {
+
+            // ── Tool management ───────────────────────────────────────────────
+
+            "setup_tools" -> {
+                val progressLines = mutableListOf<String>()
+                val result = VulnResearchToolchain.setupTools(context) { msg ->
+                    progressLines.add(msg)
+                }
+                val output = buildString {
+                    appendLine("═══ Tool Setup Complete ═══")
+                    appendLine()
+                    appendLine("Installation Results:")
+                    OmniNativeToolsManager.Tool.values().forEach { tool ->
+                        val status = result.optString(tool.name, "unknown")
+                        appendLine("  ${tool.displayName.padEnd(15)} $status")
+                    }
+                    appendLine()
+                    appendLine("Total installed: ${result.optString("storage_mb")} MB")
+                    appendLine()
+                    appendLine("All tools ready. You can now run:")
+                    appendLine("  • aapt2_analyze    — Binary manifest + permissions")
+                    appendLine("  • dex_scan         — Secret + crypto pattern scan")
+                    appendLine("  • decompile        — Full APK → Java source")
+                    appendLine("  • full_pipeline    — Everything at once")
+                }
+                if (jsonOutput) ToolExecutionResult(result.toString(2))
+                else ToolExecutionResult(output)
+            }
+
+            "tools_status" -> {
+                val status = OmniNativeToolsManager.statusJson(context)
+                if (jsonOutput) {
+                    ToolExecutionResult(status.toString(2))
+                } else {
+                    val output = buildString {
+                        appendLine("═══ Research Tools Status ═══")
+                        appendLine()
+                        OmniNativeToolsManager.Tool.values().forEach { tool ->
+                            val obj       = status.optJSONObject(tool.name)
+                            val installed = obj?.optBoolean("installed", false) ?: false
+                            val size      = if (installed) " (${obj?.optLong("size_kb")} KB)" else ""
+                            val icon      = if (installed) "✅" else "❌"
+                            appendLine("  $icon ${tool.displayName.padEnd(15)} $size")
+                        }
+                        appendLine()
+                        appendLine("Total: ${status.optString("total_size_mb")} MB")
+                        appendLine()
+                        val allInstalled = OmniNativeToolsManager.Tool.values().all {
+                            OmniNativeToolsManager.isInstalled(context, it)
+                        }
+                        if (!allInstalled) {
+                            appendLine("Run action='setup_tools' to install missing tools.")
+                        }
+                    }
+                    ToolExecutionResult(output)
+                }
+            }
+
+            // ── aapt2 Analysis ────────────────────────────────────────────────
+
+            "aapt2_analyze" -> {
+                val packageName = pkg ?: return@withContext missingPkg()
+                val result = VulnResearchToolchain.aapt2Analysis(context, packageName)
+                if (jsonOutput) ToolExecutionResult(result.toJson().toString(2))
+                else ToolExecutionResult(result.toToolOutput())
+            }
+
+            // ── Python DEX Scanner ────────────────────────────────────────────
+
+            "dex_scan" -> {
+                val packageName = pkg ?: return@withContext missingPkg()
+                val result = VulnResearchToolchain.pythonDexScan(context, packageName)
+                if (jsonOutput) ToolExecutionResult(result.toJson().toString(2))
+                else ToolExecutionResult(result.toToolOutput())
+            }
+
+            // ── jadx Decompilation ────────────────────────────────────────────
+
+            "decompile" -> {
+                val packageName = pkg ?: return@withContext missingPkg()
+                val result = VulnResearchToolchain.decompileToSource(context, packageName)
+                if (jsonOutput) ToolExecutionResult(result.toJson().toString(2))
+                else ToolExecutionResult(result.toToolOutput())
+            }
+
+            // ── apktool Decode ────────────────────────────────────────────────
+
+            "decode_smali" -> {
+                val packageName = pkg ?: return@withContext missingPkg()
+                val result = VulnResearchToolchain.decodeWithApktool(context, packageName)
+                if (jsonOutput) ToolExecutionResult(result.toJson().toString(2))
+                else ToolExecutionResult(result.toToolOutput())
+            }
+
+            // ── Secret Hunter ─────────────────────────────────────────────────
+
+            "scan_secrets" -> {
+                val packageName = pkg ?: return@withContext missingPkg()
+                val sourceDir   = args["source_dir"]
+                val result = VulnResearchToolchain.scanSecretsInSource(context, packageName, sourceDir)
+                if (jsonOutput) ToolExecutionResult(result.toJson().toString(2))
+                else ToolExecutionResult(result.toToolOutput())
+            }
+
+            // ── Custom Python ─────────────────────────────────────────────────
+
+            "quick_python" -> {
+                val packageName = pkg ?: return@withContext missingPkg()
+                val script = args["python_script"]
+                    ?: return@withContext ToolExecutionResult(
+                        "Missing 'python_script' argument. Provide a Python snippet; APK_PATH is pre-set.",
+                        isError = true
+                    )
+                val result = VulnResearchToolchain.quickPython(context, packageName, script)
+                ToolExecutionResult(result.toToolOutput())
+            }
+
+            // ── Full Pipeline ─────────────────────────────────────────────────
+
+            "full_pipeline" -> {
+                val packageName = pkg ?: return@withContext missingPkg()
+
+                val requestedPhases = args["pipeline_phases"]
+                    ?.split(",")
+                    ?.mapNotNull { token ->
+                        runCatching {
+                            VulnResearchToolchain.PipelinePhase.valueOf(token.trim().uppercase())
+                        }.getOrNull()
+                    }
+                    ?.toSet()
+                    ?: VulnResearchToolchain.PipelinePhase.values().toSet()
+
+                val phaseLog = mutableListOf<String>()
+                val report = VulnResearchToolchain.fullPipeline(
+                    context  = context,
+                    packageName = packageName,
+                    phases   = requestedPhases,
+                    onPhaseComplete = { phase, summary ->
+                        phaseLog.add("[$phase] $summary")
+                    }
+                )
+
+                if (jsonOutput) {
+                    ToolExecutionResult(report.toString(2))
+                } else {
+                    val output = buildString {
+                        appendLine("═══ Full Pipeline Report: $packageName ═══")
+                        appendLine("Duration: ${report.optLong("duration_ms")}ms")
+                        appendLine()
+                        appendLine("── Phase Summary ──")
+                        phaseLog.forEach { appendLine("  $it") }
+                        appendLine()
+
+                        report.keys().forEach { phase ->
+                            val phaseObj = report.optJSONObject(phase) ?: return@forEach
+                            if (!phaseObj.optBoolean("ok", true)) return@forEach
+                            appendLine("── ${phase.uppercase()} ──")
+                            appendLine(phaseObj.optString("output", "").take(3000))
+                            appendLine()
+                        }
+                    }
+                    ToolExecutionResult(output.take(14_000), truncated = output.length > 14_000)
+                }
+            }
+
+            // ── Legacy Research Engine (original 4-phase pipeline) ────────────
 
             "list_apps" -> listInstalledApps(context)
 
@@ -134,13 +338,11 @@ object AndroidSecurityResearchTool {
 
             "generate_patches" -> {
                 val packageName = pkg ?: return@withContext missingPkg()
-                // Run static phase to get findings, then generate patches
                 val report = AndroidVulnResearchEngine.runFullResearch(
                     context = context,
                     packageName = packageName,
                     phases = setOf(AndroidVulnResearchEngine.ResearchPhase.STATIC)
                 )
-                // Return patch bundle only
                 val filtered = filterByMinSeverity(report.findings, severityFilter).take(maxResults)
                 val patchOutput = buildString {
                     appendLine("// PATCH BUNDLE for ${report.packageName} (${report.label})")
@@ -149,7 +351,6 @@ object AndroidSecurityResearchTool {
                     filtered.forEach { f ->
                         appendLine("// [${f.id}] ${f.severity.emoji} ${f.title}")
                         appendLine("// Severity: ${f.severity.name} | CVSS: ${f.cvssScore} | CWE: ${f.category.cwe}")
-                        appendLine("// Status: ${f.verificationStatus.name}")
                         appendLine()
                         appendLine(f.remediation.codeSnippet)
                         f.remediation.manifestChange?.let {
@@ -197,13 +398,16 @@ object AndroidSecurityResearchTool {
             }
 
             else -> ToolExecutionResult(
-                "Unknown action '$action'. Valid actions: full_research, static_only, dynamic_probe, verify_exploits, generate_patches, list_apps, export_report",
+                "Unknown action '$action'. Valid actions:\n" +
+                "  Tool management: setup_tools, tools_status\n" +
+                "  Enhanced analysis: aapt2_analyze, dex_scan, decompile, decode_smali, scan_secrets, quick_python, full_pipeline\n" +
+                "  Classic pipeline: full_research, static_only, dynamic_probe, verify_exploits, generate_patches, list_apps, export_report",
                 isError = true
             )
         }
     }
 
-    // ─── Output Formatters ──────────────────────────────────────────────────
+    // ─── Formatters (used by legacy pipeline) ────────────────────────────────
 
     private fun formatReport(
         report: ResearchReport,
@@ -224,7 +428,7 @@ object AndroidSecurityResearchTool {
         sb.appendLine()
 
         val criticals = filtered.count { it.severity == Severity.CRITICAL }
-        val highs = filtered.count { it.severity == Severity.HIGH }
+        val highs     = filtered.count { it.severity == Severity.HIGH }
         val confirmed = filtered.count { it.verificationStatus == VerificationStatus.CONFIRMED }
         sb.appendLine("Findings Summary:")
         sb.appendLine("  Total: ${filtered.size} | 🔴 Critical: $criticals | 🟠 High: $highs | ✅ Confirmed: $confirmed")
@@ -253,9 +457,7 @@ object AndroidSecurityResearchTool {
                 f.exploitPoCs.take(2).forEach { poc ->
                     sb.appendLine("│    ▶ ${poc.description}")
                     sb.appendLine("│      ${poc.shellCommand.lines().first().take(120)}")
-                    poc.verificationResult?.let {
-                        sb.appendLine("│      Result: ${it.take(100)}")
-                    }
+                    poc.verificationResult?.let { sb.appendLine("│      Result: ${it.take(100)}") }
                 }
             }
 
@@ -267,13 +469,10 @@ object AndroidSecurityResearchTool {
                 sb.appendLine("│  Patch:")
                 snippet.lines().forEach { sb.appendLine("│    $it") }
             }
-
             sb.appendLine("└─────────────────────────────────────────────────────────────────")
         }
 
-        if (filtered.isEmpty()) {
-            sb.appendLine("✅ No findings match the selected filter.")
-        }
+        if (filtered.isEmpty()) sb.appendLine("✅ No findings match the selected filter.")
 
         val result = sb.toString()
         return ToolExecutionResult(result.take(14_000), truncated = result.length > 14_000)
@@ -297,14 +496,12 @@ object AndroidSecurityResearchTool {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 pm.getInstalledPackages(PackageManager.PackageInfoFlags.of(0L))
             } else {
-                @Suppress("DEPRECATION")
-                pm.getInstalledPackages(0)
+                @Suppress("DEPRECATION") pm.getInstalledPackages(0)
             }
         } catch (e: Exception) {
             return ToolExecutionResult("Failed to list packages: ${e.message}", isError = true)
         }
 
-        // Filter out system apps to show user apps only
         val userApps = apps.filter { pi ->
             val flags = pi.applicationInfo?.flags ?: 0
             (flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) == 0
@@ -315,137 +512,62 @@ object AndroidSecurityResearchTool {
         sb.appendLine()
 
         userApps.sortedBy { it.packageName }.take(100).forEach { pi ->
-            val label = pi.applicationInfo?.let { pm.getApplicationLabel(it) } ?: pi.packageName
-            val appFlags = pi.applicationInfo?.flags ?: 0
-            val isDebug = (appFlags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
-            val allowBackup = (appFlags and android.content.pm.ApplicationInfo.FLAG_ALLOW_BACKUP) != 0
-
-            val warnings = buildString {
-                if (isDebug) append("⚠️DBG ")
-                if (allowBackup) append("⚠️BCK ")
+            val label     = pi.applicationInfo?.let { pm.getApplicationLabel(it) } ?: pi.packageName
+            val appFlags  = pi.applicationInfo?.flags ?: 0
+            val isDebug   = (appFlags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+            val allowBck  = (appFlags and android.content.pm.ApplicationInfo.FLAG_ALLOW_BACKUP) != 0
+            val warnings  = buildString {
+                if (isDebug)  append("⚠️DBG ")
+                if (allowBck) append("⚠️BCK ")
             }.trim()
-
             sb.appendLine("• $label (${pi.packageName}) ${if (warnings.isNotBlank()) "[$warnings]" else "✅"}")
         }
 
         if (userApps.size > 100) sb.appendLine("... and ${userApps.size - 100} more.")
         sb.appendLine()
-        sb.appendLine("Use 'full_research' with package_name to analyze any app in depth.")
+        sb.appendLine("Use 'full_pipeline' with package_name to run a complete analysis.")
         return ToolExecutionResult(sb.toString())
     }
 
     private fun exportReportToHtml(context: Context, report: ResearchReport): String? {
         return try {
-            val json = report.toJson()
             val sb = StringBuilder()
+            sb.append("""<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Security Report — ${report.packageName}</title>
+<style>
+body{font-family:'Segoe UI',Arial,sans-serif;margin:20px;color:#111;background:#f9f9f9}
+h1{color:#c0392b}h2{color:#2c3e50;border-bottom:2px solid #e74c3c;padding-bottom:4px}
+.finding{border-left:4px solid #e74c3c;padding:12px;margin:12px 0;background:#fff;border-radius:4px}
+.finding.HIGH{border-color:#e67e22}.finding.MEDIUM{border-color:#f39c12}.finding.LOW{border-color:#27ae60}
+pre{background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:6px;overflow-x:auto;font-size:.85em}
+summary{cursor:pointer;font-weight:bold}
+</style></head><body>""")
 
-            sb.append("""
-                <!DOCTYPE html><html><head><meta charset="utf-8">
-                <title>Security Report — ${report.packageName}</title>
-                <style>
-                body { font-family: 'Segoe UI', Arial, sans-serif; margin: 20px; color: #111; background: #f9f9f9; }
-                h1 { color: #c0392b; } h2 { color: #2c3e50; border-bottom: 2px solid #e74c3c; padding-bottom:4px; }
-                .finding { border-left: 4px solid #e74c3c; padding: 12px; margin: 12px 0; background: #fff; border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-                .finding.HIGH { border-color: #e67e22; }
-                .finding.MEDIUM { border-color: #f39c12; }
-                .finding.LOW { border-color: #27ae60; }
-                .finding.INFO { border-color: #95a5a6; }
-                .confirmed { background: #e8f8e8; }
-                pre { background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 6px; overflow-x: auto; font-size:0.85em; }
-                .badge { display:inline-block; padding:2px 8px; border-radius:12px; font-size:0.8em; font-weight:bold; color:#fff; }
-                .badge-CRITICAL { background:#c0392b; } .badge-HIGH { background:#e67e22; }
-                .badge-MEDIUM { background:#f39c12; } .badge-LOW { background:#27ae60; }
-                .risk-bar { height:20px; background: linear-gradient(to right, #27ae60, #f39c12, #e74c3c); width:100%; border-radius:10px; }
-                .risk-indicator { height:20px; width: 3px; background:#000; border-radius:2px; position:relative; }
-                summary { cursor:pointer; font-weight:bold; }
-                </style></head><body>
-            """.trimIndent())
+            sb.append("<h1>Security Research Report</h1>")
+            sb.append("<p><b>Package:</b> ${report.packageName} &nbsp; <b>Label:</b> ${report.label}</p>")
+            sb.append("<p><b>Risk Score:</b> ${report.riskScore}/100 &nbsp; <b>Duration:</b> ${report.duration}ms</p>")
+            sb.append("<p><b>Phases:</b> ${report.phasesCompleted.joinToString(" → ")}</p>")
+            sb.append("<p><b>Attack Surface:</b> ${report.attackSurfaceSummary}</p>")
 
-            sb.append("<h1>🔬 Security Research Report</h1>")
-            sb.append("<p><strong>Package:</strong> ${report.packageName} &nbsp; <strong>Label:</strong> ${report.label}</p>")
-            sb.append("<p><strong>Duration:</strong> ${report.duration}ms &nbsp; <strong>Generated:</strong> ${java.util.Date(report.analysisTimestampMs)}</p>")
-
-            // Risk score bar
-            val riskColor = when {
-                report.riskScore >= 70 -> "#c0392b"
-                report.riskScore >= 40 -> "#e67e22"
-                else -> "#27ae60"
-            }
-            sb.append("<h2>Risk Score: <span style='color:$riskColor'>${report.riskScore}/100</span></h2>")
-            sb.append("<p>Attack Surface: ${report.attackSurfaceSummary}</p>")
-            sb.append("<p>Phases: ${report.phasesCompleted.joinToString(" → ")}</p>")
-
-            // Summary stats
-            val critical = report.findings.count { it.severity == Severity.CRITICAL }
-            val high = report.findings.count { it.severity == Severity.HIGH }
-            val confirmed = report.findings.count { it.verificationStatus == VerificationStatus.CONFIRMED }
-            sb.append("""<table style="border-collapse:collapse;margin:12px 0">
-                <tr><td style="padding:6px 16px;background:#c0392b;color:#fff;border-radius:4px">Critical: $critical</td>
-                <td style="padding:6px 16px;background:#e67e22;color:#fff;border-radius:4px">High: ${report.findings.count { it.severity == Severity.HIGH }}</td>
-                <td style="padding:6px 16px;background:#f39c12;color:#fff;border-radius:4px">Medium: ${report.findings.count { it.severity == Severity.MEDIUM }}</td>
-                <td style="padding:6px 16px;background:#27ae60;color:#fff;border-radius:4px">Confirmed: $confirmed</td></tr></table>""")
-
-            // Top priorities
-            if (report.topPriorities.isNotEmpty()) {
-                sb.append("<h2>⚡ Top Priorities</h2><ul>")
-                report.topPriorities.forEach { sb.append("<li>$it</li>") }
-                sb.append("</ul>")
-            }
-
-            // Findings
-            sb.append("<h2>🔍 Findings (${report.findings.size})</h2>")
+            sb.append("<h2>Findings (${report.findings.size})</h2>")
             report.findings.forEach { f ->
-                val severityClass = f.severity.name
-                val confirmedClass = if (f.verificationStatus == VerificationStatus.CONFIRMED) " confirmed" else ""
-                sb.append("""<div class="finding $severityClass$confirmedClass">""")
-                sb.append("""<span class="badge badge-$severityClass">${f.severity.emoji} ${f.severity.name}</span>""")
-                sb.append(""" <strong>[${f.id}]</strong> ${f.title}<br>""")
-                sb.append("""<small>Category: ${f.category.displayName} | CWE: ${f.category.cwe} | CVSS: ${f.cvssScore} | Status: ${f.verificationStatus.name}</small><br>""")
-                sb.append("""<p>${f.description}</p>""")
-                sb.append("""<p><strong>Location:</strong> <code>${f.location}</code></p>""")
-                sb.append("""<p><strong>Evidence:</strong> <code>${f.evidence.take(300).replace("<","&lt;").replace(">","&gt;")}</code></p>""")
-
-                if (f.exploitPoCs.isNotEmpty()) {
-                    sb.append("<details><summary>PoC Commands (${f.exploitPoCs.size})</summary>")
-                    f.exploitPoCs.forEach { poc ->
-                        sb.append("<p><strong>${poc.description}</strong></p>")
-                        sb.append("<pre>${poc.shellCommand.replace("<","&lt;").replace(">","&gt;")}</pre>")
-                        poc.verificationResult?.let {
-                            sb.append("<p><strong>Verification Result:</strong> <code>${it.take(200).replace("<","&lt;")}</code></p>")
-                        }
-                    }
-                    sb.append("</details>")
-                }
-
-                sb.append("<details><summary>🔧 Remediation</summary>")
-                sb.append("<p>${f.remediation.summary}</p>")
-                if (f.remediation.codeSnippet.isNotBlank()) {
-                    sb.append("<pre>${f.remediation.codeSnippet.replace("<","&lt;").replace(">","&gt;")}</pre>")
-                }
-                f.remediation.manifestChange?.let {
-                    sb.append("<p><strong>Manifest change:</strong></p><pre>${it.replace("<","&lt;").replace(">","&gt;")}</pre>")
-                }
-                f.remediation.proguardRule?.let {
-                    sb.append("<p><strong>ProGuard rule:</strong></p><pre>$it</pre>")
-                }
-                sb.append("<p><strong>References:</strong> ${f.remediation.references.joinToString(" | ") { ref -> "<a href='$ref'>$ref</a>" }}</p>")
-                sb.append("</details>")
+                sb.append("""<div class="finding ${f.severity.name}">""")
+                sb.append("<b>[${f.id}]</b> ${f.severity.emoji} <b>${f.title}</b><br>")
+                sb.append("<small>${f.category.displayName} | ${f.category.cwe} | CVSS: ${f.cvssScore} | ${f.verificationStatus.name}</small>")
+                sb.append("<p>${f.description}</p>")
+                sb.append("<p><b>Location:</b> <code>${f.location}</code></p>")
+                sb.append("<details><summary>Remediation</summary><pre>${f.remediation.codeSnippet.replace("<","&lt;")}</pre></details>")
                 sb.append("</div>")
             }
 
-            // Patch bundle
-            sb.append("<h2>📦 Patch Bundle</h2>")
-            sb.append("<pre>${report.patchBundle.take(8000).replace("<","&lt;").replace(">","&gt;")}</pre>")
             sb.append("</body></html>")
 
             val docsDir = context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOCUMENTS)
-            if (docsDir != null && !docsDir.exists()) docsDir.mkdirs()
-            val outFile = java.io.File(docsDir ?: context.cacheDir, "${report.packageName}_security_research.html")
+            docsDir?.mkdirs()
+            val outFile = java.io.File(docsDir ?: context.cacheDir, "${report.packageName}_security.html")
             outFile.writeText(sb.toString())
             outFile.absolutePath
-        } catch (e: Exception) {
-            null
-        }
+        } catch (e: Exception) { null }
     }
 
     private fun filterByMinSeverity(
@@ -461,7 +583,7 @@ object AndroidSecurityResearchTool {
         score >= 60 -> "🟠 HIGH RISK"
         score >= 40 -> "🟡 MEDIUM RISK"
         score >= 20 -> "🟢 LOW RISK"
-        else -> "⚪ MINIMAL RISK"
+        else        -> "⚪ MINIMAL RISK"
     }
 
     private fun missingPkg() = ToolExecutionResult(
@@ -470,26 +592,5 @@ object AndroidSecurityResearchTool {
     )
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// COMPOSITE TOOL MANAGER INTEGRATION PATCH
-// ═══════════════════════════════════════════════════════════════════════════════
-//
-// Add to CompositeToolManager.getToolDefinitions():
-// ──────────────────────────────────────────────────
-//     if (context != null) {
-//         addAll(AndroidSecurityResearchTool.getToolDefinitions())
-//     }
-//
-// Add to CompositeToolManager.executeTool():
-// ──────────────────────────────────────────
-//     "android_security_research" -> {
-//         val ctx = context ?: return missingContext()
-//         val action = arguments["action"] ?: return missingArg("action")
-//         AndroidSecurityResearchTool.execute(
-//             context = ctx,
-//             action = action,
-//             args = arguments
-//         )
-//     }
-//
-// ═══════════════════════════════════════════════════════════════════════════════
+// Kotlin requires this at file level due to cross-file operator overload
+operator fun Severity.compareTo(other: Severity): Int = this.score.compareTo(other.score)
