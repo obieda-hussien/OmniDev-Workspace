@@ -29,7 +29,6 @@ permissions:
 
 env:
   JAVA_VERSION: "17"
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dkotlin.incremental=false"
   GRADLE_BUILD_ACTION_CACHE_DEBUG_ENABLED: false
   MAX_DEBUG_APK_SIZE_KB: 81920
@@ -160,7 +159,6 @@ jobs:
     permissions:
       contents: read
       actions: read
-      security-events: write
 
     steps:
       - name: Checkout
@@ -200,11 +198,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: 'java'
-
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@master
         with:
@@ -214,14 +207,12 @@ jobs:
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
 
-      - name: Upload Trivy SARIF
-        uses: github/codeql-action/upload-sarif@v4
+      - name: Upload Trivy Results Artifact
+        uses: actions/upload-artifact@v6
         with:
-          sarif_file: trivy-results.sarif
-          wait-for-processing: true
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+          name: trivy-results-${{ github.run_number }}
+          path: trivy-results.sarif
+          retention-days: 14
 
   android-debug:
     name: Android Debug Build
