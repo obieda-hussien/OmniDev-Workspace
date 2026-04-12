@@ -35,6 +35,7 @@ import java.io.File
 object VulnResearchToolchain {
 
     private const val TAG = "VulnToolchain"
+    data class CustomToolSpec(val name: String, val url: String)
 
     // ─── Tool Setup ───────────────────────────────────────────────────────────
 
@@ -65,6 +66,32 @@ object VulnResearchToolchain {
         }
 
         results.put("storage_mb", "%.1f".format(OmniNativeToolsManager.totalSize(context) / 1_048_576.0))
+        results
+    }
+
+    suspend fun setupCustomTools(
+        context: Context,
+        customTools: List<CustomToolSpec>,
+        installTimeoutMs: Long = OmniNativeToolsManager.DEFAULT_INSTALL_TIMEOUT_MS,
+        onProgress: (String) -> Unit = {}
+    ): JSONObject = withContext(Dispatchers.IO) {
+        val results = JSONObject()
+        customTools.forEach { spec ->
+            onProgress("Installing custom tool ${spec.name}...")
+            val result = OmniNativeToolsManager.installCustomBinary(
+                context = context,
+                name = spec.name,
+                downloadUrl = spec.url,
+                installTimeoutMs = installTimeoutMs
+            )
+            val key = "custom_${spec.name}"
+            if (result.isSuccess) {
+                val path = result.getOrNull()?.absolutePath.orEmpty()
+                results.put(key, "✅ installed ($path)")
+            } else {
+                results.put(key, "❌ ${result.exceptionOrNull()?.message}")
+            }
+        }
         results
     }
 

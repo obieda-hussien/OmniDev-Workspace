@@ -158,6 +158,13 @@ Output is formatted for readability. Use output_format=json for machine parsing.
                     required = false
                 ),
                 ToolParameter(
+                    name = "custom_tool_specs",
+                    type = "string",
+                    description = "For action=setup_tools: semicolon-separated custom direct-download tools in format " +
+                            "'name|url;name2|url2'. Example: curl|https://example.com/curl-aarch64 (HTTPS only).",
+                    required = false
+                ),
+                ToolParameter(
                     name = "setup_timeout_seconds",
                     type = "string",
                     description = "For action=setup_tools: per-tool install timeout in seconds (30-3600). Default: 3600 (1 hour).",
@@ -241,6 +248,16 @@ Output is formatted for readability. Use output_format=json for machine parsing.
                 val requestedTimeoutSeconds = args["setup_timeout_seconds"]?.toLongOrNull() ?: 3600L
                 val effectiveTimeoutSeconds = requestedTimeoutSeconds.coerceIn(30L, 3600L)
                 val installTimeoutMs = effectiveTimeoutSeconds * 1_000L
+                val rawCustomSpecs = args["custom_tool_specs"]?.trim()
+                val parsedCustomTools = parseCustomToolSpecs(rawCustomSpecs)
+                val customToolSpecs = parsedCustomTools.valid
+                if (!rawCustomSpecs.isNullOrBlank() && customToolSpecs.isEmpty()) {
+                    return@withContext ToolExecutionResult(
+                        "No valid custom tools in 'custom_tool_specs'. Format: name|url;name2|url2 (HTTPS only). " +
+                                "Invalid entries: ${parsedCustomTools.invalid.joinToString(", ")}",
+                        isError = true
+                    )
+                }
                 val progressLines = mutableListOf<String>()
                 val result = VulnResearchToolchain.setupTools(
                     context = context,
@@ -249,10 +266,28 @@ Output is formatted for readability. Use output_format=json for machine parsing.
                 ) { msg ->
                     progressLines.add(msg)
                 }
+                if (customToolSpecs.isNotEmpty()) {
+                    val customResults = VulnResearchToolchain.setupCustomTools(
+                        context = context,
+                        customTools = customToolSpecs,
+                        installTimeoutMs = installTimeoutMs
+                    ) { msg ->
+                        progressLines.add(msg)
+                    }
+                    customResults.keys().forEach { key ->
+                        result.put(key, customResults.optString(key))
+                    }
+                }
                 val output = buildString {
                     appendLine("═══ Tool Setup Complete ═══")
                     appendLine()
                     appendLine("Requested tools: ${selectedTools.joinToString(", ") { it.displayName }}")
+                    if (customToolSpecs.isNotEmpty()) {
+                        appendLine("Custom tools: ${customToolSpecs.joinToString(", ") { "${it.name} (${it.url})" }}")
+                    }
+                    if (parsedCustomTools.invalid.isNotEmpty()) {
+                        appendLine("Ignored invalid custom entries: ${parsedCustomTools.invalid.joinToString(", ")}")
+                    }
                     appendLine("Per-tool timeout: ${installTimeoutMs / 1000}s")
                     if (effectiveTimeoutSeconds != requestedTimeoutSeconds) {
                         appendLine(
@@ -264,6 +299,10 @@ Output is formatted for readability. Use output_format=json for machine parsing.
                     selectedTools.forEach { tool ->
                         val status = result.optString(tool.name, "unknown")
                         appendLine("  ${tool.displayName.padEnd(15)} $status")
+                    }
+                    customToolSpecs.forEach { custom ->
+                        val status = result.optString("custom_${custom.name}", "unknown")
+                        appendLine("  ${custom.name.padEnd(15)} $status")
                     }
                     appendLine()
                     appendLine("Total installed: ${result.optString("storage_mb")} MB")
@@ -1246,6 +1285,47 @@ summary{cursor:pointer;font-weight:bold}
             .mapNotNull { aliasToTool[it] }
             .distinct()
     }
+
+    private fun parseCustomToolSpecs(raw: String?): CustomToolParseResult {
+        if (raw.isNullOrBlank()) return CustomToolParseResult(emptyList(), emptyList())
+
+        val valid = mutableListOf<VulnResearchToolchain.CustomToolSpec>()
+        val invalid = mutableListOf<String>()
+
+        raw.split(";").forEach { entry ->
+            val trimmed = entry.trim()
+            if (trimmed.isBlank()) return@forEach
+
+            val idx = trimmed.indexOf('|')
+            if (idx <= 0 || idx >= trimmed.length - 1) {
+                invalid.add("$trimmed (expected name|url)")
+                return@forEach
+            }
+
+            val rawName = trimmed.substring(0, idx).trim()
+            val url = trimmed.substring(idx + 1).trim()
+            val safeName = OmniNativeToolsManager.normalizeCustomToolName(rawName)
+            if (safeName == null) {
+                invalid.add("$trimmed (invalid name)")
+                return@forEach
+            }
+            if (!OmniNativeToolsManager.isSupportedCustomToolUrl(url)) {
+                invalid.add("$trimmed (url must use https)")
+                return@forEach
+            }
+            valid.add(VulnResearchToolchain.CustomToolSpec(name = safeName, url = url))
+        }
+
+        return CustomToolParseResult(
+            valid = valid.distinctBy { it.name },
+            invalid = invalid
+        )
+    }
+
+    private data class CustomToolParseResult(
+        val valid: List<VulnResearchToolchain.CustomToolSpec>,
+        val invalid: List<String>
+    )
 
     private fun missingPkg() = ToolExecutionResult(
         "Missing required argument: package_name. Example: package_name=com.example.app",

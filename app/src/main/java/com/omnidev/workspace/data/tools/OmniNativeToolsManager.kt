@@ -131,7 +131,7 @@ object OmniNativeToolsManager {
 
     fun init(context: Context) {
         rootDir = File(context.filesDir, "omnidev_tools").also { base ->
-            listOf("bin", "jars", "python", "scripts", "work").forEach {
+            listOf("bin", "jars", "python", "scripts", "work", "custom/bin").forEach {
                 File(base, it).mkdirs()
             }
         }
@@ -185,6 +185,72 @@ object OmniNativeToolsManager {
                 return@withLock Result.success(execFile(context, tool))
             }
             download(context, tool, installTimeoutMs)
+        }
+    }
+
+    /**
+     * Install a custom downloadable binary into omnidev_tools/custom/bin.
+     * Expects a direct executable URL (not archive) and marks it executable.
+     */
+    suspend fun installCustomBinary(
+        context: Context,
+        name: String,
+        downloadUrl: String,
+        installTimeoutMs: Long = DEFAULT_INSTALL_TIMEOUT_MS
+    ): Result<File> = withContext(Dispatchers.IO) {
+        val safeName = normalizeCustomToolName(name)
+        if (safeName == null) {
+            return@withContext Result.failure(IllegalArgumentException("Custom tool name is invalid"))
+        }
+        if (!isSupportedCustomToolUrl(downloadUrl)) {
+            return@withContext Result.failure(IllegalArgumentException("Custom tool URL must use https://"))
+        }
+
+        downloadLock.withLock {
+            val dest = File(root(context), "custom/bin/$safeName")
+            if (dest.exists()) return@withLock Result.success(dest)
+
+            val temp = File(root(context), "work/tmp_custom_${safeName}_${System.currentTimeMillis()}")
+            val installResult = withTimeoutOrNull(installTimeoutMs) {
+                try {
+                    downloadFile(downloadUrl, temp) { _ -> }
+                    if (temp.length() <= 0L) {
+                        return@withTimeoutOrNull Result.failure<File>(
+                            IllegalStateException("Downloaded file is empty for custom tool '$safeName'")
+                        )
+                    }
+                    if (!isLikelyExecutableDownload(temp)) {
+                        return@withTimeoutOrNull Result.failure<File>(
+                            IllegalArgumentException(
+                                "Custom tool '$safeName' must be a direct executable binary/script (ELF or shebang)"
+                            )
+                        )
+                    }
+                    dest.parentFile?.mkdirs()
+                    temp.copyTo(dest, overwrite = true)
+
+                    val chmodResult = ShizukuCommandTool.execute(
+                        "chmod 755 '${dest.absolutePath}'",
+                        timeoutMs = installTimeoutMs
+                    )
+                    if (chmodResult !is ShizukuResult.Success && chmodResult !is ShizukuResult.PartialSuccess) {
+                        val chmodFallbackOk = dest.setExecutable(true, true)
+                        if (!chmodFallbackOk) {
+                            return@withTimeoutOrNull Result.failure<File>(
+                                IllegalStateException("Failed to mark custom tool '$safeName' as executable")
+                            )
+                        }
+                    }
+                    Result.success(dest)
+                } catch (e: Exception) {
+                    Result.failure<File>(e)
+                } finally {
+                    temp.delete()
+                }
+            }
+            installResult ?: Result.failure(
+                Exception("Custom install timed out after ${formatSeconds(installTimeoutMs)} for $safeName")
+            )
         }
     }
 
@@ -575,6 +641,37 @@ object OmniNativeToolsManager {
             while (ins.read(buf).also { n = it } != -1) md.update(buf, 0, n)
         }
         return md.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    fun normalizeCustomToolName(raw: String): String? {
+        val normalized = raw.trim().lowercase()
+            .replace(Regex("[^a-z0-9._-]"), "_")
+            .take(64)
+        if (normalized.isBlank()) return null
+        if (normalized.contains("..")) return null
+        if (normalized.startsWith(".")) return null
+        return normalized
+    }
+
+    fun isSupportedCustomToolUrl(url: String): Boolean = url.startsWith("https://")
+
+    private fun isLikelyExecutableDownload(file: File): Boolean {
+        file.inputStream().use { ins ->
+            val header4 = ByteArray(4)
+            val read = ins.read(header4)
+            if (read >= 4 &&
+                header4[0] == 0x7f.toByte() &&
+                header4[1] == 'E'.code.toByte() &&
+                header4[2] == 'L'.code.toByte() &&
+                header4[3] == 'F'.code.toByte()
+            ) {
+                return true
+            }
+            if (read >= 2 && header4[0] == '#'.code.toByte() && header4[1] == '!'.code.toByte()) {
+                return true
+            }
+        }
+        return false
     }
 
     private fun formatSeconds(ms: Long): String {
