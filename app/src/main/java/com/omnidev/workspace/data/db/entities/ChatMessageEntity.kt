@@ -15,6 +15,8 @@ import androidx.room.PrimaryKey
  * @property timestamp Unix timestamp (ms) when this message was created.
  * @property consoleEntriesJson JSON-serialized agent console entries associated with this message.
  *   Non-empty only for ASSISTANT messages produced by the agent/swarm pipeline.
+ * @property messageId Stable UUID string for cross-referencing replies. Populated on insert.
+ * @property replyToMessageId When non-null, the [messageId] of the message this is replying to.
  */
 @Entity(
     tableName = "chat_messages",
@@ -26,7 +28,7 @@ import androidx.room.PrimaryKey
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index("sessionId")]
+    indices = [Index("sessionId"), Index("messageId")]
 )
 data class ChatMessageEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -34,5 +36,7 @@ data class ChatMessageEntity(
     val role: String,
     val content: String,
     val timestamp: Long = System.currentTimeMillis(),
-    val consoleEntriesJson: String = ""
+    val consoleEntriesJson: String = "",
+    val messageId: String = "",
+    val replyToMessageId: String? = null
 )

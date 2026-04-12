@@ -48,6 +48,11 @@ object AgentConsoleSerializer {
                     obj.put("totalTokens", entry.totalTokens)
                     if (entry.budget != null) obj.put("budget", entry.budget)
                 }
+                is AgentConsoleEntry.PhaseEntry -> {
+                    obj.put("type", "phase")
+                    obj.put("phase", entry.phase)
+                    if (!entry.detail.isNullOrBlank()) obj.put("detail", entry.detail)
+                }
                 is AgentConsoleEntry.ReplyEntry -> {
                     obj.put("type", "reply")
                 }
@@ -101,6 +106,12 @@ object AgentConsoleSerializer {
                     "token" -> AgentConsoleEntry.TokenEntry(
                         totalTokens = obj.getInt("totalTokens"),
                         budget = if (obj.has("budget")) obj.getInt("budget") else null,
+                        timestamp = ts,
+                        id = id
+                    )
+                    "phase" -> AgentConsoleEntry.PhaseEntry(
+                        phase = obj.getString("phase"),
+                        detail = obj.optString("detail").takeIf { it.isNotBlank() },
                         timestamp = ts,
                         id = id
                     )

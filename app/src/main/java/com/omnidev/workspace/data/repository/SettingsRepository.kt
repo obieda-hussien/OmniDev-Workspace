@@ -95,6 +95,10 @@ class SettingsRepository(private val context: Context) {
         val LOCAL_MODEL_NAME = stringPreferencesKey("local_model_name")
         // Local Engine Selection (llama.cpp vs BitNet.cpp)
         val LOCAL_ENGINE_TYPE = stringPreferencesKey("local_engine_type")
+        // Local model inference parameters (user-configurable)
+        val LOCAL_MODEL_CONTEXT_SIZE = stringPreferencesKey("local_model_context_size")
+        val LOCAL_MODEL_THREADS = stringPreferencesKey("local_model_threads")
+        val LOCAL_MODEL_TEMPERATURE = stringPreferencesKey("local_model_temperature")
         // User Profile
         val USER_NAME = stringPreferencesKey("user_name")
         val USER_PERSONA = stringPreferencesKey("user_persona")
@@ -529,6 +533,48 @@ class SettingsRepository(private val context: Context) {
     suspend fun setLocalEngineType(engineType: String) {
         context.settingsDataStore.edit { prefs ->
             prefs[Keys.LOCAL_ENGINE_TYPE] = engineType
+        }
+    }
+
+    /**
+     * User-specified context window size (tokens) for local model inference.
+     * Returns null when the user has not set a value (adaptive sizing is used instead).
+     */
+    fun observeLocalModelContextSize(): Flow<Int?> =
+        context.settingsDataStore.data.map { it[Keys.LOCAL_MODEL_CONTEXT_SIZE]?.toIntOrNull() }
+
+    suspend fun setLocalModelContextSize(size: Int?) {
+        context.settingsDataStore.edit { prefs ->
+            if (size == null) prefs.remove(Keys.LOCAL_MODEL_CONTEXT_SIZE)
+            else prefs[Keys.LOCAL_MODEL_CONTEXT_SIZE] = size.toString()
+        }
+    }
+
+    /**
+     * User-specified number of CPU threads for local model inference.
+     * Returns null when the user has not set a value (auto-detection is used instead).
+     */
+    fun observeLocalModelThreads(): Flow<Int?> =
+        context.settingsDataStore.data.map { it[Keys.LOCAL_MODEL_THREADS]?.toIntOrNull() }
+
+    suspend fun setLocalModelThreads(threads: Int?) {
+        context.settingsDataStore.edit { prefs ->
+            if (threads == null) prefs.remove(Keys.LOCAL_MODEL_THREADS)
+            else prefs[Keys.LOCAL_MODEL_THREADS] = threads.toString()
+        }
+    }
+
+    /**
+     * User-specified generation temperature for local model inference (0.0–2.0).
+     * Returns null when the user has not set a value (engine default is used).
+     */
+    fun observeLocalModelTemperature(): Flow<Float?> =
+        context.settingsDataStore.data.map { it[Keys.LOCAL_MODEL_TEMPERATURE]?.toFloatOrNull() }
+
+    suspend fun setLocalModelTemperature(temperature: Float?) {
+        context.settingsDataStore.edit { prefs ->
+            if (temperature == null) prefs.remove(Keys.LOCAL_MODEL_TEMPERATURE)
+            else prefs[Keys.LOCAL_MODEL_TEMPERATURE] = temperature.toString()
         }
     }
 

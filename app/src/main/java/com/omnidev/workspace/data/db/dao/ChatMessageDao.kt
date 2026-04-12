@@ -18,6 +18,14 @@ interface ChatMessageDao {
     @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     suspend fun getBySession(sessionId: Long): List<ChatMessageEntity>
 
+    @Query("SELECT * FROM chat_messages WHERE messageId = :messageId LIMIT 1")
+    suspend fun getByMessageId(messageId: String): ChatMessageEntity?
+
+    @Query(
+        "SELECT * FROM chat_messages WHERE sessionId = :sessionId AND content LIKE '%' || :query || '%' ORDER BY timestamp ASC"
+    )
+    suspend fun searchByContent(sessionId: Long, query: String): List<ChatMessageEntity>
+
     @Query("DELETE FROM chat_messages WHERE sessionId = :sessionId")
     suspend fun deleteBySession(sessionId: Long)
 }

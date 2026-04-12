@@ -138,6 +138,7 @@ fun AgentLiveConsole(
                 is AgentConsoleEntry.ToolEntry         -> appendLine("${prefix}RUN    ${entry.toolName}(${entry.fullParams})")
                 is AgentConsoleEntry.ResultEntry       -> appendLine("${prefix}${if (entry.isError) "ERR" else "OK"}     ${entry.toolName}: ${entry.fullOutput}")
                 is AgentConsoleEntry.TokenEntry        -> appendLine("${prefix}TOKENS ${entry.totalTokens} used${entry.budget?.let { " / $it budget" } ?: ""}")
+                is AgentConsoleEntry.PhaseEntry        -> appendLine("${prefix}PHASE  ${entry.phase}${entry.detail?.let { " — $it" } ?: ""}")
                 is AgentConsoleEntry.ReplyEntry        -> appendLine("${prefix}REPLY  Generating final response...")
                 is AgentConsoleEntry.ErrorEntry        -> appendLine("${prefix}ERROR  ${entry.message}")
             }
@@ -316,6 +317,11 @@ private fun ConsoleLogLine(
                 } ?: ""}",
                 null)
 
+        is AgentConsoleEntry.PhaseEntry ->
+            ConsoleRowData("🧭", "PHASE", TerminalOrange,
+                "${entry.phase}${entry.detail?.let { " — ${it.take(60)}" } ?: ""}",
+                entry.phase, entry.detail)
+
         is AgentConsoleEntry.ReplyEntry ->
             ConsoleRowData("💬", "REPLY", TerminalCyan,
                 "Generating final response...", "Generating final response...", null)
@@ -425,4 +431,3 @@ private fun formatElapsedShort(ms: Long): String = when {
     ms < 60_000 -> "${"%.1f".format(Locale.US, ms / 1000.0)}s"
     else        -> "${ms / 60000}m${(ms % 60000) / 1000}s"
 }
-

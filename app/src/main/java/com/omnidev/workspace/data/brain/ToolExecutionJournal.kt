@@ -384,6 +384,10 @@ class ToolExecutionJournal(
 
     fun observeRecentExecutions(): Flow<List<ToolExecutionEntry>> = dao.observeRecent()
 
+    suspend fun deleteExecutionById(id: Long) = withContext(Dispatchers.IO) {
+        dao.deleteById(id)
+    }
+
     // ─── Data Classes ─────────────────────────────────────────────────
 
     data class ToolHistoryReport(

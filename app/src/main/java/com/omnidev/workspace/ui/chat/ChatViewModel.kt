@@ -14,12 +14,14 @@ import com.omnidev.workspace.data.repository.AnalyticsRepository
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.FileToolManager
 import com.omnidev.workspace.data.voice.VoiceAssistantService
 import com.omnidev.workspace.data.voice.VoiceManager
 import com.omnidev.workspace.domain.attachment.AttachmentProcessor
 import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
+import com.omnidev.workspace.domain.engine.AgentExecutionPhase
 import com.omnidev.workspace.domain.engine.AgentEvent
 import com.omnidev.workspace.domain.engine.AgentPipeline
 import com.omnidev.workspace.domain.engine.IntentClassifier
@@ -95,7 +97,9 @@ data class ChatUiState(
     /** Whether TTS is currently speaking an agent response. */
     val isSpeaking: Boolean = false,
     /** Latest partial STT transcript shown as hint while speaking. */
-    val partialTranscript: String? = null
+    val partialTranscript: String? = null,
+    /** When non-null, the user has activated a threaded reply to this message. */
+    val replyingTo: ChatMessage? = null
 )
 
 /**
@@ -112,6 +116,8 @@ data class ChatUiState(
  *        callback that receives each text-delta chunk as it arrives from the SSE stream.
  * @param swarmOrchestrator Optional orchestrator engine for SWARM mode.
  * @param fileToolManager Optional reference to the [FileToolManager] for syncing God Mode.
+ * @param compositeToolManager Optional reference to [CompositeToolManager] used to propagate the
+ *   current session ID so the [search_messages] tool can scope database queries.
  */
 class ChatViewModel(
     private val settingsRepository: SettingsRepository,
@@ -124,7 +130,8 @@ class ChatViewModel(
     private val apiKeyRepository: ApiKeyRepository? = null,
     private val fileToolManager: FileToolManager? = null,
     private val autoHealBuildUseCase: com.omnidev.workspace.domain.engine.AutoHealBuildUseCase? = null,
-    private val analyticsRepository: AnalyticsRepository? = null
+    private val analyticsRepository: AnalyticsRepository? = null,
+    private val compositeToolManager: CompositeToolManager? = null
 ) : ViewModel() {
 
     companion object {
@@ -257,6 +264,7 @@ class ChatViewModel(
     fun loadSession(sessionId: Long) {
         viewModelScope.launch {
             val (messages, consoleMap) = chatRepository?.loadMessages(sessionId) ?: return@launch
+            compositeToolManager?.currentSessionId = sessionId
             _uiState.update {
                 it.copy(
                     currentSessionId = sessionId,
@@ -382,6 +390,19 @@ class ChatViewModel(
     }
 
     /**
+     * Activates threaded-reply mode for [message].
+     * The reply-preview bar is shown above the input field until the user sends or dismisses it.
+     */
+    fun setReplyingTo(message: ChatMessage) {
+        _uiState.update { it.copy(replyingTo = message) }
+    }
+
+    /** Clears the pending reply target (dismiss the reply-preview bar). */
+    fun clearReplyingTo() {
+        _uiState.update { it.copy(replyingTo = null) }
+    }
+
+    /**
      * Sets the Target Context scope path directly (legacy / testing use).
      */
     fun setTargetContext(path: String?) {
@@ -460,9 +481,17 @@ class ChatViewModel(
             "\n\n[Attached files: ${attachments.joinToString(", ") { it.displayName }}]"
         } else ""
 
+        // Embed reply reference so both the UI and the agent know what message is being replied to.
+        val replyingTo = _uiState.value.replyingTo
+        val replyPrefix = replyingTo?.let { ref ->
+            val senderLabel = if (ref.role == MessageRole.USER) "you" else "OmniDev"
+            "[Replying to $senderLabel: \"${ref.content.take(150).replace("\n", " ")}\"]\n\n"
+        } ?: ""
+
         val userMessage = ChatMessage(
             role = MessageRole.USER,
-            content = input + attachmentNote
+            content = replyPrefix + input + attachmentNote,
+            replyToMessageId = replyingTo?.messageId
         )
 
         _uiState.update {
@@ -473,7 +502,8 @@ class ChatViewModel(
                 agentStatus = "Starting ${mode.label}...",
                 errorMessage = null,
                 consoleEntries = emptyList(), // fresh console for each run
-                pendingAttachments = emptyList() // clear after send
+                pendingAttachments = emptyList(), // clear after send
+                replyingTo = null // clear after send
             )
         }
 
@@ -837,6 +867,18 @@ class ChatViewModel(
                     )
                 }
 
+            is AgentEvent.PhaseChanged ->
+                _uiState.update {
+                    it.copy(
+                        agentStatus = "Phase: ${event.phase.displayLabel}",
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.PhaseEntry(
+                                phase = event.phase.displayLabel,
+                                detail = event.detail
+                            )
+                    )
+                }
+
             is AgentEvent.Reflecting ->
                 _uiState.update {
                     it.copy(agentStatus = "🔍 Self-reflection (reviewing draft answer)...")
@@ -935,6 +977,8 @@ class ChatViewModel(
                     "• Deep thinking: ${sanitizeCheckpointText(entry.snippet, CHECKPOINT_DEEP_THINKING_PREVIEW_CHARS)}"
                 is AgentConsoleEntry.TokenEntry ->
                     "• Tokens used: ${entry.totalTokens}"
+                is AgentConsoleEntry.PhaseEntry ->
+                    "• Phase: ${entry.phase}${entry.detail?.let { " — ${sanitizeCheckpointText(it, CHECKPOINT_TOOL_PARAMS_PREVIEW_CHARS)}" } ?: ""}"
                 is AgentConsoleEntry.ErrorEntry ->
                     "• Error observed: ${sanitizeCheckpointText(entry.message, CHECKPOINT_ERROR_PREVIEW_CHARS)}"
                 is AgentConsoleEntry.ReplyEntry -> null
@@ -970,6 +1014,14 @@ class ChatViewModel(
         role = MessageRole.ASSISTANT,
         content = "Run status: $statusText"
     )
+
+    private val AgentExecutionPhase.displayLabel: String
+        get() = when (this) {
+            AgentExecutionPhase.ANALYZE -> "Analyze"
+            AgentExecutionPhase.IMPLEMENT -> "Implement"
+            AgentExecutionPhase.VERIFY -> "Verify"
+            AgentExecutionPhase.REPORT -> "Report"
+        }
 
     private fun sanitizeCheckpointText(value: String, maxChars: Int): String {
         return value
@@ -1133,6 +1185,7 @@ class ChatViewModel(
 
         val title = firstMessage.take(50).ifBlank { "New conversation" }
         val newId = chatRepository?.createSession(title) ?: -1L
+        compositeToolManager?.currentSessionId = newId
         _uiState.update { it.copy(currentSessionId = newId) }
         return newId
     }

@@ -39,7 +39,8 @@ class SwarmOrchestrator(
     private val completionProvider: suspend (CompletionRequest) -> CompletionResponse,
     private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null,
     private val memoryManager: com.omnidev.workspace.data.tools.MemoryManager? = null,
-    private val streamingCompletionProvider: (suspend (CompletionRequest, suspend (String) -> Unit) -> CompletionResponse)? = null
+    private val streamingCompletionProvider: (suspend (CompletionRequest, suspend (String) -> Unit) -> CompletionResponse)? = null,
+    private val smartLearningBridge: com.omnidev.workspace.data.brain.SmartLearningBridge? = null
 ) {
 
     companion object {
@@ -226,7 +227,8 @@ CRITICAL INSTRUCTIONS:
                             completionProvider = completionProvider,
                             streamingCompletionProvider = streamingCompletionProvider,
                             apiKeyRepository = apiKeyRepository,
-                            memoryManager = memoryManager
+                            memoryManager = memoryManager,
+                            smartLearningBridge = smartLearningBridge
                         )
                         var taskResult = ""
                         var taskError: String? = null

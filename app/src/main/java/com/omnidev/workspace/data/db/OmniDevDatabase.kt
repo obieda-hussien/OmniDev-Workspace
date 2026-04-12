@@ -33,6 +33,7 @@ import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
  *  6 → added `consoleEntriesJson` column to `chat_messages`
  *  7 → added `tool_execution_log` and `system_knowledge` tables (Agent Brain)
  *  8 → normalize `tool_execution_log` and `system_knowledge` schemas to match Room entity metadata
+ *  9 → added `messageId` and `replyToMessageId` columns to `chat_messages` for threaded replies
  */
 @Database(
     entities = [
@@ -42,7 +43,7 @@ import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
         ToolExecutionEntry::class,
         SystemKnowledgeEntry::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -340,6 +341,20 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from v8 → v9:
+         * Adds `messageId` (stable UUID string for each message) and `replyToMessageId`
+         * (nullable reference to the messageId of the message being replied to) to the
+         * `chat_messages` table. Enables WhatsApp-style threaded replies.
+         */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN messageId TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN replyToMessageId TEXT")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_chat_messages_messageId ON chat_messages(messageId)")
+            }
+        }
+
         private fun SupportSQLiteDatabase.scalarLong(sql: String): Long =
             query(sql).use { cursor ->
                 if (cursor.moveToFirst()) cursor.getLong(0) else 0L
@@ -359,7 +374,8 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         MIGRATION_4_5,
                         MIGRATION_5_6,
                         MIGRATION_6_7,
-                        MIGRATION_7_8
+                        MIGRATION_7_8,
+                        MIGRATION_8_9
                     )
                     .build().also { INSTANCE = it }
             }

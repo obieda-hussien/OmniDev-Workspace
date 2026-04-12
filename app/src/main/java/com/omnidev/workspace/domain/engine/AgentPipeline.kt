@@ -329,6 +329,30 @@ You are a Senior Linux Sysadmin. NEVER blindly assume a command succeeded. Follo
 """
 
         /**
+         * Agent V2 execution framework:
+         * - Structured phases (Analyze → Implement → Verify → Report)
+         * - Stronger context continuity and decision logging
+         * - Intent-aware tool orchestration with safe parallelism
+         * - Mandatory self-validation and corrective retries
+         * - Pre-response quality gates
+         */
+        private const val AGENT_V2_EXECUTION_PROTOCOL = """
+
+## AGENT V2 EXECUTION FRAMEWORK (MANDATORY)
+Execute every task in four phases:
+1. ANALYZE: identify objective, constraints, and affected files/tools.
+2. IMPLEMENT: apply the smallest correct change set.
+3. VERIFY: run checks relevant to the change (build/tests/lint/command-output verification).
+4. REPORT: summarize exactly what changed and why.
+
+Rules:
+- Maintain continuity: track decisions, assumptions, and failed attempts within the same run.
+- Prefer intent-matched tools (e.g. file edits → file tools, runtime checks → terminal tools) and parallelize only independent, non-conflicting calls.
+- On verification failure, self-correct and retry with a different strategy before giving up.
+- Apply quality gates before final answer: no unresolved errors, no unverified claims, and no changes beyond the stated objective.
+"""
+
+        /**
          * Autonomous memory management directive injected into every system prompt.
          * Instructs the agent to behave like MemGPT — proactively reading and writing
          * long-term memory without waiting for explicit user instructions.
@@ -512,6 +536,17 @@ Rules:
         userContext: String? = null
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.Started)
+        var activePhase: AgentExecutionPhase? = null
+        suspend fun transitionPhase(phase: AgentExecutionPhase, detail: String? = null) {
+            if (activePhase != phase) {
+                activePhase = phase
+                send(AgentEvent.PhaseChanged(phase = phase, detail = detail))
+            }
+        }
+        transitionPhase(
+            AgentExecutionPhase.ANALYZE,
+            "Reviewing request, context, and constraints"
+        )
 
         val model = ModelRegistry.findModelById(modelId)
             ?: run {
@@ -574,6 +609,8 @@ Rules:
             // Self-verification directive — forces the agent to verify results, check exit codes,
             // and read back changes instead of blindly assuming success.
             append(SELF_VERIFY_DIRECTIVE)
+            // Agent V2 execution framework — phased execution + orchestration + quality gates.
+            append(AGENT_V2_EXECUTION_PROTOCOL)
             // Autonomous memory directive — always injected so the agent proactively manages memory
             if (memoryManager != null) {
                 append(MEMORY_DIRECTIVE.trimIndent())
@@ -745,6 +782,10 @@ Rules:
 
             // ── No tool calls → Final answer ──
             if (response.toolCalls.isEmpty()) {
+                transitionPhase(
+                    AgentExecutionPhase.VERIFY,
+                    "Validating completeness before final response"
+                )
                 val assistantMessage = ChatMessage(
                     role = MessageRole.ASSISTANT,
                     content = response.content,
@@ -817,6 +858,10 @@ Rules:
                     response.content
                 }
 
+                transitionPhase(
+                    AgentExecutionPhase.REPORT,
+                    "Publishing final answer"
+                )
                 send(AgentEvent.FinalAnswer(
                     content = finalContent,
                     totalIterations = iteration,
@@ -827,6 +872,10 @@ Rules:
             }
 
             // ── Tool calls present → Execute and observe ──
+            transitionPhase(
+                AgentExecutionPhase.IMPLEMENT,
+                "Executing planned tool operations"
+            )
             val assistantMessage = ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = response.content,
@@ -1234,6 +1283,16 @@ Rules:
 }
 
 /**
+ * High-level execution phases surfaced to UI consumers (e.g. Agent Console).
+ */
+enum class AgentExecutionPhase {
+    ANALYZE,
+    IMPLEMENT,
+    VERIFY,
+    REPORT
+}
+
+/**
  * Events emitted by the [AgentPipeline] during ReAct loop execution.
  * These drive the UI's real-time streaming display.
  */
@@ -1267,6 +1326,12 @@ sealed class AgentEvent {
         val iterationTokens: Int,
         val totalTokens: Int,
         val budget: Int?
+    ) : AgentEvent()
+
+    /** High-level Agent V2 phase transition (Analyze/Implement/Verify/Report). */
+    data class PhaseChanged(
+        val phase: AgentExecutionPhase,
+        val detail: String? = null
     ) : AgentEvent()
 
     /** A streaming text delta chunk from the model's SSE response. */

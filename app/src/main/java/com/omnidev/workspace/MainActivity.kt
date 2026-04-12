@@ -74,11 +74,13 @@ class MainActivity : ComponentActivity() {
             notionPublisherTool = notionPublisherTool,
             vectorMemoryManager = VectorMemoryManager(database.knowledgeDao()),
             apiKeyRepository = apiKeyRepository,
-            headlessBrowserManager = HeadlessBrowserManager(applicationContext)
+            headlessBrowserManager = HeadlessBrowserManager(applicationContext),
+            chatRepository = chatRepository
         )
 
         // Real HTTP completion provider
         val completionService = CompletionService()
+        val app = OmniDevApp.instance
         val completionProvider: suspend (com.omnidev.workspace.data.model.CompletionRequest) -> com.omnidev.workspace.data.model.CompletionResponse =
             completionService::invoke
 
@@ -90,7 +92,8 @@ class MainActivity : ComponentActivity() {
             },
             config = AgentConfig.THOROUGH,
             apiKeyRepository = apiKeyRepository,
-            memoryManager = memoryManager
+            memoryManager = memoryManager,
+            smartLearningBridge = app.smartLearningBridge
         )
 
         // Swarm orchestrator for Team Agents mode
@@ -99,6 +102,7 @@ class MainActivity : ComponentActivity() {
             completionProvider = completionProvider,
             apiKeyRepository = apiKeyRepository,
             memoryManager = memoryManager,
+            smartLearningBridge = app.smartLearningBridge,
             streamingCompletionProvider = { request, onChunk ->
                 completionService.stream(request, onChunk)
             }
@@ -126,7 +130,8 @@ class MainActivity : ComponentActivity() {
             swarmOrchestrator = swarmOrchestrator,
             apiKeyRepository = apiKeyRepository,
             fileToolManager = fileToolManager,
-            autoHealBuildUseCase = autoHealBuildUseCase
+            autoHealBuildUseCase = autoHealBuildUseCase,
+            compositeToolManager = toolManager
         )
         val providersViewModel = ProvidersViewModel(apiKeyRepository)
 
