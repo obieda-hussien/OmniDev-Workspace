@@ -230,6 +230,9 @@ class CompositeToolManager(
             addAll(WidgetGeneratorTool.getToolDefinitions())
             // ── Dynamic Self-Sandbox Tool ────────────────────────────────────
             addAll(AgentSandboxTool.getToolDefinitions())
+            if (context != null) {
+                addAll(com.omnidev.workspace.data.tools.security.AndroidSecurityResearchTool.getToolDefinitions())
+            }
             addAll(PermissionManagerTool.getToolDefinitions())
             addAll(VPNControlTool.getToolDefinitions())
             addAll(SystemPowerTool.getToolDefinitions())
@@ -1352,6 +1355,16 @@ class CompositeToolManager(
                     }
                     else -> ToolExecutionResult("Unknown tool_monitoring action '$action'.", isError = true)
                 }
+            }
+
+            "android_security_research" -> {
+                val ctx = context ?: return missingContext()
+                val action = arguments["action"] ?: return missingArg("action")
+                com.omnidev.workspace.data.tools.security.AndroidSecurityResearchTool.execute(
+                    context = ctx,
+                    action = action,
+                    args = arguments
+                )
             }
 
             // ── File tools (default fallback) ──
