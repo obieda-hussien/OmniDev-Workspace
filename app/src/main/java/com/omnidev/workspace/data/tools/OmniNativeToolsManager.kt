@@ -43,7 +43,7 @@ object OmniNativeToolsManager {
     private const val CONNECT_TIMEOUT_MS = 30_000
     private const val READ_TIMEOUT_MS = 120_000
     private const val DEFAULT_EXEC_TIMEOUT_MS = 45_000L
-    private const val DEFAULT_INSTALL_TIMEOUT_MS = 3_600_000L
+    const val DEFAULT_INSTALL_TIMEOUT_MS = 3_600_000L
 
     // ─── Tool Registry ────────────────────────────────────────────────────────
 
@@ -396,7 +396,7 @@ object OmniNativeToolsManager {
                 }
             }
             installResult ?: Result.failure(
-                Exception("Install timed out after ${installTimeoutMs / 1000}s for ${tool.displayName}")
+                Exception("Install timed out after ${formatSeconds(installTimeoutMs)} for ${tool.displayName}")
             )
         }
 
@@ -575,6 +575,16 @@ object OmniNativeToolsManager {
             while (ins.read(buf).also { n = it } != -1) md.update(buf, 0, n)
         }
         return md.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private fun formatSeconds(ms: Long): String {
+        val seconds = ms / 1000.0
+        val isWholeSeconds = kotlin.math.abs(seconds - seconds.toLong()) < 1e-6
+        return if (isWholeSeconds) {
+            "${seconds.toLong()}s"
+        } else {
+            "%.1fs".format(seconds)
+        }
     }
 
     // ─── Built-in Python Scripts ──────────────────────────────────────────────

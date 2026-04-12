@@ -49,9 +49,10 @@ object VulnResearchToolchain {
             OmniNativeToolsManager.Tool.BUSYBOX,
             OmniNativeToolsManager.Tool.JADX,
             OmniNativeToolsManager.Tool.APKTOOL,
-            OmniNativeToolsManager.Tool.PYTHON
+            OmniNativeToolsManager.Tool.PYTHON,
+            OmniNativeToolsManager.Tool.DEX2JAR
         ),
-        installTimeoutMs: Long = 3_600_000L,
+        installTimeoutMs: Long = OmniNativeToolsManager.DEFAULT_INSTALL_TIMEOUT_MS,
         onProgress: (String) -> Unit = {}
     ): JSONObject = withContext(Dispatchers.IO) {
         val results = JSONObject()

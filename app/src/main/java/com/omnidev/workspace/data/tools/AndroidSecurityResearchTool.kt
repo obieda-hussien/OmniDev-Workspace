@@ -230,15 +230,17 @@ Output is formatted for readability. Use output_format=json for machine parsing.
             // ── Tool management ───────────────────────────────────────────────
 
             "setup_tools" -> {
-                val selectedTools = parseToolSelection(args["tool_list"])
-                if (selectedTools.isEmpty()) {
+                val rawToolList = args["tool_list"]?.trim()
+                val selectedTools = parseToolSelection(rawToolList)
+                if (!rawToolList.isNullOrBlank() && selectedTools.isEmpty()) {
                     return@withContext ToolExecutionResult(
-                        "No valid tools requested in 'tool_list'. Supported: aapt2,busybox,jadx,apktool,python,dex2jar.",
+                        "No valid tools requested in 'tool_list'. Supported selectable tools: aapt2,busybox,jadx,apktool,python,dex2jar.",
                         isError = true
                     )
                 }
-                val installTimeoutMs = (args["setup_timeout_seconds"]?.toLongOrNull() ?: 3600L)
-                    .coerceIn(30L, 3600L) * 1_000L
+                val requestedTimeoutSeconds = args["setup_timeout_seconds"]?.toLongOrNull() ?: 3600L
+                val effectiveTimeoutSeconds = requestedTimeoutSeconds.coerceIn(30L, 3600L)
+                val installTimeoutMs = effectiveTimeoutSeconds * 1_000L
                 val progressLines = mutableListOf<String>()
                 val result = VulnResearchToolchain.setupTools(
                     context = context,
@@ -252,6 +254,11 @@ Output is formatted for readability. Use output_format=json for machine parsing.
                     appendLine()
                     appendLine("Requested tools: ${selectedTools.joinToString(", ") { it.displayName }}")
                     appendLine("Per-tool timeout: ${installTimeoutMs / 1000}s")
+                    if (effectiveTimeoutSeconds != requestedTimeoutSeconds) {
+                        appendLine(
+                            "Requested timeout was adjusted from $requestedTimeoutSeconds to $effectiveTimeoutSeconds seconds (allowed range: 30-3600)."
+                        )
+                    }
                     appendLine()
                     appendLine("Installation Results:")
                     selectedTools.forEach { tool ->
@@ -1218,7 +1225,8 @@ summary{cursor:pointer;font-weight:bold}
                 OmniNativeToolsManager.Tool.BUSYBOX,
                 OmniNativeToolsManager.Tool.JADX,
                 OmniNativeToolsManager.Tool.APKTOOL,
-                OmniNativeToolsManager.Tool.PYTHON
+                OmniNativeToolsManager.Tool.PYTHON,
+                OmniNativeToolsManager.Tool.DEX2JAR
             )
         }
 
