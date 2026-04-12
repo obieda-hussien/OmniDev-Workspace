@@ -8,6 +8,7 @@ import com.omnidev.workspace.data.tools.ToolExecutionResult
 import com.omnidev.workspace.data.tools.ToolParameter
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import org.json.JSONObject
 
 // ════════════════════════════════════════════════════════════════════════════════
 // AndroidSecurityResearchTool  v2.0
@@ -17,11 +18,21 @@ import kotlinx.coroutines.Dispatchers
 //   • Binary AXML manifest decoding via aapt2 (no more garbage output)
 //   • Full APK decompilation to Java source via jadx
 //   • Python-based DEX scanner + secret hunter across source tree
-//   • Complete 4-phase pipeline with parallel execution
+//   • Complete 5-phase pipeline with parallel execution
 //
 // Zero Termux dependency — everything runs through Shizuku shell.
 // ════════════════════════════════════════════════════════════════════════════════
 object AndroidSecurityResearchTool {
+    // Heuristic weighting tuned for triage: cap each signal family so one noisy source
+    // cannot dominate the final score, then blend with overall report risk score.
+    private const val HIGH_IMPACT_SIGNAL_POINTS = 8
+    private const val HIGH_IMPACT_SIGNAL_MAX = 32
+    private const val UNVERIFIED_SEVERE_SIGNAL_POINTS = 6
+    private const val UNVERIFIED_SEVERE_SIGNAL_MAX = 24
+    private const val EXPLOITABILITY_SIGNAL_POINTS = 4
+    private const val EXPLOITABILITY_SIGNAL_MAX = 20
+    private const val RISK_SCORE_VERY_HIGH_BONUS = 20
+    private const val RISK_SCORE_ELEVATED_BONUS = 10
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
@@ -40,7 +51,8 @@ Actions:
   decompile           → Full APK decompilation to Java source via jadx.
   scan_secrets        → Secret hunter across decompiled source (run after decompile).
   quick_python        → Run a custom Python snippet against the APK. APK_PATH is pre-set.
-  full_pipeline       → All phases in parallel: aapt2 + DEX scan + decompile + secrets.
+  full_pipeline       → All phases in parallel: aapt2 + DEX scan + decompile + apktool decode + secrets.
+  advanced_hunt       → Extended threat hunt: full_pipeline + static/dynamic/exploit verification + zero-day heuristics.
 
   full_research       → Static + manifest + native + crypto analysis (original engine).
   static_only         → Phase 1 only: DEX analysis, manifest, native libs, crypto.
@@ -57,7 +69,7 @@ Output is formatted for readability. Use output_format=json for machine parsing.
                     name = "action",
                     type = "string",
                     description = "One of: setup_tools, tools_status, aapt2_analyze, dex_scan, decompile, " +
-                            "scan_secrets, quick_python, full_pipeline, full_research, static_only, " +
+                            "scan_secrets, quick_python, full_pipeline, advanced_hunt, full_research, static_only, " +
                             "dynamic_probe, verify_exploits, generate_patches, list_apps, export_report",
                     required = true
                 ),
@@ -83,7 +95,7 @@ Output is formatted for readability. Use output_format=json for machine parsing.
                 ToolParameter(
                     name = "pipeline_phases",
                     type = "string",
-                    description = "Comma-separated phases for full_pipeline: aapt2,dex_scan,decompile,secret_hunt. " +
+                    description = "Comma-separated phases for full_pipeline: aapt2,dex_scan,decompile,decode_smali,secret_hunt. " +
                             "Default: all phases.",
                     required = false
                 ),
@@ -155,7 +167,9 @@ Output is formatted for readability. Use output_format=json for machine parsing.
                     appendLine("  • aapt2_analyze    — Binary manifest + permissions")
                     appendLine("  • dex_scan         — Secret + crypto pattern scan")
                     appendLine("  • decompile        — Full APK → Java source")
+                    appendLine("  • decode_smali     — apktool decode (smali/resources; use decode_smali in pipeline_phases)")
                     appendLine("  • full_pipeline    — Everything at once")
+                    appendLine("  • advanced_hunt    — full_pipeline + dynamic verification + heuristics")
                 }
                 if (jsonOutput) ToolExecutionResult(result.toString(2))
                 else ToolExecutionResult(output)
@@ -297,6 +311,60 @@ Output is formatted for readability. Use output_format=json for machine parsing.
                 }
             }
 
+            "advanced_hunt" -> {
+                val packageName = pkg ?: return@withContext missingPkg()
+
+                val phaseLog = mutableListOf<String>()
+                val enhancedPipeline = VulnResearchToolchain.fullPipeline(
+                    context = context,
+                    packageName = packageName,
+                    phases = VulnResearchToolchain.PipelinePhase.values().toSet(),
+                    onPhaseComplete = { phase, summary ->
+                        phaseLog.add("[$phase] $summary")
+                    }
+                )
+
+                val deepReport = AndroidVulnResearchEngine.runFullResearch(
+                    context = context,
+                    packageName = packageName,
+                    phases = AndroidVulnResearchEngine.ResearchPhase.entries.toSet()
+                )
+
+                val heuristics = buildZeroDayHeuristics(deepReport)
+                if (jsonOutput) {
+                    val out = JSONObject()
+                    out.put("package", packageName)
+                    out.put("extended_pipeline", enhancedPipeline)
+                    out.put("deep_research", deepReport.toJson())
+                    out.put("zero_day_heuristics", heuristics)
+                    ToolExecutionResult(out.toString(2))
+                } else {
+                    val output = buildString {
+                        appendLine("═══ Advanced Threat Hunt: $packageName ═══")
+                        appendLine()
+                        appendLine("── Extended Pipeline (static artifact coverage) ──")
+                        phaseLog.forEach { appendLine("  $it") }
+                        appendLine()
+                        appendLine("── Zero-Day Heuristics (probabilistic, not guaranteed) ──")
+                        appendLine("Score: ${heuristics.optInt("score")}/100")
+                        appendLine("Level: ${heuristics.optString("level")}")
+                        val signals = heuristics.optJSONArray("signals")
+                        if (signals != null && signals.length() > 0) {
+                            appendLine("Signals:")
+                            for (i in 0 until signals.length()) {
+                                appendLine("  • ${signals.optString(i)}")
+                            }
+                        }
+                        appendLine()
+                        appendLine("── Deep Research Summary ──")
+                        appendLine(buildSummaryText(deepReport))
+                        appendLine()
+                        appendLine("Use action='full_research' for full finding details and patch guidance.")
+                    }
+                    ToolExecutionResult(output.take(14_000), truncated = output.length > 14_000)
+                }
+            }
+
             // ── Legacy Research Engine (original 4-phase pipeline) ────────────
 
             "list_apps" -> listInstalledApps(context)
@@ -402,10 +470,67 @@ Output is formatted for readability. Use output_format=json for machine parsing.
             else -> ToolExecutionResult(
                 "Unknown action '$action'. Valid actions:\n" +
                 "  Tool management: setup_tools, tools_status\n" +
-                "  Enhanced analysis: aapt2_analyze, dex_scan, decompile, decode_smali, scan_secrets, quick_python, full_pipeline\n" +
+                "  Enhanced analysis: aapt2_analyze, dex_scan, decompile, decode_smali, scan_secrets, quick_python, full_pipeline, advanced_hunt\n" +
                 "  Classic pipeline: full_research, static_only, dynamic_probe, verify_exploits, generate_patches, list_apps, export_report",
                 isError = true
             )
+        }
+    }
+
+    private fun buildZeroDayHeuristics(report: ResearchReport): JSONObject {
+        val signals = mutableListOf<String>()
+        var score = 0
+
+        val criticalOrHigh = report.findings.count { it.severity == Severity.CRITICAL || it.severity == Severity.HIGH }
+        if (criticalOrHigh > 0) {
+            val weighted = criticalOrHigh
+                .coerceAtMost(HIGH_IMPACT_SIGNAL_MAX / HIGH_IMPACT_SIGNAL_POINTS) * HIGH_IMPACT_SIGNAL_POINTS
+            score += weighted
+            signals += "Multiple high-impact findings detected ($criticalOrHigh)."
+        }
+
+        val unverifiedSevere = report.findings.count {
+            (it.severity == Severity.CRITICAL || it.severity == Severity.HIGH) &&
+                it.verificationStatus != VerificationStatus.CONFIRMED
+        }
+        if (unverifiedSevere > 0) {
+            val weighted = unverifiedSevere
+                .coerceAtMost(UNVERIFIED_SEVERE_SIGNAL_MAX / UNVERIFIED_SEVERE_SIGNAL_POINTS) * UNVERIFIED_SEVERE_SIGNAL_POINTS
+            score += weighted
+            signals += "High-severity findings not fully verified yet ($unverifiedSevere)."
+        }
+
+        val exploitReady = report.findings.count { it.exploitPoCs.isNotEmpty() }
+        if (exploitReady > 0) {
+            val weighted = exploitReady
+                .coerceAtMost(EXPLOITABILITY_SIGNAL_MAX / EXPLOITABILITY_SIGNAL_POINTS) * EXPLOITABILITY_SIGNAL_POINTS
+            score += weighted
+            signals += "Exploitability indicators found in ${exploitReady} finding(s)."
+        }
+
+        if (report.riskScore >= 80) {
+            score += RISK_SCORE_VERY_HIGH_BONUS
+            signals += "Overall risk score is very high (${report.riskScore}/100)."
+        } else if (report.riskScore >= 60) {
+            score += RISK_SCORE_ELEVATED_BONUS
+            signals += "Overall risk score is elevated (${report.riskScore}/100)."
+        }
+
+        val capped = score.coerceAtMost(100)
+        val level = when {
+            capped >= 80 -> "HIGH"
+            capped >= 50 -> "MEDIUM"
+            else -> "LOW"
+        }
+
+        return JSONObject().apply {
+            put("score", capped)
+            put("level", level)
+            put(
+                "note",
+                "Heuristic signal only. This does not prove a zero-day; manual validation and threat intelligence are still required."
+            )
+            put("signals", org.json.JSONArray(signals))
         }
     }
 

@@ -346,7 +346,8 @@ object VulnResearchToolchain {
      *   1. aapt2 analysis  (manifest, permissions, badging)
      *   2. Python DEX scan (secrets, crypto, patterns)
      *   3. jadx decompile  (Java source extraction)
-     *   4. Secret hunter   (across decompiled source)
+     *   4. apktool decode  (smali + decoded resources)
+     *   5. Secret hunter   (across decompiled source)
      *
      * Tools are auto-installed if missing. Results are consolidated into a single JSON.
      *
@@ -394,7 +395,14 @@ object VulnResearchToolchain {
                 onPhaseComplete("decompile", decompResult.summary())
                 report.put("decompile", decompResult.toJson())
 
-                // Phase 4: Secret hunter (depends on Phase 3)
+                // Phase 4: apktool decode (independent from jadx output)
+                if (PipelinePhase.DECODE_SMALI in phases) {
+                    val decodeResult = decodeWithApktool(context, packageName)
+                    onPhaseComplete("decode_smali", decodeResult.summary())
+                    report.put("decode_smali", decodeResult.toJson())
+                }
+
+                // Phase 5: Secret hunter (depends on Phase 3)
                 if (PipelinePhase.SECRET_HUNT in phases && decompResult is AnalysisResult.Ok) {
                     val sourceDir = decompResult.data["source_dir"]
                     val huntResult = scanSecretsInSource(context, packageName, sourceDir)
@@ -408,7 +416,7 @@ object VulnResearchToolchain {
         report
     }
 
-    enum class PipelinePhase { AAPT2, DEX_SCAN, DECOMPILE, SECRET_HUNT }
+    enum class PipelinePhase { AAPT2, DEX_SCAN, DECOMPILE, DECODE_SMALI, SECRET_HUNT }
 
     // ─── Utility: Shell Access ────────────────────────────────────────────────
 
