@@ -16,6 +16,7 @@ import com.omnidev.workspace.data.tools.automation.IntelligentAutomationEngine
 import com.omnidev.workspace.data.tools.monitoring.ToolMonitoringSystem
 import com.omnidev.workspace.data.tools.prediction.PredictiveAnalyticsEngine
 import com.omnidev.workspace.data.tools.security.AdvancedSecurityAnalyzer
+import com.omnidev.workspace.data.tools.security.AndroidSecurityResearchTool
 import com.omnidev.workspace.data.tools.voice.AdvancedVoiceCommandEngine
 import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
@@ -231,7 +232,7 @@ class CompositeToolManager(
             // ── Dynamic Self-Sandbox Tool ────────────────────────────────────
             addAll(AgentSandboxTool.getToolDefinitions())
             if (context != null) {
-                addAll(com.omnidev.workspace.data.tools.security.AndroidSecurityResearchTool.getToolDefinitions())
+                addAll(AndroidSecurityResearchTool.getToolDefinitions())
             }
             addAll(PermissionManagerTool.getToolDefinitions())
             addAll(VPNControlTool.getToolDefinitions())
@@ -1360,7 +1361,7 @@ class CompositeToolManager(
             "android_security_research" -> {
                 val ctx = context ?: return missingContext()
                 val action = arguments["action"] ?: return missingArg("action")
-                com.omnidev.workspace.data.tools.security.AndroidSecurityResearchTool.execute(
+                AndroidSecurityResearchTool.execute(
                     context = ctx,
                     action = action,
                     args = arguments
