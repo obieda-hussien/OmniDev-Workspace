@@ -13,6 +13,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import org.json.JSONArray
 import org.json.JSONObject
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
+import java.time.temporal.ChronoUnit
 
 // ════════════════════════════════════════════════════════════════════════════════
 // AndroidSecurityResearchTool  v2.0
@@ -56,6 +59,21 @@ object AndroidSecurityResearchTool {
     private const val RISK_LEVEL_HIGH = "HIGH"
     private const val RISK_LEVEL_MEDIUM = "MEDIUM"
     private const val RISK_LEVEL_LOW = "LOW"
+    private const val BASELINE_PREFS = "android_security_research_baselines"
+    private const val BASELINE_KEY_PREFIX = "os_exposure_baseline_"
+    // Weight exposure findings below the base audit risk to reduce overlap/double counting.
+    private const val EXPOSURE_SCORE_WEIGHT = 0.6
+    private const val EXPOSURE_SCORE_CRITICAL = 25
+    private const val EXPOSURE_SCORE_HIGH = 15
+    private const val EXPOSURE_SCORE_MEDIUM = 8
+    private const val EXPOSURE_SCORE_LOW = 4
+    private const val PATCH_STALE_MONTHS_MEDIUM = 3L
+    private const val PATCH_STALE_MONTHS_HIGH = 6L
+    private const val PATCH_STALE_MONTHS_CRITICAL = 12L
+    // API 27 ≈ Android 8.1 and below (legacy hardening surface).
+    private const val API_LEVEL_LEGACY_HIGH_RISK = 27
+    // API 29 ≈ Android 10 and below (aging hardening baseline).
+    private const val API_LEVEL_AGING_MEDIUM_RISK = 29
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
@@ -77,6 +95,7 @@ Actions:
   full_pipeline       → All phases in parallel: aapt2 + DEX scan + decompile + apktool decode + secrets.
   advanced_hunt       → Extended threat hunt: full_pipeline + static/dynamic/exploit verification + zero-day heuristics.
   os_security_audit   → Android OS hardening audit (normal + optional Shizuku/adb-style + root probes).
+  os_exposure_hunt    → Advanced OS hunt: os audit + CVE-style exposure correlation + baseline drift + policy checks.
 
   full_research       → Static + manifest + native + crypto analysis (original engine).
   static_only         → Phase 1 only: DEX analysis, manifest, native libs, crypto.
@@ -93,7 +112,7 @@ Output is formatted for readability. Use output_format=json for machine parsing.
                     name = "action",
                     type = "string",
                     description = "One of: setup_tools, tools_status, aapt2_analyze, dex_scan, decompile, " +
-                            "scan_secrets, quick_python, full_pipeline, advanced_hunt, os_security_audit, full_research, static_only, " +
+                            "scan_secrets, quick_python, full_pipeline, advanced_hunt, os_security_audit, os_exposure_hunt, full_research, static_only, " +
                             "dynamic_probe, verify_exploits, generate_patches, list_apps, export_report",
                     required = true
                 ),
@@ -150,7 +169,19 @@ Output is formatted for readability. Use output_format=json for machine parsing.
                 ToolParameter(
                     name = "audit_mode",
                     type = "string",
-                    description = "For action=os_security_audit: auto (default), normal, shizuku, or root.",
+                    description = "For action=os_security_audit/os_exposure_hunt: auto (default), normal, shizuku, or root.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "baseline_mode",
+                    type = "string",
+                    description = "For action=os_exposure_hunt: compare (default), refresh, or off.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "baseline_name",
+                    type = "string",
+                    description = "For action=os_exposure_hunt: baseline profile name (default: default).",
                     required = false
                 )
             )
@@ -396,6 +427,7 @@ Output is formatted for readability. Use output_format=json for machine parsing.
             }
 
             "os_security_audit" -> runOsSecurityAudit(context, args, jsonOutput)
+            "os_exposure_hunt" -> runOsExposureHunt(context, args, jsonOutput)
 
             // ── Legacy Research Engine (original 4-phase pipeline) ────────────
 
@@ -502,11 +534,237 @@ Output is formatted for readability. Use output_format=json for machine parsing.
             else -> ToolExecutionResult(
                 "Unknown action '$action'. Valid actions:\n" +
                 "  Tool management: setup_tools, tools_status\n" +
-                "  Enhanced analysis: aapt2_analyze, dex_scan, decompile, decode_smali, scan_secrets, quick_python, full_pipeline, advanced_hunt, os_security_audit\n" +
+                "  Enhanced analysis: aapt2_analyze, dex_scan, decompile, decode_smali, scan_secrets, quick_python, full_pipeline, advanced_hunt, os_security_audit, os_exposure_hunt\n" +
                 "  Classic pipeline: full_research, static_only, dynamic_probe, verify_exploits, generate_patches, list_apps, export_report",
                 isError = true
             )
         }
+    }
+
+    private suspend fun runOsExposureHunt(
+        context: Context,
+        args: Map<String, String>,
+        jsonOutput: Boolean
+    ): ToolExecutionResult {
+        val baselineMode = args["baseline_mode"]?.trim()?.lowercase()?.takeIf { it.isNotBlank() } ?: "compare"
+        if (baselineMode !in setOf("compare", "refresh", "off")) {
+            return ToolExecutionResult(
+                "Invalid baseline_mode '$baselineMode'. Use: compare, refresh, off.",
+                isError = true
+            )
+        }
+        val baselineName = args["baseline_name"]?.trim()?.takeIf { it.isNotBlank() } ?: "default"
+
+        val auditResult = runOsSecurityAudit(context, args, jsonOutput = true)
+        if (auditResult.isError) return auditResult
+
+        val auditJson = runCatching { JSONObject(auditResult.output) }.getOrElse {
+            return ToolExecutionResult("Failed to parse os_security_audit output for exposure hunt.", isError = true)
+        }
+
+        val exposures = JSONArray()
+        var exposureScore = 0
+        fun addExposure(id: String, severity: String, description: String, evidence: String) {
+            exposures.put(
+                JSONObject().apply {
+                    put("id", id)
+                    put("severity", severity)
+                    put("description", description)
+                    put("evidence", evidence)
+                }
+            )
+            exposureScore += when (severity) {
+                "CRITICAL" -> EXPOSURE_SCORE_CRITICAL
+                "HIGH" -> EXPOSURE_SCORE_HIGH
+                "MEDIUM" -> EXPOSURE_SCORE_MEDIUM
+                else -> EXPOSURE_SCORE_LOW
+            }
+        }
+
+        val apiLevel = auditJson.optInt("api_level", Build.VERSION.SDK_INT)
+        val patchLevel = auditJson.optString("security_patch", "unknown")
+        val riskScore = auditJson.optInt("risk_score", 0)
+        val privilegedSignals = auditJson.optJSONObject("privileged_signals") ?: JSONObject()
+
+        val patchAgeMonths = parseSecurityPatchAgeMonths(patchLevel)
+        when {
+            patchAgeMonths == null && patchLevel.equals("unknown", ignoreCase = true) ->
+                addExposure("os.patch.unknown", "HIGH", "Security patch level is unknown.", patchLevel)
+            patchAgeMonths != null && patchAgeMonths >= PATCH_STALE_MONTHS_CRITICAL ->
+                addExposure("os.patch.stale.12m", "CRITICAL", "Security patch is older than 12 months.", "$patchAgeMonths months")
+            patchAgeMonths != null && patchAgeMonths >= PATCH_STALE_MONTHS_HIGH ->
+                addExposure("os.patch.stale.6m", "HIGH", "Security patch is older than 6 months.", "$patchAgeMonths months")
+            patchAgeMonths != null && patchAgeMonths >= PATCH_STALE_MONTHS_MEDIUM ->
+                addExposure("os.patch.stale.3m", "MEDIUM", "Security patch is older than 3 months.", "$patchAgeMonths months")
+        }
+
+        if (apiLevel <= API_LEVEL_LEGACY_HIGH_RISK) {
+            addExposure(
+                id = "os.api.legacy",
+                severity = "HIGH",
+                description = "Legacy Android API level increases OS exploit surface.",
+                evidence = "api_level=$apiLevel"
+            )
+        } else if (apiLevel <= API_LEVEL_AGING_MEDIUM_RISK) {
+            addExposure(
+                id = "os.api.aging",
+                severity = "MEDIUM",
+                description = "Aging Android API level may miss modern hardening controls.",
+                evidence = "api_level=$apiLevel"
+            )
+        }
+
+        if (privilegedSignals.optString("selinux", "").contains("permissive", ignoreCase = true)) {
+            addExposure("os.selinux.permissive", "CRITICAL", "SELinux is permissive.", privilegedSignals.optString("selinux"))
+        }
+        if (privilegedSignals.optString("verified_boot_state", "").contains("orange", ignoreCase = true)) {
+            addExposure("os.verifiedboot.orange", "HIGH", "Verified Boot is orange (integrity weakened).", privilegedSignals.optString("verified_boot_state"))
+        }
+        if (privilegedSignals.optString("flash_locked", "") == "0") {
+            addExposure("os.bootloader.unlocked", "HIGH", "Bootloader appears unlocked.", "ro.boot.flash.locked=0")
+        }
+        if (privilegedSignals.optString("root_probe", "").contains(ROOT_UID_INDICATOR)) {
+            addExposure("os.root.reachable", "HIGH", "Root shell is reachable.", privilegedSignals.optString("root_probe"))
+        }
+
+        if (auditJson.optBoolean("adb_enabled", false)) {
+            addExposure("policy.adb.enabled", "MEDIUM", "ADB is enabled on device.", "adb_enabled=true")
+        }
+        if (auditJson.optBoolean("developer_options_enabled", false)) {
+            addExposure("policy.dev_options.enabled", "LOW", "Developer options are enabled.", "developer_options_enabled=true")
+        }
+
+        val prefs = context.getSharedPreferences(BASELINE_PREFS, Context.MODE_PRIVATE)
+        val baselineKey = "$BASELINE_KEY_PREFIX$baselineName"
+        val baselineSnapshot = JSONObject().apply {
+            put("api_level", apiLevel)
+            put("security_patch", patchLevel)
+            put("adb_enabled", auditJson.optBoolean("adb_enabled", false))
+            put("developer_options_enabled", auditJson.optBoolean("developer_options_enabled", false))
+            put("verified_boot_state", privilegedSignals.optString("verified_boot_state", "n/a"))
+            put("flash_locked", privilegedSignals.optString("flash_locked", "n/a"))
+            put("selinux", privilegedSignals.optString("selinux", "n/a"))
+            put("build_tags", auditJson.optString("build_tags", "unknown"))
+        }
+
+        val baselineNotes = mutableListOf<String>()
+        when (baselineMode) {
+            "refresh" -> {
+                prefs.edit().putString(baselineKey, baselineSnapshot.toString()).apply()
+                baselineNotes += "baseline refreshed"
+            }
+            "compare" -> {
+                val old = prefs.getString(baselineKey, null)
+                if (old == null) {
+                    prefs.edit().putString(baselineKey, baselineSnapshot.toString()).apply()
+                    baselineNotes += "baseline created"
+                } else {
+                    val oldJson = runCatching { JSONObject(old) }.getOrNull()
+                    if (oldJson != null) {
+                        val driftSignals = mutableListOf<String>()
+                        val oldPatch = oldJson.optString("security_patch")
+                        val newPatch = baselineSnapshot.optString("security_patch")
+                        if (oldPatch != newPatch) {
+                            val oldAge = parseSecurityPatchAgeMonths(oldPatch)
+                            val newAge = parseSecurityPatchAgeMonths(newPatch)
+                            val patchRegressed = when {
+                                oldAge == null && newAge != null -> false
+                                oldAge != null && newAge == null -> true
+                                oldAge != null && newAge != null -> newAge > oldAge
+                                else -> false
+                            }
+                            if (patchRegressed) {
+                                driftSignals += "security_patch_regressed"
+                            } else {
+                                baselineNotes += "patch improved"
+                            }
+                        }
+                        if (oldJson.optBoolean("adb_enabled") != baselineSnapshot.optBoolean("adb_enabled")) {
+                            driftSignals += "adb_enabled"
+                        }
+                        if (oldJson.optBoolean("developer_options_enabled") != baselineSnapshot.optBoolean("developer_options_enabled")) {
+                            driftSignals += "developer_options_enabled"
+                        }
+                        if (oldJson.optString("verified_boot_state") != baselineSnapshot.optString("verified_boot_state")) {
+                            driftSignals += "verified_boot_state"
+                        }
+                        if (oldJson.optString("flash_locked") != baselineSnapshot.optString("flash_locked")) {
+                            driftSignals += "flash_locked"
+                        }
+                        if (oldJson.optString("selinux") != baselineSnapshot.optString("selinux")) {
+                            driftSignals += "selinux"
+                        }
+                        if (driftSignals.isNotEmpty()) {
+                            addExposure(
+                                id = "baseline.drift",
+                                severity = "MEDIUM",
+                                description = "Security baseline drift detected.",
+                                evidence = driftSignals.joinToString(", ")
+                            )
+                            baselineNotes += "drift detected: ${driftSignals.joinToString(", ")}"
+                        } else {
+                            baselineNotes += "no drift"
+                        }
+                    } else {
+                        baselineNotes += "invalid baseline; keeping current"
+                    }
+                }
+            }
+            else -> baselineNotes += "baseline disabled"
+        }
+
+        val baselineNote = baselineNotes.joinToString(" | ")
+        val weightedExposureBoost = (exposureScore * EXPOSURE_SCORE_WEIGHT).toInt()
+        val finalScore = (riskScore + weightedExposureBoost).coerceAtMost(100)
+        val finalLevel = when {
+            finalScore >= RISK_THRESHOLD_HIGH -> RISK_LEVEL_HIGH
+            finalScore >= RISK_THRESHOLD_MEDIUM -> RISK_LEVEL_MEDIUM
+            else -> RISK_LEVEL_LOW
+        }
+
+        val resultJson = JSONObject().apply {
+            put("action", "os_exposure_hunt")
+            put("audit", auditJson)
+            put("baseline_mode", baselineMode)
+            put("baseline_name", baselineName)
+            put("baseline_status", baselineNote)
+            put("patch_age_months", patchAgeMonths ?: JSONObject.NULL)
+            put("exposures", exposures)
+            put("weighted_exposure_boost", weightedExposureBoost)
+            put("risk_score", finalScore)
+            put("risk_level", finalLevel)
+            put("note", "CVE-style correlation here is heuristic prioritization for defensive triage, not vulnerability proof. Exposure score is weighted to reduce overlap with base audit risk.")
+        }
+
+        if (jsonOutput) return ToolExecutionResult(resultJson.toString(2))
+
+        val out = buildString {
+            appendLine("═══ Android OS Exposure Hunt ═══")
+            appendLine("Access mode       : ${auditJson.optString("audit_mode")}/${auditJson.optString("effective_access")}")
+            appendLine("Baseline          : $baselineName ($baselineMode • $baselineNote)")
+            appendLine("Patch age (months): ${patchAgeMonths ?: "unknown"}")
+            appendLine("Risk              : $finalScore/100 ($finalLevel)")
+            appendLine()
+            appendLine("Exposure findings:")
+            if (exposures.length() == 0) {
+                appendLine("  ✅ No major exposure flags from current heuristics.")
+            } else {
+                for (i in 0 until exposures.length()) {
+                    val finding = exposures.optJSONObject(i) ?: continue
+                    val evidence = finding.optString("evidence")
+                    // Char-count truncation is used for tool-output budget control.
+                    val shownEvidence = if (evidence.length > MAX_SIGNAL_DISPLAY_LENGTH) {
+                        evidence.take(MAX_SIGNAL_DISPLAY_LENGTH) + "..."
+                    } else evidence
+                    appendLine("  • [${finding.optString("severity")}] ${finding.optString("id")} — ${finding.optString("description")}")
+                    appendLine("    evidence: $shownEvidence")
+                }
+            }
+            appendLine()
+            appendLine("Use baseline_mode=refresh after hardening changes to set a new trusted baseline.")
+        }
+        val truncated = out.length >= MAX_TOOL_OUTPUT_LENGTH
+        return ToolExecutionResult(out.take(MAX_TOOL_OUTPUT_LENGTH), truncated = truncated)
     }
 
     private suspend fun runOsSecurityAudit(
@@ -655,6 +913,17 @@ Output is formatted for readability. Use output_format=json for machine parsing.
             is ShizukuResult.PermissionRequired -> "permission_required"
             is ShizukuResult.Unavailable -> "unavailable"
         }.ifBlank { "unknown" }
+    }
+
+    private fun parseSecurityPatchAgeMonths(patch: String): Long? {
+        // Expected Android patch format: YYYY-MM-DD (e.g., 2026-04-05).
+        if (patch.isBlank() || patch.equals("unknown", ignoreCase = true)) return null
+        return try {
+            val parsed = LocalDate.parse(patch)
+            ChronoUnit.MONTHS.between(parsed, LocalDate.now()).coerceAtLeast(0)
+        } catch (_: DateTimeParseException) {
+            null
+        }
     }
 
     private fun buildZeroDayHeuristics(report: ResearchReport): JSONObject {
