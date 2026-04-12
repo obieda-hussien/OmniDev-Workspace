@@ -3,11 +3,15 @@ package com.omnidev.workspace.data.tools.security
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.provider.Settings
+import com.omnidev.workspace.data.tools.ShizukuCommandTool
+import com.omnidev.workspace.data.tools.ShizukuResult
 import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.tools.ToolExecutionResult
 import com.omnidev.workspace.data.tools.ToolParameter
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
+import org.json.JSONArray
 import org.json.JSONObject
 
 // ════════════════════════════════════════════════════════════════════════════════
@@ -33,6 +37,25 @@ object AndroidSecurityResearchTool {
     private const val EXPLOITABILITY_SIGNAL_MAX = 20
     private const val RISK_SCORE_VERY_HIGH_BONUS = 20
     private const val RISK_SCORE_ELEVATED_BONUS = 10
+    private const val MAX_ROOT_PROBE_LENGTH = 160
+    private const val MAX_SIGNAL_DISPLAY_LENGTH = 180
+    private const val MAX_TOOL_OUTPUT_LENGTH = 14_000
+    private const val DEFAULT_AUDIT_MODE = "auto"
+    private const val ROOT_UID_INDICATOR = "uid=0"
+    private const val ROOT_UID_DISPLAY = "uid=0 (root)"
+    private const val SCORE_UNKNOWN_PATCH = 20
+    private const val SCORE_TEST_KEYS = 35
+    private const val SCORE_ADB_ENABLED = 15
+    private const val SCORE_DEV_OPTIONS = 8
+    private const val SCORE_VERIFIED_BOOT_ORANGE = 22
+    private const val SCORE_BOOTLOADER_UNLOCKED = 15
+    private const val SCORE_SELINUX_PERMISSIVE = 30
+    private const val SCORE_ROOT_SHELL = 25
+    private const val RISK_THRESHOLD_HIGH = 70
+    private const val RISK_THRESHOLD_MEDIUM = 40
+    private const val RISK_LEVEL_HIGH = "HIGH"
+    private const val RISK_LEVEL_MEDIUM = "MEDIUM"
+    private const val RISK_LEVEL_LOW = "LOW"
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
@@ -53,6 +76,7 @@ Actions:
   quick_python        → Run a custom Python snippet against the APK. APK_PATH is pre-set.
   full_pipeline       → All phases in parallel: aapt2 + DEX scan + decompile + apktool decode + secrets.
   advanced_hunt       → Extended threat hunt: full_pipeline + static/dynamic/exploit verification + zero-day heuristics.
+  os_security_audit   → Android OS hardening audit (normal + optional Shizuku/adb-style + root probes).
 
   full_research       → Static + manifest + native + crypto analysis (original engine).
   static_only         → Phase 1 only: DEX analysis, manifest, native libs, crypto.
@@ -69,7 +93,7 @@ Output is formatted for readability. Use output_format=json for machine parsing.
                     name = "action",
                     type = "string",
                     description = "One of: setup_tools, tools_status, aapt2_analyze, dex_scan, decompile, " +
-                            "scan_secrets, quick_python, full_pipeline, advanced_hunt, full_research, static_only, " +
+                            "scan_secrets, quick_python, full_pipeline, advanced_hunt, os_security_audit, full_research, static_only, " +
                             "dynamic_probe, verify_exploits, generate_patches, list_apps, export_report",
                     required = true
                 ),
@@ -121,6 +145,12 @@ Output is formatted for readability. Use output_format=json for machine parsing.
                     name = "output_format",
                     type = "string",
                     description = "'text' (default) or 'json' for machine-readable output.",
+                    required = false
+                ),
+                ToolParameter(
+                    name = "audit_mode",
+                    type = "string",
+                    description = "For action=os_security_audit: auto (default), normal, shizuku, or root.",
                     required = false
                 )
             )
@@ -365,6 +395,8 @@ Output is formatted for readability. Use output_format=json for machine parsing.
                 }
             }
 
+            "os_security_audit" -> runOsSecurityAudit(context, args, jsonOutput)
+
             // ── Legacy Research Engine (original 4-phase pipeline) ────────────
 
             "list_apps" -> listInstalledApps(context)
@@ -470,11 +502,159 @@ Output is formatted for readability. Use output_format=json for machine parsing.
             else -> ToolExecutionResult(
                 "Unknown action '$action'. Valid actions:\n" +
                 "  Tool management: setup_tools, tools_status\n" +
-                "  Enhanced analysis: aapt2_analyze, dex_scan, decompile, decode_smali, scan_secrets, quick_python, full_pipeline, advanced_hunt\n" +
+                "  Enhanced analysis: aapt2_analyze, dex_scan, decompile, decode_smali, scan_secrets, quick_python, full_pipeline, advanced_hunt, os_security_audit\n" +
                 "  Classic pipeline: full_research, static_only, dynamic_probe, verify_exploits, generate_patches, list_apps, export_report",
                 isError = true
             )
         }
+    }
+
+    private suspend fun runOsSecurityAudit(
+        context: Context,
+        args: Map<String, String>,
+        jsonOutput: Boolean
+    ): ToolExecutionResult {
+        val mode = args["audit_mode"]?.trim()?.lowercase()?.takeIf { it.isNotBlank() } ?: DEFAULT_AUDIT_MODE
+        if (mode !in setOf("auto", "normal", "shizuku", "root")) {
+            return ToolExecutionResult(
+                "Invalid audit_mode '$mode'. Use: auto, normal, shizuku, root.",
+                isError = true
+            )
+        }
+
+        val shizukuReady = ShizukuCommandTool.isAvailable() && ShizukuCommandTool.hasPermission()
+        val useShizuku = mode == "shizuku" || mode == "root" || (mode == "auto" && shizukuReady)
+        if ((mode == "shizuku" || mode == "root") && !shizukuReady) {
+            return ToolExecutionResult(
+                "audit_mode='$mode' requires Shizuku running with permission. Try audit_mode='auto' or 'normal' first.",
+                isError = true
+            )
+        }
+
+        val securityPatch = Build.VERSION.SECURITY_PATCH.ifBlank { "unknown" }
+        val buildTags = Build.TAGS.ifBlank { "unknown" }
+        val adbEnabled = runCatching {
+            Settings.Global.getInt(context.contentResolver, Settings.Global.ADB_ENABLED, 0) == 1
+        }.getOrDefault(false)
+        val devOptionsEnabled = runCatching {
+            Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0) == 1
+        }.getOrDefault(false)
+        val testKeys = buildTags.contains("test-keys", ignoreCase = true)
+
+        val privilegedSignals = mutableMapOf<String, String>()
+        var rootByShizuku = false
+        if (useShizuku) {
+            privilegedSignals["verified_boot_state"] = executePrivilegedCommand("getprop ro.boot.verifiedbootstate")
+            privilegedSignals["flash_locked"] = executePrivilegedCommand("getprop ro.boot.flash.locked")
+            privilegedSignals["adb_secure"] = executePrivilegedCommand("getprop ro.adb.secure")
+            privilegedSignals["selinux"] = executePrivilegedCommand("getenforce")
+            privilegedSignals["build_fingerprint"] = executePrivilegedCommand("getprop ro.build.fingerprint")
+            if (mode == "root") {
+                val rootProbe = executePrivilegedCommand("command -v su >/dev/null 2>&1 && su -c id || echo su_not_found")
+                rootByShizuku = rootProbe.contains(ROOT_UID_INDICATOR)
+                privilegedSignals["root_probe"] = if (rootByShizuku) ROOT_UID_DISPLAY else rootProbe.take(MAX_ROOT_PROBE_LENGTH)
+            }
+        }
+
+        var score = 0
+        val findings = mutableListOf<String>()
+        if (securityPatch == "unknown") {
+            score += SCORE_UNKNOWN_PATCH
+            findings += "Security patch level is unavailable."
+        }
+        if (testKeys) {
+            score += SCORE_TEST_KEYS
+            findings += "Build tags contain test-keys."
+        }
+        if (adbEnabled) {
+            score += SCORE_ADB_ENABLED
+            findings += "ADB debugging is enabled."
+        }
+        if (devOptionsEnabled) {
+            score += SCORE_DEV_OPTIONS
+            findings += "Developer options are enabled."
+        }
+        if (privilegedSignals["verified_boot_state"]?.contains("orange", true) == true) {
+            score += SCORE_VERIFIED_BOOT_ORANGE
+            findings += "Verified boot state is orange (integrity weakened)."
+        }
+        if (privilegedSignals["flash_locked"] == "0") {
+            score += SCORE_BOOTLOADER_UNLOCKED
+            findings += "Bootloader appears unlocked (ro.boot.flash.locked=0)."
+        }
+        if (privilegedSignals["selinux"]?.contains("permissive", true) == true) {
+            score += SCORE_SELINUX_PERMISSIVE
+            findings += "SELinux is permissive."
+        }
+        if (rootByShizuku) {
+            score += SCORE_ROOT_SHELL
+            findings += "Root shell reachable via su."
+        }
+
+        val clampedScore = score.coerceIn(0, 100)
+        val level = when {
+            clampedScore >= RISK_THRESHOLD_HIGH -> RISK_LEVEL_HIGH
+            clampedScore >= RISK_THRESHOLD_MEDIUM -> RISK_LEVEL_MEDIUM
+            else -> RISK_LEVEL_LOW
+        }
+
+        val json = JSONObject().apply {
+            put("audit_mode", mode)
+            put("effective_access", when {
+                rootByShizuku -> "root"
+                useShizuku -> "shizuku"
+                else -> "normal"
+            })
+            put("android_version", Build.VERSION.RELEASE)
+            put("api_level", Build.VERSION.SDK_INT)
+            put("security_patch", securityPatch)
+            put("build_tags", buildTags)
+            put("adb_enabled", adbEnabled)
+            put("developer_options_enabled", devOptionsEnabled)
+            put("risk_score", clampedScore)
+            put("risk_level", level)
+            put("findings", JSONArray(findings))
+            put("privileged_signals", JSONObject(privilegedSignals))
+            put("note", "This is a defensive hardening audit, not an exploit framework.")
+        }
+
+        if (jsonOutput) return ToolExecutionResult(json.toString(2))
+
+        val out = buildString {
+            appendLine("═══ Android OS Security Audit ═══")
+            appendLine("Mode             : $mode")
+            appendLine("Effective access : ${json.optString("effective_access")}")
+            appendLine("Android          : ${json.optString("android_version")} (API ${json.optInt("api_level")})")
+            appendLine("Patch level      : $securityPatch")
+            appendLine("ADB enabled      : $adbEnabled")
+            appendLine("Dev options      : $devOptionsEnabled")
+            appendLine("Risk             : $clampedScore/100 ($level)")
+            appendLine()
+            appendLine("Findings:")
+            if (findings.isEmpty()) appendLine("  ✅ No major hardening red flags detected.")
+            else findings.forEach { appendLine("  • $it") }
+            if (privilegedSignals.isNotEmpty()) {
+                appendLine()
+                appendLine("Privileged signals:")
+                privilegedSignals.forEach { (signalName, signalValue) ->
+                    appendLine("  - $signalName: ${signalValue.take(MAX_SIGNAL_DISPLAY_LENGTH)}")
+                }
+            }
+            appendLine()
+            appendLine("Next step: run this periodically and combine with app-level actions like advanced_hunt/full_research.")
+        }
+        val truncated = out.length >= MAX_TOOL_OUTPUT_LENGTH
+        return ToolExecutionResult(out.take(MAX_TOOL_OUTPUT_LENGTH), truncated = truncated)
+    }
+
+    private suspend fun executePrivilegedCommand(command: String): String {
+        return when (val result = ShizukuCommandTool.execute(command)) {
+            is ShizukuResult.Success -> result.output.trim()
+            is ShizukuResult.PartialSuccess -> result.output.trim()
+            is ShizukuResult.Failure -> "error: ${result.reason}"
+            is ShizukuResult.PermissionRequired -> "permission_required"
+            is ShizukuResult.Unavailable -> "unavailable"
+        }.ifBlank { "unknown" }
     }
 
     private fun buildZeroDayHeuristics(report: ResearchReport): JSONObject {
