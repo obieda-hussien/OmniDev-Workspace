@@ -1,6 +1,8 @@
 package com.omnidev.workspace.data.tools.security
 
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.tools.ToolExecutionResult
 import com.omnidev.workspace.data.tools.ToolParameter
@@ -591,6 +593,3 @@ summary{cursor:pointer;font-weight:bold}
         isError = true
     )
 }
-
-// Kotlin requires this at file level due to cross-file operator overload
-operator fun Severity.compareTo(other: Severity): Int = this.score.compareTo(other.score)
