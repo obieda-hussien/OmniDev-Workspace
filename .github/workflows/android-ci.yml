@@ -298,24 +298,35 @@ jobs:
       - name: Prepare signing configuration
         id: signing
         shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -euo pipefail
           READY=false
           REASON=""
 
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ] && \
-             [ -n "${{ secrets.KEYSTORE_PASSWORD }}" ] && \
-             [ -n "${{ secrets.KEY_ALIAS }}" ] && \
-             [ -n "${{ secrets.KEY_PASSWORD }}" ]; then
-            if echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "$RUNNER_TEMP/release.keystore" 2>/dev/null; then
+          if [ -n "${KEYSTORE_BASE64}" ] && \
+             [ -n "${KEYSTORE_PASSWORD}" ] && \
+             [ -n "${KEY_ALIAS}" ] && \
+             [ -n "${KEY_PASSWORD}" ]; then
+            if echo "${KEYSTORE_BASE64}" | base64 --decode > "$RUNNER_TEMP/release.keystore" 2>/dev/null; then
               if keytool -list \
                 -keystore "$RUNNER_TEMP/release.keystore" \
-                -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
-                -alias "${{ secrets.KEY_ALIAS }}" >/dev/null 2>&1; then
-                READY=true
-                echo "KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+                -storepass:env KEYSTORE_PASSWORD >/dev/null 2>&1; then
+                if keytool -list \
+                  -keystore "$RUNNER_TEMP/release.keystore" \
+                  -storepass:env KEYSTORE_PASSWORD \
+                  -alias "${KEY_ALIAS}" >/dev/null 2>&1; then
+                  READY=true
+                  echo "KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+                else
+                  REASON="Keystore loaded, but alias '${KEY_ALIAS}' was not found."
+                fi
               else
-                REASON="Signing material is present but invalid (keystore parse/alias/password check failed). Falling back to unsigned release build."
+                REASON="Decoded keystore is invalid or KEYSTORE_PASSWORD is incorrect. Falling back to unsigned release build."
               fi
             else
               REASON="KEYSTORE_BASE64 secret is not valid base64 data. Falling back to unsigned release build."
@@ -333,12 +344,16 @@ jobs:
 
       - name: Build signed release APK
         if: steps.signing.outputs.ready == 'true'
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           ./gradlew --no-daemon :app:assembleRelease \
             -Pandroid.injected.signing.store.file="${{ env.KEYSTORE_PATH }}" \
-            -Pandroid.injected.signing.store.password="${{ secrets.KEYSTORE_PASSWORD }}" \
-            -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
-            -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
+            -Pandroid.injected.signing.store.password="${KEYSTORE_PASSWORD}" \
+            -Pandroid.injected.signing.key.alias="${KEY_ALIAS}" \
+            -Pandroid.injected.signing.key.password="${KEY_PASSWORD}"
 
       - name: Build unsigned release APK (fallback)
         if: steps.signing.outputs.ready != 'true'
@@ -356,7 +371,7 @@ jobs:
         run: rm -f "${{ env.KEYSTORE_PATH }}"
 
       - name: Create GitHub Release (tag builds)
-        if: startsWith(github.ref, 'refs/tags/v') && steps.signing.outputs.ready == 'true'
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: app/build/outputs/apk/release/*.apk
