@@ -304,7 +304,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           READY=false
           REASON=""
 
@@ -324,7 +324,7 @@ jobs:
                     READY=true
                     echo "KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
                   else
-                    REASON="Keystore loaded, but alias '${KEY_ALIAS}' was not found."
+                    REASON="Keystore loaded, but alias '${KEY_ALIAS}' does not exist."
                   fi
                 else
                   REASON="Decoded keystore is invalid or KEYSTORE_PASSWORD is incorrect."
