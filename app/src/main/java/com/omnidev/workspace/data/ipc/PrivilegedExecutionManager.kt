@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.data.tools.ShizukuResult
+import java.io.File
 
 /**
  * PrivilegedExecutionManager — The patched and improved version.
@@ -28,8 +29,11 @@ object PrivilegedExecutionManager {
 
     private const val TAG = "PrivMgr"
     private const val MAX_OUTPUT = 8_000
+    private const val JADX_MAIN_CLASS = "jadx.cli.JadxCLI"
+    private const val APKTOOL_MAIN_CLASS = "brut.apktool.Main"
 
     @Volatile private var rishManager: RishShellManager? = null
+    @Volatile private var appContext: Context? = null
     private val rishInitLock = Any()
 
     // ──────────────────────────────────────────────────────────────
@@ -37,6 +41,7 @@ object PrivilegedExecutionManager {
     // ──────────────────────────────────────────────────────────────
 
     fun init(context: Context) {
+        appContext = context.applicationContext
         if (rishManager == null) {
             synchronized(rishInitLock) {
                 if (rishManager == null) {
@@ -72,10 +77,11 @@ object PrivilegedExecutionManager {
         if (command.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Command is empty."))
         }
+        val preparedCommand = enrichCommandWithOmniToolchain(command)
 
         // ── 1. Shizuku.newProcess() (The best — shell UID) ──
         if (ShizukuCommandTool.isAvailable()) {
-            when (val r = ShizukuCommandTool.execute(command)) {
+            when (val r = ShizukuCommandTool.execute(preparedCommand)) {
                 is ShizukuResult.Success -> {
                     Log.d(TAG, "Shizuku ✅ exit=0: ${command.take(40)}")
                     return@withContext Result.success(r.output.trim().take(MAX_OUTPUT))
@@ -104,7 +110,7 @@ object PrivilegedExecutionManager {
         // ── 2. rish (full ADB-equivalent shell) ──
         if (isRishReady()) {
             Log.d(TAG, "Trying rish: ${command.take(40)}")
-            val rishResult = rishManager!!.execute(command)
+            val rishResult = rishManager!!.execute(preparedCommand)
             if (rishResult.isSuccess) {
                 val out = rishResult.getOrThrow()
                 Log.d(TAG, "rish ✅: ${command.take(40)}")
@@ -116,7 +122,7 @@ object PrivilegedExecutionManager {
         // ── 3. Root/SU ──
         if (isRootAvailable()) {
             Log.d(TAG, "Trying root: ${command.take(40)}")
-            return@withContext executeViaRoot(command)
+            return@withContext executeViaRoot(preparedCommand)
         }
 
         // ── Failure: Clear diagnostics ──
@@ -149,6 +155,41 @@ object PrivilegedExecutionManager {
         }
         appendLine("  2. Run: execution_diagnostics action=fix_shizuku")
     }
+
+    private fun enrichCommandWithOmniToolchain(command: String): String {
+        // If init(context) has not run yet, execute the command as-is.
+        val ctx = appContext ?: return command
+        val baseDir = runCatching { ctx.filesDir.canonicalFile }.getOrNull() ?: return command
+        val root = runCatching { File(baseDir, "omnidev_tools").canonicalFile }.getOrNull() ?: return command
+        if (!root.path.startsWith(baseDir.path + File.separator)) return command
+        if (!root.exists()) return command
+        val bin = File(root, "bin").absolutePath
+        val customBin = File(root, "custom/bin").absolutePath
+        val jadxJar = File(root, "jars/jadx-cli.jar").absolutePath
+        val apktoolJar = File(root, "jars/apktool.jar").absolutePath
+
+        val prelude = buildString {
+            val qRoot = shellQuote(root.absolutePath)
+            val qBin = shellQuote(bin)
+            val qCustomBin = shellQuote(customBin)
+            val qJadxJar = shellQuote(jadxJar)
+            val qApktoolJar = shellQuote(apktoolJar)
+            val qJadxMainClass = shellQuote(JADX_MAIN_CLASS)
+            val qApktoolMainClass = shellQuote(APKTOOL_MAIN_CLASS)
+
+            append("export OMNIDEV_TOOLS_ROOT=$qRoot; ")
+            append("export PATH=$qBin:$qCustomBin:\$PATH; ")
+            append("if [ -f $qJadxJar ]; then jadx(){ CLASSPATH=$qJadxJar app_process / $qJadxMainClass \"\$@\"; }; fi; ")
+            append("if [ -f $qApktoolJar ]; then apktool(){ CLASSPATH=$qApktoolJar app_process / $qApktoolMainClass \"\$@\"; }; fi; ")
+        }
+
+        return "$prelude $command"
+    }
+
+    // POSIX-safe single-quote escaping:
+    // close quote + escaped single quote + reopen quote => '\'' pattern.
+    private fun shellQuote(value: String): String =
+        "'" + value.replace("'", "'\\''") + "'"
 
     // ──────────────────────────────────────────────────────────────
     // System info helpers
