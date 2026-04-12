@@ -313,33 +313,37 @@ jobs:
              [ -n "${KEY_ALIAS}" ] && \
              [ -n "${KEY_PASSWORD}" ]; then
             if echo "${KEYSTORE_BASE64}" | base64 --decode > "$RUNNER_TEMP/release.keystore" 2>/dev/null; then
-              if keytool -list \
-                -keystore "$RUNNER_TEMP/release.keystore" \
-                -storepass:env KEYSTORE_PASSWORD >/dev/null 2>&1; then
+              if [ -s "$RUNNER_TEMP/release.keystore" ]; then
                 if keytool -list \
                   -keystore "$RUNNER_TEMP/release.keystore" \
-                  -storepass:env KEYSTORE_PASSWORD \
-                  -alias "${KEY_ALIAS}" >/dev/null 2>&1; then
-                  READY=true
-                  echo "KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+                  -storepass:env KEYSTORE_PASSWORD >/dev/null 2>&1; then
+                  if keytool -list \
+                    -keystore "$RUNNER_TEMP/release.keystore" \
+                    -storepass:env KEYSTORE_PASSWORD \
+                    -alias "${KEY_ALIAS}" >/dev/null 2>&1; then
+                    READY=true
+                    echo "KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+                  else
+                    REASON="Keystore loaded, but alias '${KEY_ALIAS}' was not found."
+                  fi
                 else
-                  REASON="Keystore loaded, but alias '${KEY_ALIAS}' was not found."
+                  REASON="Decoded keystore is invalid or KEYSTORE_PASSWORD is incorrect."
                 fi
               else
-                REASON="Decoded keystore is invalid or KEYSTORE_PASSWORD is incorrect. Falling back to unsigned release build."
+                REASON="Decoded keystore file is empty."
               fi
             else
-              REASON="KEYSTORE_BASE64 secret is not valid base64 data. Falling back to unsigned release build."
+              REASON="KEYSTORE_BASE64 secret is not valid base64 data."
             fi
           else
-            REASON="Signing secrets are missing. Falling back to unsigned release build."
+            REASON="Signing secrets are missing."
           fi
 
           echo "ready=$READY" >> "$GITHUB_OUTPUT"
           if [ "$READY" != "true" ]; then
             echo "reason=$REASON" >> "$GITHUB_OUTPUT"
             rm -f "$RUNNER_TEMP/release.keystore"
-            echo "::warning::$REASON"
+            echo "::warning::${REASON}"
           fi
 
       - name: Build signed release APK
