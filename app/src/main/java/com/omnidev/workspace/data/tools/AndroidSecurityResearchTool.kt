@@ -13,9 +13,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import org.json.JSONArray
 import org.json.JSONObject
-import java.time.LocalDate
-import java.time.format.DateTimeParseException
-import java.time.temporal.ChronoUnit
+import java.text.ParseException
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
+import java.util.TimeZone
 
 // ════════════════════════════════════════════════════════════════════════════════
 // AndroidSecurityResearchTool  v2.0
@@ -74,6 +76,12 @@ object AndroidSecurityResearchTool {
     private const val API_LEVEL_LEGACY_HIGH_RISK = 27
     // API 29 ≈ Android 10 and below (aging hardening baseline).
     private const val API_LEVEL_AGING_MEDIUM_RISK = 29
+    private val PATCH_DATE_FORMAT = ThreadLocal.withInitial {
+        SimpleDateFormat("yyyy-MM-dd", Locale.US).apply {
+            isLenient = false
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
+    }
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
@@ -919,9 +927,21 @@ Output is formatted for readability. Use output_format=json for machine parsing.
         // Expected Android patch format: YYYY-MM-DD (e.g., 2026-04-05).
         if (patch.isBlank() || patch.equals("unknown", ignoreCase = true)) return null
         return try {
-            val parsed = LocalDate.parse(patch)
-            ChronoUnit.MONTHS.between(parsed, LocalDate.now()).coerceAtLeast(0)
-        } catch (_: DateTimeParseException) {
+            val parser = PATCH_DATE_FORMAT.get() ?: return null
+            val parsedDate = parser.parse(patch) ?: return null
+            val parsedCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { time = parsedDate }
+            val nowCal = Calendar.getInstance(TimeZone.getTimeZone("UTC"))
+            // Future patch levels are treated as 0 months old (not stale).
+            if (parsedCal.after(nowCal)) return 0L
+
+            var months = (nowCal.get(Calendar.YEAR) - parsedCal.get(Calendar.YEAR)) * 12 +
+                (nowCal.get(Calendar.MONTH) - parsedCal.get(Calendar.MONTH))
+            val comparisonDayThreshold = parsedCal.get(Calendar.DAY_OF_MONTH)
+            if (months > 0 && nowCal.get(Calendar.DAY_OF_MONTH) < comparisonDayThreshold) {
+                months -= 1
+            }
+            months.coerceAtLeast(0).toLong()
+        } catch (_: ParseException) {
             null
         }
     }
