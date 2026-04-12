@@ -304,7 +304,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
           READY=false
           REASON=""
 
@@ -313,6 +313,7 @@ jobs:
              [ -n "${KEY_ALIAS}" ] && \
              [ -n "${KEY_PASSWORD}" ]; then
             if echo "${KEYSTORE_BASE64}" | base64 --decode > "$RUNNER_TEMP/release.keystore" 2>/dev/null; then
+              chmod 600 "$RUNNER_TEMP/release.keystore"
               if [ -s "$RUNNER_TEMP/release.keystore" ]; then
                 if keytool -list \
                   -keystore "$RUNNER_TEMP/release.keystore" \
