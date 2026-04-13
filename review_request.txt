@@ -1,0 +1,23 @@
+Please review my plan to implement the OmniDev Model Context Protocol (MCP) Integration.
+
+1. **Create MCP Configuration Schema and Manager:**
+   - Create `app/src/main/java/com/omnidev/workspace/domain/mcp/McpConfig.kt` with `McpServerConfig` and `McpConfig` data classes to represent the JSON structure.
+   - Create `app/src/main/java/com/omnidev/workspace/data/mcp/McpConfigManager.kt` to handle CRUD operations on the MCP configuration, saving it securely (e.g., using EncryptedSharedPreferences).
+
+2. **Implement MCP HTTP Transport Layer:**
+   - Create `app/src/main/java/com/omnidev/workspace/data/mcp/McpHttpClient.kt` to handle HTTP/SSE connections to MCP servers.
+   - Implement methods for `initialize`, fetching `tools/list`, and executing `tools/call`. Ensure environment variables (like API keys) from the config are passed as headers or as required by the MCP HTTP/SSE transport specification.
+
+3. **Implement MCP Registry for Agent Integration:**
+   - Create `app/src/main/java/com/omnidev/workspace/domain/mcp/McpRegistry.kt` to manage connected MCP servers, fetch available tools, and convert MCP tool schemas into the native `ToolDefinition` format used by Omni, prefixing tool names with `mcp_[server_name]_`.
+
+4. **Update AgentPipeline.kt for Dynamic Tool Registration and Routing:**
+   - In `AgentPipeline.kt`, inject `McpRegistry` as a dependency.
+   - In the `execute` method, before building the system prompt, fetch dynamic MCP tools using `McpRegistry.fetchAllAvailableTools()` and append them to the existing `toolDefs`.
+   - Update the tool execution routing: when an LLM calls a tool starting with `mcp_`, intercept it and route it to `McpHttpClient.executeTool(...)` instead of the local tool manager.
+   - Add the `[DYNAMIC MCP TOOLS AWARENESS]` block to the `GOD_PROTOCOL` or base system prompt.
+
+5. **Verify and Test:**
+   - Verify the newly created and modified files.
+   - Run tests to ensure no regressions.
+   - Complete pre-commit steps.
