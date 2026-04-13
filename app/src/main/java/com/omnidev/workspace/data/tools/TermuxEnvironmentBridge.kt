@@ -285,7 +285,7 @@ object TermuxEnvironmentBridge {
     // ── 5.4  Binary Resolution ────────────────────────────────────────────────
 
     /** Returns true if Termux bash exists (Termux is installed). */
-    fun isTermuxInstalled(): Boolean = File(TERMUX_BASH).exists()
+    fun isTermuxInstalled(): Boolean = File(TERMUX_BASH).exists() || File("/data/local/tmp/termux/usr/bin/bash").exists()
 
     /**
      * Resolves a binary path with full caching.

@@ -345,6 +345,27 @@ You are an autonomous engineering agent operating on Android. Missing tools are 
    - If Termux is missing, use standalone fallback to `/data/local/tmp` and run Java jars with `dalvikvm -cp ...`.
 4. For Java-based Android RE tools (apktool/jadx), prefer jar + dalvikvm fallback when standard binaries are unavailable.
 5. After provisioning, VERIFY tool health (`--version` or equivalent), then continue the original objective immediately.
+
+[CRITICAL SYSTEM DIRECTIVES FOR OMNI DEVOPS]
+
+1. THE DALVIKVM RULE:
+   - If you are operating in an Android shell (adb/shizuku) and attempting to run a `.jar` file using `dalvikvm` or `app_process`, YOU MUST KNOW: Dalvik ONLY executes `.dex` bytecode.
+   - If you receive `java.lang.ClassNotFoundException` on the Main class of a downloaded JAR, IT IS NOT A TYPO. It means the JAR contains `.class` files, not `.dex` files.
+   - DO NOT try to re-run it. DO NOT try to fix permissions.
+   - ACTION: You must either "dex" the jar using `d8`, or switch to a Termux environment containing `openjdk`.
+
+2. THE CIRCUIT BREAKER RULE (Loop Prevention):
+   - If a specific command fails with the same exit code and stderr twice, STOP.
+   - Do not run diagnostic commands (`xxd`, `hexdump`, `cat`, `ls -l`) more than once for the same error.
+   - Pivot your strategy. If tool execution fails, look for an alternative tool. If native execution fails, pivot to Termux package management.
+
+3. WORKSPACE DEGRADATION AWARENESS:
+   - If standard tools (`unzip`, `python`, `java`) are missing or returning "Permission denied" / "I/O error", you are in a stripped-down Android environment (Toybox/Toolbox).
+   - Stop relying on standard Linux assumptions. Your highest priority becomes bootstrapping a proper Linux environment (Termux) before attempting complex reverse-engineering tasks.
+
+[RESTRICTED DIRECTORY ACCESS RULE]
+- If you need to access or modify files inside `/storage/emulated/0/Android/data` or `/Android/obb`, standard file readers will fail due to Android Scoped Storage.
+- ACTION: You MUST use the `privileged_tool` (Shizuku shell) using commands like `ls`, `cat`, and `cp` to interact with these specific directories.
 """
 
         /**
@@ -920,12 +941,12 @@ Rules:
                 val callCount = (toolCallCounts[fingerprint] ?: 0) + 1
                 toolCallCounts[fingerprint] = callCount
                 if (callCount > config.maxRepeatedToolCalls) {
-                    send(AgentEvent.Error(
-                        "🔄 Loop detected: tool '${toolCall.name}' called $callCount times " +
-                        "with identical arguments. Aborting to prevent an infinite loop. " +
-                        "Use the ⏹ stop button to cancel a run at any time."
+                    send(AgentEvent.ThinkingBlock("System Intercept: Agent, you are looping. Cease current approach. Switch to Termux bootstrap or request a pre-dexed binary."))
+                    messages.add(ChatMessage(
+                        role = MessageRole.USER,
+                        content = "System Intercept: Agent, you are looping. You have spent iterations analyzing this. Cease current approach. Switch to Termux bootstrap or request a pre-dexed binary."
                     ))
-                    return@channelFlow
+                    continue
                 }
             }
 
