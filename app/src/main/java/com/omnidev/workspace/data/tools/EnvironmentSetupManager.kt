@@ -1,7 +1,9 @@
 package com.omnidev.workspace.data.tools
 
+import android.content.Context
 import android.util.Log
 import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
+import com.omnidev.workspace.data.tools.security.OmniNativeToolsManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
@@ -203,9 +205,15 @@ object EnvironmentSetupManager {
     private val cache  = BinaryCache(ttlMs = 120_000L)
     private val mutex  = Mutex()
     private var lastProbeMs = AtomicLong(0L)
+    @Volatile
+    private var appContext: Context? = null
 
     /** Minimum milliseconds between full probes (avoids hammer on rapid calls). */
     private const val MIN_PROBE_INTERVAL_MS = 15_000L
+
+    fun init(context: Context) {
+        appContext = context.applicationContext
+    }
 
     // ── Public API ─────────────────────────────────────────────────────────
 
@@ -310,31 +318,46 @@ object EnvironmentSetupManager {
      * Returns null if not found.
      */
     suspend fun resolveBinary(binary: String): String? = withContext(Dispatchers.IO) {
+        val safeBinary = sanitizeName(binary).ifBlank { return@withContext null }
         // 1. Cache hit
-        val cached = cache.get(binary)
+        val cached = cache.get(safeBinary)
         if (cached != null) return@withContext cached
-        if (cache.isCachedMiss(binary)) return@withContext null
+        if (cache.isCachedMiss(safeBinary)) return@withContext null
 
-        // 2. Direct Termux path
-        val termuxPath = "$TERMUX_BIN/$binary"
+        // 2. App-private Omni tools path (native + custom)
+        appContext?.let { ctx ->
+            val omniRoot = File(ctx.filesDir, "omnidev_tools")
+            val privateCandidates = listOf(
+                File(omniRoot, "custom/bin/$safeBinary"),
+                File(omniRoot, "bin/$safeBinary"),
+                File(omniRoot, "python/bin/$safeBinary")
+            )
+            privateCandidates.firstOrNull { it.exists() && it.isFile }?.let { hit ->
+                cache.put(safeBinary, hit.absolutePath)
+                return@withContext hit.absolutePath
+            }
+        }
+
+        // 3. Direct Termux path
+        val termuxPath = "$TERMUX_BIN/$safeBinary"
         if (File(termuxPath).exists()) {
-            cache.put(binary, termuxPath)
+            cache.put(safeBinary, termuxPath)
             return@withContext termuxPath
         }
 
-        // 3. `which` via privileged shell
+        // 4. `which` via privileged shell
         val whichResult = PrivilegedExecutionManager
-            .executeCommand("which ${sanitizeName(binary)} 2>/dev/null")
+            .executeCommand("which $safeBinary 2>/dev/null")
             .getOrNull()?.trim()
             ?.takeIf { it.isNotBlank() && !it.startsWith("ERROR") && it != "(no output)" }
 
         if (whichResult != null) {
-            cache.put(binary, whichResult)
+            cache.put(safeBinary, whichResult)
             return@withContext whichResult
         }
 
-        // 4. Known static paths (python / node / git specific)
-        val staticPath = when (binary) {
+        // 5. Known static paths (python / node / git specific)
+        val staticPath = when (safeBinary) {
             "python3", "python" -> SYSTEM_PYTHON_PATHS.firstOrNull { File(it).exists() }
             "node"              -> SYSTEM_NODE_PATHS.firstOrNull   { File(it).exists() }
             "git"               -> SYSTEM_GIT_PATHS.firstOrNull    { File(it).exists() }
@@ -342,9 +365,9 @@ object EnvironmentSetupManager {
         }
 
         if (staticPath != null) {
-            cache.put(binary, staticPath)
+            cache.put(safeBinary, staticPath)
         } else {
-            cache.putMiss(binary)
+            cache.putMiss(safeBinary)
         }
         staticPath
     }
@@ -698,6 +721,10 @@ object EnvironmentSetupManager {
         sb.appendLine("║ Backend     : ${state.privilegeBackend}")
         sb.appendLine("║ Termux      : ${if (state.termuxPrefix != null) "✅ ${state.termuxPrefix}" else "❌ not found"}")
         sb.appendLine("║ Probe time  : ${state.probeTimeMs}ms")
+        if (appContext != null) {
+            val omniRoot = appContext?.filesDir?.let { File(it, "omnidev_tools") }
+            sb.appendLine("║ Omni tools  : ${if (omniRoot?.exists() == true) "✅ ${omniRoot.absolutePath}" else "❌ not initialized"}")
+        }
         sb.appendLine("║")
         sb.appendLine("║ RUNTIMES")
         state.runtimes.entries.sortedBy { it.key }.forEach { (_, rs) ->
@@ -714,6 +741,7 @@ object EnvironmentSetupManager {
         sb.appendLine("  Install Python  : action=install_python")
         sb.appendLine("  Install Node.js : action=install_node")
         sb.appendLine("  Install Git     : action=install_git")
+        sb.appendLine("  Install tool    : action=ensure_tool tool=<name>")
         return ToolExecutionResult(sb.toString().trimEnd())
     }
 
@@ -760,6 +788,19 @@ object EnvironmentSetupManager {
     private suspend fun findPerl(): RuntimeStatus    = findBinSimple("perl")
 
     private suspend fun findInterpreter(name: String, candidates: List<String>): RuntimeStatus {
+        val resolved = resolveBinary(name)
+        if (!resolved.isNullOrBlank()) {
+            val envP = if (resolved.startsWith(TERMUX_BIN)) buildEnvPrefix() else ""
+            val ver = exec("${envP}${resolved} --version 2>&1")?.firstLine()
+            val src = when {
+                resolved.startsWith(TERMUX_BIN) -> "termux"
+                appContext?.filesDir?.absolutePath?.let { resolved.startsWith(it) } == true -> "omni"
+                else -> "system"
+            }
+            cache.put(name, resolved)
+            return RuntimeStatus(name, true, resolved, ver, src)
+        }
+
         for (candidate in candidates) {
             if (!File(candidate).exists()) continue
             val envP = if (candidate.startsWith(TERMUX_BIN)) buildEnvPrefix() else ""
@@ -786,7 +827,11 @@ object EnvironmentSetupManager {
             ?: return RuntimeStatus(name, false)
         val envP = if (path.startsWith(TERMUX_BIN)) buildEnvPrefix() else ""
         val ver = exec("${envP}${path} --version 2>&1")?.firstLine()
-        val src = if (path.startsWith(TERMUX_BIN)) "termux" else "system"
+        val src = when {
+            path.startsWith(TERMUX_BIN) -> "termux"
+            appContext?.filesDir?.absolutePath?.let { path.startsWith(it) } == true -> "omni"
+            else -> "system"
+        }
         return RuntimeStatus(name, true, path, ver, src)
     }
 
@@ -1068,6 +1113,32 @@ object EnvironmentSetupManager {
         val npmPackage = arguments["npm_package"]?.trim().orEmpty()
         val explicitTermuxPackage = arguments["termux_package"]?.trim()?.let { sanitizePackageList(it) }.orEmpty()
         val installLog = StringBuilder()
+
+        // Prefer Omni native/security toolchain when available.
+        val omniCtx = appContext
+        val omniTool = when (tool) {
+            "python", "python3" -> OmniNativeToolsManager.Tool.PYTHON
+            "aapt2", "aapt" -> OmniNativeToolsManager.Tool.AAPT2
+            "jadx" -> OmniNativeToolsManager.Tool.JADX
+            "apktool" -> OmniNativeToolsManager.Tool.APKTOOL
+            "busybox", "strings" -> OmniNativeToolsManager.Tool.BUSYBOX
+            else -> null
+        }
+        if (omniCtx != null && omniTool != null) {
+            runCatching { OmniNativeToolsManager.init(omniCtx) }
+            val omniRes = OmniNativeToolsManager.ensure(omniCtx, omniTool)
+            if (omniRes.isSuccess) {
+                val omniFile = omniRes.getOrNull()
+                if (omniFile != null) {
+                    cache.put(tool, omniFile.absolutePath)
+                    return@withContext ToolExecutionResult(
+                        "✅ Provisioned '$tool' via Omni toolchain: ${omniFile.absolutePath}"
+                    )
+                }
+            } else {
+                installLog.appendLine("Omni toolchain install failed: ${omniRes.exceptionOrNull()?.message}")
+            }
+        }
 
         if (termuxAvailable) {
             installLog.appendLine("Termux detected → provisioning with package managers.")

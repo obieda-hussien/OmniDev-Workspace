@@ -13,6 +13,8 @@ import com.omnidev.workspace.data.ipc.ExtensionConnectionManager
 import com.omnidev.workspace.data.ipc.LauncherConnectionManager
 import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 import com.omnidev.workspace.data.model.ModelProvider
+import com.omnidev.workspace.data.tools.EnvironmentSetupManager
+import com.omnidev.workspace.data.tools.ToolDownloaderEngine
 import com.omnidev.workspace.data.tools.ml.ToolMachineLearningEngine
 import com.omnidev.workspace.data.tools.monitoring.ToolMonitoringSystem
 import com.omnidev.workspace.data.tools.orchestration.ToolIntelligenceEngine
@@ -59,6 +61,8 @@ class OmniDevApp : Application() {
 
         // Initialise PrivilegedExecutionManager with application context.
         PrivilegedExecutionManager.init(applicationContext)
+        EnvironmentSetupManager.init(applicationContext)
+        ToolDownloaderEngine.init(applicationContext)
 
         // Initialize universal launcher IPC binding manager
         LauncherConnectionManager.initialize(applicationContext)
