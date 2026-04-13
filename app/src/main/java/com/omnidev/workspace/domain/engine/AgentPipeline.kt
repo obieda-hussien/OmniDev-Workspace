@@ -168,6 +168,7 @@ data class AgentConfig(
  */
 class AgentPipeline(
     private val toolManager: ToolManager,
+    private val mcpRegistry: com.omnidev.workspace.data.mcp.McpRegistry? = null,
     private val completionProvider: suspend (CompletionRequest) -> CompletionResponse,
     private val streamingCompletionProvider: (suspend (CompletionRequest, suspend (String) -> Unit) -> CompletionResponse)? = null,
     private val config: AgentConfig = AgentConfig(),
@@ -611,10 +612,12 @@ Rules:
         }
 
         // Build the complete system prompt with tool definitions
-        val toolDefs = toolManager.getToolDefinitions()
+        val localToolDefs = toolManager.getToolDefinitions()
+        val mcpTools = try { mcpRegistry?.fetchAllAvailableTools() ?: emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() } catch(e: Exception) { emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() }
+        val toolDefs = localToolDefs + mcpTools
         // Register tool definitions with the brain so it is aware of all available capabilities
         smartLearningBridge?.registerTools(toolDefs)
-        val toolSchemaText = toolDefs.joinToString("\n\n") { tool ->
+        val toolSchemaText = "\n[DYNAMIC MCP TOOLS AWARENESS]\n- You are equipped with a dynamic Model Context Protocol (MCP) client.\n- In addition to your local Android terminal tools, you may see tools prefixed with `mcp_` in your tool list. \n- These are remote tools provided by the user's connected services (e.g., GitHub, Render, Custom APIs).\n- Treat these `mcp_` tools exactly like local tools. If a task requires cloud infrastructure, repo management, or external data, prioritize checking your available MCP tools.\n" + "\n" + toolDefs.joinToString("\n\n") { tool ->
             buildString {
                 appendLine("### Tool: ${tool.name}")
                 appendLine(tool.description)
@@ -977,11 +980,16 @@ Rules:
                                     maxRetries = config.toolExecutionMaxRetries,
                                     baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs
                                 ) {
-                                    toolManager.executeTool(
-                                        name = toolCall.name,
-                                        arguments = toolCall.arguments,
-                                        scopePath = scopePath
-                                    )
+                                    if (toolCall.name.startsWith("mcp_")) {
+                                        val output = mcpRegistry?.executeMcpTool(toolCall.name, toolCall.arguments) ?: "MCP Registry not configured"
+                                        com.omnidev.workspace.data.tools.ToolExecutionResult(output = output)
+                                    } else {
+                                        toolManager.executeTool(
+                                            name = toolCall.name,
+                                            arguments = toolCall.arguments,
+                                            scopePath = scopePath
+                                        )
+                                    }
                                 }
                                 if (result.isSuccess) {
                                     result.getOrThrow()
@@ -1004,11 +1012,16 @@ Rules:
                             maxRetries = config.toolExecutionMaxRetries,
                             baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs
                         ) {
-                            toolManager.executeTool(
-                                name = toolCall.name,
-                                arguments = toolCall.arguments,
-                                scopePath = scopePath
-                            )
+                            if (toolCall.name.startsWith("mcp_")) {
+                                val output = mcpRegistry?.executeMcpTool(toolCall.name, toolCall.arguments) ?: "MCP Registry not configured"
+                                com.omnidev.workspace.data.tools.ToolExecutionResult(output = output)
+                            } else {
+                                toolManager.executeTool(
+                                    name = toolCall.name,
+                                    arguments = toolCall.arguments,
+                                    scopePath = scopePath
+                                )
+                            }
                         }
                         if (result.isSuccess) {
                             result.getOrThrow()
