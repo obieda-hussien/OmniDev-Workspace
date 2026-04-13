@@ -285,6 +285,8 @@ Execute the full OmniDev autonomous runtime. Backed by Shizuku/Root + Termux.
 • download_file    — Download a file (param: 'url', optional: 'dest_path').
 • download_exec    — Download and execute a script (param: 'url', optional: 'args', 'cwd').
 • download_verify  — Download and check SHA256 checksum (param: 'url', 'checksum', optional: 'dest').
+• install_tool     — Install/provision a tool (param: 'tool', optional provisioning hints).
+• tools_status     — Show runtime/tools status.
             """.trimIndent(),
             parameters = listOf(
                 ToolParameter("action",      "string", "Action to perform (see description above).", required = true),
@@ -861,6 +863,10 @@ Execute the full OmniDev autonomous runtime. Backed by Shizuku/Root + Termux.
                 downloadVerify(url, checksum, args["dest"])
             }
 
+            "install_tool" -> ToolDownloaderEngine.installTool(args)
+
+            "tools_status" -> ToolDownloaderEngine.toolsStatus()
+
             else -> err("Unknown action: '$action'. See tool description for available actions.")
         }
     }
@@ -992,67 +998,15 @@ Execute the full OmniDev autonomous runtime. Backed by Shizuku/Root + Termux.
     }
 
     private suspend fun downloadFile(url: String, destPath: String?): ToolExecutionResult {
-        validateUrl(url) ?: return err("Invalid URL: '$url'")
-        val cleanUrl = url.substringBefore("?")
-        val filename = cleanUrl.substringAfterLast("/")
-            .replace(Regex("[^a-zA-Z0-9_.\\-]"), "")
-            .ifBlank { "download_${System.currentTimeMillis()}" }
-        val dest = destPath?.takeIf { !it.contains("..") }
-            ?: "/data/local/tmp/$filename"
-
-        val curlBin = EnvironmentSetupManager.findBinary("curl")
-        val wgetBin = EnvironmentSetupManager.findBinary("wget")
-        if (curlBin == null && wgetBin == null) {
-            return err("Neither curl nor wget available. Run: action=pkg_install packages='curl wget'")
-        }
-        val envPfx = EnvironmentSetupManager.buildEnvPrefix()
-        val cmd = if (curlBin != null)
-            "${envPfx}${curlBin} -fsSL -o ${sq(dest)} ${sq(url)} 2>&1"
-        else
-            "${envPfx}${wgetBin} -q -O ${sq(dest)} ${sq(url)} 2>&1"
-
-        val result = EnvironmentSetupManager.executeShell(cmd)
-        return if (result.isError) result
-        else ToolExecutionResult("✅ Downloaded to: $dest\n${result.output}")
+        return ToolDownloaderEngine.downloadFile(url, destPath)
     }
 
     private suspend fun downloadExec(url: String, extraArgs: String, cwd: String?): ToolExecutionResult {
-        validateUrl(url) ?: return err("Invalid URL: '$url'")
-        val tmp = "/data/local/tmp/agent_dl_${System.currentTimeMillis()}.sh"
-        val argPart = if (extraArgs.isBlank()) "" else " ${sq(extraArgs)}"
-        val envPfx  = EnvironmentSetupManager.buildEnvPrefix()
-        val script  = buildString {
-            if (!cwd.isNullOrBlank()) appendLine("cd ${sq(cwd)} || exit 1")
-            appendLine("${envPfx}curl -fsSL -o $tmp ${sq(url)} || ${envPfx}wget -q -O $tmp ${sq(url)}")
-            appendLine("chmod +x $tmp")
-            appendLine("sh $tmp$argPart")
-            appendLine("rm -f $tmp")
-        }
-        return EnvironmentSetupManager.executeShell(script, useBase64 = true)
+        return ToolDownloaderEngine.downloadExec(url, extraArgs, cwd)
     }
 
     private suspend fun downloadVerify(url: String, checksum: String, dest: String?): ToolExecutionResult {
-        val safeChecksum = checksum.replace(Regex("[^a-fA-F0-9]"), "")
-        if (safeChecksum.length != 64) return err("checksum must be a 64-char SHA256 hex string.")
-        val dlResult = downloadFile(url, dest)
-        if (dlResult.isError) return dlResult
-
-        val filePath = dlResult.output.substringAfter("Downloaded to: ").lines().first().trim()
-        val verifyCmd = "sha256sum ${sq(filePath)} 2>&1"
-        val hashResult = EnvironmentSetupManager.executeShell(verifyCmd)
-        val actualHash = hashResult.output.split(" ").firstOrNull()?.trim()?.lowercase()
-
-        return if (actualHash == safeChecksum.lowercase()) {
-            ToolExecutionResult("✅ File verified: SHA256 matches.\nPath: $filePath")
-        } else {
-            EnvironmentSetupManager.executeShell("rm -f ${sq(filePath)}")
-            ToolExecutionResult(
-                "❌ Checksum MISMATCH — file deleted.\n" +
-                "Expected: $safeChecksum\n" +
-                "Got:      ${actualHash ?: "unknown"}",
-                isError = true
-            )
-        }
+        return ToolDownloaderEngine.downloadVerify(url, checksum, dest)
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────

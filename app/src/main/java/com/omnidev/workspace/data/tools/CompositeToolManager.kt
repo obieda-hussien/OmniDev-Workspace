@@ -128,6 +128,7 @@ class CompositeToolManager(
         addAll(WebSearchTool.getToolDefinitions())
         addAll(NetworkRequestTool.getToolDefinitions())
         addAll(QualitySecurityTool.getToolDefinitions())
+        addAll(ToolDownloaderEngine.getToolDefinitions())
         addAll(memoryManager.getToolDefinitions())
         addAll(CommunicationTool.getToolDefinitions())
         addAll(PlannerTool.getToolDefinitions())
@@ -956,6 +957,9 @@ class CompositeToolManager(
             "agent_runtime" -> {
                 val action = arguments["action"] ?: return missingArg("action")
                 AgentRuntimeTool.execute(context = context ?: return missingContext(), action = action, args = arguments)
+            }
+            "install_tool", "tools_status" -> {
+                ToolDownloaderEngine.execute(name, arguments)
             }
 
             // ── Termux bridge & Python tools ──

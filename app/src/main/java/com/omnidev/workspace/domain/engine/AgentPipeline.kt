@@ -329,6 +329,25 @@ You are a Senior Linux Sysadmin. NEVER blindly assume a command succeeded. Follo
 """
 
         /**
+         * Dynamic environment bootstrapping directive.
+         * Prevents dead loops on missing tools by forcing install/provision flows first.
+         */
+        private const val DYNAMIC_BOOTSTRAP_DIRECTIVE = """
+
+## RULE: DYNAMIC ENVIRONMENT BOOTSTRAPPING (ANDROID)
+You are an autonomous engineering agent operating on Android. Missing tools are NOT blockers.
+
+1. NEVER LOOP on repeated `which`/`ls`/`find` checks when a tool is missing.
+2. Before running a target command, do a pre-flight dependency check (binary + runtime + environment).
+3. If a required tool is missing, IMMEDIATELY provision it:
+   - Prefer `advanced_terminal` action=`ensure_tool` for automatic Termux-first provisioning.
+   - If Termux is available, install via package managers (`pkg`/`apt`, `pip`, `npm`).
+   - If Termux is missing, use standalone fallback to `/data/local/tmp` and run Java jars with `dalvikvm -cp ...`.
+4. For Java-based Android RE tools (apktool/jadx), prefer jar + dalvikvm fallback when standard binaries are unavailable.
+5. After provisioning, VERIFY tool health (`--version` or equivalent), then continue the original objective immediately.
+"""
+
+        /**
          * Agent V2 execution framework:
          * - Structured phases (Analyze → Implement → Verify → Report)
          * - Stronger context continuity and decision logging
@@ -609,6 +628,9 @@ Rules:
             // Self-verification directive — forces the agent to verify results, check exit codes,
             // and read back changes instead of blindly assuming success.
             append(SELF_VERIFY_DIRECTIVE)
+            // Dynamic bootstrapping directive — forces autonomous dependency provisioning
+            // instead of repeated environment probing loops.
+            append(DYNAMIC_BOOTSTRAP_DIRECTIVE)
             // Agent V2 execution framework — phased execution + orchestration + quality gates.
             append(AGENT_V2_EXECUTION_PROTOCOL)
             // Autonomous memory directive — always injected so the agent proactively manages memory

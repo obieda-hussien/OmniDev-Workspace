@@ -1119,6 +1119,7 @@ Backed by Shizuku/rish/root + Termux. Includes LD_PRELOAD fix for all binary iss
 • env_info        — Dump the injected environment variables.
 • bootstrap       — Full staged bootstrap (Termux → Python → Node → Git → pip).
 • bootstrap_status — Show completion state of each bootstrap step.
+• ensure_tool     — Pre-flight dependency check + dynamic provisioning (Termux first, standalone fallback).
 
 ━━ CODE EXECUTION ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 • exec            — Run a single-shot command (param: command, optional: cwd, timeout_seconds).
@@ -1152,6 +1153,14 @@ Backed by Shizuku/rish/root + Termux. Includes LD_PRELOAD fix for all binary iss
                 ToolParameter("cwd",             "string", "Working directory.",                    required = false),
                 ToolParameter("code",            "string", "Inline Python code.",                   required = false),
                 ToolParameter("packages",        "string", "Package list for pip/pkg install.",     required = false),
+                ToolParameter("tool",            "string", "Tool to verify/provision (e.g., apktool, jadx, python).", required = false),
+                ToolParameter("language",        "string", "Optional runtime hint: python, node, java.", required = false),
+                ToolParameter("termux_package",  "string", "Optional explicit Termux package for ensure_tool.", required = false),
+                ToolParameter("pip_package",     "string", "Optional pip package for ensure_tool.", required = false),
+                ToolParameter("npm_package",     "string", "Optional npm package for ensure_tool.", required = false),
+                ToolParameter("fallback_url",    "string", "Optional direct HTTPS URL for standalone fallback.", required = false),
+                ToolParameter("java_class",      "string", "Optional Java main class for jar fallback.", required = false),
+                ToolParameter("verify_command",  "string", "Optional command to verify tool health.", required = false),
                 ToolParameter("args",            "string", "Extra args for python_run.",            required = false),
                 ToolParameter("upgrade",         "string", "'true' to pip install --upgrade.",      required = false),
                 ToolParameter("venv_path",       "string", "Absolute path to a Python venv.",       required = false),
@@ -1177,6 +1186,7 @@ Backed by Shizuku/rish/root + Termux. Includes LD_PRELOAD fix for all binary iss
             "env_info"         -> envInfo()
             "bootstrap"        -> runBootstrapAction()
             "bootstrap_status" -> bootstrapStatusAction()
+            "ensure_tool", "provision_tool", "auto_provision" -> ensureToolAction(args)
             "cache_invalidate" -> {
                 binaryCache.invalidateAll()
                 ToolExecutionResult("✅ Binary cache invalidated. Next lookup will re-scan.")
@@ -1288,6 +1298,202 @@ Backed by Shizuku/rish/root + Termux. Includes LD_PRELOAD fix for all binary iss
     }
 
     // ── 5.14  Private Helpers ─────────────────────────────────────────────────
+
+    private data class StandaloneJavaSpec(
+        val url: String,
+        val fileName: String,
+        val mainClass: String
+    )
+
+    private suspend fun ensureToolAction(args: Map<String, String>): ToolExecutionResult {
+        val toolRaw = args["tool"] ?: args["binary"] ?: args["command"]
+        val tool = toolRaw?.lowercase()?.trim()?.let(::sanitizeName).orEmpty()
+        if (tool.isBlank()) return err("Missing 'tool' parameter for ensure_tool.")
+
+        val language = args["language"]?.trim()?.lowercase()
+        val verifyCommand = args["verify_command"]?.trim().orEmpty()
+
+        findBinary(tool)?.let { existing ->
+            val verify = if (verifyCommand.isNotBlank()) executeSingleShot(verifyCommand) else executeSingleShot("$existing --version 2>/dev/null || true")
+            return ToolExecutionResult(
+                buildString {
+                    appendLine("✅ '$tool' already available at: $existing")
+                    if (!verify.isError && verify.output.isNotBlank()) {
+                        appendLine("Verification:")
+                        appendLine(verify.output.take(300))
+                    }
+                }.trimEnd()
+            )
+        }
+
+        val pipPackage = args["pip_package"]?.trim().orEmpty()
+        val npmPackage = args["npm_package"]?.trim().orEmpty()
+        val explicitTermuxPackage = args["termux_package"]?.trim()?.let { sanitizePackageList(it) }.orEmpty()
+        val installLog = StringBuilder()
+
+        if (isTermuxInstalled()) {
+            installLog.appendLine("Termux detected → provisioning with package managers.")
+            val defaultPkg = defaultTermuxPackageFor(tool, language)
+            val pkg = explicitTermuxPackage.ifBlank { defaultPkg.orEmpty() }
+            if (pkg.isNotBlank()) installLog.appendLine(pkgInstall(pkg).output.take(500))
+
+            if ((language == "python" || pipPackage.isNotBlank()) && findBinary("python").isNullOrBlank()) {
+                installLog.appendLine(pkgInstall("python").output.take(300))
+            }
+            if (pipPackage.isNotBlank()) installLog.appendLine(pipInstall(pipPackage).output.take(500))
+
+            if ((language == "node" || npmPackage.isNotBlank()) && findBinary("node").isNullOrBlank()) {
+                installLog.appendLine(pkgInstall("nodejs").output.take(300))
+            }
+            if (npmPackage.isNotBlank()) {
+                val safeNpm = sanitizePackageList(npmPackage) ?: return err("Invalid npm_package value.")
+                installLog.appendLine(npmCommand("install -g $safeNpm").output.take(500))
+            }
+
+            val resolved = findBinary(tool)
+            if (resolved != null) {
+                val verify = if (verifyCommand.isNotBlank()) executeSingleShot(verifyCommand) else executeSingleShot("$resolved --version 2>/dev/null || true")
+                return ToolExecutionResult(
+                    buildString {
+                        appendLine("✅ Provisioned '$tool' via Termux: $resolved")
+                        if (installLog.isNotBlank()) {
+                            appendLine()
+                            appendLine("Install summary:")
+                            appendLine(installLog.toString().trim())
+                        }
+                        if (!verify.isError && verify.output.isNotBlank()) {
+                            appendLine()
+                            appendLine("Verification:")
+                            appendLine(verify.output.take(300))
+                        }
+                    }.trimEnd()
+                )
+            }
+            installLog.appendLine("Termux provisioning did not expose '$tool' in PATH.")
+        } else {
+            installLog.appendLine("Termux missing → using standalone Android fallback in /data/local/tmp.")
+        }
+
+        val spec = defaultStandaloneJavaSpecFor(tool)
+        val fallbackUrl = args["fallback_url"]?.trim().orEmpty()
+        val jarClassArg = args["java_class"]?.trim().orEmpty()
+        val standaloneUrl = when {
+            fallbackUrl.isNotBlank() -> fallbackUrl
+            spec != null -> spec.url
+            else -> ""
+        }
+        if (standaloneUrl.isBlank() || !standaloneUrl.startsWith("https://")) {
+            return ToolExecutionResult(
+                buildString {
+                    appendLine("❌ '$tool' missing and standalone provisioning needs a secure HTTPS URL.")
+                    appendLine("Use ensure_tool with fallback_url=https://... (and java_class=... for jars).")
+                    if (installLog.isNotBlank()) {
+                        appendLine()
+                        appendLine("Attempt summary:")
+                        appendLine(installLog.toString().trim())
+                    }
+                }.trimEnd(),
+                isError = true
+            )
+        }
+
+        val targetDir = "/data/local/tmp/omni_bins"
+        val targetFile = when {
+            spec != null && fallbackUrl.isBlank() -> "$targetDir/${spec.fileName}"
+            standaloneUrl.endsWith(".jar") -> "$targetDir/$tool.jar"
+            else -> "$targetDir/$tool"
+        }
+
+        val dl = executeSingleShot(
+            "mkdir -p ${sq(targetDir)} && " +
+                "if command -v curl >/dev/null 2>&1; then curl -fsSL ${sq(standaloneUrl)} -o ${sq(targetFile)}; " +
+                "elif command -v wget >/dev/null 2>&1; then wget -qO ${sq(targetFile)} ${sq(standaloneUrl)}; " +
+                "else echo 'Missing both curl and wget'; exit 1; fi",
+            timeoutMs = 180_000L
+        )
+        if (dl.isError) return err("❌ Standalone download failed for '$tool'.\n${dl.output.take(1200)}")
+
+        if (!targetFile.endsWith(".jar")) {
+            executeSingleShot("chmod +x ${sq(targetFile)}")
+            binaryCache.put(tool, targetFile)
+            val verify = if (verifyCommand.isNotBlank()) executeSingleShot(verifyCommand) else executeSingleShot("${sq(targetFile)} --version 2>/dev/null || true")
+            return ToolExecutionResult(
+                buildString {
+                    appendLine("✅ Standalone tool provisioned: $targetFile")
+                    appendLine("Use absolute path or export PATH=\"$targetDir:\$PATH\".")
+                    if (!verify.isError && verify.output.isNotBlank()) {
+                        appendLine()
+                        appendLine("Verification:")
+                        appendLine(verify.output.take(300))
+                    }
+                }.trimEnd()
+            )
+        }
+
+        val dalvik = findBinary("dalvikvm")
+        if (dalvik.isNullOrBlank()) {
+            return err("❌ Downloaded jar for '$tool' to $targetFile but dalvikvm is unavailable.")
+        }
+
+        val mainClass = jarClassArg.ifBlank { spec?.mainClass.orEmpty() }
+        if (mainClass.isBlank()) {
+            binaryCache.put(tool, targetFile)
+            return ToolExecutionResult("✅ Jar downloaded to $targetFile. Provide java_class to execute via dalvikvm.")
+        }
+
+        val launcherPath = "$targetDir/$tool"
+        val launcher = executeSingleShot(
+            "cat > ${sq(launcherPath)} <<'EOF'\n" +
+                "#!/system/bin/sh\n" +
+                "exec ${sq(dalvik)} -cp ${sq(targetFile)} $mainClass \"\$@\"\n" +
+                "EOF\n" +
+                "chmod +x ${sq(launcherPath)}",
+            timeoutMs = 60_000L
+        )
+        if (launcher.isError) return err("❌ Downloaded jar but failed to create launcher at $launcherPath.\n${launcher.output.take(800)}")
+
+        binaryCache.put(tool, launcherPath)
+        val verify = if (verifyCommand.isNotBlank()) executeSingleShot(verifyCommand) else executeSingleShot("${sq(launcherPath)} --version 2>/dev/null || true")
+        return ToolExecutionResult(
+            buildString {
+                appendLine("✅ Provisioned '$tool' as standalone launcher: $launcherPath")
+                appendLine("Jar: $targetFile")
+                appendLine("Execution engine: dalvikvm ($dalvik)")
+                appendLine("Use absolute path or export PATH=\"$targetDir:\$PATH\".")
+                if (!verify.isError && verify.output.isNotBlank()) {
+                    appendLine()
+                    appendLine("Verification:")
+                    appendLine(verify.output.take(300))
+                }
+            }.trimEnd()
+        )
+    }
+
+    private fun defaultTermuxPackageFor(tool: String, language: String?): String? = when {
+        tool == "python" || language == "python" -> "python"
+        tool == "node" || tool == "npm" || language == "node" -> "nodejs"
+        tool == "git" -> "git"
+        tool == "curl" -> "curl"
+        tool == "wget" -> "wget"
+        tool == "apktool" -> "apktool"
+        tool == "jadx" -> "jadx"
+        tool == "aapt" || tool == "aapt2" -> "aapt"
+        else -> null
+    }
+
+    private fun defaultStandaloneJavaSpecFor(tool: String): StandaloneJavaSpec? = when (tool) {
+        "apktool" -> StandaloneJavaSpec(
+            url = "https://bitbucket.org/iBotPeaches/apktool/downloads/apktool_2.9.3.jar",
+            fileName = "apktool.jar",
+            mainClass = "brut.apktool.Main"
+        )
+        "jadx" -> StandaloneJavaSpec(
+            url = "https://github.com/skylot/jadx/releases/download/v1.5.0/jadx-1.5.0-all.jar",
+            fileName = "jadx.jar",
+            mainClass = "jadx.cli.JadxCLI"
+        )
+        else -> null
+    }
 
     private suspend fun envInfo(): ToolExecutionResult {
         val env = buildEnvMap()

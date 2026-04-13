@@ -515,8 +515,11 @@ class ChatViewModel(
             val imageAttachments: List<AttachmentMeta> = attachments
                 .mapNotNull { pending ->
                     val uri = pending.uri
+                    val mimeType = attachmentProcessor?.getMimeType(uri) ?: return@mapNotNull null
+                    if (!mimeType.startsWith("image/", ignoreCase = true)) {
+                        return@mapNotNull null
+                    }
                     val base64 = attachmentProcessor?.readImageAsBase64(uri) ?: return@mapNotNull null
-                    val mimeType = attachmentProcessor.getMimeType(uri)
                     AttachmentMeta(
                         uri = uri.toString(),
                         mimeType = mimeType,
