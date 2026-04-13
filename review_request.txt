@@ -2,22 +2,27 @@ Please review my plan to implement the OmniDev Model Context Protocol (MCP) Inte
 
 1. **Create MCP Configuration Schema and Manager:**
    - Create `app/src/main/java/com/omnidev/workspace/domain/mcp/McpConfig.kt` with `McpServerConfig` and `McpConfig` data classes to represent the JSON structure.
-   - Create `app/src/main/java/com/omnidev/workspace/data/mcp/McpConfigManager.kt` to handle CRUD operations on the MCP configuration, saving it securely (e.g., using EncryptedSharedPreferences).
+   - Create `app/src/main/java/com/omnidev/workspace/data/mcp/McpConfigManager.kt` to handle CRUD operations on the MCP configuration, saving it securely (using EncryptedSharedPreferences).
+   - Ensure `McpConfigManager` exposes a reactive `StateFlow<McpConfig>` so `McpRegistry` can automatically react to changes.
 
 2. **Implement MCP HTTP Transport Layer:**
    - Create `app/src/main/java/com/omnidev/workspace/data/mcp/McpHttpClient.kt` to handle HTTP/SSE connections to MCP servers.
-   - Implement methods for `initialize`, fetching `tools/list`, and executing `tools/call`. Ensure environment variables (like API keys) from the config are passed as headers or as required by the MCP HTTP/SSE transport specification.
+   - Use `okhttp-sse` to implement methods for `initialize`, fetching `tools/list`, and executing `tools/call`. Ensure environment variables from the config are passed as headers.
 
 3. **Implement MCP Registry for Agent Integration:**
-   - Create `app/src/main/java/com/omnidev/workspace/domain/mcp/McpRegistry.kt` to manage connected MCP servers, fetch available tools, and convert MCP tool schemas into the native `ToolDefinition` format used by Omni, prefixing tool names with `mcp_[server_name]_`.
+   - Create `app/src/main/java/com/omnidev/workspace/domain/mcp/McpRegistry.kt` to manage connected MCP servers, fetch available tools, and convert MCP tool JSON schemas into the native `ToolDefinition` format used by Omni, prefixing tool names with `mcp_[server_name]_`.
+   - Ensure the schema translation flawlessly maps types, nested objects, and required fields arrays.
 
 4. **Update AgentPipeline.kt for Dynamic Tool Registration and Routing:**
    - In `AgentPipeline.kt`, inject `McpRegistry` as a dependency.
    - In the `execute` method, before building the system prompt, fetch dynamic MCP tools using `McpRegistry.fetchAllAvailableTools()` and append them to the existing `toolDefs`.
-   - Update the tool execution routing: when an LLM calls a tool starting with `mcp_`, intercept it and route it to `McpHttpClient.executeTool(...)` instead of the local tool manager.
+   - Update the tool execution routing: when an LLM calls a tool starting with `mcp_`, intercept it and route it to `McpHttpClient.executeTool(...)`.
+   - Wrap the MCP tool execution in a try-catch block to return a graceful error string if the tool fails, ensuring the local pipeline does not crash.
    - Add the `[DYNAMIC MCP TOOLS AWARENESS]` block to the `GOD_PROTOCOL` or base system prompt.
 
 5. **Verify and Test:**
-   - Verify the newly created and modified files.
+   - Verify the newly created and modified files using `read_file` or `run_in_bash_session`.
    - Run tests to ensure no regressions.
-   - Complete pre-commit steps.
+
+6. **Complete pre-commit steps:**
+   - Complete pre-commit steps to ensure proper testing, verification, review, and reflection are done.
