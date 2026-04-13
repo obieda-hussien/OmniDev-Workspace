@@ -958,8 +958,18 @@ class CompositeToolManager(
                 val action = arguments["action"] ?: return missingArg("action")
                 AgentRuntimeTool.execute(context = context ?: return missingContext(), action = action, args = arguments)
             }
-            "install_tool", "tools_status" -> {
-                ToolDownloaderEngine.execute(name, arguments)
+            "install_tool", "tools_status", "tools_list" -> {
+                val ctx = context
+                if (ctx != null) {
+                    val action = when (name) {
+                        "tools_status" -> "status"
+                        "tools_list"   -> "list"
+                        else           -> arguments["action"] ?: "install"
+                    }
+                    ToolDownloaderEngine.executeTool(ctx, action, arguments)
+                } else {
+                    ToolDownloaderEngine.execute(name, arguments)
+                }
             }
 
             // ── Termux bridge & Python tools ──

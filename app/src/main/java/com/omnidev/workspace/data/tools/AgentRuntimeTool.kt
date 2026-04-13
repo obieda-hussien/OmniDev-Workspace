@@ -285,8 +285,14 @@ Execute the full OmniDev autonomous runtime. Backed by Shizuku/Root + Termux.
 • download_file    — Download a file (param: 'url', optional: 'dest_path').
 • download_exec    — Download and execute a script (param: 'url', optional: 'args', 'cwd').
 • download_verify  — Download and check SHA256 checksum (param: 'url', 'checksum', optional: 'dest').
-• install_tool     — Install/provision a tool (param: 'tool', optional provisioning hints).
-• tools_status     — Show runtime/tools status.
+
+━━ TOOL INSTALLER (HTTP download — no curl/wget/Termux needed) ━━━━━━━━━━━━━━
+• install_tool     — Install a tool by name using built-in OkHttp downloader.
+                     Known: apktool, jadx. param: tool_name.
+                     Custom JAR: tool_name + download_url + java_class.
+                     Custom bin: tool_name + download_url (no java_class).
+• tools_status     — Show downloader status: dalvikvm path, cached JARs, installed tools.
+• tools_list       — List installed tools in /data/local/tmp/omni_tools/
             """.trimIndent(),
             parameters = listOf(
                 ToolParameter("action",      "string", "Action to perform (see description above).", required = true),
@@ -849,23 +855,43 @@ Execute the full OmniDev autonomous runtime. Backed by Shizuku/Root + Termux.
 
             "download_file" -> {
                 val url = args["url"] ?: return@withContext err("download_file requires 'url'")
-                downloadFile(url, args["dest_path"])
+                downloadFile(context, url, args["dest_path"])
             }
 
             "download_exec" -> {
                 val url = args["url"] ?: return@withContext err("download_exec requires 'url'")
-                downloadExec(url, args["args"] ?: "", cwd)
+                downloadExec(context, url, args["args"] ?: "", cwd)
             }
 
             "download_verify" -> {
                 val url      = args["url"]      ?: return@withContext err("download_verify requires 'url'")
                 val checksum = args["checksum"] ?: return@withContext err("download_verify requires 'checksum'")
-                downloadVerify(url, checksum, args["dest"])
+                downloadVerify(context, url, checksum, args["dest"])
             }
 
-            "install_tool" -> ToolDownloaderEngine.installTool(args)
+            // ── NEW: Install tool via ToolDownloaderEngine ──────────────────────────
+            "install_tool" -> {
+                val toolName = args["tool_name"] ?: args["tool"]
+                    ?: return@withContext err("install_tool requires 'tool_name'")
+                val log = StringBuilder()
+                val result = ToolDownloaderEngine.installTool(context, toolName) { log.appendLine(it) }
+                val output = log.toString().trimEnd()
+                if (result.isSuccess) {
+                    ToolExecutionResult("$output\n\n✅ Installed → ${result.getOrNull()}")
+                } else {
+                    ToolExecutionResult("$output\n\n❌ ${result.exceptionOrNull()?.message}", isError = true)
+                }
+            }
 
-            "tools_status" -> ToolDownloaderEngine.toolsStatus()
+            "tools_status" -> {
+                ToolExecutionResult(ToolDownloaderEngine.statusReport(context))
+            }
+
+            "tools_list" -> {
+                val installed = ToolDownloaderEngine.listInstalled()
+                if (installed.isEmpty()) ToolExecutionResult("No tools in ${ToolDownloaderEngine.INSTALL_DIR}")
+                else ToolExecutionResult("Tools: ${installed.joinToString()}")
+            }
 
             else -> err("Unknown action: '$action'. See tool description for available actions.")
         }
@@ -997,15 +1023,15 @@ Execute the full OmniDev autonomous runtime. Backed by Shizuku/Root + Termux.
         return EnvironmentSetupManager.executeShell(script, useBase64 = true)
     }
 
-    private suspend fun downloadFile(url: String, destPath: String?): ToolExecutionResult {
+    private suspend fun downloadFile(context: Context, url: String, destPath: String?): ToolExecutionResult {
         return ToolDownloaderEngine.downloadFile(url, destPath)
     }
 
-    private suspend fun downloadExec(url: String, extraArgs: String, cwd: String?): ToolExecutionResult {
+    private suspend fun downloadExec(context: Context, url: String, extraArgs: String, cwd: String?): ToolExecutionResult {
         return ToolDownloaderEngine.downloadExec(url, extraArgs, cwd)
     }
 
-    private suspend fun downloadVerify(url: String, checksum: String, dest: String?): ToolExecutionResult {
+    private suspend fun downloadVerify(context: Context, url: String, checksum: String, dest: String?): ToolExecutionResult {
         return ToolDownloaderEngine.downloadVerify(url, checksum, dest)
     }
 
