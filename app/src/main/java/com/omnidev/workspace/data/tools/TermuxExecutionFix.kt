@@ -46,17 +46,17 @@ object TermuxExecutionFix {
     // Core paths
     // ─────────────────────────────────────────────────────────────────────────
 
-    private const val T_PREFIX  = EnvironmentSetupManager.TERMUX_PREFIX
-    private const val T_BIN     = EnvironmentSetupManager.TERMUX_BIN
-    private const val T_LIB     = "$T_PREFIX/lib"
-    private const val T_HOME    = EnvironmentSetupManager.TERMUX_HOME
-    private const val T_TMP     = "$T_PREFIX/tmp"
+    private val T_PREFIX: String get() = EnvironmentSetupManager.TERMUX_PREFIX
+    private val T_BIN: String get() = EnvironmentSetupManager.TERMUX_BIN
+    private val T_LIB: String get() = "$T_PREFIX/lib"
+    private val T_HOME: String get() = EnvironmentSetupManager.TERMUX_HOME
+    private val T_TMP: String get() = "$T_PREFIX/tmp"
 
     /**
      * Path to the critical missing piece — Termux's libc exec wrapper.
      * Without LD_PRELOAD pointing here, ALL Termux binaries fail from Shizuku.
      */
-    private const val TERMUX_EXEC_PRELOAD = "$T_LIB/libtermux-exec.so"
+    private val TERMUX_EXEC_PRELOAD: String get() = "$T_LIB/libtermux-exec.so"
 
     /** Standalone bin dir for static binaries (when Termux is absent). */
     private const val STANDALONE_BIN = "/data/local/tmp/omni_bins"
@@ -472,7 +472,7 @@ object TermuxExecutionFix {
     /** Returns the corrected env block for use in other components. */
     fun patchedEnvPrefix(): String = buildTermuxEnvBlock()
 
-    fun isTermuxInstalled(): Boolean = File(EnvironmentSetupManager.TERMUX_BASH).exists()
+    fun isTermuxInstalled(): Boolean = File(EnvironmentSetupManager.TERMUX_BASH).exists() || File("/data/local/tmp/termux/usr/bin/bash").exists()
 
     private fun resolvePythonBin(venvPath: String?): String? {
         if (venvPath != null) {

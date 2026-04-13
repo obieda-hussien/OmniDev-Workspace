@@ -63,7 +63,9 @@ object GodModeFileRouter {
         "/apex/",
         "/odm/",
         "/oem/",
-        "/product/"
+        "/product/",
+        "/storage/emulated/0/Android/data",
+        "/storage/emulated/0/Android/obb"
     )
 
     /** Maximum bytes to read via shell (to guard context window). */

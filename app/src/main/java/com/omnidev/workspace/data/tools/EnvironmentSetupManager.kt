@@ -166,20 +166,20 @@ object EnvironmentSetupManager {
 
     // ── Constants ──────────────────────────────────────────────────────────
 
-    const val TERMUX_ROOT    = "/data/data/com.termux/files"
-    const val TERMUX_PREFIX  = "$TERMUX_ROOT/usr"
-    const val TERMUX_HOME    = "$TERMUX_ROOT/home"
-    const val TERMUX_BIN     = "$TERMUX_PREFIX/bin"
-    const val TERMUX_BASH    = "$TERMUX_BIN/bash"
-    const val TERMUX_SH      = "$TERMUX_BIN/sh"
-    const val TERMUX_PYTHON3 = "$TERMUX_BIN/python3"
-    const val TERMUX_PYTHON  = "$TERMUX_BIN/python"
-    const val TERMUX_NODE    = "$TERMUX_BIN/node"
-    const val TERMUX_GIT     = "$TERMUX_BIN/git"
-    const val TERMUX_PKG     = "$TERMUX_BIN/pkg"
-    const val TERMUX_APT     = "$TERMUX_BIN/apt"
-    const val TERMUX_PIP3    = "$TERMUX_BIN/pip3"
-    const val TERMUX_NPM     = "$TERMUX_BIN/npm"
+    val TERMUX_ROOT: String get() = if (File("/data/data/com.termux/files").exists()) "/data/data/com.termux/files" else "/data/local/tmp/termux"
+    val TERMUX_PREFIX: String get() = "$TERMUX_ROOT/usr"
+    val TERMUX_HOME: String get() = "$TERMUX_ROOT/home"
+    val TERMUX_BIN: String get() = "$TERMUX_PREFIX/bin"
+    val TERMUX_BASH: String get() = "$TERMUX_BIN/bash"
+    val TERMUX_SH: String get() = "$TERMUX_BIN/sh"
+    val TERMUX_PYTHON3: String get() = "$TERMUX_BIN/python3"
+    val TERMUX_PYTHON: String get() = "$TERMUX_BIN/python"
+    val TERMUX_NODE: String get() = "$TERMUX_BIN/node"
+    val TERMUX_GIT: String get() = "$TERMUX_BIN/git"
+    val TERMUX_PKG: String get() = "$TERMUX_BIN/pkg"
+    val TERMUX_APT: String get() = "$TERMUX_BIN/apt"
+    val TERMUX_PIP3: String get() = "$TERMUX_BIN/pip3"
+    val TERMUX_NPM: String get() = "$TERMUX_BIN/npm"
 
     /** Fallback paths checked when Termux and `which` both fail. */
     private val SYSTEM_PYTHON_PATHS = listOf(
@@ -521,13 +521,37 @@ object EnvironmentSetupManager {
 
         BootstrapStep(
             id          = "termux",
-            description = "Verify Termux is installed",
+            description = "Verify Termux is installed (Headless Fallback)",
             checkFn     = { File(TERMUX_BASH).exists() },
             installFn   = {
-                BootstrapResult.Failed(
-                    reason = "Termux is not installed.",
-                    hint   = "Install Termux from F-Droid: https://f-droid.org/packages/com.termux/"
-                )
+                if (File("/data/data/com.termux/files").exists()) {
+                    BootstrapResult.Failed(
+                        reason = "Termux data dir exists but bash is missing.",
+                        hint   = "Termux installation seems corrupt. Try reinstalling."
+                    )
+                } else {
+                    val root = "/data/local/tmp/termux"
+                    val zipPath = "/data/local/tmp/termux_bootstrap.zip"
+                    val extractCmd = "mkdir -p '$root/usr' && unzip -o '$zipPath' -d '$root/usr' && rm '$zipPath'"
+
+                    val dlRes = ToolDownloaderEngine.downloadFile("https://github.com/termux/termux-packages/releases/latest/download/bootstrap-aarch64.zip", zipPath)
+                    if (dlRes.isError) {
+                         return@BootstrapStep BootstrapResult.Failed(
+                            reason = "Headless Termux bootstrap failed.",
+                            hint   = "Download failed: ${dlRes.output}"
+                        )
+                    }
+                    PrivilegedExecutionManager.executeCommand(extractCmd)
+
+                    if (File("$root/usr/bin/bash").exists()) {
+                        BootstrapResult.Success("Headless Termux bootstrapped successfully in $root.")
+                    } else {
+                        BootstrapResult.Failed(
+                            reason = "Headless Termux bootstrap failed.",
+                            hint   = "Ensure curl and unzip are working and internet is connected."
+                        )
+                    }
+                }
             }
         ),
 
