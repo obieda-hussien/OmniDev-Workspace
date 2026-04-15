@@ -29,6 +29,11 @@ import com.omnidev.workspace.ui.settings.MemoryExplorerScreen
 import com.omnidev.workspace.ui.settings.ScheduledTasksScreen
 import com.omnidev.workspace.ui.settings.SystemPromptEditorScreen
 import com.omnidev.workspace.ui.settings.ToolRegistryScreen
+import com.omnidev.workspace.ui.settings.McpSettingsScreen
+import com.omnidev.workspace.ui.settings.McpSettingsViewModel
+import com.omnidev.workspace.data.mcp.McpConfigManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnidev.workspace.ui.settings.UserProfileScreen
 
 /**
@@ -45,6 +50,7 @@ object Routes {
     const val LOCAL_MODELS = "local_models"
     const val SCHEDULED_TASKS = "scheduled_tasks"
     const val TOOL_REGISTRY = "tool_registry"
+        const val MCP_SETTINGS = "mcp_settings"
     const val PROFILE = "profile"
     const val ANALYTICS = "analytics"
     const val AGENT_BRAIN = "agent_brain"  // شاشة عقل الـ Agent الجديدة
@@ -95,6 +101,7 @@ fun AppNavigation(
                 onNavigateToLocalModels = { navController.navigate(Routes.LOCAL_MODELS) },
                 onNavigateToScheduledTasks = { navController.navigate(Routes.SCHEDULED_TASKS) },
                 onNavigateToToolRegistry = { navController.navigate(Routes.TOOL_REGISTRY) },
+                onNavigateToMcpSettings = { navController.navigate(Routes.MCP_SETTINGS) },
                 onNavigateToProfile = { navController.navigate(Routes.PROFILE) },
                 onNavigateToAnalytics = { navController.navigate(Routes.ANALYTICS) },
                 onNavigateToAgentBrain = { navController.navigate(Routes.AGENT_BRAIN) }
@@ -146,6 +153,24 @@ fun AppNavigation(
 
         composable(Routes.SCHEDULED_TASKS) {
             ScheduledTasksScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
+
+        composable(Routes.MCP_SETTINGS) {
+            val context = LocalContext.current
+            val mcpConfigManager = remember { McpConfigManager(context) }
+            val viewModel: McpSettingsViewModel = viewModel(
+                factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        @Suppress("UNCHECKED_CAST")
+                        return McpSettingsViewModel(mcpConfigManager) as T
+                    }
+                }
+            )
+            McpSettingsScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
         }
 
         composable(Routes.TOOL_REGISTRY) {
