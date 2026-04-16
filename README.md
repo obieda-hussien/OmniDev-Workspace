@@ -2,36 +2,57 @@
 
 [![Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/workflows/android-ci.yml/badge.svg)](https://github.com/obieda-hussien/OmniDev-Workspace/actions/workflows/android-ci.yml)
 
-> **AI AGENT CONTEXT MAP** — This document is the authoritative reference for all LLM agents, Copilot sessions, and developers. Read it first — it maps every file, flow, pattern, and decision in the repository so you can operate with full context in a single pass, saving thousands of context-window tokens.
-
-**OmniDev Workspace** is a **God-Mode Autonomous AI Software Engineer** for Android. It orchestrates cloud and on-device LLMs into a multi-agent swarm that can write code, run terminals, control the OS, manage files, speak and listen, browse the web, and self-heal build failures — fully autonomously.
-
-> Package: `com.omnidev.workspace` · Min SDK: 24 · Target SDK: 35 · NDK: 27.0.12077973 · Language: Kotlin 2.0 · UI: Jetpack Compose + Material 3
-
----
-
-## Table of Contents
-
-1. [System Architecture Overview](#1-system-architecture-overview)
-2. [Core Execution Flows — The Brain](#2-core-execution-flows--the-brain)
-3. [LLM Routing — ModelRegistry](#3-llm-routing--modelregistry)
-4. [Tool Ecosystem — Complete Directory](#4-tool-ecosystem--complete-directory)
-5. [Intelligence & Automation Engines](#5-intelligence--automation-engines)
-6. [IPC & System Integration](#6-ipc--system-integration)
-7. [Multi-Modal Capabilities — Eyes, Ears, Voice](#7-multi-modal-capabilities--eyes-ears-voice)
-8. [Persistence Layer](#8-persistence-layer)
-9. [UI Layer](#9-ui-layer)
-10. [System Services & Receivers](#10-system-services--receivers)
-11. [AIDL Interfaces](#11-aidl-interfaces)
-12. [Project File Map](#12-project-file-map)
-13. [Tech Stack & Dependencies](#13-tech-stack--dependencies)
-14. [Getting Started & CI/CD](#14-getting-started--cicd)
-15. [Android Permissions Reference](#15-android-permissions-reference)
-16. [Architecture Conventions & Agent Rules](#16-architecture-conventions--agent-rules)
+> **AI AGENT CONTEXT MAP** — هذا الملف هو المرجع الأعلى سلطةً لكل LLM Agent، Copilot Session، ومطور بشري.
+> اقرأه أولاً — فهو يرسم كل ملف، كل تدفق، كل نمط، وكل قرار معماري في المشروع بقراءة واحدة.
+>
+> **Package:** `com.omnidev.workspace` · **Min SDK:** 24 · **Target SDK:** 35 · **NDK:** 27.0.12077973 · **Language:** Kotlin 2.0 · **UI:** Jetpack Compose + Material 3
 
 ---
 
-## 1. System Architecture Overview
+## 📊 إحصائيات المشروع
+
+| المقياس | القيمة |
+|---------|--------|
+| **إجمالي ملفات Kotlin** | 163 ملف |
+| **إجمالي أسطر الكود** | ~60,000+ سطر |
+| **أدوات (Tools)** | 57+ أداة |
+| **خدمات (Services)** | 12 خدمة |
+| **واجهات AIDL** | 5 واجهات |
+| **إصدار قاعدة البيانات** | v7 (Agent Brain) |
+| **الحد الأدنى SDK** | 24 |
+| **الحد الأقصى SDK** | 35 |
+| **اللغة** | Kotlin 2.0 |
+| **الواجهة** | Jetpack Compose + Material 3 |
+
+---
+
+## جدول المحتويات
+
+1. [نظرة عامة على المعمارية](#1-نظرة-عامة-على-المعمارية)
+2. [نظام Agent Brain الجديد](#2-نظام-agent-brain-الجديد)
+3. [تدفقات التنفيذ الأساسية](#3-تدفقات-التنفيذ-الأساسية)
+4. [توجيه النماذج — ModelRegistry](#4-توجيه-النماذج--modelregistry)
+5. [نظام الأدوات — الدليل الكامل](#5-نظام-الأدوات--الدليل-الكامل)
+6. [محركات الذكاء والأتمتة](#6-محركات-الذكاء-والأتمتة)
+7. [IPC وتكامل النظام](#7-ipc-وتكامل-النظام)
+8. [القدرات متعددة الوسائط](#8-القدرات-متعددة-الوسائط)
+9. [طبقة الاستمرارية (Persistence)](#9-طبقة-الاستمرارية-persistence)
+10. [طبقة الواجهة (UI)](#10-طبقة-الواجهة-ui)
+11. [الخدمات والمستقبلات](#11-الخدمات-والمستقبلات)
+12. [واجهات AIDL](#12-واجهات-aidl)
+13. [خريطة ملفات المشروع](#13-خريطة-ملفات-المشروع)
+14. [المكدس التقني والمكتبات](#14-المكدس-التقني-والمكتبات)
+15. [البدء والـ CI/CD](#15-البدء-والـ-cicd)
+16. [مرجع صلاحيات Android](#16-مرجع-صلاحيات-android)
+17. [اتفاقيات المعمارية وقواعد الـ Agents](#17-اتفاقيات-المعمارية-وقواعد-الـ-agents)
+18. [دليل التطوير السريع](#18-دليل-التطوير-السريع)
+19. [المشكلات المكتشفة وخطة العمل](#19-المشكلات-المكتشفة-وخطة-العمل)
+
+---
+
+## 1. نظرة عامة على المعمارية
+
+**OmniDev Workspace** هو **مهندس برمجيات ذاتي الحكم بوضع God-Mode** لنظام Android. يُنسّق بين النماذج السحابية والمحلية في سرب متعدد الوكلاء (Multi-Agent Swarm) قادر على كتابة كود، تشغيل محطات طرفية، التحكم بنظام التشغيل، إدارة الملفات، الكلام والاستماع، تصفح الويب، وإصلاح أخطاء البناء تلقائياً — باستقلالية تامة.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────┐
@@ -42,7 +63,6 @@
 │  │  Root Shell │  │  On-device  │  │  Multi-Agent│  │  Voice I/O  │ │
 │  │  Execution  │  │  Inference  │  │  (Parallel) │  │  + Overlay  │ │
 │  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘ │
-│         │                │                │                │         │
 │         └────────────────┴────────────────┴────────────────┘         │
 │                                     │                                 │
 │                          ┌──────────▼──────────┐                     │
@@ -58,432 +78,534 @@
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
-### Four Core Pillars
+### الركائز الأربع الأساسية
 
-| Pillar | Description | Key Files |
-|--------|-------------|-----------|
-| **OS-Level Execution** | Shizuku (ADB-level) + root shell + Device Admin for privileged ops | `PrivilegedExecutionManager`, `ShizukuCommandTool`, `RishShellManager` |
-| **Local Edge Inference** | Llama.cpp JNI running GGUF models on-device with zero network dependency | `LlamaCppInferenceEngine`, `LocalInferenceEngine`, `LocalModelManagerScreen` |
-| **Multi-Agent Swarm** | Orchestrator decomposes tasks; Worker `AgentPipeline` instances run in parallel | `SwarmOrchestrator`, `AgentPipeline`, `IntentClassifier` |
-| **Duplex Voice UI** | Wake-word detection + SpeechRecognizer + TTS + floating bubble overlay | `VoiceAssistantService`, `OmniBubbleService`, `AdvancedVoiceCommandEngine` |
+| الركيزة | الوصف | الملفات الرئيسية |
+|---------|-------|-----------------|
+| **OS-Level Execution** | Shizuku (ADB-level) + root shell + Device Admin للعمليات المميزة | `PrivilegedExecutionManager`, `ShizukuCommandTool`, `RishShellManager` |
+| **Local Edge Inference** | Llama.cpp JNI لتشغيل نماذج GGUF محلياً بدون إنترنت | `LlamaCppInferenceEngine`, `LocalInferenceEngine`, `LocalModelManagerScreen` |
+| **Multi-Agent Swarm** | المنسق يفكك المهام؛ نسخ Worker تعمل بالتوازي | `SwarmOrchestrator`, `AgentPipeline`, `IntentClassifier` |
+| **Duplex Voice UI** | اكتشاف كلمة التنبيه + STT + TTS + فقاعة عائمة | `VoiceAssistantService`, `OmniBubbleService`, `AdvancedVoiceCommandEngine` |
 
----
+### البنية الكلية (4 طبقات رئيسية)
 
-## 2. Core Execution Flows — The Brain
-
-### 2.1 AgentPipeline (ReAct Loop)
-**File:** `domain/engine/AgentPipeline.kt`
-
-The central execution engine. Runs a **Reason → Act → Observe** loop:
-1. Sends system prompt + history + tool definitions to the LLM
-2. Parses the response for tool calls
-3. Executes tools via `CompositeToolManager`
-4. Appends tool results to context and loops
-5. Terminates on `FINAL_ANSWER`, iteration limit, token budget, or wall-clock timeout
-
-**Config:** `AgentConfig` — `maxIterations` (50), `tokenBudget`, `maxExecutionTimeMs`, `maxIterationTimeMs` (3 min), `maxRepeatToolCalls`
-
-**Output stream:** `AgentEvent` — `Thinking`, `ToolCall`, `ToolResult`, `StreamChunk`, `FinalAnswer`, `Error`
-
-### 2.2 SwarmOrchestrator
-**File:** `domain/engine/SwarmOrchestrator.kt`
-
-Breaks complex requests into ≤10 sub-tasks via an Orchestrator LLM prompt, spawns independent Worker `AgentPipeline` coroutines in parallel, and synthesizes results. Emits `SwarmEvent` — `PlanReady`, `WorkerStarted`, `WorkerCompleted`, `WorkerFailed`, `WorkerStreamChunk`, `FinalSynthesis`.
-
-### 2.3 IntentClassifier
-**File:** `domain/engine/IntentClassifier.kt`
-
-Fast LLM-based intent router that classifies user input into `OmniMode` categories before routing to the appropriate pipeline.
-
-### 2.4 OmniMode
-**File:** `domain/engine/OmniMode.kt`
-
-Enum of agent operating modes: `DEVELOPER`, `RESEARCHER`, `SYSTEM_OPERATOR`, `CREATIVE`, `ANALYST`, `ASSISTANT`, `SWARM`.
-
-### 2.5 AutoHealBuildUseCase
-**File:** `domain/engine/AutoHealBuildUseCase.kt`
-
-Runs `./gradlew build`, parses compiler errors from stdout, and invokes `AgentPipeline` to patch the failing files automatically in a retry loop.
-
----
-
-## 3. LLM Routing — ModelRegistry
-
-**File:** `registry/ModelRegistry.kt`
-
-Central registry of all supported AI models. Provides:
-- `getModelById(id)` / `findModelById(id)` — look up a model
-- `getModelsForTier(tier)` — filter by `ModelTier` (FAST, BALANCED, POWERFUL, LOCAL)
-- `getBestModelForTier(tier, preferredProvider?)` — smart selection
-- `getDefaultModelForRole(role)` — role-based defaults (ORCHESTRATOR, WORKER, CODER, RESEARCHER…)
-- `addDynamicCopilotModels(models)` / `clearDynamicCopilotModels()` — runtime model injection
-
-**Providers:** OpenAI, Anthropic, Google Gemini, Mistral, Groq, Cerebras, GitHub Copilot, Local (Llama.cpp)
-
-**Auth:**
-- `CopilotSessionManager` — GitHub OAuth device-flow for Copilot token
-- `CopilotModelRefresher` — refreshes Copilot model list from API
-- `GitHubDeviceFlowManager` — generic GitHub OAuth device flow
-- `OAuthManager` — generic OAuth helper
-- `ApiKeyRepository` — encrypted DataStore for all provider API keys
+```
+OmniDev Workspace
+│
+├── 🎯 DOMAIN LAYER (domain/)
+│   ├── engine/
+│   │   ├── AgentPipeline.kt          ← ReAct Loop الأساسي
+│   │   ├── SwarmOrchestrator.kt      ← Multi-Agent Orchestration
+│   │   ├── IntentClassifier.kt       ← تصنيف النوايا
+│   │   ├── AutoHealBuildUseCase.kt   ← إصلاح البناء التلقائي
+│   │   └── OmniMode.kt               ← أوضاع التشغيل
+│   └── attachment/
+│       └── AttachmentProcessor.kt    ← معالج المرفقات
+│
+├── 💾 DATA LAYER (data/)
+│   ├── tools/                        ← 70+ أداة ذكاء اصطناعي
+│   ├── brain/                        ← Agent Brain System (NEW)
+│   ├── ipc/                          ← IPC & Shizuku Integration
+│   ├── repository/                   ← مخازن البيانات
+│   ├── db/                           ← Room Database v7
+│   ├── network/                      ← Completion API & VPN
+│   ├── accessibility/                ← Semantic UI Control
+│   ├── auth/                         ← GitHub OAuth & Copilot
+│   ├── integration/                  ← Telegram, Discord, WhatsApp
+│   ├── localllm/                     ← Llama.cpp Edge Inference
+│   └── [10+ modules إضافية]
+│
+├── 🎨 UI LAYER (ui/)
+│   ├── chat/                         ← الواجهة الرئيسية
+│   ├── settings/                     ← 7 شاشات إعدادات
+│   ├── analytics/                    ← لوحة Analytics
+│   ├── debug/                        ← Debug Console
+│   ├── overlay/                      ← Floating Bubble
+│   └── theme/                        ← Material 3 Theme
+│
+└── 🔌 SERVICES & RECEIVERS (12 خدمة)
+    ├── OmniCoreService (AIDL IPC)
+    ├── OmniAccessibilityService
+    ├── OmniInputMethodService (IME)
+    ├── OmniDevVpnService
+    ├── OmniSyncService
+    ├── OmniMediaSessionService
+    └── [6+ خدمات إضافية]
+```
 
 ---
 
-## 4. Tool Ecosystem — Complete Directory
+## 2. نظام Agent Brain الجديد
 
-All tools are registered and dispatched by `CompositeToolManager` (`data/tools/CompositeToolManager.kt`).
+> **أُضيف في 2026-04-02** — يجعل الـ Agent مثل Claude Code / GitHub Copilot Agent
 
-### 4.1 File & Terminal Tools (via `FileToolManager`)
+```
+╔══════════════════════════════════════════════════════════════════╗
+║              🧠 AGENT BRAIN SYSTEM                               ║
+╚══════════════════════════════════════════════════════════════════╝
 
-| Tool Name | Description |
-|-----------|-------------|
-| `read_file` | Read file contents |
-| `write_file` / `create_file` | Write / create files |
-| `delete_file` | Delete files |
-| `search_files` | Search file contents with regex |
-| `patch_file` | Apply unified diff patches |
-| `terminal` | Run shell commands |
-| `web_search` | Web search (overridden by WebSearchTool) |
-| `grep_search` | Ripgrep-powered code search |
-| `find_files` | Find files by pattern |
-| `file_permissions` | Read/set UNIX permissions |
-| `disk_usage` | du/df disk usage |
-| `archive_tool` | zip/tar operations |
+data/brain/
+├── SmartLearningBridge.kt      ← الجسر الذكي المنسق (القلب الجديد)
+├── ToolExecutionJournal.kt     ← مجلة التنفيذ الدائمة (الذاكرة الكاملة)
+└── ToolAwarenessEngine.kt      ← محرك الوعي بالأدوات والبيئة
 
-**Files:** `FileToolManager.kt`, `AdvancedFileTools.kt`, `GodModeFileRouter.kt`, `GodModeAccessibility.kt`
+data/db/entities/
+├── ToolExecutionEntry.kt       ← كيان سجل التنفيذ
+└── SystemKnowledgeEntry.kt     ← كيان قاعدة معرفة النظام
 
-### 4.2 Web & Network Tools
+data/db/dao/
+├── ToolExecutionDao.kt         ← DAO للوصول لسجل التنفيذ
+└── SystemKnowledgeDao.kt       ← DAO لقاعدة معرفة النظام
 
-| Tool Name | Description |
-|-----------|-------------|
-| `web_search` | DuckDuckGo/Bing search + deep fetch (parallel, 6000 chars/site) |
-| `web_search_deep` | Fetches full page content of top-N search results |
-| `web_scraper` | Single-page scraping |
-| `scrape_multiple` | Parallel scraping of ≤8 URLs (12s timeout, 8000 chars each) |
-| `headless_browser` | Full browser automation (JavaScript rendering) |
-| `network_request` | HTTP GET/POST/PUT/DELETE with headers |
-| `network_monitor` | VPN-based traffic monitor (TUN interceptor, no root) — start/stop/status/get_traffic_log/get_app_stats/block_domain/unblock_domain/block_ads |
+ui/brain/
+├── AgentBrainDashboard.kt      ← واجهة Compose لعرض حالة الذكاء
+└── AgentBrainViewModel.kt      ← ViewModel للوحة تحكم Brain
+```
 
-**Files:** `WebSearchTool.kt`, `WebScraperTool.kt`, `HeadlessBrowserManager.kt`, `NetworkRequestTool.kt`, `NetworkMonitorTool.kt`, `OmniDevVpnService.kt`
+### كيف يعمل النظام:
 
-### 4.3 Memory Tools
+```
+كل تنفيذ أداة ↓
+SmartLearningBridge.onToolExecutionEnd()
+    ├── ToolExecutionJournal  → حفظ دائم في SQLite
+    ├── ToolAwarenessEngine   → تعلم من الخطأ/النجاح
+    ├── ToolIntelligenceEngine → تحديث Q-Learning
+    ├── ToolMachineLearningEngine → تحديث النماذج
+    └── ToolMonitoringSystem  → مراقبة الأداء
 
-| Tool Name | Description |
-|-----------|-------------|
-| `remember_fact` | Store a fact in SQLite knowledge base |
-| `search_knowledge` | Semantic search over knowledge base |
-| `update_memory` | Update an existing memory entry |
-| `delete_memory` | Delete a memory entry |
-| `vector_store` | Add embeddings to vector store |
-| `vector_search` | Approximate-nearest-neighbor search |
-| `vector_similar` | Find similar items by cosine similarity |
+في كل System Prompt ↓
+SmartLearningBridge.buildFullContextEnrichment()
+    ├── وعي البيئة (Termux, Shizuku, Git, Python, etc.)
+    ├── ذاكرة التنفيذ (إحصائيات، أخطاء، أنماط)
+    ├── أفضل الممارسات المكتسبة
+    └── توصيات الأداة التالية
+```
 
-**Files:** `MemoryManager.kt`, `VectorMemoryManager.kt`
+### قاعدة البيانات (v7):
+```sql
+tool_execution_log:    سجل كل تنفيذ أداة بتفاصيله الكاملة
+system_knowledge:      قاعدة معرفة بيئة النظام والأدوات
+```
 
-### 4.4 Communication & Social Tools
+---
 
-| Tool Name | Description |
-|-----------|-------------|
-| `communicate_tool` | Send SMS, email, notifications |
-| `telegram_publisher` | Post to Telegram channel/group |
-| `telegram_bot` | Full Telegram Bot API (send/receive/media) |
+## 3. تدفقات التنفيذ الأساسية
+
+### 3.1 AgentPipeline — حلقة ReAct
+**الملف:** `domain/engine/AgentPipeline.kt`
+
+المحرك المركزي. يشغّل حلقة **Reason → Act → Observe**:
+
+1. يرسل system prompt + history + tool definitions للنموذج
+2. يُحلل الاستجابة بحثاً عن tool calls
+3. ينفذ الأدوات عبر `CompositeToolManager`
+4. يُضيف نتائج الأدوات للسياق ويكرر
+5. ينتهي عند `FINAL_ANSWER`، حد التكرارات، ميزانية الـ tokens، أو انتهاء المهلة الزمنية
+
+**الإعدادات:** `AgentConfig` — `maxIterations` (50)، `tokenBudget`، `maxExecutionTimeMs`، `maxIterationTimeMs` (3 دقائق)، `maxRepeatToolCalls`
+
+**تدفق الأحداث:** `AgentEvent` — `Thinking`، `ToolCall`، `ToolResult`، `StreamChunk`، `FinalAnswer`، `Error`
+
+### 3.2 SwarmOrchestrator
+**الملف:** `domain/engine/SwarmOrchestrator.kt`
+
+يُجزئ الطلبات المعقدة إلى ≤10 مهام فرعية، ويُفرخ worker `AgentPipeline` coroutines بالتوازي، ويُجمع النتائج.
+
+**الأحداث:** `SwarmEvent` — `PlanReady`، `WorkerStarted`، `WorkerCompleted`، `WorkerFailed`، `FinalSynthesis`
+
+### 3.3 IntentClassifier
+**الملف:** `domain/engine/IntentClassifier.kt`
+
+موجّه نوايا سريع قائم على LLM يصنف المدخل إلى `OmniMode` قبل التوجيه للـ pipeline المناسب.
+
+### 3.4 OmniMode — أوضاع التشغيل
+**الملف:** `domain/engine/OmniMode.kt`
+
+```
+FAST          ← 5 iterations max، model: gpt-4o-mini
+BALANCED      ← 25 iterations max، model: gpt-4o
+THOROUGH      ← 50 iterations max، model: claude-opus-4
+SWARM         ← Multi-agent orchestration
+AUTONOMOUS    ← Unattended execution + auto-healing
+VOICE         ← VoiceAssistantService mode
+DEBUG         ← DebugConsoleScreen logging
+```
+
+### 3.5 AutoHealBuildUseCase
+**الملف:** `domain/engine/AutoHealBuildUseCase.kt`
+
+يُشغّل `./gradlew build`، يُحلل أخطاء المترجم، ويستدعي `AgentPipeline` لتصحيح الملفات تلقائياً في حلقة retry.
+
+### تدفق التنفيذ الكامل
+
+```
+User Input (Chat / Voice / Intent)
+            ↓
+    IntentClassifier  →  تصنيف النية
+            ↓
+    ModelRegistry     →  اختيار LLM (Anthropic / OpenAI / Copilot / Llama.cpp)
+            ↓
+    AgentPipeline ReAct Loop  [max 25-50 iterations]
+    ├── REASON: إرسال prompt + tools للنموذج
+    ├── ACT:    تنفيذ tool calls عبر CompositeToolManager
+    ├── OBSERVE: إضافة النتائج للسياق
+    └── LOOP حتى: text output | max iterations
+            ↓
+    CompositeToolManager
+    ├── يُوجه لـ FileToolManager، SystemTools، إلخ
+    ├── ينفذ مع timeout + error handling
+    └── يُعيد ToolCallResult (success + output)
+            ↓
+    Response Generation
+    ├── يُبث النص للواجهة في الوقت الفعلي
+    ├── يحفظ في ChatRepository
+    └── يُحدث MemoryManager للسياق المستقبلي
+            ↓
+    Output (UI / Voice / Notification)
+```
+
+---
+
+## 4. توجيه النماذج — ModelRegistry
+
+**الملف:** `registry/ModelRegistry.kt`
+
+سجل مركزي لكل النماذج المدعومة. يوفر:
+- `getModelById(id)` / `findModelById(id)` — البحث عن نموذج
+- `getModelsForTier(tier)` — تصفية حسب `ModelTier` (FAST, BALANCED, POWERFUL, LOCAL)
+- `getBestModelForTier(tier, preferredProvider?)` — اختيار ذكي
+- `getDefaultModelForRole(role)` — افتراضيات حسب الدور (ORCHESTRATOR, WORKER, CODER, RESEARCHER…)
+- `addDynamicCopilotModels(models)` / `clearDynamicCopilotModels()` — حقن نماذج في وقت التشغيل
+
+**المزودون:** OpenAI، Anthropic، Google Gemini، Mistral، Groq، Cerebras، GitHub Copilot، Local (Llama.cpp)
+
+**المصادقة:**
+- `CopilotSessionManager` — GitHub OAuth device-flow لـ Copilot token
+- `CopilotModelRefresher` — تحديث قائمة نماذج Copilot
+- `GitHubDeviceFlowManager` — GitHub OAuth device flow عام
+- `OAuthManager` — مساعد OAuth عام
+- `ApiKeyRepository` — DataStore مشفر لكل مفاتيح API
+
+---
+
+## 5. نظام الأدوات — الدليل الكامل
+
+كل الأدوات مسجلة وتُرسل عبر `CompositeToolManager` (`data/tools/CompositeToolManager.kt`).
+
+### 5.1 أدوات الملفات والطرفية (FileToolManager)
+
+| اسم الأداة | الوصف |
+|-----------|-------|
+| `read_file` | قراءة محتوى الملف |
+| `write_file` / `create_file` | كتابة / إنشاء ملفات |
+| `delete_file` | حذف الملفات |
+| `search_files` | بحث بـ regex في محتوى الملفات |
+| `patch_file` | تطبيق unified diff patches |
+| `terminal` | تشغيل أوامر shell |
+| `grep_search` | بحث كود مدعوم بـ Ripgrep |
+| `find_files` | البحث عن ملفات بنمط |
+| `file_permissions` | قراءة/ضبط صلاحيات UNIX |
+| `disk_usage` | معلومات du/df |
+| `archive_tool` | عمليات zip/tar |
+
+### 5.2 أدوات الويب والشبكة
+
+| اسم الأداة | الوصف |
+|-----------|-------|
+| `web_search` | بحث DuckDuckGo/Bing + جلب عميق (موازي، 6000 حرف/موقع) |
+| `web_search_deep` | جلب محتوى كامل لأفضل N نتائج |
+| `web_scraper` | استخراج صفحة واحدة |
+| `scrape_multiple` | استخراج موازي لـ ≤8 URLs (12s timeout، 8000 حرف لكل) |
+| `headless_browser` | أتمتة متصفح كاملة (JavaScript rendering) |
+| `network_request` | HTTP GET/POST/PUT/DELETE مع headers |
+| `network_monitor` | مراقبة حركة مرور VPN (TUN interceptor، بدون root) |
+
+### 5.3 أدوات الذاكرة
+
+| اسم الأداة | الوصف |
+|-----------|-------|
+| `remember_fact` | حفظ حقيقة في قاعدة بيانات SQLite |
+| `search_knowledge` | بحث دلالي في قاعدة المعرفة |
+| `update_memory` | تحديث مدخل ذاكرة موجود |
+| `delete_memory` | حذف مدخل ذاكرة |
+| `vector_store` | إضافة embeddings للمخزن المتجهي |
+| `vector_search` | بحث تقريبي عن أقرب جار |
+| `vector_similar` | إيجاد عناصر مشابهة بـ cosine similarity |
+
+### 5.4 أدوات التواصل والشبكات الاجتماعية
+
+| اسم الأداة | الوصف |
+|-----------|-------|
+| `communicate_tool` | إرسال SMS، بريد إلكتروني، إشعارات |
+| `telegram_publisher` | نشر على قناة/مجموعة Telegram |
+| `telegram_bot` | Telegram Bot API كامل (إرسال/استقبال/وسائط) |
 | `discord_bot` | Discord Bot API |
-| `discord_publisher` | Post rich embeds to Discord webhook |
+| `discord_publisher` | نشر rich embeds على Discord webhook |
 | `slack_tool` | Slack Web API |
-| `send_grid_email` | Transactional email via SendGrid |
-| `notion_publisher` | Create/update Notion pages and databases |
-| `n8n_automation` | Trigger n8n workflows via webhook |
-| `whatsapp` | WhatsApp Cloud API (official, requires Meta token) |
-| `whatsapp_bridge` | WhatsApp via local bridge URL |
-| `social_media_video` | yt-dlp + noembed: get_info, get_captions, download, play, search_youtube, setup |
+| `send_grid_email` | بريد إلكتروني عبر SendGrid |
+| `notion_publisher` | إنشاء/تحديث صفحات Notion |
+| `n8n_automation` | تشغيل n8n workflows عبر webhook |
+| `whatsapp` | WhatsApp Cloud API |
+| `whatsapp_bridge` | WhatsApp عبر bridge محلي |
+| `social_media_video` | yt-dlp + noembed: get_info, download, search_youtube |
 
-**Files:** `TelegramPublisherTool.kt`, `TelegramBotTool.kt`, `DiscordBotTool.kt`, `DiscordPublisherTool.kt`, `SlackTool.kt`, `SendGridEmailTool.kt`, `NotionPublisherTool.kt`, `N8nAutomationTool.kt`, `WhatsAppTool.kt`, `WhatsAppBridgeTool.kt`, `SocialMediaTool.kt`
+### 5.5 أدوات النظام وOS
 
-> **Note:** `TelegramBotTool` and `TelegramPublisherTool` serve different purposes: publisher posts to channels, bot handles interactive conversations. Similarly `WhatsAppTool` (Cloud API) vs `WhatsAppBridgeTool` (local bridge) are distinct integrations.
+| اسم الأداة | الوصف |
+|-----------|-------|
+| `hardware_toggle_tool` | تبديل WiFi، Bluetooth، وضع الطيران، الكشاف |
+| `system_power` | إعادة التشغيل، الإيقاف، وضع الاسترداد |
+| `get_device_info` | معلومات البناء، RAM، التخزين، البطارية، CPU |
+| `get_current_location` | موقع GPS + الشبكة |
+| `app_manager_tool` | تثبيت/إزالة/تشغيل/إيقاف التطبيقات |
+| `permission_manager` | منح/سحب الصلاحيات برمجياً |
+| `device_admin` | إجراءات Device Admin |
+| `android_intent` | تشغيل Intents تعسفية |
+| `shizuku_command` | أوامر ADB-level عبر Shizuku |
+| `agent_runtime` | python_run، node_run، shell_script، pip_install |
+| `agent_sandbox` | تنفيذ معزول وآمن |
+| `advanced_terminal` | طرفية موسعة مع إدارة بيئة |
+| `task_scheduler` | جدولة مهام متكررة/لمرة واحدة |
+| `system_contacts` | قراءة/بحث جهات الاتصال |
+| `clipboard` | قراءة/كتابة الحافظة |
+| `sms_reader` | قراءة رسائل SMS |
+| `call_log` | قراءة سجل المكالمات |
+| `media_control` | التحكم في تشغيل الوسائط |
+| `ime_tool` | التحكم في OmniDev IME |
 
-### 4.5 System & OS Tools
+### 5.6 أدوات الواجهة وإمكانية الوصول
 
-| Tool Name | Description |
-|-----------|-------------|
-| `hardware_toggle_tool` | Toggle WiFi, Bluetooth, airplane mode, flashlight |
-| `system_power` | Reboot, shutdown, recovery (via Shizuku/root) |
-| `get_device_info` | Build info, RAM, storage, battery, CPU, network |
-| `get_current_location` | GPS + network location |
-| `app_manager_tool` | Install/uninstall/launch/force-stop apps |
-| `permission_manager` | Grant/revoke permissions programmatically |
-| `device_admin` | Device Admin actions (lock screen, wipe data) |
-| `android_intent` | Fire arbitrary Android intents |
-| `shizuku_command` | Run ADB-level commands via Shizuku |
-| `agent_runtime` | python_run, node_run, shell_script, pip_install, download_exec |
-| `agent_sandbox` | Isolated code execution sandbox |
-| `advanced_terminal` | Extended terminal with env management |
-| `setup_build_environment` | Configure Termux/SDK build environment |
-| `termux_bridge` | Run commands in Termux environment |
-| `planner_tool` | Create calendar events and reminders |
-| `task_scheduler` | Schedule recurring/one-shot agent tasks |
-| `task_manager` | List, cancel, inspect scheduled tasks |
-| `system_contacts` | Read/search device contacts |
-| `clipboard` | Get/set clipboard content |
-| `sms_reader` | Read device SMS messages |
-| `call_log` | Read call history |
-| `media_control` | Control media playback (play/pause/skip/volume) |
-| `sync_service` | Control background OmniSyncService |
-| `ime_tool` | Control OmniDev IME: commit_text, delete, get_selected |
+| اسم الأداة | الوصف |
+|-----------|-------|
+| `ui_automation` | النقر والتمرير والكتابة عبر Accessibility |
+| `semantic_ui` | قراءة شجرة UI الدلالية |
+| `visual_inspector` | فحص العناصر المرئية بالصورة |
+| `autofill_assist` | ملء الحقول عبر IME/Accessibility |
 
-**Files:** `SystemAssistantTools.kt`, `AdvancedSystemTools.kt`, `SystemPowerTool.kt`, `ShizukuCommandTool.kt`, `AgentRuntimeTool.kt`, `AgentSandboxTool.kt`, `EnvironmentSetupManager.kt`, `TermuxEnvironmentBridge.kt`, `TermuxExecutionFix.kt`, `PermissionManagerTool.kt`, `SystemContactsTool.kt`, `ClipboardTool.kt`, `AndroidIntentTool.kt`, `TaskSchedulerTool.kt`, `TaskManagerTool.kt`
+### 5.7 أدوات التطوير والكود
 
-### 4.6 UI & Accessibility Tools
-
-| Tool Name | Description |
-|-----------|-------------|
-| `ui_automation` | Tap, swipe, type via accessibility service |
-| `semantic_ui` | Read semantic UI tree, find elements by description |
-| `visual_inspector` | Screenshot-based visual element inspection |
-| `autofill_assist` | Fill focused fields via IME/accessibility. Actions: save_profile, get_profile, fill_focused, status, open_autofill_settings |
-
-**Files:** `UIAutomationTool.kt`, `SemanticUITool.kt`, `SemanticTreeParser.kt`, `VisualInspectorTool.kt`, `AutofillAssistTool.kt`, `OmniAccessibilityService.kt`, `GodModeAccessibility.kt`, `AccessibilityStateManager.kt`
-
-### 4.7 Development & Code Tools
-
-| Tool Name | Description |
-|-----------|-------------|
+| اسم الأداة | الوصف |
+|-----------|-------|
 | `git_manager` | Git init/add/commit/push/pull/log/diff/branch |
-| `github_manager` | GitHub API: repos, issues, PRs, actions |
-| `request_github_auth` | GitHub OAuth device-flow for agent auth |
-| `analyze_logcat` | Parse and filter logcat output |
-| `app_manifest_analyzer` | Analyze AndroidManifest.xml structure |
-| `enhanced_manifest_analyzer` | Deep APK: SHA hashes, native libs, metadata |
-| `enhanced_intent_resolver` | Resolve intents across activities/services/receivers |
-| `enhanced_cached_analysis` | Get cached enhanced manifest analysis |
-| `enhanced_manifest_to_html` | Export manifest analysis as HTML report |
-| `quality_security_tool` | Code quality and security checks |
-| `execution_diagnostics` | Diagnose tool execution failures |
-| `god_eye_profiler` | System-wide performance profiling |
+| `github_manager` | GitHub API: repos، issues، PRs، actions |
+| `request_github_auth` | GitHub OAuth device-flow |
+| `analyze_logcat` | تحليل وتصفية logcat |
+| `app_manifest_analyzer` | تحليل AndroidManifest.xml |
+| `enhanced_manifest_analyzer` | APK عميق: SHA hashes، native libs، metadata |
+| `quality_security_tool` | فحص جودة وأمان الكود |
+| `execution_diagnostics` | تشخيص أخطاء تنفيذ الأدوات |
+| `god_eye_profiler` | تنميط أداء شامل للنظام |
 
-**Files:** `GitManagerTool.kt`, `GitHubManagerTool.kt`, `RequestGitHubAuthenticationTool.kt`, `LogcatAnalyzerTool.kt`, `AppManifestAnalyzerTool.kt`, `EnhancedAppManifestAnalyzerTool.kt`, `QualitySecurityTool.kt`, `OmniExecutionDiagnostics.kt`, `GodEyeProfilerTool.kt`
+### 5.8 أدوات IPC والامتداد
 
-### 4.8 IPC & Extension Tools
+| اسم الأداة | الوصف |
+|-----------|-------|
+| `omni_link` | ربط بالامتدادات الخارجية عبر `IOmniExtensionInterface` AIDL |
+| `system_launcher_tool` | التحكم بـ OmniDev Launcher |
+| `widget_generator_tool` | رسم Compose widgets على المشغّل |
+| `omni_core_agent` | كشف قدرات الـ agent للتطبيقات الخارجية |
 
-| Tool Name | Description |
-|-----------|-------------|
-| `omni_link` | Bind to external extensions via `IOmniExtensionInterface` AIDL |
-| `system_launcher_tool` | Control OmniDev Launcher via `IOmniLauncherInterface` AIDL |
-| `widget_generator_tool` | Render Compose widgets on launcher via `renderOmniWidget()` |
-| `omni_core_agent` | Expose agent capabilities to external apps via `IOmniCoreInterface` |
+### 5.9 أدوات الذكاء المتقدم
 
-**Files:** `OmniLinkTool.kt`, `LauncherControlTool.kt`, `WidgetGeneratorTool.kt`, `OmniCoreAgentTool.kt`, `ExtensionConnectionManager.kt`, `LauncherConnectionManager.kt`
-
-### 4.9 New Intelligence & Future Tools *(Added in futures branch)*
-
-| Tool Name | Description |
-|-----------|-------------|
-| `predictive_analytics` | Time-series forecasting (forecast, detect_anomalies, analyze_trend) via `PredictiveAnalyticsEngine` |
-| `security_analyzer` | Advanced APK security analysis (analyze, scan_all, quick_scan, verify_findings, infer_exploitation_paths) via `AdvancedSecurityAnalyzer` |
-| `intelligent_automation` | Workflow automation engine (execute_workflow, list_workflows, get_statistics, get_patterns) via `IntelligentAutomationEngine` |
-| `voice_commands` | Voice command engine (initialize, start_listening, stop_listening, speak, get_stats, get_history) via `AdvancedVoiceCommandEngine` |
-| `tool_monitoring` | Real-time tool performance metrics (get_metrics, get_all_metrics, most_used, slowest, most_failed) via `ToolMonitoringSystem` |
-
-**Internal infrastructure (not exposed as tools):**
-- `ToolOrchestrator` — circuit-breaker + TTL caching wrapper for tool execution
-- `ToolDependencyGraph` — dependency resolution for tool chains
-- `ToolMachineLearningEngine` — learns usage patterns and predicts next tools (Naive Bayes, KNN, Decision Tree, Neural Network)
-- `ToolIntelligenceEngine` — Q-Learning-based tool scorer + pattern detector
+| اسم الأداة | الوصف |
+|-----------|-------|
+| `predictive_analytics` | تنبؤ بالسلاسل الزمنية واكتشاف الشذوذات |
+| `security_analyzer` | تحليل أمان APK ثابت/ديناميكي متقدم |
+| `intelligent_automation` | محرك أتمتة workflows معقد |
+| `voice_commands` | محرك الأوامر الصوتية الكاملة |
+| `tool_monitoring` | مقاييس أداء الأدوات في الوقت الفعلي |
 
 ---
 
-## 5. Intelligence & Automation Engines
+## 6. محركات الذكاء والأتمتة
 
-All located under `data/tools/*/`:
+كلها موجودة في `data/tools/*/`:
 
 ### ToolMachineLearningEngine (`data/tools/ml/`)
-Trains multiple ML models on tool execution history. Records each execution (tool name, success, latency, parameters), updates statistics, and predicts the next best tool using Naive Bayes, KNN, Decision Tree, and feedforward Neural Network ensemble. Used internally to improve tool suggestions.
+يُدرّب نماذج ML متعددة على تاريخ تنفيذ الأدوات. يتوقع الأداة الأمثل التالية باستخدام Naive Bayes، KNN، Decision Tree، وشبكة عصبية.
 
 ### ToolIntelligenceEngine (`data/tools/orchestration/`)
-Q-Learning-based reinforcement engine. Maintains Q-values for each tool, decays exploration rate over time, tracks contextual preferences (time of day, day of week, battery level), and detects recurring usage patterns.
+محرك تعزيز قائم على Q-Learning. يحتفظ بـ Q-values لكل أداة، ويتتبع التفضيلات السياقية (وقت اليوم، مستوى البطارية).
 
 ### ToolOrchestrator (`data/tools/orchestration/`)
-Infrastructure layer providing TTL-based result caching and circuit-breaker protection around tool calls. Does not expose agent tools.
-
-### ToolDependencyGraph (`data/tools/orchestration/`)
-Resolves tool dependency chains and enables topological-sort execution of dependent tool sequences.
+طبقة بنية تحتية توفر TTL-based result caching وحماية circuit-breaker حول استدعاءات الأدوات.
 
 ### PredictiveAnalyticsEngine (`data/tools/prediction/`)
-Time-series analytics engine. Exposed as `predictive_analytics` tool. Supports: ARIMA-like forecasting, anomaly detection via statistical thresholds, and trend analysis (RISING/FALLING/STABLE).
+محرك تحليلات سلاسل زمنية. يدعم: تنبؤ ARIMA-like، اكتشاف شذوذات، وتحليل اتجاه.
 
 ### ToolMonitoringSystem (`data/tools/monitoring/`)
-Singleton real-time metrics collector. Tracks execution count, success rate, average/p99 latency, and failure count per tool. Emits `MonitoringEvent` via `SharedFlow`. Exposed as `tool_monitoring` tool.
+جامع مقاييس singleton في الوقت الفعلي. يتتبع عدد التنفيذات، معدل النجاح، p99 latency.
 
 ### IntelligentAutomationEngine (`data/tools/automation/`)
-Workflow automation system. Supports complex workflows with: sequential/parallel actions, conditional branches, loops, API calls, tool calls, wait steps, and custom scripts. Learns user patterns and adapts. Exposed as `intelligent_automation` tool.
+نظام أتمتة workflows. يدعم: إجراءات متسلسلة/متوازية، فروع شرطية، حلقات، مكالمات API.
 
 ### AdvancedSecurityAnalyzer (`data/tools/security/`)
-Deep static + dynamic security analysis for Android packages. Analyses permissions, native libraries, network configuration, cryptographic practices, component exposure, malware indicators, and generates risk scores. Supports `verify_findings` to validate detections with exploitability scoring, and `infer_exploitation_paths` to provide safe attack-path hypotheses, non-invasive validation checks, and remediation prioritization. Exposed as `security_analyzer` tool.
+تحليل أمان ثابت/ديناميكي عميق للحزم. يحلل: الصلاحيات، المكتبات الأصلية، إعدادات الشبكة، الممارسات التشفيرية.
 
 ### AdvancedVoiceCommandEngine (`data/tools/voice/`)
-Full voice command pipeline: SpeechRecognizer integration, wake-word detection (`omnidev`, `أومني ديف`), NLP command matching, Text-to-Speech feedback, command history, and multi-language support (Arabic/English). Exposed as `voice_commands` tool.
+خط أنابيب كامل للأوامر الصوتية: SpeechRecognizer، اكتشاف كلمة التنبيه، NLP، TTS، دعم متعدد اللغات (عربي/إنجليزي).
 
 ---
 
-## 6. IPC & System Integration
+## 7. IPC وتكامل النظام
 
-### 6.1 AIDL Interfaces
+### 7.1 واجهات AIDL
 
-| File | Package | Purpose |
-|------|---------|---------|
-| `ipc/IOmniCoreInterface.aidl` | `com.omnidev.workspace.ipc` | **Active** — 4-method interface used by `OmniCoreService` for launcher/companion IPC |
-| `ipc/IOmniResponseCallback.aidl` | `com.omnidev.workspace.ipc` | Streaming callback for `streamAgentResponse()` |
-| `extension/ipc/IOmniExtensionInterface.aidl` | `com.omnidev.extension.ipc` | Extension binding (Omni-Link) |
-| `launcher/ipc/IOmniLauncherInterface.aidl` | `com.omnidev.launcher.ipc` | Launcher control + widget rendering |
+| الملف | الحزمة | الغرض |
+|-------|--------|-------|
+| `ipc/IOmniCoreInterface.aidl` | `com.omnidev.workspace.ipc` | **نشط** — واجهة 4 methods لـ OmniCoreService |
+| `ipc/IOmniResponseCallback.aidl` | `com.omnidev.workspace.ipc` | Streaming callback |
+| `extension/ipc/IOmniExtensionInterface.aidl` | `com.omnidev.extension.ipc` | ربط الامتدادات |
+| `launcher/ipc/IOmniLauncherInterface.aidl` | `com.omnidev.launcher.ipc` | التحكم بالمشغّل + الـ widgets |
 
-> The legacy root `com.omnidev.workspace.IOmniCoreInterface.aidl` was removed — it has been replaced by the `ipc/` package version used by `OmniCoreService`.
+> **ملاحظة:** `com.omnidev.workspace.IOmniCoreInterface.aidl` القديم في الجذر تم **حذفه** — استبدله الإصدار في حزمة `ipc/`.
 
-### 6.2 IPC Services & Managers
+### 7.2 خدمات ومديرو IPC
 
-| Class | Role |
-|-------|------|
-| `OmniCoreService` | Exposes `IOmniCoreInterface` binder. Enforces `CONTROL_CORE` permission on every method |
-| `OmniCoreAgentTool` | Tool wrapper that calls into `OmniCoreService` from the agent |
-| `LauncherConnectionManager` | Binds to OmniDev Launcher via `IOmniLauncherInterface`; exposes `renderOmniWidget()` |
-| `LauncherCommandRouter` | Routes launcher commands to the correct handler |
-| `ExtensionConnectionManager` | Discovers and binds Omni-Link extensions via `com.omnidev.action.BIND_EXTENSION` |
-| `PrivilegedExecutionManager` | Routes privileged shell commands through Shizuku or root fallback |
-| `RishShellManager` | Ish/Rish shell integration for root commands |
+| الفئة | الدور |
+|-------|-------|
+| `OmniCoreService` | يكشف `IOmniCoreInterface` binder. يُطبق `CONTROL_CORE` permission |
+| `OmniCoreAgentTool` | wrapper أداة تستدعي `OmniCoreService` من الـ agent |
+| `LauncherConnectionManager` | يربط بـ OmniDev Launcher عبر `IOmniLauncherInterface` |
+| `ExtensionConnectionManager` | يكتشف ويربط امتدادات Omni-Link |
+| `PrivilegedExecutionManager` | يُوجه أوامر shell المميزة عبر Shizuku أو root |
+| `RishShellManager` | تكامل rish/ish shell |
 
-### 6.3 Shizuku Integration
-- `ShizukuCommandTool` — wraps `Shizuku.newProcess()` for ADB-level command execution
-- `PrivilegedExecutionManager.executeCommand()` gates on `ShizukuCommandTool.isAvailable()` alone (not `isShizukuReady()`) to avoid binder-flicker race
+### 7.3 تكامل Shizuku
+- `ShizukuCommandTool` — يلفّ `Shizuku.newProcess()` لتنفيذ ADB-level
+- `PrivilegedExecutionManager.executeCommand()` يبوّب على `ShizukuCommandTool.isAvailable()` فقط (ليس `isShizukuReady()`) لتجنب race condition
 
----
-
-## 7. Multi-Modal Capabilities — Eyes, Ears, Voice
-
-| Capability | Service / Class | Notes |
-|-----------|-----------------|-------|
-| Screen capture | `OmniScreenCaptureService` | MediaProjection-based screenshot |
-| Accessibility tree | `OmniAccessibilityService`, `SemanticTreeParser` | Walks `AccessibilityNodeInfo` tree |
-| UI automation | `UIAutomationTool`, `GodModeAccessibility` | Tap/swipe/type via a11y |
-| Visual inspection | `VisualInspectorTool` | Screenshot + element overlay |
-| Speech recognition | `AdvancedVoiceCommandEngine` | SpeechRecognizer + wake word |
-| Text-to-speech | `AdvancedVoiceCommandEngine` | TTS with Arabic/English support |
-| Voice assistant | `VoiceAssistantService`, `VoiceManager` | Background voice service |
-| IME integration | `OmniInputMethodService` | Custom keyboard with agent text injection |
-| Floating overlay | `OmniBubbleService` | Always-on-top agent bubble |
-| Media session | `OmniMediaSessionService` | MediaSession control for playback |
+> **قاعدة حرجة:** يجب استدعاء Shizuku مباشرة من الكلاسبات المجمّعة، ليس عبر reflection.
 
 ---
 
-## 8. Persistence Layer
+## 8. القدرات متعددة الوسائط
 
-### 8.1 Room Database (SQLite)
-**File:** `data/db/OmniDevDatabase.kt`
-- **Current version:** 6
-- **Migration 5→6:** Added `consoleEntriesJson TEXT NOT NULL DEFAULT ''` to `chat_messages`
+| القدرة | الخدمة / الفئة | ملاحظات |
+|--------|--------------|---------|
+| التقاط الشاشة | `OmniScreenCaptureService` | MediaProjection |
+| شجرة إمكانية الوصول | `OmniAccessibilityService`, `SemanticTreeParser` | يمشي `AccessibilityNodeInfo` |
+| أتمتة الواجهة | `UIAutomationTool`, `GodModeAccessibility` | نقر/تمرير/كتابة |
+| الفحص المرئي | `VisualInspectorTool` | لقطة شاشة + تراكب عناصر |
+| التعرف على الكلام | `AdvancedVoiceCommandEngine` | SpeechRecognizer + wake word |
+| تحويل النص لكلام | `AdvancedVoiceCommandEngine` | TTS مع دعم عربي/إنجليزي |
+| المساعد الصوتي | `VoiceAssistantService`, `VoiceManager` | خدمة صوتية خلفية |
+| تكامل IME | `OmniInputMethodService` | لوحة مفاتيح مخصصة |
+| تراكب عائم | `OmniBubbleService` | فقاعة agent دائمة |
+| جلسة الوسائط | `OmniMediaSessionService` | التحكم في التشغيل |
 
-| Entity | Table | DAO |
+---
+
+## 9. طبقة الاستمرارية (Persistence)
+
+### 9.1 قاعدة بيانات Room (SQLite)
+**الملف:** `data/db/OmniDevDatabase.kt` — **الإصدار الحالي: 7**
+
+| الكيان | الجدول | DAO |
 |--------|-------|-----|
 | `ChatMessageEntity` | `chat_messages` | `ChatMessageDao` |
 | `ChatSessionEntity` | `chat_sessions` | `ChatSessionDao` |
 | `KnowledgeSnippet` | `knowledge` | `KnowledgeDao` |
+| `ToolExecutionEntry` | `tool_execution_log` | `ToolExecutionDao` |
+| `SystemKnowledgeEntry` | `system_knowledge` | `SystemKnowledgeDao` |
 
-### 8.2 DataStore (encrypted preferences)
-| Repository | Keys Stored |
-|-----------|-------------|
-| `SettingsRepository` | System prompt, model selection, temperature, max tokens, user profile (email, phone, address for autofill) |
-| `ApiKeyRepository` | API keys for all providers (OpenAI, Anthropic, Gemini, Groq, etc.) |
-| `AnalyticsRepository` | Usage analytics, telemetry preferences |
+### 9.2 DataStore (تفضيلات مشفرة)
 
-### 8.3 Chat Repository
-**File:** `data/repository/ChatRepository.kt`
-Combines Room (messages + sessions) with DataStore. Used by `ChatViewModel`.
+| المستودع | البيانات المخزنة |
+|---------|----------------|
+| `SettingsRepository` | system prompt، اختيار النموذج، درجة الحرارة، max tokens، ملف المستخدم |
+| `ApiKeyRepository` | مفاتيح API لكل المزودين (OpenAI، Anthropic، Gemini، Groq، إلخ) |
+| `AnalyticsRepository` | تحليلات الاستخدام |
 
-### 8.4 AgentConsoleSerializer
-**File:** `ui/chat/AgentConsoleSerializer.kt`
-Serializes `List<AgentConsoleEntry>` to/from JSON using `org.json` for storage in `consoleEntriesJson`.
+### 9.3 تاريخ هجرة قاعدة البيانات
+```
+v1 → v2: الهيكل الأساسي
+v2 → v3: إضافة knowledge snippets
+v3 → v4: تحسينات الجلسة
+v4 → v5: إضافة consoleEntriesJson
+v5 → v6: إضافة metadata
+v6 → v7: إضافة Agent Brain (tool_execution_log + system_knowledge)
+```
 
 ---
 
-## 9. UI Layer
+## 10. طبقة الواجهة (UI)
 
-All screens are Jetpack Compose. Navigation is handled by `AppNavigation.kt`.
+كل الشاشات Jetpack Compose. التنقل عبر `AppNavigation.kt`.
 
-| Screen | ViewModel | Route |
+| الشاشة | ViewModel | الغرض |
 |--------|-----------|-------|
-| `ChatScreen` | `ChatViewModel` | Main agent chat |
-| `DebugScreen` | `DebugViewModel` | Real-time logcat + crash viewer |
-| `AISettingsScreen` | `AISettingsViewModel` | Model, temperature, system prompt |
-| `ProvidersScreen` | `ProvidersViewModel` | API key management per provider |
-| `IntegrationsScreen` | — | Telegram/Discord/Slack/n8n config |
-| `LocalModelManagerScreen` | — | Download/manage local GGUF models |
-| `MemoryExplorerScreen` | — | Browse/edit knowledge base entries |
-| `ScheduledTasksScreen` | — | View/manage scheduled agent tasks |
-| `SystemPromptEditorScreen` | — | Edit system prompt with templates |
-| `ToolRegistryScreen` | — | Live tool list with descriptions |
-| `UserProfileScreen` | — | User profile (name, email, phone, address) |
-| `AnalyticsDashboardScreen` | `AnalyticsDashboardViewModel` | Usage charts and session analytics |
+| `ChatScreen` | `ChatViewModel` | واجهة المحادثة الرئيسية |
+| `DebugScreen` | `DebugViewModel` | logcat مباشر + عرض الأعطال |
+| `AISettingsScreen` | `AISettingsViewModel` | النموذج، درجة الحرارة، system prompt |
+| `ProvidersScreen` | `ProvidersViewModel` | إدارة مفاتيح API |
+| `IntegrationsScreen` | — | إعدادات Telegram/Discord/Slack/n8n |
+| `LocalModelManagerScreen` | — | تنزيل/إدارة نماذج GGUF المحلية |
+| `MemoryExplorerScreen` | — | تصفح/تعديل مدخلات قاعدة المعرفة |
+| `ScheduledTasksScreen` | — | عرض/إدارة المهام المجدولة |
+| `SystemPromptEditorScreen` | — | تعديل system prompt بالقوالب |
+| `ToolRegistryScreen` | — | قائمة أدوات مباشرة مع الأوصاف |
+| `UserProfileScreen` | — | ملف المستخدم (اسم، بريد، هاتف، عنوان) |
+| `AnalyticsDashboardScreen` | `AnalyticsDashboardViewModel` | مخططات الاستخدام وتحليلات الجلسة |
+| `AgentBrainDashboard` | `AgentBrainViewModel` | لوحة حالة الذاكرة والذكاء |
 
-**Components:**
-- `AgentLiveConsole` — real-time streaming console with tool call/result accordion
-- `MarkdownText` — Compose Markdown renderer
-- `MessageFormatter` — format raw LLM output to display messages
-- `ConfirmationGate` — approval dialog for destructive actions
-- `OmniBubbleService` — floating chat bubble (overlay window)
-
----
-
-## 10. System Services & Receivers
-
-| Component | Type | Purpose |
-|-----------|------|---------|
-| `OmniAccessibilityService` | AccessibilityService | UI tree + input injection |
-| `OmniInputMethodService` | InputMethodService | Custom IME for text injection |
-| `VoiceAssistantService` | Service | Background voice listener |
-| `OmniDevVpnService` | VpnService | TUN-based traffic monitor |
-| `OmniCoreService` | Service | AIDL IPC for companion apps |
-| `OmniSyncService` | Service | Background sync / task runner |
-| `AgentNotificationService` | Service | Foreground notification for agent runs |
-| `OmniMediaSessionService` | Service | Media session control |
-| `OmniScreenCaptureService` | Service | MediaProjection screen capture |
-| `OmniBubbleService` | Service | Always-on-top floating UI overlay |
-| `DiscordPollingService` | Service | Long-polls Discord for new messages |
-| `TelegramPollingService` | Service | Long-polls Telegram Bot API |
-| `WhatsAppBridgeService` | Service | Maintains local WhatsApp bridge connection |
-| `BootReceiver` | BroadcastReceiver | Auto-start services on device boot |
-| `OmniSmsReceiver` | BroadcastReceiver | Intercept incoming SMS for bridge |
-| `OmniDeviceAdminReceiver` | DeviceAdminReceiver | Device admin (lock screen, wipe) |
-| `CrashHandler` | — | Uncaught exception handler + crash log |
-| `DebugLogManager` | — | In-memory rotating log buffer |
+**المكونات:**
+- `AgentLiveConsole` — وحدة تحكم streaming مباشرة مع accordion لنتائج الأدوات
+- `MarkdownText` — محوّل Markdown لـ Compose
+- `MessageFormatter` — تنسيق مخرجات LLM الخام
+- `ConfirmationGate` — حوار موافقة للإجراءات المدمرة
+- `OmniBubbleService` — فقاعة chat عائمة
 
 ---
 
-## 11. AIDL Interfaces
+## 11. الخدمات والمستقبلات
+
+| المكوّن | النوع | الغرض | الحالة |
+|---------|-------|-------|--------|
+| `OmniAccessibilityService` | AccessibilityService | شجرة UI + حقن input | 🟢 Core |
+| `OmniInputMethodService` | InputMethodService | IME مخصص | 🟢 Core |
+| `VoiceAssistantService` | Service | مستمع صوتي خلفي | 🟢 Core |
+| `OmniDevVpnService` | VpnService | مراقب حركة TUN | 🟢 Core |
+| `OmniCoreService` | Service | AIDL IPC للتطبيقات المرافقة | 🟢 Core |
+| `OmniSyncService` | Service | مزامنة خلفية / مشغّل مهام | 🟢 Active |
+| `AgentNotificationService` | Service | إشعار foreground لتشغيل الـ agent | 🟢 Active |
+| `OmniMediaSessionService` | Service | التحكم في جلسة الوسائط | 🟢 Active |
+| `OmniScreenCaptureService` | Service | التقاط شاشة MediaProjection | 🟢 Active |
+| `OmniBubbleService` | Service | تراكب واجهة عائم | 🟢 Active |
+| `DiscordPollingService` | Service | Long-polls Discord | 🟢 Active |
+| `TelegramPollingService` | Service | Long-polls Telegram Bot API | 🟢 Active |
+| `WhatsAppBridgeService` | Service | يحافظ على اتصال bridge محلي | 🟢 Active |
+| `BootReceiver` | BroadcastReceiver | تشغيل تلقائي عند الإقلاع | 🟢 Active |
+| `OmniSmsReceiver` | BroadcastReceiver | اعتراض SMS الواردة | 🟢 Active |
+| `OmniDeviceAdminReceiver` | DeviceAdminReceiver | إدارة الجهاز | 🟢 Active |
+
+---
+
+## 12. واجهات AIDL
 
 ```
 app/src/main/aidl/
 ├── com/omnidev/workspace/
 │   └── ipc/
-│       ├── IOmniCoreInterface.aidl     # 4-method launcher/companion IPC
-│       └── IOmniResponseCallback.aidl  # Streaming agent response callback
+│       ├── IOmniCoreInterface.aidl     # 4-method IPC  
+│       └── IOmniResponseCallback.aidl  # Streaming callback
 ├── com/omnidev/extension/
 │   └── ipc/
-│       └── IOmniExtensionInterface.aidl  # Omni-Link extension binding
+│       └── IOmniExtensionInterface.aidl  # Omni-Link
 └── com/omnidev/launcher/
     └── ipc/
-        └── IOmniLauncherInterface.aidl   # Launcher control + widget rendering
+        └── IOmniLauncherInterface.aidl   # التحكم بالمشغّل
 ```
 
-**`IOmniCoreInterface` (ipc package) methods:**
+**Methods الـ `IOmniCoreInterface`:**
 - `getSystemStatus(): Int`
 - `executeSystemCommand(command, contextData)`
 - `askAgentSilent(prompt)`
 - `streamAgentResponse(prompt, callback)`
 
-**`IOmniLauncherInterface` methods (partial):** launch app, set wallpaper, get installed apps, `renderOmniWidget(widgetId, composeJson)`
-
-**`IOmniExtensionInterface`:** invoked by `ExtensionConnectionManager` for extensions binding via `com.omnidev.action.BIND_EXTENSION`
-
 ---
 
-## 12. Project File Map
+## 13. خريطة ملفات المشروع
 
 ```
 app/src/main/
@@ -492,98 +614,95 @@ app/src/main/
 │   ├── extension/ipc/             IOmniExtensionInterface
 │   └── launcher/ipc/              IOmniLauncherInterface
 │
-├── java/com/omnidev/workspace/
-│   ├── OmniDevApp.kt              Application class (Hilt + init)
-│   ├── MainActivity.kt            Single Activity + Compose host
-│   │
-│   ├── data/
-│   │   ├── accessibility/         OmniAccessibilityService, SemanticTreeParser, SemanticUITool, GodModeAccessibility
-│   │   ├── admin/                 OmniDeviceAdminReceiver
-│   │   ├── auth/                  CopilotSessionManager, CopilotModelRefresher, GitHubDeviceFlowManager, OAuthManager
-│   │   ├── communication/         OmniSmsReceiver (SMS capture)
-│   │   ├── db/                    OmniDevDatabase (v6), DAOs, Entities
-│   │   ├── debug/                 CrashHandler, DebugLogManager
-│   │   ├── input/                 OmniInputMethodService (IME)
-│   │   ├── integration/           DiscordPollingService, TelegramPollingService, WhatsAppBridgeService
-│   │   ├── ipc/                   OmniCoreService, OmniCoreAgentTool, LauncherConnectionManager,
-│   │   │                          LauncherCommandRouter, ExtensionConnectionManager,
-│   │   │                          PrivilegedExecutionManager, RishShellManager
-│   │   ├── localllm/              LlamaCppInferenceEngine, LocalInferenceEngine, LocalEngineType
-│   │   ├── media/                 OmniMediaSessionService
-│   │   ├── model/                 AIModel, CompletionRequest, CompletionResponse, ChatMessage
-│   │   ├── network/               CompletionService (Retrofit), OmniDevVpnService (TUN)
-│   │   ├── repository/            ChatRepository, SettingsRepository, ApiKeyRepository, AnalyticsRepository
-│   │   ├── sync/                  OmniSyncService
-│   │   ├── system/                BootReceiver
-│   │   ├── tools/
-│   │   │   ├── ToolManager.kt           Interface + ToolExecutionResult + ToolDefinition
-│   │   │   ├── CompositeToolManager.kt  Main tool router (70+ tools)
-│   │   │   ├── FileToolManager.kt       File/terminal tools
-│   │   │   ├── MemoryManager.kt         SQLite knowledge base
-│   │   │   ├── VectorMemoryManager.kt   Embedding vector store
-│   │   │   ├── SystemAssistantTools.kt  Communication, Planner, Hardware, Location, Device, AppManager
-│   │   │   ├── AdvancedSystemTools.kt   Root shell, package installer, settings, call log, SMS
-│   │   │   ├── [All individual tool files...]
-│   │   │   ├── automation/         IntelligentAutomationEngine
-│   │   │   ├── ml/                 ToolMachineLearningEngine
-│   │   │   ├── monitoring/         ToolMonitoringSystem
-│   │   │   ├── orchestration/      ToolOrchestrator, ToolDependencyGraph, ToolIntelligenceEngine
-│   │   │   ├── prediction/         PredictiveAnalyticsEngine
-│   │   │   ├── security/           AdvancedSecurityAnalyzer
-│   │   │   └── voice/              AdvancedVoiceCommandEngine
-│   │   ├── vision/                OmniScreenCaptureService
-│   │   └── voice/                 VoiceAssistantService, VoiceManager
-│   │
-│   ├── domain/
-│   │   ├── attachment/            AttachmentProcessor (image/file ingestion)
-│   │   └── engine/                AgentPipeline, SwarmOrchestrator, IntentClassifier, OmniMode, AutoHealBuildUseCase
-│   │
-│   ├── registry/
-│   │   └── ModelRegistry.kt       All AI models + routing logic
-│   │
-│   └── ui/
-│       ├── analytics/             AnalyticsDashboardScreen + ViewModel
-│       ├── chat/                  ChatScreen, ChatViewModel, AgentLiveConsole, MessageFormatter, ConfirmationGate, AgentConsoleEntry, AgentConsoleSerializer, MarkdownText
-│       ├── debug/                 DebugScreen + ViewModel
-│       ├── navigation/            AppNavigation
-│       ├── overlay/               OmniBubbleService
-│       ├── providers/             ProvidersScreen + ViewModel
-│       ├── settings/              AISettingsScreen, AISettingsViewModel, IntegrationsScreen, LocalModelManagerScreen, MemoryExplorerScreen, ScheduledTasksScreen, SystemPromptEditorScreen, ToolRegistryScreen, UserProfileScreen
-│       └── theme/                 Color, Theme, Type
-│
-└── res/
-    ├── drawable/                  Vector icons and drawables
-    ├── mipmap-*/                  App launcher icons
-    ├── values/                    strings.xml, colors.xml, styles.xml
-    └── xml/                       Accessibility service config, IME config, network security config, device admin config
+└── java/com/omnidev/workspace/
+    ├── OmniDevApp.kt              Application class (init + Agent Brain)
+    ├── MainActivity.kt            Single Activity + Compose host
+    │
+    ├── data/
+    │   ├── accessibility/         OmniAccessibilityService, SemanticTreeParser, SemanticUITool
+    │   ├── admin/                 OmniDeviceAdminReceiver
+    │   ├── auth/                  CopilotSessionManager, GitHubDeviceFlowManager, OAuthManager
+    │   ├── brain/                 SmartLearningBridge, ToolExecutionJournal, ToolAwarenessEngine
+    │   ├── communication/         OmniSmsReceiver
+    │   ├── db/                    OmniDevDatabase (v7), DAOs, Entities
+    │   ├── debug/                 CrashHandler, DebugLogManager
+    │   ├── input/                 OmniInputMethodService
+    │   ├── integration/           DiscordPollingService, TelegramPollingService, WhatsAppBridgeService
+    │   ├── ipc/                   OmniCoreService, PrivilegedExecutionManager, RishShellManager
+    │   ├── localllm/              LlamaCppInferenceEngine, LocalInferenceEngine
+    │   ├── media/                 OmniMediaSessionService
+    │   ├── model/                 AIModel, CompletionRequest, CompletionResponse
+    │   ├── network/               CompletionService, OmniDevVpnService
+    │   ├── repository/            ChatRepository, SettingsRepository, ApiKeyRepository
+    │   ├── sync/                  OmniSyncService
+    │   ├── system/                BootReceiver
+    │   ├── tools/
+    │   │   ├── ToolManager.kt           Interface + ToolExecutionResult + ToolDefinition
+    │   │   ├── CompositeToolManager.kt  Main tool router (70+ tools)
+    │   │   ├── FileToolManager.kt       أدوات الملفات والطرفية
+    │   │   ├── MemoryManager.kt         قاعدة معرفة SQLite
+    │   │   ├── VectorMemoryManager.kt   مخزن Embedding متجهي
+    │   │   ├── SystemAssistantTools.kt  تواصل، مخطط، جهاز، تطبيقات
+    │   │   ├── AdvancedSystemTools.kt   root shell، تثبيت packages، إعدادات
+    │   │   ├── HeadlessBrowserManager.kt ← متصفح خفي (WebView)
+    │   │   ├── OmniNativeToolsManager.kt ← تحميل وتشغيل أدوات native
+    │   │   ├── [جميع ملفات الأدوات الفردية...]
+    │   │   ├── automation/         IntelligentAutomationEngine
+    │   │   ├── ml/                 ToolMachineLearningEngine
+    │   │   ├── monitoring/         ToolMonitoringSystem
+    │   │   ├── orchestration/      ToolOrchestrator, ToolIntelligenceEngine
+    │   │   ├── prediction/         PredictiveAnalyticsEngine
+    │   │   ├── security/           AdvancedSecurityAnalyzer, OmniNativeToolsManager
+    │   │   └── voice/              AdvancedVoiceCommandEngine
+    │   ├── vision/                OmniScreenCaptureService
+    │   └── voice/                 VoiceAssistantService, VoiceManager
+    │
+    ├── domain/
+    │   ├── attachment/            AttachmentProcessor
+    │   └── engine/                AgentPipeline, SwarmOrchestrator, IntentClassifier, OmniMode
+    │
+    ├── registry/
+    │   └── ModelRegistry.kt       كل نماذج AI + منطق التوجيه
+    │
+    └── ui/
+        ├── analytics/             AnalyticsDashboardScreen + ViewModel
+        ├── brain/                 AgentBrainDashboard + ViewModel
+        ├── chat/                  ChatScreen, ChatViewModel, AgentLiveConsole
+        ├── debug/                 DebugScreen + ViewModel
+        ├── navigation/            AppNavigation
+        ├── overlay/               OmniBubbleService
+        ├── providers/             ProvidersScreen + ViewModel
+        ├── settings/              7 شاشات إعدادات + ViewModels
+        └── theme/                 Color, Theme, Type
 ```
 
 ---
 
-## 13. Tech Stack & Dependencies
+## 14. المكدس التقني والمكتبات
 
-| Category | Technology |
-|----------|------------|
-| Language | Kotlin 2.0 |
-| UI | Jetpack Compose + Material3 |
-| DI | Hilt (Dagger) |
-| Async | Kotlin Coroutines + Flow |
-| Local DB | Room (SQLite) |
-| Preferences | AndroidX DataStore |
-| HTTP | Retrofit 2 + OkHttp |
-| Serialization | kotlinx.serialization |
-| Local LLM | Llama.cpp (JNI, GGUF models) — NDK 27.0.12077973 |
-| Privileged Exec | Shizuku + Root fallback |
-| Build | Gradle 8.9, AGP, KSP |
-| Min SDK | 24 (Android 7) |
-| Target SDK | 35 (Android 15) |
+| الفئة | التقنية | الإصدار |
+|-------|---------|---------|
+| اللغة | Kotlin | 2.0.21 |
+| الواجهة | Jetpack Compose + Material3 | BOM 2024.11.00 |
+| حقن التبعيات | Manual DI (بدون Hilt حالياً) | — |
+| غير متزامن | Kotlin Coroutines + Flow | 1.8.1 |
+| قاعدة بيانات محلية | Room (SQLite) | 2.6.1 |
+| التفضيلات | AndroidX DataStore | 1.1.1 |
+| HTTP | Retrofit 2 + OkHttp | 2.11.0 + 4.12.0 |
+| التسلسل | kotlinx.serialization | 1.7.3 |
+| LLM محلي | Llama.cpp (JNI, GGUF) | NDK 27.0.12077973 |
+| تنفيذ مميز | Shizuku | 13.1.5 |
+| رؤية حاسوبية | CameraX + ML Kit OCR | 1.3.3 + 16.0.0 |
+| HTML parsing | Jsoup | 1.17.2 |
+| Build | Gradle 8.9, AGP 8.7.3, KSP 2.0.21 |
+| Min SDK | 24 (Android 7) | |
+| Target SDK | 35 (Android 15) | |
 
 ---
 
-## 14. Getting Started & CI/CD
+## 15. البدء والـ CI/CD
 
-### Build
-
+### البناء
 ```bash
 # Debug APK
 ./gradlew assembleDebug
@@ -596,13 +715,12 @@ app/src/main/
 ```
 
 ### CI Pipeline (`.github/workflows/android-ci.yml`)
-- Triggers on push to `main` and all PRs
-- Steps: checkout → JDK 17 → Android SDK → NDK → cache restore → `./gradlew lint` → build
+- يُشغَّل عند push لـ `main` وكل PRs
+- الخطوات: checkout → JDK 17 → Android SDK → NDK → استعادة cache → lint → build
 
-### Setup for Privileged Features
-
-See `SYSTEM_SETUP.md` for full ADB grant commands. Key grants for `com.omnidev.workspace`:
+### إعداد الميزات المميزة
 ```bash
+# الصلاحيات الأساسية (مطلوبة لـ Shizuku)
 adb shell pm grant com.omnidev.workspace android.permission.WRITE_SECURE_SETTINGS
 adb shell pm grant com.omnidev.workspace android.permission.DUMP
 adb shell appops set com.omnidev.workspace SYSTEM_ALERT_WINDOW allow
@@ -610,44 +728,141 @@ adb shell appops set com.omnidev.workspace SYSTEM_ALERT_WINDOW allow
 
 ---
 
-## 15. Android Permissions Reference
+## 16. مرجع صلاحيات Android
 
-The app declares protected/system permissions with `tools:ignore="ProtectedPermissions"`. These require ADB grant or Shizuku:
+الصلاحيات المحمية/النظام تتطلب منح ADB أو Shizuku:
 
-| Permission | Purpose |
-|------------|---------|
-| `WRITE_SECURE_SETTINGS` | Modify system settings |
-| `DUMP` | Read system service dumps |
-| `BIND_ACCESSIBILITY_SERVICE` | Accessibility service binding |
-| `BIND_INPUT_METHOD` | IME binding |
-| `RECEIVE_SMS` | SMS capture for bridge |
-| `FOREGROUND_SERVICE_*` | Multiple foreground service types |
-| `SYSTEM_ALERT_WINDOW` | Floating overlay |
-| `android:permission="CONTROL_CORE"` | Guard on `OmniCoreService` binder |
-| `android:permission="CONTROL_LAUNCHER"` | Guard on `IOmniLauncherInterface` |
+| الصلاحية | الغرض |
+|---------|-------|
+| `WRITE_SECURE_SETTINGS` | تعديل إعدادات النظام |
+| `DUMP` | قراءة dumps خدمات النظام |
+| `BIND_ACCESSIBILITY_SERVICE` | ربط خدمة إمكانية الوصول |
+| `BIND_INPUT_METHOD` | ربط IME |
+| `RECEIVE_SMS` | التقاط SMS للـ bridge |
+| `SYSTEM_ALERT_WINDOW` | تراكب عائم |
+| `CONTROL_CORE` | حارس على `OmniCoreService` binder |
 
-> **Do NOT** add `android.permission.BIND_VPN_SERVICE` to `<uses-permission>`. It is only declared as `android:permission` on the `OmniDevVpnService` `<service>` entry.
+> **لا تضف** `android.permission.BIND_VPN_SERVICE` في `<uses-permission>`. يُعلَن فقط كـ `android:permission` على مدخل `<service>` الخاص بـ `OmniDevVpnService`.
 
 ---
 
-## 16. Architecture Conventions & Agent Rules
+## 17. اتفاقيات المعمارية وقواعد الـ Agents
 
-1. **Tool return type** — Always return `ToolExecutionResult(output: String, isError: Boolean = false)`. Never use `result.success` — use `!result.isError`.
+1. **نوع إرجاع الأداة** — دائماً أرجع `ToolExecutionResult(output: String, isError: Boolean = false)`. لا تستخدم `result.success` — استخدم `!result.isError`.
 
-2. **Tool registration** — Every new tool **must** be registered in both `getToolDefinitions()` and `executeTool()` in `CompositeToolManager`. Infrastructure engines (ToolOrchestrator, ToolDependencyGraph, ToolMachineLearningEngine, ToolIntelligenceEngine) are internal-only and do NOT get tool registrations.
+2. **تسجيل الأداة** — كل أداة جديدة **يجب** تسجيلها في `getToolDefinitions()` **و** `executeTool()` في `CompositeToolManager`.
 
-3. **AIDL** — Only two AIDL packages are active: `com.omnidev.workspace.ipc` (core) and `com.omnidev.launcher.ipc` (launcher). The root `com.omnidev.workspace` package AIDL was removed.
+3. **AIDL** — حزمتان فقط نشطتان: `com.omnidev.workspace.ipc` (core) و `com.omnidev.launcher.ipc` (launcher).
 
-4. **Shizuku** — Gate on `ShizukuCommandTool.isAvailable()` only (not `isShizukuReady()`) inside `PrivilegedExecutionManager` to avoid binder-flicker race.
+4. **Shizuku** — بوّب على `ShizukuCommandTool.isAvailable()` فقط (ليس `isShizukuReady()`) داخل `PrivilegedExecutionManager`.
 
-5. **Lint / NewAPI** — Any `queryIntentServices()` call targeting API ≥ 33 must be directly inside an `if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)` branch.
+5. **Lint / NewAPI** — أي استدعاء `queryIntentServices()` يستهدف API ≥ 33 يجب أن يكون داخل `if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)`.
 
-6. **VpnService** — `BIND_VPN_SERVICE` is `android:permission` on the `<service>` entry only, never in `<uses-permission>`.
+6. **VpnService** — `BIND_VPN_SERVICE` هو `android:permission` على مدخل `<service>` فقط، ليس في `<uses-permission>`.
 
-7. **DB migrations** — Always increment DB version in `OmniDevDatabase` and add a named migration object. Current version: 6.
+7. **هجرات DB** — دائماً زِد إصدار DB في `OmniDevDatabase` وأضف كائن هجرة مسمّى. الإصدار الحالي: **7**.
 
-8. **Context propagation** — Pass `Context` through `CompositeToolManager` constructor, not statically. Tools that need Context are conditional: `if (context != null)`.
+8. **نشر الـ Context** — مرر `Context` عبر مُنشئ `CompositeToolManager`، ليس بشكل ثابت.
 
-9. **Coroutines** — All tool `execute()` methods use `withContext(Dispatchers.IO)` or `Dispatchers.Default`. Never call blocking I/O on the main thread.
+9. **Coroutines** — كل methods الـ `execute()` للأدوات تستخدم `withContext(Dispatchers.IO)`. لا تستدعِ I/O blocking في الـ main thread.
 
-10. **New engines in `data/tools/*/`** — Each subdirectory engine (ml, monitoring, orchestration, prediction, security, voice, automation) has a single responsibility. Engines with a public `execute(action, args)` API are exposed as agent tools. Internal/infrastructure engines are not.
+10. **محركات `data/tools/*/` الجديدة** — كل محرك له مسؤولية واحدة. المحركات ذات `execute(action, args)` عامة تُكشف كأدوات. المحركات الداخلية/البنية التحتية لا تُسجَّل.
+
+---
+
+## 18. دليل التطوير السريع
+
+### إضافة أداة جديدة
+```
+1. أنشئ: data/tools/YourNewTool.kt
+2. نفّذ: ToolManager interface (أو استخدم object مع static methods)
+3. أضف getToolDefinitions() ← تعريف الأداة والمعاملات
+4. سجّل في: CompositeToolManager.getToolDefinitions() + executeTool()
+5. حدّث هذا الملف
+```
+
+### إضافة خدمة جديدة
+```
+1. أنشئ: data/YourNewService.kt (يمتد Service)
+2. سجّل في: AndroidManifest.xml
+3. إذا كان AIDL: أضف ملف .aidl
+4. أضف للـ BootReceiver إذا احتجت تشغيل تلقائي
+5. حدّث هذا الملف
+```
+
+### إضافة شاشة جديدة
+```
+1. أنشئ: ui/screens/YourNewScreen.kt (Composable)
+2. أضف للـ NavGraph في AppNavigation.kt
+3. اربطها مع ViewModel
+4. حدّث هذا الملف
+```
+
+### نقاط الدخول الرئيسية
+
+| الدخول | الملف | الغرض |
+|-------|-------|-------|
+| **MainActivity** | `MainActivity.kt` | Launch activity + DI يدوي |
+| **OmniDevApp** | `OmniDevApp.kt` | Application class + Agent Brain init |
+| **OmniCoreService** | `OmniCoreService.kt` | AIDL IPC entry point |
+| **BootReceiver** | `BootReceiver.kt` | تشغيل تلقائي عند الإقلاع |
+| **VoiceAssistantService** | `VoiceAssistantService.kt` | مستمع كلمة التنبيه |
+| **OmniAccessibilityService** | `OmniAccessibilityService.kt` | أتمتة الواجهة |
+
+### الملفات الأهم للمراجعة السريعة
+
+| الأولوية | الملف | السبب |
+|---------|-------|-------|
+| 1️⃣ | `domain/engine/AgentPipeline.kt` | **قلب النظام** — ReAct Loop |
+| 2️⃣ | `data/tools/CompositeToolManager.kt` | **موحد الأدوات** — كل التوجيه |
+| 3️⃣ | `data/network/CompletionService.kt` | **توجيه LLM** — كل استدعاءات API |
+| 4️⃣ | `data/brain/SmartLearningBridge.kt` | **قلب الذاكرة** — السياق والتعلم |
+| 5️⃣ | `registry/ModelRegistry.kt` | **اختيار النموذج** |
+| 6️⃣ | `ui/screens/ChatScreen.kt` | **الواجهة الرئيسية** |
+| 7️⃣ | `OmniDevApp.kt` | **نقطة البدء** + تهيئة |
+
+---
+
+## 19. المشكلات المكتشفة وخطة العمل
+
+### 🔴 ملفات AIDL مكررة (تم الحل جزئياً)
+```diff
+✅ حُل: حُذف الملف القديم
+   com/omnidev/workspace/IOmniCoreInterface.aidl   [محذوف]
+✅ الاحتفاظ بـ:
+   com/omnidev/workspace/ipc/IOmniCoreInterface.aidl [نشط]
+```
+
+### 🟡 أدوات ذات وظائف متداخلة (للدراسة)
+```
+TelegramBotTool vs TelegramPublisherTool     ← أغراض مختلفة (OK)
+DiscordBotTool vs DiscordPublisherTool       ← أغراض مختلفة (OK)
+WhatsAppTool vs WhatsAppBridgeTool           ← تكاملات مختلفة (OK)
+MemoryManager vs VectorMemoryManager         ← ذاكرتان متكاملتان (OK)
+```
+
+### 📋 خطة العمل
+
+#### المرحلة 1: تنظيف ✅
+- [x] فحص ملفات AIDL المكررة
+- [x] حذف AIDL القديم وتحديث الـ imports
+
+#### المرحلة 2: Agent Brain ✅
+- [x] SmartLearningBridge
+- [x] ToolExecutionJournal
+- [x] ToolAwarenessEngine
+- [x] هجرة قاعدة البيانات v7
+
+#### المرحلة 3: OmniNativeToolsManager ✅
+- [x] تحميل Python، aapt2، jadx، apktool
+- [x] تنفيذ عبر Shizuku بدون Termux
+
+#### المرحلة 4: قيد التنفيذ
+- [ ] استكمال تكامل Dynamic Tool Registry
+- [ ] CAMPS daemon (Magisk systemless module)
+- [ ] Root كامل عبر mtkclient
+
+---
+
+> **آخر تحديث:** 2026-04-16
+> **الصيانة:** يجب تحديث هذا الملف عند إضافة/حذف أي Tool أو Service أو تغيير معماري

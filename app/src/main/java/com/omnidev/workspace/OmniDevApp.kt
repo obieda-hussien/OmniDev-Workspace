@@ -4,6 +4,8 @@ import android.app.Application
 import android.util.Log
 import com.omnidev.workspace.data.auth.CopilotModelRefresher
 import com.omnidev.workspace.data.brain.SmartLearningBridge
+import com.omnidev.workspace.data.mcp.McpConfigManager
+import com.omnidev.workspace.data.mcp.McpRegistry
 import com.omnidev.workspace.data.brain.ToolAwarenessEngine
 import com.omnidev.workspace.data.brain.ToolExecutionJournal
 import com.omnidev.workspace.data.db.OmniDevDatabase
@@ -46,7 +48,13 @@ class OmniDevApp : Application() {
     lateinit var toolAwarenessEngine: ToolAwarenessEngine
         private set
 
+
+    /** سجل أدوات MCP (الخوادم الخارجية) */
+    lateinit var mcpRegistry: McpRegistry
+        private set
+
     /** الجسر الذكي المنسق — يربط كل مكونات الذكاء */
+
     lateinit var smartLearningBridge: SmartLearningBridge
         private set
 
@@ -105,8 +113,14 @@ class OmniDevApp : Application() {
             val mlEngine = ToolMachineLearningEngine(applicationContext)
             val monitoringSystem = ToolMonitoringSystem
 
-            // 4. إنشاء الجسر الذكي المنسق
+
+            // 4. إنشاء محرك MCP
+            val mcpConfigManager = McpConfigManager(applicationContext)
+            mcpRegistry = McpRegistry(mcpConfigManager)
+
+            // 5. إنشاء الجسر الذكي المنسق
             smartLearningBridge = SmartLearningBridge(
+
                 context = applicationContext,
                 journal = toolExecutionJournal,
                 awarenessEngine = toolAwarenessEngine,
@@ -131,9 +145,12 @@ class OmniDevApp : Application() {
             Log.e("OmniDevApp", "❌ فشل في تهيئة Agent Brain System: ${e.message}")
             // إنشاء نسخ طوارئ حتى لا يتعطل التطبيق
             val db = OmniDevDatabase.getInstance(applicationContext)
+
             toolExecutionJournal = ToolExecutionJournal(db.toolExecutionDao())
             toolAwarenessEngine = ToolAwarenessEngine(applicationContext, db.systemKnowledgeDao())
+            mcpRegistry = McpRegistry(McpConfigManager(applicationContext))
             smartLearningBridge = SmartLearningBridge(
+
                 context = applicationContext,
                 journal = toolExecutionJournal,
                 awarenessEngine = toolAwarenessEngine,

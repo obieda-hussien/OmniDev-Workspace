@@ -224,6 +224,7 @@ CRITICAL INSTRUCTIONS:
 
                         val workerPipeline = AgentPipeline(
                             toolManager = toolManager,
+            mcpRegistry = com.omnidev.workspace.OmniDevApp.instance.mcpRegistry,
                             completionProvider = completionProvider,
                             streamingCompletionProvider = streamingCompletionProvider,
                             apiKeyRepository = apiKeyRepository,

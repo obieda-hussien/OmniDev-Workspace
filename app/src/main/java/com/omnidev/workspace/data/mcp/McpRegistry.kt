@@ -8,6 +8,8 @@ class McpRegistry(
     private val configManager: McpConfigManager,
     private val httpClient: McpHttpClient = McpHttpClient()
 ) {
+    // Dynamic mapping of active connections
+    private val activeConnections = mutableMapOf<String, McpConnection>()
 
     /**
      * Fetches all available tools from all configured MCP servers.
@@ -17,31 +19,28 @@ class McpRegistry(
         val servers = configManager.getServers()
         val allTools = mutableListOf<ToolDefinition>()
 
+        // Clear old connections to keep in sync with config updates
+        activeConnections.clear()
+
         for ((serverName, config) in servers) {
-            // In the future we can branch based on config.type (e.g., "http" vs "stdio")
-            if (config.type == "http") {
-                try {
-                    // Initialize the connection
-                    httpClient.initialize(config.url, config.env)
-                    // Fetch tools
-                    val tools = httpClient.fetchTools(serverName, config.url, config.env)
-
-                    // Filter if 'tools' array in config is not empty and not just ["*"]
-                    val allowedTools = config.tools
-                    val filteredTools = if (allowedTools.isEmpty() || allowedTools.contains("*")) {
-                        tools
-                    } else {
-                        tools.filter { tool ->
-                            val originalName = tool.name.removePrefix("mcp_${serverName}_")
-                            allowedTools.contains(originalName)
-                        }
-                    }
-
-                    allTools.addAll(filteredTools)
-                } catch (e: Exception) {
-                    println("Failed to fetch tools from MCP server '$serverName': ${e.message}")
-                    e.printStackTrace()
+            val connection: McpConnection = when (config.type.lowercase()) {
+                "http" -> RemoteMcpConnection(config, httpClient)
+                "native" -> NativeLocalMcpConnection()
+                "git", "hybrid_git" -> HybridGitMcpConnection()
+                else -> {
+                    println("Unsupported MCP type '${config.type}' for server '$serverName'")
+                    continue
                 }
+            }
+
+            activeConnections[serverName] = connection
+
+            try {
+                val tools = connection.getSupportedTools(serverName)
+                allTools.addAll(tools)
+            } catch (e: Exception) {
+                println("Failed to fetch tools from MCP server '$serverName': ${e.message}")
+                e.printStackTrace()
             }
         }
 
@@ -57,21 +56,25 @@ class McpRegistry(
             return@withContext "Error: Not an MCP tool."
         }
 
-        val parts = toolName.removePrefix("mcp_").split("_", limit = 2)
-        if (parts.size < 2) {
-             return@withContext "Error: Invalid MCP tool name format."
+        // Example tool name: mcp_github-cloud_search_repos
+        // We split by '_' but limit to 3 to handle originalToolNames that contain '_'
+        val prefixRemoved = toolName.removePrefix("mcp_")
+        val underscoreIndex = prefixRemoved.indexOf('_')
+
+        if (underscoreIndex == -1) {
+            return@withContext "Error: Invalid MCP tool name format."
         }
 
-        val serverName = parts[0]
-        val originalToolName = parts[1]
+        val serverName = prefixRemoved.substring(0, underscoreIndex)
+        val originalToolName = prefixRemoved.substring(underscoreIndex + 1)
 
-        val servers = configManager.getServers()
-        val config = servers[serverName] ?: return@withContext "Error: MCP Server '$serverName' not configured."
+        val connection = activeConnections[serverName]
+            ?: return@withContext "Error: MCP Server '$serverName' not configured or not active."
 
-        if (config.type == "http") {
-             httpClient.executeTool(serverName, originalToolName, config.url, arguments, config.env)
-        } else {
-             "Error: Unsupported MCP transport type '${config.type}'."
+        try {
+            connection.executeTool(serverName, originalToolName, arguments)
+        } catch (e: Exception) {
+            "Error executing tool via MCP: ${e.message}"
         }
     }
 }
