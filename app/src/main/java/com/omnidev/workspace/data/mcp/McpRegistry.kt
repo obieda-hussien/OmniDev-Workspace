@@ -26,6 +26,7 @@ class McpRegistry(
             val connection: McpConnection = when (config.type.lowercase()) {
                 "http" -> RemoteMcpConnection(config, httpClient)
                 "native" -> NativeLocalMcpConnection()
+                "git", "hybrid_git" -> HybridGitMcpConnection()
                 else -> {
                     println("Unsupported MCP type '${config.type}' for server '$serverName'")
                     continue

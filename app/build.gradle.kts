@@ -106,6 +106,8 @@ tasks.configureEach {
 }
 
 dependencies {
+    implementation("org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r")
+
     // ── Core & Lifecycle ──
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

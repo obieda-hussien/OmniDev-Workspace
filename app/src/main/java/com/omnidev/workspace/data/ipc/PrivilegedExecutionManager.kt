@@ -188,7 +188,7 @@ object PrivilegedExecutionManager {
 
     // POSIX-safe single-quote escaping:
     // close quote + escaped single quote + reopen quote => '\'' pattern.
-    private fun shellQuote(value: String): String =
+    fun shellQuote(value: String): String =
         "'" + value.replace("'", "'\\''") + "'"
 
     // ──────────────────────────────────────────────────────────────
