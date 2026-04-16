@@ -86,6 +86,7 @@ class MainActivity : ComponentActivity() {
 
         val agentPipeline = AgentPipeline(
             toolManager = toolManager,
+            mcpRegistry = com.omnidev.workspace.OmniDevApp.instance.mcpRegistry,
             completionProvider = completionProvider,
             streamingCompletionProvider = { request, onChunk ->
                 completionService.stream(request, onChunk)

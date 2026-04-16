@@ -63,6 +63,7 @@ class LauncherCommandRouter(
     )
     private val agentPipeline = AgentPipeline(
         toolManager = toolManager,
+            mcpRegistry = com.omnidev.workspace.OmniDevApp.instance.mcpRegistry,
         completionProvider = completionService::invoke,
         streamingCompletionProvider = { req, onChunk -> completionService.stream(req, onChunk) },
         config = AgentConfig.THOROUGH,
