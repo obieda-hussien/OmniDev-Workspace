@@ -107,6 +107,7 @@ fun AISettingsScreen(
     onNavigateToLocalModels: () -> Unit = {},
     onNavigateToScheduledTasks: () -> Unit = {},
     onNavigateToToolRegistry: () -> Unit = {},
+    onNavigateToMcpSettings: () -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onNavigateToAnalytics: () -> Unit = {},
     onNavigateToAgentBrain: () -> Unit = {}
@@ -279,6 +280,13 @@ fun AISettingsScreen(
                 subtitle = "Connect Telegram, GitHub, and other platforms",
                 onClick = onNavigateToIntegrations
             )
+
+            SettingsNavCard(
+                title = "MCP Server Configurations",
+                subtitle = "Manage Model Context Protocol external servers via JSON",
+                onClick = onNavigateToMcpSettings
+            )
+
 
             SettingsNavCard(
                 title = "Local Edge Model (BYOM)",
