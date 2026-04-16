@@ -496,10 +496,9 @@ WORKFLOW EXAMPLE:
                 userAgentString = USER_AGENTS["chrome_desktop"]
             }
             // Accept all cookies (needed for most SPA logins)
-            CookieManager.getInstance().apply {
-                setAcceptCookie(true)
-                setAcceptThirdPartyCookies(this@apply, true)
-            }
+            val cm = CookieManager.getInstance()
+            cm.setAcceptCookie(true)
+            cm.setAcceptThirdPartyCookies(this, true)
         }
     }
 
@@ -587,7 +586,7 @@ WORKFLOW EXAMPLE:
                     timestamp = System.currentTimeMillis(),
                     sessionId = session.id,
                     url = reqUrl.take(200),
-                    resourceType = request.resourceType?.toString() ?: "unknown",
+                    resourceType = request.method ?: "unknown",
                     blocked = blocked
                 ))
             }
