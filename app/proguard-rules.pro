@@ -101,3 +101,11 @@
 -keepclassmembers,allowobfuscation class * {
     @com.google.gson.annotations.SerializedName <fields>;
 }
+
+# ── JGit / SLF4J ──────────────────────────────────────────────────────────────
+-dontwarn javax.management.**
+-dontwarn java.lang.management.**
+-dontwarn org.slf4j.impl.StaticLoggerBinder
+-keep class org.eclipse.jgit.** { *; }
+-dontwarn java.lang.ProcessHandle
+-dontwarn org.ietf.jgss.**
