@@ -224,7 +224,8 @@ object GodModeAccessibility {
             val root = AccessibilityStateManager.rootNode.value ?: break
             val forward = scrollDirection != "up"
             val scrollable = findFirstScrollable(root)
-                ?: run {
+            if (scrollable == null) {
+
                     // استخدام gesture كـ fallback
                     val h = root.let { Rect().also { r -> it.getBoundsInScreen(r) }.height() }
                     val w = root.let { Rect().also { r -> it.getBoundsInScreen(r) }.width() }
