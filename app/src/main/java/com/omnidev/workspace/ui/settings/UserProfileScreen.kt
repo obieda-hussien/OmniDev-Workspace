@@ -46,7 +46,7 @@ import kotlinx.coroutines.launch
 /**
  * User Profile screen — lets the user set their display name and a short persona bio.
  *
- * **Name** is used by the voice assistant for personalised greetings
+ * **Name** is used by the AI assistant for personalised greetings
  * (e.g. "أنا هنا يا Ahmed، قولي عايز إيه؟").
  *
  * **Persona** is injected into the AI's system prompt so the model can tailor

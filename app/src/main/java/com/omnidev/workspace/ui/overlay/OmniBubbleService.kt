@@ -120,7 +120,6 @@ import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.drawscope.Stroke
-import com.omnidev.workspace.data.voice.VoiceAssistantService
 import com.omnidev.workspace.data.db.OmniDevDatabase
 import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.data.tools.CompositeToolManager
@@ -168,16 +167,6 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
         const val ACTION_STOP = "com.omnidev.workspace.OMNI_BUBBLE_STOP"
 
         /**
-         * When the wake word is detected, start (or bring to front) the bubble,
-         * auto-expand it, and show a personalised greeting from the assistant.
-         */
-        const val ACTION_WAKE = "com.omnidev.workspace.OMNI_BUBBLE_WAKE"
-
-        /** Intent extras for [ACTION_WAKE]. */
-        const val EXTRA_USER_NAME = "user_name"
-        const val EXTRA_GREETING = "greeting"
-
-        /**
          * Indicates whether an [OmniBubbleService] instance is currently active.
          * Updated in [onCreate] / [onDestroy]. Readable from UI without binding.
          */
@@ -196,19 +185,6 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
             )
         }
 
-        /**
-         * Start (or bring to front) the bubble in wake mode: auto-expanded with a greeting
-         * message already injected so it looks like the assistant woke up and said hello.
-         */
-        fun startWithGreeting(context: Context, userName: String, greeting: String) {
-            context.startService(
-                Intent(context, OmniBubbleService::class.java).apply {
-                    action = ACTION_WAKE
-                    putExtra(EXTRA_USER_NAME, userName)
-                    putExtra(EXTRA_GREETING, greeting)
-                }
-            )
-        }
     }
 
     // ── Lifecycle, ViewModel, SavedState owners required by ComposeView ──
@@ -249,9 +225,6 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
 
     /** Counts unread AI replies accumulated while the bubble is collapsed. */
     private val unreadCount = mutableIntStateOf(0)
-
-    /** Current voice assistant state for dynamic bubble color/animation feedback. */
-    private val voiceState = mutableStateOf<VoiceAssistantService.VoiceState>(VoiceAssistantService.VoiceState.Idle)
 
     /** Whether the Gemini-style pill bar is currently attached to the window. */
     private val showPillBar = mutableStateOf(false)
@@ -339,31 +312,11 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         attachBubble()
 
-        // Mirror VoiceAssistantService state into local Compose state for bubble feedback.
-        serviceScope.launch {
-            VoiceAssistantService.voiceState.collectLatest { state ->
-                voiceState.value = state
-            }
-        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> stopSelf()
-            ACTION_WAKE -> {
-                // Wake word triggered — auto-expand and inject the greeting (deduplicated)
-                val greeting = intent.getStringExtra(EXTRA_GREETING)
-                if (!greeting.isNullOrBlank() && messages.lastOrNull()?.text != greeting) {
-                    messages.add(BubbleMessage(isUser = false, text = greeting))
-                    unreadCount.intValue = 0
-                }
-                bubbleExpanded.value = true
-                unreadCount.intValue = 0
-                // Re-enable focus so the input field is immediately usable
-                layoutParams.flags = layoutParams.flags and
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-                bubbleView?.let { windowManager.updateViewLayout(it, layoutParams) }
-            }
         }
         return START_STICKY
     }
@@ -421,7 +374,6 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
                     detectedMode = detectedMode.value,
                     isProcessing = isProcessing.value,
                     unreadCount = unreadCount.intValue,
-                    voiceState = voiceState.value,
                     onToggleExpand = {
                         bubbleExpanded.value = !bubbleExpanded.value
                         if (bubbleExpanded.value) unreadCount.intValue = 0
@@ -716,7 +668,6 @@ class OmniBubbleService : Service(), LifecycleOwner, ViewModelStoreOwner, SavedS
         view.setContent {
             OmniDevTheme {
                 OmniPillBar(
-                    voiceState = voiceState.value,
                     onSendMessage = { text ->
                         removePillBar()
                         handleUserMessage(text)
@@ -786,7 +737,6 @@ private fun OmniBubbleContent(
     detectedMode: OmniMode?,
     isProcessing: Boolean,
     unreadCount: Int,
-    voiceState: VoiceAssistantService.VoiceState,
     onToggleExpand: () -> Unit,
     onSendMessage: (String) -> Unit,
     onStopGeneration: () -> Unit,
@@ -795,24 +745,12 @@ private fun OmniBubbleContent(
     onDismiss: () -> Unit
 ) {
     if (!expanded) {
-        // ── Collapsed bubble: dynamic colors + waveform/pulse per voice state ──
+        // ── Collapsed bubble: static colors (voice features removed) ──
 
-        val (topColor, bottomColor) = when {
-            voiceState is VoiceAssistantService.VoiceState.Listening ||
-            voiceState is VoiceAssistantService.VoiceState.PartialResult ->
-                Color(0xFF00C853) to Color(0xFF00897B)
-            voiceState is VoiceAssistantService.VoiceState.Processing ->
-                Color(0xFF1565C0) to Color(0xFF0D47A1)
-            voiceState is VoiceAssistantService.VoiceState.Speaking ->
-                Color(0xFF00BFA5) to Color(0xFF00695C)
-            voiceState is VoiceAssistantService.VoiceState.Error ->
-                Color(0xFFE53935) to Color(0xFFB71C1C)
-            else -> Color(0xFF6750A4) to Color(0xFF4A3780)
-        }
+        val (topColor, bottomColor) = Color(0xFF6750A4) to Color(0xFF4A3780)
 
-        val isListening = voiceState is VoiceAssistantService.VoiceState.Listening ||
-                          voiceState is VoiceAssistantService.VoiceState.PartialResult
-        val isVoiceProcessing = voiceState is VoiceAssistantService.VoiceState.Processing
+        val isListening = false
+        val isVoiceProcessing = false
 
         // Always-running infinite transition — values are zeroed when not in Processing state
         // so that the animation engine doesn't need to be conditionally created.
@@ -1414,7 +1352,6 @@ private fun BubbleInputRow(
  */
 @Composable
 private fun OmniPillBar(
-    voiceState: VoiceAssistantService.VoiceState,
     onSendMessage: (String) -> Unit,
     onExpand: () -> Unit,
     onStop: () -> Unit,
@@ -1422,9 +1359,8 @@ private fun OmniPillBar(
 ) {
     var inputText by remember { mutableStateOf("") }
 
-    val isListening = voiceState is VoiceAssistantService.VoiceState.Listening ||
-                      voiceState is VoiceAssistantService.VoiceState.PartialResult
-    val isVoiceProcessing = voiceState is VoiceAssistantService.VoiceState.Processing
+    val isListening = false
+    val isVoiceProcessing = false
 
     val infiniteTransition = rememberInfiniteTransition(label = "pill_anim")
 
@@ -1514,7 +1450,7 @@ private fun OmniPillBar(
                         .size((48 * micScale).dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.primary)
-                        .clickable { VoiceAssistantService.startListening() },
+                        .clickable { /* Voice removed */ },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
