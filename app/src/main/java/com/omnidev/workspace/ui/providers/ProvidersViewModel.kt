@@ -2,7 +2,9 @@ package com.omnidev.workspace.ui.providers
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.omnidev.workspace.data.model.AIModel
 import com.omnidev.workspace.data.model.ModelProvider
+import com.omnidev.workspace.data.network.ProviderModelFetcher
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,15 +26,18 @@ data class ProviderEntry(
 )
 
 /**
+ * Cached result of a provider-catalogue fetch. The map is keyed by [ModelProvider]
+ * so multiple providers can be inspected independently in the UI.
+ */
+data class ProviderModelCatalog(
+    val isFetching: Boolean = false,
+    val models: List<AIModel> = emptyList(),
+    val error: String? = null,
+    val lastFetchedAt: Long? = null
+)
+
+/**
  * UI state for the Providers / API Key management screen.
- *
- * @property configuredProviders Currently saved providers, sorted by display name.
- * @property showAddDialog Whether the "Add AI Provider" dialog is visible.
- * @property dialogProvider The provider currently selected in the dialog dropdown.
- * @property dialogApiKey The API key text being entered in the dialog.
- * @property dialogKeyVisible Whether the API key text field is shown in plain text.
- * @property isSaving Whether a save operation is in progress.
- * @property snackbarMessage One-shot message to display in a Snackbar (null = none pending).
  */
 data class ProvidersUiState(
     val configuredProviders: List<ProviderEntry> = emptyList(),
@@ -41,17 +46,24 @@ data class ProvidersUiState(
     val dialogApiKey: String = "",
     val dialogKeyVisible: Boolean = false,
     val isSaving: Boolean = false,
-    val snackbarMessage: String? = null
+    val snackbarMessage: String? = null,
+    /** Per-provider cached catalogues fetched from the provider's live API. */
+    val catalogs: Map<ModelProvider, ProviderModelCatalog> = emptyMap(),
+    /** Which provider's catalogue is currently expanded in the list (null = none). */
+    val expandedProvider: ModelProvider? = null
 )
 
 /**
  * ViewModel for the API key management screen.
  *
- * Observes [ApiKeyRepository] to show currently saved providers, and exposes
- * add/remove actions that the UI can invoke.
+ * In addition to CRUD over [ApiKeyRepository], this view-model exposes a
+ * **dynamic-model-discovery** API: given a configured provider, it calls the
+ * provider's public REST endpoint (via [ProviderModelFetcher]) and surfaces the
+ * list of model names together with their context window and pricing metadata.
  */
 class ProvidersViewModel(
-    private val apiKeyRepository: ApiKeyRepository
+    private val apiKeyRepository: ApiKeyRepository,
+    private val modelFetcher: ProviderModelFetcher = ProviderModelFetcher()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ProvidersUiState())
@@ -105,9 +117,6 @@ class ProvidersViewModel(
     //  Persistence actions
     // ──────────────────────────────────────────────
 
-    /**
-     * Validates and saves the current dialog's API key for the selected provider.
-     */
     fun saveApiKey() {
         val state = _uiState.value
         val key = state.dialogApiKey.trim()
@@ -128,21 +137,85 @@ class ProvidersViewModel(
         }
     }
 
-    /**
-     * Removes the stored API key for [provider].
-     */
     fun removeApiKey(provider: ModelProvider) {
         viewModelScope.launch {
             apiKeyRepository.clearApiKey(provider)
-            _uiState.update {
-                it.copy(snackbarMessage = "${provider.displayName} key removed.")
+            _uiState.update { state ->
+                state.copy(
+                    snackbarMessage = "${provider.displayName} key removed.",
+                    catalogs = state.catalogs - provider,
+                    expandedProvider = if (state.expandedProvider == provider) null else state.expandedProvider
+                )
             }
         }
     }
 
-    /** Clears the pending Snackbar message after it has been shown. */
     fun clearSnackbar() {
         _uiState.update { it.copy(snackbarMessage = null) }
+    }
+
+    // ──────────────────────────────────────────────
+    //  Model-catalogue discovery (per-provider API)
+    // ──────────────────────────────────────────────
+
+    /**
+     * Expands or collapses a provider card to show its fetched model catalogue.
+     * The first time a provider is expanded, its model list is fetched from the
+     * provider's live API via [ProviderModelFetcher].
+     */
+    fun toggleExpanded(provider: ModelProvider) {
+        val current = _uiState.value.expandedProvider
+        if (current == provider) {
+            _uiState.update { it.copy(expandedProvider = null) }
+            return
+        }
+        _uiState.update { it.copy(expandedProvider = provider) }
+        val cached = _uiState.value.catalogs[provider]
+        if (cached == null || (cached.models.isEmpty() && cached.error == null)) {
+            refreshModels(provider)
+        }
+    }
+
+    /**
+     * Forces a fresh fetch of the model catalogue for [provider], bypassing any
+     * cached entry. Errors are surfaced both as a catalog entry and as a snackbar.
+     */
+    fun refreshModels(provider: ModelProvider) {
+        _uiState.update { state ->
+            state.copy(
+                catalogs = state.catalogs + (provider to ProviderModelCatalog(
+                    isFetching = true,
+                    models = state.catalogs[provider]?.models.orEmpty(),
+                    error = null,
+                    lastFetchedAt = state.catalogs[provider]?.lastFetchedAt
+                ))
+            )
+        }
+        viewModelScope.launch {
+            val apiKey = apiKeyRepository.getApiKey(provider)
+            val result = modelFetcher.fetchModels(provider, apiKey)
+            _uiState.update { state ->
+                val entry = result.fold(
+                    onSuccess = { models ->
+                        ProviderModelCatalog(
+                            isFetching = false,
+                            models = models.sortedBy { it.id },
+                            error = null,
+                            lastFetchedAt = System.currentTimeMillis()
+                        )
+                    },
+                    onFailure = { err ->
+                        ProviderModelCatalog(
+                            isFetching = false,
+                            models = emptyList(),
+                            error = err.message ?: "Fetch failed",
+                            lastFetchedAt = System.currentTimeMillis()
+                        )
+                    }
+                )
+                state.copy(catalogs = state.catalogs + (provider to entry))
+            }
+        }
     }
 
     // ──────────────────────────────────────────────

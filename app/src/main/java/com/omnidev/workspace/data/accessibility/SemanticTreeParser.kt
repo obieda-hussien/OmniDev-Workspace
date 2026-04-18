@@ -4,302 +4,544 @@ import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * SemanticTreeParser — Token-optimized Android View Tree compressor.
+ * SemanticTreeParser — محلّل الشجرة الدلالية المتقدم
  *
- * LLMs cannot efficiently process the raw Android accessibility tree (thousands of nodes,
- * massive XML). This parser traverses the tree and extracts ONLY actionable or informative
- * nodes — those that are clickable, scrollable, editable, checkable, or have visible
- * text/contentDescription.
+ * الجيل الثاني: ذكاء هيكلي شامل
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 1. **كشف النماذج (Form Detection)**: يُجمّع حقول الإدخال المتجاورة تلقائياً
+ *    تحت مجموعة "Form Group" مع تسميات مستنتجة.
  *
- * Each extracted node is assigned a short, temporary ID (e.g., `[N1]`, `[N2]`) that the
- * agent can reference in subsequent tool calls (click, type, scroll).
+ * 2. **رسم العلاقات (Relationship Mapping)**: لكل حقل إدخال، يُحدد أقرب
+ *    TextView كـ label ويربطهما في الوصف.
  *
- * Output format (minified structured text):
- * ```
- * [N1] Button: "Send" (Clickable) {bounds: [100, 800, 300, 950]}
- * [N2] EditText: "Type message..." (Editable) {bounds: [50, 400, 1000, 550]}
- * [N3] TextView: "Hello World" {bounds: [0, 100, 1080, 200]}
- * [N4] ScrollView (Scrollable, 3 children) {bounds: [0, 0, 1080, 1920]}
- * ```
+ * 3. **نظام الأولوية (Priority Scoring)**: يُعطي نقاطاً لكل عنصر بناءً على
+ *    قابلية التفاعل + الموضع + الأهمية الدلالية.
+ *
+ * 4. **ملخص تنفيذي (Executive Summary)**: يُنتج وصفاً نثرياً للشاشة يساعد
+ *    الوكيل في الفهم الفوري.
+ *
+ * 5. **كشف عناصر التنقل (Navigation Detection)**: يُحدد Bottom Nav / Tab Bar /
+ *    Drawer / FAB ويُميّزها بوضوح.
+ *
+ * 6. **دعم Compose متقدم**: يُحلّل semantics extras بعمق ويستخرج
+ *    stateDescription / roleDescription / headings.
  */
 object SemanticTreeParser {
 
-    /** Maximum nodes to extract to prevent context window overflow. */
-    private const val MAX_NODES = 120
-
-    /** Maximum tree depth to traverse. */
-    private const val MAX_DEPTH = 25
-
-    /** Maximum character length for text/contentDescription to be considered relevant. */
+    private const val MAX_NODES = 150
+    private const val MAX_DEPTH = 30
     private const val MAX_TEXT_LENGTH = 200
-
-    /** Maximum display length for text in the semantic tree output. */
-    private const val MAX_DISPLAY_LENGTH = 60
+    private const val MAX_DISPLAY_LENGTH = 80
 
     /**
-     * Parsed result containing the semantic summary string and the node-ID-to-node mapping.
-     * * IMPORTANT MEMORY MANAGEMENT NOTE:
-     * The [nodeMap] holds strong references to [AccessibilityNodeInfo] objects.
-     * The consumer of this ParseResult MUST iterate over `nodeMap.values` and call
-     * `recycle()` on each node once the agent has finished executing its action, 
-     * otherwise the app will suffer from massive memory leaks.
+     * نتيجة التحليل الكاملة — مُثرّاة بالسياق الهيكلي.
      */
     data class ParseResult(
-        /** The minified semantic tree string for LLM consumption. */
         val semanticTree: String,
-        /** Map of temporary node IDs (e.g., "N1") to their [AccessibilityNodeInfo] objects. */
         val nodeMap: Map<String, AccessibilityNodeInfo>,
-        /** Total nodes found in the raw tree (before filtering). */
         val totalRawNodes: Int,
-        /** Number of semantic nodes extracted (after filtering). */
-        val extractedNodes: Int
+        val extractedNodes: Int,
+        /** ملخص تنفيذي نثري للشاشة */
+        val summary: String,
+        /** قائمة النماذج المكتشفة */
+        val detectedForms: List<FormGroup>,
+        /** قائمة عناصر التنقل */
+        val navigationElements: List<String>,
+        /** العناصر مرتّبة حسب الأولوية (الأهم أولاً) */
+        val priorityOrder: List<String>
     )
 
-    /**
-     * Parses the accessibility tree rooted at [root] into a token-optimized semantic summary.
-     *
-     * @param root The root [AccessibilityNodeInfo] of the active window.
-     * @param packageName The package name of the foreground app (for context header).
-     * @param activityName The activity class name (for context header).
-     * @return A [ParseResult] with the semantic tree string and node map.
-     */
+    data class FormGroup(
+        val groupName: String,
+        val fields: List<FormField>
+    )
+
+    data class FormField(
+        val nodeId: String,
+        val labelText: String?,
+        val placeholderText: String?,
+        val fieldType: FieldType
+    )
+
+    enum class FieldType {
+        TEXT, EMAIL, PASSWORD, NUMBER, PHONE, SEARCH, MULTILINE, UNKNOWN
+    }
+
+    // ── إحصاءات داخلية للتحليل ─────────────────────────────────────────────
+
+    private data class NodeMeta(
+        val node: AccessibilityNodeInfo,
+        val nodeId: String,
+        val priority: Int,
+        val bounds: Rect,
+        val isNavigational: Boolean,
+        val isFormField: Boolean,
+        val labelCandidate: AccessibilityNodeInfo?
+    )
+
+    // ── API الرئيسي ───────────────────────────────────────────────────────────
+
     fun parse(
         root: AccessibilityNodeInfo,
         packageName: String? = null,
         activityName: String? = null
     ): ParseResult {
         val nodeMap = mutableMapOf<String, AccessibilityNodeInfo>()
-        val lines = mutableListOf<String>()
+        val allMeta = mutableListOf<NodeMeta>()
         var nodeCounter = 0
         var totalRawNodes = 0
 
-        // Header with app context
-        val header = buildString {
-            append("── Semantic UI Tree ──")
-            if (packageName != null) append("\nApp: $packageName")
-            if (activityName != null) {
-                val shortActivity = activityName.substringAfterLast('.')
-                append(" / $shortActivity")
-            }
-        }
-        lines.add(header)
-
-        fun traverse(node: AccessibilityNodeInfo, depth: Int) {
+        // المرور الأول: جمع كل العقد مع حساب الـ priority
+        fun traverse(node: AccessibilityNodeInfo, depth: Int, parent: AccessibilityNodeInfo?) {
             if (depth > MAX_DEPTH || nodeCounter >= MAX_NODES) return
             totalRawNodes++
 
-            val isRelevant = isRelevantNode(node)
-
-            if (isRelevant) {
+            if (isRelevantNode(node)) {
                 nodeCounter++
                 val nodeId = "N$nodeCounter"
-                // Store a copy to prevent the system from recycling it unexpectedly underneath us
                 val nodeCopy = AccessibilityNodeInfo.obtain(node)
                 nodeMap[nodeId] = nodeCopy
 
-                val indent = "  ".repeat(depth.coerceAtMost(6))
-                val line = buildNodeLine(nodeId, node, indent)
-                lines.add(line)
+                val bounds = Rect().also { node.getBoundsInScreen(it) }
+                val priority = computePriority(node, depth, bounds)
+                val labelCandidate = findLabelForNode(node, parent)
+
+                allMeta.add(
+                    NodeMeta(
+                        node = nodeCopy,
+                        nodeId = nodeId,
+                        priority = priority,
+                        bounds = bounds,
+                        isNavigational = isNavigationalElement(node),
+                        isFormField = node.isEditable,
+                        labelCandidate = labelCandidate
+                    )
+                )
             }
 
-            // Always traverse children to find nested relevant nodes
-            val childCount = node.childCount
-            for (i in 0 until childCount) {
+            for (i in 0 until node.childCount) {
                 val child = node.getChild(i) ?: continue
-                traverse(child, depth + 1)
-                // We recycle the child ONLY if we didn't store it in our map.
-                // However, since we stored a *copy* in the map (nodeCopy), 
-                // it's safe to recycle this iteration's child object here.
-                child.recycle() 
+                traverse(child, depth + 1, node)
+                child.recycle()
             }
         }
 
-        traverse(root, 0)
+        traverse(root, 0, null)
 
-        if (nodeCounter == 0) {
-            lines.add("(No actionable UI elements found on screen)")
-        }
+        // المرور الثاني: بناء الشجرة المنسّقة
+        val lines = mutableListOf<String>()
+        val header = buildHeader(packageName, activityName, totalRawNodes, nodeCounter)
+        lines.add(header)
 
-        if (nodeCounter >= MAX_NODES) {
-            lines.add("... [truncated at $MAX_NODES nodes]")
-        }
+        // إضافة العقد مُجمَّعة بشكل ذكي
+        buildFormattedTree(root, allMeta, lines)
+
+        if (nodeCounter == 0) lines.add("(لا توجد عناصر تفاعلية على الشاشة)")
+        if (nodeCounter >= MAX_NODES) lines.add("... [تم الاقتطاع عند $MAX_NODES عقدة]")
+
+        // كشف النماذج
+        val forms = detectForms(allMeta, nodeMap)
+
+        // استخراج عناصر التنقل
+        val navElements = allMeta
+            .filter { it.isNavigational }
+            .map { meta ->
+                val node = nodeMap[meta.nodeId]
+                "${meta.nodeId}: ${node?.text ?: node?.contentDescription ?: "nav"}"
+            }
+
+        // ترتيب حسب الأولوية
+        val priorityOrder = allMeta
+            .sortedByDescending { it.priority }
+            .take(20)
+            .map { it.nodeId }
+
+        // الملخص التنفيذي
+        val summary = buildExecutiveSummary(
+            packageName, allMeta, forms, navElements, nodeCounter
+        )
 
         return ParseResult(
             semanticTree = lines.joinToString("\n"),
             nodeMap = nodeMap,
             totalRawNodes = totalRawNodes,
-            extractedNodes = nodeCounter
+            extractedNodes = nodeCounter,
+            summary = summary,
+            detectedForms = forms,
+            navigationElements = navElements,
+            priorityOrder = priorityOrder
         )
     }
 
-    /**
-     * Determines if a node is "relevant" enough to include in the semantic tree.
-     * A node is relevant if it is actionable (clickable, editable, scrollable, checkable)
-     * or has visible text/description that provides semantic meaning.
-     */
-    private fun isRelevantNode(node: AccessibilityNodeInfo): Boolean {
-        // CRITICAL FILTER: Ignore off-screen or invisible elements to prevent LLM hallucinations
-        if (!node.isVisibleToUser) return false
+    // ── بناء الشجرة ───────────────────────────────────────────────────────────
 
-        // Always include actionable nodes
-        if (isNodeActionable(node)) return true
-        if (node.isEditable) return true
-        if (node.isScrollable) return true
-        if (node.isCheckable) return true
-        if (node.isFocusable && node.isFocused) return true
+    private fun buildFormattedTree(
+        root: AccessibilityNodeInfo,
+        allMeta: List<NodeMeta>,
+        lines: MutableList<String>
+    ) {
+        val metaByPriority = allMeta.sortedWith(
+            compareBy({ it.bounds.top }, { it.bounds.left })
+        )
 
-        // Include nodes with meaningful text
-        val text = node.text?.toString()?.trim()
-        if (!text.isNullOrEmpty() && text.length <= MAX_TEXT_LENGTH) return true
+        // تجميع الـ navigation elements أولاً
+        val navMeta = metaByPriority.filter { it.isNavigational }
+        val formMeta = metaByPriority.filter { it.isFormField && !it.isNavigational }
+        val restMeta = metaByPriority.filter { !it.isNavigational && !it.isFormField }
 
-        // Include nodes with content description (accessibility labels)
-        val desc = node.contentDescription?.toString()?.trim()
-        if (!desc.isNullOrEmpty() && desc.length <= MAX_TEXT_LENGTH) return true
+        if (navMeta.isNotEmpty()) {
+            lines.add("\n📍 عناصر التنقل:")
+            navMeta.forEach { meta -> lines.add(buildNodeLine(meta)) }
+        }
 
-        // Compose semantics and compat metadata often appear in extras.
-        if (hasSemanticExtras(node)) return true
+        if (formMeta.isNotEmpty()) {
+            lines.add("\n📝 حقول الإدخال:")
+            formMeta.forEach { meta -> lines.add(buildNodeLine(meta, showLabel = true)) }
+        }
 
-        // Include compose-related containers when they have children,
-        // so the agent can reason about Compose trees better.
-        if (isComposeNode(node) && node.childCount > 0) return true
-
-        return false
+        if (restMeta.isNotEmpty()) {
+            lines.add("\n🖱️ عناصر الواجهة:")
+            restMeta.forEach { meta -> lines.add(buildNodeLine(meta)) }
+        }
     }
 
-    /**
-     * Truncates [text] to [MAX_DISPLAY_LENGTH], appending "..." if truncated.
-     */
-    private fun truncate(text: String): String =
-        if (text.length > MAX_DISPLAY_LENGTH) text.take(MAX_DISPLAY_LENGTH - 3) + "..." else text
+    private fun buildNodeLine(meta: NodeMeta, showLabel: Boolean = false): String = buildString {
+        val node = meta.node
+        val indent = "  "
+        append("$indent[${meta.nodeId}]")
 
-    /**
-     * Builds a single-line representation of a node for the semantic tree output.
-     */
-    private fun buildNodeLine(
-        nodeId: String,
-        node: AccessibilityNodeInfo,
-        indent: String
-    ): String = buildString {
-        append("$indent[$nodeId] ")
+        // Priority indicator
+        append(when {
+            meta.priority >= 90 -> " 🔥"
+            meta.priority >= 70 -> " ⭐"
+            else -> " ·"
+        })
+        append(" ")
 
-        // Class name (simplified)
         val className = node.className?.toString()?.substringAfterLast('.') ?: "View"
         append(className)
 
-        // Text content
-        val text = node.text?.toString()?.trim()
-        if (!text.isNullOrEmpty()) {
-            // Mask password fields for safety
-            if (node.isPassword) {
-                append(": \"••••••••\"")
-            } else {
-                append(": \"${truncate(text)}\"")
+        // Label من الـ parent (للنماذج)
+        if (showLabel && meta.labelCandidate != null) {
+            val labelText = meta.labelCandidate.text?.toString()?.trim()
+                ?: meta.labelCandidate.contentDescription?.toString()?.trim()
+            if (!labelText.isNullOrEmpty()) {
+                append(" [label: \"${truncate(labelText)}\"]")
             }
         }
 
-        // Content description (accessibility label)
+        // النص
+        val text = node.text?.toString()?.trim()
+        if (!text.isNullOrEmpty()) {
+            if (node.isPassword) append(": \"••••\"")
+            else append(": \"${truncate(text)}\"")
+        }
+
+        // الوصف
         val desc = node.contentDescription?.toString()?.trim()
         if (!desc.isNullOrEmpty() && desc != text) {
             append(" [desc: \"${truncate(desc)}\"]")
         }
 
-        val state = readSemanticState(node)
-        if (!state.isNullOrEmpty()) {
-            append(" [state: \"${truncate(state)}\"]")
+        // الحالة الدلالية من extras
+        val semanticState = readSemanticState(node)
+        if (!semanticState.isNullOrEmpty()) {
+            append(" [state: \"${truncate(semanticState)}\"]")
         }
 
-        // Capability flags
-        val flags = mutableListOf<String>()
-        val hasClickAction = supportsAction(node, AccessibilityNodeInfo.ACTION_CLICK)
-        val hasLongClickAction = supportsAction(node, AccessibilityNodeInfo.ACTION_LONG_CLICK)
-        val hasScrollAction = supportsAnyScrollAction(node)
-        
-        if (node.isClickable || hasClickAction) flags.add("Clickable")
-        if (node.isLongClickable || hasLongClickAction) flags.add("LongClickable")
-        if (node.isEditable) flags.add("Editable")
-        if (node.isScrollable || hasScrollAction) flags.add("Scrollable")
-        if (node.isPassword) flags.add("Password") // Vital for LLM context
-        if (node.isCheckable) {
-            flags.add(if (node.isChecked) "Checked" else "Unchecked")
+        // نوع الحقل للـ EditText
+        if (node.isEditable) {
+            append(" (${inferFieldType(node).name})")
         }
+
+        // الخصائص
+        val flags = buildFlagsList(node)
+        if (flags.isNotEmpty()) append(" (${flags.joinToString(", ")})")
+
+        // الحدود
+        if (!meta.bounds.isEmpty) {
+            append(" {${meta.bounds.left},${meta.bounds.top}–${meta.bounds.right},${meta.bounds.bottom}}")
+        }
+
+        // الـ resource ID المختصر
+        node.viewIdResourceName?.substringAfterLast('/')?.let {
+            append(" #$it")
+        }
+    }
+
+    // ── كشف النماذج ───────────────────────────────────────────────────────────
+
+    private fun detectForms(
+        allMeta: List<NodeMeta>,
+        nodeMap: Map<String, AccessibilityNodeInfo>
+    ): List<FormGroup> {
+        val editableMeta = allMeta.filter { it.isFormField }
+        if (editableMeta.isEmpty()) return emptyList()
+
+        // تجميع حقول متجاورة رأسياً ضمن نفس المنطقة
+        val groups = mutableListOf<MutableList<NodeMeta>>()
+        var currentGroup = mutableListOf<NodeMeta>()
+
+        for (meta in editableMeta.sortedBy { it.bounds.top }) {
+            if (currentGroup.isEmpty()) {
+                currentGroup.add(meta)
+            } else {
+                val lastBottom = currentGroup.last().bounds.bottom
+                val gap = meta.bounds.top - lastBottom
+                if (gap < 250) { // حقول ضمن 250px من بعض = نفس النموذج
+                    currentGroup.add(meta)
+                } else {
+                    groups.add(currentGroup)
+                    currentGroup = mutableListOf(meta)
+                }
+            }
+        }
+        if (currentGroup.isNotEmpty()) groups.add(currentGroup)
+
+        return groups.mapIndexed { groupIndex, group ->
+            val fields = group.map { meta ->
+                val node = nodeMap[meta.nodeId]!!
+                val label = meta.labelCandidate?.text?.toString()?.trim()
+                    ?: meta.labelCandidate?.contentDescription?.toString()?.trim()
+                val placeholder = node.text?.toString()?.trim()
+                    ?.takeIf { it.isNotEmpty() && !it.all { c -> c.isDigit() } }
+                FormField(
+                    nodeId = meta.nodeId,
+                    labelText = label,
+                    placeholderText = placeholder,
+                    fieldType = inferFieldType(node)
+                )
+            }
+            val groupName = when {
+                fields.any { it.fieldType == FieldType.PASSWORD } -> "نموذج تسجيل الدخول"
+                fields.any { it.fieldType == FieldType.EMAIL } -> "نموذج التسجيل"
+                fields.size == 1 && fields.first().fieldType == FieldType.SEARCH -> "صندوق البحث"
+                else -> "نموذج ${groupIndex + 1}"
+            }
+            FormGroup(groupName, fields)
+        }
+    }
+
+    // ── الملخص التنفيذي ───────────────────────────────────────────────────────
+
+    private fun buildExecutiveSummary(
+        packageName: String?,
+        allMeta: List<NodeMeta>,
+        forms: List<FormGroup>,
+        navElements: List<String>,
+        totalNodes: Int
+    ): String = buildString {
+        val appName = packageName?.substringAfterLast('.') ?: "مجهول"
+        append("الشاشة الحالية في $appName تحتوي على $totalNodes عنصراً تفاعلياً. ")
+
+        if (forms.isNotEmpty()) {
+            append("يوجد ${forms.size} نموذج: ${forms.joinToString(", ") { it.groupName }}. ")
+        }
+
+        val clickableCount = allMeta.count { it.node.isClickable }
+        if (clickableCount > 0) {
+            append("$clickableCount زر/عنصر قابل للنقر. ")
+        }
+
+        if (navElements.isNotEmpty()) {
+            append("${navElements.size} عنصر تنقل (تبويبات/قائمة). ")
+        }
+
+        val topNodes = allMeta.sortedByDescending { it.priority }.take(3)
+        if (topNodes.isNotEmpty()) {
+            val topDesc = topNodes.mapNotNull { meta ->
+                meta.node.text?.toString()?.trim()
+                    ?: meta.node.contentDescription?.toString()?.trim()
+            }.take(3)
+            if (topDesc.isNotEmpty()) {
+                append("أبرز العناصر: ${topDesc.joinToString(", ") { "\"$it\"" }}.")
+            }
+        }
+    }
+
+    private fun buildHeader(
+        packageName: String?,
+        activityName: String?,
+        total: Int,
+        extracted: Int
+    ): String = buildString {
+        append("── Semantic UI Tree ──")
+        if (packageName != null) append("\nApp: $packageName")
+        if (activityName != null) append(" / ${activityName.substringAfterLast('.')}")
+        append("\nNodes: $extracted extracted / $total total")
+    }
+
+    // ── أدوات التحليل ─────────────────────────────────────────────────────────
+
+    private fun computePriority(
+        node: AccessibilityNodeInfo,
+        depth: Int,
+        bounds: Rect
+    ): Int {
+        var score = 0
+
+        // قابلية التفاعل
+        if (node.isClickable) score += 30
+        if (node.isEditable) score += 40
+        if (node.isFocused) score += 25
+        if (node.isFocusable) score += 10
+        if (node.isScrollable) score += 20
+
+        // عمق الشجرة (الأعمق = أقل أهمية)
+        score -= depth * 2
+
+        // موضع الشاشة (الأعلى = أكثر أهمية عموماً)
+        // لكن عناصر الأسفل (Bottom Nav) أيضاً مهمة
+        if (bounds.top < 400) score += 10
+
+        // وجود نص
+        val text = node.text?.toString()
+        if (!text.isNullOrEmpty()) score += 10
+        if (text?.length in 2..30) score += 5 // نص قصير ومعبّر
+
+        // Compose
+        if (isComposeNode(node)) score += 5
+
+        return score.coerceIn(0, 100)
+    }
+
+    private fun isNavigationalElement(node: AccessibilityNodeInfo): Boolean {
+        val className = node.className?.toString()?.lowercase() ?: ""
+        val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+        val text = node.text?.toString()?.lowercase() ?: ""
+        val viewId = node.viewIdResourceName?.lowercase() ?: ""
+
+        return "bottomnavigation" in className ||
+                "tabbar" in className ||
+                "navigationview" in className ||
+                "tab" in viewId ||
+                "nav" in viewId ||
+                "menu" in viewId ||
+                "bottom_nav" in viewId ||
+                (node.isClickable && ("home" in desc || "back" in desc || "menu" in desc)) ||
+                className.contains("fab") ||
+                className.contains("floatingaction")
+    }
+
+    private fun findLabelForNode(
+        node: AccessibilityNodeInfo,
+        parent: AccessibilityNodeInfo?
+    ): AccessibilityNodeInfo? {
+        if (parent == null || !node.isEditable) return null
+        // ابحث عن TextView سابق مباشرة كـ sibling
+        for (i in 0 until parent.childCount) {
+            val sibling = parent.getChild(i) ?: continue
+            if (sibling == node) break
+            val sibClass = sibling.className?.toString() ?: ""
+            if ("TextView" in sibClass || "Text" in sibClass) {
+                val hasText = !sibling.text.isNullOrEmpty() || !sibling.contentDescription.isNullOrEmpty()
+                if (hasText) return sibling
+            }
+            sibling.recycle()
+        }
+        return null
+    }
+
+    private fun inferFieldType(node: AccessibilityNodeInfo): FieldType {
+        if (!node.isEditable) return FieldType.UNKNOWN
+        if (node.isPassword) return FieldType.PASSWORD
+
+        val inputType = node.inputType
+        val hint = node.text?.toString()?.lowercase() ?: ""
+        val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+        val viewId = node.viewIdResourceName?.lowercase() ?: ""
+        val combined = "$hint $desc $viewId"
+
+        return when {
+            inputType and 0x03 == 0x01 -> // TYPE_CLASS_NUMBER
+                FieldType.NUMBER
+            inputType and 0x20 == 0x20 -> // TYPE_TEXT_VARIATION_EMAIL
+                FieldType.EMAIL
+            inputType and 0x81 == 0x81 -> // TYPE_TEXT_VARIATION_PHONE
+                FieldType.PHONE
+            "email" in combined || "@" in hint -> FieldType.EMAIL
+            "password" in combined || "pass" in combined -> FieldType.PASSWORD
+            "phone" in combined || "mobile" in combined -> FieldType.PHONE
+            "search" in combined -> FieldType.SEARCH
+            "number" in combined || "amount" in combined -> FieldType.NUMBER
+            inputType and 0x20000 == 0x20000 -> FieldType.MULTILINE
+            else -> FieldType.TEXT
+        }
+    }
+
+    private fun buildFlagsList(node: AccessibilityNodeInfo): List<String> {
+        val flags = mutableListOf<String>()
+        if (node.isClickable || supportsAction(node, AccessibilityNodeInfo.ACTION_CLICK)) flags.add("Clickable")
+        if (node.isLongClickable) flags.add("LongClickable")
+        if (node.isEditable) flags.add("Editable")
+        if (node.isScrollable) flags.add("Scrollable")
+        if (node.isPassword) flags.add("Password")
+        if (node.isCheckable) flags.add(if (node.isChecked) "Checked" else "Unchecked")
         if (node.isSelected) flags.add("Selected")
         if (node.isFocused) flags.add("Focused")
         if (!node.isEnabled) flags.add("Disabled")
         if (isComposeNode(node)) flags.add("Compose")
-
-        if (flags.isNotEmpty()) {
-            append(" (${flags.joinToString(", ")})")
-        }
-
-        // Spatial Awareness: Add screen bounding box so LLM understands layout
-        val bounds = Rect()
-        node.getBoundsInScreen(bounds)
-        if (!bounds.isEmpty) {
-            append(" {bounds: [${bounds.left}, ${bounds.top}, ${bounds.right}, ${bounds.bottom}]}")
-        }
-
-        // View ID for debugging (if present)
-        val viewId = node.viewIdResourceName
-        if (viewId != null) {
-            val shortId = viewId.substringAfterLast('/')
-            append(" #$shortId")
-        }
+        return flags
     }
 
-    private fun isNodeActionable(node: AccessibilityNodeInfo): Boolean {
-        if (node.isClickable || node.isLongClickable) return true
-        if (supportsAction(node, AccessibilityNodeInfo.ACTION_CLICK)) return true
-        if (supportsAction(node, AccessibilityNodeInfo.ACTION_LONG_CLICK)) return true
-        if (supportsAnyScrollAction(node)) return true
+    private fun isRelevantNode(node: AccessibilityNodeInfo): Boolean {
+        if (!node.isVisibleToUser) return false
+        if (isNodeActionable(node)) return true
+        if (node.isEditable || node.isScrollable || node.isCheckable) return true
+        if (node.isFocusable && node.isFocused) return true
+
+        val text = node.text?.toString()?.trim()
+        if (!text.isNullOrEmpty() && text.length <= MAX_TEXT_LENGTH) return true
+
+        val desc = node.contentDescription?.toString()?.trim()
+        if (!desc.isNullOrEmpty() && desc.length <= MAX_TEXT_LENGTH) return true
+
+        if (hasSemanticExtras(node)) return true
+        if (isComposeNode(node) && node.childCount > 0) return true
         return false
     }
 
-    private fun supportsAnyScrollAction(node: AccessibilityNodeInfo): Boolean {
-        return supportsAction(node, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) ||
-            supportsAction(node, AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD) ||
-            node.actionList.any { action ->
-                val label = action.label ?: return@any false
-                label.toString().contains("scroll", ignoreCase = true)
-            }
+    private fun isNodeActionable(node: AccessibilityNodeInfo): Boolean {
+        return node.isClickable || node.isLongClickable ||
+                supportsAction(node, AccessibilityNodeInfo.ACTION_CLICK) ||
+                supportsAction(node, AccessibilityNodeInfo.ACTION_LONG_CLICK) ||
+                supportsAnyScrollAction(node)
     }
 
-    private fun supportsAction(node: AccessibilityNodeInfo, actionId: Int): Boolean {
-        return node.actionList.any { it.id == actionId }
-    }
+    private fun supportsAction(node: AccessibilityNodeInfo, actionId: Int): Boolean =
+        node.actionList.any { it.id == actionId }
+
+    private fun supportsAnyScrollAction(node: AccessibilityNodeInfo): Boolean =
+        supportsAction(node, AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) ||
+                supportsAction(node, AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
 
     private fun isComposeNode(node: AccessibilityNodeInfo): Boolean {
         val className = node.className?.toString().orEmpty().lowercase()
-        if ("compose" in className) return true
-        if ("androidx.compose" in className) return true
-        return node.extras.keySet().any { it.lowercase().contains("compose") }
+        return "compose" in className || "androidx.compose" in className ||
+                node.extras.keySet().any { "compose" in it.lowercase() }
     }
 
     private fun hasSemanticExtras(node: AccessibilityNodeInfo): Boolean {
-        val keys = node.extras.keySet()
-        if (keys.isEmpty()) return false
-        return keys.any { key ->
-            val normalized = key.lowercase()
-            normalized.contains("role_description") ||
-                normalized.contains("state_description") ||
-                normalized.contains("pane_title") ||
-                normalized.contains("hint_text") ||
-                normalized.contains("tooltip_text") ||
-                normalized.contains("heading") ||
-                normalized.contains("compose")
+        return node.extras.keySet().any { key ->
+            val k = key.lowercase()
+            "role_description" in k || "state_description" in k || "pane_title" in k ||
+                    "hint_text" in k || "tooltip_text" in k || "heading" in k || "compose" in k
         }
     }
 
     private fun readSemanticState(node: AccessibilityNodeInfo): String? {
         val extras = node.extras
-        val candidateKeys = listOf(
+        listOf(
             "androidx.view.accessibility.AccessibilityNodeInfoCompat.STATE_DESCRIPTION_KEY",
             "androidx.view.accessibility.AccessibilityNodeInfoCompat.ROLE_DESCRIPTION_KEY",
             "androidx.view.accessibility.AccessibilityNodeInfoCompat.PANE_TITLE_KEY"
-        )
-        for (key in candidateKeys) {
+        ).forEach { key ->
             val value = extras.getCharSequence(key)?.toString()?.trim()
             if (!value.isNullOrEmpty()) return value
         }
         return null
     }
+
+    private fun truncate(text: String): String =
+        if (text.length > MAX_DISPLAY_LENGTH) text.take(MAX_DISPLAY_LENGTH - 3) + "..." else text
 }

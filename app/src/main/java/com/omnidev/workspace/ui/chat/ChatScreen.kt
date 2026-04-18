@@ -7,11 +7,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -53,8 +48,6 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Reply
@@ -144,11 +137,6 @@ fun ChatScreen(
         initialValue = if (uiState.isDrawerOpen) DrawerValue.Open else DrawerValue.Closed
     )
     val scope = rememberCoroutineScope()
-
-    // Initialise VoiceManager once — safe to call on every recomposition (no-op after first call)
-    LaunchedEffect(Unit) {
-        viewModel.initVoice(context)
-    }
 
     // Show the confirmation gate dialog if there's a pending privileged action
     uiState.pendingConfirmation?.let { confirmation ->
@@ -299,17 +287,6 @@ fun ChatScreen(
                                 )
                             }
                         }
-                        // Voice mode toggle — enables mic button in input bar
-                        IconButton(onClick = { viewModel.toggleVoiceMode() }) {
-                            Icon(
-                                imageVector = if (uiState.isVoiceModeEnabled) Icons.Filled.Mic else Icons.Filled.MicOff,
-                                contentDescription = if (uiState.isVoiceModeEnabled) "Disable Voice Mode" else "Enable Voice Mode",
-                                tint = if (uiState.isVoiceModeEnabled)
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
                         IconButton(onClick = onNavigateToSettings) {
                             Icon(
                                 imageVector = Icons.Filled.Settings,
@@ -407,11 +384,6 @@ fun ChatScreen(
                     pendingAttachments = uiState.pendingAttachments,
                     onAttachClick = { attachmentLauncher.launch("*/*") },
                     onRemoveAttachment = { viewModel.removeAttachment(it) },
-                    isVoiceModeEnabled = uiState.isVoiceModeEnabled,
-                    isListening = uiState.isListening,
-                    partialTranscript = uiState.partialTranscript,
-                    onMicClick = { viewModel.startListening() },
-                    onMicRelease = { viewModel.stopListening() },
                     replyingTo = uiState.replyingTo,
                     onDismissReply = { viewModel.clearReplyingTo() }
                 )
@@ -1289,11 +1261,6 @@ private fun ChatInputBar(
     pendingAttachments: List<PendingAttachment> = emptyList(),
     onAttachClick: () -> Unit = {},
     onRemoveAttachment: (android.net.Uri) -> Unit = {},
-    isVoiceModeEnabled: Boolean = false,
-    isListening: Boolean = false,
-    partialTranscript: String? = null,
-    onMicClick: () -> Unit = {},
-    onMicRelease: () -> Unit = {},
     replyingTo: ChatMessage? = null,
     onDismissReply: () -> Unit = {}
 ) {
@@ -1421,11 +1388,7 @@ private fun ChatInputBar(
                 onValueChange = onInputChanged,
                 modifier = Modifier.weight(1f),
                 placeholder = {
-                    Text(
-                        if (isListening && partialTranscript != null) partialTranscript
-                        else if (isListening) "Listening…"
-                        else "Ask OmniDev anything..."
-                    )
+                    Text("Ask OmniDev anything...")
                 },
                 shape = RoundedCornerShape(24.dp),
                 maxLines = 5,
@@ -1452,44 +1415,6 @@ private fun ChatInputBar(
                         imageVector = Icons.AutoMirrored.Filled.Send,
                         contentDescription = "Send",
                         tint = MaterialTheme.colorScheme.onPrimary
-                    )
-                }
-            }
-            // Mic button — toggles STT capture when voice mode is enabled
-            if (isVoiceModeEnabled) {
-                Spacer(modifier = Modifier.width(4.dp))
-                // Pulsing scale animation while actively listening
-                val infiniteTransition = rememberInfiniteTransition(label = "mic_pulse")
-                val pulseScale by infiniteTransition.animateFloat(
-                    initialValue = 1f,
-                    targetValue = if (isListening) 1.18f else 1f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(durationMillis = 600),
-                        repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "pulse_scale"
-                )
-                FloatingActionButton(
-                    onClick = if (isListening) onMicRelease else onMicClick,
-                    modifier = Modifier
-                        .size(48.dp)
-                        .scale(pulseScale),
-                    containerColor = if (isListening)
-                        MaterialTheme.colorScheme.error
-                    else
-                        MaterialTheme.colorScheme.secondaryContainer,
-                    shape = CircleShape
-                ) {
-                    Icon(
-                        imageVector = if (isListening)
-                            Icons.Filled.MicOff
-                        else
-                            Icons.Filled.Mic,
-                        contentDescription = if (isListening) "Stop listening" else "Start voice input",
-                        tint = if (isListening)
-                            MaterialTheme.colorScheme.onError
-                        else
-                            MaterialTheme.colorScheme.onSecondaryContainer
                     )
                 }
             }

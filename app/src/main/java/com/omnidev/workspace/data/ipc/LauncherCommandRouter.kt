@@ -78,7 +78,6 @@ class LauncherCommandRouter(
         val modelId: String,
         val scopePath: String,
         val deepThinking: Boolean,
-        val customPrompt: String?,
         val userPersona: String?
     )
 
@@ -110,7 +109,7 @@ class LauncherCommandRouter(
                 modelId = runtimeConfig.modelId,
                 scopePath = runtimeConfig.scopePath,
                 enableDeepThinking = runtimeConfig.deepThinking,
-                customSystemPrompt = runtimeConfig.customPrompt,
+                customSystemPrompt = null,
                 userContext = runtimeConfig.userPersona
             ).collect { event ->
                 when (event) {
@@ -140,7 +139,7 @@ class LauncherCommandRouter(
                 modelId = runtimeConfig.modelId,
                 scopePath = runtimeConfig.scopePath,
                 enableDeepThinking = runtimeConfig.deepThinking,
-                customSystemPrompt = runtimeConfig.customPrompt,
+                customSystemPrompt = null,
                 userContext = runtimeConfig.userPersona
             ).collect { event ->
                 when (event) {
@@ -196,13 +195,11 @@ class LauncherCommandRouter(
         val modelId = settingsRepository.observeModelIdForRole(ModelRole.AGENT).first()
         val scopePath = settingsRepository.observeTargetContext().first().orEmpty()
         val deepThinking = settingsRepository.observeDeepThinking().first()
-        val customPrompt = settingsRepository.observeCustomPrompt(SettingsRepository.PromptRole.AGENT).first()
         val userPersona = settingsRepository.observeUserPersona().first()
         return AgentRuntimeConfig(
             modelId = modelId,
             scopePath = scopePath,
             deepThinking = deepThinking,
-            customPrompt = customPrompt,
             userPersona = userPersona
         )
     }

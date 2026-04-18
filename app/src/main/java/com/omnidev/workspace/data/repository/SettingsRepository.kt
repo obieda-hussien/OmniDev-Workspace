@@ -43,9 +43,7 @@ class SettingsRepository(private val context: Context) {
         /** SAF content:// URI string for the user's chosen directory (persistable permission). */
         val TARGET_CONTEXT_URI = stringPreferencesKey("target_context_uri")
         // Custom system prompts (per-mode)
-        val CUSTOM_CHAT_PROMPT = stringPreferencesKey("custom_chat_prompt")
-        val CUSTOM_AGENT_PROMPT = stringPreferencesKey("custom_agent_prompt")
-        val CUSTOM_ORCHESTRATOR_PROMPT = stringPreferencesKey("custom_orchestrator_prompt")
+
         // Advanced engine settings
         /**
          * Temperature is stored as a String rather than a Float to avoid IEEE 754
@@ -55,9 +53,6 @@ class SettingsRepository(private val context: Context) {
         val MAX_TOKENS = stringPreferencesKey("engine_max_tokens")
         // God Mode
         val GOD_MODE_ENABLED = booleanPreferencesKey("god_mode_enabled")
-        // Voice Mode
-        val VOICE_MODE_ENABLED = booleanPreferencesKey("voice_mode_enabled")
-        val VOICE_TTS_ENABLED = booleanPreferencesKey("voice_tts_enabled")
         // Platform Integrations
         val TELEGRAM_BOT_TOKEN = stringPreferencesKey("telegram_bot_token")
         val TELEGRAM_CHAT_ID = stringPreferencesKey("telegram_chat_id")
@@ -213,32 +208,6 @@ class SettingsRepository(private val context: Context) {
             } else {
                 preferences.remove(Keys.TARGET_CONTEXT_PATH)
             }
-        }
-    }
-
-    // ──────────────────────────────────────────────
-    //  Custom System Prompts
-    // ──────────────────────────────────────────────
-
-    enum class PromptRole { CHAT, AGENT, ORCHESTRATOR }
-
-    fun observeCustomPrompt(role: PromptRole): Flow<String?> {
-        val key = when (role) {
-            PromptRole.CHAT -> Keys.CUSTOM_CHAT_PROMPT
-            PromptRole.AGENT -> Keys.CUSTOM_AGENT_PROMPT
-            PromptRole.ORCHESTRATOR -> Keys.CUSTOM_ORCHESTRATOR_PROMPT
-        }
-        return context.settingsDataStore.data.map { it[key] }
-    }
-
-    suspend fun setCustomPrompt(role: PromptRole, prompt: String?) {
-        val key = when (role) {
-            PromptRole.CHAT -> Keys.CUSTOM_CHAT_PROMPT
-            PromptRole.AGENT -> Keys.CUSTOM_AGENT_PROMPT
-            PromptRole.ORCHESTRATOR -> Keys.CUSTOM_ORCHESTRATOR_PROMPT
-        }
-        context.settingsDataStore.edit { prefs ->
-            if (prompt.isNullOrBlank()) prefs.remove(key) else prefs[key] = prompt
         }
     }
 
@@ -590,28 +559,10 @@ class SettingsRepository(private val context: Context) {
     }
 
     // ──────────────────────────────────────────────
-    //  Voice Mode
-    // ──────────────────────────────────────────────
-
-    fun observeVoiceMode(): Flow<Boolean> =
-        context.settingsDataStore.data.map { it[Keys.VOICE_MODE_ENABLED] ?: false }
-
-    suspend fun setVoiceMode(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.VOICE_MODE_ENABLED] = enabled }
-    }
-
-    fun observeTtsEnabled(): Flow<Boolean> =
-        context.settingsDataStore.data.map { it[Keys.VOICE_TTS_ENABLED] ?: true }
-
-    suspend fun setTtsEnabled(enabled: Boolean) {
-        context.settingsDataStore.edit { it[Keys.VOICE_TTS_ENABLED] = enabled }
-    }
-
-    // ──────────────────────────────────────────────
     //  User Profile
     // ──────────────────────────────────────────────
 
-    /** The user's display name, shown in voice greetings and personalised prompts. */
+    /** The user's display name, shown in personalised prompts. */
     fun observeUserName(): Flow<String?> =
         context.settingsDataStore.data.map { it[Keys.USER_NAME] }
 

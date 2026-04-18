@@ -4,8 +4,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import androidx.core.content.ContextCompat
-import com.omnidev.workspace.data.voice.VoiceAssistantService
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
@@ -101,7 +99,6 @@ fun AISettingsScreen(
     onNavigateBack: () -> Unit = {},
     onNavigateToProviders: () -> Unit = {},
     onNavigateToDebug: () -> Unit = {},
-    onNavigateToSystemPrompt: () -> Unit = {},
     onNavigateToMemoryExplorer: () -> Unit = {},
     onNavigateToIntegrations: () -> Unit = {},
     onNavigateToLocalModels: () -> Unit = {},
@@ -217,26 +214,6 @@ fun AISettingsScreen(
                 onToggle = { viewModel.toggleGodMode(it) }
             )
 
-            // Wake-word background listening toggle
-            val wakeContext = LocalContext.current
-            WakeListeningCard(
-                enabled = uiState.wakeListeningEnabled,
-                onToggle = { enabled ->
-                    viewModel.toggleWakeListening(enabled)
-                    // Start or stop VoiceAssistantService based on the toggle
-                    if (enabled) {
-                        ContextCompat.startForegroundService(
-                            wakeContext,
-                            Intent(wakeContext, VoiceAssistantService::class.java)
-                        )
-                    } else {
-                        wakeContext.stopService(
-                            Intent(wakeContext, VoiceAssistantService::class.java)
-                        )
-                    }
-                }
-            )
-
             // Debug console card
             DebugConsoleCard(onNavigateToDebug = onNavigateToDebug)
 
@@ -261,12 +238,6 @@ fun AISettingsScreen(
                 title = "👤 الملف الشخصي",
                 subtitle = "اسمك وبيانات عنك — أومني هيسلم عليك بالاسم ويتكيف مع أسلوبك",
                 onClick = onNavigateToProfile
-            )
-
-            SettingsNavCard(
-                title = "System Prompt Studio",
-                subtitle = "Customize the AI's persona with templates or raw prompts",
-                onClick = onNavigateToSystemPrompt
             )
 
             SettingsNavCard(
@@ -692,64 +663,6 @@ private fun GodModeCard(
                     checkedThumbColor = MaterialTheme.colorScheme.error,
                     checkedTrackColor = MaterialTheme.colorScheme.errorContainer
                 )
-            )
-        }
-    }
-}
-
-/**
- * Wake-word background listening card — pure UI that delegates service management to caller.
- */
-@Composable
-private fun WakeListeningCard(
-    enabled: Boolean,
-    onToggle: (Boolean) -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (enabled)
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-            else
-                MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "🎙️",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "الاستماع الصوتي في الخلفية",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (enabled) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = if (enabled)
-                        "✅ المساعد يستمع لنداء الاستيقاظ — قل \"استيقظ\" أو \"يا أومني\" لتفعيله."
-                    else
-                        "تفعيل لسماع نداء الاستيقاظ الصوتي في الخلفية (مثل: \"استيقظ يا أومني\").",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (enabled) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Switch(
-                checked = enabled,
-                onCheckedChange = onToggle
             )
         }
     }

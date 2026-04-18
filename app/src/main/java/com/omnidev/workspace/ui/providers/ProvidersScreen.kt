@@ -21,7 +21,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
@@ -150,7 +153,11 @@ fun ProvidersScreen(
                 items(uiState.configuredProviders, key = { it.provider.name }) { entry ->
                     ProviderKeyCard(
                         entry = entry,
-                        onRemove = { viewModel.removeApiKey(entry.provider) }
+                        expanded = uiState.expandedProvider == entry.provider,
+                        catalog = uiState.catalogs[entry.provider],
+                        onRemove = { viewModel.removeApiKey(entry.provider) },
+                        onToggleExpanded = { viewModel.toggleExpanded(entry.provider) },
+                        onRefresh = { viewModel.refreshModels(entry.provider) }
                     )
                 }
                 item { Spacer(Modifier.height(80.dp)) } // FAB clearance
@@ -178,57 +185,185 @@ fun ProvidersScreen(
 @Composable
 private fun ProviderKeyCard(
     entry: ProviderEntry,
-    onRemove: () -> Unit
+    expanded: Boolean,
+    catalog: ProviderModelCatalog?,
+    onRemove: () -> Unit,
+    onToggleExpanded: () -> Unit,
+    onRefresh: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Key,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = entry.provider.displayName,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = entry.maskedKey,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                )
-            }
-            // GitHub Copilot hint badge — token comes from Device Flow (OAuth), not a PAT
-            if (entry.provider == ModelProvider.GITHUB_COPILOT) {
-                Text(
-                    text = "OAuth",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.secondary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-            }
-            IconButton(onClick = onRemove) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = "Remove key",
-                    tint = MaterialTheme.colorScheme.error
+                    imageVector = Icons.Filled.Key,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = entry.provider.displayName,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = entry.maskedKey,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    )
+                }
+                if (entry.provider == ModelProvider.GITHUB_COPILOT) {
+                    Text(
+                        text = "OAuth",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
+                IconButton(onClick = onToggleExpanded) {
+                    Icon(
+                        imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (expanded) "Hide models" else "Show models"
+                    )
+                }
+                IconButton(onClick = onRemove) {
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = "Remove key",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+
+            AnimatedVisibility(visible = expanded, enter = fadeIn(), exit = fadeOut()) {
+                CatalogSection(
+                    catalog = catalog,
+                    onRefresh = onRefresh
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun CatalogSection(
+    catalog: ProviderModelCatalog?,
+    onRefresh: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        HorizontalDivider(modifier = Modifier.padding(bottom = 8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Available models",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f)
+            )
+            val loading = catalog?.isFetching == true
+            IconButton(onClick = onRefresh, enabled = !loading) {
+                if (loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                } else {
+                    Icon(
+                        imageVector = Icons.Filled.Refresh,
+                        contentDescription = "Refresh model list"
+                    )
+                }
+            }
+        }
+
+        when {
+            catalog == null || catalog.isFetching && catalog.models.isEmpty() -> {
+                Text(
+                    text = "Fetching catalogue…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            catalog.error != null -> {
+                Text(
+                    text = "❌ ${catalog.error}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            catalog.models.isEmpty() -> {
+                Text(
+                    text = "No models returned by this provider.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            else -> {
+                Text(
+                    text = "${catalog.models.size} model(s) — tap refresh to reload",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    catalog.models.take(80).forEach { model ->
+                        ModelRow(model)
+                    }
+                    if (catalog.models.size > 80) {
+                        Text(
+                            text = "… and ${catalog.models.size - 80} more",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModelRow(model: com.omnidev.workspace.data.model.AIModel) {
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+        Text(
+            text = model.id,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+        )
+        val ctxK = model.contextWindow / 1000
+        val costIn = model.costPer1MInputTokens
+        val costOut = model.costPer1MOutputTokens
+        val details = buildString {
+            append("ctx ").append(ctxK).append("K")
+            append(" · out ").append(model.maxOutputTokens / 1024).append("K")
+            if (model.supportsVision) append(" · 👁")
+            if (model.supportsThinking) append(" · 🧠")
+            if (costIn != null && costOut != null) {
+                append(" · $").append(String.format("%.2f", costIn))
+                append("/$").append(String.format("%.2f", costOut))
+            }
+        }
+        Text(
+            text = details,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

@@ -86,7 +86,6 @@
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
 
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.BODY_SENSORS" />
@@ -95,7 +94,6 @@
     <uses-permission android:name="android.permission.MANAGE_SENSOR_PRIVACY" />
     <uses-permission android:name="android.permission.OBSERVE_SENSOR_PRIVACY" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
-    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <uses-feature android:name="android.hardware.sensor.heartrate" android:required="false" />
     <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
     <uses-feature android:name="android.hardware.sensor.gyroscope" android:required="false" />
@@ -206,7 +204,6 @@
     <uses-permission android:name="android.permission.BIND_REMOTEVIEWS" />
     <uses-permission android:name="android.permission.BIND_APPWIDGET" />
     <uses-permission android:name="android.permission.BIND_DREAM_SERVICE" />
-    <uses-permission android:name="android.permission.BIND_VOICE_INTERACTION" />
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
@@ -216,7 +213,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
@@ -275,10 +271,6 @@
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.ASSIST" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VOICE_COMMAND" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
@@ -357,11 +349,6 @@
             android:exported="false"
             android:directBootAware="true"
             android:foregroundServiceType="dataSync" />
-
-        <service
-            android:name=".data.voice.VoiceAssistantService"
-            android:exported="false"
-            android:foregroundServiceType="microphone" />
 
         <service
             android:name=".data.media.OmniMediaSessionService"

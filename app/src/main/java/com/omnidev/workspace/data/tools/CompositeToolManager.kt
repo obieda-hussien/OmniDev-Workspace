@@ -17,7 +17,6 @@ import com.omnidev.workspace.data.tools.monitoring.ToolMonitoringSystem
 import com.omnidev.workspace.data.tools.prediction.PredictiveAnalyticsEngine
 import com.omnidev.workspace.data.tools.security.AdvancedSecurityAnalyzer
 import com.omnidev.workspace.data.tools.security.AndroidSecurityResearchTool
-import com.omnidev.workspace.data.tools.voice.AdvancedVoiceCommandEngine
 import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.net.URI
@@ -424,24 +423,6 @@ class CompositeToolManager(
                     description = "Workflow ID to execute (required for execute_workflow)", required = false)
             )
         ))
-
-        // ── Voice Commands tool ──
-        if (context != null) {
-            add(ToolDefinition(
-                name = "voice_commands",
-                description = "Manage the voice command engine. Actions: initialize, start_listening, " +
-                        "stop_listening, speak (TTS), get_stats, get_history.",
-                parameters = listOf(
-                    ToolParameter(name = "action", type = "string",
-                        description = "One of: initialize, start_listening, stop_listening, speak, get_stats, get_history",
-                        required = true),
-                    ToolParameter(name = "text", type = "string",
-                        description = "Text to speak (for speak action)", required = false),
-                    ToolParameter(name = "continuous", type = "string",
-                        description = "true for continuous listening (for start_listening)", required = false)
-                )
-            ))
-        }
 
         // ── Tool Monitoring tool ──
         add(ToolDefinition(
@@ -1305,38 +1286,6 @@ class CompositeToolManager(
                         ToolExecutionResult("Learned ${patterns.size} patterns.")
                     }
                     else -> ToolExecutionResult("Unknown intelligent_automation action '$action'.", isError = true)
-                }
-            }
-
-            // ── Voice Commands tool ──
-            "voice_commands" -> {
-                val ctx = context ?: return missingContext()
-                val action = arguments["action"] ?: return missingArg("action")
-                when (action) {
-                    "initialize" -> {
-                        val result = AdvancedVoiceCommandEngine.initialize(ctx)
-                        if (result.isSuccess) ToolExecutionResult(result.getOrDefault("Voice engine initialized."))
-                        else ToolExecutionResult("Init failed: ${result.exceptionOrNull()?.message}", isError = true)
-                    }
-                    "start_listening" -> {
-                        val continuous = arguments["continuous"]?.toBooleanStrictOrNull() ?: false
-                        val result = AdvancedVoiceCommandEngine.startListening(continuous)
-                        if (result.isSuccess) ToolExecutionResult(result.getOrDefault("Listening started."))
-                        else ToolExecutionResult("Failed: ${result.exceptionOrNull()?.message}", isError = true)
-                    }
-                    "stop_listening" -> {
-                        val result = AdvancedVoiceCommandEngine.stopListening()
-                        if (result.isSuccess) ToolExecutionResult(result.getOrDefault("Listening stopped."))
-                        else ToolExecutionResult("Failed: ${result.exceptionOrNull()?.message}", isError = true)
-                    }
-                    "speak" -> {
-                        val text = arguments["text"] ?: return missingArg("text")
-                        AdvancedVoiceCommandEngine.speak(text)
-                        ToolExecutionResult("Speaking: $text")
-                    }
-                    "get_stats" -> ToolExecutionResult(AdvancedVoiceCommandEngine.getStats().toString())
-                    "get_history" -> ToolExecutionResult(AdvancedVoiceCommandEngine.getHistory().joinToString("\n") { it.toString() })
-                    else -> ToolExecutionResult("Unknown voice_commands action '$action'.", isError = true)
                 }
             }
 
