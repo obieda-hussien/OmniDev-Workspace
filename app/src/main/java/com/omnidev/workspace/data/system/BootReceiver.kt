@@ -127,7 +127,7 @@ class BootReceiver : BroadcastReceiver() {
 
             } catch (e: Exception) {
                 Log.e(TAG, "❌ خطأ في الإقلاع المرحلي: ${e.message}", e)
-                DebugLogManager.appendError(TAG, "فشل إقلاع مرحلي: ${e.message}")
+                DebugLogManager.appendError(TAG, e)
             } finally {
                 pendingResult.finish()
             }

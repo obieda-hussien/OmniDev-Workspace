@@ -253,7 +253,7 @@ class OmniSyncService : Service() {
         val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
         val isActivePeriod = hour in ACTIVE_HOUR_START until ACTIVE_HOUR_END
 
-        val pendingTaskCount = TaskSchedulerTool.getPendingTaskCount()
+        val pendingTaskCount = TaskSchedulerTool.getAllTasks().count { it.status.name == "PENDING" }
         val isIdle = pendingTaskCount == 0
 
         return when {

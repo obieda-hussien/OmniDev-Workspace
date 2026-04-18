@@ -144,7 +144,7 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     val expiryMs = System.currentTimeMillis() + daysFromNow * 24 * 60 * 60 * 1000L
                     @Suppress("DEPRECATION")
-                    dpm.setPasswordExpiration(getComponentName(context), expiryMs)
+                    dpm.setPasswordExpirationTimeout(getComponentName(context), expiryMs)
                     addAuditEntry(AuditEntry("SET_PASSWORD_EXPIRY", "انتهاء بعد $daysFromNow يوم", success = true))
                     true
                 } else false
