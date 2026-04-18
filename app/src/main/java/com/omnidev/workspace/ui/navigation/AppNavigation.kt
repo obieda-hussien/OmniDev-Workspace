@@ -91,6 +91,7 @@ fun AppNavigation(
             AISettingsScreen(
                 viewModel = settingsViewModel,
                 onNavigateBack = { navController.popBackStack() },
+                providersViewModel = providersViewModel,
                 onNavigateToProviders = { navController.navigate(Routes.PROVIDERS) },
                 onNavigateToDebug = { navController.navigate(Routes.DEBUG) },
                 onNavigateToMemoryExplorer = { navController.navigate(Routes.MEMORY_EXPLORER) },
