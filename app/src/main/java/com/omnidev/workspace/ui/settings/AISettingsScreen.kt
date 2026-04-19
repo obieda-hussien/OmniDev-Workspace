@@ -436,7 +436,7 @@ private fun ModelRoleCard(
                     val mergedModelsByProvider = ModelRegistry.modelsByProvider.mapValues { (provider, staticModels) ->
                         val dynamicModels = catalogs[provider]?.models
                         if (dynamicModels.isNullOrEmpty()) staticModels else dynamicModels
-                    }.filterKeys { it != ModelProvider.GITHUB_COPILOT }
+                    }
                     mergedModelsByProvider.forEach { (provider, models) ->
                         // Provider header
                         DropdownMenuItem(
