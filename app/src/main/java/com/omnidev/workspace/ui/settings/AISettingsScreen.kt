@@ -115,7 +115,7 @@ fun AISettingsScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val providersUiState by providersViewModel?.uiState?.collectAsState() ?: mutableStateOf(null)
+    val providersUiState by providersViewModel?.uiState?.collectAsState() ?: remember { mutableStateOf(null) }
 
     // Fetch catalogs for configured providers
     LaunchedEffect(providersUiState?.configuredProviders) {
