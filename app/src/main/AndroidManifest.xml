@@ -322,16 +322,6 @@
             android:name=".data.vision.OmniScreenCaptureService"
             android:exported="false"
             android:foregroundServiceType="mediaProjection" />
-
-        <service
-            android:name=".ui.overlay.OmniBubbleService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="omni_bubble_overlay" />
-        </service>
-
         <service
             android:name=".data.integration.TelegramPollingService"
             android:exported="false"

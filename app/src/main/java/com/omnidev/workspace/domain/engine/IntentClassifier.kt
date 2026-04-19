@@ -2,7 +2,7 @@ package com.omnidev.workspace.domain.engine
 
 /**
  * Shared intent classifier used by both the main [ChatViewModel] (AUTO mode) and the
- * floating overlay ([OmniBubbleService]) to decide which execution mode best matches
+ * floating overlay to decide which execution mode best matches
  * the user's intent without an extra LLM call.
  *
  * ### Algorithm

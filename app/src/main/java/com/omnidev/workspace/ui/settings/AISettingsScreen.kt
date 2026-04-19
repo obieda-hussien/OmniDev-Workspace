@@ -80,7 +80,6 @@ import com.omnidev.workspace.data.model.AIModel
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.registry.ModelRegistry
-import com.omnidev.workspace.ui.overlay.OmniBubbleService
 
 /**
  * AI Preferences Dashboard — Material 3 Expressive settings screen.
@@ -233,8 +232,6 @@ fun AISettingsScreen(
             // Debug console card
             DebugConsoleCard(onNavigateToDebug = onNavigateToDebug)
 
-            // Omni-Bubble overlay card
-            OmniBubbleCard()
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -714,94 +711,6 @@ private fun GodModeCard(
     }
 }
 
-/**
- * Omni-Bubble overlay card — shows permission status and start/stop controls.
- *
- * On Android M+ the overlay permission is a special one that needs to be granted
- * via [Settings.ACTION_MANAGE_OVERLAY_PERMISSION]. If permission is already granted,
- * tapping the toggle starts/stops [OmniBubbleService].
- */
-@Composable
-private fun OmniBubbleCard() {
-    val context = LocalContext.current
-    val hasOverlayPermission = remember(context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(context)
-        else true
-    }
-
-    // Reflect actual service running state; update optimistically on toggle
-    var bubbleRunning by remember { mutableStateOf(OmniBubbleService.isRunning) }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Filled.BubbleChart,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.tertiary,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Omni-Bubble Overlay",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = when {
-                        !hasOverlayPermission -> "Requires 'Display over other apps' permission. Tap to grant."
-                        bubbleRunning -> "Floating bubble is active. Tap to dismiss."
-                        else -> "Floating AI assistant visible over any app. Tap to launch."
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            if (hasOverlayPermission) {
-                // Permission granted — show start/stop toggle
-                Switch(
-                    checked = bubbleRunning,
-                    onCheckedChange = { start ->
-                        bubbleRunning = start
-                        if (start) OmniBubbleService.start(context)
-                        else OmniBubbleService.stop(context)
-                    }
-                )
-            } else {
-                // Permission not granted — open system settings
-                Card(
-                    onClick = {
-                        val intent = Intent(
-                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                            Uri.parse("package:${context.packageName}")
-                        )
-                        context.startActivity(intent)
-                    },
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                    )
-                ) {
-                    Text(
-                        text = "Grant",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
-                }
-            }
-        }
-    }
-}
 
 /**
  * Accessibility Service card — shows whether the OmniAccessibilityService is enabled
