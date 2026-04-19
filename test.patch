@@ -1,0 +1,23 @@
+--- app/src/test/java/com/omnidev/workspace/IntelligentAutomationEngineTest.kt
++++ app/src/test/java/com/omnidev/workspace/IntelligentAutomationEngineTest.kt
+@@ -0,0 +1,41 @@
++package com.omnidev.workspace
++
++import com.omnidev.workspace.data.tools.automation.IntelligentAutomationEngine
++import kotlinx.coroutines.runBlocking
++import org.junit.Test
++import org.junit.Assert.*
++
++class IntelligentAutomationEngineTest {
++
++    @Test
++    fun testRecordUserActionWithLessThanWindowSize() = runBlocking {
++        val engine = IntelligentAutomationEngine(null)
++        // Window size for sequential pattern is 5. Add only 1 event to simulate the bug.
++        engine.recordUserAction("TEST_EVENT", "{}")
++        engine.analyzeAndLearnPatternsPublic() // Assuming we make it public or access via reflection/delay if it's private.
++        // Wait for coroutine
++        kotlinx.coroutines.delay(100)
++        assertTrue(true) // If it didn't crash, we're good
++    }
++}

@@ -333,7 +333,7 @@ class ToolIntelligenceEngine(
         return detectedPatterns.values
             .filter { pattern ->
                 pattern.sequence.size >= 2 &&
-                pattern.sequence[pattern.sequence.size - 2] == previousTool &&
+                pattern.sequence.getOrNull(pattern.sequence.size - 2) == previousTool &&
                 pattern.sequence.last() == toolName
             }
             .maxOfOrNull { it.avgSuccessRate.toDouble() }

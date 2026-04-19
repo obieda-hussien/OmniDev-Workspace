@@ -1,0 +1,14 @@
+--- app/src/main/java/com/omnidev/workspace/data/brain/SmartLearningBridge.kt
++++ app/src/main/java/com/omnidev/workspace/data/brain/SmartLearningBridge.kt
+@@ -448,8 +448,9 @@
+         // عدّ عدد مرات حدوث هذا التسلسل
+         val recentHistory = sessionToolHistory.takeLast(30)
+         var occurrences = 0
+-        for (i in 0 until recentHistory.size - 1) {
+-            if (recentHistory[i] == toolA && recentHistory[i + 1] == toolB) {
++        val safeSize = recentHistory.size
++        for (i in 0 until safeSize - 1) {
++            if (recentHistory.getOrNull(i) == toolA && recentHistory.getOrNull(i + 1) == toolB) {
+                 occurrences++
+             }
+         }
