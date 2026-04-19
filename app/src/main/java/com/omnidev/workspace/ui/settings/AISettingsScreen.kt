@@ -60,6 +60,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import com.omnidev.workspace.ui.providers.ProvidersViewModel
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -97,6 +98,7 @@ import com.omnidev.workspace.ui.overlay.OmniBubbleService
 fun AISettingsScreen(
     viewModel: AISettingsViewModel,
     onNavigateBack: () -> Unit = {},
+    providersViewModel: ProvidersViewModel? = null,
     onNavigateToProviders: () -> Unit = {},
     onNavigateToDebug: () -> Unit = {},
     onNavigateToMemoryExplorer: () -> Unit = {},
@@ -112,6 +114,18 @@ fun AISettingsScreen(
     val uiState by viewModel.uiState.collectAsState()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    val providersUiState by providersViewModel?.uiState?.collectAsState() ?: remember { mutableStateOf(null) }
+
+    // Fetch catalogs for configured providers
+    LaunchedEffect(providersUiState?.configuredProviders) {
+        providersUiState?.configuredProviders?.forEach { entry ->
+            if (entry.provider != ModelProvider.GITHUB_COPILOT && providersUiState?.catalogs?.get(entry.provider)?.isFetching != true && providersUiState?.catalogs?.get(entry.provider)?.models?.isEmpty() != false) {
+                providersViewModel?.refreshModels(entry.provider)
+            }
+        }
+    }
+
 
     // Show status messages as snackbar
     LaunchedEffect(uiState.statusMessage) {
@@ -173,6 +187,8 @@ fun AISettingsScreen(
             // Model role cards
             ModelRole.entries.forEach { role ->
                 ModelRoleCard(
+                    catalogs = providersUiState?.catalogs ?: emptyMap(),
+                    configuredProviders = providersUiState?.configuredProviders ?: emptyList(),
                     role = role,
                     selectedModelId = uiState.modelAssignments[role] ?: "",
                     isExpanded = uiState.expandedDropdownRole == role,
@@ -338,6 +354,8 @@ private fun SectionHeader(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ModelRoleCard(
+    catalogs: Map<ModelProvider, com.omnidev.workspace.ui.providers.ProviderModelCatalog>,
+    configuredProviders: List<com.omnidev.workspace.ui.providers.ProviderEntry>,
     role: ModelRole,
     selectedModelId: String,
     isExpanded: Boolean,
@@ -345,7 +363,11 @@ private fun ModelRoleCard(
     onModelSelected: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val selectedModel = ModelRegistry.findModelById(selectedModelId)
+    val allDynamicModels = catalogs.values.flatMap { it.models }
+    val selectedModel = allDynamicModels.find { it.id == selectedModelId }
+        ?: ModelRegistry.findModelById(selectedModelId)
+
+    var expandedProviders by remember { mutableStateOf(mapOf<ModelProvider, Boolean>()) }
     val roleIcon = when (role) {
         ModelRole.CHAT -> Icons.Filled.QuestionAnswer
         ModelRole.AGENT -> Icons.Filled.SmartToy
@@ -413,7 +435,14 @@ private fun ModelRoleCard(
                     onDismissRequest = onDismiss
                 ) {
                     // Group models by provider
-                    ModelRegistry.modelsByProvider.forEach { (provider, models) ->
+                    val configuredProvidersSet = configuredProviders.map { it.provider }.toSet()
+                    val mergedModelsByProvider = ModelRegistry.modelsByProvider.mapValues { (provider, staticModels) ->
+                        val dynamicModels = catalogs[provider]?.models
+                        if (dynamicModels.isNullOrEmpty()) staticModels else dynamicModels
+                    }.filterKeys { provider ->
+                        provider == ModelProvider.GITHUB_COPILOT || provider in configuredProvidersSet
+                    }
+                    mergedModelsByProvider.forEach { (provider, models) ->
                         // Provider header
                         DropdownMenuItem(
                             text = {
@@ -429,7 +458,9 @@ private fun ModelRoleCard(
                         )
 
                         // Models under this provider
-                        models.forEach { model ->
+                        val isProviderExpanded = expandedProviders[provider] ?: false
+                        val visibleModels = if (isProviderExpanded) models else models.take(10)
+                        visibleModels.forEach { model ->
                             val isSelected = model.id == selectedModelId
                             DropdownMenuItem(
                                 text = {
@@ -476,8 +507,23 @@ private fun ModelRoleCard(
                             )
                         }
 
+                        if (!isProviderExpanded && models.size > 10) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = "Show all ${models.size} models...",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                },
+                                onClick = { expandedProviders = expandedProviders + (provider to true) },
+                                modifier = Modifier.padding(start = 16.dp)
+                            )
+                        }
+
                         // Divider between providers (except last)
-                        if (provider != ModelRegistry.modelsByProvider.keys.last()) {
+                        if (provider != mergedModelsByProvider.keys.last()) {
                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                         }
                     }
