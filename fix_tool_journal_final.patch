@@ -1,0 +1,13 @@
+--- app/src/main/java/com/omnidev/workspace/data/brain/ToolExecutionJournal.kt
++++ app/src/main/java/com/omnidev/workspace/data/brain/ToolExecutionJournal.kt
+@@ -246,8 +246,8 @@
+         if (recent.size >= 4) {
+             val sequences = mutableMapOf<String, Int>()
+             val safeSize = recent.size
+-            for (i in 0 until safeSize - 1) {
+-                val seq = "${recent[i].toolName} → ${recent[i + 1].toolName}"
++            for (i in 0 until safeSize - 1) {
++                val seq = "${recent.getOrNull(i)?.toolName} → ${recent.getOrNull(i + 1)?.toolName}"
+                 sequences[seq] = (sequences[seq] ?: 0) + 1
+             }
+             sequences.filter { it.value >= 2 }.forEach { (seq, count) ->

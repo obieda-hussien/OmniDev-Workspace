@@ -1,0 +1,22 @@
+--- app/src/main/java/com/omnidev/workspace/data/tools/automation/IntelligentAutomationEngine.kt
++++ app/src/main/java/com/omnidev/workspace/data/tools/automation/IntelligentAutomationEngine.kt
+@@ -231,7 +231,7 @@
+         val patterns = mutableListOf<UserPattern>()
+         val windowSize = 5 // حجم النافذة للتسلسل
+
+-        for (i in 0..events.size - windowSize) {
++        for (i in 0..(events.size - windowSize).coerceAtLeast(0)) {
++            if (i + windowSize > events.size) break
+             val sequence = events.subList(i, i + windowSize)
+             val typeSequence = sequence.map { it.eventType }
+
+@@ -256,7 +256,8 @@
+
+     private fun countSequenceOccurrences(events: List<PatternEvent>, sequence: List<String>): Int {
+         var count = 0
+-        for (i in 0..events.size - sequence.size) {
++        for (i in 0..(events.size - sequence.size).coerceAtLeast(0)) {
++            if (i + sequence.size > events.size) break
+             val slice = events.subList(i, i + sequence.size).map { it.eventType }
+             if (slice == sequence) count++
+         }

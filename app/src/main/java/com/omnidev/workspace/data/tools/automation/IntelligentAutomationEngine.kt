@@ -231,6 +231,7 @@ object IntelligentAutomationEngine {
         val patterns = mutableListOf<UserPattern>()
         val windowSize = 5 // حجم النافذة للتسلسل
         
+        if (events.size < windowSize) return patterns
         for (i in 0..events.size - windowSize) {
             val sequence = events.subList(i, i + windowSize)
             val typeSequence = sequence.map { it.eventType }
@@ -256,6 +257,7 @@ object IntelligentAutomationEngine {
     
     private fun countSequenceOccurrences(events: List<PatternEvent>, sequence: List<String>): Int {
         var count = 0
+        if (events.size < sequence.size) return count
         for (i in 0..events.size - sequence.size) {
             val slice = events.subList(i, i + sequence.size).map { it.eventType }
             if (slice == sequence) count++

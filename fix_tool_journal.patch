@@ -1,0 +1,12 @@
+--- app/src/main/java/com/omnidev/workspace/data/brain/ToolExecutionJournal.kt
++++ app/src/main/java/com/omnidev/workspace/data/brain/ToolExecutionJournal.kt
+@@ -245,7 +245,7 @@
+         // نمط 1: تسلسلات متكررة
+         if (recent.size >= 4) {
+             val sequences = mutableMapOf<String, Int>()
+-            for (i in 0 until recent.size - 1) {
++            for (i in 0 until (recent.size - 1).coerceAtLeast(0)) {
++                if (i + 1 >= recent.size) break
+                 val seq = "${recent[i].toolName} → ${recent[i + 1].toolName}"
+                 sequences[seq] = (sequences[seq] ?: 0) + 1
+             }

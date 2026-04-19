@@ -336,12 +336,11 @@ object AccessibilityStateManager {
         if (history.size < 3) return
         // كشف أنماط A→B→A المتكررة (bounce back patterns)
         val recent = history.takeLast(6)
-        val safeSize = recent.size
-        for (i in 0 until safeSize - 2) {
-            val a = recent.getOrNull(i)?.packageName
-            val b = recent.getOrNull(i + 1)?.packageName
+        for (i in 0 until recent.size - 2) {
+            val a = recent[i].packageName
+            val b = recent[i + 1].packageName
             val c = recent.getOrNull(i + 2)?.packageName
-            if (a == c && a != b && a != null && b != null) {
+            if (a == c && a != b) {
                 val pattern = "${a.substringAfterLast('.')}→${b.substringAfterLast('.')}"
                 detectedNavigationPatterns[pattern] =
                     (detectedNavigationPatterns[pattern] ?: 0) + 1

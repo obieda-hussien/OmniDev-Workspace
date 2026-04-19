@@ -245,9 +245,8 @@ class ToolExecutionJournal(
         // نمط 1: تسلسلات متكررة
         if (recent.size >= 4) {
             val sequences = mutableMapOf<String, Int>()
-            val safeSize = recent.size
-            for (i in 0 until safeSize - 1) {
-                val seq = "${recent.getOrNull(i)?.toolName} → ${recent.getOrNull(i + 1)?.toolName}"
+            for (i in 0 until recent.size - 1) {
+                val seq = "${recent[i].toolName} → ${recent[i + 1].toolName}"
                 sequences[seq] = (sequences[seq] ?: 0) + 1
             }
             sequences.filter { it.value >= 2 }.forEach { (seq, count) ->
