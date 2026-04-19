@@ -188,6 +188,7 @@ fun AISettingsScreen(
             ModelRole.entries.forEach { role ->
                 ModelRoleCard(
                     catalogs = providersUiState?.catalogs ?: emptyMap(),
+                    configuredProviders = providersUiState?.configuredProviders ?: emptyList(),
                     role = role,
                     selectedModelId = uiState.modelAssignments[role] ?: "",
                     isExpanded = uiState.expandedDropdownRole == role,
@@ -354,6 +355,7 @@ private fun SectionHeader(
 @Composable
 private fun ModelRoleCard(
     catalogs: Map<ModelProvider, com.omnidev.workspace.ui.providers.ProviderModelCatalog>,
+    configuredProviders: List<com.omnidev.workspace.ui.providers.ProviderEntry>,
     role: ModelRole,
     selectedModelId: String,
     isExpanded: Boolean,
@@ -433,9 +435,12 @@ private fun ModelRoleCard(
                     onDismissRequest = onDismiss
                 ) {
                     // Group models by provider
+                    val configuredProvidersSet = configuredProviders.map { it.provider }.toSet()
                     val mergedModelsByProvider = ModelRegistry.modelsByProvider.mapValues { (provider, staticModels) ->
                         val dynamicModels = catalogs[provider]?.models
                         if (dynamicModels.isNullOrEmpty()) staticModels else dynamicModels
+                    }.filterKeys { provider ->
+                        provider == ModelProvider.GITHUB_COPILOT || provider in configuredProvidersSet
                     }
                     mergedModelsByProvider.forEach { (provider, models) ->
                         // Provider header
