@@ -9,6 +9,7 @@ import androidx.activity.enableEdgeToEdge
 import com.omnidev.workspace.data.auth.OAuthManager
 import com.omnidev.workspace.data.db.OmniDevDatabase
 import com.omnidev.workspace.data.network.CompletionService
+import com.omnidev.workspace.data.repository.AnalyticsRepository
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
@@ -51,6 +52,7 @@ class MainActivity : ComponentActivity() {
         // ── Manual Dependency Injection ──
         val settingsRepository = SettingsRepository(applicationContext)
         val apiKeyRepository = ApiKeyRepository(applicationContext)
+        val analyticsRepository = AnalyticsRepository(applicationContext)
 
         // Room database — single instance per process
         val database = OmniDevDatabase.getInstance(applicationContext)
@@ -94,7 +96,8 @@ class MainActivity : ComponentActivity() {
             config = AgentConfig.THOROUGH,
             apiKeyRepository = apiKeyRepository,
             memoryManager = memoryManager,
-            smartLearningBridge = app.smartLearningBridge
+            smartLearningBridge = app.smartLearningBridge,
+            analyticsRepository = analyticsRepository
         )
 
         // Swarm orchestrator for Team Agents mode
@@ -106,7 +109,8 @@ class MainActivity : ComponentActivity() {
             smartLearningBridge = app.smartLearningBridge,
             streamingCompletionProvider = { request, onChunk ->
                 completionService.stream(request, onChunk)
-            }
+            },
+            analyticsRepository = analyticsRepository
         )
 
         // Auto-Heal Build Loop
@@ -132,6 +136,7 @@ class MainActivity : ComponentActivity() {
             apiKeyRepository = apiKeyRepository,
             fileToolManager = fileToolManager,
             autoHealBuildUseCase = autoHealBuildUseCase,
+            analyticsRepository = analyticsRepository,
             compositeToolManager = toolManager
         )
         val providersViewModel = ProvidersViewModel(apiKeyRepository)

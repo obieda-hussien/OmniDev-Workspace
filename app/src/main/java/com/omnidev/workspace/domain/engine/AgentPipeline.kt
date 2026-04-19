@@ -183,7 +183,13 @@ class AgentPipeline(
      * - تعلم مستمر من كل عملية تنفيذ
      */
     private val smartLearningBridge: com.omnidev.workspace.data.brain.SmartLearningBridge? = null,
-    private val toolOrchestrator: ToolOrchestrator = ToolOrchestrator()
+    private val toolOrchestrator: ToolOrchestrator = ToolOrchestrator(),
+    /**
+     * Optional analytics sink. When supplied, every completion call is recorded
+     * with granular token / cost / latency / error metrics so the Analytics
+     * Dashboard can build rich per-provider and per-model insights.
+     */
+    private val analyticsRepository: com.omnidev.workspace.data.repository.AnalyticsRepository? = null
 ) {
 
     companion object {
@@ -1166,6 +1172,7 @@ Rules:
         // with a much longer base delay so the 429 window has time to expire.
         var rateLimitAttemptsRemaining = if (config.enableRetry) RATE_LIMIT_MAX_RETRIES else 0
         var normalAttempt = 0
+        val callStartMs = System.currentTimeMillis()
 
         while (true) {
             try {
@@ -1184,9 +1191,12 @@ Rules:
                         completionProvider(request)
                     }
                 }
+                // Record successful usage for analytics (best-effort; never break the agent).
+                recordAnalytics(request, response, callStartMs, isError = false)
                 return response
             } catch (e: TimeoutCancellationException) {
                 val timeoutSec = (config.maxIterationTimeMs ?: 90_000L) / 1_000
+                recordAnalytics(request, null, callStartMs, isError = true)
                 onFatalError(
                     "⏱ LLM call timed out after ${timeoutSec}s at iteration $iteration. " +
                     "The model API did not respond in time. Try again or use ⏹ to cancel."
@@ -1234,6 +1244,7 @@ Rules:
                         }
                         onFatalError(userMsg)
                     }
+                    recordAnalytics(request, null, callStartMs, isError = true)
                     return null
                 }
                 // Exponential backoff: 500ms, 1s, 2s, 4s, ... (bit-shift for integer powers of 2)
@@ -1335,6 +1346,50 @@ Rules:
         }
 
         return if (digest.length > maxChars) digest.take(maxChars) + "\n[...digest truncated...]" else digest
+    }
+
+    /**
+     * Best-effort analytics recorder.
+     *
+     * Resolves the model's provider + pricing via [ModelRegistry] so the repository
+     * can store the precise USD cost and keep per-provider roll-ups accurate.
+     * Never throws — analytics must never break an agent run.
+     */
+    private suspend fun recordAnalytics(
+        request: CompletionRequest,
+        response: CompletionResponse?,
+        callStartMs: Long,
+        isError: Boolean
+    ) {
+        val repo = analyticsRepository ?: return
+        try {
+            val latencyMs = (System.currentTimeMillis() - callStartMs).coerceAtLeast(0L)
+            val model = ModelRegistry.findModelById(request.modelId)
+            val usage = response?.tokensUsed
+
+            val inputTokens = usage?.promptTokens ?: 0
+            val outputTokens = usage?.completionTokens ?: 0
+
+            val cost = if (model != null && usage != null) {
+                val inCost = (model.costPer1MInputTokens ?: 0.0) * inputTokens / 1_000_000.0
+                val outCost = (model.costPer1MOutputTokens ?: 0.0) * outputTokens / 1_000_000.0
+                inCost + outCost
+            } else {
+                0.0
+            }
+
+            repo.recordTokenUsage(
+                modelId = request.modelId,
+                provider = model?.provider,
+                inputTokens = inputTokens,
+                outputTokens = outputTokens,
+                costUsd = cost,
+                latencyMs = latencyMs,
+                isError = isError
+            )
+        } catch (_: Exception) {
+            // Swallow — analytics is best-effort.
+        }
     }
 }
 
