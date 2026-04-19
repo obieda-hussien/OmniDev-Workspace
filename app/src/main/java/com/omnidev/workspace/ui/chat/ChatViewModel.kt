@@ -711,6 +711,8 @@ class ChatViewModel(
         val deepThinking = settingsRepository.observeDeepThinking().first()
         val userPersona = settingsRepository.observeUserPersona().first()
 
+        analyticsRepository?.recordAgentRun(isSwarm = false)
+
         agentPipeline.execute(
             userMessage = input,
             conversationHistory = _uiState.value.messages.dropLast(1),
@@ -757,6 +759,8 @@ class ChatViewModel(
             .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.SWARM_WORKER)
             .first()
         val deepThinking = settingsRepository.observeDeepThinking().first()
+
+        analyticsRepository?.recordAgentRun(isSwarm = true)
 
         orchestrator.execute(
             userMessage = input,
