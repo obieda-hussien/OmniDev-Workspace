@@ -437,7 +437,7 @@ private fun ModelRoleCard(
                         val dynamicModels = catalogs[provider]?.models
                         if (dynamicModels.isNullOrEmpty()) staticModels else dynamicModels
                     }.filterKeys { provider ->
-                        provider == ModelProvider.GITHUB_COPILOT || provider in configuredProvidersSet
+                        provider == ModelProvider.LOCAL_EDGE || provider == ModelProvider.GITHUB_COPILOT || provider in configuredProvidersSet
                     }
                     mergedModelsByProvider.forEach { (provider, models) ->
                         // Provider header
