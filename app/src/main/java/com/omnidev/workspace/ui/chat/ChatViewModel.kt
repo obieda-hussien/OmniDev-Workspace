@@ -758,6 +758,7 @@ class ChatViewModel(
         val workerModelId = settingsRepository
             .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.SWARM_WORKER)
             .first()
+        val godMode = settingsRepository.observeGodMode().first()
         val deepThinking = settingsRepository.observeDeepThinking().first()
 
         analyticsRepository?.recordAgentRun(isSwarm = true)
@@ -767,7 +768,8 @@ class ChatViewModel(
             orchestratorModelId = orchestratorModelId,
             workerModelId = workerModelId,
             scopePath = scopePath,
-            enableDeepThinking = deepThinking
+            enableDeepThinking = deepThinking,
+            godModeEnabled = godMode
         ).collect { event ->
             handleSwarmEvent(event, sessionId)
         }
@@ -1077,6 +1079,46 @@ class ChatViewModel(
                         agentStatus = "Worker ${event.task.id}: ${event.toolName}",
                         consoleEntries = it.consoleEntries +
                             AgentConsoleEntry.ToolEntry(event.toolName, params, event.task.priority)
+                    )
+                }
+
+            is SwarmEvent.WorkerToolResult -> {
+                val snippet = event.output.lines().firstOrNull()?.take(100) ?: ""
+                _uiState.update {
+                    it.copy(
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.ResultEntry(event.toolName, snippet, event.isError, event.output, 0L)
+                    )
+                }
+            }
+
+            is SwarmEvent.WorkerThinking ->
+                _uiState.update {
+                    it.copy(
+                        agentStatus = "Worker ${event.task.id}: Thinking (iter ${event.iteration})...",
+                        consoleEntries = it.consoleEntries + AgentConsoleEntry.ThinkingEntry(event.iteration)
+                    )
+                }
+
+            is SwarmEvent.WorkerThinkingBlock ->
+                _uiState.update {
+                    it.copy(
+                        consoleEntries = it.consoleEntries + AgentConsoleEntry.DeepThinkingEntry(event.content)
+                    )
+                }
+
+            is SwarmEvent.WorkerTokenUsage ->
+                _uiState.update {
+                    it.copy(
+                        consoleEntries = it.consoleEntries + AgentConsoleEntry.TokenEntry(event.totalTokens, event.budget)
+                    )
+                }
+
+            is SwarmEvent.WorkerPhaseChanged ->
+                _uiState.update {
+                    it.copy(
+                        agentStatus = "Worker ${event.task.id}: ${event.phase}",
+                        consoleEntries = it.consoleEntries + AgentConsoleEntry.PhaseEntry(event.phase, event.detail)
                     )
                 }
 
