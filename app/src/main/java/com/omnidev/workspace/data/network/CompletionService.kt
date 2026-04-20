@@ -91,11 +91,18 @@ private data class AnthropicToolDef(
 // ─── Anthropic SSE streaming DTOs ────────────────────────────────────────────
 
 @Serializable
+private data class AnthropicStreamMessage(
+    val usage: AnthropicUsage? = null
+)
+
+@Serializable
 private data class AnthropicStreamEvent(
     val type: String = "",
     val index: Int? = null,
     val delta: AnthropicStreamDelta? = null,
-    @SerialName("content_block") val contentBlock: AnthropicStreamContentBlock? = null
+    @SerialName("content_block") val contentBlock: AnthropicStreamContentBlock? = null,
+    val message: AnthropicStreamMessage? = null,
+    val usage: AnthropicUsage? = null
 )
 
 @Serializable
@@ -192,7 +199,8 @@ private data class OpenAiToolCallFunction(
 
 @Serializable
 private data class OpenAiStreamChunk(
-    val choices: List<OpenAiStreamChoice> = emptyList()
+    val choices: List<OpenAiStreamChoice> = emptyList(),
+    val usage: OpenAiUsage? = null
 )
 
 @Serializable
@@ -786,6 +794,9 @@ class CompletionService {
                 if (data == "[DONE]") break
                 try {
                     val chunk = json.decodeFromString(OpenAiStreamChunk.serializer(), data)
+                    if (chunk.usage != null) {
+                        totalTokens = chunk.usage
+                    }
                     val choice = chunk.choices.firstOrNull() ?: continue
                     // Accumulate text content
                     val textDelta = choice.delta.content
@@ -921,6 +932,8 @@ class CompletionService {
         val toolUseIds   = mutableMapOf<Int, String>()
         val toolUseNames = mutableMapOf<Int, String>()
         val toolUseArgs  = mutableMapOf<Int, StringBuilder>()
+        var inputTokens = 0
+        var outputTokens = 0
 
         conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
             var line: String?
@@ -930,6 +943,13 @@ class CompletionService {
                 val data = l.removePrefix("data: ").trim()
                 try {
                     val event = json.decodeFromString(AnthropicStreamEvent.serializer(), data)
+                    if (event.type == "message_start" && event.message?.usage != null) {
+                        inputTokens += event.message.usage.inputTokens
+                        outputTokens += event.message.usage.outputTokens
+                    } else if (event.type == "message_delta" && event.usage != null) {
+                        inputTokens += event.usage.inputTokens
+                        outputTokens += event.usage.outputTokens
+                    }
                     when (event.type) {
                         "content_block_start" -> {
                             val block = event.contentBlock
@@ -975,7 +995,8 @@ class CompletionService {
         return CompletionResponse(
             content      = fullContent.toString(),
             toolCalls    = toolCalls,
-            finishReason = "end_turn"
+            finishReason = "end_turn",
+            tokensUsed   = if (inputTokens > 0 || outputTokens > 0) TokenUsage(inputTokens, outputTokens, inputTokens + outputTokens) else null
         )
     }
 
