@@ -115,10 +115,7 @@ CRITICAL INSTRUCTIONS:
 
         // ── Phase 1: Plan ──
         val orchestratorModel = ModelRegistry.findModelById(orchestratorModelId)
-            ?: run {
-                send(SwarmEvent.Error("Unknown orchestrator model: $orchestratorModelId"))
-                return@channelFlow
-            }
+            ?: ModelRegistry.getModelById(orchestratorModelId)
 
         val orchestratorApiKey = apiKeyRepository?.getApiKey(orchestratorModel.provider)
 

@@ -88,14 +88,17 @@ class ModelRegistryTest {
         assertTrue(model.speedTokensPerSecond!! >= 1000)
     }
 
-    @Test(expected = IllegalArgumentException::class)
-    fun `getModelById throws for unknown id`() {
-        ModelRegistry.getModelById("nonexistent-model")
+    @Test
+    fun `getModelById returns generated model for unknown id`() {
+        val model = ModelRegistry.getModelById("nonexistent-model")
+        assertEquals("nonexistent-model", model.displayName)
     }
 
     @Test
-    fun `findModelById returns null for unknown id`() {
-        assertNull(ModelRegistry.findModelById("nonexistent-model"))
+    fun `findModelById returns generated model for unknown id`() {
+        val model = ModelRegistry.findModelById("nonexistent-model")
+        assertNotNull(model)
+        assertEquals("nonexistent-model", model?.displayName)
     }
 
     @Test
