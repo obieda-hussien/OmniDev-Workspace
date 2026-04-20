@@ -108,7 +108,8 @@ CRITICAL INSTRUCTIONS:
         orchestratorModelId: String,
         workerModelId: String,
         scopePath: String,
-        enableDeepThinking: Boolean = false
+        enableDeepThinking: Boolean = false,
+        godModeEnabled: Boolean = false
     ): Flow<SwarmEvent> = channelFlow {
         send(SwarmEvent.PlanningStarted)
 
@@ -121,10 +122,13 @@ CRITICAL INSTRUCTIONS:
 
         val orchestratorApiKey = apiKeyRepository?.getApiKey(orchestratorModel.provider)
 
+        val godModeNote = if (godModeEnabled) "\n[GOD MODE ENABLED]: You have unrestricted file system access. You can request workers to use god-mode specific operations." else ""
+        val finalOrchestratorPrompt = ORCHESTRATOR_SYSTEM_PROMPT.trimIndent() + godModeNote
+
         val planRequest = CompletionRequest(
             modelId = orchestratorModelId,
             messages = listOf(ChatMessage(role = MessageRole.USER, content = userMessage)),
-            systemPrompt = ORCHESTRATOR_SYSTEM_PROMPT.trimIndent(),
+            systemPrompt = finalOrchestratorPrompt,
             maxTokens = orchestratorModel.maxOutputTokens,
             enableThinking = enableDeepThinking && orchestratorModel.supportsThinking,
             targetContext = scopePath,
@@ -216,6 +220,9 @@ CRITICAL INSTRUCTIONS:
 
                         val workerPrompt = buildString {
                             appendLine("## Sub-Task: ${task.description}")
+                            if (godModeEnabled) {
+                                appendLine("\n[GOD MODE ENABLED]: You have full root file system access.")
+                            }
                             if (dependencyContext.isNotEmpty()) {
                                 appendLine()
                                 appendLine("## Context from prior tasks:")
@@ -248,7 +255,12 @@ CRITICAL INSTRUCTIONS:
                                 is AgentEvent.Error -> taskError = event.message
                                 is AgentEvent.StreamChunk -> send(SwarmEvent.WorkerStreamChunk(task, event.delta))
                                 is AgentEvent.ToolExecution -> send(SwarmEvent.WorkerToolUse(task, event.toolName, event.arguments))
-                                else -> { /* other events handled internally by the worker */ }
+                                is AgentEvent.ToolResult -> send(SwarmEvent.WorkerToolResult(task, event.toolName, event.output, event.isError))
+                                is AgentEvent.Thinking -> send(SwarmEvent.WorkerThinking(task, event.iteration))
+                                is AgentEvent.ThinkingBlock -> send(SwarmEvent.WorkerThinkingBlock(task, event.content))
+                                is AgentEvent.TokenUsageUpdate -> send(SwarmEvent.WorkerTokenUsage(task, event.totalTokens, event.budget))
+                                is AgentEvent.PhaseChanged -> send(SwarmEvent.WorkerPhaseChanged(task, event.phase.name, event.detail))
+                                else -> {}
                             }
                         }
 
@@ -418,6 +430,30 @@ sealed class SwarmEvent {
         val task: SwarmTask,
         val toolName: String,
         val arguments: Map<String, String>
+    ) : SwarmEvent()
+    data class WorkerToolResult(
+        val task: SwarmTask,
+        val toolName: String,
+        val output: String,
+        val isError: Boolean
+    ) : SwarmEvent()
+    data class WorkerThinking(
+        val task: SwarmTask,
+        val iteration: Int
+    ) : SwarmEvent()
+    data class WorkerThinkingBlock(
+        val task: SwarmTask,
+        val content: String
+    ) : SwarmEvent()
+    data class WorkerTokenUsage(
+        val task: SwarmTask,
+        val totalTokens: Int,
+        val budget: Int?
+    ) : SwarmEvent()
+    data class WorkerPhaseChanged(
+        val task: SwarmTask,
+        val phase: String,
+        val detail: String?
     ) : SwarmEvent()
     /** A streaming text delta chunk emitted by a Worker during its ReAct loop. */
     data class WorkerStreamChunk(val task: SwarmTask, val delta: String) : SwarmEvent()
