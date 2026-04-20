@@ -13,6 +13,7 @@ import com.omnidev.workspace.data.repository.AnalyticsRepository
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.EnvironmentSetupManager
 import com.omnidev.workspace.data.tools.FileToolManager
@@ -20,9 +21,11 @@ import com.omnidev.workspace.data.tools.GodEyeProfilerTool
 import com.omnidev.workspace.data.tools.HeadlessBrowserManager
 import com.omnidev.workspace.data.tools.MemoryManager
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
+import com.omnidev.workspace.data.tools.TaskSchedulerTool
 import com.omnidev.workspace.data.tools.VectorMemoryManager
 import com.omnidev.workspace.domain.attachment.AttachmentProcessor
 import com.omnidev.workspace.domain.engine.AgentConfig
+import com.omnidev.workspace.domain.engine.AgentEvent
 import com.omnidev.workspace.domain.engine.AgentPipeline
 import com.omnidev.workspace.domain.engine.SwarmOrchestrator
 import com.omnidev.workspace.ui.chat.ChatViewModel
@@ -31,6 +34,8 @@ import com.omnidev.workspace.ui.providers.ProvidersViewModel
 import com.omnidev.workspace.ui.settings.AISettingsViewModel
 import com.omnidev.workspace.ui.theme.OmniDevTheme
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Main entry point for OmniDev Workspace.
@@ -140,6 +145,94 @@ class MainActivity : ComponentActivity() {
             compositeToolManager = toolManager
         )
         val providersViewModel = ProvidersViewModel(apiKeyRepository)
+
+        // ── Task Execution Bridge ──────────────────────────────────────────────
+        // Connects TaskSchedulerTool to AgentPipeline so scheduled tasks are
+        // ACTUALLY EXECUTED by OmniSyncService (not just marked as "running").
+        //
+        // Without this wiring, OmniSyncService.performSync() would detect ready
+        // tasks but find `executionCallback == null` and mark them as failed
+        // with "Execution bridge not configured". Setting it here closes the
+        // loop: ready task → AgentPipeline.execute() → result written back.
+        TaskSchedulerTool.executionCallback = { task ->
+            val startMs = System.currentTimeMillis()
+            val toolsUsedCount = AtomicInteger(0)
+            val toolNamesList = mutableListOf<String>()
+            var finalResult = ""
+            var finalIterations = 0
+            var executionError: String? = null
+
+            try {
+                // Optional: enrich prompt with dependency context when present.
+                val dependencyContext = task.dependsOn.mapNotNull { _ ->
+                    // Reserved for future: look up completed dependency results
+                    // and inject them here. For now we only signal the presence
+                    // of dependencies to the model via the surrounding task metadata.
+                    null
+                }.joinToString("\n")
+
+                val fullPrompt = if (dependencyContext.isNotBlank()) {
+                    "# Task: ${task.name}\n\n${task.prompt}\n\n## Context from dependencies:\n$dependencyContext"
+                } else {
+                    task.prompt
+                }
+
+                // Resolve model + scope from user settings at execution time so
+                // scheduled tasks always honor the latest preferences.
+                val modelId = settingsRepository
+                    .observeModelIdForRole(ModelRole.AGENT)
+                    .first()
+                val scopePath = settingsRepository
+                    .observeTargetContext()
+                    .first()
+                    .orEmpty()
+
+                agentPipeline.execute(
+                    userMessage = fullPrompt,
+                    modelId = modelId,
+                    scopePath = scopePath,
+                    enableDeepThinking = false
+                ).collect { event ->
+                    when (event) {
+                        is AgentEvent.ToolExecution -> {
+                            toolsUsedCount.incrementAndGet()
+                            toolNamesList.add(event.toolName)
+                        }
+                        is AgentEvent.FinalAnswer -> {
+                            finalResult = event.content
+                            finalIterations = event.totalIterations
+                        }
+                        is AgentEvent.Error -> {
+                            executionError = event.message
+                        }
+                        else -> Unit
+                    }
+                }
+            } catch (e: Exception) {
+                executionError = e.message ?: "Unknown error"
+            }
+
+            val endMs = System.currentTimeMillis()
+            val errorSnapshot = executionError
+            val isSuccess = errorSnapshot == null && finalResult.isNotBlank()
+
+            TaskSchedulerTool.ExecutionSummary(
+                taskId = task.id,
+                taskName = task.name,
+                startTimeMs = startMs,
+                endTimeMs = endMs,
+                toolsUsed = toolsUsedCount.get(),
+                toolNames = toolNamesList.toList(),
+                result = finalResult.ifBlank { errorSnapshot ?: "(no output)" },
+                isSuccess = isSuccess,
+                iterationsUsed = finalIterations,
+                errorMessage = errorSnapshot
+            )
+        }
+        android.util.Log.i(
+            "MainActivity",
+            "✅ TaskSchedulerTool.executionCallback wired — scheduled tasks will now execute via AgentPipeline."
+        )
 
         setContent {
             OmniDevTheme {
