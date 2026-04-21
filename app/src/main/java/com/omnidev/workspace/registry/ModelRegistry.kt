@@ -1695,19 +1695,78 @@ object ModelRegistry {
         }
     }
 
-    /**
-     * Retrieves a model by its unique [id].
-     * @throws IllegalArgumentException if no model matches the given ID.
-     */
-    fun getModelById(id: String): AIModel =
-        allModels.firstOrNull { it.id == id }
-            ?: throw IllegalArgumentException("Unknown model ID: $id")
+    private fun generateFallbackModel(id: String): AIModel {
+        val lowerId = id.lowercase(java.util.Locale.US)
+        val provider = when {
+            "claude" in lowerId || "anthropic" in lowerId -> ModelProvider.ANTHROPIC
+            "gpt" in lowerId || "openai" in lowerId || lowerId.startsWith("o1") ||
+                lowerId.startsWith("o3") || lowerId.startsWith("o4") -> ModelProvider.OPENAI
+            "gemini" in lowerId || "google" in lowerId -> ModelProvider.GEMINI
+            "grok" in lowerId || "xai" in lowerId -> ModelProvider.XAI
+            "deepseek" in lowerId -> ModelProvider.DEEPSEEK
+            "mistral" in lowerId || "mixtral" in lowerId -> ModelProvider.MISTRAL
+            "groq" in lowerId -> ModelProvider.GROQ
+            "cerebras" in lowerId -> ModelProvider.CEREBRAS
+            "cohere" in lowerId || "command" in lowerId -> ModelProvider.COHERE
+            "fireworks" in lowerId -> ModelProvider.FIREWORKS
+            "together" in lowerId -> ModelProvider.TOGETHER
+            "perplexity" in lowerId || "sonar" in lowerId -> ModelProvider.PERPLEXITY
+            "nvidia" in lowerId || "nemotron" in lowerId -> ModelProvider.NVIDIA
+            "copilot" in lowerId -> ModelProvider.GITHUB_COPILOT
+            "openrouter" in lowerId || "/" in lowerId -> ModelProvider.OPEN_ROUTER
+            "llama" in lowerId -> ModelProvider.TOGETHER
+            else -> ModelProvider.LOCAL_EDGE
+        }
+
+        val tier = when {
+            lowerId.contains("opus") ||
+                lowerId.contains("ultra") ||
+                lowerId.contains("max") ||
+                lowerId.contains("pro") ||
+                lowerId.contains("70b") ||
+                lowerId.contains("72b") ||
+                lowerId.contains("405b") ||
+                lowerId.contains("r2") ||
+                lowerId.contains("gpt-5") ||
+                lowerId.contains("gemini-3") ||
+                lowerId.contains("grok-4") -> ModelTier.ORCHESTRATOR
+
+            lowerId.contains("haiku") ||
+                lowerId.contains("flash") ||
+                lowerId.contains("mini") ||
+                lowerId.contains("nano") ||
+                lowerId.contains("8b") ||
+                lowerId.contains("7b") ||
+                lowerId.contains("turbo") ||
+                lowerId.contains("fast") ||
+                lowerId.contains("instant") -> ModelTier.FAST
+
+            else -> ModelTier.EXECUTOR
+        }
+
+        return AIModel(
+            id = id,
+            displayName = id,
+            provider = provider,
+            tier = tier,
+            contextWindow = 128000,
+            maxOutputTokens = 8192,
+            supportsFunctionCalling = true
+        )
+    }
 
     /**
-     * Safely retrieves a model by [id], returning null if not found.
+     * Retrieves a model by its unique [id].
+     * Generates a fallback dynamically based on id if not found.
+     */
+    fun getModelById(id: String): AIModel =
+        allModels.firstOrNull { it.id == id } ?: generateFallbackModel(id)
+
+    /**
+     * Safely retrieves a model by [id], returning a generated fallback if not found.
      */
     fun findModelById(id: String): AIModel? =
-        allModels.firstOrNull { it.id == id }
+        allModels.firstOrNull { it.id == id } ?: generateFallbackModel(id)
 
     /**
      * Retrieves all models of a specific [tier], sorted by provider order.

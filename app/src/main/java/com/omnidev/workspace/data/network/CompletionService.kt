@@ -337,7 +337,7 @@ class CompletionService {
     suspend operator fun invoke(request: CompletionRequest): CompletionResponse =
         withContext(Dispatchers.IO) {
             val model = ModelRegistry.findModelById(request.modelId)
-                ?: throw IOException("Unknown model ID: '${request.modelId}'")
+                ?: ModelRegistry.getModelById(request.modelId)
 
             if (model.provider == ModelProvider.LOCAL_EDGE) {
                 return@withContext callLocalEdge(request)
@@ -654,7 +654,7 @@ class CompletionService {
         onChunk: suspend (String) -> Unit
     ): CompletionResponse = withContext(Dispatchers.IO) {
         val model = ModelRegistry.findModelById(request.modelId)
-            ?: throw IOException("Unknown model ID: '${request.modelId}'")
+                ?: ModelRegistry.getModelById(request.modelId)
 
         if (model.provider == ModelProvider.LOCAL_EDGE) {
             return@withContext streamLocalEdge(request, onChunk)

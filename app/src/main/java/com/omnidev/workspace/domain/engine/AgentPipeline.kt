@@ -596,10 +596,7 @@ Rules:
         )
 
         val model = ModelRegistry.findModelById(modelId)
-            ?: run {
-                send(AgentEvent.Error("Unknown model: $modelId"))
-                return@channelFlow
-            }
+            ?: ModelRegistry.getModelById(modelId)
 
         // Select tier-appropriate system prompt, or use the custom override
         val baseSystemPrompt = customSystemPrompt?.takeIf { it.isNotBlank() }
