@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ══════════════════════════════════════════════════════════════════════════════
+  LITE FLAVOR MANIFEST — Google Play Store SAFE Variant
+  ══════════════════════════════════════════════════════════════════════════════
+  This manifest is merged with app/src/main/AndroidManifest.xml at build time.
+  Every <uses-permission>, <service>, <provider>, and <receiver> declared here
+  with tools:node="remove" is physically STRIPPED from the final merged manifest
+  shipped to Google Play.
+
+  Goal: produce a Play-Store-compliant APK that carries NONE of the Play-hostile
+  permissions or privileged components (Shizuku, Accessibility, Device Admin,
+  VPN, IME, full file access, PACKAGE_USAGE_STATS, WRITE_SECURE_SETTINGS, etc.)
+
+  Lite feature set (runtime-enforced by LiteTierPolicy):
+    - web_search / web_search_deep / web_scraper / read_file  ← ONLY
+    - BYOK (Bring Your Own Key) + ad monetization
+    - No automation, no system control, no privileged execution.
+  ══════════════════════════════════════════════════════════════════════════════
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- STORAGE / FILE ACCESS — strip "manage all files" style perms     -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_MEDIA"            tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_DOCUMENTS"        tools:node="remove" />
+    <uses-permission android:name="android.permission.MOUNT_UNMOUNT_FILESYSTEMS" tools:node="remove" />
+    <uses-permission android:name="android.permission.MOUNT_FORMAT_FILESYSTEMS"  tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"       tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"        tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"        tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- NETWORKING / VPN — strip privileged and VPN capabilities         -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.NETWORK_STACK"                 tools:node="remove" />
+    <uses-permission android:name="android.permission.CONNECTIVITY_INTERNAL"         tools:node="remove" />
+    <uses-permission android:name="android.permission.CONNECTIVITY_USE_RESTRICTED_NETWORKS" tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_NETWORK_POLICY"         tools:node="remove" />
+    <uses-permission android:name="android.permission.TETHER_PRIVILEGED"             tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_NETWORK_USAGE_HISTORY"    tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_APN_SETTINGS"            tools:node="remove" />
+    <uses-permission android:name="android.permission.LOCAL_MAC_ADDRESS"             tools:node="remove" />
+    <uses-permission android:name="android.permission.PEERS_MAC_ADDRESS"             tools:node="remove" />
+    <uses-permission android:name="android.permission.CONTROL_VPN"                   tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_IPSEC_TUNNELS"          tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_WIFI_CREDENTIAL"          tools:node="remove" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE"             tools:node="remove" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"          tools:node="remove" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE"   tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- LOCATION — Lite does not provide location-based tools            -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"       tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"     tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" tools:node="remove" />
+    <uses-permission android:name="android.permission.LOCATION_HARDWARE"          tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_MOCK_LOCATION"       tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- TELEPHONY / SMS / CALLS — strip entirely (CDR compliance)        -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.CALL_PHONE"                 tools:node="remove" />
+    <uses-permission android:name="android.permission.SEND_SMS"                   tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_SMS"                   tools:node="remove" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS"                tools:node="remove" />
+    <uses-permission android:name="android.permission.RECEIVE_MMS"                tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"           tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_PRECISE_PHONE_STATE"   tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG"              tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_CALL_LOG"             tools:node="remove" />
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS"         tools:node="remove" />
+    <uses-permission android:name="android.permission.PROCESS_OUTGOING_CALLS"     tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS"           tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_ONGOING_CALLS"       tools:node="remove" />
+    <uses-permission android:name="android.permission.MODIFY_PHONE_STATE"         tools:node="remove" />
+    <uses-permission android:name="android.permission.RECEIVE_EMERGENCY_BROADCAST" tools:node="remove" />
+    <uses-permission android:name="android.permission.SEND_RESPOND_VIA_MESSAGE"   tools:node="remove" />
+    <uses-permission android:name="android.permission.USE_ICC_AUTH_WITH_DEVICE_IDENTIFIER" tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- CONTACTS / CALENDAR / ACCOUNTS                                   -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.GET_ACCOUNTS"   tools:node="remove" />
+    <uses-permission android:name="android.permission.USE_CREDENTIALS" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_CONTACTS"   tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_CONTACTS"  tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_CALENDAR"   tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR"  tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- BLUETOOTH / NFC / UWB — no hardware control                      -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.BLUETOOTH"            tools:node="remove" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"      tools:node="remove" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"    tools:node="remove" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"       tools:node="remove" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE"  tools:node="remove" />
+    <uses-permission android:name="android.permission.BLUETOOTH_PRIVILEGED" tools:node="remove" />
+    <uses-permission android:name="android.permission.NFC"                  tools:node="remove" />
+    <uses-permission android:name="android.permission.NFC_TRANSACTION_EVENT" tools:node="remove" />
+    <uses-permission android:name="android.permission.UWB_RANGING"          tools:node="remove" />
+    <uses-permission android:name="android.permission.TRANSMIT_IR"          tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- CAMERA / SENSORS / AUDIO — Lite is read-only chat, no capture    -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.CAMERA"                  tools:node="remove" />
+    <uses-permission android:name="android.permission.BODY_SENSORS"            tools:node="remove" />
+    <uses-permission android:name="android.permission.BODY_SENSORS_BACKGROUND" tools:node="remove" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"   tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_SENSOR_PRIVACY"   tools:node="remove" />
+    <uses-permission android:name="android.permission.OBSERVE_SENSOR_PRIVACY"  tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- SHIZUKU — completely removed                                     -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- PACKAGE MANAGEMENT — no installing/removing/querying other apps  -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"          tools:node="remove" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"    tools:node="remove" />
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES"     tools:node="remove" />
+    <uses-permission android:name="android.permission.INSTALL_PACKAGES"            tools:node="remove" />
+    <uses-permission android:name="android.permission.INSTALL_GRANT_RUNTIME_PERMISSIONS" tools:node="remove" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"         tools:node="remove" />
+    <uses-permission android:name="android.permission.DELETE_PACKAGES"             tools:node="remove" />
+    <uses-permission android:name="android.permission.GET_TASKS"                   tools:node="remove" />
+    <uses-permission android:name="android.permission.CHANGE_COMPONENT_ENABLED_STATE" tools:node="remove" />
+    <uses-permission android:name="android.permission.SET_PREFERRED_APPLICATIONS"  tools:node="remove" />
+    <uses-permission android:name="android.permission.BROADCAST_PACKAGE_REMOVED"   tools:node="remove" />
+    <uses-permission android:name="android.permission.FORCE_STOP_PACKAGES"         tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- SYSTEM SETTINGS / DEVICE CONFIG — strip                          -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.WRITE_SETTINGS"            tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"     tools:node="remove" />
+    <uses-permission android:name="android.permission.CHANGE_CONFIGURATION"      tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_DEVICE_CONFIG"        tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_DEVICE_CONFIG"       tools:node="remove" />
+    <uses-permission android:name="android.permission.SET_TIME"                  tools:node="remove" />
+    <uses-permission android:name="android.permission.SET_TIME_ZONE"             tools:node="remove" />
+    <uses-permission android:name="android.permission.CONFIGURE_DISPLAY_BRIGHTNESS" tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_APP_OPS_MODES"      tools:node="remove" />
+    <uses-permission android:name="android.permission.UPDATE_APP_OPS_STATS"      tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_CHECKIN_PROPERTIES" tools:node="remove" />
+    <uses-permission android:name="android.permission.HARDWARE_TEST"             tools:node="remove" />
+    <uses-permission android:name="android.permission.DIAGNOSTIC"                tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- OVERLAY / STATUS BAR — Play Store prohibits SYSTEM_ALERT_WINDOW  -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"     tools:node="remove" />
+    <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS"    tools:node="remove" />
+    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR"       tools:node="remove" />
+    <uses-permission android:name="android.permission.BROADCAST_STICKY"        tools:node="remove" />
+    <uses-permission android:name="android.permission.STATUS_BAR"              tools:node="remove" />
+    <uses-permission android:name="android.permission.INTERNAL_SYSTEM_WINDOW"  tools:node="remove" />
+    <uses-permission android:name="android.permission.INPUT_CONSUMER"          tools:node="remove" />
+    <uses-permission android:name="android.permission.STOP_APP_SWITCHES"       tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_SURFACE_FLINGER"  tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_APP_TOKENS"       tools:node="remove" />
+    <uses-permission android:name="android.permission.SET_WALLPAPER"           tools:node="remove" />
+    <uses-permission android:name="android.permission.SET_WALLPAPER_HINTS"     tools:node="remove" />
+    <uses-permission android:name="android.permission.BIND_WALLPAPER"          tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- ALARMS / BOOT / POWER — strip privileged variants                -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM"      tools:node="remove" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" tools:node="remove" />
+    <uses-permission android:name="android.permission.KILL_BACKGROUND_PROCESSES" tools:node="remove" />
+    <uses-permission android:name="android.permission.SIGNAL_PERSISTENT_PROCESSES" tools:node="remove" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" tools:node="remove" />
+    <uses-permission android:name="android.permission.DEVICE_POWER"                         tools:node="remove" />
+    <uses-permission android:name="android.permission.REBOOT"                               tools:node="remove" />
+    <uses-permission android:name="android.permission.START_ACTIVITIES_FROM_BACKGROUND"     tools:node="remove" />
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION"                 tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- BIOMETRIC / KEYGUARD — only basic biometric is kept              -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.MANAGE_BIOMETRIC"                 tools:node="remove" />
+    <uses-permission android:name="android.permission.RESET_FINGERPRINT_LOCKOUT"        tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_KEYGUARD_SECURE_STORAGE"   tools:node="remove" />
+    <uses-permission android:name="android.permission.CONTROL_KEYGUARD"                 tools:node="remove" />
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD"                 tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- RUNTIME PERMISSION MANAGEMENT — privileged-only                  -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.GRANT_RUNTIME_PERMISSIONS"          tools:node="remove" />
+    <uses-permission android:name="android.permission.REVOKE_RUNTIME_PERMISSIONS"         tools:node="remove" />
+    <uses-permission android:name="android.permission.OBSERVE_GRANT_REVOKE_PERMISSIONS"   tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_DEVICE_POLICY_MANAGER"       tools:node="remove" />
+    <uses-permission android:name="android.permission.PROJECT_MEDIA"                      tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- DEBUG / PROFILING — strip                                        -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.DUMP"                         tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_LOGS"                    tools:node="remove" />
+    <uses-permission android:name="android.permission.BATTERY_STATS"                tools:node="remove" />
+    <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS_FULL"   tools:node="remove" />
+    <uses-permission android:name="android.permission.INTERACT_ACROSS_PROFILES"     tools:node="remove" />
+    <uses-permission android:name="android.permission.CLEAR_APP_CACHE"              tools:node="remove" />
+    <uses-permission android:name="android.permission.CLEAR_APP_USER_DATA"          tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_FRAME_BUFFER"            tools:node="remove" />
+    <uses-permission android:name="android.permission.INJECT_EVENTS"                tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_USERS"                 tools:node="remove" />
+    <uses-permission android:name="android.permission.CREATE_USERS"                 tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- MEDIA CAPTURE / PROJECTION — strip                               -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.CAPTURE_AUDIO_OUTPUT"         tools:node="remove" />
+    <uses-permission android:name="android.permission.CAPTURE_VIDEO_OUTPUT"         tools:node="remove" />
+    <uses-permission android:name="android.permission.CAPTURE_SECURE_VIDEO_OUTPUT"  tools:node="remove" />
+    <uses-permission android:name="android.permission.MEDIA_CONTENT_CONTROL"        tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_MEDIA_PROJECTION"      tools:node="remove" />
+    <uses-permission android:name="android.permission.MEDIA_ROUTING_CONTROL"        tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- BINDING PRIVILEGES — strip                                       -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.BIND_QUICK_SETTINGS_TILE" tools:node="remove" />
+    <uses-permission android:name="android.permission.BIND_CONTROLS"            tools:node="remove" />
+    <uses-permission android:name="android.permission.BIND_REMOTEVIEWS"         tools:node="remove" />
+    <uses-permission android:name="android.permission.BIND_APPWIDGET"           tools:node="remove" />
+    <uses-permission android:name="android.permission.BIND_DREAM_SERVICE"       tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- FOREGROUND SERVICE SUB-TYPES — strip everything except data_sync -->
+    <!-- (basic FOREGROUND_SERVICE is Play-compliant; sub-types are not    -->
+    <!--  needed because we strip their parent services below.)           -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA"           tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH"           tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"         tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"   tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL"       tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"      tools:node="remove" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED"  tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- LEGACY EXTERNAL STORAGE — stripped (we only use SAF on lite)     -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"  tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- APPLICATION COMPONENT STRIPS                                     -->
+    <!-- Remove the Shizuku provider, Accessibility service, IME service, -->
+    <!-- VPN service, Device Admin receiver, SMS receiver, Notification   -->
+    <!-- listener, Screen-capture service, IPC core, and integration      -->
+    <!-- polling services — none of them are callable in the Lite tier.   -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <application
+        android:persistent="false"
+        tools:replace="android:persistent">
+
+        <!-- No Shizuku provider in Play Store build -->
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            tools:node="remove" />
+
+        <!-- No Accessibility tree inspection -->
+        <service
+            android:name=".data.accessibility.OmniAccessibilityService"
+            tools:node="remove" />
+
+        <!-- No IME takeover -->
+        <service
+            android:name=".data.input.OmniInputMethodService"
+            tools:node="remove" />
+
+        <!-- No VPN tunnel -->
+        <service
+            android:name=".data.network.OmniDevVpnService"
+            tools:node="remove" />
+
+        <!-- No IPC core (Shizuku/cross-process god-mode) -->
+        <service
+            android:name=".data.ipc.OmniCoreService"
+            tools:node="remove" />
+
+        <!-- No notification listener -->
+        <service
+            android:name=".data.tools.AgentNotificationService"
+            tools:node="remove" />
+
+        <!-- No screen capture -->
+        <service
+            android:name=".data.vision.OmniScreenCaptureService"
+            tools:node="remove" />
+
+        <!-- No Telegram/Discord/WhatsApp polling services (require FGS+network) -->
+        <service
+            android:name=".data.integration.TelegramPollingService"
+            tools:node="remove" />
+        <service
+            android:name=".data.integration.DiscordPollingService"
+            tools:node="remove" />
+        <service
+            android:name=".data.integration.WhatsAppBridgeService"
+            tools:node="remove" />
+
+        <!-- No media session takeover -->
+        <service
+            android:name=".data.media.OmniMediaSessionService"
+            tools:node="remove" />
+
+        <!-- No background sync service -->
+        <service
+            android:name=".data.sync.OmniSyncService"
+            tools:node="remove" />
+
+        <!-- No Device Admin (factory reset, password policy, etc.) -->
+        <receiver
+            android:name=".data.admin.OmniDeviceAdminReceiver"
+            tools:node="remove" />
+
+        <!-- No SMS receiver -->
+        <receiver
+            android:name=".data.communication.OmniSmsReceiver"
+            tools:node="remove" />
+
+        <!-- No boot-time auto-start on Play (we only run when user opens the app) -->
+        <receiver
+            android:name=".data.system.BootReceiver"
+            tools:node="remove" />
+
+    </application>
+
+</manifest>

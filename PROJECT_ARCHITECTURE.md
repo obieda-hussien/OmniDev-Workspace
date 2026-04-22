@@ -1,18 +1,93 @@
 # 🧠 OmniDev Workspace — خريطة معمارية كاملة
-**نسخة: 2.0 | آخر تحديث: 2026-04-01**
+**نسخة: 3.0 | آخر تحديث: 2026-04-22**
 
 > **الغرض:** هذا الملف هو الخريطة الذهنية الكاملة للمشروع. يوفر لأي AI Agent أو مطور صورة فورية عن البنية بدون الحاجة لقراءة 56,743 سطر كود.
+
+---
+
+## 🎛️ 4-Tier Build Flavor Architecture
+
+The project now ships in four product flavors on the `tier` dimension. Each
+flavor is a distinct business tier with its own applicationId, its own manifest
+overlay, its own capability policy, and its own confirmation behaviour.
+
+| Flavor | applicationId                  | Target audience                | Core capabilities                                                       | Confirmation behaviour |
+|--------|--------------------------------|--------------------------------|-------------------------------------------------------------------------|------------------------|
+| `lite` | `com.omnidev.workspace`        | B2C Free / Google Play Store   | `web_search`, `web_search_deep`, `web_scraper`, `read_file` ONLY        | Deny-all gate (defense-in-depth; tools aren't registered) |
+| `norm` | `com.omnidev.workspace.norm`   | B2C Basic / Standard devs      | Accessibility, terminal, Git, app-manager (no root, no Shizuku)         | User prompts (UI gate) |
+| `pro`  | `com.omnidev.workspace.pro`    | B2C Premium / Elite hackers    | Full God-Mode — Shizuku, root, deep-security, pentesting, full swarm   | User prompts (UI gate) |
+| `oem`  | `com.omnidev.workspace.oem`    | B2B partners / Custom ROMs     | System-uid privilege, local Llama.cpp, but NO device-wipe               | **Zero-click** — OemTierPolicy auto-approves every request |
+
+### Policy layer (`com.omnidev.workspace.core.policy`)
+
+```
+core/policy/
+  ├── TierPolicy.kt            ← Interface: allowRoot, allowShizuku, allowAccessibility,
+  │                              allowDeepSecurity, allowDeviceAdminWipe, allowLocalSlm,
+  │                              allowSystemIntegration, autoApproveConfirmations,
+  │                              confirmationGate(uiGate).
+  ├── ConfirmationGate.kt      ← fun interface { suspend request(kind, preview, diff) }
+  │                              + ConfirmationKind enum (policy-layer twin of ConfirmationType).
+  ├── OmniAuditLog.kt          ← Process-local ring buffer (1k entries) + SharedFlow emitter.
+  └── TierPolicyHolder.kt      ← Process-wide holder installed once at OmniDevApp.onCreate().
+
+app/src/lite/java/.../LiteTierPolicy.kt   ← deny-all gate, all caps false.
+app/src/norm/java/.../NormTierPolicy.kt   ← UI gate delegate, allowAccessibility=true.
+app/src/pro/java/.../ProTierPolicy.kt     ← UI gate delegate, every cap true.
+app/src/oem/java/.../OemTierPolicy.kt     ← AUTO-APPROVING gate with audit log.
+```
+
+### Privileged execution facade (`com.omnidev.workspace.core.privileged`)
+
+```
+core/privileged/
+  ├── PrivilegedExecutionFacade.kt          ← isAvailable() + suspend execute(cmd, timeoutMs).
+  └── PrivilegedExecutionFacadeHolder.kt    ← Process-wide holder, deny-all default.
+
+app/src/lite/java/.../PrivilegedExecutionFacadeBootstrap.kt → deny-all.
+app/src/norm/java/.../...Bootstrap.kt                        → deny-all.
+app/src/pro/java/.../...Bootstrap.kt                         → adapter over PrivilegedExecutionManager
+                                                              (Shizuku → rish → root fallback).
+app/src/oem/java/.../...Bootstrap.kt                         → Runtime.exec() with android.uid.system
+                                                              + OmniAuditLog recording.
+```
+
+### Flavor-scoped AndroidManifest.xml overlays
+
+The AGP Manifest Merger physically strips prohibited nodes from each flavor's
+final APK using `tools:node="remove"`:
+
+- `app/src/lite/AndroidManifest.xml` — strips ~90 permissions (incl.
+  `MANAGE_EXTERNAL_STORAGE`, `SYSTEM_ALERT_WINDOW`, `PACKAGE_USAGE_STATS`,
+  `WRITE_SECURE_SETTINGS`, `READ_LOGS`, Shizuku `API_V23`) + 13
+  services/receivers (`OmniAccessibilityService`, `OmniDevVpnService`,
+  `OmniCoreService`, all integration polling services, Device Admin,
+  SMS receiver, Boot receiver) and the `ShizukuProvider`.
+- `app/src/norm/AndroidManifest.xml` — strips Shizuku + privileged/system-signature
+  permissions; keeps Accessibility, IME, Git.
+- `app/src/pro/AndroidManifest.xml` — no-op overlay (Pro inherits full base
+  manifest verbatim).
+- `app/src/oem/AndroidManifest.xml` — adds `android:sharedUserId="android.uid.system"`
+  for platform-signed custom-ROM installs; strips Shizuku.
+
+### Runtime tool gating (`TierToolGate`)
+
+`CompositeToolManager.getToolDefinitions()` routes through `TierToolGate.filter()`
+so the LLM function-calling schema is scoped to the current tier's allow-list.
+`CompositeToolManager.executeTool()` short-circuits with `TierToolGate.denyReason()`
+before any side effect runs — defense-in-depth against hallucinated tool names.
 
 ---
 
 ## 📊 إحصائيات المشروع
 
 ```
-إجمالي ملفات Kotlin: 151
-إجمالي الأسطر: 56,743
+إجمالي ملفات Kotlin: 172
+إجمالي الأسطر: ~60,000
 عدد الأدوات (Tools): 60+
 عدد الخدمات (Services): 12
 عدد واجهات AIDL: 5
+عدد المستويات (Tiers): 4 (lite / norm / pro / oem)
 ```
 
 ---

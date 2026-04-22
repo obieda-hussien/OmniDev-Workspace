@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ══════════════════════════════════════════════════════════════════════════════
+  NORM FLAVOR MANIFEST — Standard Developer B2C Basic
+  ══════════════════════════════════════════════════════════════════════════════
+  Keeps Accessibility, IME, basic terminal, Git, App manager.
+  Strips: Shizuku, root, deep-security / pentesting perms.
+  ══════════════════════════════════════════════════════════════════════════════
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ═══ Remove Shizuku entirely ═══ -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" tools:node="remove" />
+
+    <!-- ═══ Remove privileged / system-signature perms that imply root ═══ -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS"       tools:node="remove" />
+    <uses-permission android:name="android.permission.INJECT_EVENTS"               tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_LOGS"                   tools:node="remove" />
+    <uses-permission android:name="android.permission.DUMP"                        tools:node="remove" />
+    <uses-permission android:name="android.permission.BATTERY_STATS"               tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_FRAME_BUFFER"           tools:node="remove" />
+    <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS_FULL"  tools:node="remove" />
+    <uses-permission android:name="android.permission.INTERACT_ACROSS_PROFILES"    tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_USERS"                tools:node="remove" />
+    <uses-permission android:name="android.permission.CREATE_USERS"                tools:node="remove" />
+    <uses-permission android:name="android.permission.GRANT_RUNTIME_PERMISSIONS"   tools:node="remove" />
+    <uses-permission android:name="android.permission.REVOKE_RUNTIME_PERMISSIONS"  tools:node="remove" />
+    <uses-permission android:name="android.permission.OBSERVE_GRANT_REVOKE_PERMISSIONS" tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_DEVICE_POLICY_MANAGER" tools:node="remove" />
+    <uses-permission android:name="android.permission.MODIFY_PHONE_STATE"          tools:node="remove" />
+    <uses-permission android:name="android.permission.INSTALL_GRANT_RUNTIME_PERMISSIONS" tools:node="remove" />
+
+    <!-- ═══ Remove networking privileged flags ═══ -->
+    <uses-permission android:name="android.permission.NETWORK_STACK"                        tools:node="remove" />
+    <uses-permission android:name="android.permission.CONNECTIVITY_INTERNAL"                tools:node="remove" />
+    <uses-permission android:name="android.permission.CONNECTIVITY_USE_RESTRICTED_NETWORKS" tools:node="remove" />
+    <uses-permission android:name="android.permission.MANAGE_NETWORK_POLICY"                tools:node="remove" />
+    <uses-permission android:name="android.permission.TETHER_PRIVILEGED"                    tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_NETWORK_USAGE_HISTORY"           tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_APN_SETTINGS"                   tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_WIFI_CREDENTIAL"                 tools:node="remove" />
+
+    <!-- ═══ No keyguard / biometric privileged ops ═══ -->
+    <uses-permission android:name="android.permission.MANAGE_BIOMETRIC"              tools:node="remove" />
+    <uses-permission android:name="android.permission.RESET_FINGERPRINT_LOCKOUT"     tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_KEYGUARD_SECURE_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.CONTROL_KEYGUARD"              tools:node="remove" />
+
+    <!-- ═══ Remove the Shizuku provider from the merged manifest ═══ -->
+    <application>
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            tools:node="remove" />
+
+        <!-- Norm does not need cross-process IPC god-mode core -->
+        <service
+            android:name=".data.ipc.OmniCoreService"
+            tools:node="remove" />
+    </application>
+
+</manifest>

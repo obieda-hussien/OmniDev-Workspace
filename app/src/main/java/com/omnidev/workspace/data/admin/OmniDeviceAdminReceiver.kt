@@ -198,6 +198,25 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
          * يتطلب تأكيداً مزدوجاً.
          */
         fun wipeDeviceData(context: Context, confirmationToken: String): Boolean {
+            // ─── TIER POLICY GUARD ───────────────────────────────────────────
+            // Lite / Norm / OEM disallow factory reset at the tier level, even
+            // though the DeviceAdminReceiver may be registered in the manifest.
+            // OEM in particular has system-uid privilege but OEM partner policy
+            // forbids destructive actions.
+            val policy = com.omnidev.workspace.core.policy.TierPolicyHolder.current
+            if (!policy.allowDeviceAdminWipe) {
+                Log.e(TAG, "⛔ wipeDeviceData blocked by tier policy (tier=${policy.tier}).")
+                addAuditEntry(
+                    AuditEntry(
+                        "WIPE_REJECTED",
+                        "تم الحظر بواسطة سياسة المستوى (tier=${policy.tier})",
+                        success = false
+                    )
+                )
+                return false
+            }
+            // ────────────────────────────────────────────────────────────────
+
             if (confirmationToken != "CONFIRMED_WIPE_ALL_DATA") {
                 Log.e(TAG, "محاولة مسح بيانات الجهاز بدون تأكيد صحيح!")
                 addAuditEntry(AuditEntry("WIPE_REJECTED", "رمز تأكيد خاطئ", success = false))

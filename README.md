@@ -23,6 +23,40 @@
 | **الحد الأقصى SDK** | 35 |
 | **اللغة** | Kotlin 2.0 |
 | **الواجهة** | Jetpack Compose + Material 3 |
+| **Product Flavors** | `lite` / `norm` / `pro` / `oem` (4-tier) |
+
+---
+
+## 🎛️ 4-Tier Flavor Architecture
+
+The project ships four product flavors on the `tier` Gradle dimension. Each
+flavor is a distinct business tier with its own `applicationId`, manifest
+overlay, `TierPolicy`, and confirmation behaviour.
+
+| Flavor | applicationId                  | Audience                    | Capabilities                                                         | Gate behaviour |
+|--------|--------------------------------|-----------------------------|----------------------------------------------------------------------|----------------|
+| `lite` | `com.omnidev.workspace`        | B2C Free / Google Play      | `web_search`, `web_search_deep`, `web_scraper`, `read_file` ONLY     | Deny-all       |
+| `norm` | `com.omnidev.workspace.norm`   | B2C Basic / Standard devs   | Accessibility + terminal + Git + app manager (no root, no Shizuku)   | User prompts   |
+| `pro`  | `com.omnidev.workspace.pro`    | B2C Premium / Power users   | Full God-Mode — Shizuku + root + deep-security + pentesting + swarm  | User prompts   |
+| `oem`  | `com.omnidev.workspace.oem`    | B2B partners / Custom ROMs  | `android.uid.system` + local Llama.cpp (no device wipe)              | **Zero-click** (OemTierPolicy auto-approves) |
+
+Build a specific flavor with:
+
+```bash
+./gradlew :app:assembleLiteDebug     # Play-Store-safe variant
+./gradlew :app:assembleNormDebug     # Standard
+./gradlew :app:assembleProDebug      # Full god-mode
+./gradlew :app:assembleOemDebug      # OEM / custom ROM
+```
+
+The policy layer lives in `com.omnidev.workspace.core.policy` (see
+`TierPolicy.kt`, `ConfirmationGate.kt`, `OmniAuditLog.kt`,
+`TierPolicyHolder.kt`). Privileged execution is abstracted behind
+`com.omnidev.workspace.core.privileged.PrivilegedExecutionFacade`.
+
+For the roadmap to physically extract `:core:shared`, `:core:ipc`, and
+`:tools:{lite,standard,advanced}` as independent Gradle modules, see
+[**MODULARIZATION_ROADMAP.md**](./MODULARIZATION_ROADMAP.md).
 
 ---
 

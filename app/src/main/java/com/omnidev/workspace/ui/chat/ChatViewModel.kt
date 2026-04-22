@@ -185,33 +185,76 @@ class ChatViewModel(
 
 
     /**
-     * Wires [FileToolManager.confirmationGate] so that `patch_file_content`, `create_file`,
-     * and `delete_file` suspend and show a [ConfirmationGateDialog] with a visual diff
-     * before executing.
+     * Wires [FileToolManager.confirmationGate] through the active [TierPolicy].
      *
-     * Uses a [CompletableDeferred] to bridge the coroutine suspension point in
-     * [FileToolManager] to the Compose-driven confirmation dialog in [ChatScreen].
+     * Architecture:
+     *   1. Build `uiGate`: a [ConfirmationGate] that shows the Compose
+     *      [ConfirmationGateDialog] and awaits the user's tap via
+     *      [CompletableDeferred]. Used by NORM and PRO tiers.
+     *   2. Ask the currently installed [TierPolicy] to wrap / replace the
+     *      UI gate. OEM returns an auto-approving audit-logged gate (zero-click
+     *      execution); LITE returns a deny-all gate; NORM/PRO pass it through.
+     *   3. Install an adapter lambda into [FileToolManager.confirmationGate]
+     *      that calls the policy-wrapped gate with the correct
+     *      [com.omnidev.workspace.core.policy.ConfirmationKind] per call.
+     *
+     * This is the single integration point that turns ZERO_CLICK on for OEM
+     * builds and off for every other tier.
      */
     private fun wireFileConfirmationGate() {
         val ftm = fileToolManager ?: return
-        ftm.confirmationGate = { preview, diffContent ->
+
+        // ── Step 1: the UI-backed gate (NORM/PRO path) ────────────────────────
+        val uiGate = com.omnidev.workspace.core.policy.ConfirmationGate { kind, preview, diff ->
             val deferred = CompletableDeferred<Boolean>()
-            val confirmationType = if (diffContent != null)
-                ConfirmationType.GOD_MODE_FILE_PATCH
-            else
-                ConfirmationType.GOD_MODE_FILE_DELETE
+            val confirmationType = when (kind) {
+                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_PATCH ->
+                    ConfirmationType.GOD_MODE_FILE_PATCH
+                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_WRITE ->
+                    ConfirmationType.GOD_MODE_FILE_WRITE
+                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE ->
+                    ConfirmationType.GOD_MODE_FILE_DELETE
+                com.omnidev.workspace.core.policy.ConfirmationKind.SHIZUKU_COMMAND ->
+                    ConfirmationType.SHIZUKU_COMMAND
+                com.omnidev.workspace.core.policy.ConfirmationKind.ANDROID_INTENT ->
+                    ConfirmationType.ANDROID_INTENT
+            }
 
             showConfirmation(
                 PendingConfirmation(
                     id = UUID.randomUUID().toString(),
                     type = confirmationType,
                     preview = preview,
-                    diffContent = diffContent,
-                    onApprove = { deferred.complete(true) },
+                    diffContent = diff,
+                    onApprove = {
+                        // Manual approval is also audit-logged for consistency.
+                        com.omnidev.workspace.core.policy.OmniAuditLog.record(
+                            tier = com.omnidev.workspace.core.policy.TierPolicyHolder.current.tier,
+                            autoApproved = false,
+                            kind = kind,
+                            preview = preview,
+                            diffContent = diff
+                        )
+                        deferred.complete(true)
+                    },
                     onDeny = { deferred.complete(false) }
                 )
             )
             deferred.await()
+        }
+
+        // ── Step 2: let the tier policy wrap / replace the UI gate ────────────
+        val effectiveGate = com.omnidev.workspace.core.policy.TierPolicyHolder
+            .current
+            .confirmationGate(uiGate)
+
+        // ── Step 3: adapt the new policy-level gate to FileToolManager's API ──
+        ftm.confirmationGate = { preview, diffContent ->
+            val kind = if (diffContent != null)
+                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_PATCH
+            else
+                com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE
+            effectiveGate.request(kind, preview, diffContent)
         }
     }
 
