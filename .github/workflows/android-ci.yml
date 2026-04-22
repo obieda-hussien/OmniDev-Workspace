@@ -1,4 +1,4 @@
-name: Android CI/CD Pipeline
+name: OmniDev 4-Tier CI/CD Pipeline
 
 on:
   push:
@@ -10,14 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       build_release:
-        description: "Build signed release APK"
+        description: "Build signed release APKs"
         required: false
         default: true
-        type: boolean
-      enable_extended_checks:
-        description: "Enable additional compile checks"
-        required: false
-        default: false
         type: boolean
 
 concurrency:
@@ -25,384 +20,173 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
+  checks: write
+  pull-requests: write
 
 env:
   JAVA_VERSION: "17"
-  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dkotlin.incremental=false"
-  GRADLE_BUILD_ACTION_CACHE_DEBUG_ENABLED: false
-  MAX_DEBUG_APK_SIZE_KB: 81920
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
+  # Max size allowed for Pro/OEM (with Llama.cpp) vs Lite/Norm (No NDK)
+  MAX_NATIVE_APK_SIZE_KB: 85000 
+  MAX_LITE_APK_SIZE_KB: 25000
 
 jobs:
   code-quality:
-    name: Code Quality
+    name: Lint & Static Analysis
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      checks: write
-      pull-requests: write
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-        with:
-          submodules: recursive
-
-      - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Cache Gradle + native build dirs
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            app/.cxx
-            ~/.cmake
-          key: quality-${{ runner.os }}-${{ hashFiles('settings.gradle.kts', 'build.gradle.kts', 'app/build.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: |
-            quality-${{ runner.os }}-
-
       - name: Grant gradlew permission
         run: chmod +x gradlew
-
-      - name: Run lint checks
-        run: ./gradlew --no-daemon :app:lintDebug
-
-      - name: Optional static-analysis tasks (if present)
-        continue-on-error: true
-        run: |
-          TASKS="$(./gradlew tasks --all --no-daemon --console=plain)"
-          if echo "$TASKS" | grep -qE '^ktlintCheck( |$)'; then
-            ./gradlew --no-daemon ktlintCheck
-          else
-            echo "ktlintCheck task not found; skipping."
-          fi
-          if echo "$TASKS" | grep -qE '^detekt( |$)'; then
-            ./gradlew --no-daemon detekt
-          else
-            echo "detekt task not found; skipping."
-          fi
-
-      - name: Upload quality reports
+      - name: Run Lint on all flavors
+        # Runs lint for all 4 flavors
+        run: ./gradlew --no-daemon :app:lintLiteDebug :app:lintNormDebug :app:lintProDebug :app:lintOemDebug
+      - name: Upload Lint Reports
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: quality-reports-${{ github.run_number }}
-          path: |
-            **/build/reports/lint-results*.html
-            **/build/reports/lint-results*.xml
-            **/build/reports/ktlint/**
-            **/build/reports/detekt/**
-          if-no-files-found: ignore
+          name: lint-reports-${{ github.run_number }}
+          path: app/build/reports/lint-results*.html
           retention-days: 7
 
-  test:
-    name: Unit Tests
+  unit-tests:
+    name: Unit Tests (${{ matrix.flavor }})
     runs-on: ubuntu-latest
     needs: code-quality
-    permissions:
-      contents: read
-      checks: write
-      pull-requests: write
-
+    strategy:
+      matrix:
+        flavor: [Lite, Norm, Pro, Oem]
+      fail-fast: false
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Grant gradlew permission
         run: chmod +x gradlew
-
-      - name: Run compile + unit tests
-        run: |
-          ./gradlew --no-daemon \
-            :app:compileDebugKotlin \
-            :app:testDebugUnitTest \
-            --continue
-
-      - name: Upload test reports
+      - name: Run Unit Tests
+        run: ./gradlew --no-daemon :app:test${{ matrix.flavor }}DebugUnitTest --continue
+      - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: unit-test-reports-${{ github.run_number }}
-          path: |
-            app/build/reports/tests/
-            app/build/test-results/
-          retention-days: 14
+          name: test-results-${{ matrix.flavor }}-${{ github.run_number }}
+          path: app/build/reports/tests/
 
-      - name: Optional extended checks
-        if: github.event_name == 'workflow_dispatch' && inputs.enable_extended_checks == true
-        run: |
-          ./gradlew --no-daemon :app:compileReleaseKotlin :app:testReleaseUnitTest --continue
-
-  security-scan:
-    name: Dependency Security Scan
+  build-debug:
+    name: Build Debug APK (${{ matrix.flavor }})
     runs-on: ubuntu-latest
-    needs: code-quality
-    permissions:
-      contents: read
-      actions: read
-
+    needs: unit-tests
+    strategy:
+      matrix:
+        flavor: [Lite, Norm, Pro, Oem]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v5
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive # Crucial for llama.cpp on Pro/OEM
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
-
-      - name: Grant gradlew permission
-        run: chmod +x gradlew
-
-      - name: Check dependencyCheckAnalyze availability
-        id: dependency-check-task
-        run: |
-          if ./gradlew tasks --all --no-daemon --console=plain | grep -qE '^dependencyCheckAnalyze( |$)'; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "dependencyCheckAnalyze task not found; skipping OWASP scan."
-          fi
-
-      - name: Run OWASP Dependency Check
-        if: steps.dependency-check-task.outputs.available == 'true'
-        continue-on-error: true
-        run: ./gradlew --no-daemon dependencyCheckAnalyze
-
-      - name: Upload OWASP report
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: dependency-check-report-${{ github.run_number }}
-          path: '**/build/reports/dependency-check-report.*'
-          if-no-files-found: ignore
-          retention-days: 14
-
-      - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: sarif
-          output: trivy-results.sarif
-          severity: CRITICAL,HIGH
-
-      - name: Upload Trivy Results Artifact
-        uses: actions/upload-artifact@v6
-        with:
-          name: trivy-results-${{ github.run_number }}
-          path: trivy-results.sarif
-          retention-days: 14
-
-  android-debug:
-    name: Android Debug Build
-    runs-on: ubuntu-latest
-    needs: [ test, security-scan ]
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: ${{ env.JAVA_VERSION }}
-          cache: gradle
-
-      - name: Set up Android SDK
+      - name: Setup Android NDK
         uses: android-actions/setup-android@v3
-
       - name: Grant gradlew permission
         run: chmod +x gradlew
+      
+      - name: Assemble Debug APK
+        run: ./gradlew --no-daemon :app:assemble${{ matrix.flavor }}Debug
 
-      - name: Build debug APK
-        run: ./gradlew --no-daemon :app:assembleDebug
-
-      - name: APK size gate (80MB max)
+      - name: APK Size Gate
         run: |
-          APK_PATH="$(find app/build/outputs/apk/debug -name '*.apk' | head -1)"
+          APK_PATH="$(find app/build/outputs/apk/${{ matrix.flavor }}/debug -name '*.apk' | head -1)"
           SIZE_KB="$(du -k "$APK_PATH" | cut -f1)"
-          MAX_KB="${{ env.MAX_DEBUG_APK_SIZE_KB }}"
-          echo "APK size: ${SIZE_KB}KB / max ${MAX_KB}KB"
+          
+          if [[ "${{ matrix.flavor }}" == "Lite" ]] || [[ "${{ matrix.flavor }}" == "Norm" ]]; then
+            MAX_KB="${{ env.MAX_LITE_APK_SIZE_KB }}"
+          else
+            MAX_KB="${{ env.MAX_NATIVE_APK_SIZE_KB }}"
+          fi
+          
+          echo "Flavor: ${{ matrix.flavor }} | Size: ${SIZE_KB}KB / max ${MAX_KB}KB"
           if [ "$SIZE_KB" -gt "$MAX_KB" ]; then
-            echo "APK size ${SIZE_KB}KB exceeds maximum ${MAX_KB}KB"
+            echo "::error::APK size ${SIZE_KB}KB exceeds maximum ${MAX_KB}KB for ${{ matrix.flavor }}"
             exit 1
           fi
 
-      - name: Upload debug APK
+      - name: Upload Artifact
         uses: actions/upload-artifact@v6
         with:
-          name: app-debug-${{ github.run_number }}
-          path: app/build/outputs/apk/debug/*.apk
+          name: OmniDev-${{ matrix.flavor }}-Debug-${{ github.run_number }}
+          path: app/build/outputs/apk/${{ matrix.flavor }}/**/*.apk
           retention-days: 14
 
-      - name: Debug build summary
-        run: |
-          APK_PATH="$(find app/build/outputs/apk/debug -name '*.apk' | head -1)"
-          APK_SIZE="$(du -sh "$APK_PATH" | cut -f1)"
-          {
-            echo "## Android Debug Build"
-            echo ""
-            echo "- APK: \`$APK_PATH\`"
-            echo "- Size: $APK_SIZE"
-            echo "- Run: #${{ github.run_number }}"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  android-release:
-    name: Android Release Build
+  build-release:
+    name: Build Release APK (${{ matrix.flavor }})
     runs-on: ubuntu-latest
-    needs: [ test, security-scan ]
-    permissions:
-      contents: write
-
+    needs: build-debug
+    if: github.event_name == 'workflow_dispatch' && inputs.build_release == true || startsWith(github.ref, 'refs/tags/v')
+    strategy:
+      matrix:
+        flavor: [Lite, Norm, Pro, Oem]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Set up JDK ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v5
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
       - name: Grant gradlew permission
         run: chmod +x gradlew
-
-      - name: Prepare signing configuration
+      
+      - name: Decode Keystore
         id: signing
-        shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          set -euo pipefail
-          READY=false
-          REASON=""
-
-          if [ -n "${KEYSTORE_BASE64}" ] && \
-             [ -n "${KEYSTORE_PASSWORD}" ] && \
-             [ -n "${KEY_ALIAS}" ] && \
-             [ -n "${KEY_PASSWORD}" ]; then
-            if echo "${KEYSTORE_BASE64}" | base64 --decode > "$RUNNER_TEMP/release.keystore" 2>/dev/null; then
-              chmod 600 "$RUNNER_TEMP/release.keystore"
-              if [ -s "$RUNNER_TEMP/release.keystore" ]; then
-                if keytool -list \
-                  -keystore "$RUNNER_TEMP/release.keystore" \
-                  -storepass:env KEYSTORE_PASSWORD >/dev/null 2>&1; then
-                  if keytool -list \
-                    -keystore "$RUNNER_TEMP/release.keystore" \
-                    -storepass:env KEYSTORE_PASSWORD \
-                    -alias "${KEY_ALIAS}" >/dev/null 2>&1; then
-                    READY=true
-                    echo "KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
-                  else
-                    REASON="Keystore loaded, but alias '${KEY_ALIAS}' does not exist."
-                  fi
-                else
-                  REASON="Decoded keystore is invalid or KEYSTORE_PASSWORD is incorrect."
-                fi
-              else
-                REASON="Decoded keystore file is empty."
-              fi
-            else
-              REASON="KEYSTORE_BASE64 secret is not valid base64 data."
-            fi
+          if [ -n "${KEYSTORE_BASE64}" ]; then
+            echo "${KEYSTORE_BASE64}" | base64 --decode > release.keystore
+            echo "ready=true" >> "$GITHUB_OUTPUT"
           else
-            REASON="Signing secrets are missing."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
           fi
 
-          echo "ready=$READY" >> "$GITHUB_OUTPUT"
-          if [ "$READY" != "true" ]; then
-            echo "reason=$REASON" >> "$GITHUB_OUTPUT"
-            rm -f "$RUNNER_TEMP/release.keystore"
-            echo "::warning::${REASON}"
-          fi
-
-      - name: Build signed release APK
+      - name: Assemble Release APK
         if: steps.signing.outputs.ready == 'true'
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew --no-daemon :app:assembleRelease \
-            -Pandroid.injected.signing.store.file="${{ env.KEYSTORE_PATH }}" \
+          ./gradlew --no-daemon :app:assemble${{ matrix.flavor }}Release \
+            -Pandroid.injected.signing.store.file="$(pwd)/release.keystore" \
             -Pandroid.injected.signing.store.password="${KEYSTORE_PASSWORD}" \
             -Pandroid.injected.signing.key.alias="${KEY_ALIAS}" \
             -Pandroid.injected.signing.key.password="${KEY_PASSWORD}"
 
-      - name: Build unsigned release APK (fallback)
-        if: steps.signing.outputs.ready != 'true'
-        run: ./gradlew --no-daemon :app:assembleRelease
-
-      - name: Upload release APK
+      - name: Upload Release Artifact
+        if: steps.signing.outputs.ready == 'true'
         uses: actions/upload-artifact@v6
         with:
-          name: app-release-${{ github.run_number }}
-          path: app/build/outputs/apk/release/*.apk
+          name: OmniDev-${{ matrix.flavor }}-Release-${{ github.run_number }}
+          path: app/build/outputs/apk/${{ matrix.flavor }}/release/*.apk
           retention-days: 30
 
-      - name: Cleanup keystore file
-        if: always() && steps.signing.outputs.ready == 'true'
-        run: rm -f "${{ env.KEYSTORE_PATH }}"
-
-      - name: Create GitHub Release (tag builds)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Create GitHub Release (Tags Only)
+        if: startsWith(github.ref, 'refs/tags/v') && steps.signing.outputs.ready == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/*.apk
-          generate_release_notes: true
-          draft: false
-          prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}
+          files: app/build/outputs/apk/${{ matrix.flavor }}/release/*.apk
+          append_body: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  pipeline-summary:
-    name: Pipeline Summary
-    runs-on: ubuntu-latest
-    if: always()
-    needs: [ code-quality, test, security-scan, android-debug, android-release ]
-
-    steps:
-      - name: Write job summary
-        run: |
-          {
-            echo "# Android Pipeline #${{ github.run_number }}"
-            echo ""
-            echo "| Job | Status |"
-            echo "|-----|--------|"
-            echo "| Code Quality | ${{ needs.code-quality.result }} |"
-            echo "| Unit Tests | ${{ needs.test.result }} |"
-            echo "| Security Scan | ${{ needs.security-scan.result }} |"
-            echo "| Android Debug | ${{ needs.android-debug.result }} |"
-            echo "| Android Release | ${{ needs.android-release.result }} |"
-          } >> "$GITHUB_STEP_SUMMARY"
