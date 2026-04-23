@@ -1,10 +1,15 @@
 package com.omnidev.workspace.data.tools
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.provider.AlarmClock
 import android.util.Log
+import androidx.core.app.NotificationCompat
 import java.util.Calendar
 
 /**
@@ -28,12 +33,12 @@ class AlarmReceiver : BroadcastReceiver() {
             context.startActivity(alarmIntent)
         } catch (_: Exception) {
             // fallback: notification فقط
-            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                val ch = android.app.NotificationChannel("alarm_ch", "المنبّهات", android.app.NotificationManager.IMPORTANCE_HIGH)
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val ch = NotificationChannel("alarm_ch", "المنبّهات", NotificationManager.IMPORTANCE_HIGH)
                 nm.createNotificationChannel(ch)
             }
-            val notif = android.app.Notification.Builder(context, "alarm_ch")
+            val notif = NotificationCompat.Builder(context, "alarm_ch")
                 .setContentTitle("⏰ \$title")
                 .setContentText("حان الوقت!")
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
