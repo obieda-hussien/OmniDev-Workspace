@@ -811,10 +811,10 @@ object EnvironmentSetupManager {
             val icon = if (rs.available) "✅" else "❌"
             val pathStr = when {
                 rs.path == null -> "not found"
-                !isValidBinaryPath(rs.path) -> "❌ invalid path: ${rs.path?.take(40)}"
+                !isValidBinaryPath(rs.path) -> "❌ invalid path: ${rs.path?.take(40)?.toString()}"
                 else -> rs.path
             }
-            val ver = rs.version?.take(40)?.let { " ($it)" } ?: ""
+            val ver = rs.version?.take(40)?.toString()?.let { " ($it)" } ?: ""
             val src = rs.source?.let { " [$it]" } ?: ""
             sb.appendLine("║   $icon ${rs.name.padEnd(10)}$pathStr$ver$src")
         }
