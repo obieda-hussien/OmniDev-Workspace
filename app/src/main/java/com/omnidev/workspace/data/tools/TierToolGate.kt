@@ -18,20 +18,42 @@ import com.omnidev.workspace.core.policy.TierPolicyHolder
  *
  * | Tier  | Visible tools                                                                          |
  * |-------|----------------------------------------------------------------------------------------|
- * | LITE  | Only the 4 Lite tools: `web_search`, `web_search_deep`, `web_scraper`, `read_file`.    |
+ * | LITE  | Web tools + `read_file` + **Persistent Memory & Vector Knowledge Base** tools          |
+ * |       | (`remember_fact`, `search_knowledge`, `update_memory`, `delete_memory`,                |
+ * |       |  `vector_store`, `vector_search`, `vector_similar`).                                   |
  * | NORM  | Everything except pro-only tools (Shizuku commands, deep security, vuln research).     |
  * | PRO   | Every tool (subject to per-tool runtime capability checks).                            |
  * | OEM   | Every tool EXCEPT the Shizuku-centric ones (OEM uses android.uid.system, not Shizuku). |
+ * | ADMIN | Master-key: every tool, no filter, no denial.                                          |
  */
 internal object TierToolGate {
 
-    /** Exact tool names exposed to the LITE flavor. */
+    /**
+     * Exact tool names exposed to the LITE flavor.
+     *
+     * Lite ships the canonical safe web-browsing toolkit plus the Persistent
+     * Memory / Vector Knowledge Base so that even the Play-Store-safe consumer
+     * build can maintain long-term context and perform semantic recall
+     * entirely on-device (SQLite + cosine similarity — no privileged APIs).
+     */
     internal val LITE_TOOLS: Set<String> = setOf(
+        // Web browsing (pre-existing)
         "web_search",
         "web_search_deep",
         "web_scraper",
         "scrape_multiple",       // companion of web_scraper; sibling variant
-        "read_file"
+        "read_file",
+
+        // ── Persistent Memory / Knowledge Base (on-device SQLite, Play-safe) ──
+        "remember_fact",
+        "search_knowledge",
+        "update_memory",
+        "delete_memory",
+
+        // ── Vector Knowledge Base (cosine similarity, all local) ──────────────
+        "vector_store",
+        "vector_search",
+        "vector_similar"
     )
 
     /** Tools that require PRO-tier capabilities (Shizuku / root / deep-security). */
@@ -63,6 +85,7 @@ internal object TierToolGate {
             "NORM"          -> defs.filterNot { it.name in PRO_ONLY_TOOLS }
             "PRO"           -> defs
             "OEM"           -> defs.filterNot { it.name in SHIZUKU_DEPENDENT_TOOLS }
+            "ADMIN"         -> defs   // Master key: every tool, unfiltered.
             "UNINITIALIZED" -> defs.filter { it.name in LITE_TOOLS } // fail-safe to Lite
             else            -> defs
         }
@@ -78,13 +101,16 @@ internal object TierToolGate {
         val policy = TierPolicyHolder.current
         return when (policy.tier) {
             "LITE" -> if (toolName in LITE_TOOLS) null
-                      else "The Lite tier only exposes web_search, web_search_deep, web_scraper, and read_file. Upgrade to Standard/Pro for this capability."
+                      else "The Lite tier exposes only the web-browsing toolkit plus the Persistent Memory & Vector Knowledge Base tools. Upgrade to Standard/Pro for this capability."
 
             "NORM" -> if (toolName !in PRO_ONLY_TOOLS) null
                       else "This tool requires the Pro tier (Shizuku / root / deep-security capability)."
 
             "OEM"  -> if (toolName !in SHIZUKU_DEPENDENT_TOOLS) null
                       else "OEM builds use system-uid privilege and do not ship the Shizuku bridge."
+
+            // ADMIN is the master-key build — every tool is permitted.
+            "ADMIN" -> null
 
             "UNINITIALIZED" ->
                 "Tier policy has not been installed yet — refusing tool execution for safety."

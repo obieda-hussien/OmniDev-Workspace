@@ -1,0 +1,4 @@
+# Shared source set for privileged tiers: pro + oem + admin.
+# Admin inherits every file placed here in addition to what it gets from its
+# own src/admin/java tree. Reserved for high-privilege facade adapters
+# (e.g. llama.cpp bootstrap hooks, native tool loaders).
