@@ -521,9 +521,8 @@ class CompositeToolManager(
                 PlannerTool.execute(
                     context = ctx,
                     action = arguments["action"] ?: return missingArg("action"),
-                    title = arguments["title"] ?: return missingArg("title"),
-                    timeMillis = arguments["timeMillis"]?.toLongOrNull()
-                        ?: return ToolExecutionResult("timeMillis must be a valid long.", isError = true)
+                    title = arguments["title"] ?: "",
+                    timeMillis = arguments["timeMillis"]?.toLongOrNull() ?: 0L
                 )
             }
 

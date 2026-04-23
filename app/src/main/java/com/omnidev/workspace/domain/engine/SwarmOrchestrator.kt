@@ -462,3 +462,19 @@ sealed class SwarmEvent {
     ) : SwarmEvent()
     data class Error(val message: String) : SwarmEvent()
 }
+
+@kotlinx.serialization.Serializable
+data class SwarmTask(
+    val id: String,
+    val description: String,
+    val priority: Int = 0,
+    val dependencies: List<String> = emptyList(),
+    val status: SwarmTaskStatus = SwarmTaskStatus.PENDING,
+    /** Persona the worker agent should adopt for this sub-task (e.g. "Senior Web Researcher"). */
+    val requiredPersona: String = ""
+)
+
+@kotlinx.serialization.Serializable
+enum class SwarmTaskStatus {
+    PENDING, IN_PROGRESS, COMPLETED, FAILED
+}
