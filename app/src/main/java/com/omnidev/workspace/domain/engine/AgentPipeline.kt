@@ -1459,22 +1459,3 @@ sealed class AgentEvent {
     /** An unrecoverable error occurred. */
     data class Error(val message: String) : AgentEvent()
 }
-
-/**
- * Represents a sub-task in Swarm mode, assigned by the Orchestrator to a Worker.
- */
-@Serializable
-data class SwarmTask(
-    val id: String,
-    val description: String,
-    val priority: Int = 0,
-    val dependencies: List<String> = emptyList(),
-    val status: SwarmTaskStatus = SwarmTaskStatus.PENDING,
-    /** Persona the worker agent should adopt for this sub-task (e.g. "Senior Web Researcher"). */
-    val requiredPersona: String = ""
-)
-
-@Serializable
-enum class SwarmTaskStatus {
-    PENDING, IN_PROGRESS, COMPLETED, FAILED
-}

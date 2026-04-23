@@ -122,7 +122,17 @@ class CompositeToolManager(
         )
     )
 
-    override fun getToolDefinitions(): List<ToolDefinition> = buildList {
+    override fun getToolDefinitions(): List<ToolDefinition> {
+        val allDefs = buildAllToolDefinitions()
+        // ── Tier filter ───────────────────────────────────────────────────────
+        // LITE tier exposes ONLY the allow-list in TierToolGate.LITE_TOOLS.
+        // NORM tier blocks the pro-only advanced security / root tools.
+        // PRO  and OEM see every tool (capability enforcement per-tool at call time).
+        return TierToolGate.filter(allDefs)
+    }
+
+    /** The full, un-filtered tool list. Filtered by [getToolDefinitions] based on tier. */
+    private fun buildAllToolDefinitions(): List<ToolDefinition> = buildList {
         addAll(fileToolManager.getToolDefinitions().filterNot { it.name == "web_search" })
         addAll(WebSearchTool.getToolDefinitions())
         addAll(NetworkRequestTool.getToolDefinitions())
@@ -447,6 +457,14 @@ class CompositeToolManager(
         arguments: Map<String, String>,
         scopePath: String? // <--- FIX: Added ? to match interface
     ): ToolExecutionResult {
+        // ── Tier gate: refuse disallowed tools before any side-effect runs ───
+        TierToolGate.denyReason(name)?.let { reason ->
+            return ToolExecutionResult(
+                "🚫 Tool '$name' is not available in the ${com.omnidev.workspace.core.policy.TierPolicyHolder.current.tier} tier. $reason",
+                isError = true
+            )
+        }
+
         return when (name) {
             // ── Execution Diagnostics tool ──
             "execution_diagnostics" -> {
@@ -503,9 +521,8 @@ class CompositeToolManager(
                 PlannerTool.execute(
                     context = ctx,
                     action = arguments["action"] ?: return missingArg("action"),
-                    title = arguments["title"] ?: return missingArg("title"),
-                    timeMillis = arguments["timeMillis"]?.toLongOrNull()
-                        ?: return ToolExecutionResult("timeMillis must be a valid long.", isError = true)
+                    title = arguments["title"] ?: "",
+                    timeMillis = arguments["timeMillis"]?.toLongOrNull() ?: 0L
                 )
             }
 

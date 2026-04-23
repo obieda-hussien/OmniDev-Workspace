@@ -404,6 +404,8 @@
             </intent-filter>
         </receiver>
 
+        <receiver android:name=".data.tools.AlarmReceiver" android:exported="false" />
+
     </application>
 
 </manifest>

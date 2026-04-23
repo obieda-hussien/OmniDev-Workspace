@@ -31,7 +31,8 @@ env:
   JAVA_VERSION: "17"
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dkotlin.incremental=false"
   GRADLE_BUILD_ACTION_CACHE_DEBUG_ENABLED: false
-  MAX_DEBUG_APK_SIZE_KB: 81920
+  # Increased size limit to 150MB to accommodate Pro/OEM flavors containing native llama.cpp libraries
+  MAX_DEBUG_APK_SIZE_KB: 153600
 
 jobs:
   code-quality:
@@ -73,8 +74,14 @@ jobs:
       - name: Grant gradlew permission
         run: chmod +x gradlew
 
-      - name: Run lint checks
-        run: ./gradlew --no-daemon :app:lintDebug
+      - name: Run lint checks for all flavors
+        run: |
+          ./gradlew --no-daemon \
+            :app:lintLiteDebug \
+            :app:lintNormDebug \
+            :app:lintProDebug \
+            :app:lintOemDebug \
+            --continue
 
       - name: Optional static-analysis tasks (if present)
         continue-on-error: true
@@ -130,11 +137,13 @@ jobs:
       - name: Grant gradlew permission
         run: chmod +x gradlew
 
-      - name: Run compile + unit tests
+      - name: Run compile + unit tests for all flavors
         run: |
           ./gradlew --no-daemon \
-            :app:compileDebugKotlin \
-            :app:testDebugUnitTest \
+            :app:compileLiteDebugKotlin :app:testLiteDebugUnitTest \
+            :app:compileNormDebugKotlin :app:testNormDebugUnitTest \
+            :app:compileProDebugKotlin :app:testProDebugUnitTest \
+            :app:compileOemDebugKotlin :app:testOemDebugUnitTest \
             --continue
 
       - name: Upload test reports
@@ -150,7 +159,10 @@ jobs:
       - name: Optional extended checks
         if: github.event_name == 'workflow_dispatch' && inputs.enable_extended_checks == true
         run: |
-          ./gradlew --no-daemon :app:compileReleaseKotlin :app:testReleaseUnitTest --continue
+          ./gradlew --no-daemon \
+            :app:compileLiteReleaseKotlin :app:testLiteReleaseUnitTest \
+            :app:compileProReleaseKotlin :app:testProReleaseUnitTest \
+            --continue
 
   security-scan:
     name: Dependency Security Scan
@@ -224,6 +236,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          submodules: recursive
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v5
@@ -238,36 +252,57 @@ jobs:
       - name: Grant gradlew permission
         run: chmod +x gradlew
 
-      - name: Build debug APK
-        run: ./gradlew --no-daemon :app:assembleDebug
-
-      - name: APK size gate (80MB max)
+      - name: Build all debug flavor APKs
         run: |
-          APK_PATH="$(find app/build/outputs/apk/debug -name '*.apk' | head -1)"
-          SIZE_KB="$(du -k "$APK_PATH" | cut -f1)"
+          ./gradlew --no-daemon \
+            :app:assembleLiteDebug \
+            :app:assembleNormDebug \
+            :app:assembleProDebug \
+            :app:assembleOemDebug
+
+      - name: APK size gate per flavor
+        run: |
           MAX_KB="${{ env.MAX_DEBUG_APK_SIZE_KB }}"
-          echo "APK size: ${SIZE_KB}KB / max ${MAX_KB}KB"
-          if [ "$SIZE_KB" -gt "$MAX_KB" ]; then
-            echo "APK size ${SIZE_KB}KB exceeds maximum ${MAX_KB}KB"
+          APK_PATHS=$(find app/build/outputs/apk -name '*.apk' | grep debug)
+          
+          if [ -z "$APK_PATHS" ]; then
+            echo "No APKs found!"
             exit 1
           fi
 
-      - name: Upload debug APK
+          echo "Checking APK sizes (Max: ${MAX_KB}KB)..."
+          for APK_PATH in $APK_PATHS; do
+            SIZE_KB="$(du -k "$APK_PATH" | cut -f1)"
+            echo "- $APK_PATH: ${SIZE_KB}KB"
+            if [ "$SIZE_KB" -gt "$MAX_KB" ]; then
+              echo "::error::APK size ${SIZE_KB}KB exceeds maximum ${MAX_KB}KB for $APK_PATH"
+              exit 1
+            fi
+          done
+
+      - name: Upload debug APKs
         uses: actions/upload-artifact@v6
         with:
-          name: app-debug-${{ github.run_number }}
-          path: app/build/outputs/apk/debug/*.apk
+          name: app-debug-flavors-${{ github.run_number }}
+          # Updated path to capture all flavor folders
+          path: app/build/outputs/apk/*/debug/*.apk
           retention-days: 14
 
       - name: Debug build summary
         run: |
-          APK_PATH="$(find app/build/outputs/apk/debug -name '*.apk' | head -1)"
-          APK_SIZE="$(du -sh "$APK_PATH" | cut -f1)"
           {
-            echo "## Android Debug Build"
+            echo "## Android Debug Builds (All Flavors)"
             echo ""
-            echo "- APK: \`$APK_PATH\`"
-            echo "- Size: $APK_SIZE"
+            echo "| Flavor | APK File | Size |"
+            echo "|--------|----------|------|"
+            
+            find app/build/outputs/apk -name '*.apk' | grep debug | while read APK_PATH; do
+              FLAVOR_NAME=$(basename $(dirname $(dirname "$APK_PATH")))
+              APK_SIZE="$(du -sh "$APK_PATH" | cut -f1)"
+              echo "| **$FLAVOR_NAME** | \`$(basename "$APK_PATH")\` | $APK_SIZE |"
+            done
+            
+            echo ""
             echo "- Run: #${{ github.run_number }}"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -281,6 +316,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          submodules: recursive
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v5
@@ -347,28 +384,37 @@ jobs:
             echo "::warning::${REASON}"
           fi
 
-      - name: Build signed release APK
+      - name: Build signed release APKs (All Flavors)
         if: steps.signing.outputs.ready == 'true'
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew --no-daemon :app:assembleRelease \
+          ./gradlew --no-daemon \
+            :app:assembleLiteRelease \
+            :app:assembleNormRelease \
+            :app:assembleProRelease \
+            :app:assembleOemRelease \
             -Pandroid.injected.signing.store.file="${{ env.KEYSTORE_PATH }}" \
             -Pandroid.injected.signing.store.password="${KEYSTORE_PASSWORD}" \
             -Pandroid.injected.signing.key.alias="${KEY_ALIAS}" \
             -Pandroid.injected.signing.key.password="${KEY_PASSWORD}"
 
-      - name: Build unsigned release APK (fallback)
+      - name: Build unsigned release APKs (fallback)
         if: steps.signing.outputs.ready != 'true'
-        run: ./gradlew --no-daemon :app:assembleRelease
+        run: |
+          ./gradlew --no-daemon \
+            :app:assembleLiteRelease \
+            :app:assembleNormRelease \
+            :app:assembleProRelease \
+            :app:assembleOemRelease
 
-      - name: Upload release APK
+      - name: Upload release APKs
         uses: actions/upload-artifact@v6
         with:
-          name: app-release-${{ github.run_number }}
-          path: app/build/outputs/apk/release/*.apk
+          name: app-release-flavors-${{ github.run_number }}
+          path: app/build/outputs/apk/*/release/*.apk
           retention-days: 30
 
       - name: Cleanup keystore file
@@ -379,7 +425,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/*.apk
+          files: app/build/outputs/apk/*/release/*.apk
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, '-alpha') || contains(github.ref, '-beta') || contains(github.ref, '-rc') }}

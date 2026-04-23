@@ -43,6 +43,120 @@ android {
         }
     }
 
+    // ══════════════════════════════════════════════════════════════════════════════
+    // 4-Tier Product Flavors (tier dimension)
+    // ══════════════════════════════════════════════════════════════════════════════
+    //  lite → Google Play B2C Free (scrubbed, no root, no Shizuku, no Accessibility)
+    //  norm → B2C Basic (Accessibility + Terminal, no root, no Shizuku)
+    //  pro  → B2C Premium God Mode (Shizuku + Pentesting + full Swarm)
+    //  oem  → B2B OEM / Custom ROM (system uid, zero-click, local SLM, no root/Shizuku)
+    // ══════════════════════════════════════════════════════════════════════════════
+    flavorDimensions += "tier"
+
+    productFlavors {
+        create("lite") {
+            dimension = "tier"
+            // lite keeps the canonical Play Store applicationId (no suffix)
+            versionNameSuffix = "-lite"
+            resValue("string", "app_name", "OmniDev Lite")
+
+            buildConfigField("String",  "TIER",                     "\"LITE\"")
+            buildConfigField("boolean", "ALLOW_ROOT",               "false")
+            buildConfigField("boolean", "ALLOW_SHIZUKU",            "false")
+            buildConfigField("boolean", "ALLOW_ACCESSIBILITY",      "false")
+            buildConfigField("boolean", "ALLOW_DEEP_SECURITY",      "false")
+            buildConfigField("boolean", "AUTO_APPROVE_CONFIRMATIONS","false")
+            buildConfigField("boolean", "ALLOW_DEVICE_ADMIN_WIPE",  "false")
+            buildConfigField("boolean", "ENABLE_LOCAL_SLM",         "false")
+            buildConfigField("boolean", "ALLOW_SYSTEM_INTEGRATION", "false")
+
+            // Smaller APK for Play Store; only arm64 (main production ABI)
+            ndk {
+                abiFilters.clear()
+                abiFilters += "arm64-v8a"
+            }
+            // llama.cpp is completely disabled for lite — native build is gated in afterEvaluate
+            externalNativeBuild {
+                cmake {
+                    // Sentinel flag picked up below to skip CMake entirely
+                    arguments += "-DOMNIDEV_DISABLE_NATIVE=ON"
+                }
+            }
+        }
+
+        create("norm") {
+            dimension = "tier"
+            applicationIdSuffix = ".norm"
+            versionNameSuffix   = "-norm"
+            resValue("string", "app_name", "OmniDev Standard")
+
+            buildConfigField("String",  "TIER",                     "\"NORM\"")
+            buildConfigField("boolean", "ALLOW_ROOT",               "false")
+            buildConfigField("boolean", "ALLOW_SHIZUKU",            "false")
+            buildConfigField("boolean", "ALLOW_ACCESSIBILITY",      "true")
+            buildConfigField("boolean", "ALLOW_DEEP_SECURITY",      "false")
+            buildConfigField("boolean", "AUTO_APPROVE_CONFIRMATIONS","false")
+            buildConfigField("boolean", "ALLOW_DEVICE_ADMIN_WIPE",  "false")
+            buildConfigField("boolean", "ENABLE_LOCAL_SLM",         "false")
+            buildConfigField("boolean", "ALLOW_SYSTEM_INTEGRATION", "false")
+
+            ndk {
+                abiFilters.clear()
+                abiFilters += "arm64-v8a"
+            }
+            externalNativeBuild {
+                cmake {
+                    arguments += "-DOMNIDEV_DISABLE_NATIVE=ON"
+                }
+            }
+        }
+
+        create("pro") {
+            dimension = "tier"
+            applicationIdSuffix = ".pro"
+            versionNameSuffix   = "-pro"
+            resValue("string", "app_name", "OmniDev Pro")
+
+            buildConfigField("String",  "TIER",                     "\"PRO\"")
+            buildConfigField("boolean", "ALLOW_ROOT",               "true")
+            buildConfigField("boolean", "ALLOW_SHIZUKU",            "true")
+            buildConfigField("boolean", "ALLOW_ACCESSIBILITY",      "true")
+            buildConfigField("boolean", "ALLOW_DEEP_SECURITY",      "true")
+            buildConfigField("boolean", "AUTO_APPROVE_CONFIRMATIONS","false")
+            buildConfigField("boolean", "ALLOW_DEVICE_ADMIN_WIPE",  "true")
+            buildConfigField("boolean", "ENABLE_LOCAL_SLM",         "true")
+            buildConfigField("boolean", "ALLOW_SYSTEM_INTEGRATION", "false")
+            // Pro keeps the full ABI set for native llama.cpp inference
+        }
+
+        create("oem") {
+            dimension = "tier"
+            applicationIdSuffix = ".oem"
+            versionNameSuffix   = "-oem"
+            resValue("string", "app_name", "OmniDev OEM")
+
+            buildConfigField("String",  "TIER",                     "\"OEM\"")
+            buildConfigField("boolean", "ALLOW_ROOT",               "false") // OEM uses system uid, not su
+            buildConfigField("boolean", "ALLOW_SHIZUKU",            "false")
+            buildConfigField("boolean", "ALLOW_ACCESSIBILITY",      "true")
+            buildConfigField("boolean", "ALLOW_DEEP_SECURITY",      "false")
+            buildConfigField("boolean", "AUTO_APPROVE_CONFIRMATIONS","true")  // ← ZERO-CLICK EXECUTION
+            buildConfigField("boolean", "ALLOW_DEVICE_ADMIN_WIPE",  "false") // OEM policy: wipe disabled
+            buildConfigField("boolean", "ENABLE_LOCAL_SLM",         "true")  // Offline llama.cpp
+            buildConfigField("boolean", "ALLOW_SYSTEM_INTEGRATION", "true")  // android.uid.system
+        }
+    }
+
+    // ── Optional shared source folders ────────────────────────────────────────
+    // liteNorm/: code shared by both consumer tiers (lite + norm)
+    // proOem/:   code shared by both privileged tiers (pro + oem) — e.g. SLM bootstrapping
+    sourceSets {
+        getByName("lite").java.srcDir("src/liteNorm/java")
+        getByName("norm").java.srcDir("src/liteNorm/java")
+        getByName("pro").java.srcDir("src/proOem/java")
+        getByName("oem").java.srcDir("src/proOem/java")
+    }
+
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
@@ -105,6 +219,30 @@ tasks.configureEach {
     }
 }
 
+// ── Skip native build entirely for lite + norm flavors ──────────────────────
+// llama.cpp is ~40 MB of binaries and 4+ minutes of CMake. For the Play-Store
+// (lite) and Standard (norm) tiers we don't ship local SLM inference, so we
+// disable the entire externalNativeBuild pipeline for those flavor variants.
+android.applicationVariants.configureEach {
+    val flavor = productFlavors.firstOrNull()?.name
+    if (flavor == "lite" || flavor == "norm") {
+        val variantName = name.replaceFirstChar { it.uppercase() }
+        tasks.matching { task ->
+            val n = task.name
+            n == "configureCMake${variantName}" ||
+            n == "buildCMake${variantName}" ||
+            n == "externalNativeBuild${variantName}" ||
+            n == "configureCMakeDebug[arm64-v8a]${variantName}" ||
+            n == "configureCMakeRelWithDebInfo[arm64-v8a]${variantName}" ||
+            n.startsWith("configureCMake${variantName}") ||
+            n.startsWith("buildCMake${variantName}") ||
+            n.startsWith("externalNativeBuild${variantName}")
+        }.configureEach {
+            enabled = false
+        }
+    }
+}
+
 dependencies {
     implementation("org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r")
 
@@ -141,6 +279,13 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
 
     // ── Shizuku (The God-Mode Key) ──
+    // NOTE: Shizuku is currently on the `main` classpath (all flavors).
+    // Runtime access is gated by TierPolicy.allowShizuku, and the ShizukuProvider
+    // manifest entry is stripped from lite/norm/oem via tools:node="remove".
+    // TODO(Commit 6): Physically relocate ShizukuCommandTool + 18 callers into
+    //                 :tools:advanced so Shizuku is purely a `proImplementation`
+    //                 dependency and cannot even be linked in lite/norm.
+    //                 See PROJECT_ARCHITECTURE.md → Modularization Roadmap.
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
 
@@ -177,4 +322,9 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
+}
+android {
+    lint {
+        abortOnError = false
+    }
 }

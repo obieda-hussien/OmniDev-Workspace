@@ -2,6 +2,10 @@ package com.omnidev.workspace
 
 import android.app.Application
 import android.util.Log
+import com.omnidev.workspace.core.policy.TierPolicyBootstrap
+import com.omnidev.workspace.core.policy.TierPolicyHolder
+import com.omnidev.workspace.core.privileged.PrivilegedExecutionFacadeBootstrap
+import com.omnidev.workspace.core.privileged.PrivilegedExecutionFacadeHolder
 import com.omnidev.workspace.data.auth.CopilotModelRefresher
 import com.omnidev.workspace.data.brain.SmartLearningBridge
 import com.omnidev.workspace.data.mcp.McpConfigManager
@@ -62,6 +66,17 @@ class OmniDevApp : Application() {
         super.onCreate()
         instance = this
 
+        // ═══════════════════════════════════════════════════════════════════════════
+        // 🎛️ Install the tier policy FIRST — every privileged path after this
+        //     consults TierPolicyHolder.current to know what is permitted in this
+        //     build variant (lite / norm / pro / oem). Exactly one flavor source
+        //     set provides the `TierPolicyBootstrap` object for the active variant.
+        // ═══════════════════════════════════════════════════════════════════════════
+        TierPolicyBootstrap.install()
+        Log.i("OmniDevApp", "🎛️ TierPolicy installed: tier=${TierPolicyHolder.current.tier} " +
+            "root=${TierPolicyHolder.current.allowRoot} shizuku=${TierPolicyHolder.current.allowShizuku} " +
+            "a11y=${TierPolicyHolder.current.allowAccessibility} autoApprove=${TierPolicyHolder.current.autoApproveConfirmations}")
+
         // Initialise the debug log directory before installing the crash handler
         // so that the first crash can be written to disk immediately.
         DebugLogManager.init(applicationContext)
@@ -69,6 +84,13 @@ class OmniDevApp : Application() {
 
         // Initialise PrivilegedExecutionManager with application context.
         PrivilegedExecutionManager.init(applicationContext)
+
+        // Install the tier-specific PrivilegedExecutionFacade. Must come AFTER
+        // PrivilegedExecutionManager.init() because the Pro bootstrap wraps it.
+        // Lite/Norm install a denying facade; Pro wraps PrivilegedExecutionManager;
+        // OEM installs a Runtime.exec() system-uid facade.
+        PrivilegedExecutionFacadeBootstrap.install()
+        Log.i("OmniDevApp", "🔒 PrivilegedExecutionFacade installed (available=${PrivilegedExecutionFacadeHolder.current.isAvailable()})")
         EnvironmentSetupManager.init(applicationContext)
         ToolDownloaderEngine.init(applicationContext)
 
