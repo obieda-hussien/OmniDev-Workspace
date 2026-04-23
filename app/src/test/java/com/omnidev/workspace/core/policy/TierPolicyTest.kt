@@ -115,7 +115,7 @@ class TierPolicyTest {
         val spyUi = ConfirmationGate { _, _, _ -> spyCalls[0]++; true }
         val gate = p.confirmationGate(spyUi)
 
-        val approved = gate.request(ConfirmationKind.GOD_MODE_FILE_PATCH, "rm -rf /")
+        val approved = gate.request(ConfirmationKind.GOD_MODE_FILE_PATCH, "rm -rf /", null)
         assertFalse(approved)
         assertEquals(0, spyCalls[0])
         val entries = OmniAuditLog.snapshot()
@@ -140,7 +140,7 @@ class TierPolicyTest {
         val uiGate = ConfirmationGate { _, _, _ -> userTaps[0] = true; true }
         val gate = p.confirmationGate(uiGate)
 
-        val approved = gate.request(ConfirmationKind.SHIZUKU_COMMAND, "adb shell echo hi")
+        val approved = gate.request(ConfirmationKind.SHIZUKU_COMMAND, "adb shell echo hi", null)
         assertTrue(approved)
         assertTrue("Norm must call through to the UI gate", userTaps[0])
     }
@@ -158,7 +158,7 @@ class TierPolicyTest {
         val uiCalled = booleanArrayOf(false)
         val ui = ConfirmationGate { _, _, _ -> uiCalled[0] = true; false }
         val gate = p.confirmationGate(ui)
-        val approved = gate.request(ConfirmationKind.SHIZUKU_COMMAND, "rm -rf /system/priv-app/Foo")
+        val approved = gate.request(ConfirmationKind.SHIZUKU_COMMAND, "rm -rf /system/priv-app/Foo", null)
         assertTrue(uiCalled[0])
         assertFalse(approved) // user denied
     }
@@ -177,8 +177,8 @@ class TierPolicyTest {
         val gate = p.confirmationGate(uiThatShouldNotBeCalled)
 
         val result1 = gate.request(ConfirmationKind.GOD_MODE_FILE_PATCH, "update /system.prop", "@@ -1,1 +1,1 @@\n-old\n+new\n")
-        val result2 = gate.request(ConfirmationKind.ANDROID_INTENT, "am start -a android.intent.action.VIEW")
-        val result3 = gate.request(ConfirmationKind.GOD_MODE_FILE_DELETE, "/data/cache/foo")
+        val result2 = gate.request(ConfirmationKind.ANDROID_INTENT, "am start -a android.intent.action.VIEW", null)
+        val result3 = gate.request(ConfirmationKind.GOD_MODE_FILE_DELETE, "/data/cache/foo", null)
 
         assertTrue("OEM must auto-approve file patch", result1)
         assertTrue("OEM must auto-approve android intent", result2)

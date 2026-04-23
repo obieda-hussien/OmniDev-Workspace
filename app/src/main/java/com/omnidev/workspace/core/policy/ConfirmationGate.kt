@@ -39,7 +39,7 @@ fun interface ConfirmationGate {
     suspend fun request(
         kind: ConfirmationKind,
         preview: String,
-        diffContent: String? = null
+        diffContent: String?
     ): Boolean
 }
 
