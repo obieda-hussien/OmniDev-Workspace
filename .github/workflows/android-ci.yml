@@ -81,6 +81,7 @@ jobs:
             :app:lintNormDebug \
             :app:lintProDebug \
             :app:lintOemDebug \
+            :app:lintAdminDebug \
             --continue
 
       - name: Optional static-analysis tasks (if present)
@@ -144,6 +145,7 @@ jobs:
             :app:compileNormDebugKotlin :app:testNormDebugUnitTest \
             :app:compileProDebugKotlin :app:testProDebugUnitTest \
             :app:compileOemDebugKotlin :app:testOemDebugUnitTest \
+            :app:compileAdminDebugKotlin :app:testAdminDebugUnitTest \
             --continue
 
       - name: Upload test reports
@@ -258,7 +260,8 @@ jobs:
             :app:assembleLiteDebug \
             :app:assembleNormDebug \
             :app:assembleProDebug \
-            :app:assembleOemDebug
+            :app:assembleOemDebug \
+            :app:assembleAdminDebug
 
       - name: APK size gate per flavor
         run: |
@@ -396,6 +399,7 @@ jobs:
             :app:assembleNormRelease \
             :app:assembleProRelease \
             :app:assembleOemRelease \
+            :app:assembleAdminRelease \
             -Pandroid.injected.signing.store.file="${{ env.KEYSTORE_PATH }}" \
             -Pandroid.injected.signing.store.password="${KEYSTORE_PASSWORD}" \
             -Pandroid.injected.signing.key.alias="${KEY_ALIAS}" \
@@ -408,7 +412,8 @@ jobs:
             :app:assembleLiteRelease \
             :app:assembleNormRelease \
             :app:assembleProRelease \
-            :app:assembleOemRelease
+            :app:assembleOemRelease \
+            :app:assembleAdminRelease
 
       - name: Upload release APKs
         uses: actions/upload-artifact@v6

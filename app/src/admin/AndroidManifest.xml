@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ══════════════════════════════════════════════════════════════════════════════
+  ADMIN FLAVOR MANIFEST — 🔑 MASTER KEY (Lead-Developer Only)
+  ══════════════════════════════════════════════════════════════════════════════
+  Target: lead developer's test device. NOT distributed. NOT sold. NOT signed
+  for any store. Exists purely so the maintainer can exercise every tool,
+  every permission, every privileged path in a single unified build.
+
+  Philosophy: this manifest is a deliberate no-op overlay. It inherits the
+  entire base manifest (`src/main/AndroidManifest.xml`) verbatim — every
+  permission, every provider, every service, every receiver — so the admin
+  build carries the union of pro + oem capabilities.
+
+  Unlike OEM, we do NOT declare `android:sharedUserId="android.uid.system"`
+  here: that requires platform signing and would break side-loading on an
+  unrooted test device. The admin flavor instead relies on the Shizuku /
+  root / Runtime.exec fallback chain wired in
+  `src/admin/java/.../PrivilegedExecutionFacadeBootstrap.kt`.
+  ══════════════════════════════════════════════════════════════════════════════
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      Intentional no-op overlay. Every <uses-permission>, <service>, <provider>,
+      and <receiver> from src/main/AndroidManifest.xml is preserved verbatim
+      so the admin APK carries the full set of capabilities.
+    -->
+    <application tools:ignore="MissingApplicationIcon" />
+
+</manifest>

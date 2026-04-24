@@ -23,30 +23,32 @@
 | **Target SDK** | API 35 (Android 15) |
 | **Primary Language** | Kotlin 2.0.21 |
 | **UI Framework** | Jetpack Compose + Material 3 |
-| **Product Flavors** | `lite` / `norm` / `pro` / `oem` (4-tier architecture) |
+| **Product Flavors** | `lite` / `norm` / `pro` / `oem` / `admin` (5-tier architecture) |
 
 ---
 
-## 🎛️ 4-Tier Flavor Architecture (The Business Engine)
+## 🎛️ 5-Tier Flavor Architecture (The Business Engine)
 
-The project ships four distinct product flavors on the `tier` Gradle dimension. Each flavor represents a specific business tier with its own `applicationId`, manifest overlay, `TierPolicy`, and runtime capability gating.
+The project ships five distinct product flavors on the `tier` Gradle dimension. Each flavor represents a specific business tier with its own `applicationId`, manifest overlay, `TierPolicy`, and runtime capability gating.
 
-| Flavor | `applicationId` | Target Audience | Key Capabilities | Execution Gate Behavior |
-|--------|----------------|-----------------|------------------|-------------------------|
-| `lite` | `com.omnidev.workspace` | B2C Free / Google Play | `web_search`, `web_scraper`, `read_file` ONLY. Fully scrubbed manifest. | Deny-all (Strict) |
-| `norm` | `com.omnidev.workspace.norm` | B2C Basic / Devs | Accessibility UI + terminal + Git + App management. No root/Shizuku. | User Prompts (Dialog) |
-| `pro` | `com.omnidev.workspace.pro` | B2C Premium / Hackers | Full God-Mode: Shizuku + Root + Deep Pentesting + Swarm Orchestration. | User Prompts (Dialog) |
-| `oem` | `com.omnidev.workspace.oem` | B2B Partners / ROMs | `android.uid.system` + offline local Llama.cpp. Device wipe restricted. | **Zero-click** (Auto-approves) |
+| Flavor  | `applicationId`                  | Target Audience                               | Key Capabilities                                                                                                                                                            | Execution Gate Behavior           |
+|---------|----------------------------------|-----------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------|
+| `lite`  | `com.omnidev.workspace`          | B2C Free / Google Play                        | Web browsing (`web_search`, `web_search_deep`, `web_scraper`, `scrape_multiple`) + `read_file` + **Persistent Memory & Vector Knowledge Base tools** (`remember_fact`, `search_knowledge`, `update_memory`, `delete_memory`, `vector_store`, `vector_search`, `vector_similar`). Fully scrubbed manifest. | Deny-all (Strict)                 |
+| `norm`  | `com.omnidev.workspace.norm`     | B2C Basic / Devs                              | Accessibility UI + terminal + Git + App management. No root/Shizuku.                                                                                                        | User Prompts (Dialog)             |
+| `pro`   | `com.omnidev.workspace.pro`      | B2C Premium / Hackers                         | Full God-Mode: Shizuku + Root + Deep Pentesting + Swarm Orchestration.                                                                                                      | User Prompts (Dialog)             |
+| `oem`   | `com.omnidev.workspace.oem`      | B2B Partners / ROMs                           | `android.uid.system` + offline local Llama.cpp. Device wipe restricted.                                                                                                     | **Zero-click** (Auto-approves)    |
+| `admin` | `com.omnidev.workspace.admin`    | 🔑 **Lead Developer ONLY** (Master Key Build) | **Every capability enabled.** Shizuku + Root + Accessibility + Deep Pentesting + Device Admin Wipe + Local SLM (full ABI set, CMake) + System Integration hooks. Used exclusively for rapid end-to-end QA. Never distributed. | **Zero-click** (Auto-approves, audit-logged) |
 
 Build a specific flavor via terminal:
 ```bash
-./gradlew :app:assembleLiteDebug     # Play-Store-safe restricted variant
+./gradlew :app:assembleLiteDebug     # Play-Store-safe restricted variant (now with Memory + Vector tools)
 ./gradlew :app:assembleNormDebug     # Standard developer variant
 ./gradlew :app:assembleProDebug      # Full god-mode power user variant
 ./gradlew :app:assembleOemDebug      # OEM / custom ROM integration variant
+./gradlew :app:assembleAdminDebug    # 🔑 Master-key developer testing build (ALL capabilities)
 
 ```
-The policy layer resides in com.omnidev.workspace.core.policy (TierPolicy.kt, ConfirmationGate.kt, OmniAuditLog.kt). Privileged execution is safely abstracted behind com.omnidev.workspace.core.privileged.PrivilegedExecutionFacade to prevent dead-code linking in restricted flavors.
+The policy layer resides in com.omnidev.workspace.core.policy (TierPolicy.kt, ConfirmationGate.kt, OmniAuditLog.kt). Privileged execution is safely abstracted behind com.omnidev.workspace.core.privileged.PrivilegedExecutionFacade to prevent dead-code linking in restricted flavors. The five `TierPolicy` implementations live in `src/lite/`, `src/norm/`, `src/pro/`, `src/oem/`, and `src/admin/` respectively — Gradle guarantees exactly one is on the classpath per build variant.
 ## Table of Contents
  1. Architecture Overview
  2. Agent Brain System
@@ -664,6 +666,14 @@ MemoryManager vs VectorMemoryManager         ← Complementary DBs (OK)
  * [x] Integrate 4-Tier Gradle Flavors (lite, norm, pro, oem).
  * [x] Setup Manifest Overlays using tools:node="remove" for strict compliance.
  * [x] Implement TierPolicy and PrivilegedExecutionFacade.
+ * [x] **Expand to 5-Tier Architecture** — added `admin` master-key developer
+       build (all flags `true`, zero-click auto-approval, Shizuku + root +
+       Runtime.exec fallback chain, full llama.cpp ABI set).
+ * [x] **Upgrade `lite` tier** to ship the Persistent Memory & Vector
+       Knowledge Base tools (`remember_fact`, `search_knowledge`,
+       `update_memory`, `delete_memory`, `vector_store`, `vector_search`,
+       `vector_similar`) so even the Play-Store-safe variant has long-term
+       on-device context.
 #### Phase 5: Physical Modularization (Pending)
  * [ ] Create :core:shared module and migrate Domain, Entities, and AgentPipeline.
  * [ ] Create :core:ipc module for AIDL and Binders.
@@ -672,5 +682,5 @@ MemoryManager vs VectorMemoryManager         ← Complementary DBs (OK)
  * [ ] Create :tools:advanced module for Shizuku, Pentesting, and Root shells (restricted to pro flavor).
  * [ ] Implement CAMPS daemon (Magisk systemless module).
  * [ ] Achieve full root execution via mtkclient.
-> **Last Updated:** 2026-04-23
+> **Last Updated:** 2026-04-23 (5-Tier Architecture Expansion — added `admin` master-key build; upgraded `lite` with Memory + Vector tools)
 > **Maintenance Rule:** This document MUST be updated whenever a Tool, Service, or Architectural change is committed.

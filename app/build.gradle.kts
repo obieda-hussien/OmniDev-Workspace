@@ -44,12 +44,17 @@ android {
     }
 
     // ══════════════════════════════════════════════════════════════════════════════
-    // 4-Tier Product Flavors (tier dimension)
+    // 5-Tier Product Flavors (tier dimension)
     // ══════════════════════════════════════════════════════════════════════════════
-    //  lite → Google Play B2C Free (scrubbed, no root, no Shizuku, no Accessibility)
-    //  norm → B2C Basic (Accessibility + Terminal, no root, no Shizuku)
-    //  pro  → B2C Premium God Mode (Shizuku + Pentesting + full Swarm)
-    //  oem  → B2B OEM / Custom ROM (system uid, zero-click, local SLM, no root/Shizuku)
+    //  lite  → Google Play B2C Free (scrubbed; NO root/Shizuku/Accessibility, but
+    //          now includes Persistent Memory & Vector Knowledge Base tools)
+    //  norm  → B2C Basic (Accessibility + Terminal, no root, no Shizuku)
+    //  pro   → B2C Premium God Mode (Shizuku + Pentesting + full Swarm)
+    //  oem   → B2B OEM / Custom ROM (system uid, zero-click, local SLM, no root/Shizuku)
+    //  admin → 🔑 MASTER KEY (lead-developer-only testing build). EVERY capability
+    //          is unlocked: root + Shizuku + Accessibility + Deep Security +
+    //          Device Admin wipe + Local SLM + System Integration + zero-click
+    //          auto-approval. NEVER distributed — used for rapid end-to-end QA.
     // ══════════════════════════════════════════════════════════════════════════════
     flavorDimensions += "tier"
 
@@ -145,16 +150,49 @@ android {
             buildConfigField("boolean", "ENABLE_LOCAL_SLM",         "true")  // Offline llama.cpp
             buildConfigField("boolean", "ALLOW_SYSTEM_INTEGRATION", "true")  // android.uid.system
         }
+
+        // ──────────────────────────────────────────────────────────────────────
+        //  🔑 ADMIN — Master-key developer testing build. EVERY flag is true.
+        //  NOT distributed to any end-user. Used exclusively by the lead
+        //  developer for rapid end-to-end QA of every tool, every permission,
+        //  every privileged path. Zero restrictions, zero confirmation prompts.
+        // ──────────────────────────────────────────────────────────────────────
+        create("admin") {
+            dimension = "tier"
+            applicationIdSuffix = ".admin"
+            versionNameSuffix   = "-admin"
+            resValue("string", "app_name", "OmniDev Admin")
+
+            buildConfigField("String",  "TIER",                     "\"ADMIN\"")
+            buildConfigField("boolean", "ALLOW_ROOT",               "true")
+            buildConfigField("boolean", "ALLOW_SHIZUKU",            "true")
+            buildConfigField("boolean", "ALLOW_ACCESSIBILITY",      "true")
+            buildConfigField("boolean", "ALLOW_DEEP_SECURITY",      "true")
+            buildConfigField("boolean", "AUTO_APPROVE_CONFIRMATIONS","true")  // ← ZERO-CLICK (rapid QA)
+            buildConfigField("boolean", "ALLOW_DEVICE_ADMIN_WIPE",  "true")
+            buildConfigField("boolean", "ENABLE_LOCAL_SLM",         "true")  // Offline llama.cpp
+            buildConfigField("boolean", "ALLOW_SYSTEM_INTEGRATION", "true")  // Enable all system hooks
+            // ADMIN keeps the full ABI set (arm64-v8a + x86_64) inherited from
+            // defaultConfig and fully participates in externalNativeBuild / CMake
+            // so that llama.cpp native inference is compiled for this variant.
+        }
     }
 
     // ── Optional shared source folders ────────────────────────────────────────
-    // liteNorm/: code shared by both consumer tiers (lite + norm)
-    // proOem/:   code shared by both privileged tiers (pro + oem) — e.g. SLM bootstrapping
+    // liteNorm/:      code shared by both consumer tiers (lite + norm)
+    // proOem/:        code shared by both privileged tiers (pro + oem)
+    // proOemAdmin/:   code shared by ALL privileged tiers (pro + oem + admin) —
+    //                 e.g. SLM bootstrapping, privileged execution facade adapters.
+    //                 Admin is treated as the "super-set" of pro + oem so it
+    //                 inherits every high-privilege facade automatically.
     sourceSets {
         getByName("lite").java.srcDir("src/liteNorm/java")
         getByName("norm").java.srcDir("src/liteNorm/java")
         getByName("pro").java.srcDir("src/proOem/java")
         getByName("oem").java.srcDir("src/proOem/java")
+        getByName("pro").java.srcDir("src/proOemAdmin/java")
+        getByName("oem").java.srcDir("src/proOemAdmin/java")
+        getByName("admin").java.srcDir("src/proOemAdmin/java")
     }
 
     buildTypes {
