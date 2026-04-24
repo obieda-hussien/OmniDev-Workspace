@@ -107,8 +107,16 @@ fun DiffViewer(
     val hunkFg      = Color(0xFF82B1FF)
     val defaultFg   = Color(0xFFE0E0E0)
 
-    // Cache the split to avoid re-splitting on every recomposition
-    val lines = remember(diffText) { diffText.lines() }
+    // Cache the split to avoid re-splitting on every recomposition.
+    // Truncate to prevent IllegalStateException (Size out of range) on massive diffs.
+    val lines = remember(diffText) {
+        val allLines = diffText.lines()
+        if (allLines.size > 1000) {
+            allLines.take(1000) + "@@ ... [Diff truncated, ${allLines.size - 1000} lines omitted] @@"
+        } else {
+            allLines
+        }
+    }
 
     SelectionContainer(modifier = modifier) {
         Column(
@@ -215,8 +223,16 @@ fun ConfirmationGateDialog(confirmation: PendingConfirmation) {
                                 .padding(12.dp)
                                 .verticalScroll(rememberScrollState())
                         ) {
+                            val safePreview = remember(confirmation.preview) {
+                                val pLines = confirmation.preview.lines()
+                                if (pLines.size > 1000) {
+                                    (pLines.take(1000) + "... [Preview truncated, ${pLines.size - 1000} lines omitted]").joinToString("\n")
+                                } else {
+                                    confirmation.preview
+                                }
+                            }
                             Text(
-                                text = confirmation.preview,
+                                text = safePreview,
                                 style = MaterialTheme.typography.bodySmall.copy(
                                     fontFamily = FontFamily.Monospace,
                                     color = MaterialTheme.colorScheme.inverseOnSurface,
