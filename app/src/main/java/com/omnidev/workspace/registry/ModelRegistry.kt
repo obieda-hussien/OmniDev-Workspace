@@ -1713,6 +1713,9 @@ object ModelRegistry {
             "together" in lowerId -> ModelProvider.TOGETHER
             "perplexity" in lowerId || "sonar" in lowerId -> ModelProvider.PERPLEXITY
             "nvidia" in lowerId || "nemotron" in lowerId -> ModelProvider.NVIDIA
+            "minimax" in lowerId -> ModelProvider.MINIMAX
+            "vercel" in lowerId -> ModelProvider.VERCEL_AI_GATEWAY
+            "huggingface" in lowerId || "hf" in lowerId -> ModelProvider.HUGGING_FACE
             "copilot" in lowerId -> ModelProvider.GITHUB_COPILOT
             "llama" in lowerId -> ModelProvider.TOGETHER
             else -> ModelProvider.LOCAL_EDGE

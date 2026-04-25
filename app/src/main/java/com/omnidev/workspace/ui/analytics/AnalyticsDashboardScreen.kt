@@ -93,6 +93,9 @@ private fun ModelProvider.color(): Color = when (this) {
     ModelProvider.GITHUB_COPILOT -> Color(0xFF24292F)   // GitHub dark
     ModelProvider.GITHUB_MODELS -> Color(0xFF57606A)    // GitHub gray
     ModelProvider.OPEN_ROUTER -> Color(0xFF6366F1)      // OpenRouter indigo
+    ModelProvider.MINIMAX -> Color(0xFFFF3366)          // Minimax red
+    ModelProvider.VERCEL_AI_GATEWAY -> Color(0xFF000000) // Vercel black
+    ModelProvider.HUGGING_FACE -> Color(0xFFFFD21E)     // HF yellow
     ModelProvider.LOCAL_EDGE -> Color(0xFF6B7280)       // Gray
 }
 
