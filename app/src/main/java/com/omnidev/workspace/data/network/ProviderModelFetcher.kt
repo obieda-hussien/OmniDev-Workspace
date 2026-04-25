@@ -66,6 +66,9 @@ class ProviderModelFetcher {
                 ModelProvider.PERPLEXITY -> fetchPerplexity(apiKey)
                 ModelProvider.NVIDIA -> fetchNvidia(apiKey)
                 ModelProvider.XAI -> fetchXai(apiKey)
+                ModelProvider.MINIMAX,
+                ModelProvider.VERCEL_AI_GATEWAY,
+                ModelProvider.HUGGING_FACE,
                 ModelProvider.GITHUB_COPILOT,
                 ModelProvider.GITHUB_MODELS,
                 ModelProvider.LOCAL_EDGE -> emptyList()

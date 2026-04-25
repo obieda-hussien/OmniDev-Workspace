@@ -159,7 +159,7 @@ android {
         // ──────────────────────────────────────────────────────────────────────
         create("admin") {
             dimension = "tier"
-            applicationIdSuffix = ".admin"
+            // applicationIdSuffix = ".admin"
             versionNameSuffix   = "-admin"
             resValue("string", "app_name", "OmniDev Admin")
 
