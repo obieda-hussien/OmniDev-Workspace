@@ -433,11 +433,12 @@ private fun ModelRoleCard(
                 ) {
                     // Group models by provider
                     val configuredProvidersSet = configuredProviders.map { it.provider }.toSet()
-                    val mergedModelsByProvider = ModelRegistry.modelsByProvider.mapValues { (provider, staticModels) ->
+                    val mergedModelsByProvider = ModelProvider.entries.associateWith { provider ->
+                        val staticModels = ModelRegistry.modelsByProvider[provider] ?: emptyList()
                         val dynamicModels = catalogs[provider]?.models
                         if (dynamicModels.isNullOrEmpty()) staticModels else dynamicModels
-                    }.filterKeys { provider ->
-                        provider == ModelProvider.LOCAL_EDGE || provider == ModelProvider.GITHUB_COPILOT || provider in configuredProvidersSet
+                    }.filter { (provider, models) ->
+                        (provider == ModelProvider.LOCAL_EDGE || provider == ModelProvider.GITHUB_COPILOT || provider in configuredProvidersSet) && models.isNotEmpty()
                     }
                     mergedModelsByProvider.forEach { (provider, models) ->
                         // Provider header
