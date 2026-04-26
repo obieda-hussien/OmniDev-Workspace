@@ -361,7 +361,8 @@ private fun ModelRoleCard(
     onDismiss: () -> Unit
 ) {
     val allDynamicModels = catalogs.values.flatMap { it.models }
-    val selectedModel = allDynamicModels.find { it.id == selectedModelId }
+    val selectedModelIdRaw = selectedModelId.substringAfter("::")
+    val selectedModel = allDynamicModels.find { it.id == selectedModelIdRaw }
         ?: ModelRegistry.findModelById(selectedModelId)
 
     var expandedProviders by remember { mutableStateOf(mapOf<ModelProvider, Boolean>()) }
@@ -459,7 +460,8 @@ private fun ModelRoleCard(
                         val isProviderExpanded = expandedProviders[provider] ?: false
                         val visibleModels = if (isProviderExpanded) models else models.take(10)
                         visibleModels.forEach { model ->
-                            val isSelected = model.id == selectedModelId
+                            val selectedModelIdRaw = selectedModelId.substringAfter("::")
+                            val isSelected = model.id == selectedModelIdRaw
                             DropdownMenuItem(
                                 text = {
                                     Row(

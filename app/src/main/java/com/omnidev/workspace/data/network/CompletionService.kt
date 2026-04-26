@@ -475,7 +475,7 @@ class CompletionService {
         val body = json.encodeToString(
             AnthropicRequest.serializer(),
             AnthropicRequest(
-                model = request.modelId,
+                model = request.modelId.substringAfter("::"),
                 maxTokens = request.maxTokens,
                 messages = messages,
                 system = request.systemPrompt,
@@ -574,10 +574,11 @@ class CompletionService {
         // GitHub Models uses a "github/" prefix in registry IDs for uniqueness;
         // strip it before sending to the Azure inference endpoint.
         // GitHub Copilot uses a "copilot/" prefix similarly; strip before sending to api.githubcopilot.com.
+        val rawModelId = request.modelId.substringAfter("::")
         val apiModelId = when (provider) {
-            ModelProvider.GITHUB_MODELS  -> request.modelId.removePrefix("github/")
-            ModelProvider.GITHUB_COPILOT -> request.modelId.removePrefix("copilot/")
-            else                         -> request.modelId
+            ModelProvider.GITHUB_MODELS  -> rawModelId.removePrefix("github/")
+            ModelProvider.GITHUB_COPILOT -> rawModelId.removePrefix("copilot/")
+            else                         -> rawModelId
         }
 
         val body = json.encodeToString(
@@ -717,10 +718,11 @@ class CompletionService {
         // GitHub Models uses a "github/" prefix in registry IDs for uniqueness;
         // strip it before sending to the Azure inference endpoint.
         // GitHub Copilot uses a "copilot/" prefix similarly; strip before sending to api.githubcopilot.com.
+        val rawModelId = request.modelId.substringAfter("::")
         val apiModelIdStream = when (provider) {
-            ModelProvider.GITHUB_MODELS  -> request.modelId.removePrefix("github/")
-            ModelProvider.GITHUB_COPILOT -> request.modelId.removePrefix("copilot/")
-            else                         -> request.modelId
+            ModelProvider.GITHUB_MODELS  -> rawModelId.removePrefix("github/")
+            ModelProvider.GITHUB_COPILOT -> rawModelId.removePrefix("copilot/")
+            else                         -> rawModelId
         }
 
         val openAiToolsStream = request.tools?.map { it.toOpenAiToolDef() }
@@ -891,7 +893,7 @@ class CompletionService {
         val body = json.encodeToString(
             AnthropicRequest.serializer(),
             AnthropicRequest(
-                model = request.modelId,
+                model = request.modelId.substringAfter("::"),
                 maxTokens = request.maxTokens,
                 messages = messages,
                 system = request.systemPrompt,

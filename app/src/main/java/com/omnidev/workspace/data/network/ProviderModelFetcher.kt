@@ -553,24 +553,18 @@ class ProviderModelFetcher {
     //  MiniMax — /v1/models
     // ──────────────────────────────────────────────
 
-    private fun fetchMinimax(apiKey: String?): List<AIModel> {
-        require(!apiKey.isNullOrBlank()) { "MiniMax API key is required." }
-        val body = httpGet(
-            "https://api.minimax.chat/v1/models",
-            mapOf("Authorization" to "Bearer $apiKey")
+    private fun fetchMinimax(apiKey: String?): List<AIModel> = listOf(
+        "minimax-text-01", "minimax-text-01-vision", "abab6.5s-chat", "abab6.5t-chat", "abab6.5g-chat"
+    ).map { id ->
+        AIModel(
+            id = id,
+            displayName = id,
+            provider = ModelProvider.MINIMAX,
+            tier = inferTier(id),
+            contextWindow = 128_000,
+            maxOutputTokens = 8_192,
+            supportsFunctionCalling = true
         )
-        val parsed = json.decodeFromString(OpenAiListResponse.serializer(), body)
-        return parsed.data.map { m ->
-            AIModel(
-                id = m.id,
-                displayName = m.id,
-                provider = ModelProvider.MINIMAX,
-                tier = inferTier(m.id),
-                contextWindow = 128_000,
-                maxOutputTokens = 8_192,
-                supportsFunctionCalling = true
-            )
-        }
     }
 
     // ──────────────────────────────────────────────

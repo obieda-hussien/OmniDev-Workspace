@@ -178,29 +178,38 @@ object ModelRegistry {
     }
 
     private fun generateFallbackModel(id: String): AIModel {
-        val lowerId = id.lowercase(java.util.Locale.US)
-        val provider = when {
-            "openrouter" in lowerId || "/" in lowerId -> ModelProvider.OPEN_ROUTER
-            "claude" in lowerId || "anthropic" in lowerId -> ModelProvider.ANTHROPIC
-            "gpt" in lowerId || "openai" in lowerId || lowerId.startsWith("o1") ||
-                lowerId.startsWith("o3") || lowerId.startsWith("o4") -> ModelProvider.OPENAI
-            "gemini" in lowerId || "google" in lowerId || "gemma" in lowerId -> ModelProvider.GEMINI
-            "grok" in lowerId || "xai" in lowerId -> ModelProvider.XAI
-            "deepseek" in lowerId -> ModelProvider.DEEPSEEK
-            "mistral" in lowerId || "mixtral" in lowerId -> ModelProvider.MISTRAL
-            "groq" in lowerId -> ModelProvider.GROQ
-            "cerebras" in lowerId -> ModelProvider.CEREBRAS
-            "cohere" in lowerId || "command" in lowerId -> ModelProvider.COHERE
-            "fireworks" in lowerId -> ModelProvider.FIREWORKS
-            "together" in lowerId -> ModelProvider.TOGETHER
-            "perplexity" in lowerId || "sonar" in lowerId -> ModelProvider.PERPLEXITY
-            "nvidia" in lowerId || "nemotron" in lowerId -> ModelProvider.NVIDIA
-            "minimax" in lowerId -> ModelProvider.MINIMAX
-            "vercel" in lowerId -> ModelProvider.VERCEL_AI_GATEWAY
-            "huggingface" in lowerId || "hf" in lowerId -> ModelProvider.HUGGING_FACE
-            "copilot" in lowerId -> ModelProvider.GITHUB_COPILOT
-            "llama" in lowerId -> ModelProvider.TOGETHER
-            else -> ModelProvider.LOCAL_EDGE
+        val parts = id.split("::", limit = 2)
+        val providerName = if (parts.size == 2) parts[0] else null
+        val realId = if (parts.size == 2) parts[1] else id
+
+        val lowerId = realId.lowercase(java.util.Locale.US)
+
+        val provider = if (providerName != null) {
+            runCatching { ModelProvider.valueOf(providerName) }.getOrNull() ?: ModelProvider.OPEN_ROUTER
+        } else {
+            when {
+                "openrouter" in lowerId || "/" in lowerId -> ModelProvider.OPEN_ROUTER
+                "claude" in lowerId || "anthropic" in lowerId -> ModelProvider.ANTHROPIC
+                "gpt" in lowerId || "openai" in lowerId || lowerId.startsWith("o1") ||
+                    lowerId.startsWith("o3") || lowerId.startsWith("o4") -> ModelProvider.OPENAI
+                "gemini" in lowerId || "google" in lowerId || "gemma" in lowerId -> ModelProvider.GEMINI
+                "grok" in lowerId || "xai" in lowerId -> ModelProvider.XAI
+                "deepseek" in lowerId -> ModelProvider.DEEPSEEK
+                "mistral" in lowerId || "mixtral" in lowerId -> ModelProvider.MISTRAL
+                "groq" in lowerId -> ModelProvider.GROQ
+                "cerebras" in lowerId -> ModelProvider.CEREBRAS
+                "cohere" in lowerId || "command" in lowerId -> ModelProvider.COHERE
+                "fireworks" in lowerId -> ModelProvider.FIREWORKS
+                "together" in lowerId -> ModelProvider.TOGETHER
+                "perplexity" in lowerId || "sonar" in lowerId -> ModelProvider.PERPLEXITY
+                "nvidia" in lowerId || "nemotron" in lowerId -> ModelProvider.NVIDIA
+                "minimax" in lowerId -> ModelProvider.MINIMAX
+                "vercel" in lowerId -> ModelProvider.VERCEL_AI_GATEWAY
+                "huggingface" in lowerId || "hf" in lowerId -> ModelProvider.HUGGING_FACE
+                "copilot" in lowerId -> ModelProvider.GITHUB_COPILOT
+                "llama" in lowerId -> ModelProvider.TOGETHER
+                else -> ModelProvider.LOCAL_EDGE
+            }
         }
 
         val tier = when {
@@ -230,8 +239,8 @@ object ModelRegistry {
         }
 
         return AIModel(
-            id = id,
-            displayName = id,
+            id = realId,
+            displayName = realId,
             provider = provider,
             tier = tier,
             contextWindow = 128000,
