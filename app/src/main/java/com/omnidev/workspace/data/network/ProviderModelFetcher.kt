@@ -580,7 +580,7 @@ class ProviderModelFetcher {
     private fun fetchVercelAiGateway(apiKey: String?): List<AIModel> {
         require(!apiKey.isNullOrBlank()) { "Vercel API key is required." }
         val body = httpGet(
-            "https://api.vercel.ai/v1/models",
+            "https://ai-gateway.vercel.sh/v1/models",
             mapOf("Authorization" to "Bearer $apiKey")
         )
         val parsed = json.decodeFromString(OpenAiListResponse.serializer(), body)
@@ -604,7 +604,7 @@ class ProviderModelFetcher {
     private fun fetchHuggingFace(apiKey: String?): List<AIModel> {
         require(!apiKey.isNullOrBlank()) { "Hugging Face API key is required." }
         val body = httpGet(
-            "https://api-inference.huggingface.co/v1/models",
+            "https://router.huggingface.co/v1/models",
             mapOf("Authorization" to "Bearer $apiKey")
         )
         val parsed = json.decodeFromString(OpenAiListResponse.serializer(), body)
