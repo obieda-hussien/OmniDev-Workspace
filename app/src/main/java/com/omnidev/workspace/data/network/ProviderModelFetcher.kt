@@ -66,9 +66,9 @@ class ProviderModelFetcher {
                 ModelProvider.PERPLEXITY -> fetchPerplexity(apiKey)
                 ModelProvider.NVIDIA -> fetchNvidia(apiKey)
                 ModelProvider.XAI -> fetchXai(apiKey)
-                ModelProvider.MINIMAX,
-                ModelProvider.VERCEL_AI_GATEWAY,
-                ModelProvider.HUGGING_FACE,
+                ModelProvider.MINIMAX -> fetchMinimax(apiKey)
+                ModelProvider.VERCEL_AI_GATEWAY -> fetchVercelAiGateway(apiKey)
+                ModelProvider.HUGGING_FACE -> fetchHuggingFace(apiKey)
                 ModelProvider.GITHUB_COPILOT,
                 ModelProvider.GITHUB_MODELS,
                 ModelProvider.LOCAL_EDGE -> emptyList()
@@ -544,6 +544,78 @@ class ProviderModelFetcher {
                 contextWindow = 256_000,
                 maxOutputTokens = 8_192,
                 supportsVision = m.id.contains("vision", true) || m.id.contains("grok-4", true),
+                supportsFunctionCalling = true
+            )
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  MiniMax — /v1/models
+    // ──────────────────────────────────────────────
+
+    private fun fetchMinimax(apiKey: String?): List<AIModel> {
+        require(!apiKey.isNullOrBlank()) { "MiniMax API key is required." }
+        val body = httpGet(
+            "https://api.minimax.chat/v1/models",
+            mapOf("Authorization" to "Bearer $apiKey")
+        )
+        val parsed = json.decodeFromString(OpenAiListResponse.serializer(), body)
+        return parsed.data.map { m ->
+            AIModel(
+                id = m.id,
+                displayName = m.id,
+                provider = ModelProvider.MINIMAX,
+                tier = inferTier(m.id),
+                contextWindow = 128_000,
+                maxOutputTokens = 8_192,
+                supportsFunctionCalling = true
+            )
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  Vercel AI Gateway — /v1/models
+    // ──────────────────────────────────────────────
+
+    private fun fetchVercelAiGateway(apiKey: String?): List<AIModel> {
+        require(!apiKey.isNullOrBlank()) { "Vercel API key is required." }
+        val body = httpGet(
+            "https://api.vercel.ai/v1/models",
+            mapOf("Authorization" to "Bearer $apiKey")
+        )
+        val parsed = json.decodeFromString(OpenAiListResponse.serializer(), body)
+        return parsed.data.map { m ->
+            AIModel(
+                id = m.id,
+                displayName = m.id,
+                provider = ModelProvider.VERCEL_AI_GATEWAY,
+                tier = inferTier(m.id),
+                contextWindow = 128_000,
+                maxOutputTokens = 8_192,
+                supportsFunctionCalling = true
+            )
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  Hugging Face — /v1/models
+    // ──────────────────────────────────────────────
+
+    private fun fetchHuggingFace(apiKey: String?): List<AIModel> {
+        require(!apiKey.isNullOrBlank()) { "Hugging Face API key is required." }
+        val body = httpGet(
+            "https://api-inference.huggingface.co/v1/models",
+            mapOf("Authorization" to "Bearer $apiKey")
+        )
+        val parsed = json.decodeFromString(OpenAiListResponse.serializer(), body)
+        return parsed.data.map { m ->
+            AIModel(
+                id = m.id,
+                displayName = m.id,
+                provider = ModelProvider.HUGGING_FACE,
+                tier = inferTier(m.id),
+                contextWindow = 128_000,
+                maxOutputTokens = 8_192,
                 supportsFunctionCalling = true
             )
         }
