@@ -125,7 +125,7 @@ class ProviderModelFetcher {
             val vision = (m.architecture?.inputModalities?.contains("image") == true) ||
                 (m.architecture?.modality?.contains("image", true) == true)
             AIModel(
-                id = m.id,
+                id = "${ModelProvider.OPEN_ROUTER.name}::${m.id}",
                 displayName = m.name ?: m.id,
                 provider = ModelProvider.OPEN_ROUTER,
                 tier = inferTier(m.id),
@@ -169,7 +169,7 @@ class ProviderModelFetcher {
             .filter { it.active != false }
             .map { m ->
                 AIModel(
-                    id = m.id,
+                    id = "${ModelProvider.GROQ.name}::${m.id}",
                     displayName = m.id,
                     provider = ModelProvider.GROQ,
                     tier = inferTier(m.id),
@@ -207,7 +207,7 @@ class ProviderModelFetcher {
             .filter { it.id.startsWith("gpt") || it.id.startsWith("o") || it.id.startsWith("chatgpt") }
             .map { m ->
                 AIModel(
-                    id = m.id,
+                    id = "${ModelProvider.OPENAI.name}::${m.id}",
                     displayName = m.id,
                     provider = ModelProvider.OPENAI,
                     tier = inferTier(m.id),
@@ -256,7 +256,7 @@ class ProviderModelFetcher {
         val parsed = json.decodeFromString(AnthropicListResponse.serializer(), body)
         return parsed.data.map { m ->
             AIModel(
-                id = m.id,
+                id = "${ModelProvider.ANTHROPIC.name}::${m.id}",
                 displayName = m.displayName ?: m.id,
                 provider = ModelProvider.ANTHROPIC,
                 tier = inferTier(m.id),
@@ -297,7 +297,7 @@ class ProviderModelFetcher {
             .map { m ->
                 val id = m.name.removePrefix("models/")
                 AIModel(
-                    id = id,
+                    id = "${ModelProvider.GEMINI.name}::${id}",
                     displayName = m.displayName ?: id,
                     provider = ModelProvider.GEMINI,
                     tier = inferTier(id),
@@ -322,7 +322,7 @@ class ProviderModelFetcher {
         val parsed = json.decodeFromString(OpenAiListResponse.serializer(), body)
         return parsed.data.map { m ->
             AIModel(
-                id = m.id,
+                id = "${ModelProvider.MISTRAL.name}::${m.id}",
                 displayName = m.id,
                 provider = ModelProvider.MISTRAL,
                 tier = inferTier(m.id),
@@ -347,7 +347,7 @@ class ProviderModelFetcher {
         val parsed = json.decodeFromString(OpenAiListResponse.serializer(), body)
         return parsed.data.map { m ->
             AIModel(
-                id = m.id,
+                id = "${ModelProvider.DEEPSEEK.name}::${m.id}",
                 displayName = m.id,
                 provider = ModelProvider.DEEPSEEK,
                 tier = inferTier(m.id),
@@ -376,7 +376,7 @@ class ProviderModelFetcher {
         )
         return models.map { m ->
             AIModel(
-                id = m.id,
+                id = "${ModelProvider.TOGETHER.name}::${m.id}",
                 displayName = m.displayName ?: m.id,
                 provider = ModelProvider.TOGETHER,
                 tier = inferTier(m.id),
@@ -408,7 +408,7 @@ class ProviderModelFetcher {
         val parsed = json.decodeFromString(OpenAiListResponse.serializer(), body)
         return parsed.data.map { m ->
             AIModel(
-                id = m.id,
+                id = "${ModelProvider.FIREWORKS.name}::${m.id}",
                 displayName = m.id,
                 provider = ModelProvider.FIREWORKS,
                 tier = inferTier(m.id),
@@ -432,7 +432,7 @@ class ProviderModelFetcher {
         val parsed = json.decodeFromString(OpenAiListResponse.serializer(), body)
         return parsed.data.map { m ->
             AIModel(
-                id = m.id,
+                id = "${ModelProvider.CEREBRAS.name}::${m.id}",
                 displayName = m.id,
                 provider = ModelProvider.CEREBRAS,
                 tier = ModelTier.FAST, // Cerebras focuses on ultra-fast inference
@@ -469,7 +469,7 @@ class ProviderModelFetcher {
             .filter { it.endpoints?.contains("chat") == true }
             .map { m ->
                 AIModel(
-                    id = m.name,
+                    id = "${ModelProvider.COHERE.name}::${m.name}",
                     displayName = m.name,
                     provider = ModelProvider.COHERE,
                     tier = inferTier(m.name),
@@ -489,7 +489,7 @@ class ProviderModelFetcher {
         "sonar-deep-research"
     ).map { id ->
         AIModel(
-            id = id,
+            id = "${ModelProvider.PERPLEXITY.name}::${id}",
             displayName = id,
             provider = ModelProvider.PERPLEXITY,
             tier = inferTier(id),
@@ -513,7 +513,7 @@ class ProviderModelFetcher {
         val parsed = json.decodeFromString(OpenAiListResponse.serializer(), body)
         return parsed.data.map { m ->
             AIModel(
-                id = m.id,
+                id = "${ModelProvider.NVIDIA.name}::${m.id}",
                 displayName = m.id,
                 provider = ModelProvider.NVIDIA,
                 tier = inferTier(m.id),
@@ -537,7 +537,7 @@ class ProviderModelFetcher {
         val parsed = json.decodeFromString(OpenAiListResponse.serializer(), body)
         return parsed.data.map { m ->
             AIModel(
-                id = m.id,
+                id = "${ModelProvider.XAI.name}::${m.id}",
                 displayName = m.id,
                 provider = ModelProvider.XAI,
                 tier = inferTier(m.id),
@@ -557,7 +557,7 @@ class ProviderModelFetcher {
         "minimax-text-01", "minimax-text-01-vision", "abab6.5s-chat", "abab6.5t-chat", "abab6.5g-chat"
     ).map { id ->
         AIModel(
-            id = id,
+            id = "${ModelProvider.MINIMAX.name}::${id}",
             displayName = id,
             provider = ModelProvider.MINIMAX,
             tier = inferTier(id),
@@ -580,7 +580,7 @@ class ProviderModelFetcher {
         val parsed = json.decodeFromString(OpenAiListResponse.serializer(), body)
         return parsed.data.map { m ->
             AIModel(
-                id = m.id,
+                id = "${ModelProvider.VERCEL_AI_GATEWAY.name}::${m.id}",
                 displayName = m.id,
                 provider = ModelProvider.VERCEL_AI_GATEWAY,
                 tier = inferTier(m.id),
@@ -604,7 +604,7 @@ class ProviderModelFetcher {
         val parsed = json.decodeFromString(OpenAiListResponse.serializer(), body)
         return parsed.data.map { m ->
             AIModel(
-                id = m.id,
+                id = "${ModelProvider.HUGGING_FACE.name}::${m.id}",
                 displayName = m.id,
                 provider = ModelProvider.HUGGING_FACE,
                 tier = inferTier(m.id),
