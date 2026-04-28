@@ -188,7 +188,7 @@ object ModelRegistry {
             runCatching { ModelProvider.valueOf(providerName) }.getOrNull() ?: ModelProvider.OPEN_ROUTER
         } else {
             when {
-                "openrouter" in lowerId || "/" in lowerId -> ModelProvider.OPEN_ROUTER
+                "openrouter" in lowerId -> ModelProvider.OPEN_ROUTER
                 "claude" in lowerId || "anthropic" in lowerId -> ModelProvider.ANTHROPIC
                 "gpt" in lowerId || "openai" in lowerId || lowerId.startsWith("o1") ||
                     lowerId.startsWith("o3") || lowerId.startsWith("o4") -> ModelProvider.OPENAI
