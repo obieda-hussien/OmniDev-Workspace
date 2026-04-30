@@ -51,13 +51,23 @@ class SmartLearningBridge(
     private val intelligenceEngine: ToolIntelligenceEngine?,
     private val mlEngine: ToolMachineLearningEngine?,
     private val monitoringSystem: ToolMonitoringSystem?,
+    /**
+     * Agent Brain 2.0 — محرك Reflexion (دروس مستفادة من التجارب).
+     * اختياري: لو null النظام يعمل بدون حقن دروس.
+     */
+    private val reflexionEngine: com.omnidev.workspace.data.brain.ReflexionEngine? = null,
+    /**
+     * Agent Brain 2.0 — مخزن الذاكرة العَرَضية (episodes كاملة).
+     * اختياري: لو null النظام لا يحقن episodes مشابهة.
+     */
+    private val episodicMemoryStore: com.omnidev.workspace.data.brain.EpisodicMemoryStore? = null,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 ) {
 
     companion object {
         private const val TAG = "SmartLearning"
 
-        // حدود حقن السياق في System Prompt
+        // حدود حقن السياق في System Prompt — مضبوطة لأجهزة 2-4 GB RAM
         private const val MAX_CONTEXT_CHARS = 2000
         private const val MAX_TOOL_HISTORY_ITEMS = 5
         private const val PERSIST_INTERVAL_MS = 30_000L
@@ -66,6 +76,10 @@ class SmartLearningBridge(
         private const val MIN_RL_CONSENSUS_CONFIDENCE = 0.55
         private const val MIN_ML_ALTERNATIVE_CONFIDENCE = 0.4
         private const val MAX_RECOMMENDATION_CANDIDATES = 2
+
+        // Agent Brain 2.0 — حدود الحقن (يُلتزم بها على أجهزة ضعيفة)
+        private const val REFLEXION_MAX_CHARS = 500
+        private const val EPISODIC_MAX_CHARS = 600
     }
 
     // ─── الحالة ───────────────────────────────────────────────────────
@@ -76,6 +90,11 @@ class SmartLearningBridge(
     private var sessionId: String = "session_${System.currentTimeMillis()}"
     private var persistenceJob: kotlinx.coroutines.Job? = null
 
+    // Agent Brain 2.0 — الـ user intent الحالي + start time لـ episode logging
+    @Volatile private var currentUserIntent: String = ""
+    @Volatile private var currentTaskStartMs: Long = 0L
+    @Volatile private var currentTaskIterations: Int = 0
+
     // ─── دورة حياة الجلسة ─────────────────────────────────────────────
 
     /**
@@ -84,10 +103,70 @@ class SmartLearningBridge(
     suspend fun onSessionStart(agentMode: String = "ASSISTANT") = withContext(Dispatchers.IO) {
         sessionId = "session_${System.currentTimeMillis()}"
         sessionToolHistory.clear()
+        currentUserIntent = ""
+        currentTaskStartMs = System.currentTimeMillis()
+        currentTaskIterations = 0
         journal.startNewSession(agentMode)
         intelligenceEngine?.restore()
         startPersistenceLoop()
         Log.d(TAG, "🚀 جلسة جديدة بدأت: $sessionId | وضع: $agentMode")
+    }
+
+    /**
+     * يُستدعى من AgentPipeline عند بدء كل مهمة جديدة (user message).
+     * يُحفظ الـ user intent لاسترجاع episodes مشابهة + لاحقاً تسجيل episode كامل.
+     */
+    fun onTaskStart(userIntent: String) {
+        currentUserIntent = userIntent.take(200)
+        currentTaskStartMs = System.currentTimeMillis()
+        currentTaskIterations = 0
+    }
+
+    /**
+     * يُستدعى عند انتهاء المهمة (نجاح/فشل/إيقاف). يُغذّي:
+     *   1) ReflexionEngine لتعديل جودة الدروس المُحقَنة
+     *   2) EpisodicMemoryStore لتسجيل الـ episode كاملاً
+     */
+    fun onTaskEnd(
+        outcome: com.omnidev.workspace.data.brain.EpisodeOutcome,
+        finalSummary: String = ""
+    ) {
+        val toolsUsed = synchronized(sessionToolHistory) { sessionToolHistory.toList() }
+        val totalTime = System.currentTimeMillis() - currentTaskStartMs
+
+        // 1) Reflexion outcome feedback (background)
+        scope.launch(Dispatchers.IO) {
+            try {
+                reflexionEngine?.reportTaskOutcome(
+                    success = (outcome == com.omnidev.workspace.data.brain.EpisodeOutcome.SUCCESS)
+                )
+            } catch (t: Throwable) {
+                Log.w(TAG, "reflexion outcome feedback failed: ${t.message}")
+            }
+        }
+
+        // 2) Episodic memory record (async, non-blocking)
+        if (currentUserIntent.isNotBlank() && toolsUsed.isNotEmpty()) {
+            val summary = if (finalSummary.isNotBlank()) {
+                finalSummary
+            } else {
+                "intent: $currentUserIntent | tools: ${toolsUsed.takeLast(8).joinToString(",")} | outcome: $outcome"
+            }
+            episodicMemoryStore?.recordEpisodeAsync(
+                summary = summary,
+                userIntent = currentUserIntent,
+                finalOutcome = outcome,
+                toolsUsed = toolsUsed,
+                iterationsCount = currentTaskIterations,
+                totalTimeMs = totalTime,
+                sessionId = sessionId
+            )
+        }
+    }
+
+    /** يُحدّث عداد الـ iterations الحالي (يستدعى من AgentPipeline). */
+    fun onIterationStart() {
+        currentTaskIterations++
     }
 
     private fun startPersistenceLoop() {
@@ -204,9 +283,22 @@ class SmartLearningBridge(
             )
         }
 
+        // ─── 5b. Agent Brain 2.0 — Reflexion learning من التجربة ───
+        // لا يُسجّل إلا التجارب البارزة (failures / slow / large output)
+        // ويعمل بالكامل في الخلفية ليلائم الأجهزة الضعيفة.
+        reflexionEngine?.recordExperienceAsync(
+            toolName = toolName,
+            parameters = parameters,
+            result = result,
+            executionTimeMs = executionTimeMs,
+            userIntent = currentUserIntent
+        )
+
         // ─── 6. تحديث التاريخ المحلي للجلسة ─────────────────────────
-        sessionToolHistory.add(toolName)
-        if (sessionToolHistory.size > 50) sessionToolHistory.removeAt(0)
+        synchronized(sessionToolHistory) {
+            sessionToolHistory.add(toolName)
+            if (sessionToolHistory.size > 50) sessionToolHistory.removeAt(0)
+        }
 
         // ─── 7. تحليل التبعيات تلقائياً ─────────────────────────────
         if (sessionToolHistory.size >= 2 && !result.isError) {
@@ -241,16 +333,44 @@ class SmartLearningBridge(
         val memoryCtx = journal.buildMemoryContext()
         if (memoryCtx != null) parts.add(memoryCtx)
 
-        // 3. سياق الجلسة الحالية (آخر N أداة)
-        if (sessionToolHistory.size > 2) {
+        // 3. Agent Brain 2.0 — Episodic Memory (مهام مشابهة سابقة)
+        if (currentUserIntent.isNotBlank()) {
+            try {
+                val episodicCtx = episodicMemoryStore?.buildPromptInjection(
+                    query = currentUserIntent,
+                    topK = 2,
+                    maxChars = EPISODIC_MAX_CHARS
+                )
+                if (!episodicCtx.isNullOrBlank()) parts.add(episodicCtx)
+            } catch (t: Throwable) {
+                Log.w(TAG, "episodic injection failed: ${t.message}")
+            }
+        }
+
+        // 4. Agent Brain 2.0 — Reflexion (دروس مستفادة من فشل/نجاح سابق)
+        try {
+            val lastTool = synchronized(sessionToolHistory) { sessionToolHistory.lastOrNull() }
+            val reflexCtx = reflexionEngine?.buildPromptInjection(
+                contextQuery = currentUserIntent.ifBlank { lastTool.orEmpty() },
+                currentToolName = lastTool,
+                maxChars = REFLEXION_MAX_CHARS
+            )
+            if (!reflexCtx.isNullOrBlank()) parts.add(reflexCtx)
+        } catch (t: Throwable) {
+            Log.w(TAG, "reflexion injection failed: ${t.message}")
+        }
+
+        // 5. سياق الجلسة الحالية (آخر N أداة)
+        val historySnapshot = synchronized(sessionToolHistory) { sessionToolHistory.toList() }
+        if (historySnapshot.size > 2) {
             val sessionCtx = buildString {
                 appendLine("\n🔗 سياق الجلسة الحالية:")
-                appendLine("الأدوات المستخدمة: ${sessionToolHistory.takeLast(MAX_TOOL_HISTORY_ITEMS).joinToString(" → ")}")
+                appendLine("الأدوات المستخدمة: ${historySnapshot.takeLast(MAX_TOOL_HISTORY_ITEMS).joinToString(" → ")}")
             }
             parts.add(sessionCtx)
         }
 
-        // 4. توصيات الأداة التالية (من ML)
+        // 6. توصيات الأداة التالية (من ML)
         val recommendation = getToolRecommendation()
         if (recommendation != null) {
             parts.add("\n🎯 توصية: $recommendation")

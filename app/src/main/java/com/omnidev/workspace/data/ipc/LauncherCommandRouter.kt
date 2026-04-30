@@ -7,6 +7,8 @@ import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.data.network.CompletionService
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.data.tools.AgentBrainTools
+import com.omnidev.workspace.data.tools.BuildDoctorTools
 import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.DiscordPublisherTool
 import com.omnidev.workspace.data.tools.EnvironmentSetupManager
@@ -16,6 +18,8 @@ import com.omnidev.workspace.data.tools.HardwareToggleTool
 import com.omnidev.workspace.data.tools.HeadlessBrowserManager
 import com.omnidev.workspace.data.tools.MemoryManager
 import com.omnidev.workspace.data.tools.NotionPublisherTool
+import com.omnidev.workspace.data.tools.RepoContextTools
+import com.omnidev.workspace.data.tools.RollbackTools
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.data.tools.VectorMemoryManager
 import com.omnidev.workspace.domain.engine.AgentConfig
@@ -48,6 +52,18 @@ class LauncherCommandRouter(
     private val memoryManager = MemoryManager(database.knowledgeDao())
     private val completionService = CompletionService()
     private val fileToolManager = FileToolManager()
+    // ── Agent Brain 2.0: مراجع المحركات المُهيَّأة في OmniDevApp ──
+    private val omniApp = com.omnidev.workspace.OmniDevApp.instance
+    private val agentBrainTools = AgentBrainTools(
+        reflexion = omniApp.reflexionEngine,
+        episodic = omniApp.episodicMemoryStore,
+        reflexionDao = database.reflexionDao(),
+        episodicDao = database.episodicMemoryDao()
+    )
+    private val rollbackTools = RollbackTools(omniApp.rollbackManager)
+    private val repoContextTools = RepoContextTools(omniApp.repoIndexer, omniApp.repoContextEngine)
+    private val buildDoctorTools = BuildDoctorTools(omniApp.buildDoctorPro)
+
     private val toolManager = CompositeToolManager(
         fileToolManager = fileToolManager,
         memoryManager = memoryManager,
@@ -59,7 +75,11 @@ class LauncherCommandRouter(
         notionPublisherTool = NotionPublisherTool(settingsRepository),
         vectorMemoryManager = VectorMemoryManager(database.knowledgeDao()),
         apiKeyRepository = apiKeyRepository,
-        headlessBrowserManager = HeadlessBrowserManager(appContext)
+        headlessBrowserManager = HeadlessBrowserManager(appContext),
+        agentBrainTools = agentBrainTools,
+        rollbackTools = rollbackTools,
+        repoContextTools = repoContextTools,
+        buildDoctorTools = buildDoctorTools
     )
     private val agentPipeline = AgentPipeline(
         toolManager = toolManager,
@@ -68,7 +88,8 @@ class LauncherCommandRouter(
         streamingCompletionProvider = { req, onChunk -> completionService.stream(req, onChunk) },
         config = AgentConfig.THOROUGH,
         apiKeyRepository = apiKeyRepository,
-        memoryManager = memoryManager
+        memoryManager = memoryManager,
+        smartLearningBridge = omniApp.smartLearningBridge
     )
 
     @Volatile

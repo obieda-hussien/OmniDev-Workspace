@@ -53,7 +53,14 @@ internal object TierToolGate {
         // ── Vector Knowledge Base (cosine similarity, all local) ──────────────
         "vector_store",
         "vector_search",
-        "vector_similar"
+        "vector_similar",
+
+        // ── Agent Brain 2.0 (on-device, no privileges, mobile-friendly) ──
+        // كلها read-only أو ذاكرة محلية فقط، آمنة لـ Lite/Play-Store
+        "brain_reflexion_search",
+        "brain_episode_search",
+        "brain_recent_episodes",
+        "brain_stats"
     )
 
     /** Tools that require PRO-tier capabilities (Shizuku / root / deep-security). */

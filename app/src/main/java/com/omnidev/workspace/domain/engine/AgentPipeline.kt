@@ -595,6 +595,11 @@ Rules:
             "Reviewing request, context, and constraints"
         )
 
+        // ═══════════════════════════════════════════════════════════════
+        // 🧠 Agent Brain 2.0 — تسجيل بداية المهمة (لربط episodic memory)
+        // ═══════════════════════════════════════════════════════════════
+        smartLearningBridge?.onTaskStart(userMessage)
+
         val model = ModelRegistry.findModelById(modelId)
             ?: ModelRegistry.getModelById(modelId)
 
@@ -730,10 +735,16 @@ Rules:
         // ── ReAct Loop ──
         while (iteration < config.maxIterations) {
             iteration++
+            // Agent Brain 2.0 — تتبّع iterations الحالية لتسجيل episode دقيق
+            smartLearningBridge?.onIterationStart()
 
             // ── Wall-clock timeout check ──
             config.maxExecutionTimeMs?.let { timeoutMs ->
                 if (System.currentTimeMillis() - startTimeMs >= timeoutMs) {
+                    smartLearningBridge?.onTaskEnd(
+                        outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.ABANDONED,
+                        finalSummary = "wall-clock timeout after ${timeoutMs / 1_000}s"
+                    )
                     send(AgentEvent.Error(
                         "Agent execution timed out after ${timeoutMs / 1_000}s. " +
                         "Use the ⏹ stop button to cancel a run at any time."
@@ -750,6 +761,10 @@ Rules:
 
             // Token budget enforcement
             if (config.tokenBudget != null && totalTokensUsed >= config.tokenBudget) {
+                smartLearningBridge?.onTaskEnd(
+                    outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.ABANDONED,
+                    finalSummary = "token budget exhausted after $iteration iterations"
+                )
                 send(AgentEvent.Error(
                     "Token budget of ${config.tokenBudget} tokens exhausted after $iteration iterations."
                 ))
@@ -811,6 +826,10 @@ Rules:
             val response = callWithRetry(request, iteration,
                 onStreamChunk = { delta -> send(AgentEvent.StreamChunk(delta)) }
             ) { errorMsg ->
+                smartLearningBridge?.onTaskEnd(
+                    outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.FAILURE,
+                    finalSummary = "API failure: ${errorMsg.take(200)}"
+                )
                 send(AgentEvent.Error(errorMsg))
             } ?: return@channelFlow
 
@@ -910,6 +929,11 @@ Rules:
                 transitionPhase(
                     AgentExecutionPhase.REPORT,
                     "Publishing final answer"
+                )
+                // Agent Brain 2.0 — تسجيل episode كامل للنجاح
+                smartLearningBridge?.onTaskEnd(
+                    outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.SUCCESS,
+                    finalSummary = finalContent.take(500)
                 )
                 send(AgentEvent.FinalAnswer(
                     content = finalContent,
@@ -1115,6 +1139,10 @@ Rules:
             if (allSemUiAreReadOnly && !hasNonSemUiTool) {
                 consecutiveReadOnlyIterations++
                 if (consecutiveReadOnlyIterations >= NO_PROGRESS_THRESHOLD) {
+                    smartLearningBridge?.onTaskEnd(
+                        outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.ABANDONED,
+                        finalSummary = "stuck on semantic_ui read-only loop"
+                    )
                     send(AgentEvent.Error(
                         "🔍 Agent stuck: called semantic_ui read-only operations $consecutiveReadOnlyIterations " +
                         "consecutive times without taking any action (click/type/scroll/etc). " +
@@ -1136,6 +1164,11 @@ Rules:
         }
 
         // ── Max iterations reached ──
+        // Agent Brain 2.0 — تسجيل episode للإيقاف بسبب maxIterations
+        smartLearningBridge?.onTaskEnd(
+            outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.ABANDONED,
+            finalSummary = "max iterations reached after ${config.maxIterations} loops"
+        )
         send(AgentEvent.Error(
             "Agent reached maximum iterations (${config.maxIterations}) without completing. " +
                 "Consider using a Swarm run for complex tasks, or increase maxIterations in AgentConfig."

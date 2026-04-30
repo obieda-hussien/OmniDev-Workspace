@@ -124,13 +124,24 @@ class WhatsAppBridgeService : Service() {
     private val toolManager: CompositeToolManager by lazy {
         val db = OmniDevDatabase.getInstance(applicationContext)
         val memoryManager = MemoryManager(db.knowledgeDao())
+        // ── Agent Brain 2.0: مراجع المحركات المُهيَّأة في OmniDevApp ──
+        val omniApp = com.omnidev.workspace.OmniDevApp.instance
         CompositeToolManager(
             fileToolManager = FileToolManager(),
             memoryManager = memoryManager,
             context = applicationContext,
             settingsRepository = settingsRepository,
             apiKeyRepository = apiKeyRepository,
-            headlessBrowserManager = HeadlessBrowserManager(applicationContext)
+            headlessBrowserManager = HeadlessBrowserManager(applicationContext),
+            agentBrainTools = com.omnidev.workspace.data.tools.AgentBrainTools(
+                reflexion = omniApp.reflexionEngine,
+                episodic = omniApp.episodicMemoryStore,
+                reflexionDao = db.reflexionDao(),
+                episodicDao = db.episodicMemoryDao()
+            ),
+            rollbackTools = com.omnidev.workspace.data.tools.RollbackTools(omniApp.rollbackManager),
+            repoContextTools = com.omnidev.workspace.data.tools.RepoContextTools(omniApp.repoIndexer, omniApp.repoContextEngine),
+            buildDoctorTools = com.omnidev.workspace.data.tools.BuildDoctorTools(omniApp.buildDoctorPro)
         )
     }
 
@@ -142,7 +153,8 @@ class WhatsAppBridgeService : Service() {
             streamingCompletionProvider = { req, onChunk -> completionService.stream(req, onChunk) },
             config = AgentConfig.THOROUGH,
             apiKeyRepository = apiKeyRepository,
-            memoryManager = toolManager.memoryManager
+            memoryManager = toolManager.memoryManager,
+            smartLearningBridge = com.omnidev.workspace.OmniDevApp.instance.smartLearningBridge
         )
     }
 
@@ -152,6 +164,7 @@ class WhatsAppBridgeService : Service() {
             completionProvider = completionService::invoke,
             apiKeyRepository = apiKeyRepository,
             memoryManager = toolManager.memoryManager,
+            smartLearningBridge = com.omnidev.workspace.OmniDevApp.instance.smartLearningBridge,
             streamingCompletionProvider = { req, onChunk -> completionService.stream(req, onChunk) }
         )
     }

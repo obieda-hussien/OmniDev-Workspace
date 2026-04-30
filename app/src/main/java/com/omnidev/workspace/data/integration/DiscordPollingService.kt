@@ -17,11 +17,15 @@ import com.omnidev.workspace.data.network.CompletionService
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.data.tools.AgentBrainTools
+import com.omnidev.workspace.data.tools.BuildDoctorTools
 import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.DiscordPublisherTool
 import com.omnidev.workspace.data.tools.FileToolManager
 import com.omnidev.workspace.data.tools.HeadlessBrowserManager
 import com.omnidev.workspace.data.tools.MemoryManager
+import com.omnidev.workspace.data.tools.RepoContextTools
+import com.omnidev.workspace.data.tools.RollbackTools
 import com.omnidev.workspace.domain.engine.AgentConfig
 import com.omnidev.workspace.domain.engine.AgentPipeline
 import com.omnidev.workspace.domain.engine.OmniMode
@@ -163,6 +167,8 @@ class DiscordPollingService : Service() {
         val db = OmniDevDatabase.getInstance(applicationContext)
         val memoryManager = MemoryManager(db.knowledgeDao())
         val discordTool = DiscordPublisherTool(settingsRepository)
+        // ── Agent Brain 2.0: المحركات مُهيَّأة في OmniDevApp ──
+        val omniApp = com.omnidev.workspace.OmniDevApp.instance
         CompositeToolManager(
             fileToolManager = FileToolManager(),
             memoryManager = memoryManager,
@@ -170,7 +176,16 @@ class DiscordPollingService : Service() {
             settingsRepository = settingsRepository,
             discordPublisherTool = discordTool,
             apiKeyRepository = apiKeyRepository,
-            headlessBrowserManager = HeadlessBrowserManager(applicationContext)
+            headlessBrowserManager = HeadlessBrowserManager(applicationContext),
+            agentBrainTools = AgentBrainTools(
+                reflexion = omniApp.reflexionEngine,
+                episodic = omniApp.episodicMemoryStore,
+                reflexionDao = db.reflexionDao(),
+                episodicDao = db.episodicMemoryDao()
+            ),
+            rollbackTools = RollbackTools(omniApp.rollbackManager),
+            repoContextTools = RepoContextTools(omniApp.repoIndexer, omniApp.repoContextEngine),
+            buildDoctorTools = BuildDoctorTools(omniApp.buildDoctorPro)
         )
     }
 
@@ -182,7 +197,8 @@ class DiscordPollingService : Service() {
             streamingCompletionProvider = { req, onChunk -> completionService.stream(req, onChunk) },
             config = AgentConfig.THOROUGH,
             apiKeyRepository = apiKeyRepository,
-            memoryManager = toolManager.memoryManager
+            memoryManager = toolManager.memoryManager,
+            smartLearningBridge = com.omnidev.workspace.OmniDevApp.instance.smartLearningBridge
         )
     }
 
@@ -192,6 +208,7 @@ class DiscordPollingService : Service() {
             completionProvider = completionService::invoke,
             apiKeyRepository = apiKeyRepository,
             memoryManager = toolManager.memoryManager,
+            smartLearningBridge = com.omnidev.workspace.OmniDevApp.instance.smartLearningBridge,
             streamingCompletionProvider = { req, onChunk -> completionService.stream(req, onChunk) }
         )
     }
