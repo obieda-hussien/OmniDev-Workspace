@@ -52,11 +52,21 @@ object WebSearchTool {
     private const val CONNECT_TIMEOUT_MS                  = 12_000
     private const val READ_TIMEOUT_MS                     = 18_000
     private const val MAX_RESULTS                         = 7
-    private const val MAX_RESULTS_DEEP                    = 8
+    private const val MAX_RESULTS_DEEP                    = 10
     private const val MAX_CHARS_PER_SITE                  = 6_000
-    private const val FETCH_PAGE_TIMEOUT_MS               = 10_000L
+    private const val FETCH_PAGE_TIMEOUT_MS               = 12_000L
     private const val HTTP_RETRY_COUNT                    = 2
     private const val MIN_TEXT_LENGTH_FOR_SNIPPET_EXTRACT = 500
+
+    // Deep search specific
+    private const val DEFAULT_TOP_PASSAGES                = 3
+    private const val MAX_TOP_PASSAGES                    = 5
+    private const val MIN_PAGE_WORDS_THRESHOLD            = 60
+    private const val WORDS_PER_MINUTE_READ               = 200
+    private const val CROSS_SOURCE_MIN_PROVIDERS          = 2
+    private const val MAX_CONSENSUS_FACTS                 = 5
+    // Fraction of query terms a sentence must contain to be considered a consensus fact
+    private const val CONSENSUS_TERM_COVERAGE             = 0.55
 
     // RRF smoothing constant — standard value from Cormack et al. (2009)
     private const val RRF_K = 60.0
