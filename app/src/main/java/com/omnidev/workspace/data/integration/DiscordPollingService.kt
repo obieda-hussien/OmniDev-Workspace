@@ -179,9 +179,7 @@ class DiscordPollingService : Service() {
             headlessBrowserManager = HeadlessBrowserManager(applicationContext),
             agentBrainTools = AgentBrainTools(
                 reflexion = omniApp.reflexionEngine,
-                episodic = omniApp.episodicMemoryStore,
-                reflexionDao = db.reflexionDao(),
-                episodicDao = db.episodicMemoryDao()
+                episodic = omniApp.episodicMemoryStore
             ),
             rollbackTools = RollbackTools(omniApp.rollbackManager),
             repoContextTools = RepoContextTools(omniApp.repoIndexer, omniApp.repoContextEngine),

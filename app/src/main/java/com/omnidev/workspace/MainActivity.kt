@@ -81,9 +81,7 @@ class MainActivity : ComponentActivity() {
         val app = OmniDevApp.instance
         val agentBrainTools = AgentBrainTools(
             reflexion = app.reflexionEngine,
-            episodic = app.episodicMemoryStore,
-            reflexionDao = database.reflexionDao(),
-            episodicDao = database.episodicMemoryDao()
+            episodic = app.episodicMemoryStore
         )
         val rollbackTools = RollbackTools(app.rollbackManager)
         val repoContextTools = RepoContextTools(app.repoIndexer, app.repoContextEngine)

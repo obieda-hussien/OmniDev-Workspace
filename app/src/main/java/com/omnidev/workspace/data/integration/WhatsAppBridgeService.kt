@@ -135,9 +135,7 @@ class WhatsAppBridgeService : Service() {
             headlessBrowserManager = HeadlessBrowserManager(applicationContext),
             agentBrainTools = com.omnidev.workspace.data.tools.AgentBrainTools(
                 reflexion = omniApp.reflexionEngine,
-                episodic = omniApp.episodicMemoryStore,
-                reflexionDao = db.reflexionDao(),
-                episodicDao = db.episodicMemoryDao()
+                episodic = omniApp.episodicMemoryStore
             ),
             rollbackTools = com.omnidev.workspace.data.tools.RollbackTools(omniApp.rollbackManager),
             repoContextTools = com.omnidev.workspace.data.tools.RepoContextTools(omniApp.repoIndexer, omniApp.repoContextEngine),

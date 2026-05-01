@@ -56,9 +56,7 @@ class LauncherCommandRouter(
     private val omniApp = com.omnidev.workspace.OmniDevApp.instance
     private val agentBrainTools = AgentBrainTools(
         reflexion = omniApp.reflexionEngine,
-        episodic = omniApp.episodicMemoryStore,
-        reflexionDao = database.reflexionDao(),
-        episodicDao = database.episodicMemoryDao()
+        episodic = omniApp.episodicMemoryStore
     )
     private val rollbackTools = RollbackTools(omniApp.rollbackManager)
     private val repoContextTools = RepoContextTools(omniApp.repoIndexer, omniApp.repoContextEngine)

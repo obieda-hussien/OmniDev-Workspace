@@ -211,28 +211,24 @@ class OmniDevApp : Application() {
             //     50 MB max storage، 200 snapshot max، diff-based للملفات الكبيرة
             rollbackManager = RollbackManager(
                 dao = db.rollbackDao(),
-                maxSnapshots = 200,
-                maxTotalBytes = 50L * 1024 * 1024,
-                diffThresholdBytes = 4 * 1024,
-                maxFileBytes = 200 * 1024
+                maxSnapshotsPerGroup = 200,
+                maxBytesEvictable = 50L * 1024 * 1024
             )
 
             // 6d. Repo Indexer + Context Engine — Live Repository Context
             //     time budget 30s لكل pass، يعمل incremental
             repoIndexer = RepoIndexer(
                 dao = db.repoIndexDao(),
-                maxFileBytes = 500 * 1024,
+                maxFileSizeBytes = 500L * 1024,
                 maxSymbolsPerScope = 5000,
-                yieldEveryNFiles = 50,
-                batchInsertSize = 100,
-                maxDurationMs = 30_000
+                chunkSize = 50
             )
             repoContextEngine = RepoContextEngine(dao = db.repoIndexDao(), indexer = repoIndexer)
 
             // 6e. Build Doctor Pro — تشخيص + ذاكرة حلول
             buildDoctorPro = BuildDoctorPro(
                 dao = db.buildDiagnosticDao(),
-                maxDiagnostics = 500
+                maxEntries = 500
             )
 
             // 7. تهيئة النظام في الخلفية (اكتشاف البيئة + إحصاءات الذاكرة)
