@@ -38,6 +38,7 @@ jobs:
   code-quality:
     name: Code Quality
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       checks: write
@@ -75,8 +76,10 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run lint checks for all flavors
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.caching=true -Dkotlin.incremental=false -Dorg.gradle.jvmargs=-Xmx4g"
         run: |
-          ./gradlew --no-daemon \
+          ./gradlew --no-daemon --max-workers 1 \
             :app:lintLiteDebug \
             :app:lintNormDebug \
             :app:lintProDebug \
