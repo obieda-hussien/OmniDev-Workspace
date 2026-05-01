@@ -7,12 +7,18 @@ import com.omnidev.workspace.core.policy.TierPolicyHolder
 import com.omnidev.workspace.core.privileged.PrivilegedExecutionFacadeBootstrap
 import com.omnidev.workspace.core.privileged.PrivilegedExecutionFacadeHolder
 import com.omnidev.workspace.data.auth.CopilotModelRefresher
+import com.omnidev.workspace.data.brain.EpisodicMemoryStore
+import com.omnidev.workspace.data.brain.ReflexionEngine
 import com.omnidev.workspace.data.brain.SmartLearningBridge
+import com.omnidev.workspace.data.builddoctor.BuildDoctorPro
 import com.omnidev.workspace.data.mcp.McpConfigManager
 import com.omnidev.workspace.data.mcp.McpRegistry
 import com.omnidev.workspace.data.brain.ToolAwarenessEngine
 import com.omnidev.workspace.data.brain.ToolExecutionJournal
 import com.omnidev.workspace.data.db.OmniDevDatabase
+import com.omnidev.workspace.data.repo.RepoContextEngine
+import com.omnidev.workspace.data.repo.RepoIndexer
+import com.omnidev.workspace.data.rollback.RollbackManager
 import com.omnidev.workspace.data.debug.CrashHandler
 import com.omnidev.workspace.data.debug.DebugLogManager
 import com.omnidev.workspace.data.ipc.ExtensionConnectionManager
@@ -60,6 +66,36 @@ class OmniDevApp : Application() {
     /** الجسر الذكي المنسق — يربط كل مكونات الذكاء */
 
     lateinit var smartLearningBridge: SmartLearningBridge
+        private set
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // 🧠 Agent Brain 2.0 + Action Insurance + Live Repo Context + Build Doctor Pro
+    //    (mobile-first: hash embeddings, regex parsing, Deflate diffs — all on
+    //     low-end Android with 2-4 GB RAM, no native libs, no extra LLM calls).
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    /** محرك Reflexion — دروس مستفادة من تجارب الـ Agent. */
+    lateinit var reflexionEngine: ReflexionEngine
+        private set
+
+    /** ذاكرة المهام الكاملة (Episodic Memory). */
+    lateinit var episodicMemoryStore: EpisodicMemoryStore
+        private set
+
+    /** نظام التراجع — Action Insurance. */
+    lateinit var rollbackManager: RollbackManager
+        private set
+
+    /** فهرس المستودع المحلي (incremental). */
+    lateinit var repoIndexer: RepoIndexer
+        private set
+
+    /** محرك سياق المستودع للـ retrieval. */
+    lateinit var repoContextEngine: RepoContextEngine
+        private set
+
+    /** Build Doctor Pro — تشخيص + ذاكرة حلول البناء. */
+    lateinit var buildDoctorPro: BuildDoctorPro
         private set
 
     override fun onCreate() {
@@ -152,12 +188,59 @@ class OmniDevApp : Application() {
                 scope = appScope
             )
 
-            // 5. تهيئة النظام في الخلفية (اكتشاف البيئة)
+            // ═══════════════════════════════════════════════════════════════
+            // 🧠 6. Agent Brain 2.0 + Action Insurance + Repo Context + Build Doctor
+            // ═══════════════════════════════════════════════════════════════
+
+            // 6a. Reflexion — لقطات الدروس المستفادة (rule-based, on-device)
+            reflexionEngine = ReflexionEngine(
+                dao = db.reflexionDao(),
+                maxLessons = 2000,           // ~2 MB في DB
+                topKForInjection = 3,        // 3 دروس فقط في الـ prompt (موفر للـ tokens)
+                scope = appScope
+            )
+
+            // 6b. Episodic Memory — حلقات المهام السابقة
+            episodicMemoryStore = EpisodicMemoryStore(
+                dao = db.episodicMemoryDao(),
+                maxEpisodes = 2000,
+                scope = appScope
+            )
+
+            // 6c. Rollback Manager — Action Insurance
+            //     50 MB max storage، 200 snapshot max، diff-based للملفات الكبيرة
+            rollbackManager = RollbackManager(
+                dao = db.rollbackDao(),
+                maxSnapshotsPerGroup = 200,
+                maxBytesEvictable = 50L * 1024 * 1024
+            )
+
+            // 6d. Repo Indexer + Context Engine — Live Repository Context
+            //     time budget 30s لكل pass، يعمل incremental
+            repoIndexer = RepoIndexer(
+                dao = db.repoIndexDao(),
+                maxFileSizeBytes = 500L * 1024,
+                maxSymbolsPerScope = 5000,
+                chunkSize = 50
+            )
+            repoContextEngine = RepoContextEngine(dao = db.repoIndexDao(), indexer = repoIndexer)
+
+            // 6e. Build Doctor Pro — تشخيص + ذاكرة حلول
+            buildDoctorPro = BuildDoctorPro(
+                dao = db.buildDiagnosticDao(),
+                maxEntries = 500
+            )
+
+            // 7. تهيئة النظام في الخلفية (اكتشاف البيئة + إحصاءات الذاكرة)
             appScope.launch {
                 try {
                     toolAwarenessEngine.initialize()
                     smartLearningBridge.onSessionStart()
-                    Log.i("OmniDevApp", "✅ Agent Brain System تم تهيئته بنجاح")
+                    val lessons = db.reflexionDao().count()
+                    val episodes = db.episodicMemoryDao().count()
+                    val diagnostics = db.buildDiagnosticDao().count()
+                    Log.i("OmniDevApp",
+                        "✅ Agent Brain 2.0 جاهز  •  دروس=$lessons  حلقات=$episodes  حلول-بناء=$diagnostics")
                 } catch (e: Exception) {
                     Log.e("OmniDevApp", "⚠️ خطأ في تهيئة Agent Brain: ${e.message}")
                 }
@@ -180,6 +263,16 @@ class OmniDevApp : Application() {
                 mlEngine = null,
                 monitoringSystem = null
             )
+
+            // ── Fallback initialization for Agent Brain 2.0 stack ──
+            // Best-effort: if DB fails entirely we still create stubs so callers
+            // don't crash on `lateinit` access.
+            reflexionEngine = ReflexionEngine(dao = db.reflexionDao(), scope = appScope)
+            episodicMemoryStore = EpisodicMemoryStore(dao = db.episodicMemoryDao(), scope = appScope)
+            rollbackManager = RollbackManager(dao = db.rollbackDao())
+            repoIndexer = RepoIndexer(dao = db.repoIndexDao())
+            repoContextEngine = RepoContextEngine(dao = db.repoIndexDao(), indexer = repoIndexer)
+            buildDoctorPro = BuildDoctorPro(dao = db.buildDiagnosticDao())
         }
     }
 

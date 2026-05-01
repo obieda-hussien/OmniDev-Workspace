@@ -51,7 +51,12 @@ class CompositeToolManager(
     val vectorMemoryManager: VectorMemoryManager? = null,
     val headlessBrowserManager: HeadlessBrowserManager? = null,
     private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null,
-    private val chatRepository: com.omnidev.workspace.data.repository.ChatRepository? = null
+    private val chatRepository: com.omnidev.workspace.data.repository.ChatRepository? = null,
+    // ── Agent Brain 2.0 + Rollback + Repo Context + Build Doctor (mobile-friendly) ──
+    val agentBrainTools: AgentBrainTools? = null,
+    val rollbackTools: RollbackTools? = null,
+    val repoContextTools: RepoContextTools? = null,
+    val buildDoctorTools: BuildDoctorTools? = null
 ) : ToolManager {
     companion object {
         /**
@@ -133,6 +138,13 @@ class CompositeToolManager(
 
     /** The full, un-filtered tool list. Filtered by [getToolDefinitions] based on tier. */
     private fun buildAllToolDefinitions(): List<ToolDefinition> = buildList {
+        // ── Agent Brain 2.0 + Rollback + Repo Context + Build Doctor (always early
+        //    so the agent sees them in the system prompt before bulkier tools) ──
+        agentBrainTools?.let { addAll(it.getDefinitions()) }
+        rollbackTools?.let { addAll(it.getDefinitions()) }
+        repoContextTools?.let { addAll(it.getDefinitions()) }
+        buildDoctorTools?.let { addAll(it.getDefinitions()) }
+
         addAll(fileToolManager.getToolDefinitions().filterNot { it.name == "web_search" })
         addAll(WebSearchTool.getToolDefinitions())
         addAll(NetworkRequestTool.getToolDefinitions())
@@ -464,6 +476,14 @@ class CompositeToolManager(
                 isError = true
             )
         }
+
+        // ── Early routing: Agent Brain 2.0 / Rollback / Repo Context / Build Doctor ──
+        // Each helper returns null when it doesn't own the tool name, allowing
+        // fall-through to the existing big when-block below.
+        agentBrainTools?.execute(name, arguments)?.let { return it }
+        rollbackTools?.execute(name, arguments)?.let { return it }
+        repoContextTools?.execute(name, arguments)?.let { return it }
+        buildDoctorTools?.execute(name, arguments)?.let { return it }
 
         return when (name) {
             // ── Execution Diagnostics tool ──

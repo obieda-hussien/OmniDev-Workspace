@@ -6,14 +6,25 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.omnidev.workspace.data.db.dao.BuildDiagnosticDao
 import com.omnidev.workspace.data.db.dao.ChatMessageDao
 import com.omnidev.workspace.data.db.dao.ChatSessionDao
+import com.omnidev.workspace.data.db.dao.EpisodicMemoryDao
 import com.omnidev.workspace.data.db.dao.KnowledgeDao
+import com.omnidev.workspace.data.db.dao.ReflexionDao
+import com.omnidev.workspace.data.db.dao.RepoIndexDao
+import com.omnidev.workspace.data.db.dao.RollbackDao
 import com.omnidev.workspace.data.db.dao.SystemKnowledgeDao
 import com.omnidev.workspace.data.db.dao.ToolExecutionDao
+import com.omnidev.workspace.data.db.entities.BuildDiagnosticEntry
 import com.omnidev.workspace.data.db.entities.ChatMessageEntity
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
+import com.omnidev.workspace.data.db.entities.EpisodicMemoryEntry
 import com.omnidev.workspace.data.db.entities.KnowledgeSnippet
+import com.omnidev.workspace.data.db.entities.ReflexionLessonEntry
+import com.omnidev.workspace.data.db.entities.RepoFileIndexEntry
+import com.omnidev.workspace.data.db.entities.RepoSymbolEntry
+import com.omnidev.workspace.data.db.entities.RollbackSnapshotEntry
 import com.omnidev.workspace.data.db.entities.SystemKnowledgeEntry
 import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
 
@@ -41,9 +52,19 @@ import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
         ChatSessionEntity::class,
         ChatMessageEntity::class,
         ToolExecutionEntry::class,
-        SystemKnowledgeEntry::class
+        SystemKnowledgeEntry::class,
+        // ── Agent Brain 2.0 (v10) ─────────────────────────
+        ReflexionLessonEntry::class,
+        EpisodicMemoryEntry::class,
+        // ── Action Insurance / Rollback (v10) ─────────────
+        RollbackSnapshotEntry::class,
+        // ── Live Repository Context Engine (v10) ──────────
+        RepoFileIndexEntry::class,
+        RepoSymbolEntry::class,
+        // ── Build Doctor Pro (v10) ────────────────────────
+        BuildDiagnosticEntry::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -53,6 +74,11 @@ abstract class OmniDevDatabase : RoomDatabase() {
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun toolExecutionDao(): ToolExecutionDao
     abstract fun systemKnowledgeDao(): SystemKnowledgeDao
+    abstract fun reflexionDao(): ReflexionDao
+    abstract fun episodicMemoryDao(): EpisodicMemoryDao
+    abstract fun rollbackDao(): RollbackDao
+    abstract fun repoIndexDao(): RepoIndexDao
+    abstract fun buildDiagnosticDao(): BuildDiagnosticDao
 
     companion object {
         @Volatile private var INSTANCE: OmniDevDatabase? = null
@@ -355,6 +381,148 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Migration from v9 → v10:
+         * Adds the Agent Brain 2.0 + Rollback + Live Repository Context Engine + Build
+         * Doctor Pro tables. All tables are mobile-friendly (≤ 1KB embeddings, LRU
+         * eviction columns, indexed candidates instead of vector ops in SQL).
+         */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // ─── Agent Brain 2.0: Reflexion Lessons ────────────────────────
+                // Index names must match Room's auto-generated format: index_{tableName}_{columnName}.
+                // Columns must NOT have SQL DEFAULT clauses unless the entity has
+                // @ColumnInfo(defaultValue=...) — otherwise Room's schema validator throws.
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS reflexion_lessons (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        toolName TEXT NOT NULL,
+                        lesson TEXT NOT NULL,
+                        errorSignature TEXT NOT NULL,
+                        embedding BLOB NOT NULL,
+                        successContext INTEGER NOT NULL,
+                        useCount INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        lastUsedAt INTEGER NOT NULL,
+                        quality REAL NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reflexion_lessons_toolName` ON reflexion_lessons(toolName)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reflexion_lessons_errorSignature` ON reflexion_lessons(errorSignature)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reflexion_lessons_lastUsedAt` ON reflexion_lessons(lastUsedAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reflexion_lessons_quality` ON reflexion_lessons(quality)")
+
+                // ─── Agent Brain 2.0: Episodic Memory ──────────────────────────
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS episodic_memory (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        summary TEXT NOT NULL,
+                        userIntent TEXT NOT NULL,
+                        finalOutcome TEXT NOT NULL,
+                        toolsUsedCsv TEXT NOT NULL,
+                        embedding BLOB NOT NULL,
+                        iterationsCount INTEGER NOT NULL,
+                        totalTimeMs INTEGER NOT NULL,
+                        sessionId TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_episodic_memory_sessionId` ON episodic_memory(sessionId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_episodic_memory_finalOutcome` ON episodic_memory(finalOutcome)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_episodic_memory_createdAt` ON episodic_memory(createdAt)")
+
+                // ─── Action Insurance: Rollback Snapshots ──────────────────────
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS rollback_snapshots (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        actionGroupId TEXT NOT NULL,
+                        toolName TEXT NOT NULL,
+                        filePath TEXT NOT NULL,
+                        existedBefore INTEGER NOT NULL,
+                        contentBlob BLOB NOT NULL,
+                        storedAsDiff INTEGER NOT NULL,
+                        originalSizeBytes INTEGER NOT NULL,
+                        originalHash TEXT NOT NULL,
+                        postEditHash TEXT NOT NULL,
+                        reason TEXT NOT NULL,
+                        rolledBack INTEGER NOT NULL,
+                        pinned INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_rollback_snapshots_actionGroupId` ON rollback_snapshots(actionGroupId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_rollback_snapshots_filePath` ON rollback_snapshots(filePath)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_rollback_snapshots_createdAt` ON rollback_snapshots(createdAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_rollback_snapshots_rolledBack` ON rollback_snapshots(rolledBack)")
+
+                // ─── Live Repository Context Engine: File Index ───────────────
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS repo_file_index (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        scopePath TEXT NOT NULL,
+                        filePath TEXT NOT NULL,
+                        fileSize INTEGER NOT NULL,
+                        fileMtime INTEGER NOT NULL,
+                        contentHash TEXT NOT NULL,
+                        symbolCount INTEGER NOT NULL,
+                        language TEXT NOT NULL,
+                        indexedAt INTEGER NOT NULL,
+                        skipReason TEXT NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_repo_file_index_scopePath_filePath` ON repo_file_index(scopePath, filePath)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_file_index_scopePath` ON repo_file_index(scopePath)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_file_index_language` ON repo_file_index(language)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_file_index_indexedAt` ON repo_file_index(indexedAt)")
+
+                // ─── Live Repository Context Engine: Symbols ──────────────────
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS repo_symbols (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        scopePath TEXT NOT NULL,
+                        symbolKind TEXT NOT NULL,
+                        symbolName TEXT NOT NULL,
+                        qualifiedName TEXT NOT NULL,
+                        filePath TEXT NOT NULL,
+                        lineNumber INTEGER NOT NULL,
+                        snippet TEXT NOT NULL,
+                        language TEXT NOT NULL,
+                        visibility TEXT NOT NULL,
+                        fileMtime INTEGER NOT NULL,
+                        indexedAt INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_symbols_scopePath` ON repo_symbols(scopePath)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_symbols_symbolName` ON repo_symbols(symbolName)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_symbols_symbolKind` ON repo_symbols(symbolKind)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_symbols_filePath` ON repo_symbols(filePath)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_symbols_qualifiedName` ON repo_symbols(qualifiedName)")
+
+                // ─── Build Doctor Pro: Diagnostics ────────────────────────────
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS build_diagnostics (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        errorFingerprint TEXT NOT NULL,
+                        category TEXT NOT NULL,
+                        message TEXT NOT NULL,
+                        buildCommand TEXT NOT NULL,
+                        solutionDiff BLOB NOT NULL,
+                        explanation TEXT NOT NULL,
+                        occurrenceCount INTEGER NOT NULL,
+                        successfulFixCount INTEGER NOT NULL,
+                        failedFixCount INTEGER NOT NULL,
+                        lastSeenAt INTEGER NOT NULL,
+                        lastFixedAt INTEGER NOT NULL,
+                        reportedFiles TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL
+                    )
+                """.trimIndent())
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_build_diagnostics_errorFingerprint` ON build_diagnostics(errorFingerprint)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_build_diagnostics_category` ON build_diagnostics(category)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_build_diagnostics_lastSeenAt` ON build_diagnostics(lastSeenAt)")
+            }
+        }
+
         private fun SupportSQLiteDatabase.scalarLong(sql: String): Long =
             query(sql).use { cursor ->
                 if (cursor.moveToFirst()) cursor.getLong(0) else 0L
@@ -375,7 +543,8 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         MIGRATION_5_6,
                         MIGRATION_6_7,
                         MIGRATION_7_8,
-                        MIGRATION_8_9
+                        MIGRATION_8_9,
+                        MIGRATION_9_10
                     )
                     .build().also { INSTANCE = it }
             }

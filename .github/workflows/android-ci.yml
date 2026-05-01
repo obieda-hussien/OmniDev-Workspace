@@ -38,6 +38,7 @@ jobs:
   code-quality:
     name: Code Quality
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       checks: write
@@ -75,8 +76,10 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run lint checks for all flavors
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.caching=true -Dkotlin.incremental=false -Dorg.gradle.jvmargs=-Xmx4g"
         run: |
-          ./gradlew --no-daemon \
+          ./gradlew --no-daemon --max-workers 1 \
             :app:lintLiteDebug \
             :app:lintNormDebug \
             :app:lintProDebug \
@@ -232,6 +235,7 @@ jobs:
     name: Android Debug Build
     runs-on: ubuntu-latest
     needs: [ test, security-scan ]
+    timeout-minutes: 90
     permissions:
       contents: read
 
@@ -255,8 +259,10 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build all debug flavor APKs
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.caching=true -Dkotlin.incremental=false -Dorg.gradle.jvmargs=-Xmx4g"
         run: |
-          ./gradlew --no-daemon \
+          ./gradlew --no-daemon --max-workers 1 \
             :app:assembleLiteDebug \
             :app:assembleNormDebug \
             :app:assembleProDebug \
@@ -313,6 +319,7 @@ jobs:
     name: Android Release Build
     runs-on: ubuntu-latest
     needs: [ test, security-scan ]
+    timeout-minutes: 90
     permissions:
       contents: write
 
@@ -390,11 +397,12 @@ jobs:
       - name: Build signed release APKs (All Flavors)
         if: steps.signing.outputs.ready == 'true'
         env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.caching=true -Dkotlin.incremental=false -Dorg.gradle.jvmargs=-Xmx4g"
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew --no-daemon \
+          ./gradlew --no-daemon --max-workers 1 \
             :app:assembleLiteRelease \
             :app:assembleNormRelease \
             :app:assembleProRelease \
@@ -407,8 +415,10 @@ jobs:
 
       - name: Build unsigned release APKs (fallback)
         if: steps.signing.outputs.ready != 'true'
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.caching=true -Dkotlin.incremental=false -Dorg.gradle.jvmargs=-Xmx4g"
         run: |
-          ./gradlew --no-daemon \
+          ./gradlew --no-daemon --max-workers 1 \
             :app:assembleLiteRelease \
             :app:assembleNormRelease \
             :app:assembleProRelease \

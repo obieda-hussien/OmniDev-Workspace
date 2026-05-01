@@ -14,12 +14,16 @@ import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.model.ModelRole
+import com.omnidev.workspace.data.tools.AgentBrainTools
+import com.omnidev.workspace.data.tools.BuildDoctorTools
 import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.EnvironmentSetupManager
 import com.omnidev.workspace.data.tools.FileToolManager
 import com.omnidev.workspace.data.tools.GodEyeProfilerTool
 import com.omnidev.workspace.data.tools.HeadlessBrowserManager
 import com.omnidev.workspace.data.tools.MemoryManager
+import com.omnidev.workspace.data.tools.RepoContextTools
+import com.omnidev.workspace.data.tools.RollbackTools
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.data.tools.TaskSchedulerTool
 import com.omnidev.workspace.data.tools.VectorMemoryManager
@@ -70,6 +74,19 @@ class MainActivity : ComponentActivity() {
         val godEyeProfilerTool = GodEyeProfilerTool(applicationContext, ShizukuCommandTool)
         val discordPublisherTool = com.omnidev.workspace.data.tools.DiscordPublisherTool(settingsRepository)
         val notionPublisherTool = com.omnidev.workspace.data.tools.NotionPublisherTool(settingsRepository)
+
+        // ── Agent Brain 2.0 + Action Insurance + Repo Context + Build Doctor Pro ──
+        // المحركات تُهيَّأ في OmniDevApp.onCreate() — هنا فقط نلتقط مراجعها ونغلّفها
+        // كأدوات يستدعيها الـ Agent عبر الـ ReAct loop.
+        val app = OmniDevApp.instance
+        val agentBrainTools = AgentBrainTools(
+            reflexion = app.reflexionEngine,
+            episodic = app.episodicMemoryStore
+        )
+        val rollbackTools = RollbackTools(app.rollbackManager)
+        val repoContextTools = RepoContextTools(app.repoIndexer, app.repoContextEngine)
+        val buildDoctorTools = BuildDoctorTools(app.buildDoctorPro)
+
         val toolManager = CompositeToolManager(
             fileToolManager = fileToolManager,
             memoryManager = memoryManager,
@@ -82,12 +99,15 @@ class MainActivity : ComponentActivity() {
             vectorMemoryManager = VectorMemoryManager(database.knowledgeDao()),
             apiKeyRepository = apiKeyRepository,
             headlessBrowserManager = HeadlessBrowserManager(applicationContext),
-            chatRepository = chatRepository
+            chatRepository = chatRepository,
+            agentBrainTools = agentBrainTools,
+            rollbackTools = rollbackTools,
+            repoContextTools = repoContextTools,
+            buildDoctorTools = buildDoctorTools
         )
 
         // Real HTTP completion provider
         val completionService = CompletionService()
-        val app = OmniDevApp.instance
         val completionProvider: suspend (com.omnidev.workspace.data.model.CompletionRequest) -> com.omnidev.workspace.data.model.CompletionResponse =
             completionService::invoke
 
