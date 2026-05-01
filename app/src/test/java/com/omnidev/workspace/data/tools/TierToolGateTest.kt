@@ -44,6 +44,11 @@ class TierToolGateTest {
         ToolDefinition("vector_store", "", emptyList()),
         ToolDefinition("vector_search", "", emptyList()),
         ToolDefinition("vector_similar", "", emptyList()),
+        // Agent Brain 2.0 — on-device, read-only, safe for Lite/Play-Store
+        ToolDefinition("brain_reflexion_search", "", emptyList()),
+        ToolDefinition("brain_episode_search", "", emptyList()),
+        ToolDefinition("brain_recent_episodes", "", emptyList()),
+        ToolDefinition("brain_stats", "", emptyList()),
         ToolDefinition("terminal_command", "", emptyList()),
         ToolDefinition("git_status", "", emptyList()),
         ToolDefinition("semantic_ui_action", "", emptyList()),
