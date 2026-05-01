@@ -390,67 +390,70 @@ abstract class OmniDevDatabase : RoomDatabase() {
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 // ─── Agent Brain 2.0: Reflexion Lessons ────────────────────────
+                // Index names must match Room's auto-generated format: index_{tableName}_{columnName}.
+                // Columns must NOT have SQL DEFAULT clauses unless the entity has
+                // @ColumnInfo(defaultValue=...) — otherwise Room's schema validator throws.
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS reflexion_lessons (
                         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-                        toolName TEXT NOT NULL DEFAULT '',
+                        toolName TEXT NOT NULL,
                         lesson TEXT NOT NULL,
-                        errorSignature TEXT NOT NULL DEFAULT '',
+                        errorSignature TEXT NOT NULL,
                         embedding BLOB NOT NULL,
-                        successContext INTEGER NOT NULL DEFAULT 0,
-                        useCount INTEGER NOT NULL DEFAULT 0,
+                        successContext INTEGER NOT NULL,
+                        useCount INTEGER NOT NULL,
                         createdAt INTEGER NOT NULL,
-                        lastUsedAt INTEGER NOT NULL DEFAULT 0,
-                        quality REAL NOT NULL DEFAULT 0.5
+                        lastUsedAt INTEGER NOT NULL,
+                        quality REAL NOT NULL
                     )
                 """.trimIndent())
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_reflex_tool ON reflexion_lessons(toolName)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_reflex_sig ON reflexion_lessons(errorSignature)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_reflex_used ON reflexion_lessons(lastUsedAt)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_reflex_quality ON reflexion_lessons(quality)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reflexion_lessons_toolName` ON reflexion_lessons(toolName)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reflexion_lessons_errorSignature` ON reflexion_lessons(errorSignature)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reflexion_lessons_lastUsedAt` ON reflexion_lessons(lastUsedAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reflexion_lessons_quality` ON reflexion_lessons(quality)")
 
                 // ─── Agent Brain 2.0: Episodic Memory ──────────────────────────
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS episodic_memory (
                         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                         summary TEXT NOT NULL,
-                        userIntent TEXT NOT NULL DEFAULT '',
-                        finalOutcome TEXT NOT NULL DEFAULT 'SUCCESS',
-                        toolsUsedCsv TEXT NOT NULL DEFAULT '',
+                        userIntent TEXT NOT NULL,
+                        finalOutcome TEXT NOT NULL,
+                        toolsUsedCsv TEXT NOT NULL,
                         embedding BLOB NOT NULL,
-                        iterationsCount INTEGER NOT NULL DEFAULT 0,
-                        totalTimeMs INTEGER NOT NULL DEFAULT 0,
-                        sessionId TEXT NOT NULL DEFAULT '',
+                        iterationsCount INTEGER NOT NULL,
+                        totalTimeMs INTEGER NOT NULL,
+                        sessionId TEXT NOT NULL,
                         createdAt INTEGER NOT NULL
                     )
                 """.trimIndent())
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_ep_session ON episodic_memory(sessionId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_ep_outcome ON episodic_memory(finalOutcome)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_ep_time ON episodic_memory(createdAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_episodic_memory_sessionId` ON episodic_memory(sessionId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_episodic_memory_finalOutcome` ON episodic_memory(finalOutcome)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_episodic_memory_createdAt` ON episodic_memory(createdAt)")
 
                 // ─── Action Insurance: Rollback Snapshots ──────────────────────
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS rollback_snapshots (
                         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                         actionGroupId TEXT NOT NULL,
-                        toolName TEXT NOT NULL DEFAULT '',
+                        toolName TEXT NOT NULL,
                         filePath TEXT NOT NULL,
-                        existedBefore INTEGER NOT NULL DEFAULT 1,
+                        existedBefore INTEGER NOT NULL,
                         contentBlob BLOB NOT NULL,
-                        storedAsDiff INTEGER NOT NULL DEFAULT 0,
-                        originalSizeBytes INTEGER NOT NULL DEFAULT 0,
-                        originalHash TEXT NOT NULL DEFAULT '',
-                        postEditHash TEXT NOT NULL DEFAULT '',
-                        reason TEXT NOT NULL DEFAULT '',
-                        rolledBack INTEGER NOT NULL DEFAULT 0,
-                        pinned INTEGER NOT NULL DEFAULT 0,
+                        storedAsDiff INTEGER NOT NULL,
+                        originalSizeBytes INTEGER NOT NULL,
+                        originalHash TEXT NOT NULL,
+                        postEditHash TEXT NOT NULL,
+                        reason TEXT NOT NULL,
+                        rolledBack INTEGER NOT NULL,
+                        pinned INTEGER NOT NULL,
                         createdAt INTEGER NOT NULL
                     )
                 """.trimIndent())
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_rb_group ON rollback_snapshots(actionGroupId)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_rb_path ON rollback_snapshots(filePath)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_rb_time ON rollback_snapshots(createdAt)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_rb_rolled ON rollback_snapshots(rolledBack)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_rollback_snapshots_actionGroupId` ON rollback_snapshots(actionGroupId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_rollback_snapshots_filePath` ON rollback_snapshots(filePath)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_rollback_snapshots_createdAt` ON rollback_snapshots(createdAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_rollback_snapshots_rolledBack` ON rollback_snapshots(rolledBack)")
 
                 // ─── Live Repository Context Engine: File Index ───────────────
                 db.execSQL("""
@@ -458,18 +461,19 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                         scopePath TEXT NOT NULL,
                         filePath TEXT NOT NULL,
-                        fileSize INTEGER NOT NULL DEFAULT 0,
-                        fileMtime INTEGER NOT NULL DEFAULT 0,
-                        contentHash TEXT NOT NULL DEFAULT '',
-                        symbolCount INTEGER NOT NULL DEFAULT 0,
-                        language TEXT NOT NULL DEFAULT 'other',
+                        fileSize INTEGER NOT NULL,
+                        fileMtime INTEGER NOT NULL,
+                        contentHash TEXT NOT NULL,
+                        symbolCount INTEGER NOT NULL,
+                        language TEXT NOT NULL,
                         indexedAt INTEGER NOT NULL,
-                        skipReason TEXT NOT NULL DEFAULT ''
+                        skipReason TEXT NOT NULL
                     )
                 """.trimIndent())
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_rfi_scope ON repo_file_index(scopePath)")
-                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS idx_rfi_path ON repo_file_index(scopePath, filePath)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_rfi_lang ON repo_file_index(language)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_repo_file_index_scopePath_filePath` ON repo_file_index(scopePath, filePath)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_file_index_scopePath` ON repo_file_index(scopePath)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_file_index_language` ON repo_file_index(language)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_file_index_indexedAt` ON repo_file_index(indexedAt)")
 
                 // ─── Live Repository Context Engine: Symbols ──────────────────
                 db.execSQL("""
@@ -478,44 +482,44 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         scopePath TEXT NOT NULL,
                         symbolKind TEXT NOT NULL,
                         symbolName TEXT NOT NULL,
-                        qualifiedName TEXT NOT NULL DEFAULT '',
+                        qualifiedName TEXT NOT NULL,
                         filePath TEXT NOT NULL,
-                        lineNumber INTEGER NOT NULL DEFAULT 0,
-                        snippet TEXT NOT NULL DEFAULT '',
-                        language TEXT NOT NULL DEFAULT 'other',
-                        visibility TEXT NOT NULL DEFAULT '',
-                        fileMtime INTEGER NOT NULL DEFAULT 0,
+                        lineNumber INTEGER NOT NULL,
+                        snippet TEXT NOT NULL,
+                        language TEXT NOT NULL,
+                        visibility TEXT NOT NULL,
+                        fileMtime INTEGER NOT NULL,
                         indexedAt INTEGER NOT NULL
                     )
                 """.trimIndent())
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_sym_scope ON repo_symbols(scopePath)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_sym_name ON repo_symbols(symbolName)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_sym_kind ON repo_symbols(symbolKind)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_sym_file ON repo_symbols(filePath)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_sym_qual ON repo_symbols(qualifiedName)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_symbols_scopePath` ON repo_symbols(scopePath)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_symbols_symbolName` ON repo_symbols(symbolName)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_symbols_symbolKind` ON repo_symbols(symbolKind)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_symbols_filePath` ON repo_symbols(filePath)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_repo_symbols_qualifiedName` ON repo_symbols(qualifiedName)")
 
                 // ─── Build Doctor Pro: Diagnostics ────────────────────────────
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS build_diagnostics (
                         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                         errorFingerprint TEXT NOT NULL,
-                        category TEXT NOT NULL DEFAULT 'Unknown',
+                        category TEXT NOT NULL,
                         message TEXT NOT NULL,
-                        buildCommand TEXT NOT NULL DEFAULT '',
+                        buildCommand TEXT NOT NULL,
                         solutionDiff BLOB NOT NULL,
-                        explanation TEXT NOT NULL DEFAULT '',
-                        occurrenceCount INTEGER NOT NULL DEFAULT 1,
-                        successfulFixCount INTEGER NOT NULL DEFAULT 0,
-                        failedFixCount INTEGER NOT NULL DEFAULT 0,
+                        explanation TEXT NOT NULL,
+                        occurrenceCount INTEGER NOT NULL,
+                        successfulFixCount INTEGER NOT NULL,
+                        failedFixCount INTEGER NOT NULL,
                         lastSeenAt INTEGER NOT NULL,
-                        lastFixedAt INTEGER NOT NULL DEFAULT 0,
-                        reportedFiles TEXT NOT NULL DEFAULT '',
+                        lastFixedAt INTEGER NOT NULL,
+                        reportedFiles TEXT NOT NULL,
                         createdAt INTEGER NOT NULL
                     )
                 """.trimIndent())
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_bd_fp ON build_diagnostics(errorFingerprint)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_bd_cat ON build_diagnostics(category)")
-                db.execSQL("CREATE INDEX IF NOT EXISTS idx_bd_seen ON build_diagnostics(lastSeenAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_build_diagnostics_errorFingerprint` ON build_diagnostics(errorFingerprint)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_build_diagnostics_category` ON build_diagnostics(category)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_build_diagnostics_lastSeenAt` ON build_diagnostics(lastSeenAt)")
             }
         }
 
