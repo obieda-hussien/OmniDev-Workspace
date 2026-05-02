@@ -61,6 +61,11 @@ class SmartLearningBridge(
      * اختياري: لو null النظام لا يحقن episodes مشابهة.
      */
     private val episodicMemoryStore: com.omnidev.workspace.data.brain.EpisodicMemoryStore? = null,
+    /**
+     * Progressive Trust Engine — يتتبّع الثقة ويمنح الصلاحيات تدريجياً.
+     * اختياري: لو null النظام يعمل بدون trust tracking.
+     */
+    private val progressiveTrustEngine: com.omnidev.workspace.data.brain.ProgressiveTrustEngine? = null,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 ) {
 
@@ -294,6 +299,14 @@ class SmartLearningBridge(
             userIntent = currentUserIntent
         )
 
+        // ─── 5c. Progressive Trust — تحديث درجة الثقة بناءً على النتيجة ──
+        // يعمل synchronously (< 1ms) — آمن للاستدعاء هنا
+        if (!result.isError) {
+            progressiveTrustEngine?.onOperationSuccess(toolName)
+        } else {
+            progressiveTrustEngine?.onOperationFailure(toolName)
+        }
+
         // ─── 6. تحديث التاريخ المحلي للجلسة ─────────────────────────
         synchronized(sessionToolHistory) {
             sessionToolHistory.add(toolName)
@@ -358,6 +371,14 @@ class SmartLearningBridge(
             if (!reflexCtx.isNullOrBlank()) parts.add(reflexCtx)
         } catch (t: Throwable) {
             Log.w(TAG, "reflexion injection failed: ${t.message}")
+        }
+
+        // 4b. Progressive Trust — حقن مستوى الثقة والصلاحيات في الـ prompt
+        try {
+            val trustCtx = progressiveTrustEngine?.buildPromptInjection()
+            if (!trustCtx.isNullOrBlank()) parts.add(trustCtx)
+        } catch (t: Throwable) {
+            Log.w(TAG, "trust injection failed: ${t.message}")
         }
 
         // 5. سياق الجلسة الحالية (آخر N أداة)

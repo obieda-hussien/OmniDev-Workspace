@@ -9,6 +9,7 @@ import com.omnidev.workspace.core.privileged.PrivilegedExecutionFacadeHolder
 import com.omnidev.workspace.data.auth.CopilotModelRefresher
 import com.omnidev.workspace.data.brain.CausalChainPlanner
 import com.omnidev.workspace.data.brain.EpisodicMemoryStore
+import com.omnidev.workspace.data.brain.ProgressiveTrustEngine
 import com.omnidev.workspace.data.brain.ReflexionEngine
 import com.omnidev.workspace.data.brain.SmartLearningBridge
 import com.omnidev.workspace.data.builddoctor.BuildDoctorPro
@@ -27,6 +28,8 @@ import com.omnidev.workspace.data.ipc.LauncherConnectionManager
 import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.tools.CausalChainPlannerTool
+import com.omnidev.workspace.data.tools.ProgressiveTrustTool
+import com.omnidev.workspace.data.tools.ScriptRunnerTool
 import com.omnidev.workspace.data.tools.EnvironmentSetupManager
 import com.omnidev.workspace.data.tools.ToolDownloaderEngine
 import com.omnidev.workspace.data.tools.ml.ToolMachineLearningEngine
@@ -102,6 +105,10 @@ class OmniDevApp : Application() {
 
     /** محرك التخطيط السببي — تحليل سلاسل الأوامر قبل تنفيذها. */
     lateinit var causalChainPlannerTool: CausalChainPlannerTool
+        private set
+
+    /** محرك الثقة التدريجية — يتتبّع الثقة ويمنح الصلاحيات. */
+    lateinit var progressiveTrustEngine: ProgressiveTrustEngine
         private set
 
     override fun onCreate() {
@@ -182,7 +189,10 @@ class OmniDevApp : Application() {
             val mcpConfigManager = McpConfigManager(applicationContext)
             mcpRegistry = McpRegistry(mcpConfigManager)
 
-            // 5. إنشاء الجسر الذكي المنسق
+            // 5. إنشاء الجسر الذكي المنسق مع Progressive Trust Engine
+            val trustEngine = ProgressiveTrustEngine(applicationContext)
+            progressiveTrustEngine = trustEngine
+
             smartLearningBridge = SmartLearningBridge(
 
                 context = applicationContext,
@@ -191,6 +201,7 @@ class OmniDevApp : Application() {
                 intelligenceEngine = intelligenceEngine,
                 mlEngine = mlEngine,
                 monitoringSystem = monitoringSystem,
+                progressiveTrustEngine = trustEngine,
                 scope = appScope
             )
 
@@ -240,7 +251,6 @@ class OmniDevApp : Application() {
             // 6f. Causal Chain Planner — تحليل سلاسل الأوامر قبل تنفيذها (in-memory, no DB)
             //     50 node max per graph — mobile-safe (~50 KB peak)
             causalChainPlannerTool = CausalChainPlannerTool(CausalChainPlanner(maxNodes = 50))
-
             // 7. تهيئة النظام في الخلفية (اكتشاف البيئة + إحصاءات الذاكرة)
             appScope.launch {
                 try {
@@ -284,6 +294,7 @@ class OmniDevApp : Application() {
             repoContextEngine = RepoContextEngine(dao = db.repoIndexDao(), indexer = repoIndexer)
             buildDoctorPro = BuildDoctorPro(dao = db.buildDiagnosticDao())
             causalChainPlannerTool = CausalChainPlannerTool(CausalChainPlanner())
+            progressiveTrustEngine = ProgressiveTrustEngine(applicationContext)
         }
     }
 

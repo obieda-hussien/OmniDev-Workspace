@@ -67,7 +67,15 @@ internal object TierToolGate {
         "causal_plan_analyze",
         "causal_plan_simulate",
         "causal_plan_what_if",
-        "causal_plan_clear"
+        "causal_plan_clear",
+
+        // ── Progressive Trust (read-only — safe for all tiers) ───────────────
+        "get_trust_profile",
+        "list_earned_capabilities",
+        // reset_trust is intentionally omitted from Lite (destructive)
+
+        // ── eval_expression (pure math — no side effects, safe for Lite) ─────
+        "eval_expression"
     )
 
     /** Tools that require PRO-tier capabilities (Shizuku / root / deep-security). */

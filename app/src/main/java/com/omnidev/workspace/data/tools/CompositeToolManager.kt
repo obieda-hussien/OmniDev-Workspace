@@ -24,6 +24,7 @@ import java.util.Date
 import java.util.Locale
 import android.content.pm.PackageManager
 import android.os.Build
+import com.omnidev.workspace.data.brain.ProgressiveTrustEngine
 
 /**
  * Delegates tool execution to [FileToolManager], [MemoryManager], and the suite of
@@ -58,7 +59,11 @@ class CompositeToolManager(
     val repoContextTools: RepoContextTools? = null,
     val buildDoctorTools: BuildDoctorTools? = null,
     // ── Causal Chain Planner — pre-execution conflict detection & simulation ──
-    val causalChainPlannerTool: CausalChainPlannerTool? = null
+    val causalChainPlannerTool: CausalChainPlannerTool? = null,
+    // ── Progressive Trust — trust scoring & capability gating ──
+    val progressiveTrustTool: ProgressiveTrustTool? = null,
+    // ── Script Runner — sandboxed scripting for Norm+ tier ──
+    val scriptRunnerTool: ScriptRunnerTool? = null
 ) : ToolManager {
     companion object {
         /**
@@ -147,6 +152,9 @@ class CompositeToolManager(
         repoContextTools?.let { addAll(it.getDefinitions()) }
         buildDoctorTools?.let { addAll(it.getDefinitions()) }
         causalChainPlannerTool?.let { addAll(it.getDefinitions()) }
+        // ── Progressive Trust + Script Runner (early, Norm+, mobile-friendly) ──
+        progressiveTrustTool?.let { addAll(it.getDefinitions()) }
+        scriptRunnerTool?.let { addAll(it.getDefinitions()) }
 
         addAll(fileToolManager.getToolDefinitions().filterNot { it.name == "web_search" })
         addAll(WebSearchTool.getToolDefinitions())
@@ -488,6 +496,9 @@ class CompositeToolManager(
         repoContextTools?.execute(name, arguments)?.let { return it }
         buildDoctorTools?.execute(name, arguments)?.let { return it }
         causalChainPlannerTool?.execute(name, arguments)?.let { return it }
+        // ── Progressive Trust + Script Runner routing ──────────────────────
+        progressiveTrustTool?.execute(name, arguments)?.let { return it }
+        scriptRunnerTool?.execute(name, arguments)?.let { return it }
 
         return when (name) {
             // ── Execution Diagnostics tool ──
