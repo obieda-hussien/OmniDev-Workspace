@@ -193,6 +193,11 @@ class OmniDevApp : Application() {
             val trustEngine = ProgressiveTrustEngine(applicationContext)
             progressiveTrustEngine = trustEngine
 
+            // 6f. Causal Chain Planner — تحليل سلاسل الأوامر قبل تنفيذها (in-memory, no DB)
+            //     مُبكَّر قبل SmartLearningBridge حتى يمكن تمريره كـ dependency
+            //     50 node max per graph — mobile-safe (~50 KB peak)
+            causalChainPlannerTool = CausalChainPlannerTool(CausalChainPlanner(maxNodes = 50))
+
             smartLearningBridge = SmartLearningBridge(
 
                 context = applicationContext,
@@ -202,6 +207,7 @@ class OmniDevApp : Application() {
                 mlEngine = mlEngine,
                 monitoringSystem = monitoringSystem,
                 progressiveTrustEngine = trustEngine,
+                causalChainPlannerTool = causalChainPlannerTool,
                 scope = appScope
             )
 
@@ -248,9 +254,6 @@ class OmniDevApp : Application() {
                 maxEntries = 500
             )
 
-            // 6f. Causal Chain Planner — تحليل سلاسل الأوامر قبل تنفيذها (in-memory, no DB)
-            //     50 node max per graph — mobile-safe (~50 KB peak)
-            causalChainPlannerTool = CausalChainPlannerTool(CausalChainPlanner(maxNodes = 50))
             // 7. تهيئة النظام في الخلفية (اكتشاف البيئة + إحصاءات الذاكرة)
             appScope.launch {
                 try {
@@ -279,6 +282,10 @@ class OmniDevApp : Application() {
             val fallbackTrustEngine = ProgressiveTrustEngine(applicationContext)
             progressiveTrustEngine = fallbackTrustEngine
 
+            // إنشاء CausalChainPlannerTool قبل SmartLearningBridge حتى يمكن تمريره
+            val fallbackCausalTool = CausalChainPlannerTool(CausalChainPlanner())
+            causalChainPlannerTool = fallbackCausalTool
+
             smartLearningBridge = SmartLearningBridge(
                 context = applicationContext,
                 journal = toolExecutionJournal,
@@ -286,7 +293,8 @@ class OmniDevApp : Application() {
                 intelligenceEngine = null,
                 mlEngine = null,
                 monitoringSystem = null,
-                progressiveTrustEngine = fallbackTrustEngine
+                progressiveTrustEngine = fallbackTrustEngine,
+                causalChainPlannerTool = fallbackCausalTool
             )
 
             // ── Fallback initialization for Agent Brain 2.0 stack ──
@@ -298,7 +306,6 @@ class OmniDevApp : Application() {
             repoIndexer = RepoIndexer(dao = db.repoIndexDao())
             repoContextEngine = RepoContextEngine(dao = db.repoIndexDao(), indexer = repoIndexer)
             buildDoctorPro = BuildDoctorPro(dao = db.buildDiagnosticDao())
-            causalChainPlannerTool = CausalChainPlannerTool(CausalChainPlanner())
         }
     }
 

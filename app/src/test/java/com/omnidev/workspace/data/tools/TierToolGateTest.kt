@@ -54,6 +54,11 @@ class TierToolGateTest {
         ToolDefinition("causal_plan_simulate", "", emptyList()),
         ToolDefinition("causal_plan_what_if", "", emptyList()),
         ToolDefinition("causal_plan_clear", "", emptyList()),
+        // Progressive Trust — read-only trust profile queries, safe for Lite
+        ToolDefinition("get_trust_profile", "", emptyList()),
+        ToolDefinition("list_earned_capabilities", "", emptyList()),
+        // Eval expression — pure math, no side effects, safe for Lite
+        ToolDefinition("eval_expression", "", emptyList()),
         ToolDefinition("terminal_command", "", emptyList()),
         ToolDefinition("git_status", "", emptyList()),
         ToolDefinition("semantic_ui_action", "", emptyList()),

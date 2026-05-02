@@ -66,6 +66,11 @@ class SmartLearningBridge(
      * اختياري: لو null النظام يعمل بدون trust tracking.
      */
     private val progressiveTrustEngine: com.omnidev.workspace.data.brain.ProgressiveTrustEngine? = null,
+    /**
+     * Causal Chain Planner Tool — يُحقن آخر تحذيرات سببية في الـ System Prompt.
+     * اختياري: لو null لا يُحقن شيء.
+     */
+    private val causalChainPlannerTool: com.omnidev.workspace.data.tools.CausalChainPlannerTool? = null,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 ) {
 
@@ -379,6 +384,14 @@ class SmartLearningBridge(
             if (!trustCtx.isNullOrBlank()) parts.add(trustCtx)
         } catch (t: Throwable) {
             Log.w(TAG, "trust injection failed: ${t.message}")
+        }
+
+        // 4c. Causal Chain Planner — inject last plan's causal warnings if any
+        try {
+            val causalCtx = causalChainPlannerTool?.getLastPlanInjection(maxChars = 400)
+            if (!causalCtx.isNullOrBlank()) parts.add(causalCtx)
+        } catch (t: Throwable) {
+            Log.w(TAG, "causal injection failed: ${t.message}")
         }
 
         // 5. سياق الجلسة الحالية (آخر N أداة)

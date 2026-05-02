@@ -548,12 +548,19 @@ class CausalChainPlanner(
                 RiskLevel.MEDIUM to "تنفيذ أمر: ${command.take(60)}"
         }
         val effectPath = extractPathFromCommand(command)
-        val isCritical = riskLevel == RiskLevel.CRITICAL
+
+        // أوامر الحذف (rm, unlink) تُنتج تأثير DELETE حتى يعمل اكتشاف READ_AFTER_DELETE/MODIFY_AFTER_DELETE
+        // كل الأوامر الأخرى تُنتج تأثير EXECUTE (git reset, mkfs, dd، إلخ)
+        val effectType = when {
+            "rm -rf" in command || "rm -r" in command -> EffectType.DELETE
+            Regex("""^rm\s""").containsMatchIn(command) || "unlink" in command -> EffectType.DELETE
+            else -> EffectType.EXECUTE
+        }
 
         return ToolRule(
             effects = listOf(
                 CausalEffect(
-                    type = if (isCritical) EffectType.EXECUTE else EffectType.EXECUTE,
+                    type = effectType,
                     targetPath = effectPath,
                     description = description
                 )

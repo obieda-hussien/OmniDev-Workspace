@@ -164,6 +164,17 @@ class CausalChainPlannerTool(
 
     fun handles(name: String): Boolean = name in HANDLED
 
+    /**
+     * يُرجع نص حقن Prompt لآخر خطة مؤقتة في الـ cache.
+     * يُستخدم من SmartLearningBridge لإثراء System Prompt بالتحذيرات السببية.
+     * يُرجع null إذا كان الـ cache فارغاً أو لا يوجد تحذيرات تستحق الحقن.
+     */
+    fun getLastPlanInjection(maxChars: Int = 500): String? {
+        val lastGraph = planCache.values.lastOrNull() ?: return null
+        val injection = planner.buildPromptInjection(lastGraph, maxChars)
+        return injection.ifBlank { null }
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Private helpers
     // ──────────────────────────────────────────────────────────────────────────
