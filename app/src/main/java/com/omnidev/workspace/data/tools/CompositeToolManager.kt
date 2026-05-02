@@ -56,7 +56,9 @@ class CompositeToolManager(
     val agentBrainTools: AgentBrainTools? = null,
     val rollbackTools: RollbackTools? = null,
     val repoContextTools: RepoContextTools? = null,
-    val buildDoctorTools: BuildDoctorTools? = null
+    val buildDoctorTools: BuildDoctorTools? = null,
+    // ── Causal Chain Planner — pre-execution conflict detection & simulation ──
+    val causalChainPlannerTool: CausalChainPlannerTool? = null
 ) : ToolManager {
     companion object {
         /**
@@ -144,6 +146,7 @@ class CompositeToolManager(
         rollbackTools?.let { addAll(it.getDefinitions()) }
         repoContextTools?.let { addAll(it.getDefinitions()) }
         buildDoctorTools?.let { addAll(it.getDefinitions()) }
+        causalChainPlannerTool?.let { addAll(it.getDefinitions()) }
 
         addAll(fileToolManager.getToolDefinitions().filterNot { it.name == "web_search" })
         addAll(WebSearchTool.getToolDefinitions())
@@ -484,6 +487,7 @@ class CompositeToolManager(
         rollbackTools?.execute(name, arguments)?.let { return it }
         repoContextTools?.execute(name, arguments)?.let { return it }
         buildDoctorTools?.execute(name, arguments)?.let { return it }
+        causalChainPlannerTool?.execute(name, arguments)?.let { return it }
 
         return when (name) {
             // ── Execution Diagnostics tool ──

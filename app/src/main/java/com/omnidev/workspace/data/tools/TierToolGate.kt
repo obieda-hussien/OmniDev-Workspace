@@ -60,7 +60,14 @@ internal object TierToolGate {
         "brain_reflexion_search",
         "brain_episode_search",
         "brain_recent_episodes",
-        "brain_stats"
+        "brain_stats",
+
+        // ── Causal Chain Planner (on-device analysis, no side effects) ────────
+        // تحليل وتخطيط فقط — لا تعديل ملفات، آمن لجميع الـ Tiers
+        "causal_plan_analyze",
+        "causal_plan_simulate",
+        "causal_plan_what_if",
+        "causal_plan_clear"
     )
 
     /** Tools that require PRO-tier capabilities (Shizuku / root / deep-security). */

@@ -49,6 +49,11 @@ class TierToolGateTest {
         ToolDefinition("brain_episode_search", "", emptyList()),
         ToolDefinition("brain_recent_episodes", "", emptyList()),
         ToolDefinition("brain_stats", "", emptyList()),
+        // Causal Chain Planner — on-device analysis, no side effects, safe for Lite
+        ToolDefinition("causal_plan_analyze", "", emptyList()),
+        ToolDefinition("causal_plan_simulate", "", emptyList()),
+        ToolDefinition("causal_plan_what_if", "", emptyList()),
+        ToolDefinition("causal_plan_clear", "", emptyList()),
         ToolDefinition("terminal_command", "", emptyList()),
         ToolDefinition("git_status", "", emptyList()),
         ToolDefinition("semantic_ui_action", "", emptyList()),

@@ -16,6 +16,7 @@ import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.data.tools.AgentBrainTools
 import com.omnidev.workspace.data.tools.BuildDoctorTools
+import com.omnidev.workspace.data.tools.CausalChainPlannerTool
 import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.EnvironmentSetupManager
 import com.omnidev.workspace.data.tools.FileToolManager
@@ -103,7 +104,8 @@ class MainActivity : ComponentActivity() {
             agentBrainTools = agentBrainTools,
             rollbackTools = rollbackTools,
             repoContextTools = repoContextTools,
-            buildDoctorTools = buildDoctorTools
+            buildDoctorTools = buildDoctorTools,
+            causalChainPlannerTool = app.causalChainPlannerTool
         )
 
         // Real HTTP completion provider
