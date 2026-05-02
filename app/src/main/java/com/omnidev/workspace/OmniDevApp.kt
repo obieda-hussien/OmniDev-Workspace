@@ -274,14 +274,19 @@ class OmniDevApp : Application() {
             toolExecutionJournal = ToolExecutionJournal(db.toolExecutionDao())
             toolAwarenessEngine = ToolAwarenessEngine(applicationContext, db.systemKnowledgeDao())
             mcpRegistry = McpRegistry(McpConfigManager(applicationContext))
-            smartLearningBridge = SmartLearningBridge(
 
+            // إنشاء ProgressiveTrustEngine قبل SmartLearningBridge حتى يمكن تمريره
+            val fallbackTrustEngine = ProgressiveTrustEngine(applicationContext)
+            progressiveTrustEngine = fallbackTrustEngine
+
+            smartLearningBridge = SmartLearningBridge(
                 context = applicationContext,
                 journal = toolExecutionJournal,
                 awarenessEngine = toolAwarenessEngine,
                 intelligenceEngine = null,
                 mlEngine = null,
-                monitoringSystem = null
+                monitoringSystem = null,
+                progressiveTrustEngine = fallbackTrustEngine
             )
 
             // ── Fallback initialization for Agent Brain 2.0 stack ──
@@ -294,7 +299,6 @@ class OmniDevApp : Application() {
             repoContextEngine = RepoContextEngine(dao = db.repoIndexDao(), indexer = repoIndexer)
             buildDoctorPro = BuildDoctorPro(dao = db.buildDiagnosticDao())
             causalChainPlannerTool = CausalChainPlannerTool(CausalChainPlanner())
-            progressiveTrustEngine = ProgressiveTrustEngine(applicationContext)
         }
     }
 
