@@ -866,9 +866,7 @@ Rules:
                 // answer and optionally rewrites it with targeted improvements.
                 val finalContent = if (config.enableSelfReflection && response.content.isNotBlank()) {
                     send(AgentEvent.Reflecting(draftLength = response.content.length))
-                    val originalUserMessage = messages.firstOrNull {
-                        it.role == MessageRole.USER
-                    }?.content ?: userMessage
+                    val originalUserMessage = userMessage
 
                     val criticPrompt = buildString {
                         appendLine("**Original user request:**")
