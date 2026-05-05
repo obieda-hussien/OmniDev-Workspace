@@ -194,6 +194,10 @@ class AgentPipeline(
 
     companion object {
 
+        /** Maximum number of tools that may be sent in a single API request.
+         *  GitHub Copilot (and most OpenAI-compatible endpoints) reject arrays longer than 128. */
+        private const val MAX_TOOLS_PER_REQUEST = 128
+
         private const val AGENT_IDENTITY_CONTEXT = """
 
 ## Agent Identity
@@ -811,6 +815,10 @@ Rules:
                 }
             }
 
+            if (toolDefs.size > MAX_TOOLS_PER_REQUEST) {
+                android.util.Log.w("AgentPipeline", "Tool list truncated from ${toolDefs.size} to $MAX_TOOLS_PER_REQUEST; ${toolDefs.size - MAX_TOOLS_PER_REQUEST} MCP tools dropped to stay within API limit")
+            }
+
             val request = CompletionRequest(
                 modelId = modelId,
                 messages = trimmedMessages,
@@ -819,7 +827,7 @@ Rules:
                 enableThinking = enableDeepThinking && model.supportsThinking,
                 targetContext = scopePath,
                 apiKey = resolvedApiKey,
-                tools = toolDefs
+                tools = toolDefs.take(MAX_TOOLS_PER_REQUEST)
             )
 
             // ── API call with retry/backoff ──
@@ -866,9 +874,7 @@ Rules:
                 // answer and optionally rewrites it with targeted improvements.
                 val finalContent = if (config.enableSelfReflection && response.content.isNotBlank()) {
                     send(AgentEvent.Reflecting(draftLength = response.content.length))
-                    val originalUserMessage = messages.firstOrNull {
-                        it.role == MessageRole.USER
-                    }?.content ?: userMessage
+                    val originalUserMessage = userMessage
 
                     val criticPrompt = buildString {
                         appendLine("**Original user request:**")

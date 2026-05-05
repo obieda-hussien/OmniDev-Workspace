@@ -325,6 +325,15 @@ All tools are strictly registered and routed through CompositeToolManager (data/
 | predictive_analytics | Time-series forecasting and anomaly detection |
 | intelligent_automation | Complex workflow orchestration engine |
 | tool_monitoring | Fetch real-time tool performance metrics |
+
+### 5.10 Trust & Scripting Tools (Phase 2)
+| Tool Name | Tier | Description |
+|---|---|---|
+| get_trust_profile | Lite+ | Returns current agent trust score, level, recent history, and earned capabilities |
+| reset_trust | Norm+ | Resets the trust profile to initial state (requires `confirm=true`) |
+| list_earned_capabilities | Lite+ | Lists all capabilities the agent has unlocked through sustained performance |
+| run_script | Norm+ | Executes JS/Python/shell scripts via ScriptEngineManager, SafeExpressionParser, or Termux |
+| eval_expression | Lite+ | Safely evaluates a math/logic expression without `eval()` using a recursive-descent parser |
 ## 6. Intelligence & Automation Engines
 Located in data/tools/*/, these are the underlying infrastructures powering the tools:
 ### ToolMachineLearningEngine (data/tools/ml/)

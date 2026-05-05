@@ -109,3 +109,10 @@
 -keep class org.eclipse.jgit.** { *; }
 -dontwarn java.lang.ProcessHandle
 -dontwarn org.ietf.jgss.**
+
+# ── Progressive Trust Engine & Tools (Phase 2) ────────────────────────────────
+-keep class com.omnidev.workspace.data.brain.ProgressiveTrustEngine { *; }
+-keep class com.omnidev.workspace.data.brain.ProgressiveTrustEngine$* { *; }
+-keep class com.omnidev.workspace.data.tools.ProgressiveTrustTool { *; }
+-keep class com.omnidev.workspace.data.tools.ScriptRunnerTool { *; }
+-keep class com.omnidev.workspace.data.tools.ScriptRunnerTool$* { *; }
