@@ -745,10 +745,17 @@ ACTIONS:
             }
             session.pendingJs.clear()
             session.webView?.destroy()
+            // Only wipe the global cookie/storage state when the incognito session is the
+            // LAST remaining session (or all remaining sessions are also incognito).
+            // Clearing while non-incognito sessions are open would destroy their data too,
+            // because Android's CookieManager / WebStorage are global singletons.
             if (wasIncognito) {
-                CookieManager.getInstance().removeAllCookies(null)
-                CookieManager.getInstance().flush()
-                WebStorage.getInstance().deleteAllData()
+                val hasNormalSession = sessions.values.any { !it.isIncognito }
+                if (!hasNormalSession) {
+                    CookieManager.getInstance().removeAllCookies(null)
+                    CookieManager.getInstance().flush()
+                    WebStorage.getInstance().deleteAllData()
+                }
             }
         }
     }
