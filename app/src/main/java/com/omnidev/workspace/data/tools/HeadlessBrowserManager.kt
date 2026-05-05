@@ -6,7 +6,6 @@ import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
 import android.webkit.*
-import android.webkit.WebStorage
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -750,8 +749,8 @@ ACTIONS:
             // Clearing while non-incognito sessions are open would destroy their data too,
             // because Android's CookieManager / WebStorage are global singletons.
             if (wasIncognito) {
-                val hasNormalSession = sessions.values.any { !it.isIncognito }
-                if (!hasNormalSession) {
+                val hasNonIncognitoSession = sessions.values.any { !it.isIncognito }
+                if (!hasNonIncognitoSession) {
                     CookieManager.getInstance().removeAllCookies(null)
                     CookieManager.getInstance().flush()
                     WebStorage.getInstance().deleteAllData()
