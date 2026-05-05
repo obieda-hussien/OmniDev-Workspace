@@ -101,7 +101,7 @@ fun AgentLiveConsole(
     isRunning: Boolean,
     modifier: Modifier = Modifier
 ) {
-    var expanded    by remember { mutableStateOf(true) }
+    var expanded    by remember { mutableStateOf(false) }
     var fullscreen  by remember { mutableStateOf(false) }
     val listState   = rememberLazyListState()
     val clipboard   = LocalClipboardManager.current

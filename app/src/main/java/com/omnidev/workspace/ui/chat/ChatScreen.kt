@@ -124,6 +124,7 @@ import java.util.Locale
  */
 
 private const val REPLY_PREVIEW_MAX_CHARS = 120
+private const val USER_MESSAGE_COLLAPSE_THRESHOLD = 300
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1090,11 +1091,32 @@ private fun MessageBubble(
                     Box {
                         SelectionContainer {
                             if (isUser) {
-                                Text(
-                                    text = message.content,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(12.dp)
-                                )
+                                val isLong = message.content.length > USER_MESSAGE_COLLAPSE_THRESHOLD
+                                var userExpanded by remember(message.messageId) { mutableStateOf(false) }
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(
+                                        text = if (isLong && !userExpanded)
+                                            message.content.take(USER_MESSAGE_COLLAPSE_THRESHOLD)
+                                        else
+                                            message.content,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    if (isLong) {
+                                        Row(
+                                            modifier = Modifier
+                                                .padding(top = 4.dp)
+                                                .clickable { userExpanded = !userExpanded },
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = if (userExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                                contentDescription = if (userExpanded) "Read less" else "Read more",
+                                                tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                }
                             } else {
                                 // Assistant: show only the clean text (tags extracted to expandable blocks)
                                 val displayText = parsed?.cleanText?.ifBlank { null } ?: message.content
