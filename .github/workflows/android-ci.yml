@@ -104,6 +104,7 @@ jobs:
 
       - name: Upload quality reports
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: quality-reports-${{ github.run_number }}
@@ -153,6 +154,7 @@ jobs:
 
       - name: Upload test reports
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: unit-test-reports-${{ github.run_number }}
@@ -225,6 +227,7 @@ jobs:
           severity: CRITICAL,HIGH
 
       - name: Upload Trivy Results Artifact
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: trivy-results-${{ github.run_number }}
@@ -290,6 +293,7 @@ jobs:
           done
 
       - name: Upload debug APKs
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: app-debug-flavors-${{ github.run_number }}
@@ -426,6 +430,7 @@ jobs:
             :app:assembleAdminRelease
 
       - name: Upload release APKs
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: app-release-flavors-${{ github.run_number }}

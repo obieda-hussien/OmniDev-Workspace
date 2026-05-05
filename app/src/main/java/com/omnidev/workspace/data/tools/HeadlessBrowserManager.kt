@@ -7,6 +7,9 @@ import android.os.Handler
 import android.os.Looper
 import android.webkit.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
@@ -47,6 +50,11 @@ class HeadlessBrowserManager(context: Context) {
     // ─── Session Registry ────────────────────────────────────────────────────
     private val sessions = ConcurrentHashMap<String, BrowserSession>()
     private var activeSessionId: String? = null
+
+    // ─── Reactive UI state ──────────────────────────────────────────────────
+    private val _sessionsFlow = MutableStateFlow<List<BrowserSessionInfo>>(emptyList())
+    /** Emits the current snapshot of all open sessions whenever state changes. */
+    val sessionsFlow: StateFlow<List<BrowserSessionInfo>> = _sessionsFlow.asStateFlow()
 
     // ─── Network Interception Log ────────────────────────────────────────────
     private val networkLog = ArrayDeque<NetworkLogEntry>(MAX_NETWORK_LOG)
@@ -276,7 +284,8 @@ class HeadlessBrowserManager(context: Context) {
         @Volatile var lastReadiness: PageReadinessSignal = PageReadinessSignal(),
         @Volatile var isPageLoading: Boolean = false,
         var inFlightRequests: AtomicInteger = AtomicInteger(0),
-        var lastRequestTimeMs: AtomicLong = AtomicLong(0L)
+        var lastRequestTimeMs: AtomicLong = AtomicLong(0L),
+        val isIncognito: Boolean = false
     )
 
     data class NetworkLogEntry(
@@ -287,6 +296,51 @@ class HeadlessBrowserManager(context: Context) {
         val blocked: Boolean,
         val statusCode: Int = 0
     )
+
+    /**
+     * UI-safe snapshot of a single browser session. Contains no WebView reference
+     * so it is safe to pass across threads and hold in Compose state.
+     */
+    data class BrowserSessionInfo(
+        val id: String,
+        val label: String,
+        val currentUrl: String,
+        val title: String,
+        val isActive: Boolean,
+        val isLoading: Boolean,
+        val pageLoadCount: Int,
+        val isIncognito: Boolean = false
+    )
+
+    // ─── Public accessors for BrowserViewerScreen ────────────────────────────
+
+    /** Returns the live [WebView] for the given session (or the active session if null). */
+    fun getWebViewForSession(sessionId: String?): WebView? {
+        val id = sessionId ?: activeSessionId ?: return null
+        return sessions[id]?.webView
+    }
+
+    /** Returns the current active session ID. */
+    fun getActiveSessionId(): String? = activeSessionId
+
+    // ─── Internal helpers ─────────────────────────────────────────────────────
+
+    private fun emitSessionsUpdate() {
+        _sessionsFlow.value = sessions.values
+            .sortedBy { it.createdAt }
+            .map { s ->
+                BrowserSessionInfo(
+                    id           = s.id,
+                    label        = s.label,
+                    currentUrl   = s.currentUrl,
+                    title        = s.title,
+                    isActive     = s.id == activeSessionId,
+                    isLoading    = s.isPageLoading,
+                    pageLoadCount = s.pageLoadCount.get(),
+                    isIncognito  = s.isIncognito
+                )
+            }
+    }
 
     // ────────────────────────────────────────────────────────────────────────
     // Tool Definitions
@@ -307,7 +361,7 @@ READINESS GUARANTEES:
 
 ACTIONS:
   Session Management:
-    new_session, list_sessions, switch_session, close_session, destroy_all
+    new_session, new_incognito_session, list_sessions, switch_session, close_session, destroy_all
 
   Navigation (SMART — waits for full readiness):
     navigate          - Load URL + wait for full page readiness before returning
@@ -378,6 +432,7 @@ ACTIONS:
 
         return when (action.lowercase().trim()) {
             "new_session"    -> newSession(args["label"])
+            "new_incognito_session" -> newSession(args["label"], incognito = true)
             "list_sessions"  -> listSessions()
             "switch_session" -> switchSession(args["session_id"] ?: return missingArg("session_id"))
             "close_session"  -> closeSession(args["session_id"] ?: return missingArg("session_id"))
@@ -623,7 +678,7 @@ ACTIONS:
     // Session Management
     // ════════════════════════════════════════════════════════════════════════
 
-    private suspend fun newSession(label: String? = null): ToolExecutionResult {
+    private suspend fun newSession(label: String? = null, incognito: Boolean = false): ToolExecutionResult {
         if (sessions.size >= MAX_SESSIONS) {
             val oldest = sessions.values.minByOrNull { it.lastActivity }
             if (oldest != null) destroySession(oldest.id)
@@ -631,11 +686,17 @@ ACTIONS:
         }
         val id = "session_${sessionCounter.incrementAndGet()}_${System.currentTimeMillis()}"
         val sessionLabel = label ?: "Tab ${sessionCounter.get()}"
-        val wv = createWebView()
-        val session = BrowserSession(id = id, label = sessionLabel, webView = wv)
+        val wv = createWebView(incognito)
+        val session = BrowserSession(id = id, label = sessionLabel, webView = wv, isIncognito = incognito)
         sessions[id] = session
         activeSessionId = id
-        return ToolExecutionResult("✅ New session created.\nsession_id: $id\nlabel: $sessionLabel")
+        emitSessionsUpdate()
+        return ToolExecutionResult(
+            "✅ New ${if (incognito) "incognito " else ""}session created.\n" +
+            "session_id: $id\n" +
+            "label: $sessionLabel" +
+            if (incognito) "\nmode: INCOGNITO 🕵️" else ""
+        )
     }
 
     private fun listSessions(): ToolExecutionResult {
@@ -654,6 +715,7 @@ ACTIONS:
         return if (sessions.containsKey(id)) {
             activeSessionId = id
             val s = sessions[id]!!
+            emitSessionsUpdate()
             ToolExecutionResult("✅ Switched to session: $id | ${s.label}")
         } else ToolExecutionResult("Session '$id' not found.", isError = true)
     }
@@ -661,6 +723,7 @@ ACTIONS:
     private suspend fun closeSession(id: String): ToolExecutionResult {
         destroySession(id)
         if (activeSessionId == id) activeSessionId = sessions.keys.firstOrNull()
+        emitSessionsUpdate()
         return ToolExecutionResult("✅ Session '$id' closed.")
     }
 
@@ -668,17 +731,35 @@ ACTIONS:
         val count = sessions.size
         sessions.keys.toList().forEach { destroySession(it) }
         activeSessionId = null
+        emitSessionsUpdate()
         return ToolExecutionResult("✅ All $count session(s) destroyed.")
     }
 
     private suspend fun destroySession(id: String) {
         val session = sessions.remove(id) ?: return
+        val wasIncognito = session.isIncognito
         withContext(Dispatchers.Main) {
             session.pendingJs.values.forEach { d ->
                 if (!d.isCompleted) d.completeExceptionally(IllegalStateException("Session '$id' was destroyed."))
             }
             session.pendingJs.clear()
             session.webView?.destroy()
+        }
+        // Only wipe the global cookie/storage state when the incognito session is the
+        // last one and no non-incognito sessions are open.
+        // The sessionMutex ensures the check-and-wipe is atomic so a concurrently
+        // created normal session is never affected.
+        if (wasIncognito) {
+            sessionMutex.withLock {
+                val hasNonIncognitoSession = sessions.values.any { !it.isIncognito }
+                if (!hasNonIncognitoSession) {
+                    withContext(Dispatchers.Main) {
+                        CookieManager.getInstance().removeAllCookies(null)
+                        CookieManager.getInstance().flush()
+                        WebStorage.getInstance().deleteAllData()
+                    }
+                }
+            }
         }
     }
 
@@ -687,12 +768,12 @@ ACTIONS:
     // ════════════════════════════════════════════════════════════════════════
 
     @SuppressLint("SetJavaScriptEnabled")
-    private suspend fun createWebView(): WebView = withContext(Dispatchers.Main) {
+    private suspend fun createWebView(incognito: Boolean = false): WebView = withContext(Dispatchers.Main) {
         WebView(appContext).apply {
             settings.apply {
                 javaScriptEnabled = true
-                domStorageEnabled = true
-                databaseEnabled = true
+                domStorageEnabled = !incognito
+                databaseEnabled   = !incognito
                 loadWithOverviewMode = true
                 useWideViewPort = true
                 blockNetworkImage = false // Don't block — needed for readiness detection
@@ -704,8 +785,13 @@ ACTIONS:
                 mediaPlaybackRequiresUserGesture = true
             }
             val cm = CookieManager.getInstance()
-            cm.setAcceptCookie(true)
-            cm.setAcceptThirdPartyCookies(this, true)
+            if (incognito) {
+                cm.setAcceptCookie(false)
+                cm.setAcceptThirdPartyCookies(this, false)
+            } else {
+                cm.setAcceptCookie(true)
+                cm.setAcceptThirdPartyCookies(this, true)
+            }
         }
     }
 
@@ -741,6 +827,7 @@ ACTIONS:
                 session.history.addLast(landedUrl)
                 session.lastActivity = System.currentTimeMillis()
                 session.pageLoadCount.incrementAndGet()
+                emitSessionsUpdate()
 
                 val readinessNote = if (readiness.isFullyReady) {
                     "Page fully ready ✅ (${readiness.describe()})"
@@ -780,11 +867,13 @@ ACTIONS:
             super.onPageStarted(view, url, favicon)
             session.isPageLoading = true
             session.lastReadiness = PageReadinessSignal() // Reset
+            emitSessionsUpdate()
         }
 
         override fun onPageFinished(view: WebView?, loadedUrl: String?) {
             // Don't complete yet — we need readiness signals
             if (!deferred.isCompleted) deferred.complete(loadedUrl ?: session.currentUrl)
+            emitSessionsUpdate()
         }
 
         override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {

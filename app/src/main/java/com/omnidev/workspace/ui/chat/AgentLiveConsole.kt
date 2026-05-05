@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -99,9 +100,10 @@ private val TimestampFmt = SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault())
 fun AgentLiveConsole(
     entries: List<AgentConsoleEntry>,
     isRunning: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenBrowser: (() -> Unit)? = null
 ) {
-    var expanded    by remember { mutableStateOf(true) }
+    var expanded    by remember { mutableStateOf(false) }
     var fullscreen  by remember { mutableStateOf(false) }
     val listState   = rememberLazyListState()
     val clipboard   = LocalClipboardManager.current
@@ -121,6 +123,9 @@ fun AgentLiveConsole(
     val tokenEntry = entries.filterIsInstance<AgentConsoleEntry.TokenEntry>().lastOrNull()
     val errorCount = entries.filterIsInstance<AgentConsoleEntry.ResultEntry>().count { it.isError }
     val elapsedMs  = (entries.lastOrNull()?.timestamp ?: startTs) - startTs
+    val hasBrowserEntries = entries.any {
+        it is AgentConsoleEntry.ToolEntry && it.toolName == "headless_browser"
+    }
 
     // Auto-scroll to latest entry
     LaunchedEffect(entries.size) {
@@ -189,6 +194,13 @@ fun AgentLiveConsole(
                         modifier = Modifier.size(20.dp)) {
                         Icon(Icons.Filled.ContentCopy, "Copy log", tint = TerminalGray,
                             modifier = Modifier.size(13.dp))
+                    }
+                }
+                // Browser viewer button — visible when the agent used the browser in this run
+                if (onOpenBrowser != null && hasBrowserEntries) {
+                    IconButton(onClick = onOpenBrowser, modifier = Modifier.size(20.dp)) {
+                        Icon(Icons.Filled.Language, "Open Browser Viewer",
+                            tint = TerminalCyan, modifier = Modifier.size(13.dp))
                     }
                 }
                 // Fullscreen toggle (only when expanded)
