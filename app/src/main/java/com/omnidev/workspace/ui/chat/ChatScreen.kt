@@ -130,7 +130,8 @@ private const val USER_MESSAGE_COLLAPSE_THRESHOLD = 300
 @Composable
 fun ChatScreen(
     viewModel: ChatViewModel,
-    onNavigateToSettings: () -> Unit = {}
+    onNavigateToSettings: () -> Unit = {},
+    onOpenBrowser: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current

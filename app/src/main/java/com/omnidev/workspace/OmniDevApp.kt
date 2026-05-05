@@ -28,6 +28,7 @@ import com.omnidev.workspace.data.ipc.LauncherConnectionManager
 import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.tools.CausalChainPlannerTool
+import com.omnidev.workspace.data.tools.HeadlessBrowserManager
 import com.omnidev.workspace.data.tools.ProgressiveTrustTool
 import com.omnidev.workspace.data.tools.ScriptRunnerTool
 import com.omnidev.workspace.data.tools.EnvironmentSetupManager
@@ -111,6 +112,10 @@ class OmniDevApp : Application() {
     lateinit var progressiveTrustEngine: ProgressiveTrustEngine
         private set
 
+    /** مدير المتصفح الخفي — مشترك بين الـ Agent وشاشة عرض المتصفح. */
+    lateinit var headlessBrowserManager: HeadlessBrowserManager
+        private set
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -142,6 +147,9 @@ class OmniDevApp : Application() {
         Log.i("OmniDevApp", "🔒 PrivilegedExecutionFacade installed (available=${PrivilegedExecutionFacadeHolder.current.isAvailable()})")
         EnvironmentSetupManager.init(applicationContext)
         ToolDownloaderEngine.init(applicationContext)
+
+        // Initialize the shared headless browser manager (used by agent + browser viewer UI)
+        headlessBrowserManager = HeadlessBrowserManager(applicationContext)
 
         // Initialize universal launcher IPC binding manager
         LauncherConnectionManager.initialize(applicationContext)

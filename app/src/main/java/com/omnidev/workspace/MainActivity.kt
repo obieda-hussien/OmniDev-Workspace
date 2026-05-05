@@ -101,7 +101,7 @@ class MainActivity : ComponentActivity() {
             notionPublisherTool = notionPublisherTool,
             vectorMemoryManager = VectorMemoryManager(database.knowledgeDao()),
             apiKeyRepository = apiKeyRepository,
-            headlessBrowserManager = HeadlessBrowserManager(applicationContext),
+            headlessBrowserManager = OmniDevApp.instance.headlessBrowserManager,
             chatRepository = chatRepository,
             agentBrainTools = agentBrainTools,
             rollbackTools = rollbackTools,
