@@ -1096,7 +1096,7 @@ private fun MessageBubble(
                                 Column(modifier = Modifier.padding(12.dp)) {
                                     Text(
                                         text = if (isLong && !userExpanded)
-                                            message.content.take(USER_MESSAGE_COLLAPSE_THRESHOLD)
+                                            message.content.take(USER_MESSAGE_COLLAPSE_THRESHOLD) + "…"
                                         else
                                             message.content,
                                         style = MaterialTheme.typography.bodyMedium
@@ -1113,6 +1113,11 @@ private fun MessageBubble(
                                                 contentDescription = if (userExpanded) "Read less" else "Read more",
                                                 tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
                                                 modifier = Modifier.size(16.dp)
+                                            )
+                                            Text(
+                                                text = if (userExpanded) "Read less" else "Read more",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
                                             )
                                         }
                                     }
