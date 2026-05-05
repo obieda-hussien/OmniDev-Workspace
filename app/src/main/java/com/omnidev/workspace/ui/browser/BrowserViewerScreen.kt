@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tab
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -82,13 +83,15 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 
 // ── Terminal colors reused from AgentLiveConsole ──────────────────────────────
-private val BrowserBg      = Color(0xFF0D1117)
-private val BrowserGreen   = Color(0xFF3FB950)
-private val BrowserCyan    = Color(0xFF79C0FF)
-private val BrowserRed     = Color(0xFFF85149)
-private val BrowserGray    = Color(0xFF8B949E)
-private val BrowserYellow  = Color(0xFFD29922)
-private val BrowserBgLight = Color(0xFF161B22)
+private val BrowserBg       = Color(0xFF0D1117)
+private val BrowserGreen    = Color(0xFF3FB950)
+private val BrowserCyan     = Color(0xFF79C0FF)
+private val BrowserRed      = Color(0xFFF85149)
+private val BrowserGray     = Color(0xFF8B949E)
+private val BrowserYellow   = Color(0xFFD29922)
+private val BrowserBgLight  = Color(0xFF161B22)
+private val IncognitoBg     = Color(0xFF1A1025)
+private val IncognitoAccent = Color(0xFF9D5CDB)
 
 /**
  * Full-screen browser viewer that lets the user inspect and control the agent's
@@ -177,7 +180,8 @@ fun BrowserViewerScreen(
                     sessions = sessions,
                     onSwitchSession = { viewModel.switchSession(it) },
                     onCloseSession  = { viewModel.closeSession(it) },
-                    onNewSession    = { viewModel.newSession() }
+                    onNewSession    = { viewModel.newSession() },
+                    onNewIncognitoSession = { viewModel.newIncognitoSession() }
                 )
             }
 
@@ -232,7 +236,8 @@ private fun SessionTabBar(
     sessions: List<com.omnidev.workspace.data.tools.HeadlessBrowserManager.BrowserSessionInfo>,
     onSwitchSession: (String) -> Unit,
     onCloseSession: (String) -> Unit,
-    onNewSession: () -> Unit
+    onNewSession: () -> Unit,
+    onNewIncognitoSession: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -250,13 +255,21 @@ private fun SessionTabBar(
                 onClose  = { onCloseSession(session.id) }
             )
         }
-        // New tab button
+        // Normal new tab button
         IconButton(
             onClick = onNewSession,
             modifier = Modifier.size(32.dp)
         ) {
             Icon(Icons.Filled.Add, contentDescription = "New session",
                 tint = BrowserGray, modifier = Modifier.size(16.dp))
+        }
+        // Incognito new tab button
+        IconButton(
+            onClick = onNewIncognitoSession,
+            modifier = Modifier.size(32.dp)
+        ) {
+            Icon(Icons.Filled.VisibilityOff, contentDescription = "New incognito session",
+                tint = IncognitoAccent, modifier = Modifier.size(16.dp))
         }
     }
 }
@@ -267,8 +280,18 @@ private fun SessionTab(
     onSwitch: () -> Unit,
     onClose: () -> Unit
 ) {
-    val bgColor = if (session.isActive) BrowserBg else BrowserBgLight.copy(alpha = 0.5f)
-    val borderColor = if (session.isActive) BrowserCyan else Color.Transparent
+    val bgColor = when {
+        session.isIncognito && session.isActive -> IncognitoBg
+        session.isIncognito                     -> IncognitoBg.copy(alpha = 0.7f)
+        session.isActive                        -> BrowserBg
+        else                                    -> BrowserBgLight.copy(alpha = 0.5f)
+    }
+    val borderColor = when {
+        session.isIncognito && session.isActive -> IncognitoAccent
+        session.isIncognito                     -> IncognitoAccent.copy(alpha = 0.5f)
+        session.isActive                        -> BrowserCyan
+        else                                    -> Color.Transparent
+    }
 
     Row(
         modifier = Modifier
@@ -287,6 +310,13 @@ private fun SessionTab(
                 modifier = Modifier
                     .size(6.dp)
                     .background(BrowserGreen, CircleShape)
+            )
+        } else if (session.isIncognito) {
+            Icon(
+                Icons.Filled.VisibilityOff,
+                contentDescription = null,
+                tint = IncognitoAccent,
+                modifier = Modifier.size(12.dp)
             )
         } else {
             Icon(Icons.Filled.Tab, null, tint = BrowserGray, modifier = Modifier.size(12.dp))
@@ -706,6 +736,7 @@ private fun SessionInfoTab(
         SessionInfoRow("Title", activeSession.title.ifBlank { "(no title)" })
         SessionInfoRow("Loading", if (activeSession.isLoading) "🟡 YES" else "✅ NO")
         SessionInfoRow("Page loads", activeSession.pageLoadCount.toString())
+        SessionInfoRow("Mode", if (activeSession.isIncognito) "🕵️ INCOGNITO" else "Normal")
     }
 }
 

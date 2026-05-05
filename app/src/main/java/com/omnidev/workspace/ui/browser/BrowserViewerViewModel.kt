@@ -66,6 +66,13 @@ class BrowserViewerViewModel(
         manager.execute("new_session", args)
     }
 
+    fun newIncognitoSession(label: String = "") = viewModelScope.launch(Dispatchers.IO) {
+        val args = buildMap {
+            if (label.isNotBlank()) put("label", label)
+        }
+        manager.execute("new_incognito_session", args)
+    }
+
     fun switchSession(id: String) = viewModelScope.launch(Dispatchers.IO) {
         manager.execute("switch_session", mapOf("session_id" to id))
     }
