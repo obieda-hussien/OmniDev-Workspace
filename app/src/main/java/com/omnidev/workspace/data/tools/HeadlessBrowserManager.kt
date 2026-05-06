@@ -15,6 +15,7 @@ import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
+import java.lang.ref.WeakReference
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -46,6 +47,23 @@ class HeadlessBrowserManager(context: Context) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val sessionMutex = Mutex()
     private val sessionCounter = AtomicInteger(0)
+
+    // ─── Activity context (for WebView rendering) ────────────────────────────
+    // WebViews must be created with an Activity context to initialise their
+    // hardware rendering surface correctly.  We keep only a WeakReference so
+    // that the Activity can be garbage-collected when the UI is gone.
+    @Volatile private var activityContextRef: WeakReference<Context>? = null
+
+    /**
+     * Must be called from the UI (e.g., BrowserViewerScreen) with the current
+     * Activity context so that new and refreshed WebViews render correctly.
+     */
+    fun updateActivityContext(ctx: Context) {
+        activityContextRef = WeakReference(ctx)
+    }
+
+    /** Returns the Activity context if still alive, otherwise falls back to appContext. */
+    private fun bestContext(): Context = activityContextRef?.get() ?: appContext
 
     // ─── Session Registry ────────────────────────────────────────────────────
     private val sessions = ConcurrentHashMap<String, BrowserSession>()
@@ -322,6 +340,48 @@ class HeadlessBrowserManager(context: Context) {
 
     /** Returns the current active session ID. */
     fun getActiveSessionId(): String? = activeSessionId
+
+    /**
+     * Recreates the WebViews for all open sessions using the Activity context
+     * previously supplied via [updateActivityContext].  Call this once from the
+     * BrowserViewerScreen after calling [updateActivityContext] so that any
+     * sessions that were created before the Activity was visible (e.g., by the
+     * background agent) get WebViews that can render to the screen.
+     *
+     * Each affected session re-navigates to its last URL so the page is shown
+     * immediately.  Sessions that are still loading are skipped.
+     */
+    suspend fun refreshWebViewsForDisplay() {
+        val actCtx = activityContextRef?.get() ?: return  // nothing to do without Activity ctx
+        sessions.values.toList().forEach { session ->
+            // Skip if the WebView was already created with a non-application context
+            // (i.e., it already has an Activity context and can render correctly).
+            val wvCtx = session.webView?.context
+            if (wvCtx != null && wvCtx != appContext) return@forEach
+            if (session.isPageLoading) return@forEach
+
+            val oldUrl = session.currentUrl
+            val oldIncognito = session.isIncognito
+
+            // Build new WebView and register JS bridge on Main thread, then
+            // destroy the old WebView (also on Main thread).
+            val newWv = withContext(Dispatchers.Main) {
+                session.webView?.destroy()
+                buildWebView(actCtx, oldIncognito).also { wv ->
+                    wv.addJavascriptInterface(JsBridge(session), "OmniDevBridge")
+                }
+            }
+            session.webView = newWv
+
+            // Re-navigate if there was a URL; otherwise leave blank
+            if (oldUrl.startsWith("http://") || oldUrl.startsWith("https://")) {
+                withContext(Dispatchers.Main) {
+                    newWv.loadUrl(oldUrl)
+                }
+            }
+            emitSessionsUpdate()
+        }
+    }
 
     // ─── Internal helpers ─────────────────────────────────────────────────────
 
@@ -776,9 +836,17 @@ ACTIONS:
     // WebView Factory
     // ════════════════════════════════════════════════════════════════════════
 
+    /**
+     * Synchronous WebView builder — MUST be called on the Main thread.
+     *
+     * Uses the Activity context when available (via [bestContext]) so that the
+     * WebView's hardware rendering surface can be initialised correctly.
+     * Without an Activity context the WebView loads pages in memory but cannot
+     * draw pixels to the screen, resulting in a solid black display.
+     */
     @SuppressLint("SetJavaScriptEnabled")
-    private suspend fun createWebView(incognito: Boolean = false): WebView = withContext(Dispatchers.Main) {
-        WebView(appContext).apply {
+    private fun buildWebView(ctx: Context, incognito: Boolean): WebView {
+        return WebView(ctx).apply {
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = !incognito
@@ -790,7 +858,6 @@ ACTIONS:
                 mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                 cacheMode = WebSettings.LOAD_NO_CACHE
                 userAgentString = USER_AGENTS["chrome_desktop"]
-                // Enable JS to access performance API, etc.
                 mediaPlaybackRequiresUserGesture = true
             }
             // Always allow cookies so pages render correctly; incognito sessions
@@ -828,6 +895,11 @@ ACTIONS:
             }
         }
     }
+
+    /** Coroutine-friendly wrapper: switches to Main, builds and returns a WebView. */
+    @SuppressLint("SetJavaScriptEnabled")
+    private suspend fun createWebView(incognito: Boolean = false): WebView =
+        withContext(Dispatchers.Main) { buildWebView(bestContext(), incognito) }
 
     // ════════════════════════════════════════════════════════════════════════
     // Navigation — SMART (waits for full readiness)

@@ -39,6 +39,24 @@ class BrowserViewerViewModel(
     /** Returns the currently active session ID. */
     fun getActiveSessionId(): String? = manager.getActiveSessionId()
 
+    /**
+     * Passes the current Activity context to the manager so that WebViews can
+     * use it for hardware-accelerated rendering.  Should be called from the UI
+     * on every composition (idempotent, cheap).
+     */
+    fun updateActivityContext(ctx: android.content.Context) {
+        manager.updateActivityContext(ctx)
+    }
+
+    /**
+     * Recreates any existing WebViews that were created before the Activity
+     * context was available, so they render correctly on screen.
+     * Call once after [updateActivityContext] when the Browser Viewer opens.
+     */
+    fun refreshWebViewsForDisplay() = viewModelScope.launch(Dispatchers.IO) {
+        manager.refreshWebViewsForDisplay()
+    }
+
     // ─── Navigation ───────────────────────────────────────────────────────────
 
     fun navigate(url: String) = viewModelScope.launch(Dispatchers.IO) {

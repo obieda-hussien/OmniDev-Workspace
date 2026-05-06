@@ -62,6 +62,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -113,6 +115,20 @@ fun BrowserViewerScreen(
 ) {
     val sessions by viewModel.sessions.collectAsState()
     val activeSession = sessions.firstOrNull { it.isActive } ?: sessions.firstOrNull()
+
+    // Pass the Activity context to the manager on every composition so that
+    // WebViews created for new sessions use it for hardware-accelerated rendering.
+    // Also trigger a one-time refresh of any existing sessions that were created
+    // before the Activity context was available (e.g., by the background agent).
+    val ctx = LocalContext.current
+    SideEffect {
+        viewModel.updateActivityContext(ctx)
+    }
+    // Refresh existing sessions once when the screen first enters composition,
+    // after the Activity context has been set by the SideEffect above.
+    LaunchedEffect(Unit) {
+        viewModel.refreshWebViewsForDisplay()
+    }
 
     Scaffold(
         topBar = {
