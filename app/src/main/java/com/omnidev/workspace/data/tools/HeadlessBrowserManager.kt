@@ -595,22 +595,24 @@ ACTIONS:
      * Performs one readiness probe by running all JS checks in parallel.
      */
     private suspend fun probePageReadiness(session: BrowserSession): PageReadinessSignal {
-        // Run all 3 JS probes concurrently
-        val probeResult = withContext(Dispatchers.Main) {
-            val probeDeferred = CompletableDeferred<String>()
-            val domStabilityDeferred = CompletableDeferred<String>()
-            val networkIdleDeferred = CompletableDeferred<String>()
+        // Run all 3 JS probes concurrently, each with an individual timeout so a
+        // non-functional WebView (e.g. not yet attached to a window) can never
+        // cause this coroutine to hang indefinitely.
+        val probeDeferred = CompletableDeferred<String>()
+        val domStabilityDeferred = CompletableDeferred<String>()
+        val networkIdleDeferred = CompletableDeferred<String>()
 
+        withContext(Dispatchers.Main) {
             session.webView?.evaluateJavascript(JS_READINESS_PROBE) { v -> probeDeferred.complete(v ?: "{}") }
             session.webView?.evaluateJavascript(JS_CHECK_DOM_STABILITY) { v -> domStabilityDeferred.complete(v ?: "{}") }
             session.webView?.evaluateJavascript(JS_CHECK_NETWORK_IDLE) { v -> networkIdleDeferred.complete(v ?: "{}") }
-
-            Triple(
-                runCatching { probeDeferred.await() }.getOrDefault("{}"),
-                runCatching { domStabilityDeferred.await() }.getOrDefault("{}"),
-                runCatching { networkIdleDeferred.await() }.getOrDefault("{}")
-            )
         }
+
+        val probeResult = Triple(
+            withTimeoutOrNull(5_000L) { runCatching { probeDeferred.await() }.getOrDefault("{}") } ?: "{}",
+            withTimeoutOrNull(5_000L) { runCatching { domStabilityDeferred.await() }.getOrDefault("{}") } ?: "{}",
+            withTimeoutOrNull(5_000L) { runCatching { networkIdleDeferred.await() }.getOrDefault("{}") } ?: "{}"
+        )
 
         return parseReadinessSignals(probeResult.first, probeResult.second, probeResult.third)
     }
@@ -690,6 +692,13 @@ ACTIONS:
         val session = BrowserSession(id = id, label = sessionLabel, webView = wv, isIncognito = incognito)
         sessions[id] = session
         activeSessionId = id
+        // Register the JS bridge on the Main thread BEFORE any page loads so that
+        // OmniDevBridge is available as soon as the first page is loaded.
+        // Per Android docs, injected interfaces only take effect on the *next* page load,
+        // so this must happen before loadUrl() is ever called for this session.
+        withContext(Dispatchers.Main) {
+            wv.addJavascriptInterface(JsBridge(session), "OmniDevBridge")
+        }
         emitSessionsUpdate()
         return ToolExecutionResult(
             "✅ New ${if (incognito) "incognito " else ""}session created.\n" +
@@ -784,13 +793,35 @@ ACTIONS:
                 // Enable JS to access performance API, etc.
                 mediaPlaybackRequiresUserGesture = true
             }
+            // Always allow cookies so pages render correctly; incognito sessions
+            // have their cookies wiped on session destroy (see destroySession).
+            // Globally disabling cookies via setAcceptCookie(false) breaks ALL
+            // WebViews in the process and causes black screens on content-heavy sites.
             val cm = CookieManager.getInstance()
-            if (incognito) {
-                cm.setAcceptCookie(false)
-                cm.setAcceptThirdPartyCookies(this, false)
-            } else {
-                cm.setAcceptCookie(true)
-                cm.setAcceptThirdPartyCookies(this, true)
+            cm.setAcceptCookie(true)
+            // Block third-party tracking cookies only for incognito sessions.
+            cm.setAcceptThirdPartyCookies(this, !incognito)
+
+            // Hardware layer is required for WebView to render correctly when
+            // embedded inside a Compose AndroidView; without it the view surface
+            // is not initialised and the content area stays black.
+            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+
+            // Auto-dismiss JS dialogs so they never block page initialisation.
+            webChromeClient = object : android.webkit.WebChromeClient() {
+                override fun onJsAlert(view: WebView?, url: String?, message: String?,
+                                       result: android.webkit.JsResult?): Boolean {
+                    result?.confirm(); return true
+                }
+                override fun onJsConfirm(view: WebView?, url: String?, message: String?,
+                                         result: android.webkit.JsResult?): Boolean {
+                    result?.confirm(); return true
+                }
+                override fun onJsPrompt(view: WebView?, url: String?, message: String?,
+                                        defaultValue: String?,
+                                        result: android.webkit.JsPromptResult?): Boolean {
+                    result?.confirm(defaultValue); return true
+                }
             }
         }
     }
@@ -1537,8 +1568,7 @@ ACTIONS:
     private fun resolveSession(sessionId: String? = null): BrowserSession? {
         val id = sessionId ?: activeSessionId ?: return null
         val session = sessions[id] ?: return null
-        val wv = session.webView ?: return null
-        try { wv.addJavascriptInterface(JsBridge(session), "OmniDevBridge") } catch (_: Exception) {}
+        if (session.webView == null) return null
         return session
     }
 
