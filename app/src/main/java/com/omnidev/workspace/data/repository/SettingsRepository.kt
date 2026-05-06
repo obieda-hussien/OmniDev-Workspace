@@ -100,6 +100,11 @@ class SettingsRepository(private val context: Context) {
         val USER_EMAIL = stringPreferencesKey("user_email")
         val USER_PHONE = stringPreferencesKey("user_phone")
         val USER_ADDRESS = stringPreferencesKey("user_address")
+        // Chat Settings (per-conversation tool toggles)
+        val CHAT_WEB_SEARCH_ENABLED = booleanPreferencesKey("chat_web_search_enabled")
+        val CHAT_DEEP_RESEARCH_ENABLED = booleanPreferencesKey("chat_deep_research_enabled")
+        val CHAT_FETCH_PAGE_ENABLED = booleanPreferencesKey("chat_fetch_page_enabled")
+        val CHAT_TOOL_ACCESS_MODE = stringPreferencesKey("chat_tool_access_mode")
     }
 
     // ──────────────────────────────────────────────
@@ -614,6 +619,33 @@ class SettingsRepository(private val context: Context) {
     suspend fun setUserAddress(address: String?) {
         context.settingsDataStore.edit { prefs ->
             if (address.isNullOrBlank()) prefs.remove(Keys.USER_ADDRESS) else prefs[Keys.USER_ADDRESS] = address
+        }
+    }
+
+    // ──────────────────────────────────────────────
+    //  Chat Settings (per-conversation tool toggles)
+    // ──────────────────────────────────────────────
+
+    /** Observes the full [com.omnidev.workspace.domain.model.ChatSettings] object. */
+    fun observeChatSettings(): Flow<com.omnidev.workspace.domain.model.ChatSettings> =
+        context.settingsDataStore.data.map { prefs ->
+            com.omnidev.workspace.domain.model.ChatSettings(
+                webSearchEnabled = prefs[Keys.CHAT_WEB_SEARCH_ENABLED] ?: true,
+                deepResearchEnabled = prefs[Keys.CHAT_DEEP_RESEARCH_ENABLED] ?: false,
+                fetchPageEnabled = prefs[Keys.CHAT_FETCH_PAGE_ENABLED] ?: true,
+                toolAccessMode = com.omnidev.workspace.domain.model.ToolAccessMode.fromKey(
+                    prefs[Keys.CHAT_TOOL_ACCESS_MODE] ?: com.omnidev.workspace.domain.model.ToolAccessMode.AUTO.name
+                )
+            )
+        }
+
+    /** Persists a new [com.omnidev.workspace.domain.model.ChatSettings] snapshot. */
+    suspend fun saveChatSettings(settings: com.omnidev.workspace.domain.model.ChatSettings) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[Keys.CHAT_WEB_SEARCH_ENABLED] = settings.webSearchEnabled
+            prefs[Keys.CHAT_DEEP_RESEARCH_ENABLED] = settings.deepResearchEnabled
+            prefs[Keys.CHAT_FETCH_PAGE_ENABLED] = settings.fetchPageEnabled
+            prefs[Keys.CHAT_TOOL_ACCESS_MODE] = settings.toolAccessMode.name
         }
     }
 }

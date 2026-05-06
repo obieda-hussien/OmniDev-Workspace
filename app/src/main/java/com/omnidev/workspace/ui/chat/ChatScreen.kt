@@ -387,7 +387,9 @@ fun ChatScreen(
                     onAttachClick = { attachmentLauncher.launch("*/*") },
                     onRemoveAttachment = { viewModel.removeAttachment(it) },
                     replyingTo = uiState.replyingTo,
-                    onDismissReply = { viewModel.clearReplyingTo() }
+                    onDismissReply = { viewModel.clearReplyingTo() },
+                    chatSettings = uiState.chatSettings,
+                    onUpdateChatSettings = { viewModel.updateChatSettings(it) }
                 )
             }
         }
@@ -1290,8 +1292,21 @@ private fun ChatInputBar(
     onAttachClick: () -> Unit = {},
     onRemoveAttachment: (android.net.Uri) -> Unit = {},
     replyingTo: ChatMessage? = null,
-    onDismissReply: () -> Unit = {}
+    onDismissReply: () -> Unit = {},
+    chatSettings: com.omnidev.workspace.domain.model.ChatSettings = com.omnidev.workspace.domain.model.ChatSettings(),
+    onUpdateChatSettings: (com.omnidev.workspace.domain.model.ChatSettings) -> Unit = {}
 ) {
+    var showSettingsSheet by remember { mutableStateOf(false) }
+
+    if (showSettingsSheet) {
+        ChatSettingsSheet(
+            settings = chatSettings,
+            onDismiss = { showSettingsSheet = false },
+            onUpdate = { updated ->
+                onUpdateChatSettings(updated)
+            }
+        )
+    }
     Column(modifier = Modifier.fillMaxWidth()) {
         // Reply-preview bar — shown above attachments when user is replying to a message
         if (replyingTo != null) {
@@ -1400,6 +1415,18 @@ private fun ChatInputBar(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom
         ) {
+            // "+" button — opens the "Add to chat" settings sheet
+            IconButton(
+                onClick = { showSettingsSheet = true },
+                enabled = !isProcessing,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = "Add to chat",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
             IconButton(
                 onClick = onAttachClick,
                 enabled = !isProcessing,

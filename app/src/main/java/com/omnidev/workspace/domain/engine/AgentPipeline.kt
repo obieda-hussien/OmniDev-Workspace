@@ -584,7 +584,16 @@ Rules:
         userAttachments: List<AttachmentMeta> = emptyList(),
         customSystemPrompt: String? = null,
         workerPersona: String? = null,
-        userContext: String? = null
+        userContext: String? = null,
+        /** Tool names to exclude from this run (e.g. disabled via ChatSettings). */
+        disabledToolNames: Set<String> = emptySet(),
+        /**
+         * Controls how tools are surfaced to the LLM.
+         * - "AUTO" / "ALWAYS_AVAILABLE" — tools listed in system prompt (default behavior).
+         * - "ON_DEMAND" — tools registered as API function calls but NOT described in the system
+         *   prompt text; the model infers their availability from the function schema only.
+         */
+        toolAccessMode: String = "AUTO"
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.Started)
         var activePhase: AgentExecutionPhase? = null
@@ -625,6 +634,7 @@ Rules:
 
         // Build the complete system prompt with tool definitions
         val localToolDefs = toolManager.getToolDefinitions()
+            .filter { it.name !in disabledToolNames }
         val mcpTools = try { mcpRegistry?.fetchAllAvailableTools() ?: emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() } catch(e: Exception) { emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() }
         val toolDefs = localToolDefs + mcpTools
         // Register tool definitions with the brain so it is aware of all available capabilities
@@ -699,8 +709,12 @@ Rules:
             appendLine("  • Full absolute path: `$scopePath/app/src/main/AndroidManifest.xml`")
             appendLine("  • Bare relative path (no leading /): `app/src/main/AndroidManifest.xml` (auto-prefixed)")
             appendLine()
-            appendLine("## Available Tools")
-            appendLine(toolSchemaText)
+            // For ON_DEMAND mode: skip the verbose per-tool schema injection so the system prompt
+            // is lighter.  The model still has full function-call access via the API `tools` array.
+            if (toolAccessMode != "ON_DEMAND") {
+                appendLine("## Available Tools")
+                appendLine(toolSchemaText)
+            }
             if (enableDeepThinking && model.supportsThinking) {
                 append(DEEP_THINKING_SUFFIX.trimIndent())
             }
