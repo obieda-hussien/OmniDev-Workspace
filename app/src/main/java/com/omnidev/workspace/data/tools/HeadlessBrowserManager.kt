@@ -356,22 +356,27 @@ class HeadlessBrowserManager(context: Context) {
         sessions.values.toList().forEach { session ->
             // Skip if the WebView was already created with a non-application context
             // (i.e., it already has an Activity context and can render correctly).
+            // Use applicationContext comparison to correctly handle ContextWrapper chains.
             val wvCtx = session.webView?.context
-            if (wvCtx != null && wvCtx != appContext) return@forEach
+            if (wvCtx != null && wvCtx.applicationContext != appContext) return@forEach
             if (session.isPageLoading) return@forEach
 
+            val oldWv = session.webView
             val oldUrl = session.currentUrl
             val oldIncognito = session.isIncognito
 
-            // Build new WebView and register JS bridge on Main thread, then
-            // destroy the old WebView (also on Main thread).
+            // Build the new WebView and register the JS bridge BEFORE destroying the
+            // old one, so the session is never left without a functional WebView if an
+            // exception occurs during construction.
             val newWv = withContext(Dispatchers.Main) {
-                session.webView?.destroy()
                 buildWebView(actCtx, oldIncognito).also { wv ->
                     wv.addJavascriptInterface(JsBridge(session), "OmniDevBridge")
                 }
             }
             session.webView = newWv
+
+            // Now it is safe to tear down the old WebView.
+            withContext(Dispatchers.Main) { oldWv?.destroy() }
 
             // Re-navigate if there was a URL; otherwise leave blank
             if (oldUrl.startsWith("http://") || oldUrl.startsWith("https://")) {
