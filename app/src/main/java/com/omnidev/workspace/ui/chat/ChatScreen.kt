@@ -325,7 +325,8 @@ fun ChatScreen(
                     AgentLiveConsole(
                         entries = uiState.consoleEntries,
                         isRunning = uiState.isProcessing,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        onOpenBrowser = onOpenBrowser
                     )
                 }
 
@@ -346,7 +347,8 @@ fun ChatScreen(
                             message = message,
                             consoleEntries = uiState.messageConsoleEntries[message.timestamp],
                             replyToMessage = replyToMessage,
-                            onReply = { viewModel.setReplyingTo(it) }
+                            onReply = { viewModel.setReplyingTo(it) },
+                            onOpenBrowser = onOpenBrowser
                         )
                     }
                     // Show partial streaming response while the model is still generating
@@ -947,7 +949,8 @@ private fun MessageBubble(
     message: ChatMessage,
     consoleEntries: List<AgentConsoleEntry>? = null,
     replyToMessage: ChatMessage? = null,
-    onReply: (ChatMessage) -> Unit = {}
+    onReply: (ChatMessage) -> Unit = {},
+    onOpenBrowser: (() -> Unit)? = null
 ) {
     val isUser = message.role == MessageRole.USER
     val alignment = if (isUser) Alignment.End else Alignment.Start
@@ -974,7 +977,8 @@ private fun MessageBubble(
             AgentLiveConsole(
                 entries = consoleEntries,
                 isRunning = false,
-                modifier = Modifier.padding(bottom = 4.dp)
+                modifier = Modifier.padding(bottom = 4.dp),
+                onOpenBrowser = onOpenBrowser
             )
         }
 

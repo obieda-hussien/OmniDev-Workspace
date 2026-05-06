@@ -39,7 +39,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
-import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -196,11 +196,13 @@ fun AgentLiveConsole(
                             modifier = Modifier.size(13.dp))
                     }
                 }
-                // Browser viewer button — visible when the agent used the browser in this run
-                if (onOpenBrowser != null && hasBrowserEntries) {
+                // Browser viewer eye button — always visible so user can open the live browser
+                // viewer anytime; icon is cyan when the agent actively used the browser this run.
+                if (onOpenBrowser != null) {
                     IconButton(onClick = onOpenBrowser, modifier = Modifier.size(20.dp)) {
-                        Icon(Icons.Filled.Language, "Open Browser Viewer",
-                            tint = TerminalCyan, modifier = Modifier.size(13.dp))
+                        Icon(Icons.Filled.Visibility, "Open Browser Viewer",
+                            tint = if (hasBrowserEntries) TerminalCyan else TerminalGray,
+                            modifier = Modifier.size(13.dp))
                     }
                 }
                 // Fullscreen toggle (only when expanded)
