@@ -145,7 +145,10 @@ private fun AddToChatContent(
             label = "Deep research",
             checked = settings.deepResearchEnabled && settings.webSearchEnabled,
             enabled = settings.webSearchEnabled,
-            onCheckedChange = onToggleDeepResearch
+            onCheckedChange = { enabled ->
+                // Deep research can only be enabled when web search is also active.
+                onToggleDeepResearch(enabled && settings.webSearchEnabled)
+            }
         )
 
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
