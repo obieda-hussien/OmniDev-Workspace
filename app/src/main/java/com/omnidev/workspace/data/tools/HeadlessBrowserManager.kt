@@ -74,7 +74,7 @@ class HeadlessBrowserManager(context: Context) {
     private fun hasActivityInContextChain(ctx: Context): Boolean {
         if (ctx is Activity) return true
         var current: Context = ctx
-        repeat(32) {
+        repeat(MAX_CONTEXT_CHAIN_DEPTH) {
             val wrapper = current as? ContextWrapper ?: return false
             val base = wrapper.baseContext
             if (base is Activity) return true
@@ -118,6 +118,8 @@ class HeadlessBrowserManager(context: Context) {
         private const val MIN_READINESS_SCORE        = 0.70f
         /** How many times to retry navigate if readiness score is too low */
         private const val NAVIGATE_RETRY_COUNT       = 1
+        /** Safety cap for walking nested ContextWrapper chains. */
+        private const val MAX_CONTEXT_CHAIN_DEPTH    = 32
 
         private val DEFAULT_BLOCKED_DOMAINS = setOf(
             "doubleclick.net", "googlesyndication.com", "googletagmanager.com",
