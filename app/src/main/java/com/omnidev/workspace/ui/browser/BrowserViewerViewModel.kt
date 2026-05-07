@@ -63,7 +63,6 @@ class BrowserViewerViewModel(
     fun navigate(url: String) = viewModelScope.launch(Dispatchers.IO) {
         val normalized = normalizeLeadingSlashHttpUrl(url)
         val safeUrl = if (normalized.startsWith("http://") || normalized.startsWith("https://")) normalized
-                      else if (normalized.startsWith("/")) "https://${normalized.trimStart('/')}"
                       else "https://$normalized"
         manager.execute("navigate", mapOf("url" to safeUrl))
     }

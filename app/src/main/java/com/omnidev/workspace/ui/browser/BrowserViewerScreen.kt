@@ -120,13 +120,13 @@ fun BrowserViewerScreen(
     // Also trigger a one-time refresh of any existing sessions that were created
     // before the Activity context was available (e.g., by the background agent).
     val ctx = LocalContext.current
-    // Refresh whenever context/session snapshots change. This guarantees refresh
+    // Refresh whenever session snapshots change. This guarantees refresh
     // runs only after the latest Activity context is set.
     // It covers:
     // - first composition
     // - sessions that were still loading when the screen opened
     // - sessions created while the screen is already visible
-    LaunchedEffect(ctx, sessions) {
+    LaunchedEffect(sessions) {
         viewModel.updateActivityContext(ctx)
         viewModel.refreshWebViewsForDisplay()
     }
