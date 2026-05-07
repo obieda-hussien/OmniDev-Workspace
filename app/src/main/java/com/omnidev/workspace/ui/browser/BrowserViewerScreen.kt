@@ -124,10 +124,16 @@ fun BrowserViewerScreen(
     SideEffect {
         viewModel.updateActivityContext(ctx)
     }
-    // Refresh existing sessions once when the screen first enters composition,
-    // after the Activity context has been set by the SideEffect above.
+    // Refresh sessions with applicationContext WebViews on first composition, then
+    // keep watching for sessions that were still loading at open-time so they get
+    // refreshed once they finish.  The refresh is idempotent: sessions that already
+    // have an Activity context are skipped, so there is no risk of an infinite loop.
     LaunchedEffect(Unit) {
         viewModel.refreshWebViewsForDisplay()
+        // Re-check on every session-state change (e.g. a loading session completes).
+        viewModel.sessions.collect {
+            viewModel.refreshWebViewsForDisplay()
+        }
     }
 
     Scaffold(
@@ -215,9 +221,13 @@ fun BrowserViewerScreen(
             // ── WebView embed OR empty state ──────────────────────────────────
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (activeSession != null) {
-                    // key() forces AndroidView recreation when the active session changes
-                    key(activeSession.id) {
-                        val webView = viewModel.getWebView(activeSession.id)
+                    // Read the live WebView outside the key so it participates in the key
+                    // expression.  When refreshWebViewsForDisplay() replaces the WebView
+                    // instance for a session, the key changes and Compose fully disposes
+                    // the old AndroidView and creates a fresh one with the new WebView —
+                    // which is the only way to make AndroidView adopt a different view.
+                    val webView = viewModel.getWebView(activeSession.id)
+                    key(activeSession.id, webView) {
                         if (webView != null) {
                             EmbeddedWebView(webView = webView)
                         } else {

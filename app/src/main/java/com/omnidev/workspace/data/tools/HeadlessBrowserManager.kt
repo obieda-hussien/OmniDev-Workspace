@@ -354,11 +354,13 @@ class HeadlessBrowserManager(context: Context) {
     suspend fun refreshWebViewsForDisplay() {
         val actCtx = activityContextRef?.get() ?: return  // nothing to do without Activity ctx
         sessions.values.toList().forEach { session ->
-            // Skip if the WebView was already created with a non-application context
-            // (i.e., it already has an Activity context and can render correctly).
-            // Use applicationContext comparison to correctly handle ContextWrapper chains.
+            // Skip if the WebView was already created with an Activity context (or any
+            // context other than the bare applicationContext).  We compare by reference:
+            // a WebView created with appContext will have wvCtx === appContext, whereas
+            // one created with an Activity context is a different object even though
+            // wvCtx.applicationContext === appContext for both.
             val wvCtx = session.webView?.context
-            if (wvCtx != null && wvCtx.applicationContext != appContext) return@forEach
+            if (wvCtx != null && wvCtx !== appContext) return@forEach
             if (session.isPageLoading) return@forEach
 
             val oldWv = session.webView
