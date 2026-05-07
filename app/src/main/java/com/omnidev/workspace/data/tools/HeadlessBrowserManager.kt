@@ -68,10 +68,6 @@ class HeadlessBrowserManager(context: Context) {
     /** Returns the Activity context if still alive, otherwise falls back to appContext. */
     private fun bestContext(): Context = activityContextRef?.get() ?: appContext
 
-    private fun normalizeUrl(rawUrl: String): String {
-        return normalizeLeadingSlashHttpUrl(rawUrl)
-    }
-
     /**
      * Returns true when any context in the wrapper chain is an Activity.
      * Traversal is bounded to avoid pathological wrapper cycles.
@@ -388,7 +384,7 @@ class HeadlessBrowserManager(context: Context) {
             if (session.isPageLoading) return@forEach
 
             val oldWv = session.webView
-            val oldUrl = normalizeUrl(session.currentUrl)
+            val oldUrl = normalizeLeadingSlashHttpUrl(session.currentUrl)
             val oldIncognito = session.isIncognito
 
             // Build the new WebView and register the JS bridge BEFORE destroying the
@@ -937,7 +933,7 @@ ACTIONS:
     // ════════════════════════════════════════════════════════════════════════
 
     private suspend fun navigate(url: String, sessionId: String? = null): ToolExecutionResult {
-        val normalizedUrl = normalizeUrl(url)
+        val normalizedUrl = normalizeLeadingSlashHttpUrl(url)
         if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
             return ToolExecutionResult("Invalid URL — must start with http:// or https://", isError = true)
         }
