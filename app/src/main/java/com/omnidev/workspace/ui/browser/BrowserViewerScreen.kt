@@ -63,7 +63,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -121,14 +120,14 @@ fun BrowserViewerScreen(
     // Also trigger a one-time refresh of any existing sessions that were created
     // before the Activity context was available (e.g., by the background agent).
     val ctx = LocalContext.current
-    SideEffect {
-        viewModel.updateActivityContext(ctx)
-    }
-    // Refresh whenever session snapshots change. This covers:
+    // Refresh whenever context/session snapshots change. This guarantees refresh
+    // runs only after the latest Activity context is set.
+    // It covers:
     // - first composition
     // - sessions that were still loading when the screen opened
     // - sessions created while the screen is already visible
-    LaunchedEffect(sessions) {
+    LaunchedEffect(ctx, sessions) {
+        viewModel.updateActivityContext(ctx)
         viewModel.refreshWebViewsForDisplay()
     }
 

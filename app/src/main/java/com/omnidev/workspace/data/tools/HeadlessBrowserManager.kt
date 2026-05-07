@@ -67,6 +67,12 @@ class HeadlessBrowserManager(context: Context) {
     /** Returns the Activity context if still alive, otherwise falls back to appContext. */
     private fun bestContext(): Context = activityContextRef?.get() ?: appContext
 
+    private fun normalizeUrl(rawUrl: String): String {
+        var normalized = rawUrl.trim()
+        while (normalized.startsWith("/")) normalized = normalized.removePrefix("/")
+        return normalized
+    }
+
     /**
      * Returns true when any context in the wrapper chain is an Activity.
      * Traversal is bounded to avoid pathological wrapper cycles.
@@ -383,7 +389,7 @@ class HeadlessBrowserManager(context: Context) {
             if (session.isPageLoading) return@forEach
 
             val oldWv = session.webView
-            val oldUrl = session.currentUrl
+            val oldUrl = normalizeUrl(session.currentUrl)
             val oldIncognito = session.isIncognito
 
             // Build the new WebView and register the JS bridge BEFORE destroying the
@@ -932,7 +938,8 @@ ACTIONS:
     // ════════════════════════════════════════════════════════════════════════
 
     private suspend fun navigate(url: String, sessionId: String? = null): ToolExecutionResult {
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        val normalizedUrl = normalizeUrl(url)
+        if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
             return ToolExecutionResult("Invalid URL — must start with http:// or https://", isError = true)
         }
         val session = resolveSession(sessionId) ?: return noSession()
@@ -944,7 +951,7 @@ ACTIONS:
 
                 withContext(Dispatchers.Main) {
                     session.webView?.webViewClient = buildSmartWebViewClient(session, deferred)
-                    session.webView?.loadUrl(url)
+                    session.webView?.loadUrl(normalizedUrl)
                 }
 
                 val landedUrl = deferred.await()
@@ -977,7 +984,7 @@ ACTIONS:
             }
         } catch (e: TimeoutCancellationException) {
             session.isPageLoading = false
-            val partialUrl = withContext(Dispatchers.Main) { session.webView?.url ?: url }
+            val partialUrl = withContext(Dispatchers.Main) { session.webView?.url ?: normalizedUrl }
             session.currentUrl = partialUrl
             ToolExecutionResult(
                 "⚠️ Navigation timed out after ${NAVIGATE_TIMEOUT_MS/1000}s. " +
