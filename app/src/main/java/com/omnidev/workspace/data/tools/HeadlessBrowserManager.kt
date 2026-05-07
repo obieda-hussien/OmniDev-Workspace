@@ -69,7 +69,9 @@ class HeadlessBrowserManager(context: Context) {
 
     private fun hasActivityInContextChain(ctx: Context): Boolean {
         var current: Context? = ctx
+        val visited = Collections.newSetFromMap(IdentityHashMap<Context, Boolean>())
         while (current is ContextWrapper) {
+            if (!visited.add(current)) break
             if (current is Activity) return true
             val base = current.baseContext
             if (base === current) break
