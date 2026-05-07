@@ -6,12 +6,9 @@ package com.omnidev.workspace.util
  */
 fun normalizeLeadingSlashHttpUrl(rawUrl: String): String {
     val trimmed = rawUrl.trim()
+    if (!trimmed.startsWith("/")) return trimmed
     val slashStripped = trimmed.trimStart('/')
-    return if (trimmed.startsWith("/") &&
-        (slashStripped.startsWith("http://") || slashStripped.startsWith("https://"))
-    ) {
+    return if (slashStripped.startsWith("http://") || slashStripped.startsWith("https://")) {
         slashStripped
-    } else {
-        trimmed
-    }
+    } else trimmed
 }
