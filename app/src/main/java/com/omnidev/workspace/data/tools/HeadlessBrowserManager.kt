@@ -75,7 +75,7 @@ class HeadlessBrowserManager(context: Context) {
             if (base === current) break
             current = base
         }
-        return current is Activity
+        return false
     }
 
     // ─── Session Registry ────────────────────────────────────────────────────
