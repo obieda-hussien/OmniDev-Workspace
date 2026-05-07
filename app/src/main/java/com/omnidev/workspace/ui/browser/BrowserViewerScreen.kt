@@ -124,16 +124,12 @@ fun BrowserViewerScreen(
     SideEffect {
         viewModel.updateActivityContext(ctx)
     }
-    // Refresh sessions with applicationContext WebViews on first composition, then
-    // keep watching for sessions that were still loading at open-time so they get
-    // refreshed once they finish.  The refresh is idempotent: sessions that already
-    // have an Activity context are skipped, so there is no risk of an infinite loop.
-    LaunchedEffect(Unit) {
+    // Refresh whenever session snapshots change. This covers:
+    // - first composition
+    // - sessions that were still loading when the screen opened
+    // - sessions created while the screen is already visible
+    LaunchedEffect(sessions) {
         viewModel.refreshWebViewsForDisplay()
-        // Re-check on every session-state change (e.g. a loading session completes).
-        viewModel.sessions.collect {
-            viewModel.refreshWebViewsForDisplay()
-        }
     }
 
     Scaffold(

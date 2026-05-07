@@ -1,7 +1,9 @@
 package com.omnidev.workspace.data.tools
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
@@ -64,6 +66,17 @@ class HeadlessBrowserManager(context: Context) {
 
     /** Returns the Activity context if still alive, otherwise falls back to appContext. */
     private fun bestContext(): Context = activityContextRef?.get() ?: appContext
+
+    private fun hasActivityInContextChain(ctx: Context): Boolean {
+        var current: Context? = ctx
+        while (current is ContextWrapper) {
+            if (current is Activity) return true
+            val base = current.baseContext
+            if (base === current) break
+            current = base
+        }
+        return current is Activity
+    }
 
     // ─── Session Registry ────────────────────────────────────────────────────
     private val sessions = ConcurrentHashMap<String, BrowserSession>()
@@ -354,13 +367,11 @@ class HeadlessBrowserManager(context: Context) {
     suspend fun refreshWebViewsForDisplay() {
         val actCtx = activityContextRef?.get() ?: return  // nothing to do without Activity ctx
         sessions.values.toList().forEach { session ->
-            // Skip if the WebView was already created with an Activity context (or any
-            // context other than the bare applicationContext).  We compare by reference:
-            // a WebView created with appContext will have wvCtx === appContext, whereas
-            // one created with an Activity context is a different object even though
-            // wvCtx.applicationContext === appContext for both.
+            // Skip only when the WebView context chain is Activity-backed.
+            // Some contexts are wrappers, so reference comparison against appContext
+            // is not reliable enough here.
             val wvCtx = session.webView?.context
-            if (wvCtx != null && wvCtx !== appContext) return@forEach
+            if (wvCtx != null && hasActivityInContextChain(wvCtx)) return@forEach
             if (session.isPageLoading) return@forEach
 
             val oldWv = session.webView
