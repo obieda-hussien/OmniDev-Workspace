@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.omnidev.workspace.data.tools.HeadlessBrowserManager
+import com.omnidev.workspace.util.normalizeLeadingSlashHttpUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -60,9 +61,9 @@ class BrowserViewerViewModel(
     // ─── Navigation ───────────────────────────────────────────────────────────
 
     fun navigate(url: String) = viewModelScope.launch(Dispatchers.IO) {
-        val normalized = url.trim().trimStart('/')
+        val normalized = normalizeLeadingSlashHttpUrl(url)
         val safeUrl = if (normalized.startsWith("http://") || normalized.startsWith("https://")) normalized
-                      else "https://$normalized"
+                      else "https://${normalized.trimStart('/')}"
         manager.execute("navigate", mapOf("url" to safeUrl))
     }
 

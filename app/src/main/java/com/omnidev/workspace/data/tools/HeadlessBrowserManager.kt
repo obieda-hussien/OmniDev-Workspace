@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import com.omnidev.workspace.util.normalizeLeadingSlashHttpUrl
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -68,15 +69,7 @@ class HeadlessBrowserManager(context: Context) {
     private fun bestContext(): Context = activityContextRef?.get() ?: appContext
 
     private fun normalizeUrl(rawUrl: String): String {
-        val trimmed = rawUrl.trim()
-        val slashStripped = trimmed.trimStart('/')
-        return if (trimmed.startsWith("/") &&
-            (slashStripped.startsWith("http://") || slashStripped.startsWith("https://"))
-        ) {
-            slashStripped
-        } else {
-            trimmed
-        }
+        return normalizeLeadingSlashHttpUrl(rawUrl)
     }
 
     /**
