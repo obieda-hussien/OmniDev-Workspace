@@ -67,6 +67,10 @@ class HeadlessBrowserManager(context: Context) {
     /** Returns the Activity context if still alive, otherwise falls back to appContext. */
     private fun bestContext(): Context = activityContextRef?.get() ?: appContext
 
+    /**
+     * Returns true when any context in the wrapper chain is an Activity.
+     * Uses identity-based cycle detection to avoid pathological wrapper loops.
+     */
     private fun hasActivityInContextChain(ctx: Context): Boolean {
         var current: Context? = ctx
         val visited = Collections.newSetFromMap(IdentityHashMap<Context, Boolean>())
