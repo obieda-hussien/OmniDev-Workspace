@@ -68,9 +68,7 @@ class HeadlessBrowserManager(context: Context) {
     private fun bestContext(): Context = activityContextRef?.get() ?: appContext
 
     private fun normalizeUrl(rawUrl: String): String {
-        var normalized = rawUrl.trim()
-        while (normalized.startsWith("/")) normalized = normalized.removePrefix("/")
-        return normalized
+        return rawUrl.trim().trimStart('/')
     }
 
     /**
