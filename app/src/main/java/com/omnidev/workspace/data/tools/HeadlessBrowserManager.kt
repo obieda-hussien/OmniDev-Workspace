@@ -69,16 +69,16 @@ class HeadlessBrowserManager(context: Context) {
 
     /**
      * Returns true when any context in the wrapper chain is an Activity.
-     * Uses identity-based cycle detection to avoid pathological wrapper loops.
+     * Traversal is bounded to avoid pathological wrapper cycles.
      */
     private fun hasActivityInContextChain(ctx: Context): Boolean {
-        var current: Context? = ctx
-        val visited = Collections.newSetFromMap(IdentityHashMap<Context, Boolean>())
-        while (current is ContextWrapper) {
-            if (!visited.add(current)) break
-            if (current is Activity) return true
-            val base = current.baseContext
-            if (base === current) break
+        if (ctx is Activity) return true
+        var current: Context = ctx
+        repeat(32) {
+            val wrapper = current as? ContextWrapper ?: return false
+            val base = wrapper.baseContext
+            if (base is Activity) return true
+            if (base === current) return false
             current = base
         }
         return false
