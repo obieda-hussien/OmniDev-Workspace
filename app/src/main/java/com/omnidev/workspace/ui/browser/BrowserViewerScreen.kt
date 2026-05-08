@@ -117,15 +117,20 @@ fun BrowserViewerScreen(
 
     // Pass the Activity context to the manager on every composition so that
     // WebViews created for new sessions use it for hardware-accelerated rendering.
-    // Also trigger a one-time refresh of any existing sessions that were created
+    // Also trigger a refresh of any existing sessions that were created
     // before the Activity context was available (e.g., by the background agent).
     val ctx = LocalContext.current
-    // Refresh whenever session snapshots change. This guarantees refresh
-    // runs only after the latest Activity context is set.
-    // It covers:
-    // - first composition
-    // - sessions that were still loading when the screen opened
-    // - sessions created while the screen is already visible
+
+    // Run immediately on first composition to make the Activity context
+    // available to the manager before Compose tries to embed any WebView.
+    LaunchedEffect(Unit) {
+        viewModel.updateActivityContext(ctx)
+        viewModel.refreshWebViewsForDisplay()
+    }
+
+    // Also refresh when the session snapshots change (e.g., new sessions created
+    // while the viewer is open). Keeping this ensures replacement WebViews are
+    // re-created with Activity context when needed.
     LaunchedEffect(sessions) {
         viewModel.updateActivityContext(ctx)
         viewModel.refreshWebViewsForDisplay()

@@ -1,0 +1,86 @@
+{
+	"servers": {
+		"io.github.github/github-mcp-server": {
+			"type": "stdio",
+			"command": "docker",
+			"args": [
+				"run",
+				"-i",
+				"--rm",
+				"-e",
+				"GITHUB_PERSONAL_ACCESS_TOKEN=${input:token}",
+				"ghcr.io/github/github-mcp-server:1.0.3"
+			],
+			"gallery": "https://api.mcp.github.com",
+			"version": "1.0.3"
+		},
+		"io.github.upstash/context7": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"@upstash/context7-mcp@1.0.31"
+			],
+			"env": {
+				"CONTEXT7_API_KEY": "${input:CONTEXT7_API_KEY}"
+			},
+			"gallery": "https://api.mcp.github.com",
+			"version": "1.0.31"
+		},
+		"io.github.wonderwhy-er/desktop-commander": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"--registry",
+				"https://registry.npmjs.org",
+				"@wonderwhy-er/desktop-commander@0.2.40"
+			],
+			"gallery": "https://api.mcp.github.com",
+			"version": "0.2.40"
+		},
+		"io.github.tavily-ai/tavily-mcp": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"tavily-mcp@0.2.15"
+			],
+			"env": {
+				"TAVILY_API_KEY": "${input:TAVILY_API_KEY}",
+				"DEFAULT_PARAMETERS": "${input:DEFAULT_PARAMETERS}"
+			},
+			"gallery": "https://api.mcp.github.com",
+			"version": "0.2.15"
+		},
+		"microsoftdocs/mcp": {
+			"type": "http",
+			"url": "https://learn.microsoft.com/api/mcp",
+			"gallery": "https://api.mcp.github.com",
+			"version": "1.0.0"
+		}
+	},
+	"inputs": [
+		{
+			"id": "token",
+			"type": "promptString",
+			"description": "",
+			"password": true
+		},
+		{
+			"id": "CONTEXT7_API_KEY",
+			"type": "promptString",
+			"description": "API key for authentication",
+			"password": true
+		},
+		{
+			"id": "TAVILY_API_KEY",
+			"type": "promptString",
+			"description": "Your Tavily API key from tavily.com",
+			"password": true
+		},
+		{
+			"id": "DEFAULT_PARAMETERS",
+			"type": "promptString",
+			"description": "JSON string with default search parameters (e.g., {\"include_images\": true, \"max_results\": 15})",
+			"password": false
+		}
+	]
+}

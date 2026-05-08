@@ -1096,7 +1096,13 @@ private fun MessageBubble(
                     }
 
                     Box {
-                        SelectionContainer {
+                        SelectionContainer(modifier = Modifier.combinedClickable(
+                            onClick = {},
+                            onLongClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onReply(message)
+                            }
+                        )) {
                             if (isUser) {
                                 val isLong = message.content.length > USER_MESSAGE_COLLAPSE_THRESHOLD
                                 var userExpanded by remember(message.messageId) { mutableStateOf(false) }
