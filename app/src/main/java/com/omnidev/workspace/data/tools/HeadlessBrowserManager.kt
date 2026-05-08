@@ -874,6 +874,12 @@ ACTIONS:
     @SuppressLint("SetJavaScriptEnabled")
     private fun buildWebView(ctx: Context, incognito: Boolean): WebView {
         return WebView(ctx).apply {
+            // Compose-hosted WebViews can surface as a black rectangle when the
+            // view has no explicit opaque background. Give the surface a stable
+            // background color so the embedded preview always paints.
+            setBackgroundColor(android.graphics.Color.BLACK)
+            isVerticalScrollBarEnabled = true
+            isHorizontalScrollBarEnabled = true
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = !incognito
