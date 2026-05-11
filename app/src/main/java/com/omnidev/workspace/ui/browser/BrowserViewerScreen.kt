@@ -61,7 +61,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -424,23 +423,11 @@ private fun AddressBar(
 
 @Composable
 private fun EmbeddedWebView(webView: WebView) {
-    // Detach the WebView from whatever parent it currently has before embedding
-    DisposableEffect(webView) {
-        val parent = webView.parent
-        if (parent is android.view.ViewGroup) {
-            parent.removeView(webView)
-        }
-        onDispose {
-            // Detach without destroying — the agent still needs the WebView
-            val p = webView.parent
-            if (p is android.view.ViewGroup) {
-                p.removeView(webView)
-            }
-        }
-    }
-
     AndroidView(
-        factory = { webView },
+        factory = {
+            (webView.parent as? android.view.ViewGroup)?.removeView(webView)
+            webView
+        },
         modifier = Modifier.fillMaxSize()
     )
 }

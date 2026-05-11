@@ -419,7 +419,7 @@ class HeadlessBrowserManager(context: Context) {
                 BrowserSessionInfo(
                     id           = s.id,
                     label        = s.label,
-                    currentUrl   = s.currentUrl,
+                    currentUrl   = normalizeLeadingSlashHttpUrl(s.currentUrl),
                     title        = s.title,
                     isActive     = s.id == activeSessionId,
                     isLoading    = s.isPageLoading,
@@ -956,7 +956,7 @@ ACTIONS:
                 }
 
                 val landedUrl = deferred.await()
-                session.currentUrl = landedUrl
+                session.currentUrl = normalizeLeadingSlashHttpUrl(landedUrl)
 
                 // ── Smart Readiness Wait ────────────────────────────────────
                 val readiness = waitForPageReadiness(session)
@@ -986,7 +986,7 @@ ACTIONS:
         } catch (e: TimeoutCancellationException) {
             session.isPageLoading = false
             val partialUrl = withContext(Dispatchers.Main) { session.webView?.url ?: normalizedUrl }
-            session.currentUrl = partialUrl
+            session.currentUrl = normalizeLeadingSlashHttpUrl(partialUrl)
             ToolExecutionResult(
                 "⚠️ Navigation timed out after ${NAVIGATE_TIMEOUT_MS/1000}s. " +
                 "Page may have partially loaded at: $partialUrl\n" +
@@ -1100,7 +1100,7 @@ ACTIONS:
         while (System.currentTimeMillis() < deadline) {
             val currentUrl = withContext(Dispatchers.Main) { session.webView?.url ?: "" }
             if (currentUrl != originalUrl && currentUrl.isNotBlank()) {
-                session.currentUrl = currentUrl
+                session.currentUrl = normalizeLeadingSlashHttpUrl(currentUrl)
                 // Wait for new page to be ready
                 val readiness = waitForPageReadiness(session, maxWaitMs = 8_000L)
                 session.lastReadiness = readiness
@@ -1128,7 +1128,7 @@ ACTIONS:
                 delay(600)
                 val readiness = waitForPageReadiness(session, 5_000L)
                 session.lastReadiness = readiness
-                session.currentUrl = session.webView?.url ?: session.currentUrl
+                session.currentUrl = normalizeLeadingSlashHttpUrl(session.webView?.url ?: session.currentUrl)
                 ToolExecutionResult("✅ Went back. URL: ${session.currentUrl}\nReadiness: ${readiness.describe()}")
             } else ToolExecutionResult("No history to go back to.", isError = true)
         }
@@ -1142,7 +1142,7 @@ ACTIONS:
                 delay(600)
                 val readiness = waitForPageReadiness(session, 5_000L)
                 session.lastReadiness = readiness
-                session.currentUrl = session.webView?.url ?: session.currentUrl
+                session.currentUrl = normalizeLeadingSlashHttpUrl(session.webView?.url ?: session.currentUrl)
                 ToolExecutionResult("✅ Went forward. URL: ${session.currentUrl}\nReadiness: ${readiness.describe()}")
             } else ToolExecutionResult("No forward history.", isError = true)
         }
@@ -1185,9 +1185,23 @@ ACTIONS:
                 val deferred = CompletableDeferred<String>()
                 session.pendingJs[token] = deferred
                 val wrapped = buildJsWrapper(jsCode, token)
-                withContext(Dispatchers.Main) { session.webView?.evaluateJavascript(wrapped, null) }
+                val callbackDeferred = CompletableDeferred<String?>()
+                withContext(Dispatchers.Main) {
+                    session.webView?.evaluateJavascript(wrapped) { callbackValue ->
+                        callbackDeferred.complete(callbackValue)
+                    }
+                }
 
-                val raw = deferred.await()
+                val callbackValue = callbackDeferred.await()
+                val callbackPayload = callbackValue
+                    ?.takeUnless { it == "null" || it == "\"null\"" || it.isBlank() }
+                    ?.let { decodeJsString(it) }
+
+                val raw = if (callbackPayload != null) {
+                    callbackPayload
+                } else {
+                    deferred.await()
+                }
                 session.pendingJs.remove(token)
                 session.lastActivity = System.currentTimeMillis()
 
@@ -1217,22 +1231,39 @@ ACTIONS:
         return """
 (function(){
   var __t=$quotedToken, __c=$quotedCode;
+  var __hasBridge=(typeof OmniDevBridge!=="undefined" && OmniDevBridge &&
+                   typeof OmniDevBridge.deliver==="function");
+  var __payload=function(ok,v){return JSON.stringify({
+    ok:!!ok,result:ok?(v==null?"":String(v)):"",
+    error:ok?"":((v&&v.stack)||String(v)||"Unknown error")
+  });};
   var __send=function(ok,v){
-    try{OmniDevBridge.deliver(__t,JSON.stringify({
-      ok:!!ok,result:ok?(v==null?"":String(v)):"",
-      error:ok?"":((v&&v.stack)||String(v)||"Unknown error")
-    }));}catch(e){}
+    var __p=__payload(ok,v);
+    if(__hasBridge){
+      try{OmniDevBridge.deliver(__t,__p);return null;}catch(e){}
+    }
+    return __p;
   };
   try{
     var __r=(0,eval)(__c);
-    (typeof Promise!=="undefined"?Promise.resolve(__r):
-      {then:function(f){try{f(__r);}catch(e){throw e;}return this;},catch:function(f){return this;}})
-    .then(function(v){__send(true,v);})
-    .catch(function(e){__send(false,e);});
-  }catch(e){__send(false,e);}
-  return null;
+    if(__r && typeof __r.then==="function"){
+      if(!__hasBridge){
+        return __payload(false,"Bridge unavailable for async JS result");
+      }
+      __r.then(function(v){__send(true,v);})
+         .catch(function(e){__send(false,e);});
+      return null;
+    }
+    return __send(true,__r);
+  }catch(e){return __send(false,e);}
 })();
 """.trimIndent()
+    }
+
+    private fun decodeJsString(jsValue: String): String {
+        return runCatching { JSONArray("[$jsValue]").getString(0) }.getOrElse {
+            jsValue.trim('"').replace("\\\"", "\"").replace("\\n", "\n")
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════════
