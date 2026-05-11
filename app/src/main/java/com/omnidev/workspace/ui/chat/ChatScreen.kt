@@ -325,7 +325,8 @@ fun ChatScreen(
                     AgentLiveConsole(
                         entries = uiState.consoleEntries,
                         isRunning = uiState.isProcessing,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        onOpenBrowser = onOpenBrowser
                     )
                 }
 
@@ -346,7 +347,8 @@ fun ChatScreen(
                             message = message,
                             consoleEntries = uiState.messageConsoleEntries[message.timestamp],
                             replyToMessage = replyToMessage,
-                            onReply = { viewModel.setReplyingTo(it) }
+                            onReply = { viewModel.setReplyingTo(it) },
+                            onOpenBrowser = onOpenBrowser
                         )
                     }
                     // Show partial streaming response while the model is still generating
@@ -387,7 +389,9 @@ fun ChatScreen(
                     onAttachClick = { attachmentLauncher.launch("*/*") },
                     onRemoveAttachment = { viewModel.removeAttachment(it) },
                     replyingTo = uiState.replyingTo,
-                    onDismissReply = { viewModel.clearReplyingTo() }
+                    onDismissReply = { viewModel.clearReplyingTo() },
+                    chatSettings = uiState.chatSettings,
+                    onUpdateChatSettings = { viewModel.updateChatSettings(it) }
                 )
             }
         }
@@ -945,7 +949,8 @@ private fun MessageBubble(
     message: ChatMessage,
     consoleEntries: List<AgentConsoleEntry>? = null,
     replyToMessage: ChatMessage? = null,
-    onReply: (ChatMessage) -> Unit = {}
+    onReply: (ChatMessage) -> Unit = {},
+    onOpenBrowser: (() -> Unit)? = null
 ) {
     val isUser = message.role == MessageRole.USER
     val alignment = if (isUser) Alignment.End else Alignment.Start
@@ -972,7 +977,8 @@ private fun MessageBubble(
             AgentLiveConsole(
                 entries = consoleEntries,
                 isRunning = false,
-                modifier = Modifier.padding(bottom = 4.dp)
+                modifier = Modifier.padding(bottom = 4.dp),
+                onOpenBrowser = onOpenBrowser
             )
         }
 
@@ -1090,7 +1096,13 @@ private fun MessageBubble(
                     }
 
                     Box {
-                        SelectionContainer {
+                        SelectionContainer(modifier = Modifier.combinedClickable(
+                            onClick = {},
+                            onLongClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onReply(message)
+                            }
+                        )) {
                             if (isUser) {
                                 val isLong = message.content.length > USER_MESSAGE_COLLAPSE_THRESHOLD
                                 var userExpanded by remember(message.messageId) { mutableStateOf(false) }
@@ -1290,8 +1302,21 @@ private fun ChatInputBar(
     onAttachClick: () -> Unit = {},
     onRemoveAttachment: (android.net.Uri) -> Unit = {},
     replyingTo: ChatMessage? = null,
-    onDismissReply: () -> Unit = {}
+    onDismissReply: () -> Unit = {},
+    chatSettings: com.omnidev.workspace.domain.model.ChatSettings = com.omnidev.workspace.domain.model.ChatSettings(),
+    onUpdateChatSettings: (com.omnidev.workspace.domain.model.ChatSettings) -> Unit = {}
 ) {
+    var showSettingsSheet by remember { mutableStateOf(false) }
+
+    if (showSettingsSheet) {
+        ChatSettingsSheet(
+            settings = chatSettings,
+            onDismiss = { showSettingsSheet = false },
+            onUpdate = { updated ->
+                onUpdateChatSettings(updated)
+            }
+        )
+    }
     Column(modifier = Modifier.fillMaxWidth()) {
         // Reply-preview bar — shown above attachments when user is replying to a message
         if (replyingTo != null) {
@@ -1400,6 +1425,18 @@ private fun ChatInputBar(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom
         ) {
+            // "+" button — opens the "Add to chat" settings sheet
+            IconButton(
+                onClick = { showSettingsSheet = true },
+                enabled = !isProcessing,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = "Add to chat",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
             IconButton(
                 onClick = onAttachClick,
                 enabled = !isProcessing,

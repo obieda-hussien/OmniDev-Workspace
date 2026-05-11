@@ -15,6 +15,8 @@ import com.omnidev.workspace.ui.analytics.AnalyticsDashboardScreen
 import com.omnidev.workspace.ui.analytics.AnalyticsDashboardViewModel
 import com.omnidev.workspace.ui.brain.AgentBrainDashboard
 import com.omnidev.workspace.ui.brain.AgentBrainViewModel
+import com.omnidev.workspace.ui.browser.BrowserViewerScreen
+import com.omnidev.workspace.ui.browser.BrowserViewerViewModel
 import com.omnidev.workspace.ui.chat.ChatScreen
 import com.omnidev.workspace.ui.chat.ChatViewModel
 import com.omnidev.workspace.ui.debug.DebugScreen
@@ -52,6 +54,7 @@ object Routes {
     const val PROFILE = "profile"
     const val ANALYTICS = "analytics"
     const val AGENT_BRAIN = "agent_brain"  // شاشة عقل الـ Agent الجديدة
+    const val BROWSER_VIEWER = "browser_viewer"  // شاشة عرض متصفح الوكيل المخفي
 }
 
 /**
@@ -83,6 +86,9 @@ fun AppNavigation(
                 viewModel = chatViewModel,
                 onNavigateToSettings = {
                     navController.navigate(Routes.SETTINGS)
+                },
+                onOpenBrowser = {
+                    navController.navigate(Routes.BROWSER_VIEWER)
                 }
             )
         }
@@ -199,6 +205,20 @@ fun AppNavigation(
             )
             AgentBrainDashboard(
                 viewModel = agentBrainViewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // 👁 Browser Viewer — شاشة عرض و التحكم في متصفح الوكيل المخفي
+        // ═══════════════════════════════════════════════════════════════
+        composable(Routes.BROWSER_VIEWER) {
+            val app = OmniDevApp.instance
+            val browserViewModel: BrowserViewerViewModel = viewModel(
+                factory = BrowserViewerViewModel.factory(app.headlessBrowserManager)
+            )
+            BrowserViewerScreen(
+                viewModel = browserViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

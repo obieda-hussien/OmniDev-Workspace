@@ -87,7 +87,9 @@ data class ChatUiState(
     /** Whether God Mode is enabled — hides scope selection when true. */
     val isGodModeEnabled: Boolean = false,
     /** When non-null, the user has activated a threaded reply to this message. */
-    val replyingTo: ChatMessage? = null
+    val replyingTo: ChatMessage? = null,
+    /** Per-conversation tool toggles and tool-access mode. */
+    val chatSettings: com.omnidev.workspace.domain.model.ChatSettings = com.omnidev.workspace.domain.model.ChatSettings()
 )
 
 /**
@@ -153,6 +155,7 @@ class ChatViewModel(
         loadTargetContext()
         observeSessions()
         observeGodMode()
+        observeChatSettings()
         wireFileConfirmationGate()
     }
 
@@ -180,6 +183,22 @@ class ChatViewModel(
                 fileToolManager?.let { it.godModeEnabled = enabled }
                 _uiState.update { it.copy(isGodModeEnabled = enabled) }
             }
+        }
+    }
+
+    /** Syncs [ChatSettings] from [SettingsRepository] into UI state in real-time. */
+    private fun observeChatSettings() {
+        viewModelScope.launch {
+            settingsRepository.observeChatSettings().collect { settings ->
+                _uiState.update { it.copy(chatSettings = settings) }
+            }
+        }
+    }
+
+    /** Persists updated [ChatSettings] and immediately reflects them in UI state. */
+    fun updateChatSettings(settings: com.omnidev.workspace.domain.model.ChatSettings) {
+        viewModelScope.launch {
+            settingsRepository.saveChatSettings(settings)
         }
     }
 
@@ -753,6 +772,7 @@ class ChatViewModel(
 
         val deepThinking = settingsRepository.observeDeepThinking().first()
         val userPersona = settingsRepository.observeUserPersona().first()
+        val chatSettings = _uiState.value.chatSettings
 
         analyticsRepository?.recordAgentRun(isSwarm = false)
 
@@ -764,7 +784,9 @@ class ChatViewModel(
             enableDeepThinking = deepThinking,
             userAttachments = imageAttachments,
             customSystemPrompt = null,
-            userContext = userPersona
+            userContext = userPersona,
+            disabledToolNames = chatSettings.disabledToolNames(),
+            toolAccessMode = chatSettings.toolAccessMode.name
         ).collect { event ->
             handleAgentEvent(event, sessionId)
         }

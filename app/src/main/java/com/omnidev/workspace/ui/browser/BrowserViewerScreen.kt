@@ -61,7 +61,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -113,6 +113,27 @@ fun BrowserViewerScreen(
 ) {
     val sessions by viewModel.sessions.collectAsState()
     val activeSession = sessions.firstOrNull { it.isActive } ?: sessions.firstOrNull()
+
+    // Pass the Activity context to the manager on every composition so that
+    // WebViews created for new sessions use it for hardware-accelerated rendering.
+    // Also trigger a refresh of any existing sessions that were created
+    // before the Activity context was available (e.g., by the background agent).
+    val ctx = LocalContext.current
+
+    // Run immediately on first composition to make the Activity context
+    // available to the manager before Compose tries to embed any WebView.
+    LaunchedEffect(Unit) {
+        viewModel.updateActivityContext(ctx)
+        viewModel.refreshWebViewsForDisplay()
+    }
+
+    // Also refresh when the session snapshots change (e.g., new sessions created
+    // while the viewer is open). Keeping this ensures replacement WebViews are
+    // re-created with Activity context when needed.
+    LaunchedEffect(sessions) {
+        viewModel.updateActivityContext(ctx)
+        viewModel.refreshWebViewsForDisplay()
+    }
 
     Scaffold(
         topBar = {
@@ -199,9 +220,13 @@ fun BrowserViewerScreen(
             // ── WebView embed OR empty state ──────────────────────────────────
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (activeSession != null) {
-                    // key() forces AndroidView recreation when the active session changes
-                    key(activeSession.id) {
-                        val webView = viewModel.getWebView(activeSession.id)
+                    // Read the live WebView outside the key so it participates in the key
+                    // expression.  When refreshWebViewsForDisplay() replaces the WebView
+                    // instance for a session, the key changes and Compose fully disposes
+                    // the old AndroidView and creates a fresh one with the new WebView —
+                    // which is the only way to make AndroidView adopt a different view.
+                    val webView = viewModel.getWebView(activeSession.id)
+                    key(activeSession.id, webView) {
                         if (webView != null) {
                             EmbeddedWebView(webView = webView)
                         } else {
@@ -398,23 +423,11 @@ private fun AddressBar(
 
 @Composable
 private fun EmbeddedWebView(webView: WebView) {
-    // Detach the WebView from whatever parent it currently has before embedding
-    DisposableEffect(webView) {
-        val parent = webView.parent
-        if (parent is android.view.ViewGroup) {
-            parent.removeView(webView)
-        }
-        onDispose {
-            // Detach without destroying — the agent still needs the WebView
-            val p = webView.parent
-            if (p is android.view.ViewGroup) {
-                p.removeView(webView)
-            }
-        }
-    }
-
     AndroidView(
-        factory = { webView },
+        factory = {
+            (webView.parent as? android.view.ViewGroup)?.removeView(webView)
+            webView
+        },
         modifier = Modifier.fillMaxSize()
     )
 }

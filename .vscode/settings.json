@@ -1,0 +1,35 @@
+{
+    "chat.mcp.serverSampling": {
+        "OmniDev-Workspace/.vscode/mcp.json: io.github.github/github-mcp-server": {
+            "allowedModels": [
+                "copilot/auto",
+                "copilotcli/claude-sonnet-4.5",
+                "copilotcli/claude-haiku-4.5",
+                "claude-code/claude-haiku-4.5",
+                "copilot/claude-haiku-4.5",
+                "copilotcli/claude-opus-4.5",
+                "gemini/Google/models/gemini-2.5-flash",
+                "gemini/Google/models/gemini-2.5-pro",
+                "copilot/gemini-2.5-pro",
+                "copilot/gemini-3-flash-preview",
+                "gemini/Google/models/gemini-3-flash-preview",
+                "copilot/gemini-3.1-pro-preview",
+                "gemini/Google/models/gemini-3.1-pro-preview",
+                "copilotcli/gpt-4.1",
+                "copilot/gpt-4.1",
+                "copilot/gpt-4o",
+                "copilotcli/gpt-5-mini",
+                "copilot/gpt-5-mini",
+                "copilotcli/gpt-5.2",
+                "copilot/gpt-5.2",
+                "copilotcli/gpt-5.2-codex",
+                "copilot/gpt-5.2-codex",
+                "copilotcli/gpt-5.3-codex",
+                "copilotcli/gpt-5.4-mini",
+                "copilot/gpt-5.4-mini",
+                "copilot/grok-code-fast-1",
+                "copilot/oswe-vscode-prime"
+            ]
+        }
+    }
+}

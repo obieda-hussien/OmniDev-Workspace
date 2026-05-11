@@ -1,7 +1,9 @@
 package com.omnidev.workspace.data.tools
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
@@ -12,9 +14,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import com.omnidev.workspace.util.normalizeLeadingSlashHttpUrl
 import org.json.JSONArray
 import org.json.JSONObject
+import org.json.JSONTokener
 import java.io.ByteArrayOutputStream
+import java.lang.ref.WeakReference
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
@@ -46,6 +51,40 @@ class HeadlessBrowserManager(context: Context) {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val sessionMutex = Mutex()
     private val sessionCounter = AtomicInteger(0)
+
+    // ─── Activity context (for WebView rendering) ────────────────────────────
+    // WebViews must be created with an Activity context to initialise their
+    // hardware rendering surface correctly.  We keep only a WeakReference so
+    // that the Activity can be garbage-collected when the UI is gone.
+    @Volatile private var activityContextRef: WeakReference<Context>? = null
+
+    /**
+     * Must be called from the UI (e.g., BrowserViewerScreen) with the current
+     * Activity context so that new and refreshed WebViews render correctly.
+     */
+    fun updateActivityContext(ctx: Context) {
+        activityContextRef = WeakReference(ctx)
+    }
+
+    /** Returns the Activity context if still alive, otherwise falls back to appContext. */
+    private fun bestContext(): Context = activityContextRef?.get() ?: appContext
+
+    /**
+     * Returns true when any context in the wrapper chain is an Activity.
+     * Traversal is bounded to avoid pathological wrapper cycles.
+     */
+    private fun hasActivityInContextChain(ctx: Context): Boolean {
+        if (ctx is Activity) return true
+        var current: Context = ctx
+        repeat(MAX_CONTEXT_CHAIN_DEPTH) {
+            val wrapper = current as? ContextWrapper ?: return false
+            val base = wrapper.baseContext
+            if (base is Activity) return true
+            if (base === current) return false
+            current = base
+        }
+        return false
+    }
 
     // ─── Session Registry ────────────────────────────────────────────────────
     private val sessions = ConcurrentHashMap<String, BrowserSession>()
@@ -81,6 +120,8 @@ class HeadlessBrowserManager(context: Context) {
         private const val MIN_READINESS_SCORE        = 0.70f
         /** How many times to retry navigate if readiness score is too low */
         private const val NAVIGATE_RETRY_COUNT       = 1
+        /** Safety cap for walking nested ContextWrapper chains. */
+        private const val MAX_CONTEXT_CHAIN_DEPTH    = 32
 
         private val DEFAULT_BLOCKED_DOMAINS = setOf(
             "doubleclick.net", "googlesyndication.com", "googletagmanager.com",
@@ -323,6 +364,53 @@ class HeadlessBrowserManager(context: Context) {
     /** Returns the current active session ID. */
     fun getActiveSessionId(): String? = activeSessionId
 
+    /**
+     * Recreates the WebViews for all open sessions using the Activity context
+     * previously supplied via [updateActivityContext].  Call this once from the
+     * BrowserViewerScreen after calling [updateActivityContext] so that any
+     * sessions that were created before the Activity was visible (e.g., by the
+     * background agent) get WebViews that can render to the screen.
+     *
+     * Each affected session re-navigates to its last URL so the page is shown
+     * immediately.  Sessions that are still loading are skipped.
+     */
+    suspend fun refreshWebViewsForDisplay() {
+        val actCtx = activityContextRef?.get() ?: return  // nothing to do without Activity ctx
+        sessions.values.toList().forEach { session ->
+            // Skip only when the WebView context chain is Activity-backed.
+            // Some contexts are wrappers, so reference comparison against appContext
+            // is not reliable enough here.
+            val wvCtx = session.webView?.context
+            if (wvCtx != null && hasActivityInContextChain(wvCtx)) return@forEach
+            if (session.isPageLoading) return@forEach
+
+            val oldWv = session.webView
+            val oldUrl = normalizeLeadingSlashHttpUrl(session.currentUrl)
+            val oldIncognito = session.isIncognito
+
+            // Build the new WebView and register the JS bridge BEFORE destroying the
+            // old one, so the session is never left without a functional WebView if an
+            // exception occurs during construction.
+            val newWv = withContext(Dispatchers.Main) {
+                buildWebView(actCtx, oldIncognito).also { wv ->
+                    wv.addJavascriptInterface(JsBridge(session), "OmniDevBridge")
+                }
+            }
+            session.webView = newWv
+
+            // Now it is safe to tear down the old WebView.
+            withContext(Dispatchers.Main) { oldWv?.destroy() }
+
+            // Re-navigate if there was a URL; otherwise leave blank
+            if (oldUrl.startsWith("http://") || oldUrl.startsWith("https://")) {
+                withContext(Dispatchers.Main) {
+                    newWv.loadUrl(oldUrl)
+                }
+            }
+            emitSessionsUpdate()
+        }
+    }
+
     // ─── Internal helpers ─────────────────────────────────────────────────────
 
     private fun emitSessionsUpdate() {
@@ -332,7 +420,7 @@ class HeadlessBrowserManager(context: Context) {
                 BrowserSessionInfo(
                     id           = s.id,
                     label        = s.label,
-                    currentUrl   = s.currentUrl,
+                    currentUrl   = normalizeLeadingSlashHttpUrl(s.currentUrl),
                     title        = s.title,
                     isActive     = s.id == activeSessionId,
                     isLoading    = s.isPageLoading,
@@ -595,22 +683,24 @@ ACTIONS:
      * Performs one readiness probe by running all JS checks in parallel.
      */
     private suspend fun probePageReadiness(session: BrowserSession): PageReadinessSignal {
-        // Run all 3 JS probes concurrently
-        val probeResult = withContext(Dispatchers.Main) {
-            val probeDeferred = CompletableDeferred<String>()
-            val domStabilityDeferred = CompletableDeferred<String>()
-            val networkIdleDeferred = CompletableDeferred<String>()
+        // Run all 3 JS probes concurrently, each with an individual timeout so a
+        // non-functional WebView (e.g. not yet attached to a window) can never
+        // cause this coroutine to hang indefinitely.
+        val probeDeferred = CompletableDeferred<String>()
+        val domStabilityDeferred = CompletableDeferred<String>()
+        val networkIdleDeferred = CompletableDeferred<String>()
 
+        withContext(Dispatchers.Main) {
             session.webView?.evaluateJavascript(JS_READINESS_PROBE) { v -> probeDeferred.complete(v ?: "{}") }
             session.webView?.evaluateJavascript(JS_CHECK_DOM_STABILITY) { v -> domStabilityDeferred.complete(v ?: "{}") }
             session.webView?.evaluateJavascript(JS_CHECK_NETWORK_IDLE) { v -> networkIdleDeferred.complete(v ?: "{}") }
-
-            Triple(
-                runCatching { probeDeferred.await() }.getOrDefault("{}"),
-                runCatching { domStabilityDeferred.await() }.getOrDefault("{}"),
-                runCatching { networkIdleDeferred.await() }.getOrDefault("{}")
-            )
         }
+
+        val probeResult = Triple(
+            withTimeoutOrNull(5_000L) { runCatching { probeDeferred.await() }.getOrDefault("{}") } ?: "{}",
+            withTimeoutOrNull(5_000L) { runCatching { domStabilityDeferred.await() }.getOrDefault("{}") } ?: "{}",
+            withTimeoutOrNull(5_000L) { runCatching { networkIdleDeferred.await() }.getOrDefault("{}") } ?: "{}"
+        )
 
         return parseReadinessSignals(probeResult.first, probeResult.second, probeResult.third)
     }
@@ -690,6 +780,13 @@ ACTIONS:
         val session = BrowserSession(id = id, label = sessionLabel, webView = wv, isIncognito = incognito)
         sessions[id] = session
         activeSessionId = id
+        // Register the JS bridge on the Main thread BEFORE any page loads so that
+        // OmniDevBridge is available as soon as the first page is loaded.
+        // Per Android docs, injected interfaces only take effect on the *next* page load,
+        // so this must happen before loadUrl() is ever called for this session.
+        withContext(Dispatchers.Main) {
+            wv.addJavascriptInterface(JsBridge(session), "OmniDevBridge")
+        }
         emitSessionsUpdate()
         return ToolExecutionResult(
             "✅ New ${if (incognito) "incognito " else ""}session created.\n" +
@@ -767,9 +864,23 @@ ACTIONS:
     // WebView Factory
     // ════════════════════════════════════════════════════════════════════════
 
+    /**
+     * Synchronous WebView builder — MUST be called on the Main thread.
+     *
+     * Uses the Activity context when available (via [bestContext]) so that the
+     * WebView's hardware rendering surface can be initialised correctly.
+     * Without an Activity context the WebView loads pages in memory but cannot
+     * draw pixels to the screen, resulting in a solid black display.
+     */
     @SuppressLint("SetJavaScriptEnabled")
-    private suspend fun createWebView(incognito: Boolean = false): WebView = withContext(Dispatchers.Main) {
-        WebView(appContext).apply {
+    private fun buildWebView(ctx: Context, incognito: Boolean): WebView {
+        return WebView(ctx).apply {
+            // Compose-hosted WebViews can surface as a black rectangle when the
+            // view has no explicit opaque background. Give the surface a stable
+            // background color so the embedded preview always paints.
+            setBackgroundColor(android.graphics.Color.BLACK)
+            isVerticalScrollBarEnabled = true
+            isHorizontalScrollBarEnabled = true
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = !incognito
@@ -781,26 +892,56 @@ ACTIONS:
                 mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                 cacheMode = WebSettings.LOAD_NO_CACHE
                 userAgentString = USER_AGENTS["chrome_desktop"]
-                // Enable JS to access performance API, etc.
                 mediaPlaybackRequiresUserGesture = true
             }
+            // Always allow cookies so pages render correctly; incognito sessions
+            // have their cookies wiped on session destroy (see destroySession).
+            // Globally disabling cookies via setAcceptCookie(false) breaks ALL
+            // WebViews in the process and causes black screens on content-heavy sites.
             val cm = CookieManager.getInstance()
-            if (incognito) {
-                cm.setAcceptCookie(false)
-                cm.setAcceptThirdPartyCookies(this, false)
-            } else {
-                cm.setAcceptCookie(true)
-                cm.setAcceptThirdPartyCookies(this, true)
+            cm.setAcceptCookie(true)
+            // Block third-party tracking cookies only for incognito sessions.
+            cm.setAcceptThirdPartyCookies(this, !incognito)
+
+            // Hardware layer is required for WebView to render correctly when
+            // embedded inside a Compose AndroidView; without it the view surface
+            // is not initialised and the content area stays black.
+            setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
+
+            // Auto-dismiss JS dialogs so they never block page initialisation.
+            webChromeClient = object : android.webkit.WebChromeClient() {
+                override fun onJsAlert(view: WebView?, url: String?, message: String?,
+                                       result: android.webkit.JsResult?): Boolean {
+                    result?.confirm()
+                    return true
+                }
+                override fun onJsConfirm(view: WebView?, url: String?, message: String?,
+                                         result: android.webkit.JsResult?): Boolean {
+                    result?.confirm()
+                    return true
+                }
+                override fun onJsPrompt(view: WebView?, url: String?, message: String?,
+                                        defaultValue: String?,
+                                        result: android.webkit.JsPromptResult?): Boolean {
+                    result?.confirm(defaultValue)
+                    return true
+                }
             }
         }
     }
+
+    /** Coroutine-friendly wrapper: switches to Main, builds and returns a WebView. */
+    @SuppressLint("SetJavaScriptEnabled")
+    private suspend fun createWebView(incognito: Boolean = false): WebView =
+        withContext(Dispatchers.Main) { buildWebView(bestContext(), incognito) }
 
     // ════════════════════════════════════════════════════════════════════════
     // Navigation — SMART (waits for full readiness)
     // ════════════════════════════════════════════════════════════════════════
 
     private suspend fun navigate(url: String, sessionId: String? = null): ToolExecutionResult {
-        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        val normalizedUrl = normalizeLeadingSlashHttpUrl(url)
+        if (!normalizedUrl.startsWith("http://") && !normalizedUrl.startsWith("https://")) {
             return ToolExecutionResult("Invalid URL — must start with http:// or https://", isError = true)
         }
         val session = resolveSession(sessionId) ?: return noSession()
@@ -812,11 +953,11 @@ ACTIONS:
 
                 withContext(Dispatchers.Main) {
                     session.webView?.webViewClient = buildSmartWebViewClient(session, deferred)
-                    session.webView?.loadUrl(url)
+                    session.webView?.loadUrl(normalizedUrl)
                 }
 
                 val landedUrl = deferred.await()
-                session.currentUrl = landedUrl
+                session.currentUrl = normalizeLeadingSlashHttpUrl(landedUrl)
 
                 // ── Smart Readiness Wait ────────────────────────────────────
                 val readiness = waitForPageReadiness(session)
@@ -845,8 +986,8 @@ ACTIONS:
             }
         } catch (e: TimeoutCancellationException) {
             session.isPageLoading = false
-            val partialUrl = withContext(Dispatchers.Main) { session.webView?.url ?: url }
-            session.currentUrl = partialUrl
+            val partialUrl = withContext(Dispatchers.Main) { session.webView?.url ?: normalizedUrl }
+            session.currentUrl = normalizeLeadingSlashHttpUrl(partialUrl)
             ToolExecutionResult(
                 "⚠️ Navigation timed out after ${NAVIGATE_TIMEOUT_MS/1000}s. " +
                 "Page may have partially loaded at: $partialUrl\n" +
@@ -960,7 +1101,7 @@ ACTIONS:
         while (System.currentTimeMillis() < deadline) {
             val currentUrl = withContext(Dispatchers.Main) { session.webView?.url ?: "" }
             if (currentUrl != originalUrl && currentUrl.isNotBlank()) {
-                session.currentUrl = currentUrl
+                session.currentUrl = normalizeLeadingSlashHttpUrl(currentUrl)
                 // Wait for new page to be ready
                 val readiness = waitForPageReadiness(session, maxWaitMs = 8_000L)
                 session.lastReadiness = readiness
@@ -988,7 +1129,7 @@ ACTIONS:
                 delay(600)
                 val readiness = waitForPageReadiness(session, 5_000L)
                 session.lastReadiness = readiness
-                session.currentUrl = session.webView?.url ?: session.currentUrl
+                session.currentUrl = normalizeLeadingSlashHttpUrl(session.webView?.url ?: session.currentUrl)
                 ToolExecutionResult("✅ Went back. URL: ${session.currentUrl}\nReadiness: ${readiness.describe()}")
             } else ToolExecutionResult("No history to go back to.", isError = true)
         }
@@ -1002,7 +1143,7 @@ ACTIONS:
                 delay(600)
                 val readiness = waitForPageReadiness(session, 5_000L)
                 session.lastReadiness = readiness
-                session.currentUrl = session.webView?.url ?: session.currentUrl
+                session.currentUrl = normalizeLeadingSlashHttpUrl(session.webView?.url ?: session.currentUrl)
                 ToolExecutionResult("✅ Went forward. URL: ${session.currentUrl}\nReadiness: ${readiness.describe()}")
             } else ToolExecutionResult("No forward history.", isError = true)
         }
@@ -1045,9 +1186,23 @@ ACTIONS:
                 val deferred = CompletableDeferred<String>()
                 session.pendingJs[token] = deferred
                 val wrapped = buildJsWrapper(jsCode, token)
-                withContext(Dispatchers.Main) { session.webView?.evaluateJavascript(wrapped, null) }
+                val callbackDeferred = CompletableDeferred<String?>()
+                withContext(Dispatchers.Main) {
+                    session.webView?.evaluateJavascript(wrapped) { callbackValue ->
+                        callbackDeferred.complete(callbackValue)
+                    }
+                }
 
-                val raw = deferred.await()
+                val callbackValue = callbackDeferred.await()
+                val decodedCallbackValue = callbackValue
+                    ?.takeUnless { it == "null" || it == "\"null\"" || it.isBlank() }
+                    ?.let { decodeJsString(it) }
+
+                val raw = if (decodedCallbackValue != null) {
+                    decodedCallbackValue
+                } else {
+                    deferred.await()
+                }
                 session.pendingJs.remove(token)
                 session.lastActivity = System.currentTimeMillis()
 
@@ -1077,22 +1232,42 @@ ACTIONS:
         return """
 (function(){
   var __t=$quotedToken, __c=$quotedCode;
+  var __hasBridge=(typeof OmniDevBridge!=="undefined" && OmniDevBridge &&
+                   typeof OmniDevBridge.deliver==="function");
+  var __payload=function(ok,v){return JSON.stringify({
+    ok:!!ok,result:ok?(v==null?"":String(v)):"",
+    error:ok?"":((v&&v.stack)||String(v)||"Unknown error")
+  });};
   var __send=function(ok,v){
-    try{OmniDevBridge.deliver(__t,JSON.stringify({
-      ok:!!ok,result:ok?(v==null?"":String(v)):"",
-      error:ok?"":((v&&v.stack)||String(v)||"Unknown error")
-    }));}catch(e){}
+    var __p=__payload(ok,v);
+    if(__hasBridge){
+      try{OmniDevBridge.deliver(__t,__p);return null;}catch(e){}
+    }
+    return __p;
   };
   try{
     var __r=(0,eval)(__c);
-    (typeof Promise!=="undefined"?Promise.resolve(__r):
-      {then:function(f){try{f(__r);}catch(e){throw e;}return this;},catch:function(f){return this;}})
-    .then(function(v){__send(true,v);})
-    .catch(function(e){__send(false,e);});
-  }catch(e){__send(false,e);}
-  return null;
+    if(__r && typeof __r.then==="function"){
+      if (!__hasBridge) {
+        return __payload(false,"Native bridge unavailable: asynchronous JavaScript results are not supported. Reload page/session and retry.");
+      }
+      __r.then(function(v){__send(true,v);})
+         .catch(function(e){__send(false,e);});
+      return null;
+    }
+    return __send(true,__r);
+  }catch(e){return __send(false,e);}
 })();
 """.trimIndent()
+    }
+
+    private fun decodeJsString(jsValue: String): String {
+        return runCatching { JSONTokener(jsValue).nextValue() }
+            .map { parsed -> if (parsed is String) parsed else parsed.toString() }
+            .getOrElse {
+            // Fallback for non-JSON or plain callback payloads returned by WebView evaluateJavascript.
+            jsValue.trim('"').replace("\\\"", "\"").replace("\\n", "\n")
+        }
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -1537,8 +1712,7 @@ ACTIONS:
     private fun resolveSession(sessionId: String? = null): BrowserSession? {
         val id = sessionId ?: activeSessionId ?: return null
         val session = sessions[id] ?: return null
-        val wv = session.webView ?: return null
-        try { wv.addJavascriptInterface(JsBridge(session), "OmniDevBridge") } catch (_: Exception) {}
+        if (session.webView == null) return null
         return session
     }
 
