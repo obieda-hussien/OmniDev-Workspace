@@ -17,6 +17,7 @@ import kotlinx.coroutines.sync.withLock
 import com.omnidev.workspace.util.normalizeLeadingSlashHttpUrl
 import org.json.JSONArray
 import org.json.JSONObject
+import org.json.JSONTokener
 import java.io.ByteArrayOutputStream
 import java.lang.ref.WeakReference
 import java.util.*
@@ -1193,12 +1194,12 @@ ACTIONS:
                 }
 
                 val callbackValue = callbackDeferred.await()
-                val callbackPayload = callbackValue
+                val decodedCallbackValue = callbackValue
                     ?.takeUnless { it == "null" || it == "\"null\"" || it.isBlank() }
                     ?.let { decodeJsString(it) }
 
-                val raw = if (callbackPayload != null) {
-                    callbackPayload
+                val raw = if (decodedCallbackValue != null) {
+                    decodedCallbackValue
                 } else {
                     deferred.await()
                 }
@@ -1247,8 +1248,8 @@ ACTIONS:
   try{
     var __r=(0,eval)(__c);
     if(__r && typeof __r.then==="function"){
-      if(!__hasBridge){
-        return __payload(false,"Bridge unavailable for async JS result");
+      if (!__hasBridge) {
+        return __payload(false,"Native bridge unavailable: asynchronous JavaScript results are not supported. Reload page/session and retry.");
       }
       __r.then(function(v){__send(true,v);})
          .catch(function(e){__send(false,e);});
@@ -1261,7 +1262,10 @@ ACTIONS:
     }
 
     private fun decodeJsString(jsValue: String): String {
-        return runCatching { JSONArray("[$jsValue]").getString(0) }.getOrElse {
+        return runCatching { JSONTokener(jsValue).nextValue() }
+            .map { parsed -> if (parsed is String) parsed else parsed.toString() }
+            .getOrElse {
+            // Fallback for non-JSON or plain callback payloads returned by WebView evaluateJavascript.
             jsValue.trim('"').replace("\\\"", "\"").replace("\\n", "\n")
         }
     }
