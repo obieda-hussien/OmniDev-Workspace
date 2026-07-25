@@ -4,7 +4,7 @@ The coding agent (Jules / Claude Code) only ever works inside **one repo per ses
 
 | Order | File | Repo | Phases | Depends on |
 |---|---|---|---|---|
-| 1 | `01_OmniLinkSDK_PROMPT.md` | OmniLinkSDK | 10, all complete | none — build & tag this first |
+| 1 | `01_OmniLinkSDK_PROMPT.md` | OmniLinkSDK | 11, all complete | none — build & tag this first |
 | 2 | `02_OmniDev-Workspace_PROMPT.md` | OmniDev-Workspace | 8 | OmniLinkSDK tagged release |
 | 3 | `03_OmniEqualizer_PROMPT.md` | OmniEqualizer | 3 | OmniLinkSDK tagged release |
 | 4 | `04_OmniNote_PROMPT.md` | OmniNote | 4 | OmniLinkSDK tagged release |
@@ -12,6 +12,7 @@ The coding agent (Jules / Claude Code) only ever works inside **one repo per ses
 | 6 | `06_Omni-launcher_PROMPT.md` | Omni-launcher | 5 | one `.aidl` file copied from OmniLinkSDK Phase 8, not a full dependency |
 | 7 | `07_OmniPriceWatch_PROMPT.md` | OmniPriceWatch | 5 | OmniLinkSDK tag + Workspace's heartbeat (file 02, Phase 6) |
 | 8 | `08_OmniDev-Workspace_PaymentVault_PROMPT.md` | OmniDev-Workspace (same repo as file 02, separate addendum) | 8 | files 01–02; not exposed via the extension protocol at all |
+| — | `generate_omni_shared_keystore.sh` | run once, in Termux, before any app is release-built | n/a — a script, not a prompt | referenced by file 02's Phase 8 |
 
 ---
 
@@ -42,6 +43,18 @@ Since this repo is pure protocol/infrastructure code — no business logic, no u
 With the SDK fully finalized, a fresh review of every file against Android's own documented platform behavior surfaced something none of the earlier passes checked: **`com.omnilink.sdk.permission.BIND_EXTENSION` merges into every consumer's manifest identically, and Android refuses to install a second app declaring an already-declared permission name unless it's signed with the same certificate as the first** (`INSTALL_FAILED_DUPLICATE_PERMISSION` otherwise — confirmed against Android's own developer documentation, true since API 21, this ecosystem's `minSdk`). Concretely: Workspace, Equalizer, Note, Memoria, and PriceWatch **must all be signed with the same keystore**, or only the first of them installed on a device will succeed. This was never stated anywhere in this prompt set before now — every file's `SignatureSecurityValidator` instruction referenced an abstract "Workspace's signing certificate" placeholder without ever establishing where that value would concretely come from or that it needed to be *shared*, not merely *known*.
 
 Fixed by adding **Phase 8 to `02_OmniDev-Workspace_PROMPT.md`** — the natural anchor point, since Workspace is the app every satellite app's `SecurityValidator` allowlist already needed to reference. That phase now also bundles two other pieces of "integration work that only makes sense once the SDK is final": consuming the SDK's event bus (`observeEvents(): Flow<OmniEvent>`, treating every event as data the agent may act on only through the normal `AccessController`/`ConfirmationGate`-gated tool-call path — never as something that triggers a privileged action on its own) and verifying the SDK's R8/consumer-proguard rules hold up in a real minified Workspace release build. Files `03`, `04`, `05`, and `07` now point their `SignatureSecurityValidator` placeholder at that concrete, documented value instead of an abstract one; file `06` (Launcher) gets the same shared-keystore note for its own separate `BIND_LAUNCHER` permission, since Workspace calling into Launcher requires the same certificate match independent of the SDK's own merged permission.
+
+## Fourth pass — the shared keystore script, plus six smaller risk-scan fixes
+
+A dedicated script, `generate_omni_shared_keystore.sh`, now exists alongside this file — written and verified end to end (real password generation, both a release and a shared debug keystore created, the SHA-256 fingerprint printed correctly, safe against accidental re-runs). `02_OmniDev-Workspace_PROMPT.md` Phase 8 now points to it directly instead of ad-hoc `keytool` commands. It also generates a **shared debug keystore** — not just a release one — since Termux and AndroidIDE each generate their own per-tool `~/.android/debug.keystore` by default, and a debug-vs-debug signature mismatch between them would trip the exact same `INSTALL_FAILED_DUPLICATE_PERMISSION` failure as a release-key mismatch, immediately, in ordinary day-to-day development, before release signing ever becomes relevant.
+
+Six smaller, concrete fixes landed alongside it, each addressing a gap a full ecosystem-wide risk review turned up:
+- **Binder transaction size limit (~1MB, shared per process, confirmed still current):** every capability that could return an unbounded list — `OmniNote`'s `listRecent`/`searchNotes`, `OmniMemoria`'s `searchPhotos`/`getFavorites`, `OmniPriceWatch`'s `getPriceHistory`/`getTrackedProducts` — now has explicit hard-cap guidance, and the rule itself is documented once, generally, in the SDK's own `LINK_PROTOCOL.md` (new Phase 11) rather than left for each app to rediscover.
+- **`DeadObjectException` mid-call, not just `onServiceDisconnected`:** `02_OmniDev-Workspace_PROMPT.md` Phase 3 now also catches `RemoteException` thrown directly out of an in-flight call and routes it into the same reconnect-with-backoff path — a remote process dying at the exact moment a call is made doesn't reliably go through the disconnect callback first.
+- **Extension response data as untrusted input, not just webpage content:** the SDK's new Phase 11 generalizes the payment vault's "content is data, not commands" rule to any extension's returned data — a note body, a photo's metadata, an event payload — since any of these could in principle be crafted to redirect the agent's next action.
+- **Sequential tick calls delaying each other:** Workspace's heartbeat (Phase 6) now dispatches all due extensions' ticks concurrently, each under its own timeout, so one slow or hung extension no longer delays every other extension's tick in the same `WorkManager` execution.
+- **R8/consumer-proguard verification extended to all four satellite apps**, not just Workspace — each of files `03`, `04`, `05`, `07` now has its own minified-release round-trip check in its verification phase.
+- **Room migration for OmniNote's plaintext-to-encrypted change:** Phase 1 now explicitly requires a real `Migration`, not `fallbackToDestructiveMigration()`, verified against a database seeded with pre-existing locked notes — the earlier version of this phase didn't address how existing users' data survives the schema change.
 
 ---
 

@@ -40,7 +40,7 @@
 ## Phase 4 — Notifications and typed actions
 
 1. Wire into the existing Omni notification system (already built for OmniEqualizer) to fire immediately when Phase 3 detects: a price drop, a price rise (useful context, not just drops), or an out-of-stock → in-stock transition.
-2. Implement `trackProduct(url)` (validates the URL, does an immediate first fetch so the user gets instant feedback rather than waiting for the next tick, inserts the row), `untrackProduct(id)`, `getTrackedProducts()`, `getPriceHistory(id, limit)`.
+2. Implement `trackProduct(url)` (validates the URL, does an immediate first fetch so the user gets instant feedback rather than waiting for the next tick, inserts the row), `untrackProduct(id)`, `getTrackedProducts()`, `getPriceHistory(id, limit)`. **Enforce a hard server-side cap on `limit` regardless of what's requested, and cap `getTrackedProducts()`'s own result size too** — the Binder transaction buffer is a shared ~1MB per process (per `01_OmniLinkSDK_PROMPT.md` Phase 11); a long-tracked product's full history or a large tracked-products list could otherwise approach that limit.
 3. All four go through the standard `AccessController`/`AuditLogger` path from the SDK — no bypass just because they're "just reads."
 
 **Acceptance criteria:** calling `trackProduct` from the Workspace agent (e.g. "تابعلي المنتج ده") returns an immediate price/availability snapshot and shows up in `getTrackedProducts()`; a simulated price change during testing produces a real notification within one tick cycle.
@@ -52,5 +52,6 @@
 1. Instrumented test: full round-trip — track a product, force a tick, confirm a price-history entry appears if the (test-mocked) price changed.
 2. Instrumented test: confirm `_tick` calls for this app stop being sent if `supportsTicks` is somehow reported `false` (defensive check on the Workspace side, but worth confirming from this side too).
 3. Manual on-device check: confirm ticks continue to arrive at roughly the expected cadence across a multi-hour idle (Doze) period — `WorkManager` periodic work is designed to cooperate with Doze correctly on its own, so this check is confirming that design assumption holds, not working around a battery-optimization exemption. Also confirm the about screen's automated-access disclosure (see the note at the top of this file) is actually visible to the user, not buried.
+4. Build this app's own minified `release` variant and confirm a real `ActionRequest`/`ActionOutcome` round-trip against a live bind — including a real `_tick` call — still works; this app's own R8 rules for its network/parsing/Room classes are a separate concern from the SDK's own `consumer-rules.pro`.
 
-**Acceptance criteria:** all automated tests pass; manual Doze-period check confirms ticks still arrive on a real device without needing a manual battery-optimization exemption prompt.
+**Acceptance criteria:** all automated tests pass; manual Doze-period check confirms ticks still arrive on a real device without needing a manual battery-optimization exemption prompt; the minified release build correctly completes both a normal action call and a `_tick` call.

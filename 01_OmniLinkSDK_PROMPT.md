@@ -1,5 +1,5 @@
 # OmniLinkSDK — Integration Prompt
-### New standalone repo: obieda-hussien/OmniLinkSDK · 10 phases, all complete
+### New standalone repo: obieda-hussien/OmniLinkSDK · 11 phases, all complete
 
 > This is now its own GitHub repo, not a folder copied between projects. Every satellite app (and Workspace itself) consumes it via JitPack + a version tag.
 
@@ -174,3 +174,15 @@ A few of the pinned versions were current when first scaffolded but have since m
 2. Leave the JitPack-is-transitional migration note (toward GitHub Packages) as-is — that reasoning (occasional slow/failed on-demand builds, dependency on JitPack's own infrastructure) still applies regardless of public/private status; it just no longer needs a paid-subscription angle added to it, since public JitPack usage is free.
 
 **Acceptance criteria:** the README shows only the plain, no-credentials consumption block; a fresh clone of a throwaway consumer project can resolve `com.github.obieda-hussien:OmniLinkSDK:v1.0.0` from JitPack with zero token configuration, matching what's already been verified to work.
+
+---
+
+## Phase 11 — Three protocol-level guardrails that surfaced only once the whole ecosystem was reviewed together
+
+None of these are bugs in what's already built — they're gaps in what the protocol *documents*, which matters because five separate consumer repos each need to independently get these right without a shared code path enforcing them.
+
+1. **Document the Binder transaction size limit in `LINK_PROTOCOL.md`.** The shared Binder transaction buffer is a fixed ~1MB per process (confirmed current Android behavior), covering every in-flight call, not just the current one. Any capability that could return an unbounded list — a broad photo search, a large notes collection, a long price-history query — risks `TransactionTooLargeException` if a consumer doesn't cap it. State plainly: **every capability returning a list must either paginate (a `limit`/`cursor`-style parameter) or hard-cap the result size defensively inside `onAction()`**, never return an unbounded collection and hope it stays small in practice.
+2. **Document that a live call can fail via exception, not just via `onServiceDisconnected`.** If the remote process dies mid-call, the caller gets a `DeadObjectException`/`RemoteException` thrown out of the AIDL call itself — this is a different failure path than the disconnect *callback* Workspace's `ExtensionConnectionManager` already reconnects on (`02_OmniDev-Workspace_PROMPT.md` Phase 3). State in `LINK_PROTOCOL.md` that **every remote call site must catch `RemoteException` and route the failure into the same reconnect-with-backoff path**, not just rely on the disconnect callback firing separately.
+3. **Generalize the "external content is data, not commands" rule beyond webpages.** The payment vault (file 08) already treats webpage content the caller reads as untrusted data the agent may reason about but never obey as instructions. The same rule applies to **any data returned by any extension** — a note's body, a photo's metadata, an event payload — since any of these could in principle contain crafted text attempting to redirect the agent's next action. State this once, generally, in `LINK_PROTOCOL.md`, rather than leaving each consumer to (maybe) rediscover it independently.
+
+**Acceptance criteria:** `LINK_PROTOCOL.md` states all three rules explicitly; a test capability returning an artificially large result set is shown to fail cleanly (a documented error, not a raw crash) once a consumer applies the capping guidance; a test extension that dies mid-call is shown to trigger the same reconnection path a clean disconnect would.
