@@ -8,29 +8,27 @@ import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.IBinder
-import android.os.RemoteException
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.omnilink.sdk.AccessDecision
 import com.omnilink.sdk.ActionError
 import com.omnilink.sdk.ActionOutcome
 import com.omnilink.sdk.ActionRequest
-import com.omnilink.sdk.CallerContext
 import com.omnilink.sdk.CapabilityManifest
+import com.omnilink.sdk.CallerContext
 import com.omnilink.sdk.IExtensionService
 import com.omnilink.sdk.OmniLinkConstants
 import com.omnidev.workspace.core.policy.ConfirmationGate
 import com.omnidev.workspace.core.policy.ConfirmationKind
-import com.omnidev.workspace.core.policy.TierPolicyHolder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
@@ -53,13 +51,22 @@ object ExtensionConnectionManager {
     private val initialized = AtomicBoolean(false)
     private val receiverRegistered = AtomicBoolean(false)
 
-    // Workspace client-side access control and audit logging adapters
     private val accessController = WorkspaceAccessController()
     private val auditLogger = WorkspaceAuditLogger()
 
     // Confirmation gate callback populated from ChatViewModel
     @Volatile
     var confirmationGate: ConfirmationGate? = null
+
+    internal var getMyUid: () -> Int = { android.os.Process.myUid() }
+
+    internal var createResultCallback: ((resume: (String) -> Unit) -> com.omnilink.sdk.IOmniResultCallback) = { resume ->
+        object : com.omnilink.sdk.IOmniResultCallback.Stub() {
+            override fun onResult(resultJson: String) {
+                resume(resultJson)
+            }
+        }
+    }
 
     data class ExtensionHandle(
         val packageName: String,
@@ -72,7 +79,7 @@ object ExtensionConnectionManager {
 
     internal val handles = ConcurrentHashMap<String, ExtensionHandle>()
     private val serviceConnections = ConcurrentHashMap<String, ServiceConnection>()
-    private val reconnectJobs = ConcurrentHashMap<String, kotlinx.coroutines.Job>()
+    private val reconnectJobs = ConcurrentHashMap<String, Job>()
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -97,8 +104,6 @@ object ExtensionConnectionManager {
         if (context != null && receiverRegistered.compareAndSet(true, false)) {
             runCatching { context.unregisterReceiver(packageChangeReceiver) }
         }
-        reconnectJobs.values.forEach { it.cancel() }
-        reconnectJobs.clear()
         unbindAll()
         initialized.set(false)
     }
@@ -138,10 +143,10 @@ object ExtensionConnectionManager {
         discoveredIds.forEach { bindById(it) }
     }
 
-    suspend fun listExtensions(forceRefresh: Boolean = true): List<JSONObject> = withContext(Dispatchers.IO) {
+    suspend fun listExtensions(forceRefresh: Boolean = true): List<org.json.JSONObject> = withContext(Dispatchers.IO) {
         if (forceRefresh) refreshDiscoveredExtensions()
         handles.values.sortedBy { it.id }.map { handle ->
-            JSONObject()
+            org.json.JSONObject()
                 .put("id", handle.id)
                 .put("package", handle.packageName)
                 .put("service", handle.serviceClassName)
@@ -155,15 +160,11 @@ object ExtensionConnectionManager {
         val binder = ensureBound(handle)
             ?: return@withContext ActionOutcome.Failure(ActionError("not_connected", "Extension is not currently connected: $extensionId")).toJsonString()
 
-        val request = ActionRequest("_manifest", Json.parseToJsonElement("{}"))
-        val requestJson = Json.encodeToString(ActionRequest.serializer(), request)
-
-        runCatching {
+        try {
+            val request = ActionRequest("_manifest", Json.parseToJsonElement("{}"))
+            val requestJson = Json.encodeToString(ActionRequest.serializer(), request)
             binder.executeAction(1, requestJson)
-        }.getOrElse { t ->
-            Log.w(TAG, "Failed to fetch manifest: ${t.message}")
-            handle.binder = null
-            triggerReconnectWithBackoff(handle)
+        } catch (t: Throwable) {
             ActionOutcome.Failure(ActionError("manifest_failed", t.message ?: "Unknown IPC error")).toJsonString()
         }
     }
@@ -180,8 +181,8 @@ object ExtensionConnectionManager {
 
         // 1. Pre-flight Access Controller Check
         val caller = CallerContext(
-            android.os.Process.myUid(),
-            appContext?.packageName?.takeIf { it.isNotBlank() } ?: "com.omnilink.test"
+            getMyUid(),
+            handle.packageName // BUG #1 FIX: Pass the TARGET extension's package name as caller package!
         )
         val payloadElement = runCatching { Json.parseToJsonElement(jsonPayload) }.getOrElse { Json.parseToJsonElement("{}") }
         val request = ActionRequest(actionName, payloadElement)
@@ -198,6 +199,9 @@ object ExtensionConnectionManager {
         if (requiresConfirmation && decision == AccessDecision.REQUIRES_CONFIRMATION) {
             val gate = confirmationGate
             if (gate != null) {
+                // BUG #4 FIX / REQUIREMENT 3: Log RequiresConfirmation with message
+                auditLogger.log(caller, request, ActionOutcome.RequiresConfirmation("Confirmation required for action $actionName"))
+
                 val approved = gate.request(
                     ConfirmationKind.ANDROID_INTENT,
                     "Execute action '$actionName' on extension '${handle.packageName}'?",
@@ -215,10 +219,8 @@ object ExtensionConnectionManager {
         val requestJson = Json.encodeToString(ActionRequest.serializer(), request)
         val outcomeJsonStr = runCatching {
             suspendCancellableCoroutine<String> { continuation ->
-                val callback = object : com.omnilink.sdk.IOmniResultCallback.Stub() {
-                    override fun onResult(resultJson: String) {
-                        continuation.resume(resultJson)
-                    }
+                val callback = createResultCallback { resultJson ->
+                    continuation.resume(resultJson)
                 }
                 try {
                     binder.executeActionAsync(1, requestJson, callback)

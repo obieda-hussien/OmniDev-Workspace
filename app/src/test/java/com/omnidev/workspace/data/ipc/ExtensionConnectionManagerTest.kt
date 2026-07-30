@@ -5,18 +5,22 @@ import com.omnidev.workspace.core.policy.ConfirmationKind
 import com.omnidev.workspace.core.policy.OmniAuditLog
 import com.omnidev.workspace.core.policy.TierPolicy
 import com.omnidev.workspace.core.policy.TierPolicyHolder
+import com.omnilink.sdk.AccessDecision
 import com.omnilink.sdk.ActionError
 import com.omnilink.sdk.ActionOutcome
 import com.omnilink.sdk.ActionRequest
 import com.omnilink.sdk.CapabilityDescriptor
 import com.omnilink.sdk.CapabilityManifest
 import com.omnilink.sdk.CallerContext
+import com.omnilink.sdk.IExtensionService
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
+import java.lang.reflect.Proxy
 
 class ExtensionConnectionManagerTest {
 
@@ -56,12 +60,48 @@ class ExtensionConnectionManagerTest {
         testGate.lastKind = null
         testGate.lastPreview = null
         ExtensionConnectionManager.handles.clear()
+        ExtensionConnectionManager.confirmationGate = testGate
+        ExtensionConnectionManager.getMyUid = { 10001 }
+        ExtensionConnectionManager.createResultCallback = { resume ->
+            Proxy.newProxyInstance(
+                com.omnilink.sdk.IOmniResultCallback::class.java.classLoader,
+                arrayOf(com.omnilink.sdk.IOmniResultCallback::class.java)
+            ) { _, method, args ->
+                if (method.name == "onResult") {
+                    resume(args[0] as String)
+                }
+                null
+            } as com.omnilink.sdk.IOmniResultCallback
+        }
     }
 
     @After
     fun tearDown() {
         OmniAuditLog.clearForTest()
         ExtensionConnectionManager.handles.clear()
+        ExtensionConnectionManager.confirmationGate = null
+    }
+
+    private fun createMockBinder(
+        onExecuteAction: (Int, String) -> String = { _, _ -> "{}" },
+        onExecuteActionAsync: (Int, String, com.omnilink.sdk.IOmniResultCallback) -> Unit = { _, _, cb -> cb.onResult(Json.encodeToString(ActionOutcome.serializer(), ActionOutcome.Success(JsonPrimitive("binder_success")))) }
+    ): IExtensionService {
+        val handler = java.lang.reflect.InvocationHandler { _, method, args ->
+            when (method.name) {
+                "executeAction" -> onExecuteAction(args[0] as Int, args[1] as String)
+                "executeActionAsync" -> {
+                    onExecuteActionAsync(args[0] as Int, args[1] as String, args[2] as com.omnilink.sdk.IOmniResultCallback)
+                    null
+                }
+                "asBinder" -> null
+                else -> null
+            }
+        }
+        return Proxy.newProxyInstance(
+            IExtensionService::class.java.classLoader,
+            arrayOf(IExtensionService::class.java),
+            handler
+        ) as IExtensionService
     }
 
     @Test
@@ -74,7 +114,7 @@ class ExtensionConnectionManagerTest {
         val request = ActionRequest("moveToTrash", JsonPrimitive("test"))
 
         val decision = controller.decide(caller, request)
-        assertEquals(com.omnilink.sdk.AccessDecision.DENY, decision)
+        assertEquals(AccessDecision.DENY, decision)
     }
 
     @Test
@@ -87,7 +127,7 @@ class ExtensionConnectionManagerTest {
         val request = ActionRequest("someOtherAction", JsonPrimitive("test"))
 
         val decision = controller.decide(caller, request)
-        assertEquals(com.omnilink.sdk.AccessDecision.ALLOW, decision)
+        assertEquals(AccessDecision.ALLOW, decision)
     }
 
     @Test
@@ -118,11 +158,44 @@ class ExtensionConnectionManagerTest {
         val request = ActionRequest("moveToTrash", JsonPrimitive("test"))
 
         val decision = controller.decide(caller, request)
-        assertEquals(com.omnilink.sdk.AccessDecision.REQUIRES_CONFIRMATION, decision)
+        assertEquals(AccessDecision.REQUIRES_CONFIRMATION, decision)
     }
 
     @Test
-    fun testWorkspaceAuditLogger_LogsSuccessAndFailure() {
+    fun testBug1Regression_WrongPackageName_ReturnsAllow() {
+        // Force Pro Tier
+        TierPolicyHolder.install(StubPolicy(tier = "PRO"))
+
+        // Add dummy handle with manifest requiring confirmation for "moveToTrash"
+        val descriptor = CapabilityDescriptor("moveToTrash", destructive = true, requiresConfirmation = true)
+        val manifest = CapabilityManifest(
+            protocolVersion = 1,
+            sdkVersion = "1.0.0",
+            minSupportedVersion = 1,
+            maxSupportedVersion = 1,
+            capabilities = listOf(descriptor),
+            supportsTicks = false,
+            preferredTickIntervalSeconds = 0
+        )
+        val handle = ExtensionConnectionManager.ExtensionHandle(
+            packageName = "com.example.ext",
+            serviceClassName = "com.example.ext.MyService",
+            manifest = manifest
+        )
+        ExtensionConnectionManager.handles[handle.id] = handle
+
+        val controller = WorkspaceAccessController()
+        // BUG #1 check: Construct CallerContext with Workspace's own package name instead of target extension package.
+        // It should return ALLOW because requiresConfirmation inside decide() fails due to wrong package matching!
+        val caller = CallerContext(10001, "com.omnidev.workspace")
+        val request = ActionRequest("moveToTrash", JsonPrimitive("test"))
+
+        val decision = controller.decide(caller, request)
+        assertEquals(AccessDecision.ALLOW, decision)
+    }
+
+    @Test
+    fun testWorkspaceAuditLogger_LogsSuccessFailureAndRequiresConfirmation() {
         TierPolicyHolder.install(StubPolicy(tier = "PRO"))
         val logger = WorkspaceAuditLogger()
 
@@ -141,5 +214,103 @@ class ExtensionConnectionManagerTest {
         logs = OmniAuditLog.snapshot()
         assertEquals(2, logs.size)
         assertTrue(logs[1].preview.contains("FAILURE: [error_code] failed miserably"))
+
+        // BUG #4 check: Log RequiresConfirmation outcome
+        logger.log(caller, request, ActionOutcome.RequiresConfirmation("Please confirm action execution"))
+        logs = OmniAuditLog.snapshot()
+        assertEquals(3, logs.size)
+        assertTrue("Log should contain REQUIRES_CONFIRMATION message", logs[2].preview.contains("REQUIRES_CONFIRMATION: Please confirm action execution"))
+    }
+
+    @Test
+    fun testEndToEnd_ExecuteAction_WithConfirmationApproval() = runTest {
+        TierPolicyHolder.install(StubPolicy(tier = "PRO"))
+
+        var binderExecutionCount = 0
+        val mockBinder = createMockBinder { _, _, cb ->
+            binderExecutionCount++
+            val successOutcome = ActionOutcome.Success(JsonPrimitive("binder_executed"))
+            cb.onResult(Json.encodeToString(ActionOutcome.serializer(), successOutcome))
+        }
+
+        val descriptor = CapabilityDescriptor("moveToTrash", destructive = true, requiresConfirmation = true)
+        val manifest = CapabilityManifest(
+            protocolVersion = 1,
+            sdkVersion = "1.0.0",
+            minSupportedVersion = 1,
+            maxSupportedVersion = 1,
+            capabilities = listOf(descriptor),
+            supportsTicks = false,
+            preferredTickIntervalSeconds = 0
+        )
+        val handle = ExtensionConnectionManager.ExtensionHandle(
+            packageName = "com.example.ext",
+            serviceClassName = "com.example.ext.MyService",
+            binder = mockBinder,
+            manifest = manifest
+        )
+        ExtensionConnectionManager.handles[handle.id] = handle
+
+        testGate.decision = true // Approve confirmation
+
+        val resultJson = ExtensionConnectionManager.executeAction(handle.id, "moveToTrash", "{}")
+
+        assertTrue("Confirmation gate should be invoked", testGate.requestCalled)
+        assertEquals("Binder should be executed since confirmation was approved", 1, binderExecutionCount)
+
+        val outcome = Json.decodeFromString<ActionOutcome>(ActionOutcome.serializer(), resultJson)
+        assertTrue(outcome is ActionOutcome.Success)
+        assertEquals(JsonPrimitive("binder_executed"), (outcome as ActionOutcome.Success).data)
+
+        // Verify OmniAuditLog contains REQUIRES_CONFIRMATION and SUCCESS entries
+        val logs = OmniAuditLog.snapshot()
+        assertTrue(logs.any { it.preview.contains("REQUIRES_CONFIRMATION: Confirmation required for action moveToTrash") })
+        assertTrue(logs.any { it.preview.contains("SUCCESS") })
+    }
+
+    @Test
+    fun testEndToEnd_ExecuteAction_WithConfirmationDenial() = runTest {
+        TierPolicyHolder.install(StubPolicy(tier = "PRO"))
+
+        var binderExecutionCount = 0
+        val mockBinder = createMockBinder { _, _, cb ->
+            binderExecutionCount++
+            val successOutcome = ActionOutcome.Success(JsonPrimitive("binder_executed"))
+            cb.onResult(Json.encodeToString(ActionOutcome.serializer(), successOutcome))
+        }
+
+        val descriptor = CapabilityDescriptor("moveToTrash", destructive = true, requiresConfirmation = true)
+        val manifest = CapabilityManifest(
+            protocolVersion = 1,
+            sdkVersion = "1.0.0",
+            minSupportedVersion = 1,
+            maxSupportedVersion = 1,
+            capabilities = listOf(descriptor),
+            supportsTicks = false,
+            preferredTickIntervalSeconds = 0
+        )
+        val handle = ExtensionConnectionManager.ExtensionHandle(
+            packageName = "com.example.ext",
+            serviceClassName = "com.example.ext.MyService",
+            binder = mockBinder,
+            manifest = manifest
+        )
+        ExtensionConnectionManager.handles[handle.id] = handle
+
+        testGate.decision = false // Deny confirmation
+
+        val resultJson = ExtensionConnectionManager.executeAction(handle.id, "moveToTrash", "{}")
+
+        assertTrue("Confirmation gate should be invoked", testGate.requestCalled)
+        assertEquals("Binder should NOT be executed since confirmation was denied", 0, binderExecutionCount)
+
+        val outcome = Json.decodeFromString<ActionOutcome>(ActionOutcome.serializer(), resultJson)
+        assertTrue(outcome is ActionOutcome.Failure)
+        assertEquals("confirmation_denied", (outcome as ActionOutcome.Failure).error.code)
+
+        // Verify OmniAuditLog contains REQUIRES_CONFIRMATION and FAILURE entries
+        val logs = OmniAuditLog.snapshot()
+        assertTrue(logs.any { it.preview.contains("REQUIRES_CONFIRMATION: Confirmation required for action moveToTrash") })
+        assertTrue(logs.any { it.preview.contains("FAILURE: [confirmation_denied]") })
     }
 }

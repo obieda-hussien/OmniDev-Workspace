@@ -267,6 +267,9 @@ class ChatViewModel(
             .current
             .confirmationGate(uiGate)
 
+        // Wire ExtensionConnectionManager's confirmation gate
+        com.omnidev.workspace.data.ipc.ExtensionConnectionManager.confirmationGate = effectiveGate
+
         // ── Step 3: adapt the new policy-level gate to FileToolManager's API ──
         ftm.confirmationGate = { preview, diffContent ->
             val kind = if (diffContent != null)

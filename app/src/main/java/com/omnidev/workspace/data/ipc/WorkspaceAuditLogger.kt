@@ -23,6 +23,7 @@ class WorkspaceAuditLogger : AuditLogger {
         val outcomeStr = when (result) {
             is ActionOutcome.Success -> "SUCCESS"
             is ActionOutcome.Failure -> "FAILURE: [${result.error.code}] ${result.error.message}"
+            is ActionOutcome.RequiresConfirmation -> "REQUIRES_CONFIRMATION: ${result.message}"
             else -> "UNKNOWN"
         }
 
