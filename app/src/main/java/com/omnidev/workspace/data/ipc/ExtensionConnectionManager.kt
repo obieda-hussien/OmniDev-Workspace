@@ -397,4 +397,53 @@ object ExtensionConnectionManager {
     private fun ActionOutcome.toJsonString(): String {
         return Json.encodeToString(ActionOutcome.serializer(), this)
     }
+
+    fun getAppNameForPackage(packageName: String): String {
+        return packageName.replace(".", "_").replace("-", "_")
+    }
+
+    fun getPackageForAppName(appName: String): String? {
+        return handles.values.firstOrNull { getAppNameForPackage(it.packageName) == appName }?.packageName
+    }
+
+    fun getExtensionToolDefinitions(): List<com.omnidev.workspace.data.tools.ToolDefinition> {
+        val tools = mutableListOf<com.omnidev.workspace.data.tools.ToolDefinition>()
+        for (handle in handles.values) {
+            val manifest = handle.manifest ?: continue
+            val appName = getAppNameForPackage(handle.packageName)
+            for (cap in manifest.capabilities) {
+                val toolName = "ext_${appName}_${cap.name}"
+                tools.add(
+                    com.omnidev.workspace.data.tools.ToolDefinition(
+                        name = toolName,
+                        description = "Executes capability '" + cap.name + "' on extension '" + appName + "'. " +
+                                "Destructive: " + cap.destructive + ", Requires confirmation: " + cap.requiresConfirmation + ".",
+                        parameters = listOf(
+                            com.omnidev.workspace.data.tools.ToolParameter(
+                                name = "payload",
+                                type = "string",
+                                description = "The JSON payload arguments required by the extension action.",
+                                required = true
+                            )
+                        )
+                    )
+                )
+            }
+        }
+        return tools
+    }
+
+    suspend fun execute(
+        appName: String,
+        actionName: String,
+        jsonPayload: String
+    ): String {
+        val packageName = getPackageForAppName(appName)
+            ?: return ActionOutcome.Failure(ActionError("not_found", "Extension app not found: " + appName)).toJsonString()
+
+        val handle = handles.values.firstOrNull { it.packageName == packageName }
+            ?: return ActionOutcome.Failure(ActionError("not_found", "Extension handle not found for package: " + packageName)).toJsonString()
+
+        return executeAction(handle.id, actionName, jsonPayload)
+    }
 }

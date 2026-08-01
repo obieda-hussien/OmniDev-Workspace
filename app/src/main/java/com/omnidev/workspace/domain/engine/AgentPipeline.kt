@@ -636,10 +636,11 @@ Rules:
         val localToolDefs = toolManager.getToolDefinitions()
             .filter { it.name !in disabledToolNames }
         val mcpTools = try { mcpRegistry?.fetchAllAvailableTools() ?: emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() } catch(e: Exception) { emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() }
-        val toolDefs = localToolDefs + mcpTools
+        val extensionTools = try { com.omnidev.workspace.data.ipc.ExtensionConnectionManager.getExtensionToolDefinitions() } catch (e: Exception) { emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() }
+        val toolDefs = localToolDefs + mcpTools + extensionTools
         // Register tool definitions with the brain so it is aware of all available capabilities
         smartLearningBridge?.registerTools(toolDefs)
-        val toolSchemaText = "\n[DYNAMIC MCP TOOLS AWARENESS]\n- You are equipped with a dynamic Model Context Protocol (MCP) client.\n- In addition to your local Android terminal tools, you may see tools prefixed with `mcp_` in your tool list. \n- These are remote tools provided by the user's connected services (e.g., GitHub, Render, Custom APIs).\n- Treat these `mcp_` tools exactly like local tools. If a task requires cloud infrastructure, repo management, or external data, prioritize checking your available MCP tools.\n" + "\n" + toolDefs.joinToString("\n\n") { tool ->
+        val toolSchemaText = "\n[DYNAMIC MCP TOOLS AWARENESS]\n- You are equipped with a dynamic Model Context Protocol (MCP) client.\n- In addition to your local Android terminal tools, you may see tools prefixed with `mcp_` in your tool list. \n- These are remote tools provided by the user's connected services (e.g., GitHub, Render, Custom APIs).\n- Treat these `mcp_` tools exactly like local tools. If a task requires cloud infrastructure, repo management, or external data, prioritize checking your available MCP tools.\n\n[DYNAMIC EXTENSION TOOLS AWARENESS]\n- You are equipped with dynamic client-side Extension Tools.\n- You may see tools prefixed with `ext_` in your tool list (e.g., `ext_[appName]_[action]`).\n- These allow you to execute capabilities on bound client extensions.\n- Treat these `ext_` tools exactly like other tools. They require a `payload` parameter containing the JSON payload arguments.\n" + "\n" + toolDefs.joinToString("\n\n") { tool ->
             buildString {
                 appendLine("### Tool: ${tool.name}")
                 appendLine(tool.description)
@@ -1030,6 +1031,29 @@ Rules:
                                     if (toolCall.name.startsWith("mcp_")) {
                                         val output = mcpRegistry?.executeMcpTool(toolCall.name, toolCall.arguments) ?: "MCP Registry not configured"
                                         com.omnidev.workspace.data.tools.ToolExecutionResult(output = output)
+                                    } else if (toolCall.name.startsWith("ext_")) {
+                                        val prefixRemoved = toolCall.name.removePrefix("ext_")
+                                        val underscoreIndex = prefixRemoved.indexOf('_')
+                                        val (appName, actionName) = if (underscoreIndex == -1) {
+                                            "" to ""
+                                        } else {
+                                            prefixRemoved.substring(0, underscoreIndex) to prefixRemoved.substring(underscoreIndex + 1)
+                                        }
+                                        if (appName.isBlank() || actionName.isBlank()) {
+                                            com.omnidev.workspace.data.tools.ToolExecutionResult(output = "Error: Invalid extension tool name format.", isError = true)
+                                        } else {
+                                            val payload = toolCall.arguments["payload"] ?: run {
+                                                val obj = org.json.JSONObject()
+                                                toolCall.arguments.forEach { (k, v) -> obj.put(k, v) }
+                                                obj.toString()
+                                            }
+                                            val output = com.omnidev.workspace.data.ipc.ExtensionConnectionManager.execute(
+                                                appName = appName,
+                                                actionName = actionName,
+                                                jsonPayload = payload
+                                            )
+                                            com.omnidev.workspace.data.tools.ToolExecutionResult(output = output)
+                                        }
                                     } else {
                                         toolManager.executeTool(
                                             name = toolCall.name,
@@ -1062,6 +1086,29 @@ Rules:
                             if (toolCall.name.startsWith("mcp_")) {
                                 val output = mcpRegistry?.executeMcpTool(toolCall.name, toolCall.arguments) ?: "MCP Registry not configured"
                                 com.omnidev.workspace.data.tools.ToolExecutionResult(output = output)
+                            } else if (toolCall.name.startsWith("ext_")) {
+                                val prefixRemoved = toolCall.name.removePrefix("ext_")
+                                val underscoreIndex = prefixRemoved.indexOf('_')
+                                val (appName, actionName) = if (underscoreIndex == -1) {
+                                    "" to ""
+                                } else {
+                                    prefixRemoved.substring(0, underscoreIndex) to prefixRemoved.substring(underscoreIndex + 1)
+                                }
+                                if (appName.isBlank() || actionName.isBlank()) {
+                                    com.omnidev.workspace.data.tools.ToolExecutionResult(output = "Error: Invalid extension tool name format.", isError = true)
+                                } else {
+                                    val payload = toolCall.arguments["payload"] ?: run {
+                                        val obj = org.json.JSONObject()
+                                        toolCall.arguments.forEach { (k, v) -> obj.put(k, v) }
+                                        obj.toString()
+                                    }
+                                    val output = com.omnidev.workspace.data.ipc.ExtensionConnectionManager.execute(
+                                        appName = appName,
+                                        actionName = actionName,
+                                        jsonPayload = payload
+                                    )
+                                    com.omnidev.workspace.data.tools.ToolExecutionResult(output = output)
+                                }
                             } else {
                                 toolManager.executeTool(
                                     name = toolCall.name,

@@ -313,4 +313,77 @@ class ExtensionConnectionManagerTest {
         assertTrue(logs.any { it.preview.contains("REQUIRES_CONFIRMATION: Confirmation required for action moveToTrash") })
         assertTrue(logs.any { it.preview.contains("FAILURE: [confirmation_denied]") })
     }
+
+    @Test
+    fun testExtensionToolDefinitions_ConvertsCapabilities() {
+        val descriptor1 = CapabilityDescriptor("moveToTrash", destructive = true, requiresConfirmation = true)
+        val descriptor2 = CapabilityDescriptor("emptyTrash", destructive = true, requiresConfirmation = false)
+        val manifest = CapabilityManifest(
+            protocolVersion = 1,
+            sdkVersion = "1.0.0",
+            minSupportedVersion = 1,
+            maxSupportedVersion = 1,
+            capabilities = listOf(descriptor1, descriptor2),
+            supportsTicks = false,
+            preferredTickIntervalSeconds = 0
+        )
+        val handle = ExtensionConnectionManager.ExtensionHandle(
+            packageName = "com.example.my_extension",
+            serviceClassName = "com.example.my_extension.Service",
+            manifest = manifest
+        )
+        ExtensionConnectionManager.handles[handle.id] = handle
+
+        val tools = ExtensionConnectionManager.getExtensionToolDefinitions()
+        assertEquals(2, tools.size)
+
+        val tool1 = tools.firstOrNull { it.name == "ext_com_example_my_extension_moveToTrash" }
+        assertNotNull(tool1)
+        assertTrue(tool1!!.description.contains("moveToTrash"))
+        assertEquals(1, tool1.parameters.size)
+        assertEquals("payload", tool1.parameters[0].name)
+
+        val tool2 = tools.firstOrNull { it.name == "ext_com_example_my_extension_emptyTrash" }
+        assertNotNull(tool2)
+        assertTrue(tool2!!.description.contains("emptyTrash"))
+    }
+
+    @Test
+    fun testExecute_E2E_Success() = runTest {
+        TierPolicyHolder.install(StubPolicy(tier = "PRO"))
+
+        var executedWithPayload: String? = null
+        val mockBinder = createMockBinder { _, _, cb ->
+            val successOutcome = ActionOutcome.Success(JsonPrimitive("execution_ok"))
+            cb.onResult(Json.encodeToString(ActionOutcome.serializer(), successOutcome))
+        }
+
+        val descriptor = CapabilityDescriptor("cleanCache", destructive = false, requiresConfirmation = false)
+        val manifest = CapabilityManifest(
+            protocolVersion = 1,
+            sdkVersion = "1.0.0",
+            minSupportedVersion = 1,
+            maxSupportedVersion = 1,
+            capabilities = listOf(descriptor),
+            supportsTicks = false,
+            preferredTickIntervalSeconds = 0
+        )
+        val handle = ExtensionConnectionManager.ExtensionHandle(
+            packageName = "com.example.tools",
+            serviceClassName = "com.example.tools.Service",
+            binder = mockBinder,
+            manifest = manifest
+        )
+        ExtensionConnectionManager.handles[handle.id] = handle
+
+        val resultJson = ExtensionConnectionManager.execute(
+            appName = "com_example_tools",
+            actionName = "cleanCache",
+            jsonPayload = "{\"param\":\"value\"}"
+        )
+
+        val outcome = Json.decodeFromString<ActionOutcome>(ActionOutcome.serializer(), resultJson)
+        assertTrue(outcome is ActionOutcome.Success)
+        assertEquals(JsonPrimitive("execution_ok"), (outcome as ActionOutcome.Success).data)
+    }
 }
