@@ -1032,13 +1032,8 @@ Rules:
                                         val output = mcpRegistry?.executeMcpTool(toolCall.name, toolCall.arguments) ?: "MCP Registry not configured"
                                         com.omnidev.workspace.data.tools.ToolExecutionResult(output = output)
                                     } else if (toolCall.name.startsWith("ext_")) {
-                                        val prefixRemoved = toolCall.name.removePrefix("ext_")
-                                        val underscoreIndex = prefixRemoved.indexOf('_')
-                                        val (appName, actionName) = if (underscoreIndex == -1) {
-                                            "" to ""
-                                        } else {
-                                            prefixRemoved.substring(0, underscoreIndex) to prefixRemoved.substring(underscoreIndex + 1)
-                                        }
+                                        val parsed = com.omnidev.workspace.data.ipc.ExtensionConnectionManager.parseToolName(toolCall.name)
+                                        val (appName, actionName) = parsed ?: ("" to "")
                                         if (appName.isBlank() || actionName.isBlank()) {
                                             com.omnidev.workspace.data.tools.ToolExecutionResult(output = "Error: Invalid extension tool name format.", isError = true)
                                         } else {
@@ -1087,13 +1082,8 @@ Rules:
                                 val output = mcpRegistry?.executeMcpTool(toolCall.name, toolCall.arguments) ?: "MCP Registry not configured"
                                 com.omnidev.workspace.data.tools.ToolExecutionResult(output = output)
                             } else if (toolCall.name.startsWith("ext_")) {
-                                val prefixRemoved = toolCall.name.removePrefix("ext_")
-                                val underscoreIndex = prefixRemoved.indexOf('_')
-                                val (appName, actionName) = if (underscoreIndex == -1) {
-                                    "" to ""
-                                } else {
-                                    prefixRemoved.substring(0, underscoreIndex) to prefixRemoved.substring(underscoreIndex + 1)
-                                }
+                                val parsed = com.omnidev.workspace.data.ipc.ExtensionConnectionManager.parseToolName(toolCall.name)
+                                val (appName, actionName) = parsed ?: ("" to "")
                                 if (appName.isBlank() || actionName.isBlank()) {
                                     com.omnidev.workspace.data.tools.ToolExecutionResult(output = "Error: Invalid extension tool name format.", isError = true)
                                 } else {

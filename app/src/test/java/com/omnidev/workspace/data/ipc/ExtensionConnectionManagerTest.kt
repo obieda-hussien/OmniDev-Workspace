@@ -386,4 +386,37 @@ class ExtensionConnectionManagerTest {
         assertTrue(outcome is ActionOutcome.Success)
         assertEquals(JsonPrimitive("execution_ok"), (outcome as ActionOutcome.Success).data)
     }
+
+    @Test
+    fun testToolNameParsing_FullRoundTrip_MultiSegment() {
+        val descriptor = CapabilityDescriptor("moveToTrash", destructive = true, requiresConfirmation = true)
+        val manifest = CapabilityManifest(
+            protocolVersion = 1,
+            sdkVersion = "1.0.0",
+            minSupportedVersion = 1,
+            maxSupportedVersion = 1,
+            capabilities = listOf(descriptor),
+            supportsTicks = false,
+            preferredTickIntervalSeconds = 0
+        )
+        val handle = ExtensionConnectionManager.ExtensionHandle(
+            packageName = "com.example.notelink",
+            serviceClassName = "com.example.notelink.Service",
+            manifest = manifest
+        )
+        ExtensionConnectionManager.handles[handle.id] = handle
+
+        // Generate the tool definitions
+        val tools = ExtensionConnectionManager.getExtensionToolDefinitions()
+        assertEquals(1, tools.size)
+
+        val generatedName = tools[0].name
+        assertEquals("ext_com_example_notelink_moveToTrash", generatedName)
+
+        // Parse it back using the same parsing logic
+        val parsed = ExtensionConnectionManager.parseToolName(generatedName)
+        assertNotNull(parsed)
+        assertEquals("com_example_notelink", parsed!!.first)
+        assertEquals("moveToTrash", parsed.second)
+    }
 }

@@ -433,6 +433,21 @@ object ExtensionConnectionManager {
         return tools
     }
 
+    fun parseToolName(toolCallName: String): Pair<String, String>? {
+        if (!toolCallName.startsWith("ext_")) return null
+        val prefixRemoved = toolCallName.removePrefix("ext_")
+
+        val knownAppNames = handles.values
+            .map { getAppNameForPackage(it.packageName) }
+
+        val appName = knownAppNames
+            .filter { prefixRemoved.startsWith("${it}_") }
+            .maxByOrNull { it.length } ?: return null
+
+        val actionName = prefixRemoved.removePrefix("${appName}_")
+        return appName to actionName
+    }
+
     suspend fun execute(
         appName: String,
         actionName: String,
