@@ -457,4 +457,25 @@ class ExtensionConnectionManagerTest {
         val logs = OmniAuditLog.snapshot()
         assertTrue(logs.any { it.preview.contains("FAILURE: [denied] Execution denied by AccessController") })
     }
+
+    @Test
+    fun testRefreshDiscoveredExtensions_LiteTier_BlockedAndAuditLogged() {
+        // Force Lite Tier
+        TierPolicyHolder.install(StubPolicy(tier = "LITE"))
+
+        // Clear handles map
+        ExtensionConnectionManager.handles.clear()
+
+        // Call refreshDiscoveredExtensions
+        ExtensionConnectionManager.refreshDiscoveredExtensions()
+
+        // Assert that handles map remains empty
+        assertTrue("Handles map must be empty in Lite tier", ExtensionConnectionManager.handles.isEmpty())
+
+        // Assert that OmniAuditLog has recorded the discovery denial
+        val logs = OmniAuditLog.snapshot()
+        assertEquals(1, logs.size)
+        assertTrue(logs[0].preview.contains("Extension discovery blocked: extensions are not supported on tier LITE"))
+        assertEquals("LITE", logs[0].tier)
+    }
 }
