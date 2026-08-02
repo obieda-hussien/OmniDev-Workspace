@@ -95,8 +95,25 @@ object ExtensionConnectionManager {
         appContext = localContext
         if (initialized.compareAndSet(false, true)) {
             registerPackageReceiver(localContext)
+            scheduleTickWorker(localContext)
         }
         refreshDiscoveredExtensions()
+    }
+
+    private fun scheduleTickWorker(context: Context) {
+        try {
+            val workRequest = androidx.work.PeriodicWorkRequestBuilder<ExtensionTickWorker>(
+                15, java.util.concurrent.TimeUnit.MINUTES
+            ).build()
+            androidx.work.WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                "ExtensionTickWorker",
+                androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+                workRequest
+            )
+            Log.i(TAG, "Successfully scheduled WorkManager ExtensionTickWorker periodic task")
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed scheduling WorkManager ExtensionTickWorker: " + e.message)
+        }
     }
 
     fun shutdown() {

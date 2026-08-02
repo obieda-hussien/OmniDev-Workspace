@@ -24,10 +24,15 @@ class WorkspaceAccessController : AccessController {
         }
 
         // Check if the requested action requires confirmation in the extension's manifest cache.
-        val requiresConfirmation = ExtensionConnectionManager.isActionConfirmationRequired(
-            packageName = caller.callingPackage,
-            actionName = request.name
-        )
+        // Background periodic ticks never require user confirmation prompts!
+        val requiresConfirmation = if (request.name == "_tick") {
+            false
+        } else {
+            ExtensionConnectionManager.isActionConfirmationRequired(
+                packageName = caller.callingPackage,
+                actionName = request.name
+            )
+        }
 
         return if (requiresConfirmation && !policy.autoApproveConfirmations) {
             AccessDecision.REQUIRES_CONFIRMATION

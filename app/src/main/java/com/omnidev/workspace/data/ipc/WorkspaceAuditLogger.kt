@@ -17,6 +17,10 @@ import com.omnidev.workspace.core.policy.TierPolicyHolder
 class WorkspaceAuditLogger : AuditLogger {
 
     override fun log(caller: CallerContext, request: ActionRequest, result: ActionOutcome) {
+        if (request.name == "_tick" && result is ActionOutcome.Success) {
+            android.util.Log.d("WorkspaceAuditLogger", "Successful tick completed for extension: " + caller.callingPackage)
+            return
+        }
         val policy = TierPolicyHolder.current
         val autoApproved = policy.autoApproveConfirmations
 

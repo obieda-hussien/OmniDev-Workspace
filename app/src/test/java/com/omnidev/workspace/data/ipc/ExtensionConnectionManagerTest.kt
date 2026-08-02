@@ -14,6 +14,7 @@ import com.omnilink.sdk.CapabilityManifest
 import com.omnilink.sdk.CallerContext
 import com.omnilink.sdk.IExtensionService
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
@@ -477,5 +478,111 @@ class ExtensionConnectionManagerTest {
         assertEquals(1, logs.size)
         assertTrue(logs[0].preview.contains("Extension discovery blocked: extensions are not supported on tier LITE"))
         assertEquals("LITE", logs[0].tier)
+    }
+
+    private fun createExtensionTickWorker(): ExtensionTickWorker {
+        val constructor = androidx.work.WorkerParameters::class.java.constructors.first { it.parameterTypes.size == 12 }
+        val uuid = java.util.UUID.randomUUID()
+        val data = androidx.work.Data.EMPTY
+        val tags = emptyList<String>()
+        val runtimeExtras = null
+        val runAttemptCount = 1
+        val generation = 0
+        val executor = java.util.concurrent.Executor { command -> command.run() }
+        val coroutineContext = kotlinx.coroutines.Dispatchers.Unconfined
+
+        // TaskExecutor can be mocked via dynamic proxy since it is an interface!
+        val taskExecutorClass = Class.forName("androidx.work.impl.utils.taskexecutor.TaskExecutor")
+        val taskExecutor = Proxy.newProxyInstance(
+            taskExecutorClass.classLoader,
+            arrayOf(taskExecutorClass)
+        ) { _, method, args ->
+            if (method.name == "getBackgroundExecutor") {
+                executor
+            } else if (method.name == "getSerialTaskExecutor") {
+                java.util.concurrent.Executor { command -> command.run() }
+            } else null
+        }
+
+        val workerFactory = null
+        val progressUpdater = null
+        val foregroundUpdater = null
+
+        val params = constructor.newInstance(
+            uuid, data, tags, runtimeExtras, runAttemptCount, generation,
+            executor, coroutineContext, taskExecutor, workerFactory, progressUpdater, foregroundUpdater
+        ) as androidx.work.WorkerParameters
+
+        val mockContext = object : android.content.ContextWrapper(null) {
+            override fun getApplicationContext(): android.content.Context = this
+        }
+
+        return ExtensionTickWorker(mockContext, params)
+    }
+
+    @Test
+    fun testExtensionTickWorker_ConcurrentExecution_WithOneHungExtension() = runBlocking {
+        TierPolicyHolder.install(StubPolicy(tier = "PRO"))
+
+        var firstExecuted = 0
+        var secondExecuted = 0
+
+        // Mock Binder 1: completes instantly
+        val mockBinder1 = createMockBinder { _, _, cb ->
+            firstExecuted++
+            val successOutcome = ActionOutcome.Success(JsonPrimitive("success_1"))
+            cb.onResult(Json.encodeToString(ActionOutcome.serializer(), successOutcome))
+        }
+
+        // Mock Binder 2: hangs indefinitely
+        val mockBinder2 = createMockBinder { _, _, cb ->
+            secondExecuted++
+            // Simulates hang — never calls cb.onResult
+        }
+
+        val descriptor = CapabilityDescriptor("_tick", destructive = false, requiresConfirmation = false)
+        val manifest = CapabilityManifest(
+            protocolVersion = 1,
+            sdkVersion = "1.0.0",
+            minSupportedVersion = 1,
+            maxSupportedVersion = 1,
+            capabilities = listOf(descriptor),
+            supportsTicks = true,
+            preferredTickIntervalSeconds = 1 // Always due
+        )
+
+        val handle1 = ExtensionConnectionManager.ExtensionHandle(
+            packageName = "com.example.first",
+            serviceClassName = "com.example.first.Service",
+            binder = mockBinder1,
+            manifest = manifest
+        )
+        val handle2 = ExtensionConnectionManager.ExtensionHandle(
+            packageName = "com.example.second",
+            serviceClassName = "com.example.second.Service",
+            binder = mockBinder2,
+            manifest = manifest
+        )
+
+        ExtensionConnectionManager.handles[handle1.id] = handle1
+        ExtensionConnectionManager.handles[handle2.id] = handle2
+
+        ExtensionTickWorker.lastTickTimestamps.clear()
+        ExtensionTickWorker.tickTimeoutMs = 100L // 100ms timeout to keep test fast!
+
+        val worker = createExtensionTickWorker()
+        val result = worker.doWork()
+
+        assertEquals(androidx.work.ListenableWorker.Result.success(), result)
+        assertEquals("First extension should have completed tick execution", 1, firstExecuted)
+        assertEquals("Second extension should have attempted tick execution", 1, secondExecuted)
+
+        // Assert that lastTickTimestamps is updated for handle1 but NOT for handle2 (due to hang/timeout)
+        assertNotNull("First extension last successful tick timestamp should be recorded", ExtensionTickWorker.lastTickTimestamps[handle1.id])
+        assertNull("Second extension last successful tick timestamp should NOT be recorded", ExtensionTickWorker.lastTickTimestamps[handle2.id])
+
+        // Verify OmniAuditLog did NOT log a success entry for first extension (bypassed to avoid flooding!)
+        val logs = OmniAuditLog.snapshot()
+        assertFalse("Successful ticks must NOT flood OmniAuditLog", logs.any { it.preview.contains("SUCCESS") })
     }
 }
