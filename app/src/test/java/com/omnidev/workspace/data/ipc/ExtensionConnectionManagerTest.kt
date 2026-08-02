@@ -419,4 +419,42 @@ class ExtensionConnectionManagerTest {
         assertEquals("com_example_notelink", parsed!!.first)
         assertEquals("moveToTrash", parsed.second)
     }
+
+    @Test
+    fun testWorkspaceAccessController_NormTier_Denied() {
+        // Force Norm Tier
+        TierPolicyHolder.install(StubPolicy(tier = "NORM"))
+
+        val controller = WorkspaceAccessController()
+        val caller = CallerContext(10001, "com.example.ext")
+        val request = ActionRequest("moveToTrash", JsonPrimitive("test"))
+
+        val decision = controller.decide(caller, request)
+        assertEquals(AccessDecision.DENY, decision)
+    }
+
+    @Test
+    fun testExecuteAction_LiteTier_AuditLogDenial() = runTest {
+        // Force Lite Tier
+        TierPolicyHolder.install(StubPolicy(tier = "LITE"))
+
+        // Add dummy handle
+        val handle = ExtensionConnectionManager.ExtensionHandle(
+            packageName = "com.example.ext",
+            serviceClassName = "com.example.ext.MyService",
+            binder = createMockBinder()
+        )
+        ExtensionConnectionManager.handles[handle.id] = handle
+
+        // Execute action — should be denied by pre-flight checks
+        val resultJson = ExtensionConnectionManager.executeAction(handle.id, "moveToTrash", "{}")
+
+        val outcome = Json.decodeFromString<ActionOutcome>(ActionOutcome.serializer(), resultJson)
+        assertTrue(outcome is ActionOutcome.Failure)
+        assertEquals("denied", (outcome as ActionOutcome.Failure).error.code)
+
+        // Verify OmniAuditLog has a denial record
+        val logs = OmniAuditLog.snapshot()
+        assertTrue(logs.any { it.preview.contains("FAILURE: [denied] Execution denied by AccessController") })
+    }
 }

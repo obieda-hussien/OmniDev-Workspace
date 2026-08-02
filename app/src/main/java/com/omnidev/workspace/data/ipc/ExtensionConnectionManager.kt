@@ -109,6 +109,11 @@ object ExtensionConnectionManager {
     }
 
     fun refreshDiscoveredExtensions() {
+        val policy = com.omnidev.workspace.core.policy.TierPolicyHolder.current
+        if (policy.tier == "LITE" || policy.tier == "NORM") {
+            Log.i(TAG, "Skipping extension discovery: extensions are not supported on tier " + policy.tier)
+            return
+        }
         val context = appContext ?: return
         val pm = context.packageManager
         val intent = Intent(OmniLinkConstants.ACTION_EXTENSION_BIND)
