@@ -24,6 +24,7 @@ class ExtensionTickWorker(
 
     companion object {
         private const val TAG = "ExtensionTickWorker"
+        private const val PREFS_NAME = "omnidev_extension_ticks"
 
         // In-memory cache tracking the last successful tick timestamp per extension ID
         internal val lastTickTimestamps = ConcurrentHashMap<String, Long>()
@@ -46,12 +47,13 @@ class ExtensionTickWorker(
             return Result.success()
         }
 
+        val prefs = applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val currentTime = System.currentTimeMillis()
         val dueHandles = handles.filter { handle ->
             val manifest = handle.manifest!!
             // preferredTickIntervalSeconds is in seconds, fallback to default 900 (15 minutes)
             val preferredIntervalMs = (manifest.preferredTickIntervalSeconds.takeIf { it > 0 } ?: 900) * 1000L
-            val lastTick = lastTickTimestamps[handle.id] ?: 0L
+            val lastTick = prefs.getLong("tick_${handle.id}", lastTickTimestamps[handle.id] ?: 0L)
             (currentTime - lastTick) >= preferredIntervalMs
         }
 
@@ -77,7 +79,9 @@ class ExtensionTickWorker(
                                 resultJson
                             )
                             if (outcome is ActionOutcome.Success) {
-                                lastTickTimestamps[handle.id] = System.currentTimeMillis()
+                                val now = System.currentTimeMillis()
+                                lastTickTimestamps[handle.id] = now
+                                prefs.edit().putLong("tick_${handle.id}", now).apply()
                                 true
                             } else {
                                 Log.w(TAG, "Extension ${handle.id} tick returned failure result")

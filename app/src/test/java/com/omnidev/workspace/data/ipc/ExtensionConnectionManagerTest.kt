@@ -353,7 +353,6 @@ class ExtensionConnectionManagerTest {
     fun testExecute_E2E_Success() = runTest {
         TierPolicyHolder.install(StubPolicy(tier = "PRO"))
 
-        var executedWithPayload: String? = null
         val mockBinder = createMockBinder { _, _, cb ->
             val successOutcome = ActionOutcome.Success(JsonPrimitive("execution_ok"))
             cb.onResult(Json.encodeToString(ActionOutcome.serializer(), successOutcome))
@@ -480,44 +479,35 @@ class ExtensionConnectionManagerTest {
         assertEquals("LITE", logs[0].tier)
     }
 
-    private fun createExtensionTickWorker(): ExtensionTickWorker {
-        val constructor = androidx.work.WorkerParameters::class.java.constructors.first { it.parameterTypes.size == 12 }
-        val uuid = java.util.UUID.randomUUID()
-        val data = androidx.work.Data.EMPTY
-        val tags = emptyList<String>()
-        val runtimeExtras = null
-        val runAttemptCount = 1
-        val generation = 0
-        val executor = java.util.concurrent.Executor { command -> command.run() }
-        val coroutineContext = kotlinx.coroutines.Dispatchers.Unconfined
-
-        // TaskExecutor can be mocked via dynamic proxy since it is an interface!
-        val taskExecutorClass = Class.forName("androidx.work.impl.utils.taskexecutor.TaskExecutor")
-        val taskExecutor = Proxy.newProxyInstance(
-            taskExecutorClass.classLoader,
-            arrayOf(taskExecutorClass)
-        ) { _, method, args ->
-            if (method.name == "getBackgroundExecutor") {
-                executor
-            } else if (method.name == "getSerialTaskExecutor") {
-                java.util.concurrent.Executor { command -> command.run() }
-            } else null
+    // Helper to build functional mock SharedPreferences backed by an in-memory map
+    private fun createMockSharedPreferences(testPrefsMap: MutableMap<String, Any>): android.content.SharedPreferences {
+        return object : android.content.SharedPreferences {
+            override fun getAll(): Map<String, *> = testPrefsMap
+            override fun getString(key: String, defValue: String?): String? = testPrefsMap[key] as? String ?: defValue
+            override fun getStringSet(key: String, defValues: Set<String>?): Set<String>? = testPrefsMap[key] as? Set<String> ?: defValues
+            override fun getInt(key: String, defValue: Int): Int = testPrefsMap[key] as? Int ?: defValue
+            override fun getLong(key: String, defValue: Long): Long = testPrefsMap[key] as? Long ?: defValue
+            override fun getFloat(key: String, defValue: Float): Float = testPrefsMap[key] as? Float ?: defValue
+            override fun getBoolean(key: String, defValue: Boolean): Boolean = testPrefsMap[key] as? Boolean ?: defValue
+            override fun contains(key: String): Boolean = testPrefsMap.containsKey(key)
+            override fun edit(): android.content.SharedPreferences.Editor {
+                return object : android.content.SharedPreferences.Editor {
+                    val putMap = mutableMapOf<String, Any>()
+                    override fun putString(key: String, value: String?): android.content.SharedPreferences.Editor { value?.let { putMap[key] = it }; return this }
+                    override fun putStringSet(key: String, values: Set<String>?): android.content.SharedPreferences.Editor { values?.let { putMap[key] = it }; return this }
+                    override fun putInt(key: String, value: Int): android.content.SharedPreferences.Editor { putMap[key] = value; return this }
+                    override fun putLong(key: String, value: Long): android.content.SharedPreferences.Editor { putMap[key] = value; return this }
+                    override fun putFloat(key: String, value: Float): android.content.SharedPreferences.Editor { putMap[key] = value; return this }
+                    override fun putBoolean(key: String, value: Boolean): android.content.SharedPreferences.Editor { putMap[key] = value; return this }
+                    override fun remove(key: String): android.content.SharedPreferences.Editor { putMap.remove(key); return this }
+                    override fun clear(): android.content.SharedPreferences.Editor { putMap.clear(); return this }
+                    override fun commit(): Boolean { testPrefsMap.putAll(putMap); return true }
+                    override fun apply() { testPrefsMap.putAll(putMap) }
+                }
+            }
+            override fun registerOnSharedPreferenceChangeListener(listener: android.content.SharedPreferences.OnSharedPreferenceChangeListener?) {}
+            override fun unregisterOnSharedPreferenceChangeListener(listener: android.content.SharedPreferences.OnSharedPreferenceChangeListener?) {}
         }
-
-        val workerFactory = null
-        val progressUpdater = null
-        val foregroundUpdater = null
-
-        val params = constructor.newInstance(
-            uuid, data, tags, runtimeExtras, runAttemptCount, generation,
-            executor, coroutineContext, taskExecutor, workerFactory, progressUpdater, foregroundUpdater
-        ) as androidx.work.WorkerParameters
-
-        val mockContext = object : android.content.ContextWrapper(null) {
-            override fun getApplicationContext(): android.content.Context = this
-        }
-
-        return ExtensionTickWorker(mockContext, params)
     }
 
     @Test
@@ -570,19 +560,87 @@ class ExtensionConnectionManagerTest {
         ExtensionTickWorker.lastTickTimestamps.clear()
         ExtensionTickWorker.tickTimeoutMs = 100L // 100ms timeout to keep test fast!
 
-        val worker = createExtensionTickWorker()
+        val testPrefsMap = mutableMapOf<String, Any>()
+        val mockPrefs = createMockSharedPreferences(testPrefsMap)
+
+        val context = object : android.content.ContextWrapper(null) {
+            override fun getApplicationContext(): android.content.Context = this
+            override fun getSharedPreferences(name: String?, mode: Int): android.content.SharedPreferences = mockPrefs
+        }
+
+        // Use TestListenableWorkerBuilder to construct our worker in a completely robust, non-fragile way!
+        val worker = androidx.work.testing.TestListenableWorkerBuilder.from(context, ExtensionTickWorker::class.java).build()
         val result = worker.doWork()
 
         assertEquals(androidx.work.ListenableWorker.Result.success(), result)
         assertEquals("First extension should have completed tick execution", 1, firstExecuted)
         assertEquals("Second extension should have attempted tick execution", 1, secondExecuted)
 
-        // Assert that lastTickTimestamps is updated for handle1 but NOT for handle2 (due to hang/timeout)
-        assertNotNull("First extension last successful tick timestamp should be recorded", ExtensionTickWorker.lastTickTimestamps[handle1.id])
-        assertNull("Second extension last successful tick timestamp should NOT be recorded", ExtensionTickWorker.lastTickTimestamps[handle2.id])
+        // Assert that prefs is updated for handle1 but NOT for handle2 (due to hang/timeout)
+        assertNotNull("First extension last successful tick timestamp should be recorded in SharedPreferences", testPrefsMap["tick_${handle1.id}"])
+        assertNull("Second extension last successful tick timestamp should NOT be recorded in SharedPreferences", testPrefsMap["tick_${handle2.id}"])
 
         // Verify OmniAuditLog did NOT log a success entry for first extension (bypassed to avoid flooding!)
         val logs = OmniAuditLog.snapshot()
         assertFalse("Successful ticks must NOT flood OmniAuditLog", logs.any { it.preview.contains("SUCCESS") })
+    }
+
+    @Test
+    fun testExtensionTickWorker_PersistedTimestamps_SurvivesProcessDeath() = runBlocking {
+        TierPolicyHolder.install(StubPolicy(tier = "PRO"))
+
+        var tickExecuted = 0
+        val mockBinder = createMockBinder { _, _, cb ->
+            tickExecuted++
+            val successOutcome = ActionOutcome.Success(JsonPrimitive("success_ok"))
+            cb.onResult(Json.encodeToString(ActionOutcome.serializer(), successOutcome))
+        }
+
+        val descriptor = CapabilityDescriptor("_tick", destructive = false, requiresConfirmation = false)
+        val manifest = CapabilityManifest(
+            protocolVersion = 1,
+            sdkVersion = "1.0.0",
+            minSupportedVersion = 1,
+            maxSupportedVersion = 1,
+            capabilities = listOf(descriptor),
+            supportsTicks = true,
+            preferredTickIntervalSeconds = 3600 // 1 hour interval
+        )
+
+        val handle = ExtensionConnectionManager.ExtensionHandle(
+            packageName = "com.example.hourly",
+            serviceClassName = "com.example.hourly.Service",
+            binder = mockBinder,
+            manifest = manifest
+        )
+        ExtensionConnectionManager.handles[handle.id] = handle
+
+        // Simulate process death and recent successful tick.
+        // We initialize a testPrefsMap with a timestamp from 10 seconds ago (so it is not due yet)
+        val testPrefsMap = mutableMapOf<String, Any>()
+        val currentTime = System.currentTimeMillis()
+        testPrefsMap["tick_${handle.id}"] = currentTime - 10_000L // Ticked 10s ago
+
+        val mockPrefs = createMockSharedPreferences(testPrefsMap)
+        val context = object : android.content.ContextWrapper(null) {
+            override fun getApplicationContext(): android.content.Context = this
+            override fun getSharedPreferences(name: String?, mode: Int): android.content.SharedPreferences = mockPrefs
+        }
+
+        // Instantiate a completely new worker to simulate clean start after process death
+        val worker = androidx.work.testing.TestListenableWorkerBuilder.from(context, ExtensionTickWorker::class.java).build()
+        val result = worker.doWork()
+
+        assertEquals(androidx.work.ListenableWorker.Result.success(), result)
+        assertEquals("Hourly extension should NOT run tick again because its 3600s interval has not elapsed since recent persisted tick", 0, tickExecuted)
+
+        // Now simulate that 1 hour has indeed elapsed (e.g. last tick was 2 hours ago)
+        testPrefsMap["tick_${handle.id}"] = currentTime - 7200_000L // Ticked 2h ago
+
+        val worker2 = androidx.work.testing.TestListenableWorkerBuilder.from(context, ExtensionTickWorker::class.java).build()
+        val result2 = worker2.doWork()
+
+        assertEquals(androidx.work.ListenableWorker.Result.success(), result2)
+        assertEquals("Hourly extension should run tick now because its interval has elapsed", 1, tickExecuted)
     }
 }

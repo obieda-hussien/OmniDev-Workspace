@@ -352,6 +352,7 @@ dependencies {
     implementation(libs.mlkit.text.recognition)
 
     // ── Testing ──
+    testImplementation("androidx.work:work-testing:2.10.0")
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.org.json)
