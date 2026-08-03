@@ -60,24 +60,6 @@ object ExtensionConnectionManager {
 
     internal var getMyUid: () -> Int = { android.os.Process.myUid() }
 
-    internal var queryIntentServices: (Context, Intent) -> List<android.content.pm.ResolveInfo> = { ctx, intent ->
-        val pm = ctx.packageManager
-        runCatching {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                pm.queryIntentServices(intent, PackageManager.ResolveInfoFlags.of(0))
-            } else {
-                @Suppress("DEPRECATION")
-                pm.queryIntentServices(intent, 0)
-            }
-        }.getOrElse { emptyList() }
-    }
-
-    internal var checkSignatureMatch: (Context, String) -> Boolean = { ctx, pkg ->
-        runCatching {
-            ctx.packageManager.checkSignatures(ctx.packageName, pkg) == PackageManager.SIGNATURE_MATCH
-        }.getOrElse { true }
-    }
-
     internal var createResultCallback: ((resume: (String) -> Unit) -> com.omnilink.sdk.IOmniResultCallback) = { resume ->
         object : com.omnilink.sdk.IOmniResultCallback.Stub() {
             override fun onResult(resultJson: String) {
@@ -156,21 +138,24 @@ object ExtensionConnectionManager {
             return
         }
         val context = appContext ?: return
+        val pm = context.packageManager
         val intent = Intent(OmniLinkConstants.ACTION_EXTENSION_BIND)
-        val resolveInfos = queryIntentServices(context, intent)
+        val resolveInfos = runCatching {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                pm.queryIntentServices(intent, PackageManager.ResolveInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.queryIntentServices(intent, 0)
+            }
+        }.getOrElse {
+            Log.w(TAG, "Failed querying extension services: ${it.message}")
+            emptyList()
+        }
 
         val discoveredIds = resolveInfos.mapNotNull { resolve ->
             val serviceInfo = resolve.serviceInfo ?: return@mapNotNull null
             if (!serviceInfo.exported) return@mapNotNull null
             val pkg = serviceInfo.packageName ?: return@mapNotNull null
-
-            // Client-side signature verification check for defense-in-depth!
-            val sigMatch = checkSignatureMatch(context, pkg)
-            if (!sigMatch) {
-                Log.w(TAG, "Rejecting extension " + pkg + " due to signature mismatch!")
-                return@mapNotNull null
-            }
-
             val cls = serviceInfo.name ?: return@mapNotNull null
             val id = "$pkg/$cls"
             handles.putIfAbsent(id, ExtensionHandle(packageName = pkg, serviceClassName = cls))
