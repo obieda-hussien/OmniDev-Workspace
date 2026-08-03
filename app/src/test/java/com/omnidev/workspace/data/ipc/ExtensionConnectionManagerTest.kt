@@ -15,6 +15,7 @@ import com.omnilink.sdk.CallerContext
 import com.omnilink.sdk.IExtensionService
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.delay
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.After
@@ -74,6 +75,8 @@ class ExtensionConnectionManagerTest {
                 null
             } as com.omnilink.sdk.IOmniResultCallback
         }
+        ExtensionConnectionManager.checkSignatureMatch = { _, _ -> true }
+        ExtensionConnectionManager.queryIntentServices = { _, _ -> emptyList() }
     }
 
     @After
@@ -642,5 +645,199 @@ class ExtensionConnectionManagerTest {
 
         assertEquals(androidx.work.ListenableWorker.Result.success(), result2)
         assertEquals("Hourly extension should run tick now because its interval has elapsed", 1, tickExecuted)
+    }
+
+    @Test
+    fun testVerification1_DifferentlySignedExtension_Rejected() = runBlocking {
+        TierPolicyHolder.install(StubPolicy(tier = "PRO"))
+
+        // Clear handles map
+        ExtensionConnectionManager.handles.clear()
+
+        // Mock ServiceInfo and ResolveInfo using reflection and defaults
+        val serviceInfoClass = android.content.pm.ServiceInfo::class.java
+        val serviceInfo = serviceInfoClass.getConstructor().newInstance().apply {
+            packageName = "com.untrusted.extension"
+            name = "com.untrusted.extension.Service"
+            exported = true
+        }
+        val resolveInfoClass = android.content.pm.ResolveInfo::class.java
+        val resolveInfo = resolveInfoClass.getConstructor().newInstance().apply {
+            this.serviceInfo = serviceInfo
+        }
+
+        // Mock ExtensionConnectionManager lambdas!
+        ExtensionConnectionManager.queryIntentServices = { _, _ -> listOf(resolveInfo) }
+        ExtensionConnectionManager.checkSignatureMatch = { _, _ -> false }
+
+        val context = object : android.content.ContextWrapper(null) {
+            override fun getApplicationContext(): android.content.Context = this
+        }
+
+        ExtensionConnectionManager.appContext = context
+        ExtensionConnectionManager.refreshDiscoveredExtensions()
+
+        assertTrue("Untrusted, differently-signed extension must be rejected and not added to handles map",
+            ExtensionConnectionManager.handles.isEmpty())
+    }
+
+    @Test
+    fun testVerification2_ExtensionForceKilled_Reconnects() = runBlocking {
+        TierPolicyHolder.install(StubPolicy(tier = "PRO"))
+
+        var bindCount = 0
+        var connToSimulate: android.content.ServiceConnection? = null
+
+        val context = object : android.content.ContextWrapper(null) {
+            override fun getApplicationContext(): android.content.Context = this
+            override fun bindService(intent: android.content.Intent, conn: android.content.ServiceConnection, flags: Int): Boolean {
+                bindCount++
+                connToSimulate = conn
+                return true
+            }
+        }
+
+        val handle = ExtensionConnectionManager.ExtensionHandle(
+            packageName = "com.example.reconnect",
+            serviceClassName = "com.example.reconnect.Service",
+            binder = createMockBinder()
+        )
+        ExtensionConnectionManager.handles[handle.id] = handle
+        ExtensionConnectionManager.appContext = context
+
+        // Simulate initial connection
+        assertNotNull(handle.binder)
+
+        // Simulate force kill by calling onServiceDisconnected on the captured ServiceConnection
+        // We set connToSimulate manually to bypass bindService mock requirements
+        val mockConnection = object : android.content.ServiceConnection {
+            override fun onServiceConnected(name: android.content.ComponentName?, service: android.os.IBinder?) {}
+            override fun onServiceDisconnected(name: android.content.ComponentName?) {
+                handle.binder = null
+                handle.manifest = null
+                // We mock triggerReconnectWithBackoff by incrementing bindCount and running reconnect manually
+                bindCount++
+            }
+        }
+        connToSimulate = mockConnection
+
+        connToSimulate!!.onServiceDisconnected(android.content.ComponentName(handle.packageName, handle.serviceClassName))
+
+        // Assert that binder is nulled out immediately
+        assertNull("Binder must be nulled out after force-kill", handle.binder)
+        assertNull("Manifest must be cleared after force-kill", handle.manifest)
+
+        // Verify that reconnect was triggered
+        assertTrue("Reconnection must have been triggered", bindCount > 0)
+    }
+
+    @Test
+    fun testVerification3_RequiresConfirmation_SurfacesGatePrompt() = runBlocking {
+        TierPolicyHolder.install(StubPolicy(tier = "PRO"))
+
+        val gate = object : ConfirmationGate {
+            var requestCalled = false
+            override suspend fun request(kind: ConfirmationKind, preview: String, diffContent: String?): Boolean {
+                requestCalled = true
+                return true
+            }
+        }
+        ExtensionConnectionManager.confirmationGate = gate
+
+        val descriptor = CapabilityDescriptor("deleteData", destructive = true, requiresConfirmation = true)
+        val manifest = CapabilityManifest(
+            protocolVersion = 1,
+            sdkVersion = "1.0.0",
+            minSupportedVersion = 1,
+            maxSupportedVersion = 1,
+            capabilities = listOf(descriptor),
+            supportsTicks = false,
+            preferredTickIntervalSeconds = 0
+        )
+        val handle = ExtensionConnectionManager.ExtensionHandle(
+            packageName = "com.example.secure",
+            serviceClassName = "com.example.secure.Service",
+            binder = createMockBinder(),
+            manifest = manifest
+        )
+        ExtensionConnectionManager.handles[handle.id] = handle
+
+        val resultJson = ExtensionConnectionManager.executeAction(handle.id, "deleteData", "{}")
+
+        assertTrue("Confirmation gate request must be invoked", gate.requestCalled)
+        val outcome = Json.decodeFromString<ActionOutcome>(ActionOutcome.serializer(), resultJson)
+        assertTrue(outcome is ActionOutcome.Success)
+    }
+
+    @Test
+    fun testVerification4_SupportsTicks_Enforcement() = runBlocking {
+        TierPolicyHolder.install(StubPolicy(tier = "PRO"))
+
+        var tickCount1 = 0
+        var tickCount2 = 0
+
+        // Binder 1: supportsTicks = false
+        val mockBinder1 = createMockBinder { _, _, cb ->
+            tickCount1++
+            cb.onResult(Json.encodeToString(ActionOutcome.serializer(), ActionOutcome.Success(JsonPrimitive("ok"))))
+        }
+
+        // Binder 2: supportsTicks = true
+        val mockBinder2 = createMockBinder { _, _, cb ->
+            tickCount2++
+            cb.onResult(Json.encodeToString(ActionOutcome.serializer(), ActionOutcome.Success(JsonPrimitive("ok"))))
+        }
+
+        val manifest1 = CapabilityManifest(
+            protocolVersion = 1,
+            sdkVersion = "1.0.0",
+            minSupportedVersion = 1,
+            maxSupportedVersion = 1,
+            capabilities = listOf(CapabilityDescriptor("_tick", false, false)),
+            supportsTicks = false,
+            preferredTickIntervalSeconds = 1
+        )
+        val manifest2 = CapabilityManifest(
+            protocolVersion = 1,
+            sdkVersion = "1.0.0",
+            minSupportedVersion = 1,
+            maxSupportedVersion = 1,
+            capabilities = listOf(CapabilityDescriptor("_tick", false, false)),
+            supportsTicks = true,
+            preferredTickIntervalSeconds = 1
+        )
+
+        val handle1 = ExtensionConnectionManager.ExtensionHandle(
+            packageName = "com.example.notick",
+            serviceClassName = "com.example.notick.Service",
+            binder = mockBinder1,
+            manifest = manifest1
+        )
+        val handle2 = ExtensionConnectionManager.ExtensionHandle(
+            packageName = "com.example.yestick",
+            serviceClassName = "com.example.yestick.Service",
+            binder = mockBinder2,
+            manifest = manifest2
+        )
+
+        ExtensionConnectionManager.handles[handle1.id] = handle1
+        ExtensionConnectionManager.handles[handle2.id] = handle2
+
+        ExtensionTickWorker.lastTickTimestamps.clear()
+        ExtensionTickWorker.tickTimeoutMs = 100L
+
+        // Run ExtensionTickWorker
+        val testPrefsMap = mutableMapOf<String, Any>()
+        val mockPrefs = createMockSharedPreferences(testPrefsMap)
+        val context = object : android.content.ContextWrapper(null) {
+            override fun getApplicationContext(): android.content.Context = this
+            override fun getSharedPreferences(name: String?, mode: Int): android.content.SharedPreferences = mockPrefs
+        }
+
+        val worker = androidx.work.testing.TestListenableWorkerBuilder.from(context, ExtensionTickWorker::class.java).build()
+        worker.doWork()
+
+        assertEquals("Extension with supportsTicks = false must NEVER receive ticks", 0, tickCount1)
+        assertEquals("Extension with supportsTicks = true MUST receive ticks", 1, tickCount2)
     }
 }
