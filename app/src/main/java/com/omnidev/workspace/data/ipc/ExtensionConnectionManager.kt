@@ -18,6 +18,8 @@ import com.omnilink.sdk.CapabilityManifest
 import com.omnilink.sdk.CallerContext
 import com.omnilink.sdk.IExtensionService
 import com.omnilink.sdk.OmniLinkConstants
+import com.omnilink.sdk.observeEvents
+import com.omnilink.sdk.OmniEvent
 import com.omnidev.workspace.core.policy.ConfirmationGate
 import com.omnidev.workspace.core.policy.ConfirmationKind
 import kotlinx.coroutines.CoroutineScope
@@ -293,6 +295,23 @@ object ExtensionConnectionManager {
 
                 CoroutineScope(Dispatchers.IO).launch {
                     fetchAndCacheManifest(handle)
+                    val binder = handle.binder
+                    val manifest = handle.manifest
+                    if (binder != null && manifest != null && manifest.protocolVersion >= 2) {
+                        try {
+                            binder.observeEvents().collect { event ->
+                                Log.i(TAG, "Received event from " + handle.id + ": " + event.name + " with payload: " + event.payload)
+                                com.omnidev.workspace.core.policy.OmniAuditLog.record(
+                                    tier = com.omnidev.workspace.core.policy.TierPolicyHolder.current.tier,
+                                    autoApproved = true,
+                                    kind = com.omnidev.workspace.core.policy.ConfirmationKind.ANDROID_INTENT,
+                                    preview = "Proactive event from " + handle.packageName + ": " + event.name + " -> " + event.payload
+                                )
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Error collecting events from " + handle.id + ": " + e.message)
+                        }
+                    }
                 }
             }
 
