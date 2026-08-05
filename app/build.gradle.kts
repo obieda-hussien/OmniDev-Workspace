@@ -12,13 +12,27 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("/home/jules/omni-ecosystem-keys/omni-release.keystore")
-            storePassword = System.getenv("OMNI_RELEASE_STORE_PASSWORD") ?: "07a801078a361f5c163312ef473df70b"
-            keyAlias = "omni_ecosystem_key"
-            keyPassword = System.getenv("OMNI_RELEASE_STORE_PASSWORD") ?: "07a801078a361f5c163312ef473df70b"
+            val storeFilePath = System.getenv("OMNI_RELEASE_STORE_FILE")
+            val storePass = System.getenv("OMNI_RELEASE_STORE_PASSWORD")
+            val keyPass = System.getenv("OMNI_RELEASE_KEY_PASSWORD") ?: storePass
+            val keyAli = System.getenv("OMNI_RELEASE_KEY_ALIAS") ?: "omni_ecosystem_key"
+
+            if (!storeFilePath.isNullOrBlank() && !storePass.isNullOrBlank()) {
+                storeFile = file(storeFilePath)
+                storePassword = storePass
+                keyAlias = keyAli
+                keyPassword = keyPass
+            } else {
+                println("WARNING: OMNI_RELEASE_STORE_FILE or OMNI_RELEASE_STORE_PASSWORD is not set. Release builds will not be signed correctly!")
+            }
         }
         getByName("debug") {
-            storeFile = file("/home/jules/omni-ecosystem-keys/omni-debug.keystore")
+            val debugStoreFilePath = System.getenv("OMNI_DEBUG_STORE_FILE")
+            if (!debugStoreFilePath.isNullOrBlank()) {
+                storeFile = file(debugStoreFilePath)
+            } else {
+                storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
+            }
             storePassword = "android"
             keyAlias = "androiddebugkey"
             keyPassword = "android"
