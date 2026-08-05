@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -10,12 +12,24 @@ android {
     namespace = "com.omnidev.workspace"
     compileSdk = 35
 
+    val localProperties = Properties()
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { localProperties.load(it) }
+    }
+
     signingConfigs {
         create("release") {
             val storeFilePath = System.getenv("OMNI_RELEASE_STORE_FILE")
+                ?: localProperties.getProperty("OMNI_RELEASE_STORE_FILE")
             val storePass = System.getenv("OMNI_RELEASE_STORE_PASSWORD")
-            val keyPass = System.getenv("OMNI_RELEASE_KEY_PASSWORD") ?: storePass
-            val keyAli = System.getenv("OMNI_RELEASE_KEY_ALIAS") ?: "omni_ecosystem_key"
+                ?: localProperties.getProperty("OMNI_RELEASE_STORE_PASSWORD")
+            val keyPass = System.getenv("OMNI_RELEASE_KEY_PASSWORD")
+                ?: localProperties.getProperty("OMNI_RELEASE_KEY_PASSWORD")
+                ?: storePass
+            val keyAli = System.getenv("OMNI_RELEASE_KEY_ALIAS")
+                ?: localProperties.getProperty("OMNI_RELEASE_KEY_ALIAS")
+                ?: "omni_ecosystem_key"
 
             if (!storeFilePath.isNullOrBlank() && !storePass.isNullOrBlank()) {
                 storeFile = file(storeFilePath)
@@ -28,6 +42,7 @@ android {
         }
         getByName("debug") {
             val debugStoreFilePath = System.getenv("OMNI_DEBUG_STORE_FILE")
+                ?: localProperties.getProperty("OMNI_DEBUG_STORE_FILE")
             if (!debugStoreFilePath.isNullOrBlank()) {
                 storeFile = file(debugStoreFilePath)
             } else {
