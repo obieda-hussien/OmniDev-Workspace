@@ -10,6 +10,21 @@ android {
     namespace = "com.omnidev.workspace"
     compileSdk = 35
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("/home/jules/omni-ecosystem-keys/omni-release.keystore")
+            storePassword = System.getenv("OMNI_RELEASE_STORE_PASSWORD") ?: "07a801078a361f5c163312ef473df70b"
+            keyAlias = "omni_ecosystem_key"
+            keyPassword = System.getenv("OMNI_RELEASE_STORE_PASSWORD") ?: "07a801078a361f5c163312ef473df70b"
+        }
+        getByName("debug") {
+            storeFile = file("/home/jules/omni-ecosystem-keys/omni-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.omnidev.workspace"
         minSdk = 24 // ممتاز، بيدعم أجهزة كتير، بس الوظائف الخارقة هتشتغل من 11+
@@ -197,7 +212,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true // لتقليل حجم التطبيق بعد الـ Proguard
             proguardFiles(

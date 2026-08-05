@@ -82,6 +82,7 @@ object ExtensionConnectionManager {
     internal val handles = ConcurrentHashMap<String, ExtensionHandle>()
     private val serviceConnections = ConcurrentHashMap<String, ServiceConnection>()
     private val reconnectJobs = ConcurrentHashMap<String, Job>()
+    private val eventJobs = ConcurrentHashMap<String, Job>()
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -292,8 +293,9 @@ object ExtensionConnectionManager {
                 handle.binder = IExtensionService.Stub.asInterface(service)
                 Log.i(TAG, "Connected extension: ${handle.id}")
                 reconnectJobs.remove(handle.id)?.cancel()
+                eventJobs.remove(handle.id)?.cancel()
 
-                CoroutineScope(Dispatchers.IO).launch {
+                val job = CoroutineScope(Dispatchers.IO).launch {
                     fetchAndCacheManifest(handle)
                     val binder = handle.binder
                     val manifest = handle.manifest
@@ -313,11 +315,13 @@ object ExtensionConnectionManager {
                         }
                     }
                 }
+                eventJobs[handle.id] = job
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
                 handle.binder = null
                 handle.manifest = null
+                eventJobs.remove(handle.id)?.cancel()
                 Log.w(TAG, "Disconnected extension: ${handle.id}")
                 triggerReconnectWithBackoff(handle)
             }
@@ -325,6 +329,7 @@ object ExtensionConnectionManager {
             override fun onBindingDied(name: ComponentName?) {
                 handle.binder = null
                 handle.manifest = null
+                eventJobs.remove(handle.id)?.cancel()
                 Log.w(TAG, "Binding died extension: ${handle.id}")
                 serviceConnections.remove(handle.id)
                 triggerReconnectWithBackoff(handle)
