@@ -403,6 +403,10 @@ jobs:
                     -alias "${KEY_ALIAS}" >/dev/null 2>&1; then
                     READY=true
                     echo "KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+                    echo "OMNI_RELEASE_STORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+                    echo "OMNI_RELEASE_STORE_PASSWORD=${KEYSTORE_PASSWORD}" >> "$GITHUB_ENV"
+                    echo "OMNI_RELEASE_KEY_ALIAS=${KEY_ALIAS}" >> "$GITHUB_ENV"
+                    echo "OMNI_RELEASE_KEY_PASSWORD=${KEY_PASSWORD}" >> "$GITHUB_ENV"
                   else
                     REASON="Keystore loaded, but alias '${KEY_ALIAS}' does not exist."
                   fi
