@@ -490,16 +490,14 @@ class ToolAwarenessEngine(
         source: String = "auto_discovery"
     ) {
         try {
-            systemKnowledgeDao.insert(
-                SystemKnowledgeEntry(
-                    knowledgeType = type,
-                    subject = subject,
-                    content = content,
-                    confidence = confidence,
-                    injectionPriority = priority,
-                    searchTags = tags,
-                    source = source
-                )
+            systemKnowledgeDao.upsertKnowledge(
+                category = type,
+                key = subject,
+                content = content,
+                confidence = confidence,
+                injectionPriority = priority,
+                searchTags = tags,
+                source = source
             )
         } catch (e: Exception) {
             Log.w(TAG, "فشل في حفظ المعرفة: $subject - ${e.message}")
@@ -515,19 +513,7 @@ class ToolAwarenessEngine(
         tags: String = "",
         source: String = "auto_discovery"
     ) {
-        val existing = systemKnowledgeDao.getBySubject(subject).firstOrNull { it.knowledgeType == type }
-        if (existing != null) {
-            systemKnowledgeDao.update(
-                existing.copy(
-                    content = content,
-                    confidence = confidence,
-                    verificationCount = existing.verificationCount + 1,
-                    updatedAt = System.currentTimeMillis()
-                )
-            )
-        } else {
-            saveKnowledge(type, subject, content, confidence, priority, tags, source)
-        }
+        saveKnowledge(type, subject, content, confidence, priority, tags, source)
     }
 
     private fun isPackageInstalled(packageName: String): Boolean {

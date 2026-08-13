@@ -441,6 +441,7 @@ private fun KnowledgeEntryCard(
     var editedContent by remember(entry.id) { mutableStateOf(entry.content) }
     var editedConfidence by remember(entry.id) { mutableStateOf(entry.confidence.toString()) }
     var validationError by remember(entry.id) { mutableStateOf<String?>(null) }
+    val canManuallyManage = !isAutoDetectedSystemCapability(entry)
 
     LaunchedEffect(showEditDialog, entry.id, entry.subject, entry.content, entry.confidence) {
         if (showEditDialog) {
@@ -498,38 +499,40 @@ private fun KnowledgeEntryCard(
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    IconButton(
-                        onClick = { showEditDialog = true },
-                        modifier = Modifier.size(24.dp)
+                if (canManuallyManage) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "تعديل المعرفة",
-                            tint = color,
-                            modifier = Modifier.size(15.dp)
-                        )
-                    }
-                    IconButton(
-                        onClick = { onDeleteEntry(entry.id) },
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "حذف المعرفة",
-                            tint = Color(0xFFF44336),
-                            modifier = Modifier.size(15.dp)
-                        )
+                        IconButton(
+                            onClick = { showEditDialog = true },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Edit,
+                                contentDescription = "تعديل المعرفة",
+                                tint = color,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = { onDeleteEntry(entry.id) },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "حذف المعرفة",
+                                tint = Color(0xFFF44336),
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
                     }
                 }
             }
         }
     }
 
-    if (showEditDialog) {
+    if (canManuallyManage && showEditDialog) {
         AlertDialog(
             onDismissRequest = { showEditDialog = false },
             confirmButton = {
@@ -581,9 +584,16 @@ private fun KnowledgeEntryCard(
                         )
                     }
                 }
+
             }
         )
     }
+}
+
+private fun isAutoDetectedSystemCapability(entry: SystemKnowledgeEntry): Boolean {
+    if (entry.source != "auto_discovery") return false
+    return entry.knowledgeType == ToolAwarenessEngine.TYPE_SYSTEM_CAPABILITY ||
+        entry.knowledgeType == ToolAwarenessEngine.TYPE_SYSTEM_INFO
 }
 
 @Composable
