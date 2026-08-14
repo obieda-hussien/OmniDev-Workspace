@@ -896,7 +896,7 @@ class ChatViewModel(
                             AgentConsoleEntry.ResultEntry(event.toolName, snippet, event.isError, event.output, durationMs)
                     )
                 }
-                viewModelScope.launch { analyticsRepository?.recordToolUsage(event.toolName) }
+                viewModelScope.launch { analyticsRepository?.recordToolUsage(event.toolName, success = true, durationMs = 0L) }
             }
 
             is AgentEvent.TokenUsageUpdate ->

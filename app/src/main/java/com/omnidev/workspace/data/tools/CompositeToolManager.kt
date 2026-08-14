@@ -47,7 +47,6 @@ class CompositeToolManager(
     private val environmentSetupManager: EnvironmentSetupManager? = null,
     private val settingsRepository: SettingsRepository? = null,
     private val godEyeProfilerTool: GodEyeProfilerTool? = null,
-    private val discordPublisherTool: DiscordPublisherTool? = null,
     private val notionPublisherTool: NotionPublisherTool? = null,
     val vectorMemoryManager: VectorMemoryManager? = null,
     val headlessBrowserManager: HeadlessBrowserManager? = null,
@@ -168,7 +167,6 @@ class CompositeToolManager(
         addAll(LocationTool.getToolDefinitions())
         addAll(DeviceInfoTool.getToolDefinitions())
         addAll(AppManagerTool.getToolDefinitions())
-            addAll(DirectTerminalTool.getToolDefinitions())
         addAll(LogcatAnalyzerTool.getToolDefinitions())
         addAll(GitManagerTool.getToolDefinitions())
         if (environmentSetupManager != null) {
@@ -180,18 +178,13 @@ class CompositeToolManager(
         addAll(N8nAutomationTool.getToolDefinitions())
         addAll(VisualInspectorTool.getToolDefinitions())
         addAll(UIReplicaPipelineTool.getToolDefinitions())
-        addAll(TelegramPublisherTool.getToolDefinitions())
         addAll(TelegramBotTool.getToolDefinitions())
         addAll(DiscordBotTool.getToolDefinitions())
         addAll(SlackTool.getToolDefinitions())
         addAll(SendGridEmailTool.getToolDefinitions())
         clipboardTool?.let { addAll(it.getToolDefinitions()) }
         addAll(WhatsAppTool.getToolDefinitions())
-        addAll(WhatsAppBridgeTool.getToolDefinitions())
         addAll(GitHubManagerTool.getToolDefinitions())
-        if (discordPublisherTool != null) {
-            addAll(DiscordPublisherTool.getToolDefinitions())
-        }
         if (notionPublisherTool != null) {
             addAll(NotionPublisherTool.getToolDefinitions())
         }
@@ -208,7 +201,6 @@ class CompositeToolManager(
             addAll(SystemSettingsTool.getToolDefinitions())
             addAll(PackageInstallerTool.getToolDefinitions())
             addAll(AdvancedRootShellTool.getToolDefinitions())
-            addAll(AppManifestAnalyzerTool.getToolDefinitions())
             // Enhanced manifest analyzer companion tool
             add(ToolDefinition(
                 name = "enhanced_manifest_analyzer",
@@ -683,16 +675,6 @@ class CompositeToolManager(
 
 
             // ── Telegram publisher tool ──
-            "telegram_publish" -> {
-                val botToken = settingsRepository?.observeTelegramBotToken()?.first()
-                val chatId = settingsRepository?.observeTelegramChatId()?.first()
-                TelegramPublisherTool.execute(
-                    botToken = botToken,
-                    chatId = chatId,
-                    message = arguments["message"] ?: return missingArg("message"),
-                    parseMode = arguments["parseMode"] ?: "Markdown"
-                )
-            }
 
             // ── Telegram bot tool ──
             "telegram_bot" -> {
@@ -705,21 +687,13 @@ class CompositeToolManager(
                 val botToken = settingsRepository?.observeDiscordBotToken()?.first()
                 DiscordBotTool.execute(botToken = botToken, args = arguments)
             }
-            "execute_terminal_command" -> {
-                val ctx = context ?: return ToolExecutionResult("Terminal tool requires Android context.", isError = true)
-                DirectTerminalTool.execute(ctx, arguments)
-            }
 
             // ── WhatsApp tools ──
             "whatsapp" -> {
                 val phoneNumberId = settingsRepository?.observeWhatsAppPhoneNumberId()?.first()
                 val accessToken   = settingsRepository?.observeWhatsAppAccessToken()?.first()
-                WhatsAppTool.execute(phoneNumberId = phoneNumberId, accessToken = accessToken, args = arguments)
-            }
-
-            "whatsapp_bridge" -> {
                 val bridgeUrl = settingsRepository?.observeWhatsAppBridgeUrl()?.first()
-                WhatsAppBridgeTool.execute(bridgeUrl = bridgeUrl, args = arguments)
+                WhatsAppTool.execute(phoneNumberId, accessToken, bridgeUrl, arguments)
             }
 
             // ── Slack tool ──
@@ -756,11 +730,6 @@ class CompositeToolManager(
             }
 
             // ── Discord & Notion publishers ──
-            "publish_to_discord" -> {
-                val discord = discordPublisherTool
-                    ?: return ToolExecutionResult("Discord publisher tool not configured.", isError = true)
-                discord.execute(arguments)
-            }
 
             "create_notion_page" -> {
                 val notion = notionPublisherTool
@@ -863,7 +832,7 @@ class CompositeToolManager(
             "app_manifest_analyzer" -> {
                 val ctx = context
                     ?: return ToolExecutionResult("App analyzer tool requires Android context.", isError = true)
-                AppManifestAnalyzerTool.execute(
+                EnhancedAppManifestAnalyzerTool.execute(
                     context = ctx,
                     targetPackage = arguments["target_package"] ?: return missingArg("target_package"),
                     filter = arguments["filter"]
@@ -897,7 +866,7 @@ class CompositeToolManager(
             "intent_resolver" -> {
                 val ctx = context
                     ?: return ToolExecutionResult("Intent resolver tool requires Android context.", isError = true)
-                AppManifestAnalyzerTool.executeIntentResolver(
+                EnhancedAppManifestAnalyzerTool.executeIntentResolver(
                     context = ctx,
                     action = arguments["action"],
                     uri = arguments["uri"],
@@ -937,7 +906,7 @@ class CompositeToolManager(
             "batch_manifest_analyzer" -> {
                 val ctx = context
                     ?: return ToolExecutionResult("Batch manifest analyzer requires Android context.", isError = true)
-                AppManifestAnalyzerTool.executeBatch(
+                EnhancedAppManifestAnalyzerTool.executeBatch(
                     context = ctx,
                     packages = arguments["packages"] ?: return missingArg("packages")
                 )

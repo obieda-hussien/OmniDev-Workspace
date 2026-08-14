@@ -1,7 +1,9 @@
 package com.omnidev.workspace.data.tools
 
+import com.omnidev.workspace.core.policy.ConfirmationGate
+import com.omnidev.workspace.core.policy.ConfirmationKind
 import com.omnidev.workspace.data.ipc.RishShellManager
-import com.omnidev.workspace.data.tools.ShizukuCommandTool
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -20,14 +22,24 @@ object DirectTerminalTool {
         )
     )
 
-    suspend fun execute(context: android.content.Context, args: Map<String, String>): ToolExecutionResult = withContext(Dispatchers.IO) {
+    suspend fun execute(context: android.content.Context, args: Map<String, String>, confirmationGate: com.omnidev.workspace.core.policy.ConfirmationGate): ToolExecutionResult = withContext(Dispatchers.IO) {
         val command = args["command"] ?: return@withContext ToolExecutionResult("command is required.", isError = true)
         val timeoutMs = args["timeout"]?.toLongOrNull() ?: 30_000L
+
+        // Route through ConfirmationGate to ensure user authorization and proper audit logging for raw shell execution
+        val gateResult = confirmationGate.request(
+            ConfirmationKind.SHIZUKU_COMMAND,
+            preview = command,
+            diffContent = null
+        )
+        if (!gateResult) {
+            return@withContext ToolExecutionResult("Terminal execution denied by user.", isError = true)
+        }
 
         // If Rish/Shizuku is available, run it. Otherwise, default runtime exec.
         val result = withTimeoutOrNull(timeoutMs) {
             try {
-                if (ShizukuCommandTool.isAvailable()) {
+                if (com.omnidev.workspace.data.tools.ShizukuCommandTool.isAvailable()) {
                     val rishResult = RishShellManager(context).executeScript(command)
                     if (rishResult.isSuccess) {
                         ToolExecutionResult(rishResult.getOrNull() ?: "(no output)")

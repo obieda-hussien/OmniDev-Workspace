@@ -36,6 +36,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -1095,11 +1096,11 @@ private fun DailyTimelineSection(days: List<DailyUsage>) {
 @Composable
 private fun TopToolsSection(stats: AnalyticsStats) {
     val sorted = stats.toolUsageCount.entries
-        .sortedByDescending { it.value }
+        .sortedByDescending { it.value.executionCount }
         .take(10)
 
-    val maxCount = sorted.firstOrNull()?.value?.let { max(it, 1) } ?: 1
-    val totalToolCalls = stats.toolUsageCount.values.sum()
+    val maxCount = sorted.firstOrNull()?.value?.executionCount?.let { max(it, 1L) } ?: 1L
+    val totalToolCalls = stats.toolUsageCount.values.sumOf { it.executionCount }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1117,8 +1118,8 @@ private fun TopToolsSection(stats: AnalyticsStats) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             sorted.forEachIndexed { index, (toolName, count) ->
-                val fraction = count.toFloat() / maxCount.toFloat()
-                val share = if (totalToolCalls > 0) count.toDouble() / totalToolCalls.toDouble() else 0.0
+                val fraction = count.executionCount.toFloat() / maxCount.toFloat()
+                val share = if (totalToolCalls > 0) count.executionCount.toDouble() / totalToolCalls.toDouble() else 0.0
                 val bgColor = if (index % 2 == 0) {
                     MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
                 } else {
@@ -1128,57 +1129,45 @@ private fun TopToolsSection(stats: AnalyticsStats) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(bgColor)
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        .background(bgColor, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "${index + 1}.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(22.dp)
-                    )
                     Text(
                         text = toolName,
                         style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(0.4f)
                     )
-                    Canvas(
-                        modifier = Modifier
-                            .width(60.dp)
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                    ) {
-                        drawRect(
-                            color = Color.LightGray.copy(alpha = 0.3f),
-                            topLeft = Offset.Zero,
-                            size = Size(size.width, size.height)
-                        )
-                        drawRect(
-                            color = Color(0xFF10A37F),
-                            topLeft = Offset.Zero,
-                            size = Size(size.width * fraction, size.height)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(0.6f)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            Text(
+                                text = "${formatLargeNumber(count.executionCount)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "${(share * 100).toInt()}% • ${(count.successRate * 100).toInt()}% succ • ${count.averageDurationMs.toInt()}ms avg",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        LinearProgressIndicator(
+                            progress = { fraction },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.primaryContainer
                         )
                     }
-                    Text(
-                        text = "$count",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.width(36.dp).wrapContentHeight(),
-                        textAlign = TextAlign.End
-                    )
-                    Text(
-                        text = formatPercent(share),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.width(40.dp),
-                        textAlign = TextAlign.End
-                    )
                 }
             }
         }

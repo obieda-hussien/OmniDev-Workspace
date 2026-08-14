@@ -75,7 +75,6 @@ class MainActivity : ComponentActivity() {
         val fileToolManager = FileToolManager()
         val environmentSetupManager = EnvironmentSetupManager
         val godEyeProfilerTool = GodEyeProfilerTool(applicationContext, ShizukuCommandTool)
-        val discordPublisherTool = com.omnidev.workspace.data.tools.DiscordPublisherTool(settingsRepository)
         val notionPublisherTool = com.omnidev.workspace.data.tools.NotionPublisherTool(settingsRepository)
 
         // ── Agent Brain 2.0 + Action Insurance + Repo Context + Build Doctor Pro ──
@@ -97,7 +96,7 @@ class MainActivity : ComponentActivity() {
             environmentSetupManager = environmentSetupManager,
             settingsRepository = settingsRepository,
             godEyeProfilerTool = godEyeProfilerTool,
-            discordPublisherTool = discordPublisherTool,
+
             notionPublisherTool = notionPublisherTool,
             vectorMemoryManager = VectorMemoryManager(database.knowledgeDao()),
             apiKeyRepository = apiKeyRepository,
