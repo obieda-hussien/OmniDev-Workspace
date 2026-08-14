@@ -1,5 +1,3 @@
-import java.util.Properties
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -11,48 +9,6 @@ plugins {
 android {
     namespace = "com.omnidev.workspace"
     compileSdk = 35
-
-    val localProperties = Properties()
-    val localPropertiesFile = rootProject.file("local.properties")
-    if (localPropertiesFile.exists()) {
-        localPropertiesFile.inputStream().use { localProperties.load(it) }
-    }
-
-    signingConfigs {
-        create("release") {
-            val storeFilePath = System.getenv("OMNI_RELEASE_STORE_FILE")
-                ?: localProperties.getProperty("OMNI_RELEASE_STORE_FILE")
-            val storePass = System.getenv("OMNI_RELEASE_STORE_PASSWORD")
-                ?: localProperties.getProperty("OMNI_RELEASE_STORE_PASSWORD")
-            val keyPass = System.getenv("OMNI_RELEASE_KEY_PASSWORD")
-                ?: localProperties.getProperty("OMNI_RELEASE_KEY_PASSWORD")
-                ?: storePass
-            val keyAli = System.getenv("OMNI_RELEASE_KEY_ALIAS")
-                ?: localProperties.getProperty("OMNI_RELEASE_KEY_ALIAS")
-                ?: "omni_ecosystem_key"
-
-            if (!storeFilePath.isNullOrBlank() && !storePass.isNullOrBlank()) {
-                storeFile = file(storeFilePath)
-                storePassword = storePass
-                keyAlias = keyAli
-                keyPassword = keyPass
-            } else {
-                println("WARNING: OMNI_RELEASE_STORE_FILE or OMNI_RELEASE_STORE_PASSWORD is not set. Release builds will not be signed correctly!")
-            }
-        }
-        getByName("debug") {
-            val debugStoreFilePath = System.getenv("OMNI_DEBUG_STORE_FILE")
-                ?: localProperties.getProperty("OMNI_DEBUG_STORE_FILE")
-            if (!debugStoreFilePath.isNullOrBlank()) {
-                storeFile = file(debugStoreFilePath)
-            } else {
-                storeFile = file(System.getProperty("user.home") + "/.android/debug.keystore")
-            }
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
-    }
 
     defaultConfig {
         applicationId = "com.omnidev.workspace"
@@ -241,7 +197,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true // لتقليل حجم التطبيق بعد الـ Proguard
             proguardFiles(
@@ -326,7 +282,6 @@ android.applicationVariants.configureEach {
 }
 
 dependencies {
-    implementation("com.github.obieda-hussien:OmniLinkSDK:v1.0.0")
     implementation("org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r")
 
     // ── Core & Lifecycle ──
@@ -396,7 +351,6 @@ dependencies {
     implementation(libs.mlkit.text.recognition)
 
     // ── Testing ──
-    testImplementation("androidx.work:work-testing:2.10.0")
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.org.json)

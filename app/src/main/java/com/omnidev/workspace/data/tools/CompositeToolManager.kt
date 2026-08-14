@@ -168,6 +168,7 @@ class CompositeToolManager(
         addAll(LocationTool.getToolDefinitions())
         addAll(DeviceInfoTool.getToolDefinitions())
         addAll(AppManagerTool.getToolDefinitions())
+            addAll(DirectTerminalTool.getToolDefinitions())
         addAll(LogcatAnalyzerTool.getToolDefinitions())
         addAll(GitManagerTool.getToolDefinitions())
         if (environmentSetupManager != null) {
@@ -703,6 +704,10 @@ class CompositeToolManager(
             "discord_bot" -> {
                 val botToken = settingsRepository?.observeDiscordBotToken()?.first()
                 DiscordBotTool.execute(botToken = botToken, args = arguments)
+            }
+            "execute_terminal_command" -> {
+                val ctx = context ?: return ToolExecutionResult("Terminal tool requires Android context.", isError = true)
+                DirectTerminalTool.execute(ctx, arguments)
             }
 
             // ── WhatsApp tools ──

@@ -38,5 +38,10 @@ data class ChatMessageEntity(
     val timestamp: Long = System.currentTimeMillis(),
     val consoleEntriesJson: String = "",
     val messageId: String = "",
-    val replyToMessageId: String? = null
+    val replyToMessageId: String? = null,
+    val promptTokens: Int = 0,
+    val completionTokens: Int = 0,
+    val totalTokens: Int = 0,
+    val costUSD: Double = 0.0,
+    val modelId: String? = null
 )

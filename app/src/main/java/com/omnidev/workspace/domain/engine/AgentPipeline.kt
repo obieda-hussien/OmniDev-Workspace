@@ -633,14 +633,27 @@ Rules:
         }
 
         // Build the complete system prompt with tool definitions
+        // Predict the user's intent to lazily inject tools and reduce prompt payload.
+        val intentMode = IntentClassifier.classify(userMessage)
+
+        // Build the complete system prompt with tool definitions
         val localToolDefs = toolManager.getToolDefinitions()
             .filter { it.name !in disabledToolNames }
+            .filter { def ->
+                // Filter tools based on intent classification to save context window tokens
+                when (intentMode) {
+                    OmniMode.CHAT -> {
+                        // In CHAT mode, only give read-only and web tools
+                        def.name in listOf("web_search", "fetch_url", "read_file", "list_files", "search_codebase", "get_current_datetime")
+                    }
+                    else -> true // AGENT or SWARM gets all enabled tools
+                }
+            }
         val mcpTools = try { mcpRegistry?.fetchAllAvailableTools() ?: emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() } catch(e: Exception) { emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() }
-        val extensionTools = try { com.omnidev.workspace.data.ipc.ExtensionConnectionManager.getExtensionToolDefinitions() } catch (e: Exception) { emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() }
-        val toolDefs = localToolDefs + mcpTools + extensionTools
+        val toolDefs = localToolDefs + mcpTools
         // Register tool definitions with the brain so it is aware of all available capabilities
         smartLearningBridge?.registerTools(toolDefs)
-        val toolSchemaText = "\n[DYNAMIC MCP TOOLS AWARENESS]\n- You are equipped with a dynamic Model Context Protocol (MCP) client.\n- In addition to your local Android terminal tools, you may see tools prefixed with `mcp_` in your tool list. \n- These are remote tools provided by the user's connected services (e.g., GitHub, Render, Custom APIs).\n- Treat these `mcp_` tools exactly like local tools. If a task requires cloud infrastructure, repo management, or external data, prioritize checking your available MCP tools.\n\n[DYNAMIC EXTENSION TOOLS AWARENESS]\n- You are equipped with dynamic client-side Extension Tools.\n- You may see tools prefixed with `ext_` in your tool list (e.g., `ext_[appName]_[action]`).\n- These allow you to execute capabilities on bound client extensions.\n- Treat these `ext_` tools exactly like other tools. They require a `payload` parameter containing the JSON payload arguments.\n" + "\n" + toolDefs.joinToString("\n\n") { tool ->
+        val toolSchemaText = "\n[DYNAMIC MCP TOOLS AWARENESS]\n- You are equipped with a dynamic Model Context Protocol (MCP) client.\n- In addition to your local Android terminal tools, you may see tools prefixed with `mcp_` in your tool list. \n- These are remote tools provided by the user's connected services (e.g., GitHub, Render, Custom APIs).\n- Treat these `mcp_` tools exactly like local tools. If a task requires cloud infrastructure, repo management, or external data, prioritize checking your available MCP tools.\n" + "\n" + toolDefs.joinToString("\n\n") { tool ->
             buildString {
                 appendLine("### Tool: ${tool.name}")
                 appendLine(tool.description)
@@ -1031,24 +1044,6 @@ Rules:
                                     if (toolCall.name.startsWith("mcp_")) {
                                         val output = mcpRegistry?.executeMcpTool(toolCall.name, toolCall.arguments) ?: "MCP Registry not configured"
                                         com.omnidev.workspace.data.tools.ToolExecutionResult(output = output)
-                                    } else if (toolCall.name.startsWith("ext_")) {
-                                        val parsed = com.omnidev.workspace.data.ipc.ExtensionConnectionManager.parseToolName(toolCall.name)
-                                        val (appName, actionName) = parsed ?: ("" to "")
-                                        if (appName.isBlank() || actionName.isBlank()) {
-                                            com.omnidev.workspace.data.tools.ToolExecutionResult(output = "Error: Invalid extension tool name format.", isError = true)
-                                        } else {
-                                            val payload = toolCall.arguments["payload"] ?: run {
-                                                val obj = org.json.JSONObject()
-                                                toolCall.arguments.forEach { (k, v) -> obj.put(k, v) }
-                                                obj.toString()
-                                            }
-                                            val output = com.omnidev.workspace.data.ipc.ExtensionConnectionManager.execute(
-                                                appName = appName,
-                                                actionName = actionName,
-                                                jsonPayload = payload
-                                            )
-                                            com.omnidev.workspace.data.tools.ToolExecutionResult(output = output)
-                                        }
                                     } else {
                                         toolManager.executeTool(
                                             name = toolCall.name,
@@ -1081,24 +1076,6 @@ Rules:
                             if (toolCall.name.startsWith("mcp_")) {
                                 val output = mcpRegistry?.executeMcpTool(toolCall.name, toolCall.arguments) ?: "MCP Registry not configured"
                                 com.omnidev.workspace.data.tools.ToolExecutionResult(output = output)
-                            } else if (toolCall.name.startsWith("ext_")) {
-                                val parsed = com.omnidev.workspace.data.ipc.ExtensionConnectionManager.parseToolName(toolCall.name)
-                                val (appName, actionName) = parsed ?: ("" to "")
-                                if (appName.isBlank() || actionName.isBlank()) {
-                                    com.omnidev.workspace.data.tools.ToolExecutionResult(output = "Error: Invalid extension tool name format.", isError = true)
-                                } else {
-                                    val payload = toolCall.arguments["payload"] ?: run {
-                                        val obj = org.json.JSONObject()
-                                        toolCall.arguments.forEach { (k, v) -> obj.put(k, v) }
-                                        obj.toString()
-                                    }
-                                    val output = com.omnidev.workspace.data.ipc.ExtensionConnectionManager.execute(
-                                        appName = appName,
-                                        actionName = actionName,
-                                        jsonPayload = payload
-                                    )
-                                    com.omnidev.workspace.data.tools.ToolExecutionResult(output = output)
-                                }
                             } else {
                                 toolManager.executeTool(
                                     name = toolCall.name,
@@ -1457,15 +1434,10 @@ Rules:
             val inputTokens = usage?.promptTokens ?: 0
             val outputTokens = usage?.completionTokens ?: 0
 
-            val cost = if (model != null && usage != null) {
-                val inCost = (model.costPer1MInputTokens ?: 0.0) * inputTokens / 1_000_000.0
-                val outCost = (model.costPer1MOutputTokens ?: 0.0) * outputTokens / 1_000_000.0
-                inCost + outCost
-            } else {
-                0.0
-            }
+            val cost = com.omnidev.workspace.data.repository.DynamicPricingManager.calculateCost(request.modelId, inputTokens, outputTokens)
 
             repo.recordTokenUsage(
+
                 modelId = request.modelId,
                 provider = model?.provider,
                 inputTokens = inputTokens,

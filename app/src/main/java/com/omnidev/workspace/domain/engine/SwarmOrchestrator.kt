@@ -6,6 +6,7 @@ import com.omnidev.workspace.data.model.CompletionResponse
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.tools.ToolManager
 import com.omnidev.workspace.registry.ModelRegistry
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -54,24 +55,27 @@ You are Omni-Orchestrator, a Universal AI Manager.
 
 Your job is to:
 1. Analyze the user's request and determine the DOMAIN: Coding, Web Research, System/OS Control, or General Assistance.
-2. Decompose the request into a prioritized list of independent or sequential sub-tasks.
-3. For EACH sub-task, assign the most appropriate specialist worker persona.
+2. Decompose the request into a **Sequential Stage Pipeline**:
+   - Stage 1: Planner (e.g. gather context, research, plan changes)
+   - Stage 2: Executor (e.g. implement changes, write code, run commands)
+   - Stage 3: Verifier (e.g. review changes, test, validate requirements)
+3. For EACH stage, assign the most appropriate specialist worker persona.
 
 Worker persona examples (choose the best fit per task):
 - "Senior Android/Kotlin Developer" — for code, build, debugging tasks
 - "Senior Web Researcher and News Analyst" — for search, research, summarization
 - "System Administrator and DevOps Engineer" — for OS control, shell, deployment
+- "QA and Security Engineer" — for verification, testing, security review
 - "General Assistant" — for writing, planning, Q&A, creative tasks
-- "Data Analyst" — for processing data, creating reports
-- "Security Engineer" — for vulnerability analysis, penetration testing concepts
 
-Respond with a JSON array of task objects:
+Respond with a JSON array of task objects (always strictly follow the 3-stage pipeline):
 [
-  {"id": "task-1", "description": "...", "priority": 1, "dependencies": [], "requiredPersona": "Senior Web Researcher and News Analyst"},
-  {"id": "task-2", "description": "...", "priority": 2, "dependencies": ["task-1"], "requiredPersona": "Senior Android/Kotlin Developer"}
+  {"id": "stage-1-planner", "description": "...", "priority": 1, "dependencies": [], "requiredPersona": "Senior Web Researcher and News Analyst"},
+  {"id": "stage-2-executor", "description": "...", "priority": 2, "dependencies": ["stage-1-planner"], "requiredPersona": "Senior Android/Kotlin Developer"},
+  {"id": "stage-3-verifier", "description": "...", "priority": 3, "dependencies": ["stage-2-executor"], "requiredPersona": "QA and Security Engineer"}
 ]
 
-Keep task count reasonable (max 10). Merge trivial steps into larger tasks.
+Do NOT include code — just planning, task descriptions, and persona assignments.
 Do NOT include code — just planning, task descriptions, and persona assignments.
 """
 
@@ -206,23 +210,26 @@ CRITICAL INSTRUCTIONS:
             remaining.removeAll(readyNow)
 
             // Execute all ready tasks concurrently within a coroutineScope
-            coroutineScope {
-                val deferredResults = readyNow.map { task ->
-                    async {
-                        send(SwarmEvent.TaskStarted(task))
+            // Execute all ready tasks sequentially to prevent CPU thermal throttling
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default.limitedParallelism(2)) {
+                // Lower thread priority to background to prevent UI lag and phone freezing
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
 
-                        val dependencyContext = task.dependencies.mapNotNull { depId ->
-                            completedTasks[depId]?.let { result -> "[$depId result]: $result" }
-                        }.joinToString("\n")
+                for (task in readyNow) {
+                    send(SwarmEvent.TaskStarted(task))
 
-                        val workerPrompt = buildString {
-                            appendLine("## Sub-Task: ${task.description}")
-                            if (godModeEnabled) {
-                                appendLine("\n[GOD MODE ENABLED]: You have full root file system access.")
-                            }
-                            if (dependencyContext.isNotEmpty()) {
-                                appendLine()
-                                appendLine("## Context from prior tasks:")
+                    val dependencyContext = task.dependencies.mapNotNull { depId ->
+                        completedTasks[depId]?.let { result -> "[$depId result]: $result" }
+                    }.joinToString("\n")
+
+                    val workerPrompt = buildString {
+                        appendLine("## Sub-Task: ${task.description}")
+                        if (godModeEnabled) {
+                            appendLine("\n[GOD MODE ENABLED]: You have full root file system access.")
+                        }
+                        if (dependencyContext.isNotEmpty()) {
+                            appendLine()
+                            appendLine("## Context from prior tasks:")
                                 appendLine(dependencyContext)
                             }
                         }
@@ -261,27 +268,17 @@ CRITICAL INSTRUCTIONS:
                             }
                         }
 
-                        Triple(task, taskResult, taskError)
-                    }
-                }
-
-                // Collect results and update shared maps (sequentially after all tasks finish)
-                deferredResults.awaitAll().forEach { (task, result, error) ->
-                    if (error != null) {
-                        // Preserve any partial output alongside the error for debugging
-                        val errorMsg = if (result.isNotBlank()) "$error\n[Partial output]: $result" else error
-                        failedTasks[task.id] = errorMsg
-                        // Also register in completedTasks so that dependent tasks are not
-                        // blocked — they will receive the failure context and can attempt
-                        // recovery or continue working around it.
-                        completedTasks[task.id] = "[FAILED] $errorMsg"
-                        send(SwarmEvent.TaskFailed(task, errorMsg))
-                    } else {
-                        completedTasks[task.id] = result
-                        send(SwarmEvent.TaskCompleted(task, result))
-                    }
-                }
-            }
+                        if (taskError != null) {
+                            val errorMsg = if (taskResult.isNotBlank()) "$taskError\n[Partial output]: $taskResult" else taskError
+                            failedTasks[task.id] = errorMsg
+                            completedTasks[task.id] = "[FAILED] $errorMsg"
+                            send(SwarmEvent.TaskFailed(task, errorMsg))
+                        } else {
+                            completedTasks[task.id] = taskResult
+                            send(SwarmEvent.TaskCompleted(task, taskResult))
+                        }
+                    } // end sequential loop
+                } // end withContext
         }
 
         // ── Phase 3: Synthesize ──

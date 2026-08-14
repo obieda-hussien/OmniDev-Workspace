@@ -1,7 +1,6 @@
 package com.omnidev.workspace.data.db.entities
 
 import androidx.room.Entity
-import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
@@ -13,10 +12,7 @@ import androidx.room.PrimaryKey
  * - الأنماط والأفضليات المكتسبة
  * - التحذيرات والملاحظات المهمة
  */
-@Entity(
-    tableName = "system_knowledge",
-    indices = [Index(value = ["knowledgeType", "subject"], unique = true)]
-)
+@Entity(tableName = "system_knowledge")
 data class SystemKnowledgeEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
 

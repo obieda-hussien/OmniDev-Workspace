@@ -64,7 +64,7 @@ import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
         // ── Build Doctor Pro (v10) ────────────────────────
         BuildDiagnosticEntry::class
     ],
-    version = 11,
+    version = 10,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -523,32 +523,6 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
-        /**
-         * Migration from v10 → v11:
-         * Deduplicates system knowledge rows by (knowledgeType, subject), then
-         * enforces a unique index for future writes.
-         */
-        val MIGRATION_10_11 = object : Migration(10, 11) {
-            override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL(
-                    """
-                    DELETE FROM system_knowledge
-                    WHERE id NOT IN (
-                        SELECT MAX(id)
-                        FROM system_knowledge
-                        GROUP BY knowledgeType, subject
-                    )
-                    """.trimIndent()
-                )
-                db.execSQL(
-                    """
-                    CREATE UNIQUE INDEX IF NOT EXISTS `index_system_knowledge_knowledgeType_subject`
-                    ON system_knowledge(knowledgeType, subject)
-                    """.trimIndent()
-                )
-            }
-        }
-
         private fun SupportSQLiteDatabase.scalarLong(sql: String): Long =
             query(sql).use { cursor ->
                 if (cursor.moveToFirst()) cursor.getLong(0) else 0L
@@ -570,8 +544,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         MIGRATION_6_7,
                         MIGRATION_7_8,
                         MIGRATION_8_9,
-                        MIGRATION_9_10,
-                        MIGRATION_10_11
+                        MIGRATION_9_10
                     )
                     .build().also { INSTANCE = it }
             }

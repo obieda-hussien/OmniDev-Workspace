@@ -115,6 +115,7 @@ data class AnalyticsStats(
     val totalInputTokens: Long = 0L,
     val totalOutputTokens: Long = 0L,
     val totalCostUsd: Double = 0.0,
+    val totalCostEgp: Double = 0.0,
     val totalRequests: Long = 0L,
     val totalErrors: Long = 0L,
     val tokensByModel: Map<String, ModelStats> = emptyMap(),
@@ -296,6 +297,7 @@ class AnalyticsRepository(private val context: Context) {
                 totalInputTokens = current.totalInputTokens + inputTokens,
                 totalOutputTokens = current.totalOutputTokens + outputTokens,
                 totalCostUsd = current.totalCostUsd + costUsd,
+                totalCostEgp = current.totalCostEgp + (costUsd * 50.0),
                 totalRequests = current.totalRequests + 1,
                 totalErrors = current.totalErrors + (if (isError) 1L else 0L),
                 tokensByModel = current.tokensByModel + (modelId to mergedModel),
@@ -363,6 +365,7 @@ class AnalyticsRepository(private val context: Context) {
         root.put("total_input_tokens", totalInputTokens)
         root.put("total_output_tokens", totalOutputTokens)
         root.put("total_cost_usd", totalCostUsd)
+        root.put("total_cost_egp", totalCostEgp)
         root.put("total_requests", totalRequests)
         root.put("total_errors", totalErrors)
         root.put("total_agent_runs", totalAgentRuns)
@@ -455,6 +458,7 @@ class AnalyticsRepository(private val context: Context) {
             totalInputTokens = root.optLong("total_input_tokens"),
             totalOutputTokens = root.optLong("total_output_tokens"),
             totalCostUsd = root.optDouble("total_cost_usd"),
+            totalCostEgp = root.optDouble("total_cost_egp"),
             totalRequests = root.optLong("total_requests"),
             totalErrors = root.optLong("total_errors"),
             totalAgentRuns = root.optInt("total_agent_runs"),

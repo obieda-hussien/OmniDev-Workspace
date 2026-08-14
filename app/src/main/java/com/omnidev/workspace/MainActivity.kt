@@ -182,20 +182,32 @@ class MainActivity : ComponentActivity() {
         // loop: ready task → AgentPipeline.execute() → result written back.
         TaskSchedulerTool.executionCallback = { task ->
             val startMs = System.currentTimeMillis()
-            val toolsUsedCount = AtomicInteger(0)
+            val toolsUsedCount = java.util.concurrent.atomic.AtomicInteger(0)
             val toolNamesList = mutableListOf<String>()
             var finalResult = ""
             var finalIterations = 0
             var executionError: String? = null
 
+            // Console events buffer for Scheduled Tasks
+            val consoleEntries = mutableListOf<com.omnidev.workspace.ui.chat.AgentConsoleEntry>()
+
+            // ── Background Task Logger ──
+            var sessionId = -1L
+            kotlinx.coroutines.runBlocking {
+                try {
+                    sessionId = com.omnidev.workspace.data.tools.ScheduledTaskChatLogger.logScheduledTaskStart(
+                        chatSessionDao = database.chatSessionDao(),
+                        chatMessageDao = database.chatMessageDao(),
+                        taskTitle = task.name,
+                        userPrompt = task.prompt
+                    )
+                } catch(e: Exception) {
+                    // Ignore DB error
+                }
+            }
+
             try {
-                // Optional: enrich prompt with dependency context when present.
-                val dependencyContext = task.dependsOn.mapNotNull { _ ->
-                    // Reserved for future: look up completed dependency results
-                    // and inject them here. For now we only signal the presence
-                    // of dependencies to the model via the surrounding task metadata.
-                    null
-                }.joinToString("\n")
+                val dependencyContext = task.dependsOn.mapNotNull { _ -> null }.joinToString("\n")
 
                 val fullPrompt = if (dependencyContext.isNotBlank()) {
                     "# Task: ${task.name}\n\n${task.prompt}\n\n## Context from dependencies:\n$dependencyContext"
@@ -203,15 +215,8 @@ class MainActivity : ComponentActivity() {
                     task.prompt
                 }
 
-                // Resolve model + scope from user settings at execution time so
-                // scheduled tasks always honor the latest preferences.
-                val modelId = settingsRepository
-                    .observeModelIdForRole(ModelRole.AGENT)
-                    .first()
-                val scopePath = settingsRepository
-                    .observeTargetContext()
-                    .first()
-                    .orEmpty()
+                val modelId = settingsRepository.observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.AGENT).first()
+                val scopePath = settingsRepository.observeTargetContext().first().orEmpty()
 
                 agentPipeline.execute(
                     userMessage = fullPrompt,
@@ -219,16 +224,31 @@ class MainActivity : ComponentActivity() {
                     scopePath = scopePath,
                     enableDeepThinking = false
                 ).collect { event ->
+                    // Map to console entry for the logger
+                    val entry = when(event) {
+                        is com.omnidev.workspace.domain.engine.AgentEvent.Thinking -> com.omnidev.workspace.ui.chat.AgentConsoleEntry.ThinkingEntry(iteration = event.iteration)
+                        is com.omnidev.workspace.domain.engine.AgentEvent.ThinkingBlock -> com.omnidev.workspace.ui.chat.AgentConsoleEntry.DeepThinkingEntry(snippet = event.content)
+                        is com.omnidev.workspace.domain.engine.AgentEvent.ToolExecution -> com.omnidev.workspace.ui.chat.AgentConsoleEntry.ToolEntry(toolName = event.toolName, params = event.arguments.toString(), fullParams = event.arguments.toString(), iteration = event.iteration)
+                        is com.omnidev.workspace.domain.engine.AgentEvent.ToolResult -> com.omnidev.workspace.ui.chat.AgentConsoleEntry.ResultEntry(toolName = event.toolName, snippet = event.output.take(500), fullOutput = event.output, isError = event.isError, durationMs = 0L)
+                        is com.omnidev.workspace.domain.engine.AgentEvent.TokenUsageUpdate -> com.omnidev.workspace.ui.chat.AgentConsoleEntry.TokenEntry(totalTokens = event.totalTokens, budget = event.budget)
+                        is com.omnidev.workspace.domain.engine.AgentEvent.PhaseChanged -> com.omnidev.workspace.ui.chat.AgentConsoleEntry.PhaseEntry(phase = event.phase.name, detail = event.detail)
+                        is com.omnidev.workspace.domain.engine.AgentEvent.Error -> com.omnidev.workspace.ui.chat.AgentConsoleEntry.ErrorEntry(message = event.message)
+                        else -> null
+                    }
+                    if (entry != null) {
+                        consoleEntries.add(entry)
+                    }
+
                     when (event) {
-                        is AgentEvent.ToolExecution -> {
+                        is com.omnidev.workspace.domain.engine.AgentEvent.ToolExecution -> {
                             toolsUsedCount.incrementAndGet()
                             toolNamesList.add(event.toolName)
                         }
-                        is AgentEvent.FinalAnswer -> {
+                        is com.omnidev.workspace.domain.engine.AgentEvent.FinalAnswer -> {
                             finalResult = event.content
                             finalIterations = event.totalIterations
                         }
-                        is AgentEvent.Error -> {
+                        is com.omnidev.workspace.domain.engine.AgentEvent.Error -> {
                             executionError = event.message
                         }
                         else -> Unit
@@ -236,6 +256,23 @@ class MainActivity : ComponentActivity() {
                 }
             } catch (e: Exception) {
                 executionError = e.message ?: "Unknown error"
+                consoleEntries.add(com.omnidev.workspace.ui.chat.AgentConsoleEntry.ErrorEntry(message = executionError ?: ""))
+            }
+
+            kotlinx.coroutines.runBlocking {
+                try {
+                    if (sessionId != -1L) {
+                        val responseToSave = if (executionError != null) "Task failed: $executionError" else finalResult
+                        com.omnidev.workspace.data.tools.ScheduledTaskChatLogger.logScheduledTaskCompletion(
+                            chatMessageDao = database.chatMessageDao(),
+                            sessionId = sessionId,
+                            finalResponse = responseToSave,
+                            consoleEntries = consoleEntries
+                        )
+                    }
+                } catch(e: Exception) {
+                    // Ignore DB error
+                }
             }
 
             val endMs = System.currentTimeMillis()
