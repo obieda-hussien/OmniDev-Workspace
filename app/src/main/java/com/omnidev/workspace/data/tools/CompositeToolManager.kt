@@ -44,6 +44,7 @@ class CompositeToolManager(
     private val fileToolManager: FileToolManager,
     val memoryManager: MemoryManager,
     private val context: Context? = null,
+    var confirmationGate: com.omnidev.workspace.core.policy.ConfirmationGate? = null,
     private val environmentSetupManager: EnvironmentSetupManager? = null,
     private val settingsRepository: SettingsRepository? = null,
     private val godEyeProfilerTool: GodEyeProfilerTool? = null,
@@ -184,6 +185,7 @@ class CompositeToolManager(
         addAll(SendGridEmailTool.getToolDefinitions())
         clipboardTool?.let { addAll(it.getToolDefinitions()) }
         addAll(WhatsAppTool.getToolDefinitions())
+            addAll(DirectTerminalTool.getToolDefinitions())
         addAll(GitHubManagerTool.getToolDefinitions())
         if (notionPublisherTool != null) {
             addAll(NotionPublisherTool.getToolDefinitions())
@@ -686,6 +688,19 @@ class CompositeToolManager(
             "discord_bot" -> {
                 val botToken = settingsRepository?.observeDiscordBotToken()?.first()
                 DiscordBotTool.execute(botToken = botToken, args = arguments)
+            }
+
+            "execute_terminal_command" -> {
+                val gate = confirmationGate
+                val ctx = context
+                if (gate == null || ctx == null) {
+                    com.omnidev.workspace.data.tools.ToolExecutionResult(
+                        "Terminal execution is not available: confirmation gate or context not configured.",
+                        isError = true
+                    )
+                } else {
+                    DirectTerminalTool.execute(ctx, arguments, gate)
+                }
             }
 
             // ── WhatsApp tools ──

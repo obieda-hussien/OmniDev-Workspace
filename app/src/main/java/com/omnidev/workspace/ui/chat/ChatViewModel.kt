@@ -275,6 +275,7 @@ class ChatViewModel(
                 com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE
             effectiveGate.request(kind, preview, diffContent)
         }
+        compositeToolManager?.confirmationGate = effectiveGate
     }
 
     /** Raises a pending confirmation that must be approved by the user before the action executes. */
@@ -896,7 +897,7 @@ class ChatViewModel(
                             AgentConsoleEntry.ResultEntry(event.toolName, snippet, event.isError, event.output, durationMs)
                     )
                 }
-                viewModelScope.launch { analyticsRepository?.recordToolUsage(event.toolName, success = true, durationMs = 0L) }
+                viewModelScope.launch { analyticsRepository?.recordToolUsage(event.toolName, success = !event.isError, durationMs = durationMs) }
             }
 
             is AgentEvent.TokenUsageUpdate ->

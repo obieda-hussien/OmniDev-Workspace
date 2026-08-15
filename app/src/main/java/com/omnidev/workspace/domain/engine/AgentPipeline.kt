@@ -634,21 +634,10 @@ Rules:
 
         // Build the complete system prompt with tool definitions
         // Predict the user's intent to lazily inject tools and reduce prompt payload.
-        val intentMode = IntentClassifier.classify(userMessage)
-
-        // Build the complete system prompt with tool definitions
+        val relevantDomains = IntentClassifier.getRelevantDomains(userMessage)
         val localToolDefs = toolManager.getToolDefinitions()
             .filter { it.name !in disabledToolNames }
-            .filter { def ->
-                // Filter tools based on intent classification to save context window tokens
-                when (intentMode) {
-                    OmniMode.CHAT -> {
-                        // In CHAT mode, only give read-only and web tools
-                        def.name in listOf("web_search", "fetch_url", "read_file", "list_files", "search_codebase", "get_current_datetime")
-                    }
-                    else -> true // AGENT or SWARM gets all enabled tools
-                }
-            }
+            .filter { def -> IntentClassifier.getToolDomain(def.name) in relevantDomains }
         val mcpTools = try { mcpRegistry?.fetchAllAvailableTools() ?: emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() } catch(e: Exception) { emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() }
         val toolDefs = localToolDefs + mcpTools
         // Register tool definitions with the brain so it is aware of all available capabilities

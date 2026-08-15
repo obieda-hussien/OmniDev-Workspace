@@ -93,7 +93,7 @@ object WhatsAppTool {
             "send_location" -> sendLocation(phoneNumberId, token, args)
             "send_contact" -> sendContact(phoneNumberId, token, args)
             "send_template" -> sendTemplate(phoneNumberId, token, args)
-            "react" -> sendReaction(phoneNumberId, token, args)
+            "send_reaction" -> sendReaction(phoneNumberId, token, args)
             "mark_read" -> markRead(phoneNumberId, token, args)
             "get_profile" -> getProfile(phoneNumberId, token)
             else -> ToolExecutionResult("Unknown action for Cloud API: '$action'.", isError = true)
