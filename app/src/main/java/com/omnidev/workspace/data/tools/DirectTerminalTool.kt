@@ -48,9 +48,36 @@ object DirectTerminalTool {
                     }
                 } else {
                     val process = Runtime.getRuntime().exec(arrayOf("sh", "-c", command))
+
+                    val stdoutBuf = StringBuilder()
+                    val stderrBuf = StringBuilder()
+
+                    val stdoutThread = Thread {
+                        try {
+                            process.inputStream.bufferedReader(Charsets.UTF_8).use { r ->
+                                val buf = CharArray(4096)
+                                var n: Int
+                                while (r.read(buf).also { n = it } != -1) stdoutBuf.append(buf, 0, n)
+                            }
+                        } catch (_: Exception) {}
+                    }.apply { isDaemon = true; start() }
+
+                    val stderrThread = Thread {
+                        try {
+                            process.errorStream.bufferedReader(Charsets.UTF_8).use { r ->
+                                val buf = CharArray(4096)
+                                var n: Int
+                                while (r.read(buf).also { n = it } != -1) stderrBuf.append(buf, 0, n)
+                            }
+                        } catch (_: Exception) {}
+                    }.apply { isDaemon = true; start() }
+
                     process.waitFor()
-                    val output = process.inputStream.bufferedReader().readText().trim()
-                    val error = process.errorStream.bufferedReader().readText().trim()
+                    stdoutThread.join(3_000L)
+                    stderrThread.join(3_000L)
+
+                    val output = stdoutBuf.toString().trim()
+                    val error = stderrBuf.toString().trim()
 
                     if (process.exitValue() == 0) {
                         ToolExecutionResult(output.ifBlank { "(no output)" })

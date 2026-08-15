@@ -749,6 +749,8 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
     fun pauseTaskById(taskId: String) { val i = tasks.indexOfFirst { it.id == taskId }; if(i != -1 && tasks[i].status in setOf(TaskStatus.PENDING, TaskStatus.WAITING_DEPENDENCY)){tasks[i] = tasks[i].copy(status = TaskStatus.PAUSED); notifyChanged()} }
     fun resumeTaskById(taskId: String) { val i = tasks.indexOfFirst { it.id == taskId }; if(i != -1 && tasks[i].status == TaskStatus.PAUSED){val t = tasks[i]; val cids = tasks.filter{it.status==TaskStatus.COMPLETED}.map{it.id}.toSet(); tasks[i] = t.copy(status = if(t.dependsOn.isNotEmpty()&&t.dependsOn.any{it !in cids}) TaskStatus.WAITING_DEPENDENCY else TaskStatus.PENDING); notifyChanged()} }
     fun runNowById(taskId: String) { val i = tasks.indexOfFirst { it.id == taskId }; if(i != -1){tasks[i] = tasks[i].copy(scheduledTimeMillis = System.currentTimeMillis(), status = TaskStatus.PENDING); notifyChanged()} }
+    fun getTaskById(id: String): ScheduledTask? = tasks.find { it.id == id }
+
     fun retryTaskById(taskId: String) { val t = tasks.find { it.id == taskId } ?: return; tasks.add(t.copy(id = UUID.randomUUID().toString(), scheduledTimeMillis = System.currentTimeMillis(), status = TaskStatus.PENDING, retryCount = t.retryCount + 1, lastResult = null, startedAtMillis = null, completedAtMillis = null)); notifyChanged() }
 
     fun scheduleTaskDirectly(

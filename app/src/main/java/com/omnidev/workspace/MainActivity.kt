@@ -206,7 +206,13 @@ class MainActivity : ComponentActivity() {
             }
 
             try {
-                val dependencyContext = task.dependsOn.mapNotNull { _ -> null }.joinToString("\n")
+                val dependencyContext = task.dependsOn.mapNotNull { depId ->
+                    val depTask = com.omnidev.workspace.data.tools.TaskSchedulerTool.getTaskById(depId)
+                    val result = depTask?.lastResult
+                    if (depTask != null && !result.isNullOrBlank()) {
+                        "### Dependency: ${depTask.name}\n$result"
+                    } else null
+                }.joinToString("\n\n")
 
                 val fullPrompt = if (dependencyContext.isNotBlank()) {
                     "# Task: ${task.name}\n\n${task.prompt}\n\n## Context from dependencies:\n$dependencyContext"
