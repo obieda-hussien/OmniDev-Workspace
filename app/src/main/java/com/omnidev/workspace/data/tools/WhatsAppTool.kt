@@ -66,15 +66,38 @@ object WhatsAppTool {
     suspend fun execute(phoneNumberId: String?, accessToken: String?, bridgeUrl: String?, args: Map<String, String>): ToolExecutionResult = withContext(Dispatchers.IO) {
         val action = args["action"] ?: return@withContext ToolExecutionResult("action is required.", isError = true)
 
-        // Specific fallback strategy: try WhatsAppBridgeService IPC first; if disconnected, fallback to OmniAccessibilityService UI automation
+        // 1. Primary Path: Cloud API
+        if (!phoneNumberId.isNullOrBlank() && !accessToken.isNullOrBlank()) {
+            val res = executeCloud(phoneNumberId, accessToken, action, args)
+            if (!res.isError) return@withContext res
+            // Fall through if error
+        }
+
+        // 2. Fallback 1: WhatsAppBridgeService IPC
         if (com.omnidev.workspace.data.integration.WhatsAppBridgeService.isRunning) {
             val bridgeUrlFinal = bridgeUrl ?: "http://localhost:3000"
             val res = executeBridge(bridgeUrlFinal, action, args)
             if (!res.isError) return@withContext res
-            // If error, fall through to accessibility
+            // Fall through if error
         }
 
+        // 3. Fallback 2: OmniAccessibilityService UI Automation
         return@withContext executeAccessibility(action, args)
+    }
+
+    private fun executeCloud(phoneNumberId: String, token: String, action: String, args: Map<String, String>): ToolExecutionResult {
+        return when (action) {
+            "send_message" -> sendMessage(phoneNumberId, token, args)
+            "send_image" -> sendImage(phoneNumberId, token, args)
+            "send_document" -> sendDocument(phoneNumberId, token, args)
+            "send_location" -> sendLocation(phoneNumberId, token, args)
+            "send_contact" -> sendContact(phoneNumberId, token, args)
+            "send_template" -> sendTemplate(phoneNumberId, token, args)
+            "react" -> sendReaction(phoneNumberId, token, args)
+            "mark_read" -> markRead(phoneNumberId, token, args)
+            "get_profile" -> getProfile(phoneNumberId, token)
+            else -> ToolExecutionResult("Unknown action for Cloud API: '$action'.", isError = true)
+        }
     }
 
     private suspend fun executeAccessibility(action: String, args: Map<String, String>): ToolExecutionResult {
