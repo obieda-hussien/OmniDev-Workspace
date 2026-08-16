@@ -47,7 +47,7 @@ import com.omnidev.workspace.data.tools.SmsReaderTool
 import com.omnidev.workspace.data.tools.SystemContactsTool
 import com.omnidev.workspace.data.tools.SystemSettingsTool
 import com.omnidev.workspace.data.tools.TaskSchedulerTool
-import com.omnidev.workspace.data.tools.TelegramPublisherTool
+import com.omnidev.workspace.data.tools.TelegramBotTool
 import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.tools.UIAutomationTool
 import com.omnidev.workspace.data.tools.VisualInspectorTool
@@ -105,7 +105,7 @@ private val TOOL_GROUPS: List<ToolGroup> by lazy {
         ToolGroup(
             "🔗 Integrations",
             buildList {
-                addAll(TelegramPublisherTool.getToolDefinitions())
+                addAll(TelegramBotTool.getToolDefinitions())
                 addAll(GitManagerTool.getToolDefinitions())
             }
         )

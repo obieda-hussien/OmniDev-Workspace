@@ -157,9 +157,6 @@ class OmniDevApp : Application() {
         // Initialize Omni-Link extension discovery
         ExtensionConnectionManager.initialize(applicationContext)
 
-        // Best-effort cleanup for legacy duplicated system knowledge rows.
-        purgeSystemKnowledgeDuplicatesAsync()
-
         // ═══════════════════════════════════════════════════════════════
         // 🧠 تهيئة نظام الذاكرة والوعي الذكي (Agent Brain System)
         // ═══════════════════════════════════════════════════════════════
@@ -317,16 +314,6 @@ class OmniDevApp : Application() {
             repoIndexer = RepoIndexer(dao = db.repoIndexDao())
             repoContextEngine = RepoContextEngine(dao = db.repoIndexDao(), indexer = repoIndexer)
             buildDoctorPro = BuildDoctorPro(dao = db.buildDiagnosticDao())
-        }
-    }
-
-    private fun purgeSystemKnowledgeDuplicatesAsync() {
-        appScope.launch {
-            try {
-                OmniDevDatabase.getInstance(applicationContext).systemKnowledgeDao().purgeDuplicates()
-            } catch (e: Exception) {
-                Log.w("OmniDevApp", "⚠️ purgeDuplicates failed: ${e.message}")
-            }
         }
     }
 

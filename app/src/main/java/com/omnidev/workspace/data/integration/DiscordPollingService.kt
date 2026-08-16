@@ -20,7 +20,7 @@ import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.tools.AgentBrainTools
 import com.omnidev.workspace.data.tools.BuildDoctorTools
 import com.omnidev.workspace.data.tools.CompositeToolManager
-import com.omnidev.workspace.data.tools.DiscordPublisherTool
+import com.omnidev.workspace.data.tools.DiscordBotTool
 import com.omnidev.workspace.data.tools.FileToolManager
 import com.omnidev.workspace.data.tools.HeadlessBrowserManager
 import com.omnidev.workspace.data.tools.MemoryManager
@@ -166,7 +166,6 @@ class DiscordPollingService : Service() {
     private val toolManager: CompositeToolManager by lazy {
         val db = OmniDevDatabase.getInstance(applicationContext)
         val memoryManager = MemoryManager(db.knowledgeDao())
-        val discordTool = DiscordPublisherTool(settingsRepository)
         // ── Agent Brain 2.0: المحركات مُهيَّأة في OmniDevApp ──
         val omniApp = com.omnidev.workspace.OmniDevApp.instance
         CompositeToolManager(
@@ -174,7 +173,7 @@ class DiscordPollingService : Service() {
             memoryManager = memoryManager,
             context = applicationContext,
             settingsRepository = settingsRepository,
-            discordPublisherTool = discordTool,
+
             apiKeyRepository = apiKeyRepository,
             headlessBrowserManager = HeadlessBrowserManager(applicationContext),
             agentBrainTools = AgentBrainTools(

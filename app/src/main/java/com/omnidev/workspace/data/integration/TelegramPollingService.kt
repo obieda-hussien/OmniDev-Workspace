@@ -19,7 +19,7 @@ import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.tools.CompositeToolManager
-import com.omnidev.workspace.data.tools.DiscordPublisherTool
+import com.omnidev.workspace.data.tools.DiscordBotTool
 import com.omnidev.workspace.data.tools.FileToolManager
 import com.omnidev.workspace.data.tools.GodEyeProfilerTool
 import com.omnidev.workspace.data.tools.HeadlessBrowserManager
@@ -206,7 +206,7 @@ class TelegramPollingService : Service() {
             context = applicationContext,
             settingsRepository = settingsRepository,
             godEyeProfilerTool = GodEyeProfilerTool(applicationContext, ShizukuCommandTool),
-            discordPublisherTool = DiscordPublisherTool(settingsRepository),
+
             notionPublisherTool = NotionPublisherTool(settingsRepository),
             vectorMemoryManager = VectorMemoryManager(db.knowledgeDao()),
             apiKeyRepository = apiKeyRepository,

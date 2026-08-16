@@ -28,52 +28,6 @@ interface SystemKnowledgeDao {
     @Query("SELECT * FROM system_knowledge WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): SystemKnowledgeEntry?
 
-    @Query("SELECT * FROM system_knowledge WHERE knowledgeType = :category AND subject = :key LIMIT 1")
-    suspend fun getByCategoryAndKey(category: String, key: String): SystemKnowledgeEntry?
-
-    @Transaction
-    suspend fun upsertKnowledge(
-        category: String,
-        key: String,
-        content: String,
-        confidence: Float,
-        injectionPriority: Int = 5,
-        source: String = "auto_discovery",
-        searchTags: String = "",
-        now: Long = System.currentTimeMillis()
-    ) {
-        val existing = getByCategoryAndKey(category, key)
-        if (existing != null) {
-            update(
-                existing.copy(
-                    content = content,
-                    confidence = confidence,
-                    verificationCount = existing.verificationCount + 1,
-                    isValid = true,
-                    source = source,
-                    searchTags = searchTags.ifBlank { existing.searchTags },
-                    injectionPriority = injectionPriority,
-                    updatedAt = now
-                )
-            )
-            return
-        }
-
-        insert(
-            SystemKnowledgeEntry(
-                knowledgeType = category,
-                subject = key,
-                content = content,
-                confidence = confidence,
-                injectionPriority = injectionPriority,
-                source = source,
-                searchTags = searchTags,
-                createdAt = now,
-                updatedAt = now
-            )
-        )
-    }
-
     @Query("""
         SELECT * FROM system_knowledge 
         WHERE isValid = 1 AND (
@@ -117,16 +71,4 @@ interface SystemKnowledgeDao {
 
     @Query("DELETE FROM system_knowledge WHERE isValid = 0 AND updatedAt < :before")
     suspend fun cleanupInvalid(before: Long)
-
-    @Query(
-        """
-        DELETE FROM system_knowledge 
-        WHERE id NOT IN (
-            SELECT MAX(id)
-            FROM system_knowledge
-            GROUP BY knowledgeType, subject
-        )
-        """
-    )
-    suspend fun purgeDuplicates()
 }

@@ -267,9 +267,6 @@ class ChatViewModel(
             .current
             .confirmationGate(uiGate)
 
-        // Wire ExtensionConnectionManager's confirmation gate
-        com.omnidev.workspace.data.ipc.ExtensionConnectionManager.confirmationGate = effectiveGate
-
         // ── Step 3: adapt the new policy-level gate to FileToolManager's API ──
         ftm.confirmationGate = { preview, diffContent ->
             val kind = if (diffContent != null)
@@ -278,6 +275,7 @@ class ChatViewModel(
                 com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE
             effectiveGate.request(kind, preview, diffContent)
         }
+        compositeToolManager?.confirmationGate = effectiveGate
     }
 
     /** Raises a pending confirmation that must be approved by the user before the action executes. */
@@ -899,7 +897,7 @@ class ChatViewModel(
                             AgentConsoleEntry.ResultEntry(event.toolName, snippet, event.isError, event.output, durationMs)
                     )
                 }
-                viewModelScope.launch { analyticsRepository?.recordToolUsage(event.toolName) }
+                viewModelScope.launch { analyticsRepository?.recordToolUsage(event.toolName, success = !event.isError, durationMs = durationMs) }
             }
 
             is AgentEvent.TokenUsageUpdate ->

@@ -10,81 +10,44 @@ import android.content.pm.PackageManager
 import android.os.IBinder
 import android.util.Log
 import androidx.core.content.ContextCompat
-import com.omnilink.sdk.AccessDecision
-import com.omnilink.sdk.ActionError
-import com.omnilink.sdk.ActionOutcome
-import com.omnilink.sdk.ActionRequest
-import com.omnilink.sdk.CapabilityManifest
-import com.omnilink.sdk.CallerContext
-import com.omnilink.sdk.IExtensionService
-import com.omnilink.sdk.OmniLinkConstants
-import com.omnilink.sdk.observeEvents
-import com.omnilink.sdk.OmniEvent
-import com.omnidev.workspace.core.policy.ConfirmationGate
-import com.omnidev.workspace.core.policy.ConfirmationKind
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import com.omnidev.extension.ipc.IOmniExtensionInterface
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
+import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 /**
  * Dynamic discovery and binding manager for Omni-Link extension services.
  *
- * Reconnects with exponential backoff on process death or RemoteException, caches CapabilityManifest
- * after binding, and enforces pre-flight checks and the client-side confirmation gate.
+ * Discovery contract:
+ * - Intent action: [ACTION_BIND_EXTENSION]
+ * - Service must export an AIDL binder implementing [IOmniExtensionInterface]
  */
 object ExtensionConnectionManager {
     private const val TAG = "ExtensionConnectionMgr"
     private const val MAX_BIND_RETRIES = 15
     private const val BIND_RETRY_DELAY_MS = 100L
 
+    const val ACTION_BIND_EXTENSION = "com.omnidev.action.BIND_EXTENSION"
+
     @Volatile
-    internal var appContext: Context? = null
+    private var appContext: Context? = null
 
     private val initialized = AtomicBoolean(false)
     private val receiverRegistered = AtomicBoolean(false)
 
-    private val accessController = WorkspaceAccessController()
-    private val auditLogger = WorkspaceAuditLogger()
-
-    // Confirmation gate callback populated from ChatViewModel
-    @Volatile
-    var confirmationGate: ConfirmationGate? = null
-
-    internal var getMyUid: () -> Int = { android.os.Process.myUid() }
-
-    internal var createResultCallback: ((resume: (String) -> Unit) -> com.omnilink.sdk.IOmniResultCallback) = { resume ->
-        object : com.omnilink.sdk.IOmniResultCallback.Stub() {
-            override fun onResult(resultJson: String) {
-                resume(resultJson)
-            }
-        }
-    }
-
     data class ExtensionHandle(
         val packageName: String,
         val serviceClassName: String,
-        @Volatile var binder: IExtensionService? = null,
-        @Volatile var manifest: CapabilityManifest? = null
+        @Volatile var binder: IOmniExtensionInterface? = null
     ) {
         val id: String get() = "$packageName/$serviceClassName"
     }
 
-    internal val handles = ConcurrentHashMap<String, ExtensionHandle>()
+    private val handles = ConcurrentHashMap<String, ExtensionHandle>()
     private val serviceConnections = ConcurrentHashMap<String, ServiceConnection>()
-    private val reconnectJobs = ConcurrentHashMap<String, Job>()
-    private val eventJobs = ConcurrentHashMap<String, Job>()
-
-    private val json = Json { ignoreUnknownKeys = true }
 
     private val packageChangeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent?) {
@@ -98,25 +61,8 @@ object ExtensionConnectionManager {
         appContext = localContext
         if (initialized.compareAndSet(false, true)) {
             registerPackageReceiver(localContext)
-            scheduleTickWorker(localContext)
         }
         refreshDiscoveredExtensions()
-    }
-
-    private fun scheduleTickWorker(context: Context) {
-        try {
-            val workRequest = androidx.work.PeriodicWorkRequestBuilder<ExtensionTickWorker>(
-                15, java.util.concurrent.TimeUnit.MINUTES
-            ).build()
-            androidx.work.WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                "ExtensionTickWorker",
-                androidx.work.ExistingPeriodicWorkPolicy.KEEP,
-                workRequest
-            )
-            Log.i(TAG, "Successfully scheduled WorkManager ExtensionTickWorker periodic task")
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed scheduling WorkManager ExtensionTickWorker: " + e.message)
-        }
     }
 
     fun shutdown() {
@@ -129,20 +75,9 @@ object ExtensionConnectionManager {
     }
 
     fun refreshDiscoveredExtensions() {
-        val policy = com.omnidev.workspace.core.policy.TierPolicyHolder.current
-        if (policy.tier == "LITE" || policy.tier == "NORM") {
-            Log.i(TAG, "Skipping extension discovery: extensions are not supported on tier " + policy.tier)
-            com.omnidev.workspace.core.policy.OmniAuditLog.record(
-                tier = policy.tier,
-                autoApproved = false,
-                kind = com.omnidev.workspace.core.policy.ConfirmationKind.ANDROID_INTENT,
-                preview = "Extension discovery blocked: extensions are not supported on tier " + policy.tier
-            )
-            return
-        }
         val context = appContext ?: return
         val pm = context.packageManager
-        val intent = Intent(OmniLinkConstants.ACTION_EXTENSION_BIND)
+        val intent = Intent(ACTION_BIND_EXTENSION)
         val resolveInfos = runCatching {
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
                 pm.queryIntentServices(intent, PackageManager.ResolveInfoFlags.of(0))
@@ -151,7 +86,7 @@ object ExtensionConnectionManager {
                 pm.queryIntentServices(intent, 0)
             }
         }.getOrElse {
-            Log.w(TAG, "Failed querying extension services: ${it.message}")
+            Log.w(TAG, "Failed querying extension services", it)
             emptyList()
         }
 
@@ -174,10 +109,10 @@ object ExtensionConnectionManager {
         discoveredIds.forEach { bindById(it) }
     }
 
-    suspend fun listExtensions(forceRefresh: Boolean = true): List<org.json.JSONObject> = withContext(Dispatchers.IO) {
+    suspend fun listExtensions(forceRefresh: Boolean = true): List<JSONObject> = withContext(Dispatchers.IO) {
         if (forceRefresh) refreshDiscoveredExtensions()
         handles.values.sortedBy { it.id }.map { handle ->
-            org.json.JSONObject()
+            JSONObject()
                 .put("id", handle.id)
                 .put("package", handle.packageName)
                 .put("service", handle.serviceClassName)
@@ -187,17 +122,23 @@ object ExtensionConnectionManager {
 
     suspend fun getExtensionManifest(extensionId: String): String = withContext(Dispatchers.IO) {
         val handle = handles[extensionId]
-            ?: return@withContext ActionOutcome.Failure(ActionError("not_found", "Extension not found: $extensionId")).toJsonString()
+            ?: return@withContext JSONObject()
+                .put("ok", false)
+                .put("error", "Extension not found: $extensionId")
+                .toString()
         val binder = ensureBound(handle)
-            ?: return@withContext ActionOutcome.Failure(ActionError("not_connected", "Extension is not currently connected: $extensionId")).toJsonString()
-
-        try {
-            val request = ActionRequest("_manifest", Json.parseToJsonElement("{}"))
-            val requestJson = Json.encodeToString(ActionRequest.serializer(), request)
-            binder.executeAction(1, requestJson)
-        } catch (t: Throwable) {
-            ActionOutcome.Failure(ActionError("manifest_failed", t.message ?: "Unknown IPC error")).toJsonString()
-        }
+            ?: return@withContext JSONObject()
+                .put("ok", false)
+                .put("error", "Extension is not currently connected: $extensionId")
+                .toString()
+        runCatching { binder.getExtensionManifest() }
+            .map { it.ifBlank { "{}" } }
+            .getOrElse {
+                JSONObject()
+                    .put("ok", false)
+                    .put("error", "Failed to fetch manifest: ${it.message ?: "unknown"}")
+                    .toString()
+            }
     }
 
     suspend fun executeAction(
@@ -206,76 +147,23 @@ object ExtensionConnectionManager {
         jsonPayload: String
     ): String = withContext(Dispatchers.IO) {
         val handle = handles[extensionId]
-            ?: return@withContext ActionOutcome.Failure(ActionError("not_found", "Extension not found: $extensionId")).toJsonString()
+            ?: return@withContext JSONObject()
+                .put("ok", false)
+                .put("error", "Extension not found: $extensionId")
+                .toString()
         val binder = ensureBound(handle)
-            ?: return@withContext ActionOutcome.Failure(ActionError("not_connected", "Extension is not currently connected: $extensionId")).toJsonString()
-
-        // 1. Pre-flight Access Controller Check
-        val caller = CallerContext(
-            getMyUid(),
-            handle.packageName // BUG #1 FIX: Pass the TARGET extension's package name as caller package!
-        )
-        val payloadElement = runCatching { Json.parseToJsonElement(jsonPayload) }.getOrElse { Json.parseToJsonElement("{}") }
-        val request = ActionRequest(actionName, payloadElement)
-
-        val decision = accessController.decide(caller, request)
-        if (decision == AccessDecision.DENY) {
-            val outcome = ActionOutcome.Failure(ActionError("denied", "Execution denied by AccessController"))
-            auditLogger.log(caller, request, outcome)
-            return@withContext outcome.toJsonString()
-        }
-
-        // 2. Client-side Confirmation Gate Check
-        val requiresConfirmation = isActionConfirmationRequired(handle.packageName, actionName)
-        if (requiresConfirmation && decision == AccessDecision.REQUIRES_CONFIRMATION) {
-            val gate = confirmationGate
-            if (gate != null) {
-                // BUG #4 FIX / REQUIREMENT 3: Log RequiresConfirmation with message
-                auditLogger.log(caller, request, ActionOutcome.RequiresConfirmation("Confirmation required for action $actionName"))
-
-                val approved = gate.request(
-                    ConfirmationKind.ANDROID_INTENT,
-                    "Execute action '$actionName' on extension '${handle.packageName}'?",
-                    null
-                )
-                if (!approved) {
-                    val outcome = ActionOutcome.Failure(ActionError("confirmation_denied", "User denied confirmation for action $actionName"))
-                    auditLogger.log(caller, request, outcome)
-                    return@withContext outcome.toJsonString()
-                }
+            ?: return@withContext JSONObject()
+                .put("ok", false)
+                .put("error", "Extension is not currently connected: $extensionId")
+                .toString()
+        runCatching { binder.executeAction(actionName, jsonPayload) }
+            .map { it.ifBlank { "{}" } }
+            .getOrElse {
+                JSONObject()
+                    .put("ok", false)
+                    .put("error", "Action execution failed: ${it.message ?: "unknown"}")
+                    .toString()
             }
-        }
-
-        // 3. Execution (non-blocking executeActionAsync)
-        val requestJson = Json.encodeToString(ActionRequest.serializer(), request)
-        val outcomeJsonStr = runCatching {
-            suspendCancellableCoroutine<String> { continuation ->
-                val callback = createResultCallback { resultJson ->
-                    continuation.resume(resultJson)
-                }
-                try {
-                    binder.executeActionAsync(1, requestJson, callback)
-                } catch (e: Exception) {
-                    continuation.resumeWithException(e)
-                }
-            }
-        }.getOrElse { t ->
-            Log.w(TAG, "executeAction failed: ${t.message}")
-            handle.binder = null
-            handle.manifest = null
-            triggerReconnectWithBackoff(handle)
-            val outcome = ActionOutcome.Failure(ActionError("execution_failed", t.message ?: "Unknown IPC error"))
-            auditLogger.log(caller, request, outcome)
-            return@withContext outcome.toJsonString()
-        }
-
-        // 4. Log the outcome
-        runCatching {
-            val outcome = json.decodeFromString(ActionOutcome.serializer(), outcomeJsonStr)
-            auditLogger.log(caller, request, outcome)
-        }
-
-        return@withContext outcomeJsonStr
     }
 
     private fun bindById(id: String) {
@@ -283,56 +171,27 @@ object ExtensionConnectionManager {
         val handle = handles[id] ?: return
         if (handle.binder != null || serviceConnections.containsKey(id)) return
 
-        val intent = Intent(OmniLinkConstants.ACTION_EXTENSION_BIND).apply {
+        val intent = Intent(ACTION_BIND_EXTENSION).apply {
             component = ComponentName(handle.packageName, handle.serviceClassName)
             setPackage(handle.packageName)
         }
 
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-                handle.binder = IExtensionService.Stub.asInterface(service)
+                handle.binder = IOmniExtensionInterface.Stub.asInterface(service)
                 Log.i(TAG, "Connected extension: ${handle.id}")
-                reconnectJobs.remove(handle.id)?.cancel()
-                eventJobs.remove(handle.id)?.cancel()
-
-                val job = CoroutineScope(Dispatchers.IO).launch {
-                    fetchAndCacheManifest(handle)
-                    val binder = handle.binder
-                    val manifest = handle.manifest
-                    if (binder != null && manifest != null && manifest.protocolVersion >= 2) {
-                        try {
-                            binder.observeEvents().collect { event ->
-                                Log.i(TAG, "Received event from " + handle.id + ": " + event.name + " with payload: " + event.payload)
-                                com.omnidev.workspace.core.policy.OmniAuditLog.record(
-                                    tier = com.omnidev.workspace.core.policy.TierPolicyHolder.current.tier,
-                                    autoApproved = true,
-                                    kind = com.omnidev.workspace.core.policy.ConfirmationKind.ANDROID_INTENT,
-                                    preview = "Proactive event from " + handle.packageName + ": " + event.name + " -> " + event.payload
-                                )
-                            }
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Error collecting events from " + handle.id + ": " + e.message)
-                        }
-                    }
-                }
-                eventJobs[handle.id] = job
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
                 handle.binder = null
-                handle.manifest = null
-                eventJobs.remove(handle.id)?.cancel()
                 Log.w(TAG, "Disconnected extension: ${handle.id}")
-                triggerReconnectWithBackoff(handle)
             }
 
             override fun onBindingDied(name: ComponentName?) {
                 handle.binder = null
-                handle.manifest = null
-                eventJobs.remove(handle.id)?.cancel()
                 Log.w(TAG, "Binding died extension: ${handle.id}")
                 serviceConnections.remove(handle.id)
-                triggerReconnectWithBackoff(handle)
+                bindById(handle.id)
             }
 
             override fun onNullBinding(name: ComponentName?) {
@@ -344,7 +203,7 @@ object ExtensionConnectionManager {
         val didBind = runCatching {
             context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
         }.getOrElse {
-            Log.w(TAG, "Failed binding extension: ${handle.id}: ${it.message}")
+            Log.w(TAG, "Failed binding extension: ${handle.id}", it)
             false
         }
 
@@ -355,61 +214,11 @@ object ExtensionConnectionManager {
         }
     }
 
-    private fun triggerReconnectWithBackoff(handle: ExtensionHandle) {
-        val id = handle.id
-        if (reconnectJobs.containsKey(id)) return
-
-        val job = CoroutineScope(Dispatchers.Default).launch {
-            var delayMs = 1000L
-            while (isActive && handle.binder == null) {
-                Log.i(TAG, "Attempting reconnect for ${handle.id} in ${delayMs}ms...")
-                delay(delayMs)
-                bindById(id)
-                delayMs = (delayMs * 2).coerceAtMost(30000L)
-            }
-            reconnectJobs.remove(id)
-        }
-        reconnectJobs[id] = job
-    }
-
-    private suspend fun fetchAndCacheManifest(handle: ExtensionHandle) {
-        val binder = handle.binder ?: return
-        try {
-            val request = ActionRequest("_manifest", Json.parseToJsonElement("{}"))
-            val requestJson = Json.encodeToString(ActionRequest.serializer(), request)
-            val resultJsonStr = binder.executeAction(1, requestJson)
-            if (!resultJsonStr.isNullOrBlank()) {
-                val outcome = json.decodeFromString(ActionOutcome.serializer(), resultJsonStr)
-                if (outcome is ActionOutcome.Success) {
-                    val manifest = json.decodeFromString<CapabilityManifest>(outcome.data.toString())
-                    handle.manifest = manifest
-                    Log.i(TAG, "Successfully cached manifest for ${handle.id}: $manifest")
-                } else if (outcome is ActionOutcome.Failure) {
-                    Log.w(TAG, "Failed to fetch manifest for ${handle.id}: ${outcome.error.message}")
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Error fetching manifest for ${handle.id}: ${e.message}")
-            handle.binder = null
-            triggerReconnectWithBackoff(handle)
-        }
-    }
-
-    fun isActionConfirmationRequired(packageName: String, actionName: String): Boolean {
-        val handle = handles.values.firstOrNull { it.packageName == packageName } ?: return false
-        val manifest = handle.manifest ?: return false
-        val cap = manifest.capabilities.firstOrNull { it.name == actionName } ?: return false
-        return cap.requiresConfirmation
-    }
-
     private fun unbindById(id: String) {
         val context = appContext ?: return
         val conn = serviceConnections.remove(id) ?: return
         runCatching { context.unbindService(conn) }
-        handles[id]?.let {
-            it.binder = null
-            it.manifest = null
-        }
+        handles[id]?.binder = null
     }
 
     private fun unbindAll() {
@@ -436,7 +245,7 @@ object ExtensionConnectionManager {
         )
     }
 
-    private suspend fun ensureBound(handle: ExtensionHandle): IExtensionService? {
+    private suspend fun ensureBound(handle: ExtensionHandle): IOmniExtensionInterface? {
         if (handle.binder != null) return handle.binder
         bindById(handle.id)
         repeat(MAX_BIND_RETRIES) {
@@ -444,73 +253,5 @@ object ExtensionConnectionManager {
             delay(BIND_RETRY_DELAY_MS)
         }
         return null
-    }
-
-    private fun ActionOutcome.toJsonString(): String {
-        return Json.encodeToString(ActionOutcome.serializer(), this)
-    }
-
-    fun getAppNameForPackage(packageName: String): String {
-        return packageName.replace(".", "_").replace("-", "_")
-    }
-
-    fun getPackageForAppName(appName: String): String? {
-        return handles.values.firstOrNull { getAppNameForPackage(it.packageName) == appName }?.packageName
-    }
-
-    fun getExtensionToolDefinitions(): List<com.omnidev.workspace.data.tools.ToolDefinition> {
-        val tools = mutableListOf<com.omnidev.workspace.data.tools.ToolDefinition>()
-        for (handle in handles.values) {
-            val manifest = handle.manifest ?: continue
-            val appName = getAppNameForPackage(handle.packageName)
-            for (cap in manifest.capabilities) {
-                val toolName = "ext_${appName}_${cap.name}"
-                tools.add(
-                    com.omnidev.workspace.data.tools.ToolDefinition(
-                        name = toolName,
-                        description = "Executes capability '" + cap.name + "' on extension '" + appName + "'. " +
-                                "Destructive: " + cap.destructive + ", Requires confirmation: " + cap.requiresConfirmation + ".",
-                        parameters = listOf(
-                            com.omnidev.workspace.data.tools.ToolParameter(
-                                name = "payload",
-                                type = "string",
-                                description = "The JSON payload arguments required by the extension action.",
-                                required = true
-                            )
-                        )
-                    )
-                )
-            }
-        }
-        return tools
-    }
-
-    fun parseToolName(toolCallName: String): Pair<String, String>? {
-        if (!toolCallName.startsWith("ext_")) return null
-        val prefixRemoved = toolCallName.removePrefix("ext_")
-
-        val knownAppNames = handles.values
-            .map { getAppNameForPackage(it.packageName) }
-
-        val appName = knownAppNames
-            .filter { prefixRemoved.startsWith("${it}_") }
-            .maxByOrNull { it.length } ?: return null
-
-        val actionName = prefixRemoved.removePrefix("${appName}_")
-        return appName to actionName
-    }
-
-    suspend fun execute(
-        appName: String,
-        actionName: String,
-        jsonPayload: String
-    ): String {
-        val packageName = getPackageForAppName(appName)
-            ?: return ActionOutcome.Failure(ActionError("not_found", "Extension app not found: " + appName)).toJsonString()
-
-        val handle = handles.values.firstOrNull { it.packageName == packageName }
-            ?: return ActionOutcome.Failure(ActionError("not_found", "Extension handle not found for package: " + packageName)).toJsonString()
-
-        return executeAction(handle.id, actionName, jsonPayload)
     }
 }

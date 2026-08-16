@@ -77,6 +77,69 @@ object IntentClassifier {
      *
      * Never returns [OmniMode.AUTO] — this function IS the AUTO resolver.
      */
+
+    // ── Tool Domain Categories ──
+    enum class ToolDomain {
+        CODE_TERMINAL, MESSAGING, ANALYTICS, WEB_SEARCH, GENERAL
+    }
+
+    /** Maps the classified intent to the relevant tool domains to reduce the system prompt payload. */
+    fun getRelevantDomains(input: String): Set<ToolDomain> {
+        val mode = classify(input)
+
+        // Advanced heuristic: check if specific keywords exist to unlock specific domains
+        val lower = input.lowercase()
+        val hasMessaging = listOf("message", "whatsapp", "telegram", "discord", "email", "slack", "send").any { it in lower }
+        val hasAnalytics = listOf("analytics", "metrics", "cost", "tokens", "usage", "stats", "performance").any { it in lower }
+
+        val domains = mutableSetOf<ToolDomain>()
+        domains.add(ToolDomain.GENERAL) // Basic utilities are always allowed
+
+        if (mode == OmniMode.SWARM || mode == OmniMode.AGENT) {
+            domains.add(ToolDomain.CODE_TERMINAL)
+            domains.add(ToolDomain.WEB_SEARCH)
+        }
+
+        if (hasMessaging) domains.add(ToolDomain.MESSAGING)
+        if (hasAnalytics) domains.add(ToolDomain.ANALYTICS)
+
+        if (mode == OmniMode.CHAT) {
+            domains.add(ToolDomain.WEB_SEARCH)
+        }
+
+        return domains
+    }
+
+    /** Maps a specific tool name to its domain. */
+    fun getToolDomain(toolName: String): ToolDomain {
+        if (toolName.startsWith("mcp_")) return ToolDomain.GENERAL // MCP tools are always injected for dynamic capabilities
+        return when (toolName) {
+            // Code & Terminal
+            "read_file", "write_file", "list_files", "delete_file", "patch_file", "mkdir",
+            "search_codebase", "grep_code", "execute_terminal_command", "package_installer",
+            "run_python", "run_nodejs", "advanced_root_shell", "shizuku_command",
+            "app_manifest_analyzer", "intent_resolver", "batch_manifest_analyzer",
+            "enhanced_manifest_analyzer", "enhanced_intent_resolver", "enhanced_network_security",
+            "enhanced_attack_surface", "check_permission" -> ToolDomain.CODE_TERMINAL
+
+            // Messaging
+            "whatsapp", "telegram_bot", "telegram_publish", "discord_bot", "publish_to_discord",
+            "slack", "sendgrid_email", "sms_reader", "system_contacts", "call_log" -> ToolDomain.MESSAGING
+
+            // Analytics & Profiling
+            "read_network_log", "read_db_schema", "analyze_anr_trace", "memory_snapshot" -> ToolDomain.ANALYTICS
+
+            // Web & Search
+            "web_search", "fetch_url", "github_manager", "headless_browser", "semantic_ui" -> ToolDomain.WEB_SEARCH
+
+            // General
+            "get_current_datetime", "task_manager", "n8n_automation", "ui_automation",
+            "screenshot", "system_settings", "clipboard" -> ToolDomain.GENERAL
+
+            else -> ToolDomain.GENERAL
+        }
+    }
+
     fun classify(input: String): OmniMode {
         val lower = input.lowercase()
         val wordCount = lower.split(Regex("\\s+")).size

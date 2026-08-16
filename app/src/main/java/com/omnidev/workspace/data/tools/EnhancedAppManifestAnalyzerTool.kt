@@ -290,7 +290,7 @@ object EnhancedAppManifestAnalyzerTool {
             val exportedActs = JSONArray()
             packageInfo.activities?.filter { it.exported }?.forEach { a ->
                 val comp = a as android.content.pm.ComponentInfo
-                val per = AppManifestAnalyzerTool.getComponentPermission(comp)
+                val per = getComponentPermission(comp)
                 val o = JSONObject().apply {
                     put("name", comp.name)
                     put("permission", per)
@@ -306,7 +306,7 @@ object EnhancedAppManifestAnalyzerTool {
             val exportedSvcs = JSONArray()
             packageInfo.services?.filter { it.exported }?.forEach { s ->
                 val comp = s as android.content.pm.ComponentInfo
-                val per = AppManifestAnalyzerTool.getComponentPermission(comp)
+                val per = getComponentPermission(comp)
                 val o = JSONObject().apply {
                     put("name", comp.name)
                     put("permission", per)
@@ -322,7 +322,7 @@ object EnhancedAppManifestAnalyzerTool {
             val exportedRcvs = JSONArray()
             packageInfo.receivers?.filter { it.exported }?.forEach { r ->
                 val comp = r as android.content.pm.ComponentInfo
-                val per = AppManifestAnalyzerTool.getComponentPermission(comp)
+                val per = getComponentPermission(comp)
                 val o = JSONObject().apply {
                     put("name", comp.name)
                     put("permission", per)
@@ -337,7 +337,7 @@ object EnhancedAppManifestAnalyzerTool {
         try {
             val exportedPrv = JSONArray()
             packageInfo.providers?.filter { it.exported }?.forEach { p ->
-                val permissionValue = p.readPermission ?: p.writePermission ?: AppManifestAnalyzerTool.getProviderAnyPermission(p)
+                val permissionValue = p.readPermission ?: p.writePermission ?: getProviderAnyPermission(p)
                 val o = JSONObject().apply {
                     put("name", p.name)
                     put("authority", p.authority)
@@ -530,4 +530,157 @@ object EnhancedAppManifestAnalyzerTool {
             writeCache(context, root)
         } catch (_: Exception) {}
     }
+
+    fun getComponentPermission(component: Any?): String? {
+        return when (component) {
+            is android.content.pm.ActivityInfo -> component.permission
+            is android.content.pm.ServiceInfo -> component.permission
+            is android.content.pm.ProviderInfo -> component.readPermission ?: component.writePermission
+            else -> null
+        }
+    }
+
+    fun getProviderAnyPermission(provider: android.content.pm.ProviderInfo?): String? {
+        return provider?.readPermission ?: provider?.writePermission
+    }
+
+    fun executeIntentResolver(context: android.content.Context, action: String? = null, uri: String? = null, mimeType: String? = null): com.omnidev.workspace.data.tools.ToolExecutionResult {
+        val pm = context.packageManager
+        val resolveAction = action ?: android.content.Intent.ACTION_VIEW
+
+        val intent = android.content.Intent(resolveAction).apply {
+            uri?.let { data = android.net.Uri.parse(it) }
+            mimeType?.let { type = it }
+        }
+
+        val results = try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                pm.queryIntentActivities(intent, android.content.pm.PackageManager.ResolveInfoFlags.of(android.content.pm.PackageManager.MATCH_ALL.toLong()))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.queryIntentActivities(intent, android.content.pm.PackageManager.MATCH_ALL)
+            }
+        } catch (e: Exception) {
+            return com.omnidev.workspace.data.tools.ToolExecutionResult("Intent resolution failed: ${e.message}", isError = true)
+        }
+
+        if (results.isEmpty()) return com.omnidev.workspace.data.tools.ToolExecutionResult("No apps found that can handle this intent.")
+
+        val output = buildString {
+            appendLine("═══ Intent Resolver Results ═══")
+            appendLine("Action  : $resolveAction")
+            uri?.let { appendLine("URI     : $it") }
+            mimeType?.let { appendLine("MIME    : $it") }
+            appendLine("Matches : ${results.size}\n")
+
+            results.sortedByDescending { it.priority }.forEachIndexed { i, ri ->
+                val appInfo = ri.activityInfo?.applicationInfo
+                val label = appInfo?.let { pm.getApplicationLabel(it) } ?: ri.activityInfo?.packageName ?: "?"
+                val pkg = ri.activityInfo?.packageName ?: "?"
+                val activity = ri.activityInfo?.name?.removePrefix(pkg) ?: "?"
+
+                appendLine("${i + 1}. $label ($pkg)")
+                appendLine("   Activity : $activity")
+                appendLine("   Priority : ${ri.priority}${if (ri.isDefault) " ★ DEFAULT" else ""}")
+                uri?.let { appendLine("   Launch   : am start -a $resolveAction -d \"$it\" $pkg") }
+                appendLine()
+            }
+        }
+        return com.omnidev.workspace.data.tools.ToolExecutionResult(output)
+    }
+
+    fun executeBatch(context: android.content.Context, packages: String): com.omnidev.workspace.data.tools.ToolExecutionResult {
+        val packageList = packages.split(",").map { it.trim() }.filter { it.isNotBlank() && it.matches(Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$")) }.take(10)
+        if (packageList.isEmpty()) return com.omnidev.workspace.data.tools.ToolExecutionResult("No valid package names provided.", isError = true)
+
+        val pm = context.packageManager
+        val output = buildString {
+            appendLine("═══ Batch Manifest Summary (${packageList.size} apps) ═══\n")
+            packageList.forEach { pkg ->
+                val flags = (
+                    android.content.pm.PackageManager.GET_ACTIVITIES or
+                    android.content.pm.PackageManager.GET_SERVICES or
+                    android.content.pm.PackageManager.GET_RECEIVERS or
+                    android.content.pm.PackageManager.GET_PROVIDERS or
+                    android.content.pm.PackageManager.GET_PERMISSIONS or
+                    android.content.pm.PackageManager.GET_META_DATA or
+                    android.content.pm.PackageManager.GET_CONFIGURATIONS
+                ).toLong()
+
+                val info = try {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                        pm.getPackageInfo(pkg, android.content.pm.PackageManager.PackageInfoFlags.of(flags))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        pm.getPackageInfo(pkg, flags.toInt())
+                    }
+                } catch (e: Exception) { null }
+                if (info == null) {
+                    appendLine("• $pkg — NOT INSTALLED\n")
+                    return@forEach
+                }
+
+                @Suppress("DEPRECATION")
+                val appInfoBatch = info.applicationInfo
+                val label: CharSequence = appInfoBatch?.let { pm.getApplicationLabel(it) } ?: pkg
+                val exAct = info.activities?.count { act -> act.exported } ?: 0
+                val exSvc = info.services?.count { svc -> svc.exported } ?: 0
+                val exRcv = info.receivers?.count { rcv -> rcv.exported } ?: 0
+                val exPrv = info.providers?.count { prv -> prv.exported } ?: 0
+
+                val bareAct = info.activities?.count { act -> act.exported && getComponentPermission(act) == null } ?: 0
+                val bareSvc = info.services?.count { svc -> svc.exported && getComponentPermission(svc) == null } ?: 0
+                val bareRcv = info.receivers?.count { rcv -> rcv.exported && getComponentPermission(rcv) == null } ?: 0
+
+                val appFlags = appInfoBatch?.flags ?: 0
+                val isDebug = (appFlags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+                val isBackup = (appFlags and android.content.pm.ApplicationInfo.FLAG_ALLOW_BACKUP) != 0
+
+                var riskScore = 0
+                if (isDebug) riskScore += 2
+                if (isBackup) riskScore += 1
+                if (bareAct > 0) riskScore += 1
+                if (bareSvc > 0 || bareRcv > 0) riskScore += 1
+                riskScore = minOf(maxOf(riskScore, 0), 5)
+
+                appendLine("┌─ $label ($pkg)")
+                appendLine("│  Version     : ${info.versionName ?: "?"}")
+                appendLine("│  Exported    : ${exAct + exSvc + exRcv + exPrv} total (A:$exAct S:$exSvc R:$exRcv P:$exPrv)")
+                appendLine("│  Bare Exports: $bareAct act + $bareSvc svc + $bareRcv rcv (NO permission guard)")
+                appendLine("│  Flags       : ${if (isDebug) "⚠️ DEBUGGABLE " else ""}${if (isBackup) "⚠️ ALLOW_BACKUP " else ""}")
+                appendLine("│  Risk Score  : ${"★".repeat(riskScore)}${"☆".repeat(5 - riskScore)} ($riskScore/5)")
+                appendLine("└─────────────────\n")
+            }
+        }
+        return com.omnidev.workspace.data.tools.ToolExecutionResult(output)
+    }
+
+    fun execute(context: android.content.Context, targetPackage: String, filter: String?): com.omnidev.workspace.data.tools.ToolExecutionResult {
+        // Simple fallback
+        val pm = context.packageManager
+        val flags = (
+            android.content.pm.PackageManager.GET_ACTIVITIES or
+            android.content.pm.PackageManager.GET_SERVICES or
+            android.content.pm.PackageManager.GET_RECEIVERS or
+            android.content.pm.PackageManager.GET_PROVIDERS or
+            android.content.pm.PackageManager.GET_PERMISSIONS or
+            android.content.pm.PackageManager.GET_META_DATA or
+            android.content.pm.PackageManager.GET_CONFIGURATIONS
+        ).toLong()
+
+        val info = try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(targetPackage, android.content.pm.PackageManager.PackageInfoFlags.of(flags))
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageInfo(targetPackage, flags.toInt())
+            }
+        } catch (e: Exception) { null }
+        if (info == null) {
+            return com.omnidev.workspace.data.tools.ToolExecutionResult("Package not found", isError=true)
+        }
+        val output = buildEnhancedJson(context, info)
+        return com.omnidev.workspace.data.tools.ToolExecutionResult(output.toString(2))
+    }
+
 }
