@@ -9,24 +9,24 @@ import org.junit.Test
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * CausalChainPlannerTest — اختبارات وحدة للتخطيط السببي متعدد الخطوات
+ * CausalChainPlannerTest — Unit tests for multi-step causal planning
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * اختبارات JUnit4 نقية (بدون أي تبعيات Android) تغطي:
- * - اكتشاف التعارضات (READ_AFTER_DELETE، MODIFY_AFTER_DELETE، DOUBLE_CREATE، DELETE_AFTER_MODIFY)
- * - المسار السعيد (بدون تعارضات)
- * - الأوامر الحرجة (CRITICAL_COMMAND)
- * - المحاكاة الافتراضية (simulate)
- * - تحليل What-If
- * - بناء المخطط (buildChain)
- * - حقن الـ Prompt (buildPromptInjection)
+ * Pure JUnit4 tests (without Android dependencies) covering:
+ * - Conflict detection (READ_AFTER_DELETEVerified step MODIFY_AFTER_DELETEVerified step DOUBLE_CREATEVerified step DELETE_AFTER_MODIFY)
+ * - Happy path (no conflicts)
+ * - Critical commands (CRITICAL_COMMAND)
+ * - Virtual simulation (simulate)
+ * - What-If analysis
+ * - Chain construction (buildChain)
+ * - Prompt injection (buildPromptInjection)
  */
 class CausalChainPlannerTest {
 
     private val planner = CausalChainPlanner()
 
     // ──────────────────────────────────────────────────────────────────────────
-    // مساعدات
+    // Helpers
     // ──────────────────────────────────────────────────────────────────────────
 
     private fun step(tool: String, vararg params: Pair<String, String>): Pair<String, Map<String, String>> =
@@ -35,7 +35,7 @@ class CausalChainPlannerTest {
     private fun stepWithPath(tool: String, path: String) = step(tool, "path" to path)
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 1. READ_AFTER_DELETE — قراءة ملف محذوف
+    // 1. READ_AFTER_DELETE — Read deleted file
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -46,13 +46,13 @@ class CausalChainPlannerTest {
         ))
 
         val conflict = graph.conflicts.find { it.type == CausalChainPlanner.ConflictType.READ_AFTER_DELETE }
-        assertNotNull("يجب اكتشاف تعارض READ_AFTER_DELETE", conflict)
-        assertTrue("READ_AFTER_DELETE يجب أن يكون فادحاً", conflict!!.isFatal)
+        assertNotNull("Must detect conflict READ_AFTER_DELETE", conflict)
+        assertTrue("READ_AFTER_DELETE Must be fatal", conflict!!.isFatal)
         assertEquals("/tmp/foo.kt", conflict.path)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 2. MODIFY_AFTER_DELETE — تعديل ملف محذوف
+    // 2. MODIFY_AFTER_DELETE — Modify deleted file
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -63,13 +63,13 @@ class CausalChainPlannerTest {
         ))
 
         val conflict = graph.conflicts.find { it.type == CausalChainPlanner.ConflictType.MODIFY_AFTER_DELETE }
-        assertNotNull("يجب اكتشاف تعارض MODIFY_AFTER_DELETE", conflict)
-        assertTrue("MODIFY_AFTER_DELETE يجب أن يكون فادحاً", conflict!!.isFatal)
+        assertNotNull("Must detect conflict MODIFY_AFTER_DELETE", conflict)
+        assertTrue("MODIFY_AFTER_DELETE Must be fatal", conflict!!.isFatal)
         assertEquals("/src/A.kt", conflict.path)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 3. DOUBLE_CREATE — إنشاء نفس الملف مرتين بدون حذف بينهما
+    // 3. DOUBLE_CREATE — Verified step Verified step Verified step Verified step Verified step Verified step Verified step
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -80,12 +80,12 @@ class CausalChainPlannerTest {
         ))
 
         val conflict = graph.conflicts.find { it.type == CausalChainPlanner.ConflictType.DOUBLE_CREATE }
-        assertNotNull("يجب اكتشاف تعارض DOUBLE_CREATE", conflict)
-        assertFalse("DOUBLE_CREATE يجب ألا يكون فادحاً", conflict!!.isFatal)
+        assertNotNull("Must detect conflict DOUBLE_CREATE", conflict)
+        assertFalse("DOUBLE_CREATE Verified step Verified step Verified step Verified step", conflict!!.isFatal)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 4. DELETE_AFTER_MODIFY — حذف ملف بعد تعديله مباشرةً (بدون قراءة بينهما)
+    // 4. DELETE_AFTER_MODIFY — Delete modified file Verified step (Verified step Verified step Verified step)
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -96,12 +96,12 @@ class CausalChainPlannerTest {
         ))
 
         val conflict = graph.conflicts.find { it.type == CausalChainPlanner.ConflictType.DELETE_AFTER_MODIFY }
-        assertNotNull("يجب اكتشاف تعارض DELETE_AFTER_MODIFY", conflict)
-        assertFalse("DELETE_AFTER_MODIFY يجب ألا يكون فادحاً", conflict!!.isFatal)
+        assertNotNull("Must detect conflict DELETE_AFTER_MODIFY", conflict)
+        assertFalse("DELETE_AFTER_MODIFY Verified step Verified step Verified step Verified step", conflict!!.isFatal)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 5. Happy path — create → patch → read → delete — لا تعارضات
+    // 5. Happy path — create → patch → read → delete — Verified step Verified step
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -114,15 +114,15 @@ class CausalChainPlannerTest {
             stepWithPath("delete_file",        path)
         ))
 
-        // قراءة بعد التعديل تمنع DELETE_AFTER_MODIFY — يجب ألا يكون هناك أي تعارضات
+        // Verified step Verified step Verified step Verified step DELETE_AFTER_MODIFY — Verified step Verified step Verified step Verified step Verified step Verified step
         assertTrue(
-            "المسار السعيد يجب ألا ينتج أي تعارضات، وجد: ${graph.conflicts.map { it.type }}",
+            "Verified step Verified step Verified step Verified step Verified step Verified step Verified step Verified step: ${graph.conflicts.map { it.type }}",
             graph.conflicts.isEmpty()
         )
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 6. CRITICAL_COMMAND — run_terminal مع rm -rf
+    // 6. CRITICAL_COMMAND — run_terminal Verified step rm -rf
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -134,14 +134,14 @@ class CausalChainPlannerTest {
         )
 
         assertEquals(
-            "rm -rf يجب أن ينتج مستوى خطر CRITICAL",
+            "rm -rf Verified step Verified step Verified step Verified step Verified step CRITICAL",
             CausalChainPlanner.RiskLevel.CRITICAL,
             node.riskLevel
         )
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 7. simulate success — create ثم patch → كل الخطوات ستنجح
+    // 7. simulate success — create Verified step patch → Verified step Verified step Verified step
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -153,18 +153,18 @@ class CausalChainPlannerTest {
 
         val result = planner.simulate(graph)
 
-        assertTrue("المحاكاة يجب أن تنجح بالكامل", result.overallSuccess)
-        assertTrue("جميع الخطوات يجب أن تنجح",
+        assertTrue("Verified step Verified step Verified step Verified step Verified step", result.overallSuccess)
+        assertTrue("Verified step Verified step Verified step Verified step Verified step",
             result.steps.all { it.wouldSucceed })
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 8. simulate failure — delete ثم read → الخطوة الثانية تفشل
+    // 8. simulate failure — delete Verified step read → Verified step Verified step Verified stepFailure
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
     fun `simulate failure when read_file_lines follows delete_file on same path`() {
-        // ملاحظة: نبدأ بإنشاء الملف حتى تكون delete_file مشروعة في الحالة الافتراضية
+        // Verified step: Verified step Verified step Verified step Verified step Verified step delete_file Verified step Verified step Verified step Verified step
         val graph = planner.buildChain(listOf(
             stepWithPath("create_file",    "/tmp/gone.txt"),
             stepWithPath("delete_file",    "/tmp/gone.txt"),
@@ -173,22 +173,22 @@ class CausalChainPlannerTest {
 
         val result = planner.simulate(graph)
 
-        assertFalse("المحاكاة يجب أن تفشل", result.overallSuccess)
+        assertFalse("Verified step Verified step Verified step Verified stepFailure", result.overallSuccess)
 
-        // الخطوة بفهرس 2 (read بعد delete) هي التي يجب أن تفشل
+        // Verified step Verified step 2 (read Verified step delete) Verified step Verified step Verified step Verified step Verified stepFailure
         val failStep = result.steps.find { !it.wouldSucceed }
-        assertNotNull("يجب أن تكون هناك خطوة فاشلة", failStep)
-        assertEquals("فهرس أول فشل يجب أن يكون 2", 2, result.firstFailureIndex)
-        assertNotNull("يجب أن تُوضّح سبب الفشل", failStep!!.failReason)
+        assertNotNull("Verified step Verified step Verified step Verified step Verified step Verified step", failStep)
+        assertEquals("Verified step Verified step Failure Verified step Verified step Verified step 2", 2, result.firstFailureIndex)
+        assertNotNull("Verified step Verified step Verified step Verified step Verified stepFailure", failStep!!.failReason)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 9. whatIf remove_step — حذف خطوة delete يُقلّل التعارضات
+    // 9. whatIf remove_step — Verified step Verified step delete Verified step Verified step
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
     fun `whatIf removing delete step reduces conflicts compared to baseline`() {
-        // خطة أساسية: patch ثم delete مباشرةً (بدون قراءة) → DELETE_AFTER_MODIFY
+        // Verified step Verified step: patch Verified step delete Verified step (Verified step Verified step) → DELETE_AFTER_MODIFY
         val path = "/cfg/app.yml"
         val baseline = planner.buildChain(listOf(
             stepWithPath("create_file",        path),
@@ -196,23 +196,23 @@ class CausalChainPlannerTest {
             stepWithPath("delete_file",        path)
         ))
 
-        // الخطة الأساسية يجب أن تحتوي على تعارض DELETE_AFTER_MODIFY
+        // Verified step Verified step Verified step Verified step Verified step Verified step Verified step DELETE_AFTER_MODIFY
         assertTrue(
-            "الخطة الأساسية يجب أن تحتوي على تعارض DELETE_AFTER_MODIFY",
+            "Verified step Verified step Verified step Verified step Verified step Verified step Verified step DELETE_AFTER_MODIFY",
             baseline.conflicts.any { it.type == CausalChainPlanner.ConflictType.DELETE_AFTER_MODIFY }
         )
 
         val diffText = planner.whatIf(baseline, removeStepIndex = 2)
 
-        // النص يجب أن يشير إلى أن التعارضات انخفضت
+        // Verified step Verified step Verified step Verified step Verified step Verified step Verified step Verified step
         assertTrue(
-            "تقرير whatIf يجب أن يُشير لانخفاض التعارضات",
-            diffText.contains("يُقلّل") || diffText.contains("→")
+            "Verified step whatIf Verified step Verified step Verified step Verified step Verified step",
+            diffText.contains("Verified step") || diffText.contains("→")
         )
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 10. buildChain — عدد العقد يُطابق عدد الخطوات
+    // 10. buildChain — Verified step Verified step Verified step Verified step Verified step
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -225,11 +225,11 @@ class CausalChainPlannerTest {
         )
         val graph = planner.buildChain(steps)
 
-        assertEquals("عدد العقد يجب أن يساوي عدد الخطوات", steps.size, graph.nodes.size)
+        assertEquals("Verified step Verified step Verified step Verified step Verified step Verified step Verified step", steps.size, graph.nodes.size)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 11. buildPromptInjection — فارغ للمخطط الفارغ/المنخفض الخطر، نص للمرتفع
+    // 11. buildPromptInjection — Verified step Verified step Verified step/Verified step Verified step Verified step Verified step
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -237,12 +237,12 @@ class CausalChainPlannerTest {
         val emptyGraph = planner.buildChain(emptyList())
         val injection = planner.buildPromptInjection(emptyGraph)
 
-        assertTrue("الحقن يجب أن يكون فارغاً للمخطط الفارغ", injection.isEmpty())
+        assertTrue("Verified step Verified step Verified step Verified step Verified step Verified step Verified step", injection.isEmpty())
     }
 
     @Test
     fun `buildPromptInjection returns empty string for low-risk graph with no conflicts`() {
-        // بحث فقط — مخاطر منخفضة، لا تعارضات
+        // Verified step Verified step — Verified step Verified step Verified step Verified step
         val graph = planner.buildChain(listOf(
             step("web_search", "query" to "android jetpack compose"),
             step("web_search", "query" to "kotlin flow")
@@ -251,14 +251,14 @@ class CausalChainPlannerTest {
         val injection = planner.buildPromptInjection(graph)
 
         assertTrue(
-            "الحقن يجب أن يكون فارغاً للمخطط الخالي من المخاطر العالية",
+            "Verified step Verified step Verified step Verified step Verified step Verified step Verified step Verified step Verified step Verified step",
             injection.isEmpty()
         )
     }
 
     @Test
     fun `buildPromptInjection returns warning text for graph with fatal conflict`() {
-        // تعارض حرج: حذف ثم قراءة
+        // Verified step Verified step: Verified step Verified step Verified step
         val graph = planner.buildChain(listOf(
             stepWithPath("delete_file",    "/etc/config.json"),
             stepWithPath("read_file_lines", "/etc/config.json")
@@ -266,16 +266,16 @@ class CausalChainPlannerTest {
 
         val injection = planner.buildPromptInjection(graph)
 
-        assertTrue("الحقن يجب أن يحتوي على نص تحذيري", injection.isNotBlank())
+        assertTrue("Verified step Verified step Verified step Verified step Verified step Verified step Verified step", injection.isNotBlank())
         assertTrue(
-            "الحقن يجب أن يذكر التعارض الحرج",
-            injection.contains("❌") || injection.contains("تعارض")
+            "Verified step Verified step Verified step Verified step Verified step Verified step",
+            injection.contains("❌") || injection.contains("Verified step")
         )
     }
 
     @Test
     fun `buildPromptInjection returns warning text for HIGH risk graph even without conflicts`() {
-        // delete_file وحده = HIGH risk، بدون تعارضات
+        // delete_file Verified step = HIGH riskVerified step Verified step Verified step
         val graph = planner.buildChain(listOf(
             stepWithPath("delete_file", "/important/file.db")
         ))
@@ -283,7 +283,7 @@ class CausalChainPlannerTest {
         val injection = planner.buildPromptInjection(graph)
 
         assertTrue(
-            "الحقن يجب أن يحتوي على نص تحذيري للمستوى HIGH",
+            "Verified step Verified step Verified step Verified step Verified step Verified step Verified step Verified step HIGH",
             injection.isNotBlank()
         )
     }
