@@ -492,6 +492,8 @@ class ToolAwarenessEngine(
         try {
             systemKnowledgeDao.insert(
                 SystemKnowledgeEntry(
+                    category = type,
+                    key = subject,
                     knowledgeType = type,
                     subject = subject,
                     content = content,
