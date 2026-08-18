@@ -13,27 +13,27 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 
 /**
- * AccessibilityStateManager — [Localized] [Localized] [Localized] [Localized] [Localized]
+ * AccessibilityStateManager — Context note Context note Context note Context note Context note
  *
- * [Localized] [Localized] [Localized]:
+ * Context note Context note Context note:
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. **[Localized] [Localized] [Localized] [Localized] (UI Change Velocity)**: [Localized] [Localized] [Localized] [Localized]
- *    [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] (loading) [Localized] [Localized] [Localized].
+ * 1. **Context note Context note Context note Context note (UI Change Velocity)**: Context note Context note Context note Context note
+ *    Context note Context note Context note Context note Context note Context note Context note (loading) Context note Context note Context note.
  *
- * 2. **[Localized] [Localized] [Localized] (Navigation Pattern Detection)**: [Localized] [Localized] [Localized] packages
- *    [Localized] [Localized] [Localized] ([Localized]: Settings → WiFi → back → Settings).
+ * 2. **Context note Context note Context note (Navigation Pattern Detection)**: Context note Context note Context note packages
+ *    Context note Context note Context note (Context note: Settings → WiFi → back → Settings).
  *
- * 3. **[Localized] [Localized] [Localized] (UI State Classification)**: [Localized] [Localized] [Localized]
- *    [Localized] LOADING / INTERACTIVE / ERROR / DIALOG / LIST / FORM.
+ * 3. **Context note Context note Context note (UI State Classification)**: Context note Context note Context note
+ *    Context note LOADING / INTERACTIVE / ERROR / DIALOG / LIST / FORM.
  *
- * 4. **[Localized] [Localized] [Localized] [Localized] (Smart Debounce)**: [Localized] [Localized] [Localized]
- *    [Localized] [Localized] [Localized] content [Localized] (scroll, animation).
+ * 4. **Context note Context note Context note Context note (Smart Debounce)**: Context note Context note Context note
+ *    Context note Context note Context note content Context note (scroll, animation).
  *
- * 5. **[Localized] [Localized] (Session Memory)**: [Localized] [Localized] [Localized] [Localized] —
- *    [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+ * 5. **Context note Context note (Session Memory)**: Context note Context note Context note Context note —
+ *    Context note Context note Context note Context note Context note Context note Context note.
  *
- * 6. **[Localized] UI [Localized] [Localized] (UI Event Streaming)**: [Localized] [Localized] [Localized]
- *    (UIEvent) [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] — [Localized] [Localized] ReAct.
+ * 6. **Context note UI Context note Context note (UI Event Streaming)**: Context note Context note Context note
+ *    (UIEvent) Context note Context note Context note Context note Context note Context note — Context note Context note ReAct.
  */
 object AccessibilityStateManager {
 
@@ -56,58 +56,58 @@ object AccessibilityStateManager {
 
     // ── Enhanced State ───────────────────────────────────────────────────────
 
-    /** [Localized] [Localized]: [Localized] 20 [Localized] [Localized] [Localized] [Localized] */
+    /** Context note Context note: Context note 20 Context note Context note Context note Context note */
     private val _navigationHistory = MutableStateFlow<List<NavigationEntry>>(emptyList())
     val navigationHistory: StateFlow<List<NavigationEntry>> = _navigationHistory.asStateFlow()
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note Context note Context note */
     private val _screenClass = MutableStateFlow(ScreenClass.UNKNOWN)
     val screenClass: StateFlow<ScreenClass> = _screenClass.asStateFlow()
 
-    /** [Localized] [Localized] [Localized]: [Localized] [Localized] [Localized] content [Localized] [Localized] 5 [Localized] */
+    /** Context note Context note Context note: Context note Context note Context note content Context note Context note 5 Context note */
     private val _changeVelocity = MutableStateFlow(0f)
     val changeVelocity: StateFlow<Float> = _changeVelocity.asStateFlow()
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] velocity + node count) */
+    /** Context note Context note Context note Context note Context note (Context note Context note Context note velocity + node count) */
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    /** [Localized] [Localized] UI [Localized] [Localized] */
+    /** Context note Context note UI Context note Context note */
     private val _uiEvents = MutableSharedFlow<UIEvent>(extraBufferCapacity = 32)
     val uiEvents: SharedFlow<UIEvent> = _uiEvents.asSharedFlow()
 
-    /** [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note */
     private val _sessionStats = MutableStateFlow(SessionStats())
     val sessionStats: StateFlow<SessionStats> = _sessionStats.asStateFlow()
 
-    /** [Localized] snapshot [Localized] node count ([Localized] [Localized] loading) */
+    /** Context note snapshot Context note node count (Context note Context note loading) */
     private val _lastNodeCount = MutableStateFlow(0)
     val lastNodeCount: StateFlow<Int> = _lastNodeCount.asStateFlow()
 
     // ── Internal Tracking ────────────────────────────────────────────────────
 
-    /** [Localized] [Localized] 5 [Localized] [Localized] [Localized] velocity */
+    /** Context note Context note 5 Context note Context note Context note velocity */
     private val recentChangeTimestamps = ConcurrentLinkedDeque<Long>()
     private val VELOCITY_WINDOW_MS = 5_000L
 
-    /** [Localized] [Localized] [Localized] root [Localized] [Localized] package change */
+    /** Context note Context note Context note root Context note Context note package change */
     private val rootUpdatesSincePackageChange = AtomicInteger(0)
 
-    /** [Localized] [Localized] [Localized] [Localized] package */
+    /** Context note Context note Context note Context note package */
     private val lastPackageChangeMs = AtomicLong(0L)
 
-    /** [Localized] [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note Context note */
     private val detectedNavigationPatterns = mutableMapOf<String, Int>()
 
-    /** [Localized] package hash [Localized] debounce */
+    /** Context note package hash Context note debounce */
     @Volatile
     private var lastKnownPackage: String? = null
 
     // ── Public API ───────────────────────────────────────────────────────────
 
     /**
-     * [Localized] [Localized] root node [Localized] [Localized] [Localized] [Localized].
-     * [Localized] [Localized] [OmniAccessibilityService] [Localized] [Localized] [Localized].
+     * Context note Context note root node Context note Context note Context note Context note.
+     * Context note Context note [OmniAccessibilityService] Context note Context note Context note.
      */
     fun updateRootNode(node: AccessibilityNodeInfo?) {
         recycleOldRoot(node)
@@ -116,7 +116,7 @@ object AccessibilityStateManager {
         _lastUpdateTime.value = now
         rootUpdatesSincePackageChange.incrementAndGet()
 
-        // [Localized] [Localized] velocity
+        // Context note Context note velocity
         trackVelocity(now)
 
         if (node != null) {
@@ -134,7 +134,7 @@ object AccessibilityStateManager {
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note Context note Context note Context note Context note Context note Context note Context note.
      */
     fun updateActiveWindow(packageName: String?, activityName: String?) {
         val prev = _activePackage.value
@@ -146,25 +146,25 @@ object AccessibilityStateManager {
             lastPackageChangeMs.set(now)
             rootUpdatesSincePackageChange.set(0)
 
-            // [Localized] [Localized] [Localized]
+            // Context note Context note Context note
             val entry = NavigationEntry(packageName, activityName, now)
             val history = _navigationHistory.value.toMutableList()
             history.add(entry)
             if (history.size > 20) history.removeAt(0)
             _navigationHistory.value = history
 
-            // [Localized] [Localized] [Localized] [Localized]
+            // Context note Context note Context note Context note
             analyzeNavigationPattern(history)
 
-            // [Localized] [Localized] [Localized]
+            // Context note Context note Context note
             updateSessionStats(packageName, prev, now)
 
-            // [Localized] [Localized] [Localized] [Localized]
+            // Context note Context note Context note Context note
             _uiEvents.tryEmit(UIEvent.AppSwitched(prev, packageName, now))
         }
     }
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] / [Localized] [Localized]. */
+    /** Context note Context note Context note Context note Context note / Context note Context note. */
     fun setServiceConnected(connected: Boolean) {
         _isServiceConnected.value = connected
         if (!connected) {
@@ -182,8 +182,8 @@ object AccessibilityStateManager {
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] accessibility [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] dump_tree [Localized].
+     * Context note Context note Context note Context note accessibility Context note Context note Context note Context note Context note Context note.
+     * Context note Context note Context note Context note Context note Context note dump_tree Context note.
      */
     fun findNodeByText(text: String, exactMatch: Boolean = false): AccessibilityNodeInfo? {
         val root = _rootNode.value ?: return null
@@ -199,7 +199,7 @@ object AccessibilityStateManager {
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized] system prompt.
+     * Context note Context note Context note Context note Context note — Context note Context note Context note Context note Context note system prompt.
      */
     fun buildContextSummary(): String = buildString {
         append("🖥️ UI Context Summary\n")
@@ -232,7 +232,7 @@ object AccessibilityStateManager {
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note Context note Context note Context note Context note Context note Context note Context note.
      */
     fun getMostUsedApps(limit: Int = 5): List<Pair<String, Int>> =
         _sessionStats.value.appVisitCounts
@@ -242,12 +242,12 @@ object AccessibilityStateManager {
             .map { it.key to it.value }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] (form) — [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note Context note Context note Context note Context note Context note Context note Context note (form) — Context note Context note Context note Context note Context note.
      */
     fun isFormScreen(): Boolean = _screenClass.value == ScreenClass.FORM
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note.
      */
     fun shouldWaitForUI(): Boolean = _isLoading.value || _changeVelocity.value > 5f
 
@@ -262,7 +262,7 @@ object AccessibilityStateManager {
 
     private fun trackVelocity(now: Long) {
         recentChangeTimestamps.addLast(now)
-        // [Localized] [Localized] [Localized] [Localized] 5 [Localized]
+        // Context note Context note Context note Context note 5 Context note
         while (recentChangeTimestamps.isNotEmpty() &&
             now - recentChangeTimestamps.peekFirst() > VELOCITY_WINDOW_MS) {
             recentChangeTimestamps.pollFirst()
@@ -281,8 +281,8 @@ object AccessibilityStateManager {
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] node tree.
-     * [Localized]: [Localized] [Localized] heuristics + [Localized] [Localized].
+     * Context note Context note Context note Context note Context note Context note node tree.
+     * Context note: Context note Context note heuristics + Context note Context note.
      */
     private fun classifyScreen(root: AccessibilityNodeInfo, nodeCount: Int): ScreenClass {
         var editableCount = 0
@@ -329,12 +329,12 @@ object AccessibilityStateManager {
     private fun detectLoading(nodeCount: Int, velocity: Float, screenClass: ScreenClass): Boolean {
         return screenClass == ScreenClass.LOADING ||
                 (nodeCount < 8 && velocity > 3f) ||
-                (velocity > 10f) // [Localized] [Localized] [Localized] [Localized] = [Localized]
+                (velocity > 10f) // Context note Context note Context note Context note = Context note
     }
 
     private fun analyzeNavigationPattern(history: List<NavigationEntry>) {
         if (history.size < 3) return
-        // [Localized] [Localized] A→B→A [Localized] (bounce back patterns)
+        // Context note Context note A→B→A Context note (bounce back patterns)
         val recent = history.takeLast(6)
         val safeSize = recent.size
         for (i in 0 until safeSize - 2) {
@@ -403,19 +403,19 @@ object AccessibilityStateManager {
         fun sessionDurationMs(): Long = lastActivityMs - sessionStartMs
     }
 
-    /** [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note */
     enum class ScreenClass {
-        UNKNOWN,    // [Localized] [Localized] [Localized]
-        LOADING,    // [Localized] [Localized] / [Localized]
-        INTERACTIVE,// [Localized] [Localized] [Localized]
-        FORM,       // [Localized] [Localized] [Localized]
-        SEARCH,     // [Localized] [Localized] / [Localized] [Localized]
-        LIST,       // [Localized] [Localized]
-        DIALOG,     // [Localized] [Localized]
-        ERROR       // [Localized] [Localized]
+        UNKNOWN,    // Context note Context note Context note
+        LOADING,    // Context note Context note / Context note
+        INTERACTIVE,// Context note Context note Context note
+        FORM,       // Context note Context note Context note
+        SEARCH,     // Context note Context note / Context note Context note
+        LIST,       // Context note Context note
+        DIALOG,     // Context note Context note
+        ERROR       // Context note Context note
     }
 
-    /** [Localized] UI [Localized] */
+    /** Context note UI Context note */
     sealed class UIEvent {
         object ServiceConnected : UIEvent()
         object ServiceDisconnected : UIEvent()

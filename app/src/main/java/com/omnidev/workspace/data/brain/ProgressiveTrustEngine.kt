@@ -5,21 +5,21 @@ import android.util.Log
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * ProgressiveTrustEngine — [Localized] [Localized] [Localized] (Progressive Trust Model)
+ * ProgressiveTrustEngine — Context note Context note Context note (Progressive Trust Model)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * [Localized] [Localized] [Localized]/[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+ * Context note Context note Context note/Context note Context note Context note Context note Context note Context note Context note Context note.
  *
- * ## [Localized]:
- * - [Localized] [Localized] [Localized] [Localized] [Localized] trustScore [Localized]
- * - [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized] [Localized])
- * - [Localized] [Localized] (delete, patch) [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+ * ## Context note:
+ * - Context note Context note Context note Context note Context note trustScore Context note
+ * - Context note Context note Context note Context note (Context note Context note Context note Context note Context note)
+ * - Context note Context note (delete, patch) Context note Context note Context note
+ * - Context note Context note Context note Context note Context note Context note Context note
  *
  * ## Mobile-First:
- * - [Localized] LLM — [Localized] rule-based [Localized] (< 1ms [Localized] [Localized])
- * - [Localized] [Localized] SharedPreferences [Localized] JSON (< 5KB)
- * - [Localized] [Localized] [Localized] [Localized] [Localized] 2GB RAM
+ * - Context note LLM — Context note rule-based Context note (< 1ms Context note Context note)
+ * - Context note Context note SharedPreferences Context note JSON (< 5KB)
+ * - Context note Context note Context note Context note Context note 2GB RAM
  */
 class ProgressiveTrustEngine(private val context: Context) {
 
@@ -28,25 +28,25 @@ class ProgressiveTrustEngine(private val context: Context) {
         private const val PREFS_NAME = "omni_trust_prefs"
         private const val PREFS_KEY = "omni_trust_profile"
 
-        // [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] score
+        // Context note Context note — Context note Context note Context note Context note Context note Context note score
         private const val WEIGHT_DESTRUCTIVE = 2.0f   // delete, patch, root, etc.
         private const val WEIGHT_READ = 1.0f           // read, search, etc.
 
-        // [Localized] [Localized]
-        private const val SUCCESS_DELTA = 0.01f        // +0.01 * weight [Localized] [Localized]
-        private const val FAILURE_DELTA = 0.02f        // -0.02 * weight [Localized] [Localized]
+        // Context note Context note
+        private const val SUCCESS_DELTA = 0.01f        // +0.01 * weight Context note Context note
+        private const val FAILURE_DELTA = 0.02f        // -0.02 * weight Context note Context note
 
-        // [Localized] [Localized]
+        // Context note Context note
         private const val THRESHOLD_FILE_WRITE = 0.2f
         private const val THRESHOLD_TERMINAL_ACCESS = 0.3f
         private const val THRESHOLD_GOD_MODE = 0.8f
         private const val THRESHOLD_SWARM_CONTROL = 0.9f
 
-        // [Localized] [Localized] trustScore
+        // Context note Context note trustScore
         private const val SCORE_MIN = 0.0f
         private const val SCORE_MAX = 1.0f
 
-        // [Localized] [Localized] [Localized] [Localized] (destructive)
+        // Context note Context note Context note Context note (destructive)
         private val DESTRUCTIVE_TOOLS = setOf(
             "delete_file", "patch_file_content", "create_file",
             "run_terminal", "root_shell_tool", "advanced_root_shell",
@@ -57,7 +57,7 @@ class ProgressiveTrustEngine(private val context: Context) {
         )
     }
 
-    // ─── [Localized] [Localized] [Localized] [Localized] [Localized] ────────────────────────────────────
+    // ─── Context note Context note Context note Context note Context note ────────────────────────────────────
 
     @Volatile private var profile: AgentTrustProfile = AgentTrustProfile()
 
@@ -65,31 +65,31 @@ class ProgressiveTrustEngine(private val context: Context) {
         loadProfile()
     }
 
-    // ─── [Localized] [Localized] ──────────────────────────────────────────────────
+    // ─── Context note Context note ──────────────────────────────────────────────────
 
-    /** [Localized] [Localized] [Localized] [Localized]/[Localized] */
+    /** Context note Context note Context note Context note/Context note */
     data class AgentTrustProfile(
         val userId: String = "default",
-        val trustScore: Float = 0.1f,          // [Localized] [Localized] 0.1 ([Localized] [Localized] [Localized] [Localized] [Localized] [Localized])
+        val trustScore: Float = 0.1f,          // Context note Context note 0.1 (Context note Context note Context note Context note Context note Context note)
         val successfulOps: Int = 0,
         val failedOps: Int = 0,
         val earnedCapabilities: Set<String> = emptySet(),
         val lastUpdated: Long = System.currentTimeMillis()
     )
 
-    /** [Localized] [Localized] */
+    /** Context note Context note */
     enum class TrustLevel(val label: String, val arabicLabel: String) {
-        NOVICE("NOVICE", "[Localized]"),
-        TRUSTED("TRUSTED", "[Localized]"),
-        EXPERT("EXPERT", "[Localized]"),
-        GUARDIAN("GUARDIAN", "[Localized]")
+        NOVICE("NOVICE", "Info"),
+        TRUSTED("TRUSTED", "Info"),
+        EXPERT("EXPERT", "Info"),
+        GUARDIAN("GUARDIAN", "Info")
     }
 
-    // ─── [Localized] [Localized] ──────────────────────────────────────────────────
+    // ─── Context note Context note ──────────────────────────────────────────────────
 
     /**
-     * [Localized] [Localized] [Localized].
-     * [Localized]: trustScore += 0.01 * weight
+     * Context note Context note Context note.
+     * Context note: trustScore += 0.01 * weight
      */
     fun onOperationSuccess(toolName: String) {
         val weight = getToolWeight(toolName)
@@ -101,14 +101,14 @@ class ProgressiveTrustEngine(private val context: Context) {
                 lastUpdated = System.currentTimeMillis()
             )
         }
-        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note Context note Context note Context note Context note
         autoEarnCapabilities()
-        Log.d(TAG, "✅ [Localized]: $toolName | Δ=+${"%.4f".format(delta)} | score=${profile.trustScore}")
+        Log.d(TAG, "✅ Info: $toolName | Δ=+${"%.4f".format(delta)} | score=${profile.trustScore}")
     }
 
     /**
-     * [Localized] [Localized] [Localized].
-     * [Localized]: trustScore -= 0.02 * weight
+     * Context note Context note Context note.
+     * Context note: trustScore -= 0.02 * weight
      */
     fun onOperationFailure(toolName: String) {
         val weight = getToolWeight(toolName)
@@ -120,15 +120,15 @@ class ProgressiveTrustEngine(private val context: Context) {
                 lastUpdated = System.currentTimeMillis()
             )
         }
-        Log.d(TAG, "❌ [Localized]: $toolName | Δ=${"%.4f".format(delta)} | score=${profile.trustScore}")
+        Log.d(TAG, "❌ Info: $toolName | Δ=${"%.4f".format(delta)} | score=${profile.trustScore}")
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] trustScore.
+     * Context note Context note Context note Context note Context note Context note Context note Context note trustScore.
      */
     fun checkCapability(capability: String): Boolean {
         val currentScore = profile.trustScore
-        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] score [Localized]
+        // Context note Context note Context note Context note Context note Context note Context note Context note score Context note
         if (capability in profile.earnedCapabilities) return true
         return when (capability) {
             "file_write"        -> currentScore >= THRESHOLD_FILE_WRITE
@@ -140,24 +140,24 @@ class ProgressiveTrustEngine(private val context: Context) {
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
-     * [Localized] [Localized] true [Localized] [Localized] [Localized] false [Localized] [Localized] [Localized] [Localized].
+     * Context note Context note Context note Context note Context note Context note Context note Context note.
+     * Context note Context note true Context note Context note Context note false Context note Context note Context note Context note.
      */
     fun earnCapability(capability: String): Boolean {
         if (!checkCapability(capability)) return false
-        if (capability in profile.earnedCapabilities) return true // [Localized] [Localized]
+        if (capability in profile.earnedCapabilities) return true // Context note Context note
         updateProfile { old ->
             old.copy(
                 earnedCapabilities = old.earnedCapabilities + capability,
                 lastUpdated = System.currentTimeMillis()
             )
         }
-        Log.i(TAG, "🏆 [Localized] [Localized]: $capability (score=${profile.trustScore})")
+        Log.i(TAG, "🏆 Info Info: $capability (score=${profile.trustScore})")
         return true
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized].
+     * Context note Context note Context note Context note.
      */
     fun getTrustLevel(): TrustLevel {
         return when {
@@ -169,12 +169,12 @@ class ProgressiveTrustEngine(private val context: Context) {
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized]).
+     * Context note Context note Context note Context note Context note Context note (Context note Context note).
      */
     fun getProfile(): AgentTrustProfile = profile
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] System Prompt [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note Context note Context note Context note System Prompt Context note Context note Context note Context note Context note.
      */
     fun buildPromptInjection(): String {
         val p = profile
@@ -192,7 +192,7 @@ class ProgressiveTrustEngine(private val context: Context) {
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note Context note Context note Context note Context note.
      */
     fun buildProfileSummary(): String {
         val p = profile
@@ -229,7 +229,7 @@ class ProgressiveTrustEngine(private val context: Context) {
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note Context note Context note Context note Context note Context note.
      */
     fun resetProfile() {
         profile = AgentTrustProfile()
@@ -237,22 +237,22 @@ class ProgressiveTrustEngine(private val context: Context) {
         Log.i(TAG, "🔄 Trust profile reset to defaults")
     }
 
-    // ─── [Localized] [Localized] ────────────────────────────────────────────────────
+    // ─── Context note Context note ────────────────────────────────────────────────────
 
-    /** [Localized] [Localized] score [Localized] [Localized] [Localized] [Localized] */
+    /** Context note Context note score Context note Context note Context note Context note */
     private fun updateScore(delta: Float) {
         val newScore = (profile.trustScore + delta).coerceIn(SCORE_MIN, SCORE_MAX)
         updateProfile { old -> old.copy(trustScore = newScore) }
     }
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] SharedPreferences */
+    /** Context note Context note Context note Context note Context note Context note SharedPreferences */
     @Synchronized
     private fun updateProfile(transform: (AgentTrustProfile) -> AgentTrustProfile) {
         profile = transform(profile)
         saveProfile()
     }
 
-    /** [Localized] [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note Context note */
     private fun autoEarnCapabilities() {
         val capabilities = listOf("file_write", "terminal_access", "god_mode", "swarm_control")
         for (cap in capabilities) {
@@ -260,12 +260,12 @@ class ProgressiveTrustEngine(private val context: Context) {
         }
     }
 
-    /** [Localized] [Localized] [Localized] (destructive = 2.0[Localized] read = 1.0) */
+    /** Context note Context note Context note (destructive = 2.0Context note read = 1.0) */
     private fun getToolWeight(toolName: String): Float {
         return if (toolName in DESTRUCTIVE_TOOLS) WEIGHT_DESTRUCTIVE else WEIGHT_READ
     }
 
-    /** [Localized] [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note Context note */
     private fun buildNextUnlockHint(score: Float): String {
         return when {
             score < THRESHOLD_FILE_WRITE -> {
@@ -313,7 +313,7 @@ class ProgressiveTrustEngine(private val context: Context) {
         }
     }
 
-    // ─── [Localized] [Localized]: JSON [Localized] ([Localized] [Localized] [Localized] < 1ms) ────────────────
+    // ─── Context note Context note: JSON Context note (Context note Context note Context note < 1ms) ────────────────
 
     private fun profileToJson(p: AgentTrustProfile): String {
         val capsJson = p.earnedCapabilities.joinToString(",") { "\"$it\"" }

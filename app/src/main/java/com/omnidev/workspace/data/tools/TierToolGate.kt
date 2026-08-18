@@ -56,14 +56,14 @@ internal object TierToolGate {
         "vector_similar",
 
         // ── Agent Brain 2.0 (on-device, no privileges, mobile-friendly) ──
-        // [Localized] read-only [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] Lite/Play-Store
+        // Context note read-only Context note Context note Context note Context note Context note Context note Lite/Play-Store
         "brain_reflexion_search",
         "brain_episode_search",
         "brain_recent_episodes",
         "brain_stats",
 
         // ── Causal Chain Planner (on-device analysis, no side effects) ────────
-        // [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] Tiers
+        // Context note Context note Context note — Context note Context note Context note Context note Context note Context note Tiers
         "causal_plan_analyze",
         "causal_plan_simulate",
         "causal_plan_what_if",

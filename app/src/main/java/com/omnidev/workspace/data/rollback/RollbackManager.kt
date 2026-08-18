@@ -10,32 +10,32 @@ import java.util.UUID
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * RollbackManager — [Localized] "[Localized] [Localized]" (Action Insurance / Brain 2.0)
+ * RollbackManager — Context note "Context note Context note" (Action Insurance / Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * **[Localized]**: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] (write/patch/delete)[Localized] [Localized] [Localized]
- * Manager snapshot [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]. [Localized] snapshots [Localized]
- * [Localized] "action groups" [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized]) [Localized].
+ * **Context note**: Context note Context note Context note Context note Context note Context note (write/patch/delete)Context note Context note Context note
+ * Manager snapshot Context note Context note Context note Context note Context note Context note. Context note snapshots Context note
+ * Context note "action groups" Context note Context note Context note Context note Context note Context note (Context note Context note) Context note.
  *
  * **Mobile-first**:
- * - [Localized] [Localized] root ([Localized]/[Localized] [Localized] [Localized] [Localized] File API [Localized])
- * - [Localized] ≤ 4 KB → [Localized] [Localized] [Localized] [Localized] Deflate
- * - [Localized] > 4 KB → unified diff [Localized] ([Localized] ~70%)
- * - 200 snapshot/group max + 50 MB max storage [Localized] + LRU eviction
- * - [Localized] SHA-256 [Localized] [Localized] [Localized] [Localized]
+ * - Context note Context note root (Context note/Context note Context note Context note Context note File API Context note)
+ * - Context note ≤ 4 KB → Context note Context note Context note Context note Deflate
+ * - Context note > 4 KB → unified diff Context note (Context note ~70%)
+ * - 200 snapshot/group max + 50 MB max storage Context note + LRU eviction
+ * - Context note SHA-256 Context note Context note Context note Context note
  *
  * **API**:
- *   - newGroup() → [Localized] actionGroupId [Localized] [Localized] lapsohots [Localized]
- *   - captureBeforeWrite(...) → [Localized] [Localized] [Localized] [Localized] write/patch
- *   - rollbackGroup(id) → [Localized] [Localized] [Localized] [Localized] group
- *   - rollbackById(id) → [Localized] snapshot [Localized]
+ *   - newGroup() → Context note actionGroupId Context note Context note lapsohots Context note
+ *   - captureBeforeWrite(...) → Context note Context note Context note Context note write/patch
+ *   - rollbackGroup(id) → Context note Context note Context note Context note group
+ *   - rollbackById(id) → Context note snapshot Context note
  *   - listRecent / listGroups / pin / unpin
  */
 class RollbackManager(
     private val dao: RollbackDao,
-    /** [Localized] [Localized] [Localized] [Localized] snapshots [Localized] [Localized] (50 MB [Localized]). */
+    /** Context note Context note Context note Context note snapshots Context note Context note (50 MB Context note). */
     private val maxBytesEvictable: Long = 50L * 1024 * 1024,
-    /** [Localized] [Localized] [Localized]/group [Localized] bevaluation. */
+    /** Context note Context note Context note/group Context note bevaluation. */
     private val maxSnapshotsPerGroup: Int = 200
 ) {
 
@@ -54,18 +54,18 @@ class RollbackManager(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Capture ([Localized] [Localized] [Localized])
+    // Capture (Context note Context note Context note)
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * [Localized] snapshot [Localized] [Localized]/[Localized] [Localized]. [Localized] [Localized] [Localized] [Localized] FileToolManager
-     * [Localized] write_file / patch_file / delete_file.
+     * Context note snapshot Context note Context note/Context note Context note. Context note Context note Context note Context note FileToolManager
+     * Context note write_file / patch_file / delete_file.
      *
-     * @param actionGroupId [Localized] [Localized] ([Localized] newGroup())
-     * @param toolName [Localized] [Localized] [Localized] [Localized] ([Localized])
-     * @param filePath [Localized] [Localized]
-     * @param reason [Localized] [Localized] ([Localized] [Localized])
-     * @return [Localized] [Localized] snapshot [Localized] -1 [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized])
+     * @param actionGroupId Context note Context note (Context note newGroup())
+     * @param toolName Context note Context note Context note Context note (Context note)
+     * @param filePath Context note Context note
+     * @param reason Context note Context note (Context note Context note)
+     * @return Context note Context note snapshot Context note -1 Context note Context note Context note (Context note Context note Context note Context note)
      */
     suspend fun captureBeforeWrite(
         actionGroupId: String,
@@ -78,7 +78,7 @@ class RollbackManager(
             val existed = file.exists()
 
             if (!existed) {
-                // [Localized] [Localized] [Localized] [Localized] → snapshot "[Localized]" [Localized] [Localized] [Localized] [Localized] rollback
+                // Context note Context note Context note Context note → snapshot "Context note" Context note Context note Context note Context note rollback
                 val entry = RollbackSnapshotEntry(
                     actionGroupId = actionGroupId,
                     toolName = toolName,
@@ -104,10 +104,10 @@ class RollbackManager(
             val hash = DiffUtils.sha256(original)
             val storedAsDiff = original.size > DiffUtils.FULL_CONTENT_THRESHOLD_BYTES
 
-            // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]-[Localized] [Localized] → [Localized] [Localized] [Localized].
-            // [Localized] storedAsDiff = true [Localized] [Localized] [Localized] [Localized] [Localized] diff [Localized] [Localized] [Localized] tool.
-            // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
-            // [Localized] [Localized] diff ([Localized]) [Localized] finalizeAfterWrite().
+            // Context note Context note Context note Context note Context note Context note Context note-Context note Context note → Context note Context note Context note.
+            // Context note storedAsDiff = true Context note Context note Context note Context note Context note diff Context note Context note Context note tool.
+            // Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note
+            // Context note Context note diff (Context note) Context note finalizeAfterWrite().
             val compressed = DiffUtils.compress(original)
 
             val entry = RollbackSnapshotEntry(
@@ -131,8 +131,8 @@ class RollbackManager(
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] snapshot [Localized] "[Localized] [Localized]" [Localized] "diff" [Localized] [Localized].
-     * [Localized] [Localized] [Localized] FileToolManager [Localized] write/patch.
+     * Context note Context note Context note Context note snapshot Context note "Context note Context note" Context note "diff" Context note Context note.
+     * Context note Context note Context note FileToolManager Context note write/patch.
      */
     suspend fun finalizeAfterWrite(snapshotId: Long, filePath: String) =
         withContext(Dispatchers.IO) {
@@ -152,7 +152,7 @@ class RollbackManager(
 
                 val diff = DiffUtils.buildDiff(before = original, after = current)
                 if (diff.length >= original.length) {
-                    // [Localized] diff [Localized] [Localized] [Localized] → [Localized] [Localized] [Localized]
+                    // Context note diff Context note Context note Context note → Context note Context note Context note
                     return@withContext
                 }
                 val diffCompressed = DiffUtils.compress(diff.toByteArray())
@@ -173,8 +173,8 @@ class RollbackManager(
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] snapshot [Localized].
-     * @return true [Localized] [Localized]
+     * Context note Context note Context note Context note snapshot Context note.
+     * @return true Context note Context note
      */
     suspend fun rollbackById(id: Long): Boolean = withContext(Dispatchers.IO) {
         val snap = dao.getById(id) ?: return@withContext false
@@ -182,8 +182,8 @@ class RollbackManager(
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] group [Localized] (best-effort).
-     * @return [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note group Context note (best-effort).
+     * @return Context note Context note Context note Context note Context note
      */
     suspend fun rollbackGroup(groupId: String): RollbackResult = withContext(Dispatchers.IO) {
         val snaps = dao.getByGroup(groupId, limit = maxSnapshotsPerGroup)
@@ -206,12 +206,12 @@ class RollbackManager(
         val file = File(snap.filePath)
         return try {
             if (!snap.existedBefore) {
-                // [Localized] [Localized] [Localized] [Localized] → [Localized] [Localized] [Localized] [Localized]
+                // Context note Context note Context note Context note → Context note Context note Context note Context note
                 if (file.exists()) file.delete()
             } else {
                 file.parentFile?.mkdirs()
                 if (snap.storedAsDiff) {
-                    // diff → [Localized] [Localized] [Localized] + [Localized] diff [Localized] [Localized]
+                    // diff → Context note Context note Context note + Context note diff Context note Context note
                     val diff = DiffUtils.decompress(snap.contentBlob).toString(Charsets.UTF_8)
                     val current = if (file.exists()) file.readText(Charsets.UTF_8) else ""
                     val original = DiffUtils.applyReverseDiff(current, diff)
@@ -251,7 +251,7 @@ class RollbackManager(
         try {
             val used = dao.totalEvictableBytes()
             if (used > maxBytesEvictable) {
-                // [Localized] 20% [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] I/O)
+                // Context note 20% Context note Context note Context note (Context note Context note Context note I/O)
                 val cnt = dao.countEvictable()
                 val toEvict = (cnt / 5).coerceAtLeast(20)
                 dao.evictOldestUnpinned(toEvict)

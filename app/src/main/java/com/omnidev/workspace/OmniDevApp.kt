@@ -45,31 +45,31 @@ import kotlinx.coroutines.launch
  * OmniDev Workspace Application class.
  * Initializes application-wide dependencies and services.
  *
- * [Localized] [Localized] [Localized]:
- * - SmartLearningBridge: [Localized] [Localized] [Localized] [Localized]
- * - ToolExecutionJournal: [Localized] [Localized] [Localized]
- * - ToolAwarenessEngine: [Localized] [Localized] [Localized] [Localized]
+ * Context note Context note Context note:
+ * - SmartLearningBridge: Context note Context note Context note Context note
+ * - ToolExecutionJournal: Context note Context note Context note
+ * - ToolAwarenessEngine: Context note Context note Context note Context note
  */
 class OmniDevApp : Application() {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // ─── [Localized] [Localized] [Localized] (Agent Brain) ────────────────────────────
+    // ─── Context note Context note Context note (Agent Brain) ────────────────────────────
 
-    /** [Localized] [Localized] [Localized] — [Localized] [Localized] */
+    /** Context note Context note Context note — Context note Context note */
     lateinit var toolExecutionJournal: ToolExecutionJournal
         private set
 
-    /** [Localized] [Localized] [Localized] [Localized] */
+    /** Tool and System Awareness Engine */
     lateinit var toolAwarenessEngine: ToolAwarenessEngine
         private set
 
 
-    /** [Localized] [Localized] MCP ([Localized] [Localized]) */
+    /** Context note Context note MCP (Context note Context note) */
     lateinit var mcpRegistry: McpRegistry
         private set
 
-    /** [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note — Context note Context note Context note Context note */
 
     lateinit var smartLearningBridge: SmartLearningBridge
         private set
@@ -80,39 +80,39 @@ class OmniDevApp : Application() {
     //     low-end Android with 2-4 GB RAM, no native libs, no extra LLM calls).
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /** [Localized] Reflexion — [Localized] [Localized] [Localized] [Localized] [Localized] Agent. */
+    /** Context note Reflexion — Context note Context note Context note Context note Context note Agent. */
     lateinit var reflexionEngine: ReflexionEngine
         private set
 
-    /** [Localized] [Localized] [Localized] (Episodic Memory). */
+    /** Context note Context note Context note (Episodic Memory). */
     lateinit var episodicMemoryStore: EpisodicMemoryStore
         private set
 
-    /** [Localized] [Localized] — Action Insurance. */
+    /** Context note Context note — Action Insurance. */
     lateinit var rollbackManager: RollbackManager
         private set
 
-    /** [Localized] [Localized] [Localized] (incremental). */
+    /** Context note Context note Context note (incremental). */
     lateinit var repoIndexer: RepoIndexer
         private set
 
-    /** [Localized] [Localized] [Localized] [Localized] retrieval. */
+    /** Context note Context note Context note Context note retrieval. */
     lateinit var repoContextEngine: RepoContextEngine
         private set
 
-    /** Build Doctor Pro — [Localized] + [Localized] [Localized] [Localized]. */
+    /** Build Doctor Pro — Context note + Context note Context note Context note. */
     lateinit var buildDoctorPro: BuildDoctorPro
         private set
 
-    /** [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized]. */
+    /** Context note Context note Context note — Context note Context note Context note Context note Context note. */
     lateinit var causalChainPlannerTool: CausalChainPlannerTool
         private set
 
-    /** [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized]. */
+    /** Context note Context note Context note — Context note Context note Context note Context note. */
     lateinit var progressiveTrustEngine: ProgressiveTrustEngine
         private set
 
-    /** [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] Agent [Localized] [Localized] [Localized]. */
+    /** Context note Context note Context note — Context note Context note Context note Agent Context note Context note Context note. */
     lateinit var headlessBrowserManager: HeadlessBrowserManager
         private set
 
@@ -158,7 +158,7 @@ class OmniDevApp : Application() {
         ExtensionConnectionManager.initialize(applicationContext)
 
         // ═══════════════════════════════════════════════════════════════
-        // 🧠 [Localized] [Localized] [Localized] [Localized] [Localized] (Agent Brain System)
+        // 🧠 Context note Context note Context note Context note Context note (Agent Brain System)
         // ═══════════════════════════════════════════════════════════════
         initializeAgentBrainSystem()
 
@@ -167,42 +167,42 @@ class OmniDevApp : Application() {
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] Agent [Localized]
-     * [Localized]: [Localized] [Localized] + [Localized] [Localized] + [Localized] [Localized]
+     * Context note Context note Context note Context note Agent Context note
+     * Context note: Context note Context note + Context note Context note + Context note Context note
      */
     private fun initializeAgentBrainSystem() {
         try {
             val db = OmniDevDatabase.getInstance(applicationContext)
 
-            // 1. [Localized] [Localized] [Localized]
+            // 1. Context note Context note Context note
             toolExecutionJournal = ToolExecutionJournal(
                 dao = db.toolExecutionDao(),
                 scope = appScope
             )
 
-            // 2. [Localized] [Localized] [Localized] [Localized]
+            // 2. Context note Context note Context note Context note
             toolAwarenessEngine = ToolAwarenessEngine(
                 context = applicationContext,
                 systemKnowledgeDao = db.systemKnowledgeDao(),
                 scope = appScope
             )
 
-            // 3. [Localized] [Localized] [Localized] [Localized]
+            // 3. Context note Context note Context note Context note
             val intelligenceEngine = ToolIntelligenceEngine(applicationContext, appScope)
             val mlEngine = ToolMachineLearningEngine(applicationContext)
             val monitoringSystem = ToolMonitoringSystem
 
 
-            // 4. [Localized] [Localized] MCP
+            // 4. Context note Context note MCP
             val mcpConfigManager = McpConfigManager(applicationContext)
             mcpRegistry = McpRegistry(mcpConfigManager)
 
-            // 5. [Localized] [Localized] [Localized] [Localized] [Localized] Progressive Trust Engine
+            // 5. Context note Context note Context note Context note Context note Progressive Trust Engine
             val trustEngine = ProgressiveTrustEngine(applicationContext)
             progressiveTrustEngine = trustEngine
 
-            // 6f. Causal Chain Planner — [Localized] [Localized] [Localized] [Localized] [Localized] (in-memory, no DB)
-            //     [Localized] [Localized] SmartLearningBridge [Localized] [Localized] [Localized] [Localized] dependency
+            // 6f. Causal Chain Planner — Context note Context note Context note Context note Context note (in-memory, no DB)
+            //     Context note Context note SmartLearningBridge Context note Context note Context note Context note dependency
             //     50 node max per graph — mobile-safe (~50 KB peak)
             causalChainPlannerTool = CausalChainPlannerTool(CausalChainPlanner(maxNodes = 50))
 
@@ -223,15 +223,15 @@ class OmniDevApp : Application() {
             // 🧠 6. Agent Brain 2.0 + Action Insurance + Repo Context + Build Doctor
             // ═══════════════════════════════════════════════════════════════
 
-            // 6a. Reflexion — [Localized] [Localized] [Localized] (rule-based, on-device)
+            // 6a. Reflexion — Context note Context note Context note (rule-based, on-device)
             reflexionEngine = ReflexionEngine(
                 dao = db.reflexionDao(),
-                maxLessons = 2000,           // ~2 MB [Localized] DB
-                topKForInjection = 3,        // 3 [Localized] [Localized] [Localized] [Localized] prompt ([Localized] [Localized] tokens)
+                maxLessons = 2000,           // ~2 MB Context note DB
+                topKForInjection = 3,        // 3 Context note Context note Context note Context note prompt (Context note Context note tokens)
                 scope = appScope
             )
 
-            // 6b. Episodic Memory — [Localized] [Localized] [Localized]
+            // 6b. Episodic Memory — Context note Context note Context note
             episodicMemoryStore = EpisodicMemoryStore(
                 dao = db.episodicMemoryDao(),
                 maxEpisodes = 2000,
@@ -239,7 +239,7 @@ class OmniDevApp : Application() {
             )
 
             // 6c. Rollback Manager — Action Insurance
-            //     50 MB max storage[Localized] 200 snapshot max[Localized] diff-based [Localized] [Localized]
+            //     50 MB max storageContext note 200 snapshot maxContext note diff-based Context note Context note
             rollbackManager = RollbackManager(
                 dao = db.rollbackDao(),
                 maxSnapshotsPerGroup = 200,
@@ -247,7 +247,7 @@ class OmniDevApp : Application() {
             )
 
             // 6d. Repo Indexer + Context Engine — Live Repository Context
-            //     time budget 30s [Localized] pass[Localized] [Localized] incremental
+            //     time budget 30s Context note passContext note Context note incremental
             repoIndexer = RepoIndexer(
                 dao = db.repoIndexDao(),
                 maxFileSizeBytes = 500L * 1024,
@@ -256,13 +256,13 @@ class OmniDevApp : Application() {
             )
             repoContextEngine = RepoContextEngine(dao = db.repoIndexDao(), indexer = repoIndexer)
 
-            // 6e. Build Doctor Pro — [Localized] + [Localized] [Localized]
+            // 6e. Build Doctor Pro — Context note + Context note Context note
             buildDoctorPro = BuildDoctorPro(
                 dao = db.buildDiagnosticDao(),
                 maxEntries = 500
             )
 
-            // 7. [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] + [Localized] [Localized])
+            // 7. Context note Context note Context note Context note (Context note Context note + Context note Context note)
             appScope.launch {
                 try {
                     toolAwarenessEngine.initialize()
@@ -271,26 +271,26 @@ class OmniDevApp : Application() {
                     val episodes = db.episodicMemoryDao().count()
                     val diagnostics = db.buildDiagnosticDao().count()
                     Log.i("OmniDevApp",
-                        "✅ Agent Brain 2.0 [Localized]  •  [Localized]=$lessons  [Localized]=$episodes  [Localized]-[Localized]=$diagnostics")
+                        "✅ Agent Brain 2.0 Info  •  Info=$lessons  Info=$episodes  Info-Info=$diagnostics")
                 } catch (e: Exception) {
-                    Log.e("OmniDevApp", "⚠️ [Localized] [Localized] [Localized] Agent Brain: ${e.message}")
+                    Log.e("OmniDevApp", "⚠️ Info Info Info Agent Brain: ${e.message}")
                 }
             }
 
         } catch (e: Exception) {
-            Log.e("OmniDevApp", "❌ [Localized] [Localized] [Localized] Agent Brain System: ${e.message}")
-            // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+            Log.e("OmniDevApp", "❌ Info Info Info Agent Brain System: ${e.message}")
+            // Context note Context note Context note Context note Context note Context note Context note
             val db = OmniDevDatabase.getInstance(applicationContext)
 
             toolExecutionJournal = ToolExecutionJournal(db.toolExecutionDao())
             toolAwarenessEngine = ToolAwarenessEngine(applicationContext, db.systemKnowledgeDao())
             mcpRegistry = McpRegistry(McpConfigManager(applicationContext))
 
-            // [Localized] ProgressiveTrustEngine [Localized] SmartLearningBridge [Localized] [Localized] [Localized]
+            // Context note ProgressiveTrustEngine Context note SmartLearningBridge Context note Context note Context note
             val fallbackTrustEngine = ProgressiveTrustEngine(applicationContext)
             progressiveTrustEngine = fallbackTrustEngine
 
-            // [Localized] CausalChainPlannerTool [Localized] SmartLearningBridge [Localized] [Localized] [Localized]
+            // Context note CausalChainPlannerTool Context note SmartLearningBridge Context note Context note Context note
             val fallbackCausalTool = CausalChainPlannerTool(CausalChainPlanner())
             causalChainPlannerTool = fallbackCausalTool
 

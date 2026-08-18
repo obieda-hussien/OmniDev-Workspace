@@ -248,8 +248,8 @@ fun AISettingsScreen(
             )
 
             SettingsNavCard(
-                title = "👤 [Localized] [Localized]",
-                subtitle = "[Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]",
+                title = "👤 Info Info",
+                subtitle = "Info Info Info — Info Info Info Info Info Info Info",
                 onClick = onNavigateToProfile
             )
 
@@ -297,11 +297,11 @@ fun AISettingsScreen(
             )
 
             // ═══════════════════════════════════════════════════════════════
-            // 🧠 Agent Brain Dashboard — [Localized] [Localized] [Localized] [Localized]
+            // 🧠 Agent Brain Dashboard — Context note Context note Context note Context note
             // ═══════════════════════════════════════════════════════════════
             SettingsNavCard(
                 title = "🧠 Agent Brain",
-                subtitle = "[Localized] [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]",
+                subtitle = "Info Info Info Info — Info Info Info Info Info Info",
                 onClick = onNavigateToAgentBrain
             )
 

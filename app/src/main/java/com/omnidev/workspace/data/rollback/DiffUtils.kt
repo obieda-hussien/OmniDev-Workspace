@@ -9,26 +9,26 @@ import java.util.zip.InflaterOutputStream
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * DiffUtils — [Localized] Diff [Localized] [Localized] Rollback (Brain 2.0)
+ * DiffUtils — Context note Diff Context note Context note Rollback (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
  * Mobile-first:
- * - LCS (Longest Common Subsequence) [Localized] [Localized] 8000 [Localized] [Localized] O(n²) memory
- * - [Localized] > 4 KB → unified diff ([Localized] ~70% [Localized] [Localized])
- * - [Localized] ≤ 4 KB → [Localized] [Localized] [Localized] [Localized] Deflate
- * - SHA-256 truncated (16 hex) [Localized] [Localized] [Localized] [Localized] rollback
+ * - LCS (Longest Common Subsequence) Context note Context note 8000 Context note Context note O(n²) memory
+ * - Context note > 4 KB → unified diff (Context note ~70% Context note Context note)
+ * - Context note ≤ 4 KB → Context note Context note Context note Context note Deflate
+ * - SHA-256 truncated (16 hex) Context note Context note Context note Context note rollback
  *
- * [Localized] [Localized] synchronous — [Localized] [Localized] [Localized] Dispatchers.IO.
+ * Context note Context note synchronous — Context note Context note Context note Dispatchers.IO.
  */
 object DiffUtils {
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] diff [Localized] [Localized] [Localized] [Localized]. */
+    /** Context note Context note Context note Context note Context note diff Context note Context note Context note Context note. */
     const val FULL_CONTENT_THRESHOLD_BYTES = 4 * 1024
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] LCS ([Localized] [Localized] OOM [Localized] [Localized] [Localized]). */
+    /** Context note Context note Context note Context note Context note LCS (Context note Context note OOM Context note Context note Context note). */
     private const val MAX_LCS_LINES = 8_000
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] (10 MB). */
+    /** Context note Context note Context note Context note Context note (10 MB). */
     const val MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024
 
     // ──────────────────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ object DiffUtils {
     fun sha256(text: String): String = sha256(text.toByteArray())
 
     // ──────────────────────────────────────────────────────────────────
-    // Compression (Deflate — [Localized] [Localized] [Localized] JVM/Android [Localized] [Localized] [Localized])
+    // Compression (Deflate — Context note Context note Context note JVM/Android Context note Context note Context note)
     // ──────────────────────────────────────────────────────────────────
 
     fun compress(data: ByteArray): ByteArray {
@@ -66,20 +66,20 @@ object DiffUtils {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * [Localized] unified diff [Localized] [Localized] [Localized].
-     * format: [Localized] [Localized]:
-     *   "= line"   = [Localized] [Localized] (context — [Localized] lines [Localized] [Localized])
-     *   "- line"   = [Localized] [Localized]
-     *   "+ line"   = [Localized] [Localized]
+     * Context note unified diff Context note Context note Context note.
+     * format: Context note Context note:
+     *   "= line"   = Context note Context note (context — Context note lines Context note Context note)
+     *   "- line"   = Context note Context note
+     *   "+ line"   = Context note Context note
      *
-     * Mobile-first: [Localized] [Localized] context [Localized] [Localized] hunks [Localized] + 2 [Localized] context.
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Mobile-first: Context note Context note context Context note Context note hunks Context note + 2 Context note context.
+     * Context note Context note Context note Context note Context note Context note Context note.
      */
     fun buildDiff(before: String, after: String): String {
         val a = before.split('\n')
         val b = after.split('\n')
 
-        // [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized])
+        // Context note: Context note Context note Context note Context note Context note Context note Context note (Context note Context note Context note)
         if (a.size > MAX_LCS_LINES || b.size > MAX_LCS_LINES) {
             return buildSimpleDiff(a, b)
         }
@@ -89,21 +89,21 @@ object DiffUtils {
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] unified diff + [Localized] [Localized].
-     * @return [Localized] [Localized] ([Localized] [Localized] edit) [Localized] [Localized] null [Localized] [Localized].
+     * Context note Context note Context note Context note unified diff + Context note Context note.
+     * @return Context note Context note (Context note Context note edit) Context note Context note null Context note Context note.
      */
     fun applyReverseDiff(currentContent: String, diff: String): String? {
         if (diff.isBlank()) return currentContent
         return try {
-            // [Localized] [Localized]: [Localized] diff [Localized] [Localized] [Localized] [Localized] [Localized]
+            // Context note Context note: Context note diff Context note Context note Context note Context note Context note
             val ops = parseDiff(diff)
             val current = currentContent.split('\n').toMutableList()
             val original = mutableListOf<String>()
 
-            // [Localized] [Localized]: [Localized] [Localized] ops [Localized] [Localized]
-            // - = → [Localized] [Localized] current
-            // + → [Localized] ([Localized] [Localized] [Localized] after[Localized] [Localized] [Localized] before)
-            // - → [Localized] [Localized] ([Localized] [Localized] [Localized] before[Localized] [Localized])
+            // Context note Context note: Context note Context note ops Context note Context note
+            // - = → Context note Context note current
+            // + → Context note (Context note Context note Context note afterContext note Context note Context note before)
+            // - → Context note Context note (Context note Context note Context note beforeContext note Context note)
             var ci = 0
             for (op in ops) {
                 when (op.kind) {
@@ -116,17 +116,17 @@ object DiffUtils {
                         }
                     }
                     DiffOp.Kind.ADDED -> {
-                        // [Localized] [Localized] [Localized] after — [Localized] [Localized] [Localized] current
+                        // Context note Context note Context note after — Context note Context note Context note current
                         if (ci < current.size && current[ci] == op.line) ci++
                     }
                     DiffOp.Kind.REMOVED -> {
-                        // [Localized] [Localized] [Localized] before — [Localized]
+                        // Context note Context note Context note before — Context note
                         original += op.line
                     }
                 }
             }
 
-            // [Localized] [Localized] [Localized] [Localized] current [Localized] [Localized] diff ([Localized] [Localized])[Localized] [Localized] [Localized] [Localized]
+            // Context note Context note Context note Context note current Context note Context note diff (Context note Context note)Context note Context note Context note Context note
             while (ci < current.size) {
                 original += current[ci]
                 ci++
@@ -146,11 +146,11 @@ object DiffUtils {
         enum class Kind { CONTEXT, ADDED, REMOVED }
     }
 
-    /** [Localized] LCS operations [Localized] DP table O(m*n) memory — [Localized] [Localized] 8K×8K. */
+    /** Context note LCS operations Context note DP table O(m*n) memory — Context note Context note 8K×8K. */
     private fun computeLcsOps(a: List<String>, b: List<String>): List<DiffOp> {
         val m = a.size
         val n = b.size
-        // [Localized] IntArray [Localized] [Localized] overhead [Localized] Object[]
+        // Context note IntArray Context note Context note overhead Context note Object[]
         val dp = IntArray((m + 1) * (n + 1))
         val w = n + 1
         for (i in m - 1 downTo 0) {
@@ -186,7 +186,7 @@ object DiffUtils {
         return ops
     }
 
-    /** Fallback [Localized] [Localized] [Localized] [Localized] [Localized] LCS — diff [Localized] [Localized]-[Localized]. */
+    /** Fallback Context note Context note Context note Context note Context note LCS — diff Context note Context note-Context note. */
     private fun buildSimpleDiff(a: List<String>, b: List<String>): String {
         val sb = StringBuilder()
         val limit = minOf(a.size, b.size)
@@ -202,7 +202,7 @@ object DiffUtils {
         return sb.toString()
     }
 
-    /** [Localized] ops [Localized] hunks [Localized] context [Localized] ([Localized] [Localized]). */
+    /** Context note ops Context note hunks Context note context Context note (Context note Context note). */
     private fun formatHunks(ops: List<DiffOp>, contextLines: Int): String {
         val sb = StringBuilder()
         for (op in ops) {

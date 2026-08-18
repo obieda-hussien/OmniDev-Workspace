@@ -12,38 +12,38 @@ import java.security.MessageDigest
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * RepoIndexer — [Localized] [Localized] [Localized] (Live Repository Context Engine)
+ * RepoIndexer — Context note Context note Context note (Live Repository Context Engine)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Mobile-first design — [Localized] 2-4 GB RAM[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] UI:
+ * Mobile-first design — Context note 2-4 GB RAMContext note Context note Context note Context note Context note Context note UI:
  *
- *   1) **Incremental indexing**: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] mtime [Localized] [Localized].
- *      [Localized] 5000 [Localized] [Localized] [Localized] [Localized] [Localized] ~10 [Localized] [Localized] [Localized] [Localized] < 1s.
+ *   1) **Incremental indexing**: Context note Context note Context note Context note Context note Context note mtime Context note Context note.
+ *      Context note 5000 Context note Context note Context note Context note Context note ~10 Context note Context note Context note Context note < 1s.
  *
- *   2) **Yield + chunking**: [Localized] [Localized] [Localized] chunks [Localized] (50 [Localized]) [Localized]
- *      `yield()` [Localized] [Localized] chunk [Localized] [Localized] [Localized] [Localized] Garbage Collector.
+ *   2) **Yield + chunking**: Context note Context note Context note chunks Context note (50 Context note) Context note
+ *      `yield()` Context note Context note chunk Context note Context note Context note Context note Garbage Collector.
  *
- *   3) **Skip rules**: [Localized] binaries[Localized] [Localized] > 500 KB[Localized] .git, node_modules,
- *      build/, .gradle/, etc. ([Localized] [Localized] [Localized] [Localized]).
+ *   3) **Skip rules**: Context note binariesContext note Context note > 500 KBContext note .git, node_modules,
+ *      build/, .gradle/, etc. (Context note Context note Context note Context note).
  *
- *   4) **5000 [Localized]/scope** [Localized] [Localized] [Localized] LRU eviction ([Localized] [Localized] DB).
+ *   4) **5000 Context note/scope** Context note Context note Context note LRU eviction (Context note Context note DB).
  */
 class RepoIndexer(
     private val dao: RepoIndexDao,
-    /** [Localized] [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized]. */
+    /** Context note Context note Context note Context note — Context note Context note Context note Context note. */
     private val maxFileSizeBytes: Long = 500L * 1024,
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] scope. */
+    /** Context note Context note Context note Context note Context note scope. */
     private val maxSymbolsPerScope: Int = 5000,
-    /** chunk size — [Localized] 2 GB RAM ([Localized] [Localized] [Localized] [Localized] 50 [Localized] [Localized]). */
+    /** chunk size — Context note 2 GB RAM (Context note Context note Context note Context note 50 Context note Context note). */
     private val chunkSize: Int = 50,
-    /** delay [Localized] chunks (ms) [Localized] [Localized] [Localized] CPU/IO [Localized] [Localized] [Localized]. */
+    /** delay Context note chunks (ms) Context note Context note Context note CPU/IO Context note Context note Context note. */
     private val chunkDelayMs: Long = 25
 ) {
 
     companion object {
         private const val TAG = "RepoIndexer"
 
-        /** [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized]). */
+        /** Context note Context note Context note (Context note Context note Context note). */
         private val IGNORED_DIRS = setOf(
             ".git", "node_modules", "build", ".gradle", ".idea",
             "dist", "out", "target", ".next", ".cache",
@@ -51,7 +51,7 @@ class RepoIndexer(
             "Pods", "DerivedData"
         )
 
-        /** [Localized] [Localized] [Localized]. */
+        /** Context note Context note Context note. */
         private val IGNORED_EXTENSIONS = setOf(
             "png", "jpg", "jpeg", "gif", "bmp", "ico", "svg", "webp",
             "mp3", "mp4", "mov", "wav", "flac", "ogg", "webm",
@@ -78,8 +78,8 @@ class RepoIndexer(
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * [Localized] scope [Localized] [Localized] [Localized].
-     * @param onProgress callback [Localized] [Localized] ([Localized] [Localized] chunk)
+     * Context note scope Context note Context note Context note.
+     * @param onProgress callback Context note Context note (Context note Context note chunk)
      */
     suspend fun indexScope(
         scopePath: String,
@@ -91,7 +91,7 @@ class RepoIndexer(
             return@withContext IndexProgress(0, 0, 0, 0, 0, 0, 0)
         }
 
-        // 1) [Localized] [Localized] [Localized] (lazy walk)
+        // 1) Context note Context note Context note (lazy walk)
         val files = collectFiles(root)
         Log.d(TAG, "📁 Scanning ${files.size} files in $scopePath")
 
@@ -101,7 +101,7 @@ class RepoIndexer(
         var unchanged = 0
         var symbols = 0
 
-        // 2) [Localized] [Localized] chunks
+        // 2) Context note Context note chunks
         for ((cidx, chunk) in files.chunked(chunkSize).withIndex()) {
             for (file in chunk) {
                 try {
@@ -117,7 +117,7 @@ class RepoIndexer(
                     skipped++
                 }
             }
-            // [Localized] [Localized] chunks ([Localized] UI)
+            // Context note Context note chunks (Context note UI)
             yield()
             if (chunkDelayMs > 0) delay(chunkDelayMs)
 
@@ -134,7 +134,7 @@ class RepoIndexer(
             )
         }
 
-        // 3) enforce symbol quota [Localized] scope
+        // 3) enforce symbol quota Context note scope
         enforceSymbolQuota(scopePath)
 
         IndexProgress(
@@ -148,7 +148,7 @@ class RepoIndexer(
         )
     }
 
-    /** [Localized] [Localized] [Localized] ([Localized] [Localized] live updates [Localized] [Localized] save). */
+    /** Context note Context note Context note (Context note Context note live updates Context note Context note save). */
     suspend fun reindexFile(scopePath: String, filePath: String) =
         withContext(Dispatchers.IO) {
             try {
@@ -164,7 +164,7 @@ class RepoIndexer(
             }
         }
 
-    /** [Localized] [Localized] [Localized] scope ([Localized] [Localized] [Localized] [Localized]). */
+    /** Context note Context note Context note scope (Context note Context note Context note Context note). */
     suspend fun clearScope(scopePath: String) = withContext(Dispatchers.IO) {
         dao.clearScope(scopePath)
         dao.clearSymbolsForScope(scopePath)
@@ -192,16 +192,16 @@ class RepoIndexer(
         if (ext in IGNORED_EXTENSIONS) return FileResult.Skipped
 
         val existing = dao.getFile(scopePath, relativePath)
-        // incremental: [Localized] [Localized] mtime + size → [Localized] ([Localized] [Localized])
+        // incremental: Context note Context note mtime + size → Context note (Context note Context note)
         if (existing != null && existing.fileMtime == mtime && existing.fileSize == size) {
             return FileResult.Unchanged
         }
 
-        // [Localized] [Localized]
+        // Context note Context note
         val content = try {
             file.readText(Charsets.UTF_8)
         } catch (t: Throwable) {
-            // [Localized] binary → [Localized]
+            // Context note binary → Context note
             return FileResult.Skipped
         }
 
@@ -226,7 +226,7 @@ class RepoIndexer(
                 indexedAt = System.currentTimeMillis()
             )
         )
-        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note Context note Context note
         dao.deleteSymbolsForFile(scopePath, relativePath)
         if (symbols.isNotEmpty()) dao.insertSymbols(symbols)
 
@@ -234,7 +234,7 @@ class RepoIndexer(
         else FileResult.Updated(symbols.size)
     }
 
-    /** Walk recursive [Localized] [Localized] IGNORED_DIRS [Localized]. */
+    /** Walk recursive Context note Context note IGNORED_DIRS Context note. */
     private fun collectFiles(root: File): List<File> {
         val out = ArrayList<File>(1024)
         val stack = ArrayDeque<File>()

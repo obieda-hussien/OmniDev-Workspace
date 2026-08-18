@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * ViewModel [Localized] Agent Brain Dashboard
+ * ViewModel Context note Agent Brain Dashboard
  */
 class AgentBrainViewModel(
     private val bridge: SmartLearningBridge,

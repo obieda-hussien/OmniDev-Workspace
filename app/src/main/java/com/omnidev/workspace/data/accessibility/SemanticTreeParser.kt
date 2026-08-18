@@ -4,26 +4,26 @@ import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * SemanticTreeParser — [Localized] [Localized] [Localized] [Localized]
+ * SemanticTreeParser — Context note Context note Context note Context note
  *
- * [Localized] [Localized]: [Localized] [Localized] [Localized]
+ * Context note Context note: Context note Context note Context note
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. **[Localized] [Localized] (Form Detection)**: [Localized] [Localized] [Localized] [Localized] [Localized]
- *    [Localized] [Localized] "Form Group" [Localized] [Localized] [Localized].
+ * 1. **Context note Context note (Form Detection)**: Context note Context note Context note Context note Context note
+ *    Context note Context note "Form Group" Context note Context note Context note.
  *
- * 2. **[Localized] [Localized] (Relationship Mapping)**: [Localized] [Localized] [Localized] [Localized] [Localized]
- *    TextView [Localized] label [Localized] [Localized] [Localized].
+ * 2. **Context note Context note (Relationship Mapping)**: Context note Context note Context note Context note Context note
+ *    TextView Context note label Context note Context note Context note.
  *
- * 3. **[Localized] [Localized] (Priority Scoring)**: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
- *    [Localized] [Localized] + [Localized] + [Localized] [Localized].
+ * 3. **Context note Context note (Priority Scoring)**: Context note Context note Context note Context note Context note Context note
+ *    Context note Context note + Context note + Context note Context note.
  *
- * 4. **[Localized] [Localized] (Executive Summary)**: [Localized] [Localized] [Localized] [Localized] [Localized]
- *    [Localized] [Localized] [Localized] [Localized].
+ * 4. **Context note Context note (Executive Summary)**: Context note Context note Context note Context note Context note
+ *    Context note Context note Context note Context note.
  *
- * 5. **[Localized] [Localized] [Localized] (Navigation Detection)**: [Localized] Bottom Nav / Tab Bar /
- *    Drawer / FAB [Localized] [Localized].
+ * 5. **Context note Context note Context note (Navigation Detection)**: Context note Bottom Nav / Tab Bar /
+ *    Drawer / FAB Context note Context note.
  *
- * 6. **[Localized] Compose [Localized]**: [Localized] semantics extras [Localized] [Localized]
+ * 6. **Context note Compose Context note**: Context note semantics extras Context note Context note
  *    stateDescription / roleDescription / headings.
  */
 object SemanticTreeParser {
@@ -34,20 +34,20 @@ object SemanticTreeParser {
     private const val MAX_DISPLAY_LENGTH = 80
 
     /**
-     * [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized].
+     * Context note Context note Context note — Context note Context note Context note.
      */
     data class ParseResult(
         val semanticTree: String,
         val nodeMap: Map<String, AccessibilityNodeInfo>,
         val totalRawNodes: Int,
         val extractedNodes: Int,
-        /** [Localized] [Localized] [Localized] [Localized] */
+        /** Context note Context note Context note Context note */
         val summary: String,
-        /** [Localized] [Localized] [Localized] */
+        /** Context note Context note Context note */
         val detectedForms: List<FormGroup>,
-        /** [Localized] [Localized] [Localized] */
+        /** Context note Context note Context note */
         val navigationElements: List<String>,
-        /** [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized]) */
+        /** Context note Context note Context note Context note (Context note Context note) */
         val priorityOrder: List<String>
     )
 
@@ -67,7 +67,7 @@ object SemanticTreeParser {
         TEXT, EMAIL, PASSWORD, NUMBER, PHONE, SEARCH, MULTILINE, UNKNOWN
     }
 
-    // ── [Localized] [Localized] [Localized] ─────────────────────────────────────────────
+    // ── Context note Context note Context note ─────────────────────────────────────────────
 
     private data class NodeMeta(
         val node: AccessibilityNodeInfo,
@@ -79,7 +79,7 @@ object SemanticTreeParser {
         val labelCandidate: AccessibilityNodeInfo?
     )
 
-    // ── API [Localized] ───────────────────────────────────────────────────────────
+    // ── API Context note ───────────────────────────────────────────────────────────
 
     fun parse(
         root: AccessibilityNodeInfo,
@@ -91,7 +91,7 @@ object SemanticTreeParser {
         var nodeCounter = 0
         var totalRawNodes = 0
 
-        // [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] priority
+        // Context note Context note: Context note Context note Context note Context note Context note Context note priority
         fun traverse(node: AccessibilityNodeInfo, depth: Int, parent: AccessibilityNodeInfo?) {
             if (depth > MAX_DEPTH || nodeCounter >= MAX_NODES) return
             totalRawNodes++
@@ -128,21 +128,21 @@ object SemanticTreeParser {
 
         traverse(root, 0, null)
 
-        // [Localized] [Localized]: [Localized] [Localized] [Localized]
+        // Context note Context note: Context note Context note Context note
         val lines = mutableListOf<String>()
         val header = buildHeader(packageName, activityName, totalRawNodes, nodeCounter)
         lines.add(header)
 
-        // [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note
         buildFormattedTree(root, allMeta, lines)
 
-        if (nodeCounter == 0) lines.add("([Localized] [Localized] [Localized] [Localized] [Localized] [Localized])")
-        if (nodeCounter >= MAX_NODES) lines.add("... [[Localized] [Localized] [Localized] $MAX_NODES [Localized]]")
+        if (nodeCounter == 0) lines.add("(Info Info Info Info Info Info)")
+        if (nodeCounter >= MAX_NODES) lines.add("... [Info Info Info $MAX_NODES Info]")
 
-        // [Localized] [Localized]
+        // Context note Context note
         val forms = detectForms(allMeta, nodeMap)
 
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         val navElements = allMeta
             .filter { it.isNavigational }
             .map { meta ->
@@ -150,13 +150,13 @@ object SemanticTreeParser {
                 "${meta.nodeId}: ${node?.text ?: node?.contentDescription ?: "nav"}"
             }
 
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         val priorityOrder = allMeta
             .sortedByDescending { it.priority }
             .take(20)
             .map { it.nodeId }
 
-        // [Localized] [Localized]
+        // Context note Context note
         val summary = buildExecutiveSummary(
             packageName, allMeta, forms, navElements, nodeCounter
         )
@@ -173,7 +173,7 @@ object SemanticTreeParser {
         )
     }
 
-    // ── [Localized] [Localized] ───────────────────────────────────────────────────────────
+    // ── Context note Context note ───────────────────────────────────────────────────────────
 
     private fun buildFormattedTree(
         root: AccessibilityNodeInfo,
@@ -184,23 +184,23 @@ object SemanticTreeParser {
             compareBy({ it.bounds.top }, { it.bounds.left })
         )
 
-        // [Localized] [Localized] navigation elements [Localized]
+        // Context note Context note navigation elements Context note
         val navMeta = metaByPriority.filter { it.isNavigational }
         val formMeta = metaByPriority.filter { it.isFormField && !it.isNavigational }
         val restMeta = metaByPriority.filter { !it.isNavigational && !it.isFormField }
 
         if (navMeta.isNotEmpty()) {
-            lines.add("\n📍 [Localized] [Localized]:")
+            lines.add("\n📍 Info Info:")
             navMeta.forEach { meta -> lines.add(buildNodeLine(meta)) }
         }
 
         if (formMeta.isNotEmpty()) {
-            lines.add("\n📝 [Localized] [Localized]:")
+            lines.add("\n📝 Info Info:")
             formMeta.forEach { meta -> lines.add(buildNodeLine(meta, showLabel = true)) }
         }
 
         if (restMeta.isNotEmpty()) {
-            lines.add("\n🖱️ [Localized] [Localized]:")
+            lines.add("\n🖱️ Info Info:")
             restMeta.forEach { meta -> lines.add(buildNodeLine(meta)) }
         }
     }
@@ -221,7 +221,7 @@ object SemanticTreeParser {
         val className = node.className?.toString()?.substringAfterLast('.') ?: "View"
         append(className)
 
-        // Label [Localized] [Localized] parent ([Localized])
+        // Label Context note Context note parent (Context note)
         if (showLabel && meta.labelCandidate != null) {
             val labelText = meta.labelCandidate.text?.toString()?.trim()
                 ?: meta.labelCandidate.contentDescription?.toString()?.trim()
@@ -230,46 +230,46 @@ object SemanticTreeParser {
             }
         }
 
-        // [Localized]
+        // Context note
         val text = node.text?.toString()?.trim()
         if (!text.isNullOrEmpty()) {
             if (node.isPassword) append(": \"••••\"")
             else append(": \"${truncate(text)}\"")
         }
 
-        // [Localized]
+        // Context note
         val desc = node.contentDescription?.toString()?.trim()
         if (!desc.isNullOrEmpty() && desc != text) {
             append(" [desc: \"${truncate(desc)}\"]")
         }
 
-        // [Localized] [Localized] [Localized] extras
+        // Context note Context note Context note extras
         val semanticState = readSemanticState(node)
         if (!semanticState.isNullOrEmpty()) {
             append(" [state: \"${truncate(semanticState)}\"]")
         }
 
-        // [Localized] [Localized] [Localized] EditText
+        // Context note Context note Context note EditText
         if (node.isEditable) {
             append(" (${inferFieldType(node).name})")
         }
 
-        // [Localized]
+        // Context note
         val flags = buildFlagsList(node)
         if (flags.isNotEmpty()) append(" (${flags.joinToString(", ")})")
 
-        // [Localized]
+        // Context note
         if (!meta.bounds.isEmpty) {
             append(" {${meta.bounds.left},${meta.bounds.top}–${meta.bounds.right},${meta.bounds.bottom}}")
         }
 
-        // [Localized] resource ID [Localized]
+        // Context note resource ID Context note
         node.viewIdResourceName?.substringAfterLast('/')?.let {
             append(" #$it")
         }
     }
 
-    // ── [Localized] [Localized] ───────────────────────────────────────────────────────────
+    // ── Context note Context note ───────────────────────────────────────────────────────────
 
     private fun detectForms(
         allMeta: List<NodeMeta>,
@@ -278,7 +278,7 @@ object SemanticTreeParser {
         val editableMeta = allMeta.filter { it.isFormField }
         if (editableMeta.isEmpty()) return emptyList()
 
-        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note Context note Context note
         val groups = mutableListOf<MutableList<NodeMeta>>()
         var currentGroup = mutableListOf<NodeMeta>()
 
@@ -288,7 +288,7 @@ object SemanticTreeParser {
             } else {
                 val lastBottom = currentGroup.last().bounds.bottom
                 val gap = meta.bounds.top - lastBottom
-                if (gap < 250) { // [Localized] [Localized] 250px [Localized] [Localized] = [Localized] [Localized]
+                if (gap < 250) { // Context note Context note 250px Context note Context note = Context note Context note
                     currentGroup.add(meta)
                 } else {
                     groups.add(currentGroup)
@@ -313,16 +313,16 @@ object SemanticTreeParser {
                 )
             }
             val groupName = when {
-                fields.any { it.fieldType == FieldType.PASSWORD } -> "[Localized] [Localized] [Localized]"
-                fields.any { it.fieldType == FieldType.EMAIL } -> "[Localized] [Localized]"
-                fields.size == 1 && fields.first().fieldType == FieldType.SEARCH -> "[Localized] [Localized]"
-                else -> "[Localized] ${groupIndex + 1}"
+                fields.any { it.fieldType == FieldType.PASSWORD } -> "Info Info Info"
+                fields.any { it.fieldType == FieldType.EMAIL } -> "Info Info"
+                fields.size == 1 && fields.first().fieldType == FieldType.SEARCH -> "Info Info"
+                else -> "Info ${groupIndex + 1}"
             }
             FormGroup(groupName, fields)
         }
     }
 
-    // ── [Localized] [Localized] ───────────────────────────────────────────────────────
+    // ── Context note Context note ───────────────────────────────────────────────────────
 
     private fun buildExecutiveSummary(
         packageName: String?,
@@ -331,20 +331,20 @@ object SemanticTreeParser {
         navElements: List<String>,
         totalNodes: Int
     ): String = buildString {
-        val appName = packageName?.substringAfterLast('.') ?: "[Localized]"
-        append("[Localized] [Localized] [Localized] $appName [Localized] [Localized] $totalNodes [Localized] [Localized]. ")
+        val appName = packageName?.substringAfterLast('.') ?: "Info"
+        append("Info Info Info $appName Info Info $totalNodes Info Info. ")
 
         if (forms.isNotEmpty()) {
-            append("[Localized] ${forms.size} [Localized]: ${forms.joinToString(", ") { it.groupName }}. ")
+            append("Info ${forms.size} Info: ${forms.joinToString(", ") { it.groupName }}. ")
         }
 
         val clickableCount = allMeta.count { it.node.isClickable }
         if (clickableCount > 0) {
-            append("$clickableCount [Localized]/[Localized] [Localized] [Localized]. ")
+            append("$clickableCount Info/Info Info Info. ")
         }
 
         if (navElements.isNotEmpty()) {
-            append("${navElements.size} [Localized] [Localized] ([Localized]/[Localized]). ")
+            append("${navElements.size} Info Info (Info/Info). ")
         }
 
         val topNodes = allMeta.sortedByDescending { it.priority }.take(3)
@@ -354,7 +354,7 @@ object SemanticTreeParser {
                     ?: meta.node.contentDescription?.toString()?.trim()
             }.take(3)
             if (topDesc.isNotEmpty()) {
-                append("[Localized] [Localized]: ${topDesc.joinToString(", ") { "\"$it\"" }}.")
+                append("Info Info: ${topDesc.joinToString(", ") { "\"$it\"" }}.")
             }
         }
     }
@@ -371,7 +371,7 @@ object SemanticTreeParser {
         append("\nNodes: $extracted extracted / $total total")
     }
 
-    // ── [Localized] [Localized] ─────────────────────────────────────────────────────────
+    // ── Context note Context note ─────────────────────────────────────────────────────────
 
     private fun computePriority(
         node: AccessibilityNodeInfo,
@@ -380,24 +380,24 @@ object SemanticTreeParser {
     ): Int {
         var score = 0
 
-        // [Localized] [Localized]
+        // Context note Context note
         if (node.isClickable) score += 30
         if (node.isEditable) score += 40
         if (node.isFocused) score += 25
         if (node.isFocusable) score += 10
         if (node.isScrollable) score += 20
 
-        // [Localized] [Localized] ([Localized] = [Localized] [Localized])
+        // Context note Context note (Context note = Context note Context note)
         score -= depth * 2
 
-        // [Localized] [Localized] ([Localized] = [Localized] [Localized] [Localized])
-        // [Localized] [Localized] [Localized] (Bottom Nav) [Localized] [Localized]
+        // Context note Context note (Context notehighest = Context note Context note Context note)
+        // Context note Context note Context note (Bottom Nav) Context note Context note
         if (bounds.top < 400) score += 10
 
-        // [Localized] [Localized]
+        // Context note Context note
         val text = node.text?.toString()
         if (!text.isNullOrEmpty()) score += 10
-        if (text?.length in 2..30) score += 5 // [Localized] [Localized] [Localized]
+        if (text?.length in 2..30) score += 5 // Context note Context note Context note
 
         // Compose
         if (isComposeNode(node)) score += 5
@@ -428,7 +428,7 @@ object SemanticTreeParser {
         parent: AccessibilityNodeInfo?
     ): AccessibilityNodeInfo? {
         if (parent == null || !node.isEditable) return null
-        // [Localized] [Localized] TextView [Localized] [Localized] [Localized] sibling
+        // Context note Context note TextView Context note Context note Context note sibling
         for (i in 0 until parent.childCount) {
             val sibling = parent.getChild(i) ?: continue
             if (sibling == node) break

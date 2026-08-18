@@ -53,8 +53,8 @@ object Routes {
         const val MCP_SETTINGS = "mcp_settings"
     const val PROFILE = "profile"
     const val ANALYTICS = "analytics"
-    const val AGENT_BRAIN = "agent_brain"  // [Localized] [Localized] [Localized] Agent [Localized]
-    const val BROWSER_VIEWER = "browser_viewer"  // [Localized] [Localized] [Localized] [Localized] [Localized]
+    const val AGENT_BRAIN = "agent_brain"  // Context note Context note Context note Agent Context note
+    const val BROWSER_VIEWER = "browser_viewer"  // Context note Context note Context note Context note Context note
 }
 
 /**
@@ -192,7 +192,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // 🧠 Agent Brain Dashboard — [Localized] [Localized] [Localized] [Localized] Agent
+        // 🧠 Agent Brain Dashboard — Context note Context note Context note Context note Agent
         // ═══════════════════════════════════════════════════════════════
         composable(Routes.AGENT_BRAIN) {
             val app = OmniDevApp.instance
@@ -210,7 +210,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // 👁 Browser Viewer — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+        // 👁 Browser Viewer — Context note Context note Context note Context note Context note Context note Context note Context note
         // ═══════════════════════════════════════════════════════════════
         composable(Routes.BROWSER_VIEWER) {
             val app = OmniDevApp.instance

@@ -6,32 +6,32 @@ import kotlin.math.sqrt
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * HashEmbedder — [Localized] Embedding [Localized] [Localized] [Localized] (Brain 2.0)
+ * HashEmbedder — Context note Embedding Context note Context note Context note (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
  * Mobile-first by design:
- *   - 0 RAM [Localized] (stateless[Localized] singleton object)
- *   - 0 disk I/O ([Localized] [Localized] [Localized])
- *   - ~0.5 ms [Localized] 100 [Localized] [Localized] Snapdragon 660
- *   - [Localized] offline [Localized]
+ *   - 0 RAM Context note (statelessContext note singleton object)
+ *   - 0 disk I/O (Context note Context note Context note)
+ *   - ~0.5 ms Context note 100 Context note Context note Snapdragon 660
+ *   - Context note offline Context note
  *
- * **[Localized]**: hashing trick + character n-grams + bigrams.
+ * **Context note**: hashing trick + character n-grams + bigrams.
  *   1) Tokenize (lowercase + diacritic strip + punctuation strip)
- *   2) [Localized] stop-words [Localized]/[Localized] [Localized]
- *   3) [Localized] token: hash(word) → index[Localized] [Localized] [Localized] [Localized]
- *   4) [Localized] token: char 3-grams [Localized] 4-grams → [Localized] [Localized]
- *   5) bigrams [Localized] tokens [Localized]
- *   6) L2-normalize → cosine similarity [Localized] [Localized] vector [Localized]
+ *   2) Context note stop-words Context note/Context note Context note
+ *   3) Context note token: hash(word) → indexContext note Context note Context note Context note
+ *   4) Context note token: char 3-grams Context note 4-grams → Context note Context note
+ *   5) bigrams Context note tokens Context note
+ *   6) L2-normalize → cosine similarity Context note Context note vector Context note
  *
- * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]/[Localized].
- * [Localized] [Localized] TF-IDF [Localized] retrieval[Localized] [Localized] [Localized] [Localized] any embedding model.
+ * Context note Context note Context note Context note Context note Context note Context note Context note Context note/Context note.
+ * Context note Context note TF-IDF Context note retrievalContext note Context note Context note Context note any embedding model.
  */
 object HashEmbedder {
 
-    /** [Localized] [Localized] embedding — 256 floats × 4 bytes = 1024 bytes. */
+    /** Context note Context note embedding — 256 floats × 4 bytes = 1024 bytes. */
     const val DIM = 256
 
-    /** Stop-words [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] embedding). */
+    /** Stop-words Context note Context note Context note (Context note Context note Context note embedding). */
     private val STOP_WORDS = setOf(
         // English
         "the", "a", "an", "and", "or", "but", "is", "are", "was", "were", "be",
@@ -39,9 +39,9 @@ object HashEmbedder {
         "in", "on", "for", "with", "at", "by", "from", "as", "this", "that",
         "it", "its", "i", "you", "he", "she", "we", "they", "them",
         // Arabic
-        "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]",
-        "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]",
-        "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]"
+        "Info", "Info", "Info", "Info", "Info", "Info", "Info", "Info", "Info", "Info",
+        "Info", "Info", "Info", "Info", "Info", "Info", "Info", "Info", "Info", "Info",
+        "Info", "Info", "Info", "Info", "Info", "Info", "Info"
     )
 
     private const val MAX_TOKENS = 200
@@ -50,7 +50,7 @@ object HashEmbedder {
     // Public API
     // ──────────────────────────────────────────────────────────────────
 
-    /** [Localized] embedding L2-normalized [Localized]. */
+    /** Context note embedding L2-normalized Context note. */
     fun embed(text: String): FloatArray {
         if (text.isBlank()) return FloatArray(DIM)
 
@@ -63,7 +63,7 @@ object HashEmbedder {
             addHashed(vec, tok, weight = 1.0f)
         }
 
-        // 2) char n-grams (3 [Localized] 4) — [Localized] [Localized] [Localized]
+        // 2) char n-grams (3 Context note 4) — Context note Context note Context note
         for (tok in tokens) {
             if (tok.length < 3) continue
             for (n in 3..4) {
@@ -74,7 +74,7 @@ object HashEmbedder {
             }
         }
 
-        // 3) bigrams [Localized] tokens [Localized] ([Localized] [Localized])
+        // 3) bigrams Context note tokens Context note (Context note Context note)
         for (i in 0 until tokens.size - 1) {
             addHashed(vec, "${tokens[i]}_${tokens[i + 1]}", weight = 0.3f)
         }
@@ -83,7 +83,7 @@ object HashEmbedder {
         return vec
     }
 
-    /** Cosine similarity [Localized] [Localized] L2-normalized — [Localized] dot product. */
+    /** Cosine similarity Context note Context note L2-normalized — Context note dot product. */
     fun cosine(a: FloatArray, b: FloatArray): Float {
         if (a.size != b.size) return 0f
         var sum = 0f
@@ -92,7 +92,7 @@ object HashEmbedder {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Serialization (FloatArray ↔ ByteArray) [Localized] [Localized] Room
+    // Serialization (FloatArray ↔ ByteArray) Context note Context note Room
     // ──────────────────────────────────────────────────────────────────
 
     fun toBytes(vec: FloatArray): ByteArray {
@@ -136,8 +136,8 @@ object HashEmbedder {
     }
 
     /**
-     * Hashing trick: [Localized] 2 indices [Localized] [Localized] vector + [Localized] [Localized] [Localized] [Localized] hash.
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] double-hashing [Localized].
+     * Hashing trick: Context note 2 indices Context note Context note vector + Context note Context note Context note Context note hash.
+     * Context note Context note Context note Context note Context note Context note Context note double-hashing Context note.
      */
     private fun addHashed(vec: FloatArray, token: String, weight: Float) {
         val h = stableHash(token)
@@ -146,7 +146,7 @@ object HashEmbedder {
         vec[idx] += sign * weight
     }
 
-    /** Murmur-like 32-bit hash. [Localized] [Localized] [Localized] [Localized] JVM ([Localized] [Localized] [Localized] String.hashCode). */
+    /** Murmur-like 32-bit hash. Context note Context note Context note Context note JVM (Context note Context note Context note String.hashCode). */
     private fun stableHash(s: String): Int {
         var h = 0x9E3779B1.toInt()
         for (i in s.indices) {

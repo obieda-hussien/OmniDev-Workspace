@@ -7,17 +7,17 @@ import kotlinx.coroutines.withContext
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * RepoContextEngine — [Localized] [Localized] Live Repository Context (Brain 2.0)
+ * RepoContextEngine — Context note Context note Live Repository Context (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] Agent ([Localized] AgentBrainTools/RepoContextTools)
- * [Localized] [Localized] [Localized] [Localized]. [Localized] [Localized] SQL-only[Localized] [Localized] [Localized] blobs [Localized] [Localized]
- * [Localized].
+ * Context note Context note Context note Context note Context note Context note Context note Agent (Context note AgentBrainTools/RepoContextTools)
+ * Context note Context note Context note Context note. Context note Context note SQL-onlyContext note Context note Context note blobs Context note Context note
+ * Context note.
  *
  * **Mobile-first**:
- * - LIKE-based fuzzy search ([Localized] + [Localized] [Localized] [Localized] FTS5)
- * - [Localized] [Localized] (idx_sym_*)
- * - [Localized] [Localized] (50 [Localized] [Localized] [Localized]/[Localized]) [Localized] OOM
+ * - LIKE-based fuzzy search (Context note + Context note Context note Context note FTS5)
+ * - Context note Context note (idx_sym_*)
+ * - Context note Context note (50 Context note Context note Context note/Context note) Context note OOM
  */
 class RepoContextEngine(
     private val dao: RepoIndexDao,
@@ -42,7 +42,7 @@ class RepoContextEngine(
     // Queries
     // ──────────────────────────────────────────────────────────────────
 
-    /** Fuzzy search [Localized] [Localized]/qualified name. */
+    /** Fuzzy search Context note Context note/qualified name. */
     suspend fun searchSymbols(
         scopePath: String,
         query: String,
@@ -53,7 +53,7 @@ class RepoContextEngine(
         dao.fuzzySearch(scopePath, "%$safe%", safe, limit.coerceAtMost(50))
     }
 
-    /** [Localized] [Localized] [Localized] (e.g. "function" [Localized] "class"). */
+    /** Context note Context note Context note (e.g. "function" Context note "class"). */
     suspend fun symbolsByKind(
         scopePath: String,
         kind: String,
@@ -62,11 +62,11 @@ class RepoContextEngine(
         dao.findByKind(scopePath, kind, limit.coerceAtMost(100))
     }
 
-    /** [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized]). */
+    /** Context note Context note Context note Context note (Context note Context note). */
     suspend fun fileSymbols(scopePath: String, filePath: String): List<RepoSymbolEntry> =
         withContext(Dispatchers.IO) { dao.getFileSymbols(scopePath, filePath) }
 
-    /** [Localized] [Localized] [Localized] qualified name (e.g. com.example.Foo.bar). */
+    /** Context note Context note Context note qualified name (e.g. com.example.Foo.bar). */
     suspend fun findByQualifiedName(
         scopePath: String,
         qname: String
@@ -75,7 +75,7 @@ class RepoContextEngine(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Stats — [Localized] [Localized] system prompt
+    // Stats — Context note Context note system prompt
     // ──────────────────────────────────────────────────────────────────
 
     data class ScopeStats(
@@ -92,18 +92,18 @@ class RepoContextEngine(
         )
     }
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] system prompt. */
+    /** Context note Context note Context note Context note Context note Context note Context note system prompt. */
     suspend fun buildContextSummary(scopePath: String, maxChars: Int = 400): String =
         withContext(Dispatchers.IO) {
             val stats = getStats(scopePath)
             if (stats.fileCount == 0) return@withContext ""
             buildString {
                 appendLine("\n📂 Live Repo Context: $scopePath")
-                appendLine("[Localized]: ${stats.fileCount} | [Localized]: ${stats.symbolCount}")
+                appendLine("Info: ${stats.fileCount} | Info: ${stats.symbolCount}")
                 if (stats.languages.isNotEmpty()) {
                     val top = stats.languages.take(5)
                         .joinToString(", ") { "${it.first}(${it.second})" }
-                    appendLine("[Localized]: $top")
+                    appendLine("Info: $top")
                 }
             }.take(maxChars)
         }

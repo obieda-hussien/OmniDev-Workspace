@@ -11,21 +11,21 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.*
 
 /**
- * ToolMachineLearningEngine — [Localized] [Localized] [Localized] [Localized] [Localized]
+ * ToolMachineLearningEngine — Context note Context note Context note Context note Context note
  * 
- * [Localized]:
- * - [Localized] [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized]
+ * Context note:
+ * - Context note Context note Context note Context note
+ * - Context note Context note Context note
+ * - Context note Context note Context note
+ * - Context note Context note Context note
+ * - Context note Context note Context note
+ * - Context note Context note Context note
  * 
- * [Localized] [Localized]:
+ * Context note Context note:
  * - Naive Bayes
  * - K-Nearest Neighbors
  * - Decision Trees
- * - Neural Networks ([Localized])
+ * - Neural Networks (Context note)
  * - Ensemble Learning
  */
 class ToolMachineLearningEngine(
@@ -42,19 +42,19 @@ class ToolMachineLearningEngine(
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     
-    // [Localized] [Localized]
+    // Context note Context note
     private val executionHistory = mutableListOf<ToolExecutionRecord>()
     private val toolSequences = ConcurrentHashMap<String, MutableList<String>>()
     private val toolSuccessRates = ConcurrentHashMap<String, ToolStats>()
     private val userPatterns = ConcurrentHashMap<String, UserPattern>()
     
-    // [Localized]
+    // Context note
     private val naiveBayesModel = NaiveBayesClassifier()
     private val knnModel = KNearestNeighbors(k = 5)
     private val decisionTree = SimpleDecisionTree()
     private val neuralNet = SimpleFeedforwardNN(inputSize = 10, hiddenSize = 20, outputSize = 5)
     
-    // [Localized]
+    // Context note
     private var totalPredictions = 0
     private var correctPredictions = 0
     private var trainingEpochs = 0
@@ -67,11 +67,11 @@ class ToolMachineLearningEngine(
     }
 
     // ══════════════════════════════════════════════════════════════
-    // [Localized] [Localized]
+    // Context note Context note
     // ══════════════════════════════════════════════════════════════
 
     /**
-     * [Localized] [Localized] [Localized]
+     * Context note Context note Context note
      */
     suspend fun recordExecution(
         toolName: String,
@@ -90,7 +90,7 @@ class ToolMachineLearningEngine(
             contextualData = contextualData
         )
 
-        // [Localized] [Localized]
+        // Context note Context note
         synchronized(executionHistory) {
             executionHistory.add(record)
             if (executionHistory.size > MAX_HISTORY_SIZE) {
@@ -98,23 +98,23 @@ class ToolMachineLearningEngine(
             }
         }
 
-        // [Localized] [Localized]
+        // Context note Context note
         updateToolStats(toolName, !result.isError, executionTimeMs)
         
-        // [Localized] [Localized]
+        // Context note Context note
         updateSequences(toolName)
         
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         updateUserPatterns(toolName, contextualData)
         
-        // [Localized] [Localized]
+        // Context note Context note
         if (executionHistory.size % 50 == 0) {
             trainIncrementally(record)
         }
     }
 
     /**
-     * [Localized] [Localized] [Localized]
+     * Context note Context note Context note
      */
     suspend fun predictNextTool(
         currentTool: String? = null,
@@ -123,7 +123,7 @@ class ToolMachineLearningEngine(
     ): ToolPrediction = withContext(Dispatchers.Default) {
         val features = extractFeatures(currentTool, recentTools, contextualData)
         
-        // [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note
         val predictions = mutableListOf<Pair<String, Double>>()
         
         // Naive Bayes
@@ -146,7 +146,7 @@ class ToolMachineLearningEngine(
         val nnPredictions = neuralNet.predict(features)
         predictions.addAll(nnPredictions)
         
-        // [Localized] [Localized] (Ensemble)
+        // Context note Context note (Ensemble)
         val aggregated = aggregatePredictions(predictions)
         
         totalPredictions++
@@ -159,7 +159,7 @@ class ToolMachineLearningEngine(
     }
 
     /**
-     * [Localized] [Localized] [Localized]
+     * Context note Context note Context note
      */
     suspend fun detectAnomalies(
         toolName: String,
@@ -175,34 +175,34 @@ class ToolMachineLearningEngine(
         val anomalies = mutableListOf<String>()
         var anomalyScore = 0.0
         
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         val timeZScore = abs(executionTimeMs - stats.avgExecutionTime) / 
                          (stats.stdDevExecutionTime + 1.0)
         if (timeZScore > 3.0) {
-            anomalies.add("[Localized] [Localized] [Localized] [Localized]: ${executionTimeMs}ms ([Localized]: ${stats.avgExecutionTime.toInt()}ms)")
+            anomalies.add("Info Info Info Info: ${executionTimeMs}ms (Info: ${stats.avgExecutionTime.toInt()}ms)")
             anomalyScore += 0.3
         }
         
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         if (result.isError && stats.successRate > 0.9) {
-            anomalies.add("[Localized] [Localized] [Localized] ([Localized] [Localized] [Localized]: ${(stats.successRate * 100).toInt()}%)")
+            anomalies.add("Context note Context note Context note (Context note Context note Context note: ${(stats.successRate * 100).toInt()}%)")
             anomalyScore += 0.4
         }
         
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         val resultSizeZScore = abs(result.output.length - stats.avgResultSize) / 
                                (stats.stdDevResultSize + 1.0)
         if (resultSizeZScore > 3.0) {
-            anomalies.add("[Localized] [Localized] [Localized] [Localized]: ${result.output.length} [Localized]")
+            anomalies.add("Info Info Info Info: ${result.output.length} Info")
             anomalyScore += 0.2
         }
         
-        // [Localized] [Localized]
+        // Context note Context note
         val expectedTools = getExpectedNextTools(toolName)
         if (expectedTools.isNotEmpty()) {
             val lastTool = executionHistory.lastOrNull()?.toolName
             if (lastTool != null && !expectedTools.contains(lastTool)) {
-                anomalies.add("[Localized] [Localized] [Localized]: $lastTool → $toolName")
+                anomalies.add("Info Info Info: $lastTool → $toolName")
                 anomalyScore += 0.1
             }
         }
@@ -215,28 +215,28 @@ class ToolMachineLearningEngine(
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note
      */
     suspend fun getRecommendations(
         currentContext: Map<String, Any>
     ): List<ToolRecommendation> = withContext(Dispatchers.Default) {
         val recommendations = mutableListOf<ToolRecommendation>()
         
-        // 1. [Localized] [Localized] [Localized]
+        // 1. Context note Context note Context note
         val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
         val timeBasedTools = findToolsUsedAtTime(hour)
         timeBasedTools.forEach { (tool, frequency) ->
             recommendations.add(
                 ToolRecommendation(
                     toolName = tool,
-                    reason = "[Localized] [Localized] [Localized] [Localized] [Localized]",
+                    reason = "Info Info Info Info Info",
                     confidence = frequency,
                     priority = 1
                 )
             )
         }
         
-        // 2. [Localized] [Localized] [Localized]
+        // 2. Context note Context note Context note
         val lastTool = executionHistory.lastOrNull()?.toolName
         if (lastTool != null) {
             val sequenceTools = toolSequences[lastTool] ?: emptyList()
@@ -248,7 +248,7 @@ class ToolMachineLearningEngine(
                     recommendations.add(
                         ToolRecommendation(
                             toolName = tool,
-                            reason = "[Localized] [Localized] [Localized] $lastTool",
+                            reason = "Info Info Info $lastTool",
                             confidence = count.toDouble() / sequenceTools.size,
                             priority = 2
                         )
@@ -256,7 +256,7 @@ class ToolMachineLearningEngine(
                 }
         }
         
-        // 3. [Localized] [Localized] [Localized] [Localized]
+        // 3. Context note Context note Context note Context note
         toolSuccessRates.entries
             .filter { it.value.successRate > 0.95 && it.value.executionCount > 20 }
             .sortedByDescending { it.value.successRate }
@@ -265,21 +265,21 @@ class ToolMachineLearningEngine(
                 recommendations.add(
                     ToolRecommendation(
                         toolName = tool,
-                        reason = "[Localized] [Localized] [Localized]: ${(stats.successRate * 100).toInt()}%",
+                        reason = "Context note Context note Context note: ${(stats.successRate * 100).toInt()}%",
                         confidence = stats.successRate,
                         priority = 3
                     )
                 )
             }
         
-        // 4. [Localized] [Localized] [Localized]
+        // 4. Context note Context note Context note
         currentContext["task_type"]?.let { taskType ->
             val contextTools = findToolsForTaskType(taskType.toString())
             contextTools.forEach { (tool, relevance) ->
                 recommendations.add(
                     ToolRecommendation(
                         toolName = tool,
-                        reason = "[Localized] [Localized] [Localized]: $taskType",
+                        reason = "Info Info Info: $taskType",
                         confidence = relevance,
                         priority = 0
                     )
@@ -287,7 +287,7 @@ class ToolMachineLearningEngine(
             }
         }
         
-        // [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note
         recommendations
             .sortedWith(compareBy({ it.priority }, { -it.confidence }))
             .distinctBy { it.toolName }
@@ -295,7 +295,7 @@ class ToolMachineLearningEngine(
     }
 
     /**
-     * [Localized] [Localized] [Localized]
+     * Context note Context note Context note
      */
     suspend fun analyzeToolPerformance(): PerformanceAnalysis = withContext(Dispatchers.Default) {
         val totalExecutions = executionHistory.size
@@ -352,7 +352,7 @@ class ToolMachineLearningEngine(
     }
 
     // ══════════════════════════════════════════════════════════════
-    // [Localized]
+    // Context note
     // ══════════════════════════════════════════════════════════════
 
     private suspend fun trainIncrementally(record: ToolExecutionRecord) = withContext(Dispatchers.Default) {
@@ -360,30 +360,30 @@ class ToolMachineLearningEngine(
             val features = extractFeaturesFromRecord(record)
             val label = record.toolName
             
-            // [Localized] Naive Bayes
+            // Context note Naive Bayes
             naiveBayesModel.train(features, label)
             
-            // [Localized] KNN ([Localized] [Localized] [Localized])
+            // Context note KNN (Context note Context note Context note)
             knnModel.addDataPoint(features, label)
             
-            // [Localized] Decision Tree
+            // Context note Decision Tree
             decisionTree.train(listOf(features to label))
             
-            // [Localized] Neural Network
+            // Context note Neural Network
             val targetVector = createOneHotVector(label)
             neuralNet.train(features, targetVector, learningRate = 0.01)
             
             trainingEpochs++
             
         } catch (e: Exception) {
-            Log.e(TAG, "[Localized] [Localized] [Localized] [Localized]: ${e.message}")
+            Log.e(TAG, "Info Info Info Info: ${e.message}")
         }
     }
 
     private suspend fun startPeriodicTraining() {
         scope.launch {
             while (isActive) {
-                delay(3600_000) // [Localized] [Localized]
+                delay(3600_000) // Context note Context note
                 
                 if (executionHistory.size >= MIN_TRAINING_SAMPLES) {
                     trainFullModel()
@@ -395,13 +395,13 @@ class ToolMachineLearningEngine(
 
     private suspend fun trainFullModel() = withContext(Dispatchers.Default) {
         try {
-            Log.d(TAG, "[Localized] [Localized] [Localized] [Localized] ${executionHistory.size} [Localized]...")
+            Log.d(TAG, "Info Info Info Info ${executionHistory.size} Info...")
             
             val trainingData = executionHistory.map { record ->
                 extractFeaturesFromRecord(record) to record.toolName
             }
             
-            // [Localized] [Localized] [Localized]
+            // Context note Context note Context note
             naiveBayesModel.trainBatch(trainingData)
             knnModel.trainBatch(trainingData)
             decisionTree.train(trainingData)
@@ -409,15 +409,15 @@ class ToolMachineLearningEngine(
             
             trainingEpochs++
             
-            Log.d(TAG, "[Localized] [Localized] - Epoch: $trainingEpochs")
+            Log.d(TAG, "Info Info - Epoch: $trainingEpochs")
             
         } catch (e: Exception) {
-            Log.e(TAG, "[Localized] [Localized] [Localized] [Localized]: ${e.message}")
+            Log.e(TAG, "Info Info Info Info: ${e.message}")
         }
     }
 
     // ══════════════════════════════════════════════════════════════
-    // [Localized] [Localized]
+    // Context note Context note
     // ══════════════════════════════════════════════════════════════
 
     private fun extractFeatures(
@@ -427,30 +427,30 @@ class ToolMachineLearningEngine(
     ): DoubleArray {
         val features = DoubleArray(10)
         
-        // [Localized] 1: [Localized] [Localized] [Localized]
+        // Context note 1: Context note Context note Context note
         features[0] = (currentTool?.hashCode()?.rem(1000) ?: 0).toDouble()
         
-        // [Localized] 2-4: [Localized] [Localized]
+        // Context note 2-4: Context note Context note
         recentTools.take(3).forEachIndexed { index, tool ->
             features[index + 1] = tool.hashCode().rem(1000).toDouble()
         }
         
-        // [Localized] 5: [Localized] [Localized] [Localized] (0-23)
+        // Context note 5: Context note Context note Context note (0-23)
         features[4] = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY).toDouble()
         
-        // [Localized] 6: [Localized] [Localized] (1-7)
+        // Context note 6: Context note Context note (1-7)
         features[5] = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_WEEK).toDouble()
         
-        // [Localized] 7: [Localized] [Localized] [Localized] [Localized]
+        // Context note 7: Context note Context note Context note Context note
         features[6] = recentTools.size.toDouble()
         
-        // [Localized] 8: [Localized] [Localized]
+        // Context note 8: Context note Context note
         features[7] = (contextualData["task_type"]?.hashCode()?.rem(1000) ?: 0).toDouble()
         
-        // [Localized] 9: [Localized]
+        // Context note 9: Context note
         features[8] = (contextualData["priority"] as? Number)?.toDouble() ?: 0.0
         
-        // [Localized] 10: [Localized]
+        // Context note 10: Context note
         features[9] = (contextualData["context"]?.hashCode()?.rem(1000) ?: 0).toDouble()
         
         return features
@@ -474,7 +474,7 @@ class ToolMachineLearningEngine(
     }
 
     // ══════════════════════════════════════════════════════════════
-    // [Localized] [Localized]
+    // Context note Context note
     // ══════════════════════════════════════════════════════════════
 
     private fun updateToolStats(toolName: String, success: Boolean, executionTimeMs: Long) {
@@ -484,11 +484,11 @@ class ToolMachineLearningEngine(
             stats.executionCount++
             if (success) stats.successCount++
             
-            // [Localized] [Localized]
+            // Context note Context note
             val n = stats.executionCount.toDouble()
             stats.avgExecutionTime = ((stats.avgExecutionTime * (n - 1.0)) + executionTimeMs.toDouble()) / n
             
-            // [Localized] [Localized] [Localized]
+            // Context note Context note Context note
             val diff = executionTimeMs.toDouble() - stats.avgExecutionTime
             stats.stdDevExecutionTime = sqrt(
                 ((stats.stdDevExecutionTime * stats.stdDevExecutionTime * (n - 1.0)) + diff * diff) / n
@@ -541,7 +541,7 @@ class ToolMachineLearningEngine(
     }
 
     private fun createOneHotVector(label: String): DoubleArray {
-        // [Localized]: [Localized] [Localized] [Localized] [Localized] one-hot [Localized]
+        // Context note: Context note Context note Context note Context note one-hot Context note
         val vector = DoubleArray(5)
         val index = abs(label.hashCode()) % 5
         vector[index] = 1.0
@@ -553,19 +553,19 @@ class ToolMachineLearningEngine(
             val modelDir = File(context.filesDir, "ml_models")
             if (!modelDir.exists()) return@withContext
             
-            // [Localized] [Localized] [Localized]
+            // Context note Context note Context note
             val historyFile = File(modelDir, "execution_history.json")
             if (historyFile.exists()) {
                 val json = JSONArray(historyFile.readText())
                 for (i in 0 until json.length()) {
                     val obj = json.getJSONObject(i)
-                    // [Localized] [Localized] [Localized]...
+                    // Context note Context note Context note...
                 }
             }
             
-            Log.d(TAG, "[Localized] [Localized] [Localized] [Localized]")
+            Log.d(TAG, "Info Info Info Info")
         } catch (e: Exception) {
-            Log.e(TAG, "[Localized] [Localized] [Localized] [Localized]: ${e.message}")
+            Log.e(TAG, "Info Info Info Info: ${e.message}")
         }
     }
 
@@ -574,7 +574,7 @@ class ToolMachineLearningEngine(
             val modelDir = File(context.filesDir, "ml_models")
             modelDir.mkdirs()
             
-            // [Localized] [Localized] [Localized]
+            // Context note Context note Context note
             val historyFile = File(modelDir, "execution_history.json")
             val jsonArray = JSONArray()
             executionHistory.takeLast(1000).forEach { record ->
@@ -587,9 +587,9 @@ class ToolMachineLearningEngine(
             }
             historyFile.writeText(jsonArray.toString())
             
-            Log.d(TAG, "[Localized] [Localized] [Localized] [Localized]")
+            Log.d(TAG, "Info Info Info Info")
         } catch (e: Exception) {
-            Log.e(TAG, "[Localized] [Localized] [Localized] [Localized]: ${e.message}")
+            Log.e(TAG, "Info Info Info Info: ${e.message}")
         }
     }
 
@@ -663,7 +663,7 @@ class ToolMachineLearningEngine(
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// [Localized] [Localized] [Localized]
+// Context note Context note Context note
 // ══════════════════════════════════════════════════════════════════════
 
 /**
@@ -789,7 +789,7 @@ class SimpleDecisionTree {
             return LeafNode(majorityLabel, labels[majorityLabel]!!.toDouble() / data.size)
         }
         
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         val bestSplit = findBestSplit(data)
         if (bestSplit == null) {
             return LeafNode(majorityLabel, labels[majorityLabel]!!.toDouble() / data.size)
@@ -900,7 +900,7 @@ class SimpleFeedforwardNN(
         // Backward pass (simplified)
         val outputError = DoubleArray(outputSize) { i -> target[i] - output[i] }
         
-        // [Localized] [Localized] (gradient descent [Localized])
+        // Context note Context note (gradient descent Context note)
         for (i in weightsHiddenOutput.indices) {
             for (j in weightsHiddenOutput[i].indices) {
                 weightsHiddenOutput[i][j] += learningRate * outputError[j] * hidden[i]
@@ -912,7 +912,7 @@ class SimpleFeedforwardNN(
         repeat(epochs) {
             data.forEach { (features, _) ->
                 val target = DoubleArray(outputSize) { 0.0 }
-                target[0] = 1.0 // [Localized]
+                target[0] = 1.0 // Context note
                 train(features, target, learningRate)
             }
         }

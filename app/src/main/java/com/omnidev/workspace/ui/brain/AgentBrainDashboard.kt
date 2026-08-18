@@ -31,15 +31,15 @@ import java.util.*
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * AgentBrainDashboard — [Localized] [Localized] [Localized] [Localized] Agent
+ * AgentBrainDashboard — Context note Context note Context note Context note Agent
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * [Localized]:
- * 1. [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
- * 2. [Localized] [Localized] [Localized]
- * 3. [Localized] [Localized] [Localized]
- * 4. [Localized] [Localized] [Localized]
- * 5. [Localized] [Localized] [Localized]
+ * Context note:
+ * 1. Context note Context note Context note Context note Context note Context note
+ * 2. Context note Context note Context note
+ * 3. Context note Context note Context note
+ * 4. Context note Context note Context note
+ * 5. Context note Context note Context note
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,7 +55,7 @@ fun AgentBrainDashboard(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // [Localized] [Localized] [Localized]
+                        // Context note Context note Context note
                         PulsingDot()
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
@@ -65,7 +65,7 @@ fun AgentBrainDashboard(
                                 fontSize = 18.sp
                             )
                             Text(
-                                text = "[Localized] [Localized] [Localized] [Localized]",
+                                text = "Info Info Info Info",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
@@ -74,12 +74,12 @@ fun AgentBrainDashboard(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "[Localized]")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Info")
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "[Localized]")
+                        Icon(Icons.Default.Refresh, contentDescription = "Info")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -103,10 +103,10 @@ fun AgentBrainDashboard(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // ─── [Localized] [Localized] [Localized] ─────────────────────────────
+            // ─── Context note Context note Context note ─────────────────────────────
             StatsHeaderRow(uiState)
 
-            // ─── [Localized] ───────────────────────────────────────────────
+            // ─── Context note ───────────────────────────────────────────────
             ScrollableTabRow(
                 selectedTabIndex = selectedTab,
                 edgePadding = 12.dp,
@@ -115,26 +115,26 @@ fun AgentBrainDashboard(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("📊 [Localized]") }
+                    text = { Text("📊 Info") }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("📔 [Localized]") }
+                    text = { Text("📔 Info") }
                 )
                 Tab(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    text = { Text("🧠 [Localized]") }
+                    text = { Text("🧠 Info") }
                 )
                 Tab(
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 },
-                    text = { Text("🌐 [Localized]") }
+                    text = { Text("🌐 Info") }
                 )
             }
 
-            // ─── [Localized] [Localized] ─────────────────────────────────────────
+            // ─── Context note Context note ─────────────────────────────────────────
             when (selectedTab) {
                 0 -> PerformanceTab(uiState)
                 1 -> ExecutionLogTab(
@@ -154,7 +154,7 @@ fun AgentBrainDashboard(
     }
 }
 
-// ─── [Localized] [Localized] [Localized] ──────────────────────────────────────────────────
+// ─── Context note Context note Context notehighest ──────────────────────────────────────────────────
 
 @Composable
 private fun StatsHeaderRow(state: AgentBrainUiState) {
@@ -168,7 +168,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "⚡",
                 value = state.totalExecutions.toString(),
-                label = "[Localized]",
+                label = "Info",
                 color = Color(0xFF2196F3)
             )
         }
@@ -176,7 +176,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "✅",
                 value = "${(state.successRate * 100).toInt()}%",
-                label = "[Localized]",
+                label = "Info",
                 color = if (state.successRate > 0.8f) Color(0xFF4CAF50) else Color(0xFFFF9800)
             )
         }
@@ -184,7 +184,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "🧠",
                 value = state.totalKnowledge.toString(),
-                label = "[Localized]",
+                label = "Info",
                 color = Color(0xFF9C27B0)
             )
         }
@@ -192,7 +192,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "🔧",
                 value = state.sessionToolCount.toString(),
-                label = "[Localized]/[Localized]",
+                label = "Info/Info",
                 color = Color(0xFF00BCD4)
             )
         }
@@ -201,7 +201,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
                 MiniStatCard(
                     icon = "⚠️",
                     value = state.problematicTools.size.toString(),
-                    label = "[Localized]",
+                    label = "Info",
                     color = Color(0xFFF44336)
                 )
             }
@@ -243,7 +243,7 @@ private fun MiniStatCard(
     }
 }
 
-// ─── [Localized] [Localized] ────────────────────────────────────────────────────────
+// ─── Context note Context note ────────────────────────────────────────────────────────
 
 @Composable
 private fun PerformanceTab(state: AgentBrainUiState) {
@@ -252,29 +252,29 @@ private fun PerformanceTab(state: AgentBrainUiState) {
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         item {
             InfoCard(
-                title = "🏆 [Localized] [Localized]",
+                title = "🏆 Info Info",
                 content = buildString {
-                    appendLine("🥇 [Localized]: ${state.bestTool}")
-                    appendLine("🥉 [Localized]: ${state.worstTool}")
-                    appendLine("🔥 [Localized] [Localized]: ${state.mostUsedTool}")
+                    appendLine("🥇 Info: ${state.bestTool}")
+                    appendLine("🥉 Info: ${state.worstTool}")
+                    appendLine("🔥 Info Info: ${state.mostUsedTool}")
                 }
             )
         }
 
-        // [Localized] [Localized]
+        // Context note Context note
         if (state.problematicTools.isNotEmpty()) {
             item {
                 WarningCard(
-                    title = "⚠️ [Localized] [Localized] [Localized]",
+                    title = "⚠️ Info Info Info",
                     items = state.problematicTools
                 )
             }
         }
 
-        // [Localized] [Localized]
+        // Context note Context note
         item {
             LearningProgressCard(
                 totalExecutions = state.totalExecutions,
@@ -284,7 +284,7 @@ private fun PerformanceTab(state: AgentBrainUiState) {
     }
 }
 
-// ─── [Localized] [Localized] ────────────────────────────────────────────────────────
+// ─── Context note Context note ────────────────────────────────────────────────────────
 
 @Composable
 private fun ExecutionLogTab(
@@ -292,7 +292,7 @@ private fun ExecutionLogTab(
     onDeleteEntry: (Long) -> Unit
 ) {
     if (entries.isEmpty()) {
-        EmptyState(message = "[Localized] [Localized] [Localized] [Localized] [Localized]")
+        EmptyState(message = "Info Info Info Info Info")
         return
     }
 
@@ -326,7 +326,7 @@ private fun ExecutionEntryCard(
             modifier = Modifier.padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // [Localized] [Localized]
+            // Context note Context note
             Text(
                 text = if (entry.success) "✅" else "❌",
                 fontSize = 18.sp
@@ -380,7 +380,7 @@ private fun ExecutionEntryCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "[Localized] [Localized]",
+                        contentDescription = "Info Info",
                         tint = Color(0xFFF44336),
                         modifier = Modifier.size(14.dp)
                     )
@@ -390,7 +390,7 @@ private fun ExecutionEntryCard(
     }
 }
 
-// ─── [Localized] [Localized] ───────────────────────────────────────────────────────
+// ─── Context note Context note ───────────────────────────────────────────────────────
 
 @Composable
 private fun KnowledgeTab(
@@ -399,7 +399,7 @@ private fun KnowledgeTab(
     onUpdateEntry: (Long, String, String, Float) -> Unit
 ) {
     if (entries.isEmpty()) {
-        EmptyState(message = "[Localized] [Localized] [Localized] Agent [Localized] [Localized]")
+        EmptyState(message = "Info Info Info Agent Info Info")
         return
     }
 
@@ -508,7 +508,7 @@ private fun KnowledgeEntryCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Edit,
-                            contentDescription = "[Localized] [Localized]",
+                            contentDescription = "Info Info",
                             tint = color,
                             modifier = Modifier.size(15.dp)
                         )
@@ -519,7 +519,7 @@ private fun KnowledgeEntryCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = "[Localized] [Localized]",
+                            contentDescription = "Info Info",
                             tint = Color(0xFFF44336),
                             modifier = Modifier.size(15.dp)
                         )
@@ -544,33 +544,33 @@ private fun KnowledgeEntryCard(
                             onUpdateEntry(entry.id, editedSubject, editedContent, confidence)
                             showEditDialog = false
                         } else {
-                            validationError = "[Localized] [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] 0.0 [Localized] 1.0"
+                            validationError = "Info Info Info: Info Info Info Info Info 0.0 Info 1.0"
                         }
                     }
-                ) { Text("[Localized]") }
+                ) { Text("Info") }
             },
             dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) { Text("[Localized]") }
+                TextButton(onClick = { showEditDialog = false }) { Text("Info") }
             },
-            title = { Text("[Localized] [Localized]") },
+            title = { Text("Info Info") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = editedSubject,
                         onValueChange = { editedSubject = it },
-                        label = { Text("[Localized]") },
+                        label = { Text("Info") },
                         singleLine = true
                     )
                     OutlinedTextField(
                         value = editedContent,
                         onValueChange = { editedContent = it },
-                        label = { Text("[Localized]") },
+                        label = { Text("Info") },
                         minLines = 3
                     )
                     OutlinedTextField(
                         value = editedConfidence,
                         onValueChange = { editedConfidence = it },
-                        label = { Text("[Localized] (0.0 - 1.0)") },
+                        label = { Text("Info (0.0 - 1.0)") },
                         singleLine = true
                     )
                     validationError?.let {
@@ -607,12 +607,12 @@ private fun KnowledgeTypeFilters(
     }
 }
 
-// ─── [Localized] [Localized] ────────────────────────────────────────────────────────
+// ─── Context note Context note ────────────────────────────────────────────────────────
 
 @Composable
 private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
     if (stats == null) {
-        EmptyState(message = "[Localized] [Localized] [Localized]...")
+        EmptyState(message = "Info Info Info...")
         return
     }
 
@@ -621,12 +621,12 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
-                        "🌐 [Localized] [Localized]",
+                        "🌐 Info Info",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -641,12 +641,12 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
             }
         }
 
-        // [Localized] [Localized]
+        // Context note Context note
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
-                        "📊 [Localized] [Localized] [Localized] (${stats.totalKnowledge} [Localized])",
+                        "📊 Info Info Info (${stats.totalKnowledge} Info)",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -658,7 +658,7 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
             }
         }
 
-        // [Localized] [Localized]
+        // Context note Context note
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -680,13 +680,13 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            if (stats.isInitialized) "[Localized] [Localized] [Localized]" else "[Localized] [Localized] [Localized] [Localized]",
+                            if (stats.isInitialized) "Info Info Info" else "Info Info Info Info",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
                         Text(
-                            if (stats.isInitialized) "[Localized] Agent [Localized] [Localized] [Localized]"
-                            else "[Localized] Agent [Localized] [Localized] [Localized]...",
+                            if (stats.isInitialized) "Info Agent Info Info Info"
+                            else "Info Agent Info Info Info...",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -697,7 +697,7 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
     }
 }
 
-// ─── [Localized] [Localized] ───────────────────────────────────────────────────────
+// ─── Context note Context note ───────────────────────────────────────────────────────
 
 @Composable
 private fun InfoCard(title: String, content: String) {
@@ -757,13 +757,13 @@ private fun LearningProgressCard(totalExecutions: Int, successRate: Float) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("🎯 [Localized] [Localized]", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("🎯 Info Info", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     text = when {
-                        totalExecutions < 20 -> "[Localized]"
-                        totalExecutions < 100 -> "[Localized]"
-                        totalExecutions < 500 -> "[Localized]"
-                        else -> "[Localized]"
+                        totalExecutions < 20 -> "Info"
+                        totalExecutions < 100 -> "Info"
+                        totalExecutions < 500 -> "Info"
+                        else -> "Info"
                     },
                     fontWeight = FontWeight.Bold,
                     color = progressColor,
@@ -779,7 +779,7 @@ private fun LearningProgressCard(totalExecutions: Int, successRate: Float) {
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "[Localized] [Localized]: ${(successRate * 100).toInt()}% | [Localized]: $totalExecutions",
+                text = "Context note Context note: ${(successRate * 100).toInt()}% | Context note: $totalExecutions",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
@@ -801,7 +801,7 @@ private fun EnvironmentRow(name: String, available: Boolean) {
             containerColor = if (available) Color(0xFF4CAF50) else Color(0xFF9E9E9E)
         ) {
             Text(
-                if (available) "[Localized]" else "[Localized] [Localized]",
+                if (available) "Info" else "Info Info",
                 fontSize = 10.sp,
                 color = Color.White,
                 modifier = Modifier.padding(horizontal = 4.dp)
@@ -831,17 +831,17 @@ private fun KnowledgeTypeRow(type: String, count: Int) {
 }
 
 private fun knowledgeTypeLabel(type: String): String = when (type) {
-    "ALL" -> "📚 [Localized] [Localized]"
-    ToolAwarenessEngine.TYPE_BEST_PRACTICE -> "💡 [Localized] [Localized]"
-    ToolAwarenessEngine.TYPE_TOOL_CAPABILITY -> "🔧 [Localized] [Localized]"
-    ToolAwarenessEngine.TYPE_TOOL_LIMITATION -> "🚫 [Localized] [Localized]"
-    ToolAwarenessEngine.TYPE_SYSTEM_INFO -> "📱 [Localized] [Localized]"
-    ToolAwarenessEngine.TYPE_ENVIRONMENT -> "🌐 [Localized] [Localized]"
-    ToolAwarenessEngine.TYPE_WARNING -> "⚠️ [Localized]"
-    ToolAwarenessEngine.TYPE_PATTERN -> "🔗 [Localized] [Localized]"
-    ToolAwarenessEngine.TYPE_SYSTEM_CAPABILITY -> "🧩 [Localized] [Localized]"
-    ToolAwarenessEngine.TYPE_TOOL_REQUIREMENT -> "📌 [Localized] [Localized]"
-    ToolAwarenessEngine.TYPE_TOOL_DEPENDENCY -> "🔀 [Localized] [Localized]"
+    "ALL" -> "📚 Info Info"
+    ToolAwarenessEngine.TYPE_BEST_PRACTICE -> "💡 Info Info"
+    ToolAwarenessEngine.TYPE_TOOL_CAPABILITY -> "🔧 Info Info"
+    ToolAwarenessEngine.TYPE_TOOL_LIMITATION -> "🚫 Info Info"
+    ToolAwarenessEngine.TYPE_SYSTEM_INFO -> "📱 Info Info"
+    ToolAwarenessEngine.TYPE_ENVIRONMENT -> "🌐 Info Info"
+    ToolAwarenessEngine.TYPE_WARNING -> "⚠️ Info"
+    ToolAwarenessEngine.TYPE_PATTERN -> "🔗 Info Info"
+    ToolAwarenessEngine.TYPE_SYSTEM_CAPABILITY -> "🧩 Info Info"
+    ToolAwarenessEngine.TYPE_TOOL_REQUIREMENT -> "📌 Info Info"
+    ToolAwarenessEngine.TYPE_TOOL_DEPENDENCY -> "🔀 Info Info"
     else -> "ℹ️ $type"
 }
 

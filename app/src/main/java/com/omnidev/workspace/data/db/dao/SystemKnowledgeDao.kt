@@ -89,13 +89,13 @@ interface SystemKnowledgeDao {
     suspend fun invalidate(subject: String, type: String)
 
     @Query("DELETE FROM system_knowledge WHERE id = :id")
-    suspend fun invalidateById(id: Long, )
+    suspend fun invalidateById(id: Long)
 
     @Query("UPDATE system_knowledge SET timestamp = :id WHERE id = :id")
-    suspend fun incrementVerification(id: Long, )
+    suspend fun incrementVerification(id: Long)
 
     @Query("UPDATE system_knowledge SET confidence = :confidence WHERE id = :id")
-    suspend fun updateConfidence(id: Long, confidence: Float, )
+    suspend fun updateConfidence(id: Long, confidence: Float)
 
     @Query("SELECT COUNT(*) FROM system_knowledge")
     suspend fun getCount(): Int

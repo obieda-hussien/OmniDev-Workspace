@@ -4,24 +4,24 @@ import com.omnidev.workspace.data.db.entities.RepoSymbolEntry
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * RepoSymbolExtractor — [Localized] [Localized] [Localized] (Live Repository Context Engine)
+ * RepoSymbolExtractor — Context note Context note Context note (Live Repository Context Engine)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Mobile-first: [Localized] Tree-sitter[Localized] [Localized] Compiler[Localized] [Localized] ANTLR. [Localized] regex [Localized] [Localized]
- * [Localized] tokens [Localized] [Localized] [Localized] [Localized]. [Localized] [Localized]:
- *   - [Localized] [Localized] classes / objects / interfaces / enums
- *   - [Localized] [Localized] functions / methods / lambdas [Localized]
- *   - [Localized] [Localized] properties / variables / constants [Localized] top-level
+ * Mobile-first: Context note Tree-sitterContext note Context note CompilerContext note Context note ANTLR. Context note regex Context note Context note
+ * Context note tokens Context note Context note Context note Context note. Context note Context note:
+ *   - Context note Context note classes / objects / interfaces / enums
+ *   - Context note Context note functions / methods / lambdas Context note
+ *   - Context note Context note properties / variables / constants Context note top-level
  *
- * [Localized] [Localized] Snapdragon 660 [Localized] ~1 MB/s[Localized] [Localized] [Localized] 50 KB [Localized] 50ms.
- * [Localized] 2-4 GB RAM [Localized] streaming [Localized] [Localized] AST [Localized] [Localized].
+ * Context note Context note Snapdragon 660 Context note ~1 MB/sContext note Context note Context note 50 KB Context note 50ms.
+ * Context note 2-4 GB RAM Context note streaming Context note Context note AST Context note Context note.
  */
 object RepoSymbolExtractor {
 
-    /** [Localized] [Localized] [Localized] snippet [Localized]. */
+    /** Context note Context note Context note snippet Context note. */
     private const val MAX_SNIPPET_LEN = 240
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized]). */
+    /** Context note Context note Context note Context note Context note Context note Context note (Context note Context note Context note). */
     private const val MAX_SYMBOLS_PER_FILE = 400
 
     // ──────────────────────────────────────────────────────────────────
@@ -67,8 +67,8 @@ object RepoSymbolExtractor {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]. [Localized] [Localized] top-level + nested [Localized] [Localized]
-     * indent ([Localized] [Localized] retrieval[Localized] [Localized] [Localized] AST [Localized]).
+     * Context note Context note Context note Context note Context note Context note. Context note Context note top-level + nested Context note Context note
+     * indent (Context note Context note retrievalContext note Context note Context note AST Context note).
      */
     fun extract(
         scopePath: String,
@@ -89,7 +89,7 @@ object RepoSymbolExtractor {
             val line = rawLine.trimStart()
             if (line.isEmpty() || line.startsWith("//") || line.startsWith("#") || line.startsWith("*")) continue
 
-            // package / module [Localized] qualifiedName
+            // package / module Context note qualifiedName
             extractPackage(line, language)?.let { packageOrModule = it }
 
             val matches = matchSymbols(line, language)
@@ -119,7 +119,7 @@ object RepoSymbolExtractor {
 
     private data class SymbolMatch(val kind: String, val name: String, val visibility: String)
 
-    /** [Localized] package/module declaration. */
+    /** Context note package/module declaration. */
     private fun extractPackage(line: String, language: String): String? {
         return when (language) {
             "kotlin", "java", "scala" -> {

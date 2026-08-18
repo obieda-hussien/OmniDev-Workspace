@@ -5,15 +5,15 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * RepoFileIndexEntry — [Localized] [Localized] [Localized] [Localized] Live Repository Context Engine.
+ * RepoFileIndexEntry — Context note Context note Context note Context note Live Repository Context Engine.
  *
- * [Localized] [Localized] [Localized] [Localized] (incremental indexing): [Localized] [Localized] [Localized]
- * [Localized] [Localized] [Localized] mtime [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] 5000 [Localized] [Localized]
- * [Localized] Android [Localized].
+ * Context note Context note Context note Context note (incremental indexing): Context note Context note Context note
+ * Context note Context note Context note mtime Context note Context note — Context note Context note Context note Context note 5000 Context note Context note
+ * Context note Android Context note.
  *
- * @property scopePath [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized])
- * @property contentHash SHA-256 [Localized] (16 hex) [Localized] [Localized] [Localized] [Localized]-[Localized]
- * @property skipReason [Localized] [Localized] [Localized] (binary/large/excluded) → [Localized] [Localized]
+ * @property scopePath Context note Context note Context note (Context note Context note Context note Context note)
+ * @property contentHash SHA-256 Context note (16 hex) Context note Context note Context note Context note-Context note
+ * @property skipReason Context note Context note Context note (binary/large/excluded) → Context note Context note
  */
 @Entity(
     tableName = "repo_file_index",

@@ -6,14 +6,14 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * ToolMonitoringSystem — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+ * ToolMonitoringSystem — Comprehensive monitoring and tracking system for all tools
  * 
- * [Localized]:
- * - [Localized] [Localized] [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized] [Localized] [Localized]
+ * Features:
+ * - Real-time performance tracking
+ * - Bottleneck and slowness detection
+ * - Smart alerts on repeated failures
+ * - Pattern analysis and issue prediction
+ * - Detailed resource usage reporting
  */
 object ToolMonitoringSystem {
     private const val TAG = "ToolMonitor"
@@ -22,20 +22,20 @@ object ToolMonitoringSystem {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     
     // ═══════════════════════════════════════════════════════════════
-    // [Localized] [Localized]
+    // Monitored data
     // ═══════════════════════════════════════════════════════════════
     
     private val executionMetrics = ConcurrentHashMap<String, ToolMetrics>()
     private val activeExecutions = ConcurrentHashMap<String, ExecutionTrace>()
     private val realtimeEvents = MutableSharedFlow<MonitoringEvent>(replay = 100)
     
-    // [Localized] [Localized]
+    // Global counters
     private val totalExecutions = AtomicLong(0)
     private val totalFailures = AtomicLong(0)
     private val totalRetries = AtomicLong(0)
     
     // ═══════════════════════════════════════════════════════════════
-    // [Localized] [Localized]
+    // Context note Context note
     // ═══════════════════════════════════════════════════════════════
     
     data class ToolMetrics(
@@ -78,11 +78,11 @@ object ToolMonitoringSystem {
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // API [Localized]
+    // API Context note
     // ═══════════════════════════════════════════════════════════════
     
     /**
-     * [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note
      */
     fun startExecution(
         toolName: String,
@@ -101,7 +101,7 @@ object ToolMonitoringSystem {
         activeExecutions[traceId] = trace
         totalExecutions.incrementAndGet()
         
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         scope.launch {
             realtimeEvents.emit(
                 MonitoringEvent.ToolStarted(toolName, traceId, trace.startTime)
@@ -112,7 +112,7 @@ object ToolMonitoringSystem {
     }
     
     /**
-     * [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note
      */
     fun endExecution(
         traceId: String,
@@ -122,7 +122,7 @@ object ToolMonitoringSystem {
         val trace = activeExecutions.remove(traceId) ?: return
         val durationMs = System.currentTimeMillis() - trace.startTime
         
-        // [Localized] [Localized]
+        // Context note Context note
         val metrics = executionMetrics.getOrPut(trace.toolName) {
             ToolMetrics(trace.toolName)
         }
@@ -147,7 +147,7 @@ object ToolMonitoringSystem {
             metrics.lastExecutionTime = System.currentTimeMillis()
             metrics.avgDurationMs = metrics.totalDurationMs.toDouble() / metrics.executionCount
             
-            // [Localized] [Localized] [Localized]
+            // Context note Context note Context note
             metrics.performanceHistory.add(
                 PerformanceSnapshot(
                     timestamp = System.currentTimeMillis(),
@@ -157,13 +157,13 @@ object ToolMonitoringSystem {
                 )
             )
             
-            // [Localized] [Localized] [Localized]
+            // Context note Context note Context note
             if (metrics.performanceHistory.size > 500) {
                 metrics.performanceHistory.removeAt(0)
             }
         }
         
-        // [Localized] [Localized]
+        // Context note Context note
         scope.launch {
             realtimeEvents.emit(
                 MonitoringEvent.ToolCompleted(trace.toolName, traceId, durationMs, success)
@@ -175,14 +175,14 @@ object ToolMonitoringSystem {
                 )
             }
             
-            // [Localized] [Localized] [Localized]
+            // Context note Context note Context note
             if (durationMs > 5000) {
                 realtimeEvents.emit(
                     MonitoringEvent.SlowExecution(trace.toolName, durationMs, 5000)
                 )
             }
             
-            // [Localized] [Localized] [Localized] [Localized]
+            // Context note Context note Context note Context note
             val failureRate = metrics.failureCount.toDouble() / metrics.executionCount
             if (metrics.executionCount >= 10 && failureRate > 0.3) {
                 realtimeEvents.emit(
@@ -190,27 +190,27 @@ object ToolMonitoringSystem {
                 )
             }
             
-            // [Localized] [Localized]
+            // Context note Context note
             detectAnomalies(trace.toolName, metrics)
         }
     }
     
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note
      */
     fun getToolMetrics(toolName: String): ToolMetrics? {
         return executionMetrics[toolName]
     }
     
     /**
-     * [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note
      */
     fun getAllMetrics(): Map<String, ToolMetrics> {
         return executionMetrics.toMap()
     }
     
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note
      */
     fun getMostUsedTools(limit: Int = 10): List<Pair<String, Long>> {
         return executionMetrics.entries
@@ -220,7 +220,7 @@ object ToolMonitoringSystem {
     }
     
     /**
-     * [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note
      */
     fun getSlowestTools(limit: Int = 10): List<Pair<String, Double>> {
         return executionMetrics.entries
@@ -230,7 +230,7 @@ object ToolMonitoringSystem {
     }
     
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note
      */
     fun getMostFailedTools(limit: Int = 10): List<Pair<String, Long>> {
         return executionMetrics.entries
@@ -240,12 +240,12 @@ object ToolMonitoringSystem {
     }
     
     /**
-     * [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note
      */
     fun getEventStream(): SharedFlow<MonitoringEvent> = realtimeEvents.asSharedFlow()
     
     /**
-     * [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note
      */
     fun resetAllMetrics() {
         executionMetrics.clear()
@@ -256,7 +256,7 @@ object ToolMonitoringSystem {
     }
     
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note
      */
     fun generateSystemReport(): SystemHealthReport {
         val now = System.currentTimeMillis()
@@ -266,22 +266,22 @@ object ToolMonitoringSystem {
         val totalFails = totalFailures.get()
         val globalFailureRate = if (totalExecs > 0) totalFails.toDouble() / totalExecs else 0.0
         
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         val activeTools = activeExecutions.values.groupBy { it.toolName }
             .mapValues { it.value.size }
         
-        // [Localized] [Localized] ([Localized] [Localized] > 50%)
+        // Context note Context note (Context note Context note > 50%)
         val brokenTools = allMetrics.filter { (_, metrics) ->
             metrics.executionCount >= 5 && 
             metrics.failureCount.toDouble() / metrics.executionCount > 0.5
         }.keys.toList()
         
-        // [Localized] [Localized] ([Localized] > 3 [Localized])
+        // Context note Context note (Context note > 3 Context note)
         val slowTools = allMetrics.filter { (_, metrics) ->
             metrics.avgDurationMs > 3000
         }.keys.toList()
         
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         val topErrors = allMetrics.values
             .flatMap { it.errorFrequency.entries }
             .groupBy { it.key }
@@ -310,11 +310,11 @@ object ToolMonitoringSystem {
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // [Localized] [Localized] [Localized]
+    // Context note Context note Context note
     // ═══════════════════════════════════════════════════════════════
     
     private suspend fun detectAnomalies(toolName: String, metrics: ToolMetrics) {
-        // 1. [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+        // 1. Context note Context note Context note Context note Context note Context note
         if (metrics.performanceHistory.size >= 20) {
             val recentAvg = metrics.performanceHistory.takeLast(5)
                 .filter { it.success }
@@ -338,7 +338,7 @@ object ToolMonitoringSystem {
             }
         }
         
-        // 2. [Localized] [Localized] [Localized]
+        // 2. Context note Context note Context note
         val recentFailures = metrics.performanceHistory.takeLast(5).count { !it.success }
         if (recentFailures >= 3) {
             realtimeEvents.emit(
@@ -350,7 +350,7 @@ object ToolMonitoringSystem {
             )
         }
         
-        // 3. [Localized] [Localized] [Localized]
+        // 3. Context note Context note Context note
         val recentErrors = metrics.performanceHistory.takeLast(10)
             .mapNotNull { it.errorType }
             .toSet()
@@ -373,7 +373,7 @@ object ToolMonitoringSystem {
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // [Localized] [Localized]
+    // Context note Context note
     // ═══════════════════════════════════════════════════════════════
     
     private fun generateTraceId(): String {
@@ -394,7 +394,7 @@ object ToolMonitoringSystem {
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // [Localized] [Localized] [Localized]
+    // Context note Context note Context note
     // ═══════════════════════════════════════════════════════════════
     
     data class SystemHealthReport(
@@ -474,7 +474,7 @@ object ToolMonitoringSystem {
 }
 
 /**
- * Extension function [Localized] [Localized] [Localized] [Localized]
+ * Extension function Context note Context note Context note Context note
  */
 suspend inline fun <T> monitoredExecution(
     toolName: String,

@@ -6,30 +6,30 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * ScriptRunnerTool — [Localized] [Localized] [Localized] Norm Tier [Localized] [Localized]
+ * ScriptRunnerTool — Context note Context note Context note Norm Tier Context note Context note
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * [Localized] [Localized]:
+ * Context note Context note:
  *
- * 1. **run_script** — [Localized] [Localized] [Localized] [Localized]:
- *    - `shell` → [Localized] [Localized] [Localized] `run_terminal` ([Localized] ProcessBuilder [Localized] [Localized] [Localized] [Localized])
- *    - `python` → [Localized] [Localized] [Localized] Python [Localized] Termux [Localized] [Localized]
- *    - `js`     → [Localized] [Localized] JavaScript [Localized] [Localized] [Localized] [Localized]
+ * 1. **run_script** — Context note Context note Context note Context note:
+ *    - `shell` → Context note Context note Context note `run_terminal` (Context note ProcessBuilder Context note Context note Context note Context note)
+ *    - `python` → Context note Context note Context note Python Context note Termux Context note Context note
+ *    - `js`     → Context note Context note JavaScript Context note Context note Context note Context note
  *
- * 2. **eval_expression** — [Localized] [Localized] [Localized]/[Localized] [Localized] [Localized]:
- *    - [Localized]: +[Localized] -[Localized] *[Localized] /[Localized] %[Localized] >[Localized] <[Localized] ==[Localized] !=[Localized] &&[Localized] ||[Localized] !
- *    - Recursive-descent parser — [Localized] eval() [Localized] reflection
- *    - [Localized] [Localized] [Localized] code injection
+ * 2. **eval_expression** — Context note Context note Context note/Context note Context note Context note:
+ *    - Context note: +Context note -Context note *Context note /Context note %Context note >Context note <Context note ==Context note !=Context note &&Context note ||Context note !
+ *    - Recursive-descent parser — Context note eval() Context note reflection
+ *    - Context note Context note Context note code injection
  *
  * ## Mobile-First:
- * - [Localized] [Localized] [Localized]
- * - [Localized] [Localized] < 1ms [Localized] [Localized]
- * - Timeout [Localized] [Localized] ([Localized] 5000ms)
+ * - Context note Context note Context note
+ * - Context note Context note < 1ms Context note Context note
+ * - Timeout Context note Context note (Context note 5000ms)
  *
- * ## [Localized]:
- * - shell/python [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized]
- * - JS evaluator [Localized] [Localized] [Localized] [Localized]/[Localized]
- * - [Localized] eval()[Localized] [Localized] Reflection[Localized] [Localized] ClassLoader
+ * ## Context note:
+ * - shell/python Context note Context note Context note — Context note Context note Context note
+ * - JS evaluator Context note Context note Context note Context note/Context note
+ * - Context note eval()Context note Context note ReflectionContext note Context note ClassLoader
  */
 class ScriptRunnerTool {
 
@@ -41,32 +41,32 @@ class ScriptRunnerTool {
 
         ToolDefinition(
             name = "run_script",
-            description = """[Localized] [Localized] [Localized] [Localized] [Localized].
-[Localized] [Localized]:
-- shell  → [Localized] [Localized] ProcessBuilder [Localized] [Localized] [Localized] [Localized] run_terminal
-- python → [Localized] [Localized] Termux Python [Localized] [Localized] [Localized]
-- js     → [Localized] [Localized] JavaScript [Localized] ([Localized] [Localized] [Localized] [Localized])
+            description = """Info Info Info Info Info.
+Info Info:
+- shell  → Info Info ProcessBuilder Info Info Info Info run_terminal
+- python → Info Info Termux Python Info Info Info
+- js     → Info Info JavaScript Info (Info Info Info Info)
 
-[Localized]: shell [Localized]python [Localized] [Localized] terminal_access (NORM+).
-[Localized] [Localized] [Localized]/[Localized] [Localized] [Localized] eval_expression.
+Info: shell Infopython Info Info terminal_access (NORM+).
+Info Info Info/Info Info Info eval_expression.
 """,
             parameters = listOf(
                 ToolParameter(
                     name = "language",
                     type = "string",
-                    description = "[Localized] [Localized]: 'js' | 'python' | 'shell'",
+                    description = "Info Info: 'js' | 'python' | 'shell'",
                     required = true
                 ),
                 ToolParameter(
                     name = "code",
                     type = "string",
-                    description = "[Localized] [Localized] [Localized] [Localized]",
+                    description = "Info Info Info Info",
                     required = true
                 ),
                 ToolParameter(
                     name = "timeout_ms",
                     type = "string",
-                    description = "[Localized] [Localized] [Localized] [Localized] ([Localized]: 5000)",
+                    description = "Info Info Info Info (Info: 5000)",
                     required = false
                 )
             )
@@ -74,29 +74,29 @@ class ScriptRunnerTool {
 
         ToolDefinition(
             name = "eval_expression",
-            description = """[Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
-[Localized]:
-- [Localized] [Localized]: +[Localized] -[Localized] *[Localized] /[Localized] %[Localized] [Localized] [Localized]
-- [Localized]: >[Localized] <[Localized] >=[Localized] <=[Localized] ==[Localized] !=
-- [Localized]: &&[Localized] ||[Localized] !
-- [Localized] [Localized] [Localized]
-- [Localized] [Localized] [Localized]
-- [Localized] boolean: true/false
+            description = """Info Info Info Info Info Info.
+Info:
+- Context note Context note: +Context note -Context note *Context note /Context note %Context note Context note Context note
+- Info: >Info <Info >=Info <=Info ==Info !=
+- Info: &&Info ||Info !
+- Info Info Info
+- Info Info Info
+- Info boolean: true/false
 
-[Localized]:
+Info:
 - "2 + 3 * 4" → 14
 - "(2 + 3) * 4" → 20
 - "10 > 5 && 3 < 7" → true
 - "100 % 7" → 2
 - "!false || (3 == 3)" → true
 
-[Localized] [Localized] — [Localized] eval()[Localized] [Localized] reflection[Localized] [Localized] access [Localized].
+Info Info — Info eval()Info Info reflectionInfo Info access Info.
 """,
             parameters = listOf(
                 ToolParameter(
                     name = "expression",
                     type = "string",
-                    description = "[Localized] [Localized] [Localized]",
+                    description = "Info Info Info",
                     required = true
                 )
             )
@@ -107,7 +107,7 @@ class ScriptRunnerTool {
     // Execution
     // ──────────────────────────────────────────────────────────────────────────
 
-    /** [Localized] null [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] wrapper. */
+    /** Context note null Context note Context note Context note Context note Context note Context note wrapper. */
     suspend fun execute(name: String, args: Map<String, String>): ToolExecutionResult? {
         if (name !in HANDLED) return null
         return try {
@@ -150,13 +150,13 @@ class ScriptRunnerTool {
     }
 
     /**
-     * [Localized] JavaScript — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
-     * [Localized] [Localized] [Localized] [Localized] [Localized] console.log [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note JavaScript — Context note Context note Context note Context note Context note Context note Context note.
+     * Context note Context note Context note Context note Context note console.log Context note Context note Context note Context note Context note.
      */
     private suspend fun runJavaScript(code: String, timeoutMs: Long): ToolExecutionResult {
         return withTimeoutOrNull(timeoutMs) {
             try {
-                // [Localized] [Localized] ScriptEngineManager [Localized] [Localized] [Localized] (JVM [Localized] [Localized] Android)
+                // Context note Context note ScriptEngineManager Context note Context note Context note (JVM Context note Context note Android)
                 tryScriptEngineManager(code)
                     ?: runJsWithBasicInterpreter(code)
             } catch (e: Exception) {
@@ -166,8 +166,8 @@ class ScriptRunnerTool {
     }
 
     /**
-     * [Localized] ScriptEngineManager ([Localized] [Localized] JVM/Roboelectric[Localized] [Localized] [Localized] [Localized] Android runtime).
-     * [Localized] null [Localized] [Localized] [Localized] [Localized].
+     * Context note ScriptEngineManager (Context note Context note JVM/RoboelectricContext note Context note Context note Context note Android runtime).
+     * Context note null Context note Context note Context note Context note.
      */
     private fun tryScriptEngineManager(code: String): ToolExecutionResult? {
         return try {
@@ -181,42 +181,42 @@ class ScriptRunnerTool {
             val result = evalMethod.invoke(engine, code)
             ToolExecutionResult("${result ?: "undefined"}")
         } catch (e: ClassNotFoundException) {
-            null // ScriptEngineManager [Localized] [Localized] (Android runtime)
+            null // ScriptEngineManager Context note Context note (Android runtime)
         } catch (e: Exception) {
             null
         }
     }
 
     /**
-     * [Localized] JavaScript [Localized] [Localized] [Localized].
-     * [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] String literals.
+     * Context note JavaScript Context note Context note Context note.
+     * Context note: Context note Context note Context note Context note Context note String literals.
      */
     private fun runJsWithBasicInterpreter(code: String): ToolExecutionResult {
         val trimmed = code.trim()
 
-        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] function/var/let/const/console
+        // Context note Context note Context note Context note Context note Context note Context note Context note Context note function/var/let/const/console
         val hasComplexKeywords = listOf("function", "var ", "let ", "const ", "console.", "return ", "if ", "for ", "while ").any {
             trimmed.contains(it)
         }
 
         if (hasComplexKeywords || trimmed.contains('\n')) {
-            // [Localized] [Localized] [Localized]: [Localized] [Localized] [Localized] Termux Node.js
+            // Context note Context note Context note: Context note Context note Context note Termux Node.js
             return runViaTermuxNode(trimmed)
         }
 
-        // [Localized] eval_expression [Localized] [Localized]
+        // Context note eval_expression Context note Context note
         return try {
             val parser = SafeExpressionParser(trimmed)
             val result = parser.parse()
             ToolExecutionResult(formatEvalResult(result))
         } catch (e: Exception) {
-            // [Localized] [Localized]: Termux
+            // Context note Context note: Termux
             runViaTermuxNode(trimmed)
         }
     }
 
     /**
-     * [Localized] [Localized] Termux Node.js [Localized] [Localized] [Localized].
+     * Context note Context note Termux Node.js Context note Context note Context note.
      */
     private fun runViaTermuxNode(code: String): ToolExecutionResult {
         return try {
@@ -238,12 +238,12 @@ class ScriptRunnerTool {
     }
 
     /**
-     * [Localized] Python [Localized] Termux.
+     * Context note Python Context note Termux.
      */
     private suspend fun runPython(code: String, timeoutMs: Long): ToolExecutionResult {
         return withTimeoutOrNull(timeoutMs) {
             try {
-                // [Localized] python3 [Localized] [Localized] python
+                // Context note python3 Context note Context note python
                 val pythonBins = listOf(
                     "/data/data/com.termux/files/usr/bin/python3",
                     "/data/data/com.termux/files/usr/bin/python",
@@ -277,7 +277,7 @@ class ScriptRunnerTool {
     }
 
     /**
-     * [Localized] Shell — [Localized] sh/bash [Localized].
+     * Context note Shell — Context note sh/bash Context note.
      */
     private suspend fun runShell(code: String, timeoutMs: Long): ToolExecutionResult {
         return withTimeoutOrNull(timeoutMs) {
@@ -293,7 +293,7 @@ class ScriptRunnerTool {
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] Timeout.
+     * Context note Context note Context note Context note Timeout.
      */
     private fun runProcessWithTimeout(command: List<String>, timeoutMs: Long): ToolExecutionResult {
         val process = ProcessBuilder(command)
@@ -350,7 +350,7 @@ class ScriptRunnerTool {
     companion object {
         val HANDLED = setOf("run_script", "eval_expression")
 
-        /** [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] */
+        /** Context note Context note Context note Context note Context note Context note */
         internal fun formatEvalResult(result: Any): String = when (result) {
             is Double -> if (result % 1.0 == 0.0 && result >= Long.MIN_VALUE.toDouble() && result <= Long.MAX_VALUE.toDouble()) {
                 result.toLong().toString()
@@ -364,17 +364,17 @@ class ScriptRunnerTool {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// SafeExpressionParser — [Localized] [Localized] [Localized] [Localized]
-// Recursive-descent parser — [Localized] eval()[Localized] [Localized] reflection
+// SafeExpressionParser — Context note Context note Context note Context note
+// Recursive-descent parser — Context note eval()Context note Context note reflection
 // ════════════════════════════════════════════════════════════════════════════
 
-/** [Localized] [Localized] [Localized] [Localized] [Localized] */
+/** Context note Context note Context note Context note Context note */
 class ExpressionParseException(message: String) : Exception(message)
 
 /**
- * [Localized] [Localized] [Localized]/[Localized] [Localized].
+ * Context note Context note Context note/Context note Context note.
  *
- * [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized] [Localized]):
+ * Context note Context note (Context note Context note Context note Context notelowest Context notehighest):
  *   expr     → or_expr
  *   or_expr  → and_expr ('||' and_expr)*
  *   and_expr → not_expr ('&&' not_expr)*
@@ -389,7 +389,7 @@ internal class SafeExpressionParser(private val input: String) {
 
     private var pos = 0
 
-    /** [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note */
     fun parse(): Any {
         skipWhitespace()
         val result = parseOr()
@@ -402,7 +402,7 @@ internal class SafeExpressionParser(private val input: String) {
         return result
     }
 
-    // ── [Localized] [Localized] ──────────────────────────────────────────────────
+    // ── Context note Context note ──────────────────────────────────────────────────
 
     private fun parseOr(): Any {
         var left = parseAnd()
@@ -428,9 +428,9 @@ internal class SafeExpressionParser(private val input: String) {
         skipWhitespace()
         if (pos < input.length && input[pos] == '!') {
             pos++ // consume '!'
-            // [Localized] [Localized] [Localized] [Localized] !=
+            // Context note Context note Context note Context note !=
             if (pos < input.length && input[pos] == '=') {
-                pos-- // [Localized] [Localized] [Localized] cmp_expr
+                pos-- // Context note Context note Context note cmp_expr
                 return parseComparison()
             }
             val operand = parseNot()
@@ -529,7 +529,7 @@ internal class SafeExpressionParser(private val input: String) {
         skipWhitespace()
         if (pos >= input.length) throw ExpressionParseException("Unexpected end of expression")
 
-        // [Localized]
+        // Context note
         if (input[pos] == '(') {
             pos++ // consume '('
             val result = parseOr()
@@ -551,7 +551,7 @@ internal class SafeExpressionParser(private val input: String) {
             return false
         }
 
-        // [Localized] ([Localized] [Localized] [Localized])
+        // Context note (Context note Context note Context note)
         if (input[pos].isDigit() || (input[pos] == '.' && pos + 1 < input.length && input[pos + 1].isDigit())) {
             return parseNumber()
         }
@@ -571,7 +571,7 @@ internal class SafeExpressionParser(private val input: String) {
             ?: throw ExpressionParseException("Invalid number: $numStr")
     }
 
-    // ── [Localized] [Localized] ──────────────────────────────────────────────────────
+    // ── Context note Context note ──────────────────────────────────────────────────────
 
     private fun skipWhitespace() {
         while (pos < input.length && input[pos].isWhitespace()) pos++
@@ -605,7 +605,7 @@ internal class SafeExpressionParser(private val input: String) {
 }
 
 /**
- * [Localized] [Localized] [Localized] — wrapper [Localized] [Localized] ScriptRunnerTool.
- * [Localized] [Localized].
+ * Context note Context note Context note — wrapper Context note Context note ScriptRunnerTool.
+ * Context note Context note.
  */
 internal fun Any.formatResult(): String = ScriptRunnerTool.formatEvalResult(this)

@@ -5,18 +5,18 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * RollbackSnapshotEntry — [Localized] "[Localized] [Localized]" [Localized] [Localized] [Localized] [Localized] [Localized].
+ * RollbackSnapshotEntry — Context note "Context note Context note" Context note Context note Context note Context note Context note.
  *
- * Mobile-first design ([Localized] [Localized] root):
- * - [Localized] ≤ 4 KB → [Localized] [Localized] [Localized] [Localized] (Deflate)
- * - [Localized] > 4 KB → [Localized] unified diff [Localized] ([Localized] 70%+ [Localized] [Localized])
- * - [Localized] [Localized] 200 snapshot [Localized] actionGroup[Localized] LRU eviction
- * - [Localized] [Localized] 50 MB [Localized] [Localized]
+ * Mobile-first design (Context note Context note root):
+ * - Context note ≤ 4 KB → Context note Context note Context note Context note (Deflate)
+ * - Context note > 4 KB → Context note unified diff Context note (Context note 70%+ Context note Context note)
+ * - Context note Context note 200 snapshot Context note actionGroupContext note LRU eviction
+ * - Context note Context note 50 MB Context note Context note
  *
- * @property actionGroupId [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] rollback [Localized])
- * @property contentBlob [Localized] diff [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] (Deflate)
- * @property storedAsDiff true = diff[Localized] false = full content
- * @property pinned snapshot [Localized] [Localized] [Localized] [Localized] LRU
+ * @property actionGroupId Context note Context note Context note Context note Context note (Context note rollback Context note)
+ * @property contentBlob Context note diff Context note Context note Context note Context note Context note Context note (Deflate)
+ * @property storedAsDiff true = diffContext note false = full content
+ * @property pinned snapshot Context note Context note Context note Context note LRU
  */
 @Entity(
     tableName = "rollback_snapshots",

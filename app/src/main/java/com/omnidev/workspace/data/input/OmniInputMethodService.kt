@@ -16,29 +16,29 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.LinkedList
 
 /**
- * OmniInputMethodService — [Localized] [Localized] [Localized] [Localized]
+ * OmniInputMethodService — Context note Context note Context note Context note
  *
- * [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized]
+ * Context note Context note: Context note Context note Context note Context note
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. **[Localized] [Localized] [Localized] (Context Detection)**:
- *    [Localized] [Localized] EditorInfo [Localized] [Localized] [Localized] [Localized]:
+ * 1. **Context note Context note Context note (Context Detection)**:
+ *    Context note Context note EditorInfo Context note Context note Context note Context note:
  *    PASSWORD, EMAIL, SEARCH, PHONE, MULTILINE, CHAT, URL, etc.
- *    [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+ *    Context note Context note Context note Context note Context note Context note.
  *
- * 2. **[Localized] [Localized] Clipboard [Localized] (Smart Clipboard)**:
- *    [Localized] [Localized] 10 [Localized] [Localized] ([Localized] [Localized] [Localized]).
- *    [Localized] [Localized] [Localized] [Localized].
+ * 2. **Context note Context note Clipboard Context note (Smart Clipboard)**:
+ *    Context note Context note 10 Context note Context note (Context note Context note Context note).
+ *    Context note Context note Context note Context note.
  *
- * 3. **[Localized] [Localized] [Localized] (Input Pattern Analysis)**:
- *    [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
- *    [Localized] "keystroke analytics" [Localized].
+ * 3. **Context note Context note Context note (Input Pattern Analysis)**:
+ *    Context note Context note Context note Context note Context note Context note Context note.
+ *    Context note "keystroke analytics" Context note.
  *
- * 4. **[Localized] [Localized] [Localized] (Advanced Text Injection)**:
- *    commitText [Localized] [Localized] selection[Localized] cursor placement[Localized] [Localized] markdown injection.
+ * 4. **Context note Context note Context note (Advanced Text Injection)**:
+ *    commitText Context note Context note selectionContext note cursor placementContext note Context note markdown injection.
  *
- * 5. **[Localized]: [Localized] [Localized] [Localized] [Localized]**:
- *    [Localized] PASSWORD [Localized] [Localized] [Localized] [Localized] [Localized].
- *    [Localized] analytics [Localized] [Localized] [Localized] [Localized].
+ * 5. **Context note: Context note Context note Context note Context note**:
+ *    Context note PASSWORD Context note Context note Context note Context note Context note.
+ *    Context note analytics Context note Context note Context note Context note.
  */
 class OmniInputMethodService : InputMethodService() {
 
@@ -61,18 +61,18 @@ class OmniInputMethodService : InputMethodService() {
         private val _inputAnalytics = MutableStateFlow(InputAnalytics())
         val inputAnalytics: StateFlow<InputAnalytics> = _inputAnalytics.asStateFlow()
 
-        /** [Localized] [Localized] Clipboard: [Localized] [Localized] [Localized] */
+        /** Context note Context note Clipboard: Context note Context note Context note */
         private val clipboardHistory = LinkedList<ClipboardEntry>()
 
         @Volatile
         private var activeService: OmniInputMethodService? = null
 
         // ─────────────────────────────────────────────────────────────────────
-        // API [Localized]
+        // API Context note
         // ─────────────────────────────────────────────────────────────────────
 
         /**
-         * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+         * Context note Context note Context note Context note Context note Context note Context note Context note.
          */
         fun commitText(
             text: String,
@@ -84,7 +84,7 @@ class OmniInputMethodService : InputMethodService() {
                 val ic = service.currentInputConnection ?: return false
 
                 if (replaceSelection) {
-                    // [Localized] [Localized] [Localized]
+                    // Context note Context note Context note
                     ic.beginBatchEdit()
                     ic.commitText(text, if (moveCursorToEnd) 1 else 0)
                     ic.endBatchEdit()
@@ -92,18 +92,18 @@ class OmniInputMethodService : InputMethodService() {
                     ic.commitText(text, if (moveCursorToEnd) 1 else 0)
                 }
 
-                // [Localized] [Localized] analytics
+                // Context note Context note analytics
                 updateAnalyticsOnCommit(text)
                 Log.d(TAG, "✅ commitText: ${text.take(30)}")
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "❌ [Localized] commitText: ${e.message}")
+                Log.e(TAG, "❌ Info commitText: ${e.message}")
                 false
             }
         }
 
         /**
-         * [[Localized]] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] wrapper ([Localized]: bold = "**text**").
+         * [Context note] Context note Context note Context note Context note Context note Context note wrapper (Context note: bold = "**text**").
          */
         fun commitWrappedText(
             innerText: String,
@@ -114,8 +114,8 @@ class OmniInputMethodService : InputMethodService() {
         }
 
         /**
-         * [[Localized]] [Localized] [Localized] [Localized] [Localized] ($cursor) [Localized] [Localized] cursor [Localized] [Localized].
-         * [Localized]: insertTemplate("```\n$cursor\n```") [Localized] [Localized] block [Localized] [Localized] [Localized].
+         * [Context note] Context note Context note Context note Context note ($cursor) Context note Context note cursor Context note Context note.
+         * Context note: insertTemplate("```\n$cursor\n```") Context note Context note block Context note Context note Context note.
          */
         fun insertTemplate(template: String, cursorPlaceholder: String = "\$cursor"): Boolean {
             val service = activeService ?: return false
@@ -128,7 +128,7 @@ class OmniInputMethodService : InputMethodService() {
                     val before = template.substring(0, cursorIndex)
                     val after = template.substring(cursorIndex + cursorPlaceholder.length)
                     ic.commitText(before + after, 1)
-                    // [Localized] [Localized] [Localized] $cursor
+                    // Context note Context note Context note $cursor
                     if (after.isNotEmpty()) {
                         ic.setSelection(
                             ic.getTextBeforeCursor(after.length + before.length, 0)?.length?.minus(after.length) ?: 0,
@@ -138,7 +138,7 @@ class OmniInputMethodService : InputMethodService() {
                 }
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "insertTemplate [Localized]: ${e.message}")
+                Log.e(TAG, "insertTemplate Info: ${e.message}")
                 false
             }
         }
@@ -169,45 +169,45 @@ class OmniInputMethodService : InputMethodService() {
             activeService?.currentInputConnection?.getTextAfterCursor(length, 0)?.toString()
 
         /**
-         * [[Localized]] [Localized] [Localized] [Localized] [Localized] [Localized].
+         * [Context note] Context note Context note Context note Context note Context note.
          */
         fun getFullFieldContext(): String = buildString {
             val context = _currentFieldContext.value
-            if (context == null) { append("[Localized] [Localized] [Localized] [Localized]"); return@buildString }
+            if (context == null) { append("Info Info Info Info"); return@buildString }
 
-            append("📝 [Localized] [Localized]:\n")
-            append("[Localized]: ${context.fieldType.name}\n")
-            append("[Localized]: ${context.packageName}\n")
-            append("hint: ${context.hint ?: "([Localized] [Localized])"}\n")
-            append("[Localized] [Localized]: ${if (context.isPassword) "[Localized] 🔒" else "[Localized]"}\n")
-            append("[Localized] [Localized]: ${context.isMultiline}\n")
+            append("📝 Info Info:\n")
+            append("Info: ${context.fieldType.name}\n")
+            append("Info: ${context.packageName}\n")
+            append("hint: ${context.hint ?: "(Info Info)"}\n")
+            append("Info Info: ${if (context.isPassword) "Info 🔒" else "Info"}\n")
+            append("Info Info: ${context.isMultiline}\n")
 
             val textBefore = getTextBeforeCursor(MAX_FIELD_CONTEXT_CHARS)
             if (!textBefore.isNullOrEmpty()) {
-                append("[Localized] [Localized] ([Localized] ${textBefore.length} [Localized]): \"${textBefore.takeLast(80)}\"")
+                append("Info Info (Info ${textBefore.length} Info): \"${textBefore.takeLast(80)}\"")
             }
         }
 
         /**
-         * [[Localized]] [Localized] [Localized] [Localized] [Localized] Clipboard ([Localized] [Localized] [Localized]).
+         * [Context note] Context note Context note Context note Context note Clipboard (Context note Context note Context note).
          */
         fun addToClipboardHistory(text: String, label: String = "Agent") {
-            if (text.length > 2000) return // [Localized] [Localized] [Localized]
+            if (text.length > 2000) return // Context note Context note Context note
             val entry = ClipboardEntry(text, label, System.currentTimeMillis())
             synchronized(clipboardHistory) {
-                if (clipboardHistory.firstOrNull()?.text == text) return // [Localized] [Localized]
+                if (clipboardHistory.firstOrNull()?.text == text) return // Context note Context note
                 clipboardHistory.addFirst(entry)
                 if (clipboardHistory.size > MAX_CLIPBOARD_HISTORY) clipboardHistory.removeLast()
             }
         }
 
         /**
-         * [[Localized]] [Localized] [Localized] [Localized] Clipboard [Localized].
+         * [Context note] Context note Context note Context note Clipboard Context note.
          */
         fun getClipboardHistory(): String = buildString {
             val history = synchronized(clipboardHistory) { clipboardHistory.toList() }
-            if (history.isEmpty()) { append("[Localized] [Localized] Clipboard [Localized]"); return@buildString }
-            append("📋 [Localized] [Localized] Clipboard ([Localized] ${history.size}):\n")
+            if (history.isEmpty()) { append("Info Info Clipboard Info"); return@buildString }
+            append("📋 Info Info Clipboard (Info ${history.size}):\n")
             history.forEachIndexed { i, entry ->
                 append("${i + 1}. [${entry.label}] ${entry.text.take(60)}\n")
             }
@@ -240,14 +240,14 @@ class OmniInputMethodService : InputMethodService() {
         super.onCreate()
         activeService = this
         _isActive.value = true
-        Log.i(TAG, "✅ OmniDev IME [Localized]")
+        Log.i(TAG, "✅ OmniDev IME Info")
     }
 
     override fun onDestroy() {
         activeService = null
         _isActive.value = false
         _currentFieldContext.value = null
-        Log.i(TAG, "OmniDev IME [Localized]")
+        Log.i(TAG, "OmniDev IME Info")
         super.onDestroy()
     }
 
@@ -257,20 +257,20 @@ class OmniInputMethodService : InputMethodService() {
         super.onStartInput(attribute, restarting)
         attribute ?: return
 
-        // [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note
         val context = buildFieldContext(attribute)
         _currentFieldContext.value = context
 
-        // [Localized] [Localized] analytics
+        // Context note Context note analytics
         val current = _inputAnalytics.value
         _inputAnalytics.value = current.copy(
             fieldSwitchCount = current.fieldSwitchCount + 1,
             currentFieldType = context.fieldType
         )
 
-        Log.d(TAG, "[Localized] [Localized] — ${context.fieldType.name} [Localized] ${context.packageName}")
+        Log.d(TAG, "Info Info — ${context.fieldType.name} Info ${context.packageName}")
 
-        // [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note
         _textInputFlow.tryEmit(
             TextInputEvent(
                 text = "",
@@ -302,7 +302,7 @@ class OmniInputMethodService : InputMethodService() {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
 
         val context = _currentFieldContext.value ?: return
-        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note Context note
         if (context.isPassword) return
 
         if (newSelStart > oldSelStart) {
@@ -320,7 +320,7 @@ class OmniInputMethodService : InputMethodService() {
                                 fieldContext = context
                             )
                         )
-                        // [Localized] analytics
+                        // Context note analytics
                         val current = _inputAnalytics.value
                         _inputAnalytics.value = current.copy(
                             totalCharsTyped = current.totalCharsTyped + newText.length,
@@ -369,10 +369,10 @@ class OmniInputMethodService : InputMethodService() {
         if (hint == null) return FieldType.TEXT
         val h = hint.lowercase()
         return when {
-            "search" in h || "[Localized]" in h -> FieldType.SEARCH
-            "email" in h || "[Localized]" in h || "@" in h -> FieldType.EMAIL
-            "phone" in h || "[Localized]" in h || "mobile" in h -> FieldType.PHONE
-            "message" in h || "[Localized]" in h || "comment" in h -> FieldType.CHAT
+            "search" in h || "Info" in h -> FieldType.SEARCH
+            "email" in h || "Info" in h || "@" in h -> FieldType.EMAIL
+            "phone" in h || "Info" in h || "mobile" in h -> FieldType.PHONE
+            "message" in h || "Info" in h || "comment" in h -> FieldType.CHAT
             "url" in h || "website" in h || "link" in h -> FieldType.URL
             else -> FieldType.TEXT
         }

@@ -7,27 +7,27 @@ import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 import kotlinx.coroutines.delay
 
 /**
- * GodModeAccessibility — [Localized] [Localized] [Localized] (Shizuku + Accessibility)
+ * GodModeAccessibility — Context note Context note Context note (Shizuku + Accessibility)
  *
- * [Localized] [Localized]: [Localized] [Localized]
+ * Context note Context note: Context note Context note
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. **[Localized] [Localized] [Localized] (Adaptive Retry)**: [Localized] Exponential Backoff
- *    [Localized] Jitter [Localized] [Localized] [Localized] [Localized] [Localized].
+ * 1. **Context note Context note Context note (Adaptive Retry)**: Context note Exponential Backoff
+ *    Context note Jitter Context note Context note Context note Context note Context note.
  *
- * 2. **[Localized] [Localized] [Localized] [Localized] (Semantic Element Finder)**: [Localized] [Localized] [Localized]
- *    [Localized] / [Localized] / [Localized] viewId — [Localized] [Localized] [Localized] node_id [Localized].
+ * 2. **Context note Context note Context note Context note (Semantic Element Finder)**: Context note Context note Context note
+ *    Context note / Context note / Context note viewId — Context note Context note Context note node_id Context note.
  *
- * 3. **[Localized] [Localized] (Action Chain)**: [Localized] [Localized] [Localized] tap → type → tap
- *    [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+ * 3. **Context note Context note (Action Chain)**: Context note Context note Context note tap → type → tap
+ *    Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note.
  *
- * 4. **[Localized] [Localized] (Action Recorder)**: [Localized] [Localized] [Localized] [Localized] [Localized]
- *    "[Localized]" [Localized] [Localized] [Localized].
+ * 4. **Context note Context note (Action Recorder)**: Context note Context note Context note Context note Context note
+ *    "Context note" Context note Context note Context note.
  *
- * 5. **[Localized] [Localized] (Smart Scroll-To)**: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
- *    [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+ * 5. **Context note Context note (Smart Scroll-To)**: Context note Context note Context note Context note Context note Context note
+ *    Context note Context note Context note Context note Context note Context note Context note.
  *
- * 6. **[Localized] [Localized] [Localized] (Post-Action Verification)**: [Localized] [Localized] tap [Localized] [Localized]
- *    [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized].
+ * 6. **Context note Context note Context note (Post-Action Verification)**: Context note Context note tap Context note Context note
+ *    Context note Context note Context note — Context note Context note Context note Context note Context note.
  */
 object GodModeAccessibility {
 
@@ -42,7 +42,7 @@ object GodModeAccessibility {
     private const val VERIFICATION_WAIT_MS = 600L
     private const val SCROLL_TO_MAX_ATTEMPTS = 10
 
-    /** [Localized] [Localized] [Localized] ([Localized]) */
+    /** Context note Context note Context note (Context note) */
     private val actionRecordings = mutableMapOf<String, List<RecordedAction>>()
 
     @Volatile
@@ -55,10 +55,10 @@ object GodModeAccessibility {
 
     suspend fun autoEnableOmniVision(): String {
         if (!PrivilegedExecutionManager.isShizukuReady()) {
-            return "❌ Shizuku [Localized] [Localized] [Localized] [Localized] [Localized]."
+            return "❌ Shizuku Info Info Info Info Info."
         }
         if (AccessibilityStateManager.isServiceConnected.value) {
-            return "✅ OmniAccessibilityService [Localized] [Localized]."
+            return "✅ OmniAccessibilityService Info Info."
         }
 
         return retryWithBackoff(maxRetries = 2, operationName = "auto_enable_accessibility") {
@@ -83,19 +83,19 @@ object GodModeAccessibility {
                 "settings put secure accessibility_enabled 1"
             ).getOrThrow()
 
-            "✅ OmniAccessibilityService [Localized] [Localized] [Localized] Shizuku. [Localized] [Localized] [Localized]."
+            "✅ OmniAccessibilityService Info Info Info Shizuku. Info Info Info."
         }
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note Context note Context note Context note Context note Context note.
+     * Context note Context note Context note Context note Context note Context note Context note.
      */
     suspend fun hybridTap(node: AccessibilityNodeInfo, verifyChange: Boolean = true): String {
         val bounds = Rect()
         node.getBoundsInScreen(bounds)
         if (bounds.isEmpty || bounds.centerX() <= 0 || bounds.centerY() <= 0) {
-            return "❌ [Localized] [Localized] [Localized] [Localized] [Localized]: $bounds"
+            return "❌ Info Info Info Info Info: $bounds"
         }
 
         val preTimestamp = AccessibilityStateManager.lastUpdateTime.value
@@ -111,7 +111,7 @@ object GodModeAccessibility {
                     onSuccess = { "✅ Hardware tap at ($centerX, $centerY)" },
                     onFailure = { err ->
                         val fallback = OmniAccessibilityService.instance?.clickNode(node) == true
-                        if (fallback) "⚠️ Fallback → Semantic tap [Localized]"
+                        if (fallback) "⚠️ Fallback → Semantic tap Info"
                         else throw err
                     }
                 )
@@ -121,8 +121,8 @@ object GodModeAccessibility {
             delay(VERIFICATION_WAIT_MS)
             val postTimestamp = AccessibilityStateManager.lastUpdateTime.value
             if (postTimestamp == preTimestamp) {
-                Log.w(TAG, "Tap at ($centerX,$centerY) — [Localized] [Localized] [Localized]!")
-                return "$result\n⚠️ [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized]."
+                Log.w(TAG, "Tap at ($centerX,$centerY) — Info Info Info!")
+                return "$result\n⚠️ Info: Info Info Info Info Info."
             }
         }
 
@@ -134,7 +134,7 @@ object GodModeAccessibility {
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] fallback [Localized].
+     * Context note Context note Context note Context note fallback Context note.
      */
     suspend fun hybridLongPress(
         node: AccessibilityNodeInfo,
@@ -142,7 +142,7 @@ object GodModeAccessibility {
     ): String {
         val bounds = Rect()
         node.getBoundsInScreen(bounds)
-        if (bounds.isEmpty) return "❌ [Localized] [Localized] [Localized] [Localized]: $bounds"
+        if (bounds.isEmpty) return "❌ Info Info Info Info: $bounds"
 
         val cx = bounds.centerX(); val cy = bounds.centerY()
 
@@ -152,7 +152,7 @@ object GodModeAccessibility {
                     onSuccess = { "✅ Hardware long-press at ($cx, $cy) for ${durationMs}ms" },
                     onFailure = { err ->
                         val fallback = OmniAccessibilityService.instance?.longClickNode(node) == true
-                        if (fallback) "⚠️ Fallback → Semantic long-press [Localized]"
+                        if (fallback) "⚠️ Fallback → Semantic long-press Info"
                         else throw err
                     }
                 )
@@ -162,17 +162,17 @@ object GodModeAccessibility {
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] escape [Localized] [Localized] [Localized].
-     * [Localized] Unicode[Localized] [Localized] [Localized] [Localized] emojis.
+     * Context note Context note Context note Context note escape Context note Context note Context note.
+     * Context note UnicodeContext note Context note Context note Context note emojis.
      */
     suspend fun hybridType(
         text: String,
         fallbackNode: AccessibilityNodeInfo? = null,
         clearFirst: Boolean = false
     ): String {
-        if (text.isEmpty()) return "❌ [Localized] [Localized]"
+        if (text.isEmpty()) return "❌ Info Info"
 
-        // [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note
         if (clearFirst) {
             PrivilegedExecutionManager.executeCommand("input keyevent KEYCODE_CTRL_A")
             delay(100)
@@ -181,7 +181,7 @@ object GodModeAccessibility {
         }
 
         return retryWithBackoff(maxRetries = 2, operationName = "hybrid_type") {
-            // [Localized] text [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] shell)
+            // Context note text Context note Context note Context note Context note Context note Context note (Context note Context note Context note shell)
             if (text.length <= 200 && !containsSpecialChars(text)) {
                 val escaped = text.replace("'", "'\\''").replace(" ", "%s")
                 PrivilegedExecutionManager.executeCommand("input text '$escaped'")
@@ -190,8 +190,8 @@ object GodModeAccessibility {
                         onFailure = { err -> injectViaAccessibility(text, fallbackNode) ?: throw err }
                     )
             } else {
-                // [Localized] [Localized]: [Localized] clipboard [Localized] bridge
-                injectViaClipboard(text) ?: (injectViaAccessibility(text, fallbackNode) ?: "❌ [Localized] [Localized] [Localized]")
+                // Context note Context note: Context note clipboard Context note bridge
+                injectViaClipboard(text) ?: (injectViaAccessibility(text, fallbackNode) ?: "❌ Info Info Info")
             }
         }.also {
             if (isRecording) currentRecording.add(RecordedAction.TypeText(text))
@@ -199,34 +199,34 @@ object GodModeAccessibility {
     }
 
     /**
-     * [[Localized]] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] — [Localized] SCROLL_TO_MAX_ATTEMPTS [Localized].
+     * [Context note] Context note Context note Context note Context note Context note Context note.
+     * Context note Context note Context note Context note Context note Context note — Context note SCROLL_TO_MAX_ATTEMPTS Context note.
      *
-     * @param targetText [Localized] [Localized] [Localized] [Localized]
-     * @param scrollDirection "down" [Localized] "up"
-     * @return [Localized] node [Localized] [Localized] [Localized] null
+     * @param targetText Context note Context note Context note Context note
+     * @param scrollDirection "down" Context note "up"
+     * @return Context note node Context note Context note Context note null
      */
     suspend fun scrollUntilVisible(
         targetText: String,
         scrollDirection: String = "down"
     ): ScrollToResult {
         val service = OmniAccessibilityService.instance
-            ?: return ScrollToResult(false, "❌ [Localized] [Localized] accessibility [Localized] [Localized]")
+            ?: return ScrollToResult(false, "❌ Info Info accessibility Info Info")
 
         for (attempt in 1..SCROLL_TO_MAX_ATTEMPTS) {
-            // [Localized] [Localized]
+            // Context note Context note
             val found = AccessibilityStateManager.findNodeByText(targetText)
             if (found != null) {
-                return ScrollToResult(true, "✅ [Localized] '$targetText' [Localized] $attempt [Localized]", found)
+                return ScrollToResult(true, "✅ Info '$targetText' Info $attempt Info", found)
             }
 
-            // [Localized]
+            // Context note
             val root = AccessibilityStateManager.rootNode.value ?: break
             val forward = scrollDirection != "up"
             val scrollable = findFirstScrollable(root)
             if (scrollable == null) {
 
-                    // [Localized] gesture [Localized] fallback
+                    // Context note gesture Context note fallback
                     val h = root.let { Rect().also { r -> it.getBoundsInScreen(r) }.height() }
                     val w = root.let { Rect().also { r -> it.getBoundsInScreen(r) }.width() }
                     val halfW = w / 2f
@@ -244,12 +244,12 @@ object GodModeAccessibility {
             delay(350)
         }
 
-        return ScrollToResult(false, "❌ [Localized] [Localized] [Localized] '$targetText' [Localized] $SCROLL_TO_MAX_ATTEMPTS [Localized]")
+        return ScrollToResult(false, "❌ Info Info Info '$targetText' Info $SCROLL_TO_MAX_ATTEMPTS Info")
     }
 
     /**
-     * [[Localized]] [Localized] [Localized] [Localized] atomically.
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * [Context note] Context note Context note Context note atomically.
+     * Context note Context note Context note Context note Context note Context note Context note Context note.
      */
     suspend fun executeActionChain(
         actions: List<ChainedAction>,
@@ -288,7 +288,7 @@ object GodModeAccessibility {
                     }
                 }
             } catch (e: Exception) {
-                val errorMsg = "❌ [Localized] [Localized] [Localized] ${index + 1} (${action::class.simpleName}): ${e.message}"
+                val errorMsg = "❌ Info Info Info ${index + 1} (${action::class.simpleName}): ${e.message}"
                 results.add(errorMsg)
                 failedAt = index
                 if (stopOnFirstError) break
@@ -296,7 +296,7 @@ object GodModeAccessibility {
             }
             results.add(result)
             if (action is ChainedAction.WaitMs) continue
-            delay(150) // [Localized] [Localized] [Localized] [Localized]
+            delay(150) // Context note Context note Context note Context note
         }
 
         return ActionChainResult(
@@ -309,33 +309,33 @@ object GodModeAccessibility {
     }
 
     /**
-     * [[Localized]] [Localized] [Localized] [Localized] [Localized] macro [Localized] [Localized].
+     * [Context note] Context note Context note Context note Context note macro Context note Context note.
      */
     fun startRecording(macroName: String) {
         currentRecording = mutableListOf()
         isRecording = true
-        Log.i(TAG, "🎬 [Localized] [Localized] [Localized]: $macroName")
+        Log.i(TAG, "🎬 Info Info Info: $macroName")
     }
 
     /**
-     * [[Localized]] [Localized] [Localized] [Localized] [Localized].
-     * @return [Localized] [Localized] [Localized]
+     * [Context note] Context note Context note Context note Context note.
+     * @return Context note Context note Context note
      */
     fun stopRecording(macroName: String): Int {
         isRecording = false
         actionRecordings[macroName] = currentRecording.toList()
         val count = currentRecording.size
         currentRecording = mutableListOf()
-        Log.i(TAG, "⏹️ [Localized] [Localized] '$macroName': $count [Localized]")
+        Log.i(TAG, "⏹️ Info Info '$macroName': $count Info")
         return count
     }
 
     /**
-     * [[Localized]] [Localized] [Localized] [Localized] [Localized].
+     * [Context note] Context note Context note Context note Context note.
      */
     suspend fun playMacro(macroName: String): String {
         val actions = actionRecordings[macroName]
-            ?: return "❌ [Localized] '$macroName' [Localized] [Localized]. [Localized]: ${actionRecordings.keys}"
+            ?: return "❌ Info '$macroName' Info Info. Info: ${actionRecordings.keys}"
 
         val chainedActions = actions.map { recorded ->
             when (recorded) {
@@ -349,26 +349,26 @@ object GodModeAccessibility {
 
         val result = executeActionChain(chainedActions)
         return if (result.success) {
-            "✅ [Localized] '$macroName' [Localized] [Localized] (${result.completedSteps}/${result.totalSteps} [Localized])"
+            "✅ Info '$macroName' Info Info (${result.completedSteps}/${result.totalSteps} Info)"
         } else {
-            "⚠️ [Localized] '$macroName' [Localized] [Localized] [Localized] ${result.failedAtStep + 1}:\n${result.results.joinToString("\n")}"
+            "⚠️ Info '$macroName' Info Info Info ${result.failedAtStep + 1}:\n${result.results.joinToString("\n")}"
         }
     }
 
     /**
-     * [[Localized]] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * [Context note] Context note Context note Context note Context note Context note Context note.
      */
     fun listMacros(): String {
-        if (actionRecordings.isEmpty()) return "[Localized] [Localized] [Localized] [Localized]."
+        if (actionRecordings.isEmpty()) return "Info Info Info Info."
         return actionRecordings.entries.joinToString("\n") { (name, actions) ->
-            "📼 $name: ${actions.size} [Localized]"
+            "📼 $name: ${actions.size} Info"
         }
     }
 
     // ── Private Helpers ───────────────────────────────────────────────────────
 
     /**
-     * Exponential backoff [Localized] Jitter [Localized] [Localized] [Localized] [Localized].
+     * Exponential backoff Context note Jitter Context note Context note Context note Context note.
      */
     private suspend fun <T> retryWithBackoff(
         maxRetries: Int = DEFAULT_MAX_RETRIES,
@@ -384,7 +384,7 @@ object GodModeAccessibility {
                 if (attempt < maxRetries) {
                     val delayMs = (BASE_DELAY_MS * (1L shl attempt) + (0..100).random())
                         .coerceAtMost(MAX_DELAY_MS)
-                    Log.w(TAG, "$operationName: [Localized] ${attempt + 1}/$maxRetries [Localized]. [Localized] ${delayMs}ms")
+                    Log.w(TAG, "$operationName: Info ${attempt + 1}/$maxRetries Info. Info ${delayMs}ms")
                     delay(delayMs)
                 }
             }
@@ -397,13 +397,13 @@ object GodModeAccessibility {
 
     private suspend fun injectViaClipboard(text: String): String? {
         return try {
-            // [Localized] [Localized] [Localized] clipboard [Localized] Shizuku [Localized] paste
+            // Context note Context note Context note clipboard Context note Shizuku Context note paste
             PrivilegedExecutionManager.executeCommand(
                 "am broadcast -a clipper.set -e text '${text.replace("'", "\\'")}'"
             )
             delay(200)
             PrivilegedExecutionManager.executeCommand("input keyevent KEYCODE_CTRL_V")
-            "✅ [Localized] [Localized] [Localized] Clipboard"
+            "✅ Info Info Info Clipboard"
         } catch (e: Exception) {
             null
         }
@@ -415,10 +415,10 @@ object GodModeAccessibility {
     ): String? {
         val service = OmniAccessibilityService.instance ?: return null
         return if (fallbackNode != null) {
-            if (service.typeIntoNode(fallbackNode, text)) "⚠️ Fallback → Accessibility typing [Localized]"
+            if (service.typeIntoNode(fallbackNode, text)) "⚠️ Fallback → Accessibility typing Info"
             else null
         } else {
-            if (service.typeIntoFocusedNode(text)) "⚠️ Fallback → Accessibility focused typing [Localized]"
+            if (service.typeIntoFocusedNode(text)) "⚠️ Fallback → Accessibility focused typing Info"
             else null
         }
     }
@@ -427,10 +427,10 @@ object GodModeAccessibility {
         val startTime = System.currentTimeMillis()
         while (System.currentTimeMillis() - startTime < timeoutMs) {
             val found = AccessibilityStateManager.findNodeByText(text)
-            if (found != null) return "✅ [Localized] [Localized] '$text' [Localized] ${System.currentTimeMillis() - startTime}ms"
+            if (found != null) return "✅ Info Info '$text' Info ${System.currentTimeMillis() - startTime}ms"
             delay(300)
         }
-        return "⏱️ [Localized] [Localized]: '$text' [Localized] [Localized] [Localized] ${timeoutMs}ms"
+        return "⏱️ Info Info: '$text' Info Info Info ${timeoutMs}ms"
     }
 
     private fun findFirstScrollable(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
@@ -459,8 +459,8 @@ object GodModeAccessibility {
         val completedSteps: Int
     ) {
         override fun toString(): String = buildString {
-            append(if (success) "✅ [Localized] [Localized]" else "❌ [Localized] [Localized]")
-            append(" ($completedSteps/$totalSteps [Localized])\n")
+            append(if (success) "✅ Info Info" else "❌ Info Info")
+            append(" ($completedSteps/$totalSteps Info)\n")
             results.forEachIndexed { i, r -> append("${i + 1}. $r\n") }
         }
     }

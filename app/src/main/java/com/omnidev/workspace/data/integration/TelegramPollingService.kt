@@ -198,7 +198,7 @@ class TelegramPollingService : Service() {
     private val toolManager: CompositeToolManager by lazy {
         val db = OmniDevDatabase.getInstance(applicationContext)
         val memoryManager = MemoryManager(db.knowledgeDao())
-        // ── Agent Brain 2.0: [Localized] [Localized] [Localized] [Localized] OmniDevApp ──
+        // ── Agent Brain 2.0: Context note Context note Context note Context note OmniDevApp ──
         val omniApp = com.omnidev.workspace.OmniDevApp.instance
         CompositeToolManager(
             fileToolManager = FileToolManager(),
@@ -309,50 +309,50 @@ class TelegramPollingService : Service() {
                                 val best = photoArr?.optJSONObject((photoArr.length() - 1).coerceAtLeast(0))
                                 val fid = best?.optString("file_id", "") ?: ""
                                 val cap = msg.optString("caption", "")
-                                "[📷 [Localized]${if (cap.isNotBlank()) ": $cap" else ""}] file_id=$fid"
+                                "[📷 Info${if (cap.isNotBlank()) ": $cap" else ""}] file_id=$fid"
                             }
                             msg.has("document") -> {
                                 val doc = msg.optJSONObject("document")
                                 val name = doc?.optString("file_name", "document") ?: "document"
                                 val fid = doc?.optString("file_id", "") ?: ""
                                 val cap = msg.optString("caption", "")
-                                "[📄 [Localized]: $name${if (cap.isNotBlank()) " ($cap)" else ""}] file_id=$fid"
+                                "[📄 Info: $name${if (cap.isNotBlank()) " ($cap)" else ""}] file_id=$fid"
                             }
                             msg.has("location") -> {
                                 val loc = msg.optJSONObject("location")
                                 val lat = loc?.optDouble("latitude") ?: 0.0
                                 val lon = loc?.optDouble("longitude") ?: 0.0
                                 val isLive = loc?.has("live_period") == true
-                                "[${if (isLive) "📍 [Localized] [Localized]" else "📍 [Localized]"}: lat=$lat, lon=$lon]"
+                                "[${if (isLive) "📍 Info Info" else "📍 Info"}: lat=$lat, lon=$lon]"
                             }
                             msg.has("contact") -> {
                                 val c = msg.optJSONObject("contact")
                                 val name = "${c?.optString("first_name", "")} ${c?.optString("last_name", "")}".trim()
                                 val phone = c?.optString("phone_number", "") ?: ""
-                                "[👤 [Localized] [Localized]: $name, [Localized]: $phone]"
+                                "[👤 Info Info: $name, Info: $phone]"
                             }
                             msg.has("sticker") -> {
                                 val e = msg.optJSONObject("sticker")?.optString("emoji", "") ?: ""
-                                "[🎭 [Localized] $e]"
+                                "[🎭 Info $e]"
                             }
                             msg.has("voice") -> {
                                 val fid = msg.optJSONObject("voice")?.optString("file_id", "") ?: ""
-                                "[🎤 [Localized] [Localized]] file_id=$fid"
+                                "[🎤 Info Info] file_id=$fid"
                             }
                             msg.has("video") -> {
                                 val fid = msg.optJSONObject("video")?.optString("file_id", "") ?: ""
                                 val cap = msg.optString("caption", "")
-                                "[🎥 [Localized]${if (cap.isNotBlank()) ": $cap" else ""}] file_id=$fid"
+                                "[🎥 Info${if (cap.isNotBlank()) ": $cap" else ""}] file_id=$fid"
                             }
                             msg.has("audio") -> {
                                 val audio = msg.optJSONObject("audio")
                                 val fid = audio?.optString("file_id", "") ?: ""
                                 val title = audio?.optString("title", "") ?: ""
-                                "[🎵 [Localized]${if (title.isNotBlank()) ": $title" else ""}] file_id=$fid"
+                                "[🎵 Info${if (title.isNotBlank()) ": $title" else ""}] file_id=$fid"
                             }
                             msg.has("video_note") -> {
                                 val fid = msg.optJSONObject("video_note")?.optString("file_id", "") ?: ""
-                                "[📹 [Localized] [Localized]] file_id=$fid"
+                                "[📹 Info Info] file_id=$fid"
                             }
                             else -> ""
                         }
@@ -416,28 +416,28 @@ class TelegramPollingService : Service() {
         when (cmd) {
             "/start" -> {
                 sendReply(token, chatId, messageId,
-                    "👋 [Localized]! [Localized] *[Localized]* — [Localized] [Localized] [Localized] [Localized].\n\n" +
-                    "[Localized] [Localized]: *${currentMode.label}*\n\n" +
-                    "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] 🤖\n\n" +
-                    "/help — [Localized] [Localized]\n/clear — [Localized] [Localized]\n" +
-                    "/mode\\_chat — [Localized] [Localized] [Localized]\n" +
-                    "/mode\\_agent — [Localized] [Localized] (Agent) [Localized] [Localized]\n" +
-                    "/mode\\_swarm — [Localized] [Localized] (Swarm)\n" +
-                    "/status — [Localized] [Localized] [Localized]")
+                    "👋 Context note! Context note *Context note* — Context note Context note Context note Context note.\n\n" +
+                    "Context note Context note: *${currentMode.label}*\n\n" +
+                    "Info Info Info Info Info Info Info Info 🤖\n\n" +
+                    "/help — Info Info\n/clear — Info Info\n" +
+                    "/mode\\_chat — Info Info Info\n" +
+                    "/mode\\_agent — Info Info (Agent) Info Info\n" +
+                    "/mode\\_swarm — Info Info (Swarm)\n" +
+                    "/status — Info Info Info")
                 return
             }
 
             "/clear", "/reset" -> {
                 // Archive before clearing
                 val oldHistory = sessionHistory[chatId]
-                val oldName = sessionNameMap[chatId] ?: "[Localized] ${sessionCounters.getOrDefault(chatId, 1)}"
+                val oldName = sessionNameMap[chatId] ?: "Info ${sessionCounters.getOrDefault(chatId, 1)}"
                 if (!oldHistory.isNullOrEmpty()) {
                     val sessionList = namedSessions.getOrPut(chatId) { mutableListOf() }
                     sessionList.add(oldName to oldHistory.size)
                 }
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "✅ [Localized] [Localized] [Localized] [Localized].\n_[Localized] /sessions [Localized] [Localized] [Localized]._")
+                    "✅ Info Info Info Info.\n_Info /sessions Info Info Info._")
                 return
             }
 
@@ -446,18 +446,18 @@ class TelegramPollingService : Service() {
                     .take(20)
                     .joinToString("\n") { "  • `${it.name}` — ${it.description?.take(60) ?: ""}" }
                 sendReply(token, chatId, messageId,
-                    "*Omni — [Localized] [Localized]:*\n\n" +
-                    "🎛️ *[Localized]:*\n" +
-                    "/mode\\_chat — [Localized] [Localized]\n" +
-                    "/mode\\_agent — [Localized] [Localized] [Localized] [Localized]\n" +
-                    "/mode\\_swarm — [Localized] [Localized] [Localized]\n\n" +
-                    "📋 *[Localized] [Localized]:*\n" +
-                    "/status — [Localized] [Localized] [Localized]\n" +
-                    "/new\\_session [[Localized]] — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]\n" +
-                    "/sessions — [Localized] [Localized] [Localized]\n" +
-                    "/clear — [Localized] [Localized] [Localized] [Localized]\n\n" +
-                    "🛠️ *[Localized] [Localized] [Localized] [Localized]:*\n$toolList\n\n" +
-                    "_[Localized] / [Localized] [Localized] [Localized] [Localized]_")
+                    "*Omni — Context note Context note:*\n\n" +
+                    "🎛️ *Context note:*\n" +
+                    "/mode\\_chat — Info Info\n" +
+                    "/mode\\_agent — Info Info Info Info\n" +
+                    "/mode\\_swarm — Info Info Info\n\n" +
+                    "📋 *Context note Context note:*\n" +
+                    "/status — Info Info Info\n" +
+                    "/new\\_session [Info] — Info Info Info Info Info Info\n" +
+                    "/sessions — Info Info Info\n" +
+                    "/clear — Info Info Info Info\n\n" +
+                    "🛠️ *Context note Context note Context note Context note:*\n$toolList\n\n" +
+                    "_Info / Info Info Info Info_")
                 return
             }
 
@@ -465,7 +465,7 @@ class TelegramPollingService : Service() {
                 chatModes[chatId] = OmniMode.CHAT
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "✅ [Localized] [Localized] [Localized] *[Localized] [Localized]* 💬\n[Localized] [Localized] [Localized] [Localized].")
+                    "✅ Context note Context note Context note *Context note Context note* 💬\nContext note Context note Context note Context note.")
                 return
             }
 
@@ -473,9 +473,9 @@ class TelegramPollingService : Service() {
                 chatModes[chatId] = OmniMode.AGENT
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "🤖 [Localized] [Localized] [Localized] *[Localized] [Localized]* ⚡\n" +
-                    "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ReAct.\n" +
-                    "_[Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]._")
+                    "🤖 Context note Context note Context note *Context note Context note* ⚡\n" +
+                    "Info Info Info Info Info Info Info Info Info ReAct.\n" +
+                    "_Info: Info Info Info Info Info Info Info Info._")
                 return
             }
 
@@ -483,9 +483,9 @@ class TelegramPollingService : Service() {
                 chatModes[chatId] = OmniMode.SWARM
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "🐝 [Localized] [Localized] [Localized] *[Localized] [Localized]* 🌐\n" +
-                    "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].\n" +
-                    "_[Localized] [Localized] [Localized] [Localized] [Localized]._")
+                    "🐝 Context note Context note Context note *Context note Context note* 🌐\n" +
+                    "Info Info Info Info Info Info Info Info.\n" +
+                    "_Info Info Info Info Info._")
                 return
             }
 
@@ -493,23 +493,23 @@ class TelegramPollingService : Service() {
                 val history = sessionHistory[chatId]
                 val msgCount = history?.size ?: 0
                 val toolCount = toolManager.getToolDefinitions().size
-                val sesName = sessionNameMap[chatId] ?: "[Localized] [Localized]"
+                val sesName = sessionNameMap[chatId] ?: "Info Info"
                 sendReply(token, chatId, messageId,
-                    "📊 *[Localized] [Localized]:*\n\n" +
-                    "🎛️ [Localized]: *${(chatModes[chatId] ?: OmniMode.CHAT).label}*\n" +
-                    "📝 [Localized] [Localized]: *$sesName*\n" +
-                    "💬 [Localized] [Localized] [Localized]: *$msgCount*\n" +
-                    "🛠️ [Localized] [Localized]: *$toolCount*\n" +
-                    "🤖 [Localized] [Localized]: ${if (isRunning) "✅" else "❌"}\n\n" +
-                    "_/new\\_session [[Localized]] — [Localized] [Localized] [Localized]_\n" +
-                    "_/sessions — [Localized] [Localized] [Localized] [Localized]_")
+                    "📊 *Context note Context note:*\n\n" +
+                    "🎛️ Context note: *${(chatModes[chatId] ?: OmniMode.CHAT).label}*\n" +
+                    "📝 Context note Context note: *$sesName*\n" +
+                    "💬 Context note Context note Context note: *$msgCount*\n" +
+                    "🛠️ Context note Context note: *$toolCount*\n" +
+                    "🤖 Info Info: ${if (isRunning) "✅" else "❌"}\n\n" +
+                    "_/new\\_session [Info] — Info Info Info_\n" +
+                    "_/sessions — Info Info Info Info_")
                 return
             }
 
             "/new_session" -> {
                 // Archive current session
                 val oldHistory = sessionHistory[chatId]
-                val oldName = sessionNameMap[chatId] ?: "[Localized] ${sessionCounters.getOrDefault(chatId, 1)}"
+                val oldName = sessionNameMap[chatId] ?: "Info ${sessionCounters.getOrDefault(chatId, 1)}"
                 if (!oldHistory.isNullOrEmpty()) {
                     val sessionList = namedSessions.getOrPut(chatId) { mutableListOf() }
                     sessionList.add(oldName to oldHistory.size)
@@ -519,12 +519,12 @@ class TelegramPollingService : Service() {
                 sessionCounters[chatId] = counter
                 val parts = text.split(" ", limit = 2)
                 val newName = if (parts.size > 1 && parts[1].isNotBlank())
-                    parts[1].trim() else "[Localized] $counter"
+                    parts[1].trim() else "Info $counter"
                 sessionHistory.remove(chatId)
                 sessionNameMap[chatId] = newName
                 sendReply(token, chatId, messageId,
-                    "🆕 [Localized] [Localized] [Localized] [Localized]: *$newName*\n" +
-                    "[Localized] [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized]!")
+                    "🆕 Context note Context note Context note Context note: *$newName*\n" +
+                    "Info Info Info Info — Info Info Info!")
                 return
             }
 
@@ -532,16 +532,16 @@ class TelegramPollingService : Service() {
                 val list = namedSessions[chatId]
                 if (list.isNullOrEmpty()) {
                     sendReply(token, chatId, messageId,
-                        "📋 [Localized] [Localized] [Localized] [Localized] [Localized].\n\n" +
-                        "_[Localized] /new\\_session [[Localized]] [Localized] [Localized] [Localized] [Localized]_")
+                        "📋 Info Info Info Info Info.\n\n" +
+                        "_Info /new\\_session [Info] Info Info Info Info_")
                 } else {
-                    val sb = StringBuilder("📋 *[Localized] [Localized]:*\n\n")
+                    val sb = StringBuilder("📋 *Context note Context note:*\n\n")
                     list.takeLast(10).forEachIndexed { i, (name, count) ->
-                        sb.append("${i + 1}. *$name* — $count [Localized]\n")
+                        sb.append("${i + 1}. *$name* — $count Context note\n")
                     }
-                    val currentName = sessionNameMap[chatId] ?: "[Localized] [Localized]"
+                    val currentName = sessionNameMap[chatId] ?: "Info Info"
                     val currentCount = sessionHistory[chatId]?.size ?: 0
-                    sb.append("\n🟢 [Localized]: *$currentName* ($currentCount [Localized])")
+                    sb.append("\n🟢 Context note: *$currentName* ($currentCount Context note)")
                     sendReply(token, chatId, messageId, sb.toString())
                 }
                 return
@@ -637,7 +637,7 @@ class TelegramPollingService : Service() {
             }
             reply
         } catch (e: Exception) {
-            "⚠️ [Localized]: ${e.message?.take(200) ?: "[Localized] [Localized] [Localized]"}"
+            "⚠️ Info: ${e.message?.take(200) ?: "Info Info Info"}"
         }
     }
 
@@ -698,8 +698,8 @@ class TelegramPollingService : Service() {
             }
 
             if (result == null) {
-                return "⏱ [Localized] [Localized] [Localized] ($AGENT_TIMEOUT_MINUTES [Localized]). " +
-                    "[Localized] [Localized] [Localized] [Localized] [Localized]."
+                return "⏱ Info Info Info ($AGENT_TIMEOUT_MINUTES Info). " +
+                    "Info Info Info Info Info."
             }
 
             // Store the exchange in session history
@@ -713,14 +713,14 @@ class TelegramPollingService : Service() {
             }
 
             val suffix = if (toolLog.isNotEmpty())
-                "\n\n_⚙️ [Localized] [Localized]:${toolLog}_"
+                "\n\n_⚙️ Info Info:${toolLog}_"
             else ""
 
             (replyBuilder.toString().trim() + suffix).ifBlank {
-                "✅ [Localized] [Localized] [Localized]. ([Localized] [Localized] [Localized] [Localized] [Localized])"
+                "✅ Info Info Info. (Info Info Info Info Info)"
             }
         } catch (e: Exception) {
-            "⚠️ [Localized] [Localized] [Localized] [Localized]: ${e.message?.take(200) ?: "[Localized] [Localized] [Localized]"}"
+            "⚠️ Info Info Info Info: ${e.message?.take(200) ?: "Info Info Info"}"
         }
     }
 
@@ -749,7 +749,7 @@ class TelegramPollingService : Service() {
                             is com.omnidev.workspace.domain.engine.SwarmEvent.Error ->
                                 replyBuilder.append("\n⚠️ ${event.message}")
                             is com.omnidev.workspace.domain.engine.SwarmEvent.TaskFailed ->
-                                replyBuilder.append("\n❌ [Localized]: ${event.task.description} — ${event.error}")
+                                replyBuilder.append("\n❌ Info: ${event.task.description} — ${event.error}")
                             else -> Unit
                         }
                     }
@@ -758,15 +758,15 @@ class TelegramPollingService : Service() {
             }
 
             if (result == null) {
-                return "⏱ [Localized] [Localized] [Localized] ($AGENT_TIMEOUT_MINUTES [Localized]). " +
-                    "[Localized] [Localized] [Localized] [Localized] [Localized]."
+                return "⏱ Info Info Info ($AGENT_TIMEOUT_MINUTES Info). " +
+                    "Info Info Info Info Info."
             }
 
             replyBuilder.toString().trim().ifBlank {
-                "✅ [Localized] [Localized] [Localized] [Localized]. ([Localized] [Localized] [Localized] [Localized] [Localized])"
+                "✅ Info Info Info Info. (Info Info Info Info Info)"
             }
         } catch (e: Exception) {
-            "⚠️ [Localized] [Localized] [Localized] [Localized]: ${e.message?.take(200) ?: "[Localized] [Localized] [Localized]"}"
+            "⚠️ Info Info Info Info: ${e.message?.take(200) ?: "Info Info Info"}"
         }
     }
 
@@ -780,15 +780,15 @@ class TelegramPollingService : Service() {
     private suspend fun registerBotCommands(token: String) = withContext(Dispatchers.IO) {
         try {
             val builtIn = listOf(
-                "start" to "[Localized] [Localized] [Localized] [Localized]",
-                "help" to "[Localized] [Localized] [Localized] [Localized]",
-                "clear" to "[Localized] [Localized] [Localized]",
-                "status" to "[Localized] [Localized] [Localized]",
-                "new_session" to "[Localized] [Localized] [Localized] [Localized] [Localized]",
-                "sessions" to "[Localized] [Localized] [Localized] [Localized]",
-                "mode_chat" to "[Localized] [Localized] [Localized] [Localized] 💬",
-                "mode_agent" to "[Localized] [Localized] [Localized] [Localized] 🤖",
-                "mode_swarm" to "[Localized] [Localized] [Localized] [Localized] [Localized] 🐝"
+                "start" to "Info Info Info Info",
+                "help" to "Info Info Info Info",
+                "clear" to "Info Info Info",
+                "status" to "Info Info Info",
+                "new_session" to "Info Info Info Info Info",
+                "sessions" to "Info Info Info Info",
+                "mode_chat" to "Info Info Info Info 💬",
+                "mode_agent" to "Info Info Info Info 🤖",
+                "mode_swarm" to "Info Info Info Info Info 🐝"
             )
 
             // Sanitize tool names to valid Telegram command format (a-z, 0-9, underscore only)

@@ -13,42 +13,42 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * BootReceiver — [Localized] [Localized] [Localized]
+ * BootReceiver — Context note Context note Context note
  *
- * [Localized] [Localized]: [Localized] [Localized] [Localized]
+ * Context note Context note: Context note Context note Context note
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. **[Localized] [Localized] [Localized] (Boot Type Detection)**:
- *    - COLD_BOOT: [Localized] [Localized] [Localized] [Localized] [Localized]
- *    - WARM_BOOT: [Localized] [Localized] [Localized]
- *    - UPDATE_BOOT: [Localized]/[Localized] [Localized]
+ * 1. **Context note Context note Context note (Boot Type Detection)**:
+ *    - COLD_BOOT: Context note Context note Context note Context note Context note
+ *    - WARM_BOOT: Context note Context note Context note
+ *    - UPDATE_BOOT: Context note/Context note Context note
  *    - QUICK_BOOT: Fast Boot (Qualcomm/HTC)
- *    [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+ *    Context note Context note Context note Context note Context note Context note.
  *
- * 2. **[Localized] [Localized] (Phased Startup)**:
- *    [Localized] 1 ([Localized]): SyncService — [Localized] [Localized] [Localized] [Localized]
- *    [Localized] 2 (+8s): [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
- *    [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+ * 2. **Context note Context note (Phased Startup)**:
+ *    Context note 1 (Context note): SyncService — Context note Context note Context note Context note
+ *    Context note 2 (+8s): Context note Context note Context note Context note Context note Context note Context note
+ *    Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note.
  *
- * 3. **[Localized] [Localized] (Boot Log)**:
- *    [Localized] [Localized] [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
- *    [Localized] [Localized] [Localized] [Localized] [Localized] ANR.
+ * 3. **Context note Context note (Boot Log)**:
+ *    Context note Context note Context note Context note: Context note Context note Context note Context note Context note Context note.
+ *    Context note Context note Context note Context note Context note ANR.
  *
- * 4. **[Localized] [Localized] [Localized] Storm**: [Localized] [Localized] [Localized] 3 [Localized] [Localized] 5 [Localized] →
- *    [Localized] [Localized] [Localized] [Localized] [Localized].
+ * 4. **Context note Context note Context note Storm**: Context note Context note Context note 3 Context note Context note 5 Context note →
+ *    Context note Context note Context note Context note Context note.
  */
 class BootReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "BootReceiver"
 
-        // [Localized] [Localized] ([Localized] [Localized])
+        // Context note Context note (Context note Context note)
         private const val PHASE_1_DELAY_MS = 0L
         private const val PHASE_2_DELAY_MS = 8_000L
 
-        // [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note
         private const val RAPID_REBOOT_THRESHOLD = 3
-        private const val RAPID_REBOOT_WINDOW_MS = 5 * 60 * 1000L // 5 [Localized]
-        private const val RAPID_REBOOT_PENALTY_DELAY_MS = 15_000L  // [Localized] 15 [Localized]
+        private const val RAPID_REBOOT_WINDOW_MS = 5 * 60 * 1000L // 5 Context note
+        private const val RAPID_REBOOT_PENALTY_DELAY_MS = 15_000L  // Context note 15 Context note
 
         private val recentBootTimes = mutableListOf<Long>()
 
@@ -58,9 +58,9 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     enum class BootType {
-        COLD_BOOT,   // [Localized] [Localized]
-        WARM_BOOT,   // [Localized] [Localized]
-        UPDATE_BOOT, // [Localized] [Localized]
+        COLD_BOOT,   // Context note Context note
+        WARM_BOOT,   // Context note Context note
+        UPDATE_BOOT, // Context note Context note
         QUICK_BOOT   // Fast Boot
     }
 
@@ -69,12 +69,12 @@ class BootReceiver : BroadcastReceiver() {
         val bootType = detectBootType(action)
         val bootTime = System.currentTimeMillis()
 
-        Log.i(TAG, "🚀 [Localized] [Localized]: $action | [Localized]: $bootType")
+        Log.i(TAG, "🚀 Info Info: $action | Info: $bootType")
 
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         DebugLogManager.appendInfo(TAG, buildString {
-            append("[Localized] [Localized]: $bootType")
-            append(" [Localized] ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(bootTime))}")
+            append("Info Info: $bootType")
+            append(" Info ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(bootTime))}")
         })
 
         when (action) {
@@ -99,34 +99,34 @@ class BootReceiver : BroadcastReceiver() {
 
         CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
             try {
-                // ── [Localized] [Localized] [Localized] [Localized] [Localized] ──
+                // ── Context note Context note Context note Context note Context note ──
                 val isRapidRebooting = checkRapidReboot(bootTime)
                 if (isRapidRebooting) {
-                    Log.w(TAG, "⚠️ [Localized] [Localized] — [Localized] [Localized] [Localized] ${RAPID_REBOOT_PENALTY_DELAY_MS}ms")
-                    DebugLogManager.appendWarning(TAG, "[Localized] [Localized] [Localized] — [Localized] [Localized]")
+                    Log.w(TAG, "⚠️ Info Info — Info Info Info ${RAPID_REBOOT_PENALTY_DELAY_MS}ms")
+                    DebugLogManager.appendWarning(TAG, "Info Info Info — Info Info")
                     delay(RAPID_REBOOT_PENALTY_DELAY_MS)
                 }
 
                 // ─────────────────────────────────────────────────────────────
-                // [Localized] 1: [Localized] [Localized] (SyncService)
+                // Context note 1: Context note Context note (SyncService)
                 // ─────────────────────────────────────────────────────────────
                 delay(PHASE_1_DELAY_MS)
-                Log.i(TAG, "📌 [Localized] 1: [Localized] [Localized]")
+                Log.i(TAG, "📌 Info 1: Info Info")
                 val phase1Results = startPhase1Services(context, bootType)
-                DebugLogManager.appendInfo(TAG, "[Localized] 1: ${phase1Results.joinToString(", ")}")
+                DebugLogManager.appendInfo(TAG, "Info 1: ${phase1Results.joinToString(", ")}")
 
                 // ─────────────────────────────────────────────────────────────
-                // [Localized] 2: [Localized] [Localized] [Localized]
+                // Context note 2: Context note Context note Context note
                 // ─────────────────────────────────────────────────────────────
                 delay(PHASE_2_DELAY_MS)
-                Log.i(TAG, "📌 [Localized] 2: [Localized] [Localized] [Localized]")
+                Log.i(TAG, "📌 Info 2: Info Info Info")
                 val healthReport = validateServiceHealth(context)
-                DebugLogManager.appendInfo(TAG, "[Localized] [Localized]: $healthReport")
+                DebugLogManager.appendInfo(TAG, "Info Info: $healthReport")
 
-                Log.i(TAG, "✅ [Localized] [Localized] [Localized] — ${bootType.name}")
+                Log.i(TAG, "✅ Info Info Info — ${bootType.name}")
 
             } catch (e: Exception) {
-                Log.e(TAG, "❌ [Localized] [Localized] [Localized] [Localized]: ${e.message}", e)
+                Log.e(TAG, "❌ Info Info Info Info: ${e.message}", e)
                 DebugLogManager.appendError(TAG, e)
             } finally {
                 pendingResult.finish()
@@ -135,12 +135,12 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     /**
-     * [Localized] 1: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note 1: Context note Context note Context note Context note Context note Context note Context note.
      */
     private fun startPhase1Services(context: Context, bootType: BootType): List<String> {
         val results = mutableListOf<String>()
 
-        // SyncService — [Localized] [Localized]
+        // SyncService — Context note Context note
         safeStartForeground(context, OmniSyncService::class.java)
             .let { results.add(if (it) "✅ SyncService" else "❌ SyncService") }
 
@@ -148,12 +148,12 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     /**
-     * [Localized] 2: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note 2: Context note Context note Context note Context note Context note Context note.
      */
     private fun validateServiceHealth(context: Context): String = buildString {
-        append("[Localized] [Localized] [Localized]:\n")
+        append("Info Info Info:\n")
 
-        // [Localized] [Localized] [Localized] [Localized] [Localized] SyncService state [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note SyncService state Context note Context note Context note
         val syncState = OmniSyncService.syncState.value
         append("  SyncService: ${syncState.name}\n")
 
@@ -161,22 +161,22 @@ class BootReceiver : BroadcastReceiver() {
         append("  Circuit Breaker: ${circuitState.name}\n")
 
         if (syncState == OmniSyncService.SyncState.ERROR) {
-            append("  ⚠️ SyncService [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized]")
+            append("  ⚠️ SyncService Info Info Info — Info Info Info")
         }
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note.
      */
     private fun checkRapidReboot(bootTime: Long): Boolean {
         recentBootTimes.add(bootTime)
-        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note Context note
         recentBootTimes.removeAll { bootTime - it > RAPID_REBOOT_WINDOW_MS }
         return recentBootTimes.size >= RAPID_REBOOT_THRESHOLD
     }
 
     /**
-     * [Localized] [Localized] Foreground [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] Android.
+     * Context note Context note Foreground Context note Context note Context note Context note Context note Context note Android.
      */
     private fun <T : android.app.Service> safeStartForeground(
         context: Context,
@@ -189,10 +189,10 @@ class BootReceiver : BroadcastReceiver() {
             } else {
                 context.startService(intent)
             }
-            Log.i(TAG, "[Localized]: ${serviceClass.simpleName}")
+            Log.i(TAG, "Info: ${serviceClass.simpleName}")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "[Localized] [Localized] ${serviceClass.simpleName}: ${e.message}")
+            Log.e(TAG, "Info Info ${serviceClass.simpleName}: ${e.message}")
             false
         }
     }

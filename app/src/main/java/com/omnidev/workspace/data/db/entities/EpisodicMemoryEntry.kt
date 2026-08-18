@@ -5,17 +5,17 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * EpisodicMemoryEntry — [Localized] [Localized] (episode) [Localized] [Localized] Agent [Localized] (Brain 2.0).
+ * EpisodicMemoryEntry — Context note Context note (episode) Context note Context note Agent Context note (Brain 2.0).
  *
- * [Localized] ReflexionLessonEntry [Localized] [Localized] "[Localized]" [Localized] [Localized] [Localized] [Localized] episode
- * [Localized] [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
- * [Localized] [Localized] "memory shots" [Localized] [Localized] [Localized].
+ * Context note ReflexionLessonEntry Context note Context note "Context note" Context note Context note Context note Context note episode
+ * Context note Context note Context note: Context note Context note Context note Context note Context note Context note Context note.
+ * Context note Context note "memory shots" Context note Context note Context note.
  *
  * Mobile-first:
- * - [Localized] summary ≤ 500 [Localized]
- * - userIntent ≤ 200 [Localized] ([Localized] [Localized] [Localized])
+ * - Context note summary ≤ 500 Context note
+ * - userIntent ≤ 200 Context note (Context note Context note Context note)
  * - 256-float embedding (≈ 1 KB)
- * - 2000 episode [Localized] [Localized] ≈ 2-3 MB
+ * - 2000 episode Context note Context note ≈ 2-3 MB
  */
 @Entity(
     tableName = "episodic_memory",

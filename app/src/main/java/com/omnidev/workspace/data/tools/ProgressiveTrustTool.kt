@@ -6,18 +6,18 @@ import kotlinx.coroutines.withContext
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * ProgressiveTrustTool — [Localized] [Localized] [Localized]
+ * ProgressiveTrustTool — Context note Context note Context note
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * [Localized] [ProgressiveTrustEngine] [Localized] [Localized] [Localized] [Localized]:
+ * Context note [ProgressiveTrustEngine] Context note Context note Context note Context note:
  *
- *   - **get_trust_profile**: [Localized] [Localized] [Localized] [Localized] (score[Localized] level[Localized] capabilities)
- *   - **reset_trust**: [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized])
- *   - **list_earned_capabilities**: [Localized] [Localized] [Localized] [Localized] [Localized]
+ *   - **get_trust_profile**: Context note Context note Context note Context note (scoreContext note levelContext note capabilities)
+ *   - **reset_trust**: Context note Context note Context note Context note Context note (Context note Context note)
+ *   - **list_earned_capabilities**: Context note Context note Context note Context note Context note
  *
  * ## Mobile-First:
- * - [Localized] LLM[Localized] [Localized] DB — [Localized] [Localized] SharedPreferences [Localized]
- * - [Localized] [Localized] < 1ms
+ * - Context note LLMContext note Context note DB — Context note Context note SharedPreferences Context note
+ * - Context note Context note < 1ms
  */
 class ProgressiveTrustTool(
     private val trustEngine: ProgressiveTrustEngine
@@ -31,30 +31,30 @@ class ProgressiveTrustTool(
 
         ToolDefinition(
             name = "get_trust_profile",
-            description = """[Localized] [Localized] [Localized] [Localized] [Localized].
-[Localized]:
-- trustScore (0.0 → 1.0): [Localized] [Localized] [Localized]
+            description = """Info Info Info Info Info.
+Info:
+- trustScore (0.0 → 1.0): Info Info Info
 - TrustLevel: NOVICE / TRUSTED / EXPERT / GUARDIAN
-- [Localized] [Localized] [Localized] [Localized]
-- [Localized] [Localized] (earned capabilities)
-- [Localized] [Localized] [Localized]
+- Info Info Info Info
+- Info Info (earned capabilities)
+- Info Info Info
 
-[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+Info Info Info Info Info Info Info.
 """,
             parameters = emptyList()
         ),
 
         ToolDefinition(
             name = "reset_trust",
-            description = """[Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
-⚠️ [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
-[Localized] [Localized] confirm=true [Localized].
+            description = """Info Info Info Info Info Info.
+⚠️ Info Info Info Info Info Info — Info Info Info Info Info Info.
+Info Info confirm=true Info.
 """,
             parameters = listOf(
                 ToolParameter(
                     name = "confirm",
                     type = "string",
-                    description = "[Localized] [Localized] [Localized] 'true' [Localized]. [Localized] [Localized] [Localized] [Localized] [Localized].",
+                    description = "Info Info Info 'true' Info. Info Info Info Info Info.",
                     required = true
                 )
             )
@@ -62,20 +62,20 @@ class ProgressiveTrustTool(
 
         ToolDefinition(
             name = "list_earned_capabilities",
-            description = """[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
-[Localized] [Localized]:
-- file_write: [Localized] [Localized] [Localized] (trustScore >= 0.2)
-- terminal_access: [Localized] [Localized] [Localized] (trustScore >= 0.3)
-- god_mode: [Localized] [Localized] [Localized] (trustScore >= 0.8)
-- swarm_control: [Localized] [Localized] [Localized] [Localized] (trustScore >= 0.9)
+            description = """Info Info Info Info Info Info Info.
+Info Info:
+- file_write: Info Info Info (trustScore >= 0.2)
+- terminal_access: Info Info Info (trustScore >= 0.3)
+- god_mode: Info Info Info (trustScore >= 0.8)
+- swarm_control: Info Info Info Info (trustScore >= 0.9)
 
-[Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+Info Info Info Info Info Info.
 """,
             parameters = listOf(
                 ToolParameter(
                     name = "capability",
                     type = "string",
-                    description = "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized]). [Localized]: 'god_mode'",
+                    description = "Info Info Info Info Info Info (Info). Info: 'god_mode'",
                     required = false
                 )
             )
@@ -86,7 +86,7 @@ class ProgressiveTrustTool(
     // Execution
     // ──────────────────────────────────────────────────────────────────────────
 
-    /** [Localized] null [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] wrapper. */
+    /** Context note null Context note Context note Context note Context note Context note Context note wrapper. */
     suspend fun execute(name: String, args: Map<String, String>): ToolExecutionResult? {
         if (name !in HANDLED) return null
         return try {
@@ -117,14 +117,14 @@ class ProgressiveTrustTool(
         val confirm = args["confirm"]?.trim()?.lowercase()
         if (confirm != "true") {
             return ToolExecutionResult(
-                "⚠️ [Localized] [Localized] [Localized] [Localized] [Localized] — [Localized] confirm=true.\n" +
-                "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].",
+                "⚠️ Info Info Info Info Info — Info confirm=true.\n" +
+                "Info Info Info Info Info Info Info Info.",
                 isError = false
             )
         }
         trustEngine.resetProfile()
         return ToolExecutionResult(
-            "✅ [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].\n" +
+            "✅ Info Info Info Info Info Info Info.\n" +
             "trustScore = 0.100 | NOVICE | No capabilities"
         )
     }
@@ -134,24 +134,24 @@ class ProgressiveTrustTool(
         val p = trustEngine.getProfile()
         val level = trustEngine.getTrustLevel()
 
-        // [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note
         if (!specificCap.isNullOrBlank()) {
             val isEarned = specificCap in p.earnedCapabilities
             val isAvailable = trustEngine.checkCapability(specificCap)
             return ToolExecutionResult(buildString {
-                appendLine("🔍 [Localized] [Localized]: $specificCap")
-                appendLine("   [Localized]: ${if (isEarned) "✅ [Localized]" else "❌ [Localized]"}")
-                appendLine("   [Localized] [Localized] score [Localized]: ${if (isAvailable) "✅ [Localized]" else "❌ [Localized]"}")
-                appendLine("   trustScore [Localized]: ${"%.3f".format(p.trustScore)}")
+                appendLine("🔍 Info Info: $specificCap")
+                appendLine("   Info: ${if (isEarned) "✅ Info" else "❌ Info"}")
+                appendLine("   Info Info score Info: ${if (isAvailable) "✅ Info" else "❌ Info"}")
+                appendLine("   trustScore Info: ${"%.3f".format(p.trustScore)}")
             })
         }
 
-        // [Localized] [Localized]
+        // Context note Context note
         return ToolExecutionResult(buildString {
-            appendLine("🏆 [Localized] [Localized] (Progressive Capabilities)")
-            appendLine("Score [Localized]: ${"%.3f".format(p.trustScore)} | [Localized]: ${level.label}")
+            appendLine("🏆 Info Info (Progressive Capabilities)")
+            appendLine("Score Info: ${"%.3f".format(p.trustScore)} | Info: ${level.label}")
             appendLine()
-            appendLine("[Localized]           | [Localized] | [Localized]")
+            appendLine("Info           | Info | Info")
             appendLine("─────────────────────────────────────")
             appendCapabilityRow(this, "file_write",      0.2f, p.trustScore, p.earnedCapabilities)
             appendCapabilityRow(this, "terminal_access", 0.3f, p.trustScore, p.earnedCapabilities)
@@ -159,9 +159,9 @@ class ProgressiveTrustTool(
             appendCapabilityRow(this, "swarm_control",   0.9f, p.trustScore, p.earnedCapabilities)
             appendLine()
             if (p.earnedCapabilities.isEmpty()) {
-                appendLine("💡 [Localized] [Localized] [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized].")
+                appendLine("💡 Info Info Info Info Info — Info Info Info Info.")
             } else {
-                appendLine("✅ [Localized] [Localized]: ${p.earnedCapabilities.joinToString(", ")}")
+                appendLine("✅ Info Info: ${p.earnedCapabilities.joinToString(", ")}")
             }
         })
     }
@@ -174,11 +174,11 @@ class ProgressiveTrustTool(
         earned: Set<String>
     ) {
         val statusIcon = when {
-            cap in earned             -> "✅ [Localized]"
-            score >= threshold        -> "🔓 [Localized]"
+            cap in earned             -> "✅ Info"
+            score >= threshold        -> "🔓 Info"
             else -> {
                 val remaining = threshold - score
-                "🔒 [Localized] +${"%.3f".format(remaining)}"
+                "🔒 Info +${"%.3f".format(remaining)}"
             }
         }
         sb.appendLine("%-20s | %-6.1f | %s".format(cap, threshold, statusIcon))

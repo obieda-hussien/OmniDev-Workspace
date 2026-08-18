@@ -4,39 +4,39 @@ import com.omnidev.workspace.data.brain.CausalChainPlanner
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * CausalChainPlannerTool — [Localized] Agent [Localized] [Localized] [Localized] [Localized]
+ * CausalChainPlannerTool — Context note Agent Context note Context note Context note Context note
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * [Localized] [Localized] [CausalChainPlanner] [Localized] [Localized] [Localized] [Localized]:
+ * Context note Context note [CausalChainPlanner] Context note Context note Context note Context note:
  *
- *   - **causal_plan_analyze**: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
- *     [Localized] [Localized].
+ *   - **causal_plan_analyze**: Context note Context note Context note Context note Context note Context note Context note
+ *     Context note Context note.
  *
- *   - **causal_plan_simulate**: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
- *     [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+ *   - **causal_plan_simulate**: Context note Context note Context note Context note Context note Context note Context note Context note
+ *     Context note Context note — Context note Context note Context note Context note Context note Context note Context note.
  *
- *   - **causal_plan_what_if**: [Localized] [Localized] "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]"
- *     [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+ *   - **causal_plan_what_if**: Context note Context note "Context note Context note Context note Context note Context note Context note Context note"
+ *     Context note Context note Context note Context note Context note Context note.
  *
- *   - **causal_plan_clear**: [Localized] [Localized] [Localized] [Localized] (session cache).
+ *   - **causal_plan_clear**: Context note Context note Context note Context note (session cache).
  *
  * ## Mobile-First:
- * - [Localized] LLM [Localized] — [Localized] rule-based [Localized] (< 5ms [Localized] 20 [Localized])
- * - [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized] 10 [Localized] [Localized]
- * - [Localized] [Localized] [Localized] Tiers (Lite → OEM) [Localized] [Localized]/[Localized] [Localized]
+ * - Context note LLM Context note — Context note rule-based Context note (< 5ms Context note 20 Context note)
+ * - Context note Context note Context note — Context note Context note Context note Context note Context note 10 Context note Context note
+ * - Context note Context note Context note Tiers (Lite → OEM) Context note Context note/Context note Context note
  *
- * ## [Localized] [Localized] [Localized]:
- * 1. [Localized] [Localized] [Localized] [Localized] [Localized]
- * 2. [Localized] `causal_plan_analyze` [Localized]
- * 3. [Localized] [Localized] [Localized] [Localized] → [Localized] [Localized]
- * 4. [Localized] `causal_plan_simulate` [Localized] [Localized]
- * 5. [Localized] [Localized] [Localized] rollback group [Localized]
+ * ## Context note Context note Context note:
+ * 1. Context note Context note Context note Context note Context note
+ * 2. Context note `causal_plan_analyze` Context note
+ * 3. Context note Context note Context note Context note → Context note Context note
+ * 4. Context note `causal_plan_simulate` Context note Context note
+ * 5. Context note Context note Context note rollback group Context note
  */
 class CausalChainPlannerTool(
     private val planner: CausalChainPlanner = CausalChainPlanner()
 ) {
 
-    /** [Localized] [Localized] [Localized] (session-scoped, max 10). */
+    /** Context note Context note Context note (session-scoped, max 10). */
     private val planCache = mutableMapOf<String, CausalChainPlanner.CausalGraph>()
     private val maxCacheSize = 10
 
@@ -48,31 +48,31 @@ class CausalChainPlannerTool(
 
         ToolDefinition(
             name = "causal_plan_analyze",
-            description = """[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] (Causal Graph) [Localized].
-[Localized] [Localized] [Localized] [Localized] [Localized] [Localized]:
-- [Localized] [Localized] [Localized] (Read-After-Delete)
-- [Localized] [Localized] [Localized] [Localized] (Modify-After-Delete)
-- [Localized] [Localized] [Localized] [Localized] (Double-Create)
-- [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized])
-- [Localized] [Localized] [Localized] [Localized] (rm -rf, git reset --hard)
+            description = """Info Info Info Info Info Info Info (Causal Graph) Info.
+Info Info Info Info Info Info:
+- Info Info Info (Read-After-Delete)
+- Info Info Info Info (Modify-After-Delete)
+- Info Info Info Info (Double-Create)
+- Info Info (Info Info Info Info)
+- Info Info Info Info (rm -rf, git reset --hard)
 
-[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
-[Localized] steps: "create_file|path=/src/A.kt,patch_file_content|path=/src/A.kt,delete_file|path=/src/A.kt"
+Info Info Info Info Info Info Info Info Info.
+Info steps: "create_file|path=/src/A.kt,patch_file_content|path=/src/A.kt,delete_file|path=/src/A.kt"
 """,
             parameters = listOf(
                 ToolParameter(
                     name = "steps",
                     type = "string",
-                    description = """[Localized] [Localized] [Localized] [Localized]:
+                    description = """Info Info Info Info:
 "toolName|param1=val1&param2=val2,toolName2|param1=val1"
-[Localized]: "create_file|path=/src/Main.kt,patch_file_content|path=/src/Main.kt,run_terminal|command=rm -rf /tmp"
-[Localized] [Localized] [Localized] (,) [Localized] [Localized] [Localized].""",
+Info: "create_file|path=/src/Main.kt,patch_file_content|path=/src/Main.kt,run_terminal|command=rm -rf /tmp"
+Info Info Info (,) Info Info Info.""",
                     required = true
                 ),
                 ToolParameter(
                     name = "plan_id",
                     type = "string",
-                    description = "[Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] simulate/what_if). [Localized].",
+                    description = "Info Info Info Info (Info Info Info simulate/what_if). Info.",
                     required = false
                 )
             )
@@ -80,22 +80,22 @@ class CausalChainPlannerTool(
 
         ToolDefinition(
             name = "causal_plan_simulate",
-            description = """[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
-[Localized] "[Localized] [Localized] [Localized]" [Localized] [Localized] [Localized] [Localized] [Localized].
-[Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+            description = """Info Info Info Info Info Info Info Info Info Info.
+Info "Info Info Info" Info Info Info Info Info.
+Info: Info Info Info Info Info Info Info Info Info.
 
-[Localized] [Localized] causal_plan_analyze [Localized] [Localized] [Localized] [Localized].""",
+Info Info causal_plan_analyze Info Info Info Info.""",
             parameters = listOf(
                 ToolParameter(
                     name = "steps",
                     type = "string",
-                    description = "[Localized] [Localized] causal_plan_analyze. [Localized] [Localized] [Localized] [Localized] [Localized] plan_id.",
+                    description = "Info Info causal_plan_analyze. Info Info Info Info Info plan_id.",
                     required = false
                 ),
                 ToolParameter(
                     name = "plan_id",
                     type = "string",
-                    description = "[Localized] [Localized] [Localized] [Localized] [Localized] causal_plan_analyze.",
+                    description = "Info Info Info Info Info causal_plan_analyze.",
                     required = false
                 )
             )
@@ -103,26 +103,26 @@ class CausalChainPlannerTool(
 
         ToolDefinition(
             name = "causal_plan_what_if",
-            description = """[Localized] What-If: "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]"
-[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]/[Localized] [Localized] [Localized] [Localized] [Localized].
-[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].""",
+            description = """Info What-If: "Info Info Info Info Info Info Info"
+Info Info Info Info Info Info Info/Info Info Info Info Info.
+Info Info Info Info Info Info Info Info.""",
             parameters = listOf(
                 ToolParameter(
                     name = "plan_id",
                     type = "string",
-                    description = "[Localized] [Localized] [Localized] ([Localized] causal_plan_analyze).",
+                    description = "Info Info Info (Info causal_plan_analyze).",
                     required = true
                 ),
                 ToolParameter(
                     name = "insert_step",
                     type = "string",
-                    description = "[Localized] [Localized] [Localized] 'toolName|param1=val1&param2=val2'. [Localized].",
+                    description = "Info Info Info 'toolName|param1=val1&param2=val2'. Info.",
                     required = false
                 ),
                 ToolParameter(
                     name = "remove_step_index",
                     type = "string",
-                    description = "[Localized] [Localized] [Localized] [Localized] (0-based). [Localized].",
+                    description = "Info Info Info Info (0-based). Info.",
                     required = false
                 )
             )
@@ -130,12 +130,12 @@ class CausalChainPlannerTool(
 
         ToolDefinition(
             name = "causal_plan_clear",
-            description = "[Localized] [Localized] [Localized] [Localized]. [Localized] [Localized] [Localized] [Localized] [Localized].",
+            description = "Info Info Info Info. Info Info Info Info Info.",
             parameters = listOf(
                 ToolParameter(
                     name = "plan_id",
                     type = "string",
-                    description = "[Localized] [Localized] [Localized] [Localized]. [Localized] [Localized] [Localized] [Localized] [Localized].",
+                    description = "Info Info Info Info. Info Info Info Info Info.",
                     required = false
                 )
             )
@@ -146,7 +146,7 @@ class CausalChainPlannerTool(
     // Execution
     // ──────────────────────────────────────────────────────────────────────────
 
-    /** [Localized] null [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] wrapper. */
+    /** Context note null Context note Context note Context note Context note Context note Context note wrapper. */
     suspend fun execute(name: String, args: Map<String, String>): ToolExecutionResult? {
         if (name !in HANDLED) return null
         return try {
@@ -165,9 +165,9 @@ class CausalChainPlannerTool(
     fun handles(name: String): Boolean = name in HANDLED
 
     /**
-     * [Localized] [Localized] [Localized] Prompt [Localized] [Localized] [Localized] [Localized] [Localized] cache.
-     * [Localized] [Localized] SmartLearningBridge [Localized] System Prompt [Localized] [Localized].
-     * [Localized] null [Localized] [Localized] [Localized] cache [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note Context note Context note Prompt Context note Context note Context note Context note Context note cache.
+     * Context note Context note SmartLearningBridge Context note System Prompt Context note Context note.
+     * Context note null Context note Context note Context note cache Context note Context note Context note Context note Context note Context note Context note.
      */
     fun getLastPlanInjection(maxChars: Int = 500): String? {
         val lastGraph = planCache.values.lastOrNull() ?: return null
@@ -181,19 +181,19 @@ class CausalChainPlannerTool(
 
     private fun doAnalyze(args: Map<String, String>): ToolExecutionResult {
         val stepsRaw = args["steps"]?.trim()
-            ?: return ToolExecutionResult("steps [Localized]", isError = true)
+            ?: return ToolExecutionResult("steps Info", isError = true)
 
         val steps = parseSteps(stepsRaw)
         if (steps.isEmpty()) return ToolExecutionResult(
-            "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].", isError = true
+            "Info Info Info Info Info Info Info Info Info.", isError = true
         )
 
         val graph = planner.buildChain(steps)
 
-        // [Localized] [Localized] [Localized] cache [Localized] [Localized]
+        // Context note Context note Context note cache Context note Context note
         val planId = args["plan_id"]?.trim()
         if (!planId.isNullOrBlank()) {
-            // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] cache
+            // Context note Context note Context note Context note Context note Context note cache
             if (planCache.size >= maxCacheSize) {
                 planCache.keys.firstOrNull()?.let { planCache.remove(it) }
             }
@@ -201,11 +201,11 @@ class CausalChainPlannerTool(
         }
 
         return ToolExecutionResult(buildString {
-            appendLine("🗺️ [Localized] [Localized] [Localized] ${graph.nodes.size} [Localized]:")
+            appendLine("🗺️ Info Info Info ${graph.nodes.size} Info:")
             appendLine()
 
-            // [Localized] [Localized]
-            appendLine("📋 [Localized]:")
+            // Context note Context note
+            appendLine("📋 Info:")
             for (node in graph.nodes) {
                 val icon = when (node.riskLevel) {
                     CausalChainPlanner.RiskLevel.LOW      -> "🟢"
@@ -217,7 +217,7 @@ class CausalChainPlannerTool(
             }
             appendLine()
 
-            // [Localized] [Localized]
+            // Context note Context note
             val allEffects = graph.nodes.flatMap { it.effects }
             val deletedPaths = allEffects
                 .filter { it.type == CausalChainPlanner.EffectType.DELETE && it.targetPath != null }
@@ -229,69 +229,69 @@ class CausalChainPlannerTool(
                 .filter { it.type == CausalChainPlanner.EffectType.MODIFY && it.targetPath != null }
                 .mapNotNull { it.targetPath }.distinct()
 
-            if (deletedPaths.isNotEmpty()) appendLine("🗑️ [Localized]: ${deletedPaths.take(5).joinToString(", ")}")
-            if (createdPaths.isNotEmpty()) appendLine("📄 [Localized]: ${createdPaths.take(5).joinToString(", ")}")
-            if (modifiedPaths.isNotEmpty()) appendLine("✏️ [Localized]: ${modifiedPaths.take(5).joinToString(", ")}")
+            if (deletedPaths.isNotEmpty()) appendLine("🗑️ Info: ${deletedPaths.take(5).joinToString(", ")}")
+            if (createdPaths.isNotEmpty()) appendLine("📄 Info: ${createdPaths.take(5).joinToString(", ")}")
+            if (modifiedPaths.isNotEmpty()) appendLine("✏️ Info: ${modifiedPaths.take(5).joinToString(", ")}")
             appendLine()
 
-            // [Localized] [Localized] [Localized]
-            appendLine("⚠️ [Localized] [Localized] [Localized]: ${graph.highestRisk.label()}")
+            // Context note Context note Context note
+            appendLine("⚠️ Info Info Infohighest: ${graph.highestRisk.label()}")
             appendLine()
 
-            // [Localized]
+            // Context note
             if (graph.conflicts.isEmpty()) {
-                appendLine("✅ [Localized] [Localized] [Localized] — [Localized] [Localized].")
+                appendLine("✅ Info Info Info — Info Info.")
             } else {
                 val fatal = graph.conflicts.filter { it.isFatal }
                 val warnings = graph.conflicts.filter { !it.isFatal }
                 if (fatal.isNotEmpty()) {
-                    appendLine("❌ [Localized] [Localized] (${fatal.size}):")
+                    appendLine("❌ Info Info (${fatal.size}):")
                     for (c in fatal) appendLine("  • ${c.message}")
                     appendLine()
                 }
                 if (warnings.isNotEmpty()) {
-                    appendLine("⚠️ [Localized] (${warnings.size}):")
+                    appendLine("⚠️ Info (${warnings.size}):")
                     for (c in warnings) appendLine("  • ${c.message}")
                 }
             }
 
-            if (!planId.isNullOrBlank()) appendLine("\n💾 [Localized] [Localized] [Localized] '$planId' [Localized] [Localized] simulate/what_if.")
+            if (!planId.isNullOrBlank()) appendLine("\n💾 Info Info Info '$planId' Info Info simulate/what_if.")
         })
     }
 
     private fun doSimulate(args: Map<String, String>): ToolExecutionResult {
         val graph = resolveGraph(args)
             ?: return ToolExecutionResult(
-                "[Localized] [Localized] 'steps' [Localized] 'plan_id' [Localized] [Localized] [Localized].", isError = true
+                "Info Info 'steps' Info 'plan_id' Info Info Info.", isError = true
             )
 
         val result = planner.simulate(graph)
         return ToolExecutionResult(buildString {
-            appendLine("🎬 [Localized] [Localized] [Localized]:")
+            appendLine("🎬 Info Info Info:")
             appendLine()
             for (step in result.steps) {
                 val status = if (step.wouldSucceed) "✅" else "❌"
                 val risk = when (step.riskLevel) {
                     CausalChainPlanner.RiskLevel.LOW      -> ""
-                    CausalChainPlanner.RiskLevel.MEDIUM   -> " [[Localized]]"
-                    CausalChainPlanner.RiskLevel.HIGH     -> " [⚠️ [Localized]]"
-                    CausalChainPlanner.RiskLevel.CRITICAL -> " [💥 [Localized]]"
+                    CausalChainPlanner.RiskLevel.MEDIUM   -> " [Info]"
+                    CausalChainPlanner.RiskLevel.HIGH     -> " [⚠️ Info]"
+                    CausalChainPlanner.RiskLevel.CRITICAL -> " [💥 Info]"
                 }
                 appendLine("  ${step.stepIndex}. $status${risk} ${step.humanSummary}")
                 if (!step.wouldSucceed && step.failReason != null) {
-                    appendLine("       💔 [Localized]: ${step.failReason}")
+                    appendLine("       💔 Info: ${step.failReason}")
                 }
             }
             appendLine()
             if (result.overallSuccess) {
-                appendLine("✅ [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized].")
+                appendLine("✅ Info Info — Info Info Info Info.")
             } else {
-                appendLine("❌ [Localized] [Localized] [Localized] [Localized] [Localized] ${result.firstFailureIndex}.")
-                appendLine("   📌 [Localized] [Localized] [Localized] [Localized] [Localized] causal_plan_what_if.")
+                appendLine("❌ Info Info Info Info Info ${result.firstFailureIndex}.")
+                appendLine("   📌 Info Info Info Info Info causal_plan_what_if.")
             }
             if (result.warningMessages.isNotEmpty()) {
                 appendLine()
-                appendLine("⚠️ [Localized] [Localized]:")
+                appendLine("⚠️ Info Info:")
                 for (w in result.warningMessages) appendLine("  • $w")
             }
         })
@@ -299,10 +299,10 @@ class CausalChainPlannerTool(
 
     private fun doWhatIf(args: Map<String, String>): ToolExecutionResult {
         val planId = args["plan_id"]?.trim()
-            ?: return ToolExecutionResult("plan_id [Localized]", isError = true)
+            ?: return ToolExecutionResult("plan_id Info", isError = true)
         val baseline = planCache[planId]
             ?: return ToolExecutionResult(
-                "[Localized] [Localized] [Localized] [Localized] '$planId'. [Localized] causal_plan_analyze [Localized].", isError = true
+                "Info Info Info Info '$planId'. Info causal_plan_analyze Info.", isError = true
             )
 
         val insertRaw = args["insert_step"]?.trim()
@@ -314,7 +314,7 @@ class CausalChainPlannerTool(
 
         if (insertStep == null && removeIdx == null) {
             return ToolExecutionResult(
-                "[Localized] [Localized] insert_step [Localized] remove_step_index.", isError = true
+                "Info Info insert_step Info remove_step_index.", isError = true
             )
         }
 
@@ -327,20 +327,20 @@ class CausalChainPlannerTool(
         return if (planId.isNullOrBlank()) {
             val count = planCache.size
             planCache.clear()
-            ToolExecutionResult("✅ [Localized] [Localized] $count [Localized] [Localized] [Localized] [Localized].")
+            ToolExecutionResult("✅ Info Info $count Info Info Info Info.")
         } else {
             val existed = planCache.remove(planId) != null
-            if (existed) ToolExecutionResult("✅ [Localized] [Localized] [Localized] '$planId'.")
-            else ToolExecutionResult("⚠️ [Localized] [Localized] [Localized] [Localized] [Localized] '$planId'.")
+            if (existed) ToolExecutionResult("✅ Info Info Info '$planId'.")
+            else ToolExecutionResult("⚠️ Info Info Info Info Info '$planId'.")
         }
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] (toolName → parameters).
+     * Context note Context note Context note Context note Context note (toolName → parameters).
      *
-     * [Localized] [Localized]:
+     * Context note Context note:
      *   "toolName|param1=val1&param2=val2,toolName2|param1=val1"
-     * [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note Context note Context note Context note Context note.
      */
     private fun parseSteps(raw: String): List<Pair<String, Map<String, String>>> {
         return raw
@@ -350,7 +350,7 @@ class CausalChainPlannerTool(
             .mapNotNull { entry ->
                 val pipeIdx = entry.indexOf('|')
                 if (pipeIdx < 0) {
-                    // [Localized] [Localized] [Localized] [Localized] [Localized]
+                    // Context note Context note Context note Context note Context note
                     entry.trim() to emptyMap<String, String>()
                 } else {
                     val toolName = entry.substring(0, pipeIdx).trim()
@@ -367,7 +367,7 @@ class CausalChainPlannerTool(
             }
     }
 
-    /** [Localized] [Localized] CausalGraph [Localized] [Localized] cache [Localized] [Localized] [Localized] steps. */
+    /** Context note Context note CausalGraph Context note Context note cache Context note Context note Context note steps. */
     private fun resolveGraph(args: Map<String, String>): CausalChainPlanner.CausalGraph? {
         val planId = args["plan_id"]?.trim()
         if (!planId.isNullOrBlank() && planCache.containsKey(planId)) {

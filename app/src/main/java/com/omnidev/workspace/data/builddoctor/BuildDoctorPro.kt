@@ -9,23 +9,23 @@ import kotlinx.coroutines.withContext
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * BuildDoctorPro — [Localized] [Localized] [Localized] (Brain 2.0)
+ * BuildDoctorPro — Context note Context note Context note (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Mobile-first: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]/[Localized] [Localized] [Localized]:
+ * Mobile-first: Context note Context note Context note Context note Context note Context note/Context note Context note Context note:
  *
- *   1) **Fingerprint-based dedup**: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
- *      [Localized] [Localized].
+ *   1) **Fingerprint-based dedup**: Context note Context note Context note Context note Context note Context note Context note
+ *      Context note Context note.
  *
- *   2) **Solution memory**: [Localized] [Localized] [Localized] [Localized] ([Localized] Agent [Localized] [Localized] [Localized] [Localized])[Localized]
- *      [Localized] [Localized] diff [Localized] Deflate [Localized] [Localized] [Localized] [Localized] [Localized].
+ *   2) **Solution memory**: Context note Context note Context note Context note (Context note Agent Context note Context note Context note Context note)Context note
+ *      Context note Context note diff Context note Deflate Context note Context note Context note Context note Context note.
  *
- *   3) **Confidence ranking**: [Localized] [Localized] successfulFixCount > 0 [Localized] [Localized].
- *      [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+ *   3) **Confidence ranking**: Context note Context note successfulFixCount > 0 Context note Context note.
+ *      Context note Context note Context note Context note Context note Context note Context note.
  *
- *   4) **500 [Localized] max + LRU eviction** ([Localized] < 5 MB [Localized]).
+ *   4) **500 Context note max + LRU eviction** (Context note < 5 MB Context note).
  *
- *   5) **No external deps**: [Localized] API calls[Localized] [Localized] LLM. [Localized] regex + SQL [Localized].
+ *   5) **No external deps**: Context note API callsContext note Context note LLM. Context note regex + SQL Context note.
  */
 class BuildDoctorPro(
     private val dao: BuildDiagnosticDao,
@@ -37,7 +37,7 @@ class BuildDoctorPro(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Diagnose — [Localized] + [Localized] [Localized] [Localized] [Localized]
+    // Diagnose — Context note + Context note Context note Context note Context note
     // ──────────────────────────────────────────────────────────────────
 
     data class Diagnosis(
@@ -60,10 +60,10 @@ class BuildDoctorPro(
     )
 
     /**
-     * [Localized] output [Localized] build[Localized] [Localized]:
-     *   - [Localized] [Localized]
-     *   - [Localized] [Localized] ([Localized] [Localized] [Localized])
-     *   - [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized])
+     * Context note output Context note buildContext note Context note:
+     *   - Context note Context note
+     *   - Context note Context note (Context note Context note Context note)
+     *   - Context note Context note (Context note Context note Context note Context note)
      */
     suspend fun diagnose(
         buildOutput: String,
@@ -107,7 +107,7 @@ class BuildDoctorPro(
                     )
                 }
             } else {
-                // [Localized] [Localized] [Localized] [Localized] [Localized]
+                // Context note Context note Context note Context note Context note
                 val files = if (err.filePath.isNotBlank()) err.filePath.take(200) else ""
                 val now = System.currentTimeMillis()
                 val entry = BuildDiagnosticEntry(
@@ -148,14 +148,14 @@ class BuildDoctorPro(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Solution recording ([Localized] [Localized] [Localized] [Localized])
+    // Solution recording (Context note Context note Context note Context note)
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * [Localized] [Localized] [Localized] [Localized]: [Localized] [Localized] diff [Localized] [Localized] [Localized].
-     * @param fingerprint [Localized] [Localized]
-     * @param solutionDiff [Localized] diff [Localized] [Localized] [Localized] Agent ([Localized])
-     * @param explanation [Localized] [Localized] [Localized] (≤ 200 [Localized])
+     * Context note Context note Context note Context note: Context note Context note diff Context note Context note Context note.
+     * @param fingerprint Context note Context note
+     * @param solutionDiff Context note diff Context note Context note Context note Agent (Context note)
+     * @param explanation Context note Context note Context note (≤ 200 Context note)
      */
     suspend fun recordSuccessfulFix(
         fingerprint: String,
@@ -182,7 +182,7 @@ class BuildDoctorPro(
         }
     }
 
-    /** [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized] [Localized] [Localized]). */
+    /** Context note Context note Context note (Context note Context note Context note Context note Context note Context note). */
     suspend fun recordFailedFix(fingerprint: String) = withContext(Dispatchers.IO) {
         try {
             val existing = dao.findByFingerprint(fingerprint) ?: return@withContext

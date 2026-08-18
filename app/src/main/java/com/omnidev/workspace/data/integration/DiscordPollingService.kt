@@ -166,7 +166,7 @@ class DiscordPollingService : Service() {
     private val toolManager: CompositeToolManager by lazy {
         val db = OmniDevDatabase.getInstance(applicationContext)
         val memoryManager = MemoryManager(db.knowledgeDao())
-        // ── Agent Brain 2.0: [Localized] [Localized] [Localized] OmniDevApp ──
+        // ── Agent Brain 2.0: Context note Context note Context note OmniDevApp ──
         val omniApp = com.omnidev.workspace.OmniDevApp.instance
         CompositeToolManager(
             fileToolManager = FileToolManager(),
@@ -332,22 +332,22 @@ class DiscordPollingService : Service() {
                 when {
                     lc == "!mode_chat"  -> {
                         channelModes[channelId] = OmniMode.CHAT
-                        sendDiscordMessage(token, channelId, "✅ Mode: **Chat** — [Localized] [Localized]. [Localized] `!omni [Localized]` [Localized].")
+                        sendDiscordMessage(token, channelId, "✅ Mode: **Chat** — Context note Context note. Context note `!omni Context note` Context note.")
                         continue
                     }
                     lc == "!mode_agent" -> {
                         channelModes[channelId] = OmniMode.AGENT
-                        sendDiscordMessage(token, channelId, "✅ Mode: **Agent** 🤖 — [Localized] [Localized] [Localized] [Localized] [Localized].")
+                        sendDiscordMessage(token, channelId, "✅ Mode: **Agent** 🤖 — Context note Context note Context note Context note Context note.")
                         continue
                     }
                     lc == "!mode_swarm" -> {
                         channelModes[channelId] = OmniMode.SWARM
-                        sendDiscordMessage(token, channelId, "✅ Mode: **Swarm** 🐝 — [Localized] [Localized] [Localized].")
+                        sendDiscordMessage(token, channelId, "✅ Mode: **Swarm** 🐝 — Context note Context note Context note.")
                         continue
                     }
                     lc == "!clear" -> {
                         sessionHistory.remove(channelId)
-                        sendDiscordMessage(token, channelId, "🧹 [Localized] [Localized] [Localized] [Localized].")
+                        sendDiscordMessage(token, channelId, "🧹 Info Info Info Info.")
                         continue
                     }
                     lc == "!status" -> {
@@ -390,7 +390,7 @@ class DiscordPollingService : Service() {
                         withTypingIndicator(token, channelId) {
                             processMessage(query, channelId, mode, username)
                         }
-                    } ?: "⏱ [Localized] [Localized] [Localized] (8 [Localized]). [Localized] [Localized] [Localized]."
+                    } ?: "⏱ Info Info Info (8 Info). Info Info Info."
 
                     // Persist user + bot messages to Room
                     if (sessionId != null) {
@@ -586,15 +586,15 @@ class DiscordPollingService : Service() {
         appendLine("🤖 **Omni Discord Bot**")
         appendLine()
         appendLine("**Modes:**")
-        appendLine("`!mode_chat`  — [Localized] [Localized] ([Localized])")
-        appendLine("`!mode_agent` — [Localized] [Localized] [Localized] [Localized]")
-        appendLine("`!mode_swarm` — [Localized] [Localized] [Localized]")
+        appendLine("`!mode_chat`  — Info Info (Info)")
+        appendLine("`!mode_agent` — Info Info Info Info")
+        appendLine("`!mode_swarm` — Info Info Info")
         appendLine()
         appendLine("**Commands:**")
-        appendLine("`!omni <message>` — [Localized] [Localized] [Localized]")
-        appendLine("`!status`         — [Localized] [Localized] [Localized]")
-        appendLine("`!clear`          — [Localized] [Localized] [Localized]")
-        appendLine("`!help`           — [Localized] [Localized]")
+        appendLine("`!omni <message>` — Info Info Info")
+        appendLine("`!status`         — Info Info Info")
+        appendLine("`!clear`          — Info Info Info")
+        appendLine("`!help`           — Info Info")
         appendLine()
         appendLine("In AGENT/SWARM mode: all messages are processed automatically.")
     }

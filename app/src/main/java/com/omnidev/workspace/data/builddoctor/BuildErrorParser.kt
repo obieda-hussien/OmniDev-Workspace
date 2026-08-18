@@ -4,23 +4,23 @@ import java.security.MessageDigest
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * BuildErrorParser — [Localized] [Localized] [Localized] (Build Doctor Pro / Brain 2.0)
+ * BuildErrorParser — Context note Context note Context note (Build Doctor Pro / Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * [Localized] [Localized] stdout/stderr [Localized] build:
- *   - [Localized] [Localized] [Localized] [Localized] (file:line:col)
- *   - [Localized] [Localized] (compile / link / dependency / resource / runtime / config)
- *   - [Localized] (fingerprint) [Localized] [Localized] [Localized] [Localized]
+ * Context note Context note stdout/stderr Context note build:
+ *   - Context note Context note Context note Context note (file:line:col)
+ *   - Context note Context note (compile / link / dependency / resource / runtime / config)
+ *   - Context note (fingerprint) Context note Context note Context note Context note
  *
- * **Mobile-first**: regex-based [Localized] [Localized] parsing [Localized] [Localized] alloc [Localized].
- * [Localized] 1 MB stdout [Localized] < 50 ms [Localized] Snapdragon 660.
+ * **Mobile-first**: regex-based Context note Context note parsing Context note Context note alloc Context note.
+ * Context note 1 MB stdout Context note < 50 ms Context note Snapdragon 660.
  */
 object BuildErrorParser {
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized]. */
+    /** Context note Context note Context note Context note Context note. */
     private const val MAX_MESSAGE_LEN = 600
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] stdout [Localized]. */
+    /** Context note Context note Context note Context note Context note stdout Context note. */
     private const val MAX_ERRORS_PER_BUILD = 50
 
     data class ParsedError(
@@ -48,7 +48,7 @@ object BuildErrorParser {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Patterns — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+    // Patterns — Context note Context note Context note Context note Context note Context note
     // ──────────────────────────────────────────────────────────────────
 
     // Kotlin / Java: e:/path/Foo.kt:12:8 error: ...
@@ -101,7 +101,7 @@ object BuildErrorParser {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * [Localized] output [Localized] build [Localized] [Localized] [Localized] [Localized] (≤ MAX_ERRORS_PER_BUILD).
+     * Context note output Context note build Context note Context note Context note Context note (≤ MAX_ERRORS_PER_BUILD).
      */
     fun parse(buildOutput: String): List<ParsedError> {
         if (buildOutput.isBlank()) return emptyList()
@@ -118,7 +118,7 @@ object BuildErrorParser {
         return out
     }
 
-    /** [Localized] [Localized] [Localized] ([Localized] [Localized] streaming). */
+    /** Context note Context note Context note (Context note Context note streaming). */
     fun parseLine(line: String): ParsedError? {
         // 1) Kotlin
         KOTLIN_ERROR.find(line)?.let { m ->
@@ -146,7 +146,7 @@ object BuildErrorParser {
                 rawLine = line
             )
         }
-        // 5) Hints [Localized] [Localized] [Localized]
+        // 5) Hints Context note Context note Context note
         if (DEPENDENCY_HINT.containsMatchIn(line)) {
             return makeError(Category.DEPENDENCY, line.take(MAX_MESSAGE_LEN), "", 0, 0, line)
         }
@@ -162,7 +162,7 @@ object BuildErrorParser {
         return null
     }
 
-    /** [Localized] [Localized] (16 hex) [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]. */
+    /** Context note Context note (16 hex) Context note Context note Context note Context note Context note Context note. */
     fun fingerprint(message: String, category: String = ""): String {
         val normalized = (category.ifBlank { "" } + " " + message)
             .replace(Regex("/[\\w./_-]+"), "/PATH")

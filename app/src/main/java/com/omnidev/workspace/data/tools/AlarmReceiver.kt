@@ -13,15 +13,15 @@ import androidx.core.app.NotificationCompat
 import java.util.Calendar
 
 /**
- * BroadcastReceiver [Localized] [Localized] [Localized] [Localized] AlarmManager.
- * ([Localized] [Localized] AndroidManifest.xml)
+ * BroadcastReceiver Context note Context note Context note Context note AlarmManager.
+ * (Context note Context note AndroidManifest.xml)
  */
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val title = intent.getStringExtra("title") ?: "[Localized]"
-        Log.i("AlarmReceiver", "🔔 [Localized] [Localized]: \$title")
+        val title = intent.getStringExtra("title") ?: "Info"
+        Log.i("AlarmReceiver", "🔔 Info Info: \$title")
 
-        // [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note
         try {
             val alarmIntent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -32,15 +32,15 @@ class AlarmReceiver : BroadcastReceiver() {
             }
             context.startActivity(alarmIntent)
         } catch (_: Exception) {
-            // fallback: notification [Localized]
+            // fallback: notification Context note
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val ch = NotificationChannel("alarm_ch", "[Localized]", NotificationManager.IMPORTANCE_HIGH)
+                val ch = NotificationChannel("alarm_ch", "Info", NotificationManager.IMPORTANCE_HIGH)
                 nm.createNotificationChannel(ch)
             }
             val notif = NotificationCompat.Builder(context, "alarm_ch")
                 .setContentTitle("⏰ \$title")
-                .setContentText("[Localized] [Localized]!")
+                .setContentText("Info Info!")
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setAutoCancel(true)
                 .build()

@@ -131,7 +131,7 @@ class OmniSyncService : Service() {
 
         private fun buildSingleLineBody(summary: TaskSchedulerTool.ExecutionSummary): String {
             val dur = "${summary.durationSec}s"
-            val tools = "${summary.toolsUsed} [Localized]"
+            val tools = "${summary.toolsUsed} Info"
             return if (summary.isSuccess) "✅ $dur | $tools | ${summary.result.take(80)}"
                    else "❌ ${summary.errorMessage?.take(100) ?: "Error"}"
         }
@@ -182,8 +182,8 @@ class OmniSyncService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
-        startForegroundSafe(buildNotification("OmniDev Sync [Localized]"))
-        Log.i(TAG, "✅ OmniSyncService [Localized]")
+        startForegroundSafe(buildNotification("OmniDev Sync Info"))
+        Log.i(TAG, "✅ OmniSyncService Info")
 
         // Register notification callback in TaskSchedulerTool
         TaskSchedulerTool.notificationCallback = { task, summary ->
@@ -196,7 +196,7 @@ class OmniSyncService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
-        Log.i(TAG, "OmniSyncService [Localized]")
+        Log.i(TAG, "OmniSyncService Info")
         syncJob?.cancel()
         scope.cancel()
         _syncState.value = SyncState.IDLE
@@ -230,7 +230,7 @@ class OmniSyncService : Service() {
                             _circuitState.value = CircuitState.HALF_OPEN
                         } else {
                             _syncState.value = SyncState.CIRCUIT_OPEN
-                            updateNotification("Circuit Open — [Localized] [Localized] ${(CIRCUIT_RECOVERY_MS - elapsed) / 1000}s")
+                            updateNotification("Circuit Open — Info Info ${(CIRCUIT_RECOVERY_MS - elapsed) / 1000}s")
                             delay(min(interval, CIRCUIT_RECOVERY_MS - elapsed + 1000))
                             continue
                         }
@@ -256,14 +256,14 @@ class OmniSyncService : Service() {
                     updateHealthReport(success = true, tasksThisCycle = executed)
 
                     val statusText = if (executed > 0) {
-                        "[Localized] sync: ${formatTime(System.currentTimeMillis())} | [Localized] $executed [Localized]"
+                        "Info sync: ${formatTime(System.currentTimeMillis())} | Info $executed Info"
                     } else {
-                        "[Localized] sync: ${formatTime(System.currentTimeMillis())} | [Localized] [Localized]"
+                        "Info sync: ${formatTime(System.currentTimeMillis())} | Info Info"
                     }
                     updateNotification(statusText)
 
                 } catch (e: Exception) {
-                    Log.e(TAG, "[Localized] [Localized] [Localized]: ${e.message}", e)
+                    Log.e(TAG, "Info Info Info: ${e.message}", e)
                     totalCycles.incrementAndGet()
                     failedCycles.incrementAndGet()
                     val failures = consecutiveFailures.incrementAndGet()
@@ -273,7 +273,7 @@ class OmniSyncService : Service() {
                     if (failures >= CIRCUIT_BREAKER_THRESHOLD) {
                         _circuitState.value = CircuitState.OPEN
                         circuitOpenTime.set(System.currentTimeMillis())
-                        updateNotification("⚠️ Circuit Open — $failures [Localized]")
+                        updateNotification("⚠️ Circuit Open — $failures Info")
                     }
                 }
 
@@ -291,21 +291,21 @@ class OmniSyncService : Service() {
         val readyTasks = TaskSchedulerTool.getReadyTasks()
         if (readyTasks.isEmpty()) return 0
 
-        Log.d(TAG, "[Localized] sync: ${readyTasks.size} [Localized] [Localized]")
+        Log.d(TAG, "Info sync: ${readyTasks.size} Info Info")
         var executedCount = 0
 
         for (task in readyTasks) {
             // Check timeout deadline before execution
             val timeoutDeadline = TaskSchedulerTool.getTimeoutDeadlineMillis(task.id)
             if (timeoutDeadline != null && System.currentTimeMillis() >= timeoutDeadline) {
-                Log.w(TAG, "⏱ [Localized] [Localized] [Localized]: ${task.name}")
+                Log.w(TAG, "⏱ Info Info Info: ${task.name}")
                 val summary = TaskSchedulerTool.ExecutionSummary(
                     taskId = task.id, taskName = task.name,
                     startTimeMs = task.startedAtMillis ?: System.currentTimeMillis(),
                     endTimeMs = System.currentTimeMillis(),
                     toolsUsed = 0, toolNames = emptyList(),
                     result = "", isSuccess = false,
-                    errorMessage = "[Localized] [Localized] (${task.timeoutMinutes} [Localized])"
+                    errorMessage = "Info Info (${task.timeoutMinutes} Info)"
                 )
                 TaskSchedulerTool.markFailed(task.id, "Timeout after ${task.timeoutMinutes}m", summary)
                 continue
@@ -317,20 +317,20 @@ class OmniSyncService : Service() {
 
                 // Mark as running
                 TaskSchedulerTool.markRunning(task.id,
-                    executionDetails = "[Localized]: ${formatTime(startTime)} | ${displayPrompt}")
+                    executionDetails = "Info: ${formatTime(startTime)} | ${displayPrompt}")
                 _syncState.value = SyncState.EXECUTING_TASK
                 _currentlyRunningTask.value = task.name
 
-                updateNotification("▶️ [Localized]: ${task.name.take(50)}")
+                updateNotification("▶️ Info: ${task.name.take(50)}")
                 notifyTaskStarted(task.name, task.id, displayPrompt)
-                DebugLogManager.appendInfo(TAG, "▶️ [Localized] [Localized]: ${task.name} (${task.id})")
+                DebugLogManager.appendInfo(TAG, "▶️ Info Info: ${task.name} (${task.id})")
 
                 // ═══════════════════════════════════════════════════════════
                 // ACTUAL EXECUTION via executionCallback
                 // ═══════════════════════════════════════════════════════════
                 val callback = TaskSchedulerTool.executionCallback
                 if (callback != null) {
-                    Log.d(TAG, "🤖 [Localized] [Localized] [Localized] AgentPipeline: ${task.name}")
+                    Log.d(TAG, "🤖 Info Info Info AgentPipeline: ${task.name}")
                     try {
                         val summary = withTimeout(
                             ((task.timeoutMinutes ?: 30) * 60 * 1_000L).coerceAtLeast(60_000L)
@@ -340,7 +340,7 @@ class OmniSyncService : Service() {
                         if (summary.isSuccess) {
                             TaskSchedulerTool.markCompleted(task.id, summary.result, summary)
                             tasksSucceeded.incrementAndGet()
-                            DebugLogManager.appendInfo(TAG, "✅ [Localized] [Localized]: ${task.name} (${summary.durationSec}s, ${summary.toolsUsed} [Localized])")
+                            DebugLogManager.appendInfo(TAG, "✅ Info Info: ${task.name} (${summary.durationSec}s, ${summary.toolsUsed} Info)")
                         } else {
                             TaskSchedulerTool.markFailed(task.id, summary.errorMessage ?: "Unknown error", summary)
                             tasksFailed.incrementAndGet()
@@ -359,7 +359,7 @@ class OmniSyncService : Service() {
                     }
                 } else {
                     // Fallback when callback is not set (should not happen in production)
-                    Log.w(TAG, "⚠️ executionCallback [Localized] [Localized] — [Localized] [Localized] [Localized]: ${task.name}")
+                    Log.w(TAG, "⚠️ executionCallback Info Info — Info Info Info: ${task.name}")
                     val noCallbackSummary = TaskSchedulerTool.ExecutionSummary(
                         taskId = task.id, taskName = task.name,
                         startTimeMs = startTime, endTimeMs = System.currentTimeMillis(),
@@ -383,7 +383,7 @@ class OmniSyncService : Service() {
             } catch (e: CancellationException) {
                 throw e // Always propagate CancellationException
             } catch (e: Exception) {
-                Log.e(TAG, "❌ [Localized] [Localized] [Localized] [Localized] ${task.id}: ${e.message}")
+                Log.e(TAG, "❌ Info Info Info Info ${task.id}: ${e.message}")
                 DebugLogManager.appendError(TAG, e)
                 val errorSummary = TaskSchedulerTool.ExecutionSummary(
                     taskId = task.id, taskName = task.name,
@@ -439,15 +439,15 @@ class OmniSyncService : Service() {
     fun getStatusReport(): String = buildString {
         val h = _healthReport.value
         append("📊 OmniSync:\n")
-        append("  [Localized]: ${h.totalCycles} (${h.successfulCycles}✅ / ${h.failedCycles}❌)\n")
-        append("  [Localized] [Localized]: ${h.totalTasksExecuted} (${h.tasksSucceeded}✅ / ${h.tasksFailed}❌)\n")
-        append("  [Localized]: ${if(h.isHealthy) "🟢 [Localized]" else "🔴 [Localized]"}\n")
+        append("  Info: ${h.totalCycles} (${h.successfulCycles}✅ / ${h.failedCycles}❌)\n")
+        append("  Info Info: ${h.totalTasksExecuted} (${h.tasksSucceeded}✅ / ${h.tasksFailed}❌)\n")
+        append("  Info: ${if(h.isHealthy) "🟢 Info" else "🔴 Info"}\n")
         append("  Circuit: ${_circuitState.value.name}\n")
         val running = _currentlyRunningTask.value
-        if (running != null) append("  🤖 [Localized] [Localized]: $running\n")
+        if (running != null) append("  🤖 Info Info: $running\n")
         val bridgeSet = TaskSchedulerTool.executionCallback != null
-        append("  Execution Bridge: ${if(bridgeSet) "✅ [Localized]" else "❌ [Localized] [Localized]"}\n")
-        h.lastError?.let { append("  [Localized] [Localized]: $it\n") }
+        append("  Execution Bridge: ${if(bridgeSet) "✅ Info" else "❌ Info Info"}\n")
+        h.lastError?.let { append("  Info Info: $it\n") }
     }.trimEnd()
 
     // ── Notifications ─────────────────────────────────────────────────────
@@ -457,14 +457,14 @@ class OmniSyncService : Service() {
             val nm = getSystemService(NotificationManager::class.java)
             nm?.createNotificationChannel(NotificationChannel(
                 CHANNEL_ID, "OmniDev Sync", NotificationManager.IMPORTANCE_LOW
-            ).apply { description = "[Localized] [Localized]"; setShowBadge(false) })
+            ).apply { description = "Info Info"; setShowBadge(false) })
             nm?.createNotificationChannel(NotificationChannel(
-                TASK_EVENTS_CHANNEL_ID, "[Localized] [Localized] [Localized]", NotificationManager.IMPORTANCE_DEFAULT
-            ).apply { description = "[Localized] [Localized] [Localized]"; setShowBadge(true) })
+                TASK_EVENTS_CHANNEL_ID, "Info Info Info", NotificationManager.IMPORTANCE_DEFAULT
+            ).apply { description = "Info Info Info"; setShowBadge(true) })
             nm?.createNotificationChannel(NotificationChannel(
-                TASK_COMPLETE_CHANNEL_ID, "[Localized] [Localized] [Localized]", NotificationManager.IMPORTANCE_HIGH
+                TASK_COMPLETE_CHANNEL_ID, "Info Info Info", NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized]"
+                description = "Info Info Info Info Info Info"
                 setShowBadge(true)
                 enableVibration(true)
             })
@@ -479,9 +479,9 @@ class OmniSyncService : Service() {
         val allTasks = TaskSchedulerTool.getAllTasks()
         val pending = allTasks.count { it.status.name == "PENDING" }
         val running = allTasks.count { it.status.name == "RUNNING" }
-        val subText = if (running > 0) "▶️ $running [Localized] | ⏳ $pending [Localized]"
-                      else if (pending > 0) "⏳ $pending [Localized] [Localized]"
-                      else "[Localized] [Localized] [Localized]"
+        val subText = if (running > 0) "▶️ $running Info | ⏳ $pending Info"
+                      else if (pending > 0) "⏳ $pending Info Info"
+                      else "Info Info Info"
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("OmniDev Sync")
@@ -501,10 +501,10 @@ class OmniSyncService : Service() {
         if (!canPostNotifications(applicationContext)) return
         val notification = NotificationCompat.Builder(this, TASK_EVENTS_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("▶️ [Localized] [Localized]")
-            .setContentText("\"$taskName\" [Localized] [Localized]")
+            .setContentTitle("▶️ Info Info")
+            .setContentText("\"$taskName\" Info Info")
             .setStyle(NotificationCompat.BigTextStyle()
-                .bigText("\"$taskName\" [Localized] [Localized]\n📋 ${promptPreview}"))
+                .bigText("\"$taskName\" Info Info\n📋 ${promptPreview}"))
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(PendingIntent.getActivity(

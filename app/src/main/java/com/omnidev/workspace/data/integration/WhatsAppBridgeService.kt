@@ -124,7 +124,7 @@ class WhatsAppBridgeService : Service() {
     private val toolManager: CompositeToolManager by lazy {
         val db = OmniDevDatabase.getInstance(applicationContext)
         val memoryManager = MemoryManager(db.knowledgeDao())
-        // ── Agent Brain 2.0: [Localized] [Localized] [Localized] [Localized] OmniDevApp ──
+        // ── Agent Brain 2.0: Context note Context note Context note Context note OmniDevApp ──
         val omniApp = com.omnidev.workspace.OmniDevApp.instance
         CompositeToolManager(
             fileToolManager = FileToolManager(),

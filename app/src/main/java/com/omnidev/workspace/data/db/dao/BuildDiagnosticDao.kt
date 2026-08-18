@@ -9,8 +9,8 @@ import com.omnidev.workspace.data.db.entities.BuildDiagnosticEntry
 import kotlinx.coroutines.flow.Flow
 
 /**
- * DAO [Localized] [Localized] Build Doctor Pro. [Localized] [Localized] [Localized] [Localized] [Localized]
- * fingerprint [Localized] [Localized] [Localized] [Localized] [Localized].
+ * DAO Context note Context note Build Doctor Pro. Context note Context note Context note Context note Context note
+ * fingerprint Context note Context note Context note Context note Context note.
  */
 @Dao
 interface BuildDiagnosticDao {
@@ -24,7 +24,7 @@ interface BuildDiagnosticDao {
     @Query("SELECT * FROM build_diagnostics WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): BuildDiagnosticEntry?
 
-    /** [Localized] [Localized]: [Localized] fingerprint [Localized] [Localized] [Localized] [Localized] [Localized]. */
+    /** Context note Context note: Context note fingerprint Context note Context note Context note Context note Context note. */
     @Query("SELECT * FROM build_diagnostics WHERE errorFingerprint = :fingerprint LIMIT 1")
     suspend fun findByFingerprint(fingerprint: String): BuildDiagnosticEntry?
 
@@ -36,7 +36,7 @@ interface BuildDiagnosticDao {
     """)
     suspend fun findByCategory(category: String, limit: Int = 20): List<BuildDiagnosticEntry>
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized]). */
+    /** Context note Context note Context note Context note Context note Context note (Context note Context note). */
     @Query("""
         SELECT * FROM build_diagnostics
         WHERE successfulFixCount >= 1 AND LENGTH(solutionDiff) > 0
@@ -65,7 +65,7 @@ interface BuildDiagnosticDao {
     @Query("SELECT COUNT(*) FROM build_diagnostics")
     suspend fun count(): Int
 
-    /** LRU eviction: [Localized] [Localized] ([Localized] [Localized] [Localized]). */
+    /** LRU eviction: Context note Context note (Context note Context note Context note). */
     @Query("""
         DELETE FROM build_diagnostics
         WHERE id IN (

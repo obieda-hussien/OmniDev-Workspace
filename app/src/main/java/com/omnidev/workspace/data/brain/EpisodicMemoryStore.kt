@@ -11,22 +11,22 @@ import kotlinx.coroutines.withContext
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * EpisodicMemoryStore — [Localized] [Localized] [Localized] (Agent Brain 2.0)
+ * EpisodicMemoryStore — Context note Context note Context note (Agent Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * [Localized] [ToolExecutionJournal] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] Store [Localized]
- * **[Localized] [Localized]** [Localized] (episode) [Localized]:
+ * Context note [ToolExecutionJournal] Context note Context note Context note Context note Context note Context note Context note Context note Store Context note
+ * **Context note Context note** Context note (episode) Context note:
  *
  *   "User asked X → Agent ran tools [A, B, C] → Result: Y"
  *
- * [Localized] [Localized] [Localized] [Localized] [Localized] 1-2 episode [Localized] [Localized] [Localized] [Localized] [Localized]
- * system prompt [Localized] "memory shots". [Localized] [Localized] trial-and-error [Localized] [Localized] [Localized].
+ * Context note Context note Context note Context note Context note 1-2 episode Context note Context note Context note Context note Context note
+ * system prompt Context note "memory shots". Context note Context note trial-and-error Context note Context note Context note.
  *
- * **Mobile-first** ([Localized] [Localized] 2-4 GB RAM):
- * - HashEmbedder ([Localized] [Localized] 0 RAM [Localized])
- * - candidates ≤ 80 [Localized] cosine [Localized] JVM
- * - [Localized] [Localized] 2000 [Localized] (~2-3 MB)
- * - Eviction [Localized] [Localized]
+ * **Mobile-first** (Context note Context note 2-4 GB RAM):
+ * - HashEmbedder (Context note Context note 0 RAM Context note)
+ * - candidates ≤ 80 Context note cosine Context note JVM
+ * - Context note Context note 2000 Context note (~2-3 MB)
+ * - Eviction Context note Context note
  */
 class EpisodicMemoryStore(
     private val dao: EpisodicMemoryDao,
@@ -42,7 +42,7 @@ class EpisodicMemoryStore(
         private const val MAX_TOOLS_STORED = 10
     }
 
-    /** [Localized] episode [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] AgentPipeline). */
+    /** Context note episode Context note Context note Context note Context note (Context note Context note AgentPipeline). */
     fun recordEpisodeAsync(
         summary: String,
         userIntent: String,
@@ -79,7 +79,7 @@ class EpisodicMemoryStore(
         val truncatedIntent = userIntent.take(200)
         val toolsCsv = toolsUsed.takeLast(MAX_TOOLS_STORED).joinToString(",")
 
-        // embedding [Localized] intent + summary [Localized] [Localized]
+        // embedding Context note intent + summary Context note Context note
         val embedding = HashEmbedder.embed("$truncatedIntent $truncatedSummary")
 
         val entry = EpisodicMemoryEntry(
@@ -100,10 +100,10 @@ class EpisodicMemoryStore(
     }
 
     /**
-     * [Localized] episodes [Localized]:
-     *   1) candidates [Localized] DB ([Localized] [Localized] [Localized] + [Localized] [Localized] [Localized])
-     *   2) cosine ranking [Localized] JVM
-     *   3) [Localized] [Localized] minSimilarity → topK = 2
+     * Context note episodes Context note:
+     *   1) candidates Context note DB (Context note Context note Context note + Context note Context note Context note)
+     *   2) cosine ranking Context note JVM
+     *   3) Context note Context note minSimilarity → topK = 2
      */
     suspend fun retrieveSimilar(
         query: String,
@@ -114,7 +114,7 @@ class EpisodicMemoryStore(
 
         val queryVec = HashEmbedder.embed(query)
 
-        // candidates = [Localized] [Localized] + [Localized] [Localized] ([Localized])
+        // candidates = Context note Context note + Context note Context note (Context note)
         val candidates = mutableListOf<EpisodicMemoryEntry>()
         if (preferSuccess) {
             candidates += dao.getByOutcome(EpisodeOutcome.SUCCESS.name, limit = 60)
@@ -138,7 +138,7 @@ class EpisodicMemoryStore(
             .map { it.first }
     }
 
-    /** [Localized] [Localized] [Localized] [Localized] system prompt [Localized] episodes [Localized]. */
+    /** Context note Context note Context note Context note system prompt Context note episodes Context note. */
     suspend fun buildPromptInjection(
         query: String,
         topK: Int = 2,
@@ -148,7 +148,7 @@ class EpisodicMemoryStore(
         if (episodes.isEmpty()) return@withContext ""
 
         buildString {
-            appendLine("\n📚 [Localized] [Localized] [Localized] [Localized] (Episodic Memory):")
+            appendLine("\n📚 Info Info Info Info (Episodic Memory):")
             for (ep in episodes) {
                 val icon = when (ep.finalOutcome) {
                     "SUCCESS" -> "✅"
@@ -157,7 +157,7 @@ class EpisodicMemoryStore(
                 }
                 val tools = ep.toolsUsedCsv.split(',').take(5).joinToString(" → ")
                 val line = "$icon ${ep.summary.take(180)}"
-                val toolLine = if (tools.isNotBlank()) "   🔧 [Localized]: $tools" else ""
+                val toolLine = if (tools.isNotBlank()) "   🔧 Info: $tools" else ""
                 if (length + line.length + toolLine.length + 2 > maxChars) break
                 appendLine(line)
                 if (toolLine.isNotBlank()) appendLine(toolLine)
@@ -179,5 +179,5 @@ class EpisodicMemoryStore(
     }
 }
 
-/** [Localized] [Localized] [Localized]. */
+/** Context note Context note Context note. */
 enum class EpisodeOutcome { SUCCESS, FAILURE, ABANDONED }

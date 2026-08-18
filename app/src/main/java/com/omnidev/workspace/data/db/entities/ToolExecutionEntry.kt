@@ -6,13 +6,13 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * ToolExecutionEntry — [Localized] [Localized] [Localized] [Localized]
+ * ToolExecutionEntry — Context note Context note Context note Context note
  *
- * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]:
- * - [Localized] [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized] [Localized] [Localized]
+ * Context note Context note Context note Context note Context note Context note Context note Context note:
+ * - Context note Context note Context note Context note
+ * - Context note Context note Context note Context note
+ * - Context note Context note Context note
+ * - Context note Context note Context note Context note Context note
  */
 @Entity(
     tableName = "tool_execution_log",
@@ -25,67 +25,67 @@ import androidx.room.PrimaryKey
 data class ToolExecutionEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
 
-    /** [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note */
     val toolName: String,
 
-    /** [Localized] [Localized] JSON string */
+    /** Context note Context note JSON string */
     @ColumnInfo(defaultValue = "'{}'")
     val parametersJson: String = "{}",
 
-    /** [Localized] [Localized] ([Localized] [Localized] [Localized]) */
+    /** Context note Context note (Context note Context note Context note) */
     @ColumnInfo(defaultValue = "''")
     val resultSummary: String = "",
 
-    /** [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note */
     val success: Boolean,
 
-    /** [Localized] [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note Context note */
     val executionTimeMs: Long,
 
-    /** [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note */
     @ColumnInfo(defaultValue = "0")
     val resultSize: Int = 0,
 
-    /** [Localized]: [Localized] [Localized] [Localized] Agent [Localized] [Localized] */
+    /** Context note: Context note Context note Context note Agent Context note Context note */
     @ColumnInfo(defaultValue = "''")
     val agentContext: String = "",
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note Context note Context note */
     @ColumnInfo(defaultValue = "''")
     val previousToolName: String = "",
 
-    /** [Localized] [Localized] */
+    /** Context note Context note */
     @ColumnInfo(defaultValue = "''")
     val sessionId: String = "",
 
-    /** [Localized] [Localized] (DEVELOPER, RESEARCHER, etc.) */
+    /** Context note Context note (DEVELOPER, RESEARCHER, etc.) */
     @ColumnInfo(defaultValue = "''")
     val agentMode: String = "",
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note Context note Context note */
     @ColumnInfo(defaultValue = "''")
     val errorMessage: String = "",
 
-    /** [Localized] [Localized] [Localized] (0.0 - 1.0) */
+    /** Context note Context note Context note (0.0 - 1.0) */
     @ColumnInfo(defaultValue = "0.5")
     val resultQuality: Float = 0.5f,
 
-    /** [Localized] [Localized] [Localized] (0-23) */
+    /** Context note Context note Context note (0-23) */
     @ColumnInfo(defaultValue = "0")
     val hourOfDay: Int = 0,
 
-    /** [Localized] [Localized] (1-7) */
+    /** Context note Context note (1-7) */
     @ColumnInfo(defaultValue = "1")
     val dayOfWeek: Int = 1,
 
-    /** [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note */
     @ColumnInfo(defaultValue = "''")
     val learningNote: String = "",
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] */
+    /** Context note Context note Context note Context note Context note */
     @ColumnInfo(defaultValue = "0")
     val flaggedForReview: Boolean = false,
 
-    /** [Localized] [Localized] */
+    /** Context note Context note */
     val timestamp: Long = System.currentTimeMillis()
 )

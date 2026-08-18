@@ -5,18 +5,18 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * ReflexionLessonEntry — [Localized] [Localized] [Localized] [Localized] Agent [Localized] (Brain 2.0).
+ * ReflexionLessonEntry — Context note Context note Context note Context note Agent Context note (Brain 2.0).
  *
  * Mobile-first design:
- * - [Localized] ≤ 280 [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] system prompt [Localized] [Localized]
- * - [Localized] embedding 256 floats (≈ 1 KB) — hash-based[Localized] [Localized] [Localized] [Localized] [Localized]
- * - 2000 [Localized] [Localized] [Localized] ≈ 2 MB [Localized]
- * - LRU eviction [Localized] [Localized] [Localized] [Localized] [Localized]
+ * - Context note ≤ 280 Context note Context note Context note Context note Context note Context note system prompt Context note Context note
+ * - Context note embedding 256 floats (≈ 1 KB) — hash-basedContext note Context note Context note Context note Context note
+ * - 2000 Context note Context note Context note ≈ 2 MB Context note
+ * - LRU eviction Context note Context note Context note Context note Context note
  *
- * @property errorSignature MD5 (16 hex) [Localized] [Localized] [Localized] [Localized] [Localized]/[Localized]
- *           — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
- * @property successContext true [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]/[Localized] false [Localized] [Localized] [Localized]
- * @property quality [Localized] [Localized] 0..1 [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+ * @property errorSignature MD5 (16 hex) Context note Context note Context note Context note Context note/Context note
+ *           — Context note Context note Context note Context note Context note Context note Context note Context note
+ * @property successContext true Context note Context note Context note Context note Context note Context note/Context note false Context note Context note Context note
+ * @property quality Context note Context note 0..1 Context note Context note Context note Context note Context note Context note Context note Context note
  */
 @Entity(
     tableName = "reflexion_lessons",

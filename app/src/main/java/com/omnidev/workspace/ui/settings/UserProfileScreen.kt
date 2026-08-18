@@ -47,7 +47,7 @@ import kotlinx.coroutines.launch
  * User Profile screen — lets the user set their display name and a short persona bio.
  *
  * **Name** is used by the AI assistant for personalised greetings
- * (e.g. "[Localized] [Localized] [Localized] Ahmed[Localized] [Localized] [Localized] [Localized]").
+ * (e.g. "Context note Context note Context note AhmedContext note Context note Context note Context note").
  *
  * **Persona** is injected into the AI's system prompt so the model can tailor
  * advice, code style, and explanations to this specific person
@@ -89,12 +89,12 @@ fun UserProfileScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("[Localized] [Localized]") },
+                title = { Text("Info Info") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "[Localized]"
+                            contentDescription = "Info"
                         )
                     }
                 },
@@ -134,7 +134,7 @@ fun UserProfileScreen(
 
             // ── Subtitle ──
             Text(
-                text = "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]",
+                text = "Info Info Info Info Info Info Info Info Info Info",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 modifier = Modifier.fillMaxWidth()
@@ -145,11 +145,11 @@ fun UserProfileScreen(
                 value = name,
                 onValueChange = { name = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("[Localized]") },
-                placeholder = { Text("[Localized]: [Localized]") },
+                label = { Text("Info") },
+                placeholder = { Text("Info: Info") },
                 singleLine = true,
                 supportingText = {
-                    Text("[Localized] [Localized] [Localized] [Localized] [Localized] — '[Localized] [Localized] [Localized] ${name.ifBlank { "[Localized]" }}[Localized] [Localized] [Localized] [Localized]'")
+                    Text("Info Info Info Info Info — 'Info Info Info ${name.ifBlank { "Info" }}Info Info Info Info'")
                 }
             )
 
@@ -160,15 +160,15 @@ fun UserProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(160.dp),
-                label = { Text("[Localized] [Localized] ([Localized])") },
+                label = { Text("Info Info (Info)") },
                 placeholder = {
                     Text(
-                        "[Localized]: [Localized] Android [Localized] [Localized] Kotlin[Localized] [Localized] [Localized] [Localized]." +
-                        "\n[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]."
+                        "Info: Info Android Info Info KotlinInfo Info Info Info." +
+                        "\nInfo Info Info Info Info Info Info Info Info."
                     )
                 },
                 supportingText = {
-                    Text("[Localized] [Localized] [Localized] System Prompt [Localized] [Localized] AI [Localized] [Localized] [Localized]")
+                    Text("Info Info Info System Prompt Info Info AI Info Info Info")
                 }
             )
 
@@ -178,12 +178,12 @@ fun UserProfileScreen(
                     scope.launch {
                         settingsRepository.setUserName(name.trim().ifBlank { null })
                         settingsRepository.setUserPersona(persona.trim().ifBlank { null })
-                        snackbarHostState.showSnackbar("✅ [Localized] [Localized]!")
+                        snackbarHostState.showSnackbar("✅ Info Info!")
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("[Localized]")
+                Text("Info")
             }
 
             Spacer(Modifier.height(16.dp))

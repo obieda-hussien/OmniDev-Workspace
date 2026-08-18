@@ -15,27 +15,27 @@ import java.util.Calendar
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * ToolExecutionJournal — [Localized] [Localized] [Localized] [Localized]
+ * ToolExecutionJournal — Context note Context note Context note Context note
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * [Localized] [Localized] "[Localized] [Localized]" [Localized] Agent [Localized]. [Localized]:
- * - [Localized] [Localized] [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized] [Localized]
+ * Context note Context note "Context note Context note" Context note Agent Context note. Context note:
+ * - Context note Context note Context note Context note Context note
+ * - Context note Context note Context note Context note Context note
+ * - Context note Context note Context note
+ * - Context note Context note Context note Context note
  *
- * [Localized] [Localized]:
- * - Claude Code: [Localized] [Localized] [Localized] [Localized]
- * - GitHub Copilot Agent: [Localized] [Localized] [Localized] [Localized]
- * - Gemini Assistant: [Localized] [Localized] [Localized] [Localized] [Localized]
+ * Context note Context note:
+ * - Claude Code: Context note Context note Context note Context note
+ * - GitHub Copilot Agent: Context note Context note Context note Context note
+ * - Gemini Assistant: Context note Context note Context note Context note Context note
  *
- * [Localized]:
- * 1. [Localized] [Localized] [Localized] [Localized] [Localized] (SQLite)
- * 2. [Localized] [Localized] [Localized] [Localized] [Localized]
- * 3. [Localized] [Localized] [Localized] [Localized]
- * 4. [Localized] context enrichment [Localized] System Prompt
- * 5. [Localized] [Localized] [Localized] [Localized] [Localized]
- * 6. [Localized] [Localized] [Localized]
+ * Features:
+ * 1. Context note Context note Context note Context note Context note (SQLite)
+ * 2. Context note Context note Context note Context note Context note
+ * 3. Context note Context note Context note Context note
+ * 4. Context note context enrichment Context note System Prompt
+ * 5. Context note Context note Context note Context note Context note
+ * 6. Context note Context note Context note
  */
 class ToolExecutionJournal(
     private val dao: ToolExecutionDao,
@@ -49,7 +49,7 @@ class ToolExecutionJournal(
         private const val CLEANUP_THRESHOLD = 12_000
     }
 
-    // ─── [Localized] [Localized] ──────────────────────────────────────────────
+    // ─── Context note Context note ──────────────────────────────────────────────
 
     private var currentSessionId: String = generateSessionId()
     private var currentAgentMode: String = "ASSISTANT"
@@ -61,17 +61,17 @@ class ToolExecutionJournal(
         currentAgentMode = agentMode
         previousToolName = ""
         sessionToolCount = 0
-        Log.d(TAG, "📔 [Localized] [Localized]: $currentSessionId | [Localized]: $agentMode")
+        Log.d(TAG, "📔 Info Info: $currentSessionId | Info: $agentMode")
     }
 
     fun updateAgentMode(mode: String) {
         currentAgentMode = mode
     }
 
-    // ─── [Localized] [Localized] ───────────────────────────────────────────────
+    // ─── Context note Context note ───────────────────────────────────────────────
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note Context note Context note
      */
     suspend fun recordToolExecution(
         toolName: String,
@@ -84,10 +84,10 @@ class ToolExecutionJournal(
         val hourOfDay = calendar.get(Calendar.HOUR_OF_DAY)
         val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
 
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         val resultSummary = buildResultSummary(result)
 
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         val learningNote = generateLearningNote(
             toolName = toolName,
             success = !result.isError,
@@ -95,7 +95,7 @@ class ToolExecutionJournal(
             errorMessage = if (result.isError) result.output else ""
         )
 
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         val quality = estimateResultQuality(result, executionTimeMs)
 
         val entry = ToolExecutionEntry(
@@ -119,24 +119,24 @@ class ToolExecutionJournal(
 
         val id = dao.insert(entry)
 
-        // [Localized] [Localized] [Localized]
+        // Context note Context note Context note
         previousToolName = toolName
         sessionToolCount++
 
-        // [Localized] [Localized]
+        // Context note Context note
         if (sessionToolCount % 100 == 0) {
             scope.launch { cleanupOldEntries() }
         }
 
-        Log.d(TAG, "📝 [Localized]: $toolName | [Localized]: ${!result.isError} | [Localized]: ${executionTimeMs}ms")
+        Log.d(TAG, "📝 Info: $toolName | Info: ${!result.isError} | Info: ${executionTimeMs}ms")
         id
     }
 
-    // ─── [Localized] [Localized] ─────────────────────────────────────────────
+    // ─── Context note Context note ─────────────────────────────────────────────
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] System Prompt
-     * [Localized] [Localized] Agent [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note System Prompt
+     * Context note Context note Agent Context note Context note Context note Context note Context note
      */
     suspend fun buildMemoryContext(maxItems: Int = 8): String? = withContext(Dispatchers.IO) {
         val stats = dao.getToolStats()
@@ -148,30 +148,30 @@ class ToolExecutionJournal(
 
         buildString {
             appendLine("\n═══ 🧠 AGENT EXECUTION MEMORY ═══")
-            appendLine("📊 [Localized] [Localized]: $totalCount | [Localized]: $successCount (${if (totalCount > 0) (successCount * 100 / totalCount) else 0}%)")
+            appendLine("📊 Context note Context note: $totalCount | Context note: $successCount (${if (totalCount > 0) (successCount * 100 / totalCount) else 0}%)")
 
-            // [Localized] [Localized] [Localized]
+            // Context note Context note Context note
             val topTools = stats.take(5)
             if (topTools.isNotEmpty()) {
-                appendLine("\n🔧 [Localized] [Localized] [Localized]:")
+                appendLine("\n🔧 Info Info Info:")
                 topTools.forEach { s ->
                     val rate = if (s.total > 0) (s.successes * 100 / s.total) else 0
-                    appendLine("  • ${s.toolName}: ${s.total} [Localized] | [Localized]: $rate% | [Localized]: ${s.avgTime.toLong()}ms")
+                    appendLine("  • ${s.toolName}: ${s.total} Info | Info: $rate% | Info: ${s.avgTime.toLong()}ms")
                 }
             }
 
-            // [Localized] [Localized]
+            // Context note Context note
             if (recentFailures.isNotEmpty()) {
-                appendLine("\n⚠️ [Localized] [Localized] ([Localized] [Localized] [Localized]):")
+                appendLine("\n⚠️ Info Info (Info Info Info):")
                 recentFailures.take(3).forEach { f ->
                     appendLine("  ✗ ${f.toolName}: ${f.errorMessage.take(100)}")
                 }
             }
 
-            // [Localized] [Localized]
+            // Context note Context note
             val patterns = discoverSessionPatterns()
             if (patterns.isNotEmpty()) {
-                appendLine("\n🔗 [Localized] [Localized]:")
+                appendLine("\n🔗 Info Info:")
                 patterns.take(3).forEach { p -> appendLine("  → $p") }
             }
 
@@ -180,26 +180,26 @@ class ToolExecutionJournal(
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note
      */
     suspend fun getSessionContext(sessionId: String = currentSessionId): String = withContext(Dispatchers.IO) {
         val entries = dao.getBySession(sessionId)
         if (entries.isEmpty()) return@withContext ""
 
         buildString {
-            appendLine("📔 [Localized] [Localized] [Localized] (${entries.size} [Localized]):")
+            appendLine("📔 Info Info Info (${entries.size} Info):")
             entries.takeLast(10).forEach { e ->
                 val status = if (e.success) "✅" else "❌"
                 appendLine("  $status ${e.toolName} (${e.executionTimeMs}ms)")
                 if (!e.success && e.errorMessage.isNotBlank()) {
-                    appendLine("     [Localized]: ${e.errorMessage.take(80)}")
+                    appendLine("     Info: ${e.errorMessage.take(80)}")
                 }
             }
         }
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note Context note
      */
     suspend fun getToolHistory(toolName: String): ToolHistoryReport = withContext(Dispatchers.IO) {
         val entries = dao.getByTool(toolName, limit = 20)
@@ -233,16 +233,16 @@ class ToolExecutionJournal(
         )
     }
 
-    // ─── [Localized] [Localized] ───────────────────────────────────────────
+    // ─── Context note Context note ───────────────────────────────────────────
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note
      */
     private suspend fun discoverSessionPatterns(): List<String> = withContext(Dispatchers.IO) {
         val recent = dao.getRecent(50)
         val patterns = mutableListOf<String>()
 
-        // [Localized] 1: [Localized] [Localized]
+        // Context note 1: Context note Context note
         if (recent.size >= 4) {
             val sequences = mutableMapOf<String, Int>()
             val safeSize = recent.size
@@ -251,11 +251,11 @@ class ToolExecutionJournal(
                 sequences[seq] = (sequences[seq] ?: 0) + 1
             }
             sequences.filter { it.value >= 2 }.forEach { (seq, count) ->
-                patterns.add("[Localized] [Localized] ($count [Localized]): $seq")
+                patterns.add("Info Info ($count Info): $seq")
             }
         }
 
-        // [Localized] 2: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note 2: Context note Context note Context note Context note Context note Context note
         val sessionEntries = dao.getBySession(currentSessionId)
         val toolFailRates = sessionEntries.groupBy { it.toolName }.mapValues { (_, entries) ->
             val failCount = entries.count { !it.success }
@@ -263,14 +263,14 @@ class ToolExecutionJournal(
         }
         toolFailRates.filter { it.value > 0.5f && toolFailRates[it.key]?.let { r -> r > 0 } == true }
             .forEach { (tool, rate) ->
-                patterns.add("⚠️ ${tool} [Localized] [Localized]: ${(rate * 100).toInt()}% [Localized] [Localized] [Localized]")
+                patterns.add("⚠️ ${tool} Context note Context note: ${(rate * 100).toInt()}% Context note Context note Context note")
             }
 
         patterns
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note Context note
      */
     suspend fun analyzeAllTools(): ToolPerformanceSummary = withContext(Dispatchers.IO) {
         val stats = dao.getToolStats()
@@ -299,7 +299,7 @@ class ToolExecutionJournal(
         )
     }
 
-    // ─── [Localized] [Localized] ─────────────────────────────────────────────
+    // ─── Context note Context note ─────────────────────────────────────────────
 
     private fun buildResultSummary(result: ToolExecutionResult): String {
         return if (result.isError) {
@@ -317,19 +317,19 @@ class ToolExecutionJournal(
     ): String {
         return when {
             !success && errorMessage.contains("permission", ignoreCase = true) ->
-                "⚠️ [Localized] [Localized] [Localized] [Localized] $toolName"
+                "⚠️ Info Info Info Info $toolName"
             !success && errorMessage.contains("timeout", ignoreCase = true) ->
-                "⏱️ $toolName [Localized] [Localized] [Localized] - [Localized] [Localized] [Localized]"
+                "⏱️ $toolName Info Info Info - Info Info Info"
             !success && errorMessage.contains("not found", ignoreCase = true) ->
-                "🔍 $toolName: [Localized] [Localized] [Localized] - [Localized] [Localized] [Localized]"
+                "🔍 $toolName: Info Info Info - Info Info Info"
             !success && errorMessage.contains("network", ignoreCase = true) ->
-                "🌐 $toolName: [Localized] [Localized] - [Localized] [Localized]"
+                "🌐 $toolName: Info Info - Info Info"
             !success ->
-                "❌ [Localized] [Localized] $toolName - ${errorMessage.take(100)}"
+                "❌ Info Info $toolName - ${errorMessage.take(100)}"
             executionTimeMs > 10_000 ->
-                "⚡ $toolName [Localized] (${executionTimeMs}ms) - [Localized] [Localized] [Localized] [Localized]"
+                "⚡ $toolName Info (${executionTimeMs}ms) - Info Info Info Info"
             success && executionTimeMs < 500 ->
-                "✅ $toolName [Localized] [Localized] (${executionTimeMs}ms)"
+                "✅ $toolName Info Info (${executionTimeMs}ms)"
             else -> ""
         }
     }
@@ -373,7 +373,7 @@ class ToolExecutionJournal(
         val total = dao.getTotalCount()
         if (total > CLEANUP_THRESHOLD) {
             dao.keepOnlyLatest(MAX_ENTRIES_TO_KEEP)
-            Log.d(TAG, "🧹 [Localized]: [Localized] ${total - MAX_ENTRIES_TO_KEEP} [Localized] [Localized]")
+            Log.d(TAG, "🧹 Info: Info ${total - MAX_ENTRIES_TO_KEEP} Info Info")
         }
     }
 
@@ -381,7 +381,7 @@ class ToolExecutionJournal(
         return "S${System.currentTimeMillis()}"
     }
 
-    // ─── Flow [Localized] ─────────────────────────────────────────────────
+    // ─── Flow Context note ─────────────────────────────────────────────────
 
     fun observeRecentExecutions(): Flow<List<ToolExecutionEntry>> = dao.observeRecent()
 

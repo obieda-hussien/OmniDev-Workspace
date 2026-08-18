@@ -10,14 +10,14 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.exp
 
 /**
- * ToolIntelligenceEngine - [Localized] [Localized] [Localized] [Localized]
+ * ToolIntelligenceEngine - Context note Context note Context note Context note
  * 
- * [Localized]:
- * 1. [Localized] [Localized] [Localized] [Localized] (Reinforcement Learning)
- * 2. [Localized] [Localized] [Localized]
- * 3. [Localized] [Localized] [Localized]
- * 4. [Localized] [Localized]
- * 5. [Localized] [Localized] [Localized] [Localized]
+ * Context note:
+ * 1. Context note Context note Context note Context note (Reinforcement Learning)
+ * 2. Context note Context note Context note
+ * 3. Context note Context note Context note
+ * 4. Context note Context note
+ * 5. Context note Context note Context note Context note
  */
 class ToolIntelligenceEngine(
     private val context: Context,
@@ -100,7 +100,7 @@ class ToolIntelligenceEngine(
     // ═══════════════════════════════════════════════════════════════
     
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note
      */
     internal fun predictBestTool(
         taskDescription: String,
@@ -112,10 +112,10 @@ class ToolIntelligenceEngine(
         }
         
         val bestTool = if (shouldExplore()) {
-            // Exploration: [Localized] [Localized] [Localized] [Localized]
+            // Exploration: Context note Context note Context note Context note
             availableTools.random()
         } else {
-            // Exploitation: [Localized] [Localized] [Localized] [Localized]
+            // Exploitation: Context note Context note Context note Context note
             scores.maxByOrNull { it.value }?.key ?: availableTools.first()
         }
         
@@ -135,7 +135,7 @@ class ToolIntelligenceEngine(
     }
     
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note Context note Context note
      */
     private fun calculateToolScore(
         toolName: String,
@@ -152,13 +152,13 @@ class ToolIntelligenceEngine(
             state.successCount.toDouble() / state.executionCount
         } else 0.5
         
-        // Recency score ([Localized] [Localized] [Localized])
+        // Recency score (Context note Context note Context note)
         val recencyScore = if (state.lastUsed > 0) {
             val hoursSinceUse = (System.currentTimeMillis() - state.lastUsed) / 3600000.0
-            exp(-hoursSinceUse / 24.0) // [Localized] [Localized] 24 [Localized]
+            exp(-hoursSinceUse / 24.0) // Context note Context note 24 Context note
         } else 0.0
         
-        // Performance score ([Localized] [Localized])
+        // Performance score (Context note Context note)
         val performanceScore = if (state.avgExecutionTime > 0) {
             1.0 - (state.avgExecutionTime.toDouble() / SLOW_THRESHOLD_MS).coerceIn(0.0, 1.0)
         } else 0.5
@@ -180,7 +180,7 @@ class ToolIntelligenceEngine(
     }
     
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note Context note
      */
     internal suspend fun recordExecution(
         toolName: String,
@@ -246,7 +246,7 @@ class ToolIntelligenceEngine(
     }
     
     /**
-     * [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note
      */
     private fun calculateReward(
         success: Boolean,
@@ -281,7 +281,7 @@ class ToolIntelligenceEngine(
     // ═══════════════════════════════════════════════════════════════
     
     /**
-     * [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note
      */
     private fun detectPatterns() {
         if (executionHistory.size < PATTERN_WINDOW_SIZE) return
@@ -317,12 +317,12 @@ class ToolIntelligenceEngine(
         // Clean old patterns
         val now = System.currentTimeMillis()
         detectedPatterns.entries.removeIf { 
-            (now - it.value.lastSeen) > 7 * 24 * 3600000L // [Localized]
+            (now - it.value.lastSeen) > 7 * 24 * 3600000L // Context note
         }
     }
     
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note Context note Context note Context note
      */
     private fun calculatePatternScore(
         toolName: String,
@@ -345,7 +345,7 @@ class ToolIntelligenceEngine(
     // ═══════════════════════════════════════════════════════════════
     
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note
      */
     fun analyzePerformance(): PerformanceReport {
         val recentExecutions = executionHistory.takeLast(PERFORMANCE_WINDOW)
@@ -393,17 +393,17 @@ class ToolIntelligenceEngine(
         val score = scores[tool] ?: 0.0
         
         return buildString {
-            appendLine("🎯 [Localized] [Localized]: $tool")
-            appendLine("📊 [Localized] [Localized]: ${(score * 100).toInt()}%")
+            appendLine("🎯 Info Info: $tool")
+            appendLine("📊 Context note Context note: ${(score * 100).toInt()}%")
             
             state?.let {
                 if (it.executionCount > 0) {
                     val successRate = (it.successCount.toDouble() / it.executionCount * 100).toInt()
-                    appendLine("✅ [Localized] [Localized]: $successRate% (${it.successCount}/${it.executionCount})")
+                    appendLine("✅ Info Info: $successRate% (${it.successCount}/${it.executionCount})")
                 }
                 
                 if (it.avgExecutionTime > 0) {
-                    appendLine("⚡ [Localized] [Localized] [Localized]: ${it.avgExecutionTime}ms")
+                    appendLine("⚡ Info Info Info: ${it.avgExecutionTime}ms")
                 }
             }
             
@@ -412,11 +412,11 @@ class ToolIntelligenceEngine(
                 it.sequence.getOrNull(it.sequence.size - 2) == context.previousTool
             }
             pattern?.let {
-                appendLine("🔗 [Localized] [Localized] [Localized] [Localized] (${it.frequency} [Localized])")
+                appendLine("🔗 Info Info Info Info (${it.frequency} Info)")
             }
             
             if (shouldExplore() && scores[tool] != scores.maxByOrNull { it.value }?.value) {
-                appendLine("🔍 [Localized] [Localized] - [Localized] [Localized] [Localized]")
+                appendLine("🔍 Info Info - Info Info Info")
             }
         }
     }
@@ -490,7 +490,7 @@ class ToolIntelligenceEngine(
     )
     
     /**
-     * [Localized] [Localized] [Localized]
+     * Context note Context note Context note
      */
     suspend fun persist() = withContext(Dispatchers.IO) {
         try {
@@ -535,7 +535,7 @@ class ToolIntelligenceEngine(
     }
     
     /**
-     * [Localized] [Localized]
+     * Context note Context note
      */
     suspend fun restore() = withContext(Dispatchers.IO) {
         try {

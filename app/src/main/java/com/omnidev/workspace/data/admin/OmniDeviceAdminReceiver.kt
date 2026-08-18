@@ -18,30 +18,30 @@ import java.util.Locale
 import java.util.concurrent.ConcurrentLinkedDeque
 
 /**
- * OmniDeviceAdminReceiver — [Localized] [Localized] [Localized]
+ * OmniDeviceAdminReceiver — Context note Context note Context note
  *
- * [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized]
+ * Context note Context note: Context note Context note Context note Context note
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. **[Localized] [Localized] [Localized] (Dynamic Threat Scoring)**:
- *    [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
- *    [Localized] [Localized] [Localized] [Localized] → [Localized] [Localized] [Localized] [Localized].
+ * 1. **Context note Context note Context note (Dynamic Threat Scoring)**:
+ *    Context note Context note Context note Context note Context note Context note Context note Context note.
+ *    Context note Context note Context note Context note → Context note Context note Context note Context note.
  *
- * 2. **[Localized] [Localized] [Localized] (Audit Log)**:
- *    [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized] [Localized] [Localized])
- *    [Localized] [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized].
+ * 2. **Context note Context note Context note (Audit Log)**:
+ *    Context note Context note Context note (Context note Context note Context note Context note Context note Context note)
+ *    Context note Context note Context note Context note — Context note Context note Context note Context note.
  *
- * 3. **[Localized] [Localized] [Localized] (Auto-Response Policies)**:
- *    - 3 [Localized] [Localized] → [Localized] [Localized]
- *    - 10 [Localized] [Localized] → [Localized] [Localized] [Localized]
- *    - 15 [Localized] [Localized] → [Localized] [Localized] [Localized] [Localized]
+ * 3. **Context note Context note Context note (Auto-Response Policies)**:
+ *    - 3 Context note Context note → Context note Context note
+ *    - 10 Context note Context note → Context note Context note Context note
+ *    - 15 Context note Context note → Context note Context note Context note Context note
  *
- * 4. **[Localized] [Localized] [Localized] (Device Health Monitoring)**:
- *    [Localized]: [Localized] Admin [Localized]/[Localized] Device Owner[Localized] [Localized] [Localized]/[Localized].
+ * 4. **Context note Context note Context note (Device Health Monitoring)**:
+ *    Context note: Context note Admin Context note/Context note Device OwnerContext note Context note Context note/Context note.
  *
- * 5. **[Localized] [Localized] (Extended Actions)**:
- *    - setPasswordExpiry: [Localized] [Localized] [Localized] [Localized]
- *    - setKeyguardFeatures: [Localized] [Localized] [Localized]
- *    - enableNetworkLogging: [Localized] [Localized] [Localized] (Device Owner [Localized])
+ * 5. **Context note Context note (Extended Actions)**:
+ *    - setPasswordExpiry: Context note Context note Context note Context note
+ *    - setKeyguardFeatures: Context note Context note Context note
+ *    - enableNetworkLogging: Context note Context note Context note (Device Owner Context note)
  */
 class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
 
@@ -50,10 +50,10 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         private const val MAX_AUDIT_LOG_SIZE = 200
         private const val THREAT_SCORE_PER_FAILURE = 10
 
-        // [Localized] [Localized]
-        private const val THREAT_LOCK_THRESHOLD = 30    // 3 [Localized] → [Localized]
-        private const val THREAT_CAMERA_THRESHOLD = 100 // 10 [Localized] → [Localized] [Localized]
-        private const val THREAT_ALERT_THRESHOLD = 150  // 15 [Localized] → [Localized] [Localized]
+        // Context note Context note
+        private const val THREAT_LOCK_THRESHOLD = 30    // 3 Context note → Context note
+        private const val THREAT_CAMERA_THRESHOLD = 100 // 10 Context note → Context note Context note
+        private const val THREAT_ALERT_THRESHOLD = 150  // 15 Context note → Context note Context note
 
         // ── State ────────────────────────────────────────────────────────────
         private val _deviceAdminState = MutableStateFlow(DeviceAdminState())
@@ -62,7 +62,7 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         private val _threatScore = MutableStateFlow(0)
         val threatScore: StateFlow<Int> = _threatScore.asStateFlow()
 
-        /** [Localized] [Localized]: [Localized] MAX_AUDIT_LOG_SIZE [Localized] */
+        /** Context note Context note: Context note MAX_AUDIT_LOG_SIZE Context note */
         private val auditLog = ConcurrentLinkedDeque<AuditEntry>()
 
         // ── Core Helpers ──────────────────────────────────────────────────────
@@ -83,29 +83,29 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
                 putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, getComponentName(context))
                 putExtra(
                     DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                    explanation ?: "OmniDev [Localized] Device Admin [Localized] [Localized] [Localized] [Localized]."
+                    explanation ?: "OmniDev Info Device Admin Info Info Info Info."
                 )
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             try { context.startActivity(intent) }
-            catch (e: Exception) { Log.e(TAG, "[Localized] [Localized] Device Admin activation", e) }
+            catch (e: Exception) { Log.e(TAG, "Info Info Device Admin activation", e) }
         }
 
         // ── Security Actions ──────────────────────────────────────────────────
 
         /**
-         * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+         * Context note Context note Context note Context note Context note Context note.
          */
         fun lockScreen(context: Context, reason: String = "Agent command"): Boolean {
             val dpm = getDpm(context) ?: return false
             if (!dpm.isAdminActive(getComponentName(context))) {
-                Log.w(TAG, "[Localized] [Localized]: Admin [Localized] [Localized]")
+                Log.w(TAG, "Info Info: Admin Info Info")
                 return false
             }
             return try {
                 dpm.lockNow()
                 addAuditEntry(AuditEntry("LOCK_SCREEN", reason, success = true))
-                Log.i(TAG, "✅ [Localized] [Localized]: $reason")
+                Log.i(TAG, "✅ Info Info: $reason")
                 true
             } catch (e: Exception) {
                 addAuditEntry(AuditEntry("LOCK_SCREEN", reason, success = false, error = e.message))
@@ -114,7 +114,7 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         }
 
         /**
-         * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+         * Context note Context note Context note Context note Context note Context note.
          */
         fun setCameraDisabled(context: Context, disabled: Boolean, reason: String = "Agent policy"): Boolean {
             val dpm = getDpm(context) ?: return false
@@ -125,7 +125,7 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
                     if (disabled) "CAMERA_DISABLED" else "CAMERA_ENABLED", reason, success = true
                 ))
                 updateDeviceState(context)
-                Log.i(TAG, "${if (disabled) "[Localized]" else "[Localized]"} [Localized]: $reason")
+                Log.i(TAG, "${if (disabled) "Info" else "Info"} Info: $reason")
                 true
             } catch (e: Exception) {
                 addAuditEntry(AuditEntry("CAMERA_STATE_CHANGE", reason, success = false, error = e.message))
@@ -134,8 +134,8 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         }
 
         /**
-         * [[Localized]] [Localized] [Localized] [Localized] [Localized] [Localized].
-         * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] X [Localized].
+         * [Context note] Context note Context note Context note Context note Context note.
+         * Context note Context note Context note Context note Context note Context note Context note X Context note.
          */
         fun setPasswordExpiry(context: Context, daysFromNow: Int): Boolean {
             if (!isDeviceOwner(context)) return false
@@ -145,14 +145,14 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
                     val expiryMs = System.currentTimeMillis() + daysFromNow * 24 * 60 * 60 * 1000L
                     @Suppress("DEPRECATION")
                     dpm.setPasswordExpirationTimeout(getComponentName(context), expiryMs)
-                    addAuditEntry(AuditEntry("SET_PASSWORD_EXPIRY", "[Localized] [Localized] $daysFromNow [Localized]", success = true))
+                    addAuditEntry(AuditEntry("SET_PASSWORD_EXPIRY", "Info Info $daysFromNow Info", success = true))
                     true
                 } else false
             } catch (e: Exception) { false }
         }
 
         /**
-         * [[Localized]] [Localized] [Localized] [Localized] [Localized] (Keyguard Features).
+         * [Context note] Context note Context note Context note Context note (Keyguard Features).
          */
         fun setKeyguardFeatures(context: Context, features: Int): Boolean {
             val dpm = getDpm(context) ?: return false
@@ -165,7 +165,7 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         }
 
         /**
-         * [[Localized]] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+         * [Context note] Context note Context note Context notelowest Context note Context note Context note Context note Context note Context note Context note.
          */
         @Suppress("DEPRECATION")
         fun setMinPasswordLength(context: Context, minLength: Int): Boolean {
@@ -177,7 +177,7 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
                     addAuditEntry(AuditEntry("SET_MIN_PASSWORD", "min=$minLength", success = true))
                     true
                 } else {
-                    Log.w(TAG, "Device Owner [Localized] [Localized] setPasswordMinimumLength [Localized] Android 11+")
+                    Log.w(TAG, "Device Owner Info Info setPasswordMinimumLength Info Android 11+")
                     false
                 }
             } catch (e: Exception) { false }
@@ -194,8 +194,8 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         }
 
         /**
-         * ⚠️ [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] (Factory Reset).
-         * [Localized] [Localized] [Localized].
+         * ⚠️ Context note Context note: Context note Context note Context note Context note (Factory Reset).
+         * Context note Context note Context note.
          */
         fun wipeDeviceData(context: Context, confirmationToken: String): Boolean {
             // ─── TIER POLICY GUARD ───────────────────────────────────────────
@@ -209,7 +209,7 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
                 addAuditEntry(
                     AuditEntry(
                         "WIPE_REJECTED",
-                        "[Localized] [Localized] [Localized] [Localized] [Localized] (tier=${policy.tier})",
+                        "Info Info Info Info Info (tier=${policy.tier})",
                         success = false
                     )
                 )
@@ -218,19 +218,19 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
             // ────────────────────────────────────────────────────────────────
 
             if (confirmationToken != "CONFIRMED_WIPE_ALL_DATA") {
-                Log.e(TAG, "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]!")
-                addAuditEntry(AuditEntry("WIPE_REJECTED", "[Localized] [Localized] [Localized]", success = false))
+                Log.e(TAG, "Info Info Info Info Info Info Info!")
+                addAuditEntry(AuditEntry("WIPE_REJECTED", "Info Info Info", success = false))
                 return false
             }
             val dpm = getDpm(context) ?: return false
             if (!dpm.isAdminActive(getComponentName(context))) return false
             return try {
-                addAuditEntry(AuditEntry("DEVICE_WIPE", "[Localized] [Localized] [Localized] [Localized]", success = true))
-                Log.e(TAG, "⚠️ [Localized] [Localized] [Localized] [Localized]!")
+                addAuditEntry(AuditEntry("DEVICE_WIPE", "Info Info Info Info", success = true))
+                Log.e(TAG, "⚠️ Info Info Info Info!")
                 dpm.wipeData(0)
                 true
             } catch (e: Exception) {
-                addAuditEntry(AuditEntry("DEVICE_WIPE", "[Localized]", success = false, error = e.message))
+                addAuditEntry(AuditEntry("DEVICE_WIPE", "Info", success = false, error = e.message))
                 false
             }
         }
@@ -238,13 +238,13 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         // ── Audit & Threat System ─────────────────────────────────────────────
 
         /**
-         * [Localized] [Localized] [Localized] [Localized] [Localized].
+         * Context note Context note Context note Context note Context note.
          */
         fun getAuditLog(limit: Int = 50): String = buildString {
-            append("📋 [Localized] [Localized] Device Admin ([Localized] $limit):\n")
+            append("📋 Info Info Device Admin (Info $limit):\n")
             append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
             val entries = auditLog.toList().takeLast(limit)
-            if (entries.isEmpty()) { append("([Localized])"); return@buildString }
+            if (entries.isEmpty()) { append("(Info)"); return@buildString }
             entries.reversed().forEach { entry ->
                 val status = if (entry.success) "✅" else "❌"
                 append("$status [${entry.formattedTime}] ${entry.action}: ${entry.reason}\n")
@@ -253,20 +253,20 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         }
 
         /**
-         * [Localized] [Localized] [Localized] [Localized].
+         * Context note Context note Context note Context note.
          */
         fun getSecurityReport(context: Context): String = buildString {
             val state = _deviceAdminState.value
             val score = _threatScore.value
 
-            append("🔐 [Localized] [Localized] [Localized]\n")
+            append("🔐 Info Info Info\n")
             append("━━━━━━━━━━━━━━━━━━━━━\n")
-            append("Device Admin [Localized]: ${isAdminActive(context)}\n")
+            append("Device Admin Info: ${isAdminActive(context)}\n")
             append("Device Owner: ${isDeviceOwner(context)}\n")
-            append("[Localized] [Localized]: ${state.isCameraDisabled}\n")
-            append("[Localized] [Localized]: $score\n")
-            append("[Localized] [Localized]: ${getThreatLevel(score).name}\n")
-            append("[Localized] [Localized] [Localized]: ${state.failedPasswordAttempts}\n")
+            append("Info Info: ${state.isCameraDisabled}\n")
+            append("Info Info: $score\n")
+            append("Info Info: ${getThreatLevel(score).name}\n")
+            append("Info Info Info: ${state.failedPasswordAttempts}\n")
             append("\n")
             append(getAuditLog(10))
         }
@@ -306,26 +306,26 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
     override fun onEnabled(context: Context, intent: Intent) {
         super.onEnabled(context, intent)
         updateDeviceState(context)
-        addAuditEntry(AuditEntry("ADMIN_ENABLED", "[Localized] [Localized] [Localized]", success = true))
-        Toast.makeText(context, "✅ OmniDev Device Admin [Localized]", Toast.LENGTH_SHORT).show()
-        Log.i(TAG, "✅ Device Admin [Localized] [Localized]")
+        addAuditEntry(AuditEntry("ADMIN_ENABLED", "Info Info Info", success = true))
+        Toast.makeText(context, "✅ OmniDev Device Admin Info", Toast.LENGTH_SHORT).show()
+        Log.i(TAG, "✅ Device Admin Info Info")
     }
 
     override fun onDisabled(context: Context, intent: Intent) {
         super.onDisabled(context, intent)
-        addAuditEntry(AuditEntry("ADMIN_DISABLED", "[Localized] [Localized] [Localized] [Localized]", success = true))
+        addAuditEntry(AuditEntry("ADMIN_DISABLED", "Info Info Info Info", success = true))
         _deviceAdminState.value = DeviceAdminState()
-        Toast.makeText(context, "⚠️ OmniDev Device Admin [Localized]", Toast.LENGTH_SHORT).show()
-        Log.w(TAG, "Device Admin [Localized] [Localized] [Localized]")
+        Toast.makeText(context, "⚠️ OmniDev Device Admin Info", Toast.LENGTH_SHORT).show()
+        Log.w(TAG, "Device Admin Info Info Info")
     }
 
     override fun onPasswordChanged(context: Context, intent: Intent, user: android.os.UserHandle) {
         super.onPasswordChanged(context, intent, user)
-        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note Context note Context note Context note
         _threatScore.value = 0
         _deviceAdminState.value = _deviceAdminState.value.copy(failedPasswordAttempts = 0)
-        addAuditEntry(AuditEntry("PASSWORD_CHANGED", "[Localized] [Localized] [Localized] [Localized] [Localized]", success = true))
-        Log.d(TAG, "[Localized] [Localized] [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized]")
+        addAuditEntry(AuditEntry("PASSWORD_CHANGED", "Info Info Info Info Info", success = true))
+        Log.d(TAG, "Info Info Info Info Info — Info Info Info")
     }
 
     override fun onPasswordFailed(context: Context, intent: Intent, user: android.os.UserHandle) {
@@ -336,26 +336,26 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         val attempts = _deviceAdminState.value.failedPasswordAttempts + 1
         _deviceAdminState.value = _deviceAdminState.value.copy(failedPasswordAttempts = attempts)
 
-        Log.w(TAG, "⚠️ [Localized] [Localized] [Localized] #$attempts | [Localized] [Localized]: $newScore")
-        addAuditEntry(AuditEntry("PASSWORD_FAILED", "[Localized] #$attempts", success = false))
+        Log.w(TAG, "⚠️ Info Info Info #$attempts | Info Info: $newScore")
+        addAuditEntry(AuditEntry("PASSWORD_FAILED", "Info #$attempts", success = false))
 
-        // [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note
         when {
             newScore >= THREAT_ALERT_THRESHOLD -> {
-                // [Localized] [Localized]: [Localized] + [Localized] [Localized] + [Localized]
-                lockScreen(context, "[Localized] [Localized]: $attempts [Localized] [Localized]")
-                setCameraDisabled(context, true, "[Localized] [Localized] [Localized]")
+                // Context note Context note: Context note + Context note Context note + Context note
+                lockScreen(context, "Info Info: $attempts Info Info")
+                setCameraDisabled(context, true, "Info Info Info")
                 addAuditEntry(AuditEntry("AUTO_RESPONSE_CRITICAL",
-                    "[Localized] + [Localized] [Localized] [Localized] $attempts [Localized]", success = true))
+                    "Info + Info Info Info $attempts Info", success = true))
             }
             newScore >= THREAT_CAMERA_THRESHOLD -> {
-                // [Localized] [Localized]: [Localized] + [Localized]
-                lockScreen(context, "[Localized] [Localized]: $attempts [Localized] [Localized]")
-                setCameraDisabled(context, true, "[Localized] [Localized] [Localized]")
+                // Context note Context note: Context note + Context note
+                lockScreen(context, "Info Info: $attempts Info Info")
+                setCameraDisabled(context, true, "Info Info Info")
             }
             newScore >= THREAT_LOCK_THRESHOLD -> {
-                // [Localized] [Localized]: [Localized] [Localized]
-                lockScreen(context, "[Localized] [Localized]: $attempts [Localized] [Localized]")
+                // Context note Context note: Context note Context note
+                lockScreen(context, "Info Info: $attempts Info Info")
             }
         }
     }
@@ -364,8 +364,8 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         super.onPasswordSucceeded(context, intent, user)
         _threatScore.value = 0
         _deviceAdminState.value = _deviceAdminState.value.copy(failedPasswordAttempts = 0)
-        addAuditEntry(AuditEntry("PASSWORD_SUCCESS", "[Localized] [Localized] — [Localized] [Localized]", success = true))
-        Log.i(TAG, "✅ [Localized] [Localized] — [Localized] [Localized] [Localized]")
+        addAuditEntry(AuditEntry("PASSWORD_SUCCESS", "Info Info — Info Info", success = true))
+        Log.i(TAG, "✅ Info Info — Info Info Info")
     }
 
     // ── Data Classes ──────────────────────────────────────────────────────────

@@ -16,20 +16,20 @@ import java.io.File
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * ToolAwarenessEngine — [Localized] [Localized] [Localized] [Localized]
+ * ToolAwarenessEngine — Tool and System Awareness Engine
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * [Localized] [Localized] [Localized] [Localized] [Localized]:
- * 1. [Localized] [Localized] [Localized] [Localized]
- * 2. [Localized] [Localized] [Localized] (Android, Termux, Shizuku, etc.)
- * 3. [Localized] [Localized] [Localized]
- * 4. [Localized] [Localized] [Localized] [Localized]
- * 5. [Localized] [Localized] [Localized]
+ * Builds deep, continuous awareness about:
+ * 1. Available tools, capabilities, and requirements
+ * 2. System state and environment (Android, Termux, Shizuku, etc.)
+ * 3. Dependencies between tools
+ * 4. Limitations and boundaries for each tool
+ * 5. Best usage strategies
  *
- * [Localized] [Localized] [Localized] Claude Code [Localized]:
- * - [Localized] [Localized] [Localized] [Localized]
- * - [Localized] [Localized] [Localized] [Localized] [Localized]
- * - [Localized] context enrichment [Localized]
+ * Inspired by Claude Code approach to:
+ * - Understanding environment before execution
+ * - Updating knowledge based on experience
+ * - Providing smart context enrichment
  */
 class ToolAwarenessEngine(
     private val context: Context,
@@ -40,7 +40,7 @@ class ToolAwarenessEngine(
     companion object {
         private const val TAG = "ToolAwareness"
 
-        // [Localized] [Localized]
+        // Knowledge types
         const val TYPE_TOOL_CAPABILITY = "TOOL_CAPABILITY"
         const val TYPE_TOOL_REQUIREMENT = "TOOL_REQUIREMENT"
         const val TYPE_TOOL_LIMITATION = "TOOL_LIMITATION"
@@ -53,43 +53,43 @@ class ToolAwarenessEngine(
         const val TYPE_ENVIRONMENT = "ENVIRONMENT"
     }
 
-    // ─── [Localized] [Localized] ───────────────────────────────────────────────
+    // ─── Context note Context note ───────────────────────────────────────────────
 
     private val runtimeEnvironmentCache = mutableMapOf<String, String>()
     private var isInitialized = false
 
-    // ─── [Localized] [Localized] ───────────────────────────────────────────────
+    // ─── Context note Context note ───────────────────────────────────────────────
 
     /**
-     * [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note: Context note Context note Context note Context note Context note
      */
     suspend fun initialize(availableTools: List<ToolDefinition> = emptyList()) = withContext(Dispatchers.IO) {
         if (isInitialized) return@withContext
         
-        Log.d(TAG, "🔍 [Localized] [Localized] [Localized] [Localized]...")
+        Log.d(TAG, "🔍 Info Info Info Info...")
 
-        // 1. [Localized] [Localized] [Localized]
+        // 1. Context note Context note Context note
         discoverSystemEnvironment()
 
-        // 2. [Localized] [Localized] [Localized]
+        // 2. Context note Context note Context note
         if (availableTools.isNotEmpty()) {
             registerToolCapabilities(availableTools)
         }
 
-        // 3. [Localized] [Localized] [Localized]
+        // 3. Context note Context note Context note
         discoverDeviceCapabilities()
 
-        // 4. [Localized] [Localized] [Localized]
+        // 4. Context note Context note Context note
         discoverRuntimeEnvironments()
 
-        // 5. [Localized] [Localized] [Localized] [Localized]
+        // 5. Context note Context note Context note Context note
         registerInitialBestPractices()
 
         isInitialized = true
-        Log.d(TAG, "✅ [Localized] [Localized] [Localized] - ${systemKnowledgeDao.getCount()} [Localized] [Localized]")
+        Log.d(TAG, "✅ System discovery completed - ${systemKnowledgeDao.getCount()} Knowledge saved")
     }
 
-    // ─── [Localized] [Localized] ───────────────────────────────────────────────
+    // ─── Context note Context note ───────────────────────────────────────────────
 
     private suspend fun discoverSystemEnvironment() {
         val deviceInfo = buildString {
@@ -107,22 +107,22 @@ class ToolAwarenessEngine(
             tags = "android,device,sdk,system"
         )
 
-        // [Localized] Android API
+        // Context note Android API
         val apiLevel = Build.VERSION.SDK_INT
         when {
             apiLevel >= 33 -> saveOrUpdateKnowledge(
                 type = TYPE_SYSTEM_INFO, subject = "android_api",
-                content = "Android 13+ (API $apiLevel): [Localized] [Localized]. MediaStore [Localized] Scoped Storage [Localized].",
+                content = "Android 13+ (API $apiLevel): Info Info. MediaStore Info Scoped Storage Info.",
                 priority = 2
             )
             apiLevel >= 30 -> saveOrUpdateKnowledge(
                 type = TYPE_SYSTEM_INFO, subject = "android_api",
-                content = "Android 11+ (API $apiLevel): Scoped Storage. [Localized] [Localized] [Localized] [Localized] MANAGE_EXTERNAL_STORAGE.",
+                content = "Android 11+ (API $apiLevel): Scoped Storage. Info Info Info Info MANAGE_EXTERNAL_STORAGE.",
                 priority = 2
             )
             apiLevel >= 26 -> saveOrUpdateKnowledge(
                 type = TYPE_SYSTEM_INFO, subject = "android_api",
-                content = "Android 8+ (API $apiLevel): JobScheduler [Localized]. Background Limits [Localized].",
+                content = "Android 8+ (API $apiLevel): JobScheduler Info. Background Limits Info.",
                 priority = 3
             )
         }
@@ -131,36 +131,36 @@ class ToolAwarenessEngine(
     private suspend fun discoverDeviceCapabilities() {
         val pm = context.packageManager
 
-        // [Localized] [Localized]
+        // Context note Context note
         val hasCamera = pm.hasSystemFeature("android.hardware.camera")
         if (hasCamera) {
-            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "camera", "[Localized] [Localized] [Localized]", priority = 8)
+            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "camera", "Info Info Info", priority = 8)
         }
 
-        // [Localized] [Localized]
+        // Context note Context note
         val hasBluetooth = pm.hasSystemFeature("android.hardware.bluetooth")
         if (hasBluetooth) {
-            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "bluetooth", "[Localized] [Localized] [Localized]", priority = 8)
+            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "bluetooth", "Info Info Info", priority = 8)
         }
 
-        // [Localized] [Localized]
+        // Context note Context note
         val runtime = Runtime.getRuntime()
         val maxMemMB = runtime.maxMemory() / (1024 * 1024)
         saveKnowledge(
             TYPE_SYSTEM_INFO, "memory",
-            "[Localized] JVM [Localized]: ${maxMemMB}MB - [Localized] [Localized] streaming [Localized] [Localized]",
+            "Info JVM Info: ${maxMemMB}MB - Info Info streaming Info Info",
             priority = 4,
             tags = "memory,performance,heap"
         )
 
-        // [Localized] [Localized]
+        // Context note Context note
         try {
             val dataDir = context.filesDir
             val free = dataDir.freeSpace / (1024 * 1024)
             val total = dataDir.totalSpace / (1024 * 1024)
             saveKnowledge(
                 TYPE_SYSTEM_INFO, "storage",
-                "[Localized]: ${free}MB [Localized] [Localized] [Localized] ${total}MB",
+                "Info: ${free}MB Info Info Info ${total}MB",
                 priority = 5,
                 tags = "storage,disk,space"
             )
@@ -168,13 +168,13 @@ class ToolAwarenessEngine(
     }
 
     private suspend fun discoverRuntimeEnvironments() {
-        // [Localized] Termux
+        // Context note Termux
         val termuxInstalled = isPackageInstalled("com.termux")
         runtimeEnvironmentCache["termux"] = termuxInstalled.toString()
         if (termuxInstalled) {
             saveKnowledge(
                 TYPE_ENVIRONMENT, "termux",
-                "Termux [Localized]: [Localized] [Localized] Python, Node.js, bash, gcc, git [Localized] termux_bridge",
+                "Termux Info: Info Info Python, Node.js, bash, gcc, git Info termux_bridge",
                 confidence = 0.9f,
                 priority = 2,
                 tags = "termux,python,nodejs,bash,linux"
@@ -182,20 +182,20 @@ class ToolAwarenessEngine(
         } else {
             saveKnowledge(
                 TYPE_WARNING, "termux",
-                "Termux [Localized] [Localized]: [Localized] AgentRuntimeTool [Localized] [Localized] agent_sandbox",
+                "Termux Info Info: Info AgentRuntimeTool Info Info agent_sandbox",
                 confidence = 1.0f,
                 priority = 3,
                 tags = "termux,warning"
             )
         }
 
-        // [Localized] Shizuku
+        // Context note Shizuku
         val shizukuInstalled = isPackageInstalled("moe.shizuku.privileged.api")
         runtimeEnvironmentCache["shizuku"] = shizukuInstalled.toString()
         if (shizukuInstalled) {
             saveKnowledge(
                 TYPE_ENVIRONMENT, "shizuku",
-                "Shizuku [Localized]: [Localized] [Localized] [Localized] ADB-level [Localized] root [Localized] shizuku_command",
+                "Shizuku Info: Info Info Info ADB-level Info root Info shizuku_command",
                 confidence = 0.8f,
                 priority = 2,
                 tags = "shizuku,adb,privileged,root"
@@ -203,32 +203,32 @@ class ToolAwarenessEngine(
         } else {
             saveKnowledge(
                 TYPE_WARNING, "shizuku",
-                "Shizuku [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]",
+                "Shizuku Info Info: Info Info Info Info Info Info",
                 confidence = 1.0f,
                 priority = 3,
                 tags = "shizuku,warning"
             )
         }
 
-        // [Localized] Python [Localized]
+        // Context note Python Context note
         val pythonExists = File("/data/data/com.termux/files/usr/bin/python3").exists() ||
                            File("/data/data/com.termux/files/usr/bin/python").exists()
         if (pythonExists) {
             saveKnowledge(
                 TYPE_ENVIRONMENT, "python",
-                "Python [Localized] [Localized] Termux: [Localized] agent_runtime/python_run [Localized] [Localized]",
+                "Python Info Info Termux: Info agent_runtime/python_run Info Info",
                 confidence = 0.95f,
                 priority = 2,
                 tags = "python,termux,runtime,code"
             )
         }
 
-        // [Localized] Git
+        // Context note Git
         val gitExists = File("/data/data/com.termux/files/usr/bin/git").exists()
         if (gitExists) {
             saveKnowledge(
                 TYPE_ENVIRONMENT, "git",
-                "Git [Localized] [Localized] Termux: [Localized] git_manager [Localized] terminal [Localized] Git",
+                "Git Info Info Termux: Info git_manager Info terminal Info Git",
                 confidence = 0.95f,
                 priority = 3,
                 tags = "git,termux,vcs"
@@ -239,11 +239,11 @@ class ToolAwarenessEngine(
     private suspend fun registerToolCapabilities(tools: List<ToolDefinition>) {
         tools.forEach { tool ->
             val capability = buildString {
-                append("[Localized]: ${tool.name}")
-                append(" | [Localized]: ${tool.description.take(200)}")
+                append("Info: ${tool.name}")
+                append(" | Info: ${tool.description.take(200)}")
                 if (tool.parameters.isNotEmpty()) {
-                    append(" | [Localized]: ${tool.parameters.joinToString(", ") { p ->
-                        "${p.name}(${if (p.required) "[Localized]" else "[Localized]"})"
+                    append(" | Info: ${tool.parameters.joinToString(", ") { p ->
+                        "${p.name}(${if (p.required) "Info" else "Info"})"
                     }}")
                 }
             }
@@ -257,44 +257,44 @@ class ToolAwarenessEngine(
                 source = "tool_registry"
             )
         }
-        Log.d(TAG, "📋 [Localized] ${tools.size} [Localized] [Localized] [Localized] [Localized]")
+        Log.d(TAG, "📋 Info ${tools.size} Info Info Info Info")
     }
 
     private suspend fun registerInitialBestPractices() {
         val practices = listOf(
             Triple(
                 "file_operations",
-                "[Localized] [Localized] [Localized]: [Localized] read_file_lines [Localized] [Localized]. [Localized] [Localized] (+1MB) [Localized] find_files [Localized] grep_search [Localized] [Localized] [Localized] [Localized].",
+                "Info Info Info: Info read_file_lines Info Info. Info Info (+1MB) Info find_files Info grep_search Info Info Info Info.",
                 "file,read,performance"
             ),
             Triple(
                 "memory_usage",
-                "[Localized] [Localized] [Localized] [Localized] search_knowledge [Localized] [Localized] [Localized] [Localized] [Localized]. [Localized] [Localized] [Localized] [Localized] remember_fact. [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].",
+                "Info Info Info Info search_knowledge Info Info Info Info Info. Info Info Info Info remember_fact. Info Info Info Info Info Info.",
                 "memory,context,efficiency"
             ),
             Triple(
                 "terminal_safety",
-                "[Localized] [Localized] [Localized] terminal [Localized]: [Localized] dry-run [Localized] echo [Localized]. [Localized] rm -rf. [Localized] paths [Localized] [Localized].",
+                "Info Info Info terminal Info: Info dry-run Info echo Info. Info rm -rf. Info paths Info Info.",
                 "terminal,safety,commands"
             ),
             Triple(
                 "web_search_strategy",
-                "[Localized]: [Localized] [Localized] web_search ([Localized]). [Localized] web_scraper [Localized] [Localized]. [Localized] headless_browser [Localized] [Localized] [Localized] [Localized] JavaScript.",
+                "Info: Info Info web_search (Info). Info web_scraper Info Info. Info headless_browser Info Info Info Info JavaScript.",
                 "web,search,strategy"
             ),
             Triple(
                 "git_workflow",
-                "[Localized] [Localized] Git: [Localized] [Localized] [Localized] [Localized] → [Localized] [Localized] [Localized] [Localized] → commit [Localized] → [Localized] [Localized] [Localized] [Localized] main",
+                "Info Info Git: Info Info Info Info → Info Info Info Info → commit Info → Info Info Info Info main",
                 "git,workflow,best_practice"
             ),
             Triple(
                 "error_handling",
-                "[Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] → [Localized] [Localized] [Localized] → [Localized] [Localized] [Localized] → [Localized] [Localized] [Localized] remember_fact",
+                "Info Info: Info Info Info Info → Info Info Info → Info Info Info → Info Info Info remember_fact",
                 "error,debugging,recovery"
             ),
             Triple(
                 "tool_selection",
-                "[Localized] [Localized] [Localized] [Localized]. [Localized]: [Localized] [Localized] [Localized] [Localized] grep_search ([Localized]) [Localized] read_file. [Localized] [Localized] get_device_info [Localized] shizuku_command.",
+                "Info Info Info Info. Info: Info Info Info Info grep_search (Info) Info read_file. Info Info get_device_info Info shizuku_command.",
                 "tool_selection,efficiency,performance"
             )
         )
@@ -311,10 +311,10 @@ class ToolAwarenessEngine(
         }
     }
 
-    // ─── [Localized] [Localized] ───────────────────────────────────────────
+    // ─── Context note Context note ───────────────────────────────────────────
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note Context note Context note
      */
     suspend fun learnFromExecution(
         toolName: String,
@@ -328,7 +328,7 @@ class ToolAwarenessEngine(
                 saveOrUpdateKnowledge(
                     type = TYPE_TOOL_REQUIREMENT,
                     subject = toolName,
-                    content = "⚠️ $toolName [Localized] [Localized] [Localized]. [Localized]: ${errorMessage.take(150)}",
+                    content = "⚠️ $toolName Info Info Info. Info: ${errorMessage.take(150)}",
                     confidence = 0.9f,
                     priority = 2,
                     tags = "permission,requirement,$toolName"
@@ -339,7 +339,7 @@ class ToolAwarenessEngine(
                 saveOrUpdateKnowledge(
                     type = TYPE_TOOL_LIMITATION,
                     subject = toolName,
-                    content = "🚫 $toolName [Localized] [Localized] [Localized] [Localized] [Localized]: ${errorMessage.take(150)}",
+                    content = "🚫 $toolName Info Info Info Info Info: ${errorMessage.take(150)}",
                     confidence = 0.95f,
                     priority = 1,
                     tags = "unavailable,limitation,$toolName"
@@ -350,7 +350,7 @@ class ToolAwarenessEngine(
                 saveOrUpdateKnowledge(
                     type = TYPE_TOOL_LIMITATION,
                     subject = "${toolName}_timeout",
-                    content = "⏱️ $toolName [Localized] [Localized] [Localized] [Localized] [Localized] (${executionTimeMs}ms). [Localized] [Localized] [Localized].",
+                    content = "⏱️ $toolName Info Info Info Info Info (${executionTimeMs}ms). Info Info Info.",
                     confidence = 0.8f,
                     priority = 2,
                     tags = "timeout,performance,$toolName"
@@ -358,11 +358,11 @@ class ToolAwarenessEngine(
             }
 
             success && executionTimeMs < 200 -> {
-                // [Localized] [Localized] [Localized] - [Localized] [Localized]
+                // Context note Context note Context note - Context note Context note
                 saveOrUpdateKnowledge(
                     type = TYPE_TOOL_CAPABILITY,
                     subject = "${toolName}_performance",
-                    content = "⚡ $toolName [Localized] [Localized] (avg ~${executionTimeMs}ms) - [Localized] [Localized] [Localized]",
+                    content = "⚡ $toolName Info Info (avg ~${executionTimeMs}ms) - Info Info Info",
                     confidence = 0.7f,
                     priority = 7,
                     tags = "fast,performance,$toolName"
@@ -372,7 +372,7 @@ class ToolAwarenessEngine(
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note
      */
     suspend fun recordToolDependency(toolA: String, toolB: String, description: String) {
         saveKnowledge(
@@ -385,7 +385,7 @@ class ToolAwarenessEngine(
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] Agent
+     * Context note Context note Context note Context note Agent
      */
     suspend fun recordPattern(patternName: String, description: String, confidence: Float = 0.8f) {
         saveKnowledge(
@@ -398,11 +398,11 @@ class ToolAwarenessEngine(
         )
     }
 
-    // ─── [Localized] System Prompt Context ───────────────────────────────────
+    // ─── Context note System Prompt Context ───────────────────────────────────
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] System Prompt
-     * [Localized] [Localized] [Localized] [Localized] Agent "[Localized]" [Localized] [Localized]
+     * Context note Context note Context note Context note System Prompt
+     * Context note Context note Context note Context note Agent "Context note" Context note Context note
      */
     suspend fun buildSystemPromptContext(): String = withContext(Dispatchers.IO) {
         val systemInfo = systemKnowledgeDao.getByType(TYPE_SYSTEM_INFO)
@@ -417,34 +417,34 @@ class ToolAwarenessEngine(
             appendLine("║  🧠 SYSTEM & TOOL AWARENESS CONTEXT         ║")
             appendLine("╚══════════════════════════════════════════════╝")
 
-            // [Localized] [Localized]
+            // Context note Context note
             if (environments.isNotEmpty() || systemInfo.isNotEmpty()) {
-                appendLine("\n📱 [Localized] [Localized]:")
+                appendLine("\n📱 Info Info:")
                 (environments + systemInfo.filter { it.subject.contains("android") || it.subject == "memory" })
                     .take(6).forEach { k ->
                         appendLine("  • ${k.content.take(120)}")
                     }
             }
 
-            // [Localized] [Localized] ([Localized] [Localized]!)
+            // Context note Context note (Context note Context note!)
             if (limitations.isNotEmpty() || warnings.isNotEmpty()) {
-                appendLine("\n⚠️ [Localized] [Localized] ([Localized] [Localized] [Localized]):")
+                appendLine("\n⚠️ Info Info (Info Info Info):")
                 (limitations + warnings).take(5).forEach { k ->
                     appendLine("  ✗ ${k.content.take(120)}")
                 }
             }
 
-            // [Localized] [Localized]
+            // Context note Context note
             if (bestPractices.isNotEmpty()) {
-                appendLine("\n💡 [Localized] [Localized]:")
+                appendLine("\n💡 Info Info:")
                 bestPractices.take(5).forEach { k ->
                     appendLine("  ✓ [${k.subject}] ${k.content.take(150)}")
                 }
             }
 
-            // [Localized] [Localized]
+            // Context note Context note
             if (capabilities.isNotEmpty()) {
-                appendLine("\n⚡ [Localized] [Localized]: ${capabilities.joinToString(", ") { it.subject }}")
+                appendLine("\n⚡ Info Info: ${capabilities.joinToString(", ") { it.subject }}")
             }
 
             appendLine("══════════════════════════════════════════════")
@@ -452,7 +452,7 @@ class ToolAwarenessEngine(
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+     * Context note Context note Context note Context note Context note Context note Context note
      */
     suspend fun getToolKnowledge(toolName: String): String? = withContext(Dispatchers.IO) {
         val entries = systemKnowledgeDao.search(toolName, limit = 8)
@@ -472,13 +472,13 @@ class ToolAwarenessEngine(
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] System Prompt
+     * Context note Context note Context note Context note Context note Context note Context note Context note System Prompt
      */
     suspend fun getCriticalKnowledge(): List<SystemKnowledgeEntry> = withContext(Dispatchers.IO) {
         systemKnowledgeDao.getForSystemPrompt(maxPriority = 3, limit = 10)
     }
 
-    // ─── [Localized] [Localized] ─────────────────────────────────────────────
+    // ─── Context note Context note ─────────────────────────────────────────────
 
     private suspend fun saveKnowledge(
         type: String,
@@ -504,7 +504,7 @@ class ToolAwarenessEngine(
                 )
             )
         } catch (e: Exception) {
-            Log.w(TAG, "[Localized] [Localized] [Localized] [Localized]: $subject - ${e.message}")
+            Log.w(TAG, "Failed to save knowledge: $subject - ${e.message}")
         }
     }
 
@@ -541,7 +541,7 @@ class ToolAwarenessEngine(
         }
     }
 
-    // ─── Flow [Localized] ─────────────────────────────────────────────────
+    // ─── Flow Context note ─────────────────────────────────────────────────
 
     fun observeKnowledge(): Flow<List<SystemKnowledgeEntry>> = systemKnowledgeDao.observeAllValid()
 
@@ -570,7 +570,7 @@ class ToolAwarenessEngine(
         systemKnowledgeDao.invalidateById(id)
     }
 
-    // ─── [Localized] ────────────────────────────────────────────────────
+    // ─── Context note ────────────────────────────────────────────────────
 
     suspend fun getStats(): AwarenessStats = withContext(Dispatchers.IO) {
         val total = systemKnowledgeDao.getCount()

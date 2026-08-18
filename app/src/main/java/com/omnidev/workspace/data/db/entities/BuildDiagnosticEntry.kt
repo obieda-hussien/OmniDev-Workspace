@@ -5,21 +5,21 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * BuildDiagnosticEntry — [Localized] [Localized] [Localized] (Build Doctor Pro / Brain 2.0).
+ * BuildDiagnosticEntry — Context note Context note Context note (Build Doctor Pro / Brain 2.0).
  *
- * [Localized] [Localized] [Localized]:
- *   - [Localized] [Localized] (fingerprint) [Localized] [Localized] [Localized] [Localized] [Localized]
- *   - [Localized] (compile / link / dependency / resource / runtime / config)
- *   - [Localized] [Localized] [Localized] ([Localized] Deflate) [Localized] [Localized]
- *   - [Localized] [Localized]/[Localized] [Localized] [Localized]
+ * Context note Context note Context note:
+ *   - Context note Context note (fingerprint) Context note Context note Context note Context note Context note
+ *   - Context note (compile / link / dependency / resource / runtime / config)
+ *   - Context note Context note Context note (Context note Deflate) Context note Context note
+ *   - Context note Context note/Context note Context note Context note
  *
  * Mobile-first:
- * - 500 [Localized] [Localized] [Localized] [Localized] LRU eviction
- * - solutionDiff [Localized] [Localized] Deflate (~70% [Localized])
+ * - 500 Context note Context note Context note Context note LRU eviction
+ * - solutionDiff Context note Context note Deflate (~70% Context note)
  *
- * @property errorFingerprint MD5(message normalized) — [Localized] [Localized] [Localized] [Localized] [Localized]
- * @property occurrenceCount [Localized] [Localized] [Localized] [Localized] [Localized]
- * @property successfulFixCount [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+ * @property errorFingerprint MD5(message normalized) — Context note Context note Context note Context note Context note
+ * @property occurrenceCount Context note Context note Context note Context note Context note
+ * @property successfulFixCount Context note Context note Context note Context note Context note Context note Context note
  */
 @Entity(
     tableName = "build_diagnostics",

@@ -7,16 +7,16 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * OmniExecutionDiagnostics — [Localized] [Localized] [Localized] [Localized] [Localized].
+ * OmniExecutionDiagnostics — Context note Context note Context note Context note Context note.
  *
  * Tool name: "execution_diagnostics"
  *
- * ### [Localized] [Localized] [Localized] [Localized]
- * 1. **fix_shizuku** — [Localized] [Localized] [Localized] (reflection vs API mismatch) [Localized]
- *    `Shizuku.newProcess()` [Localized] [Localized] echo test [Localized].
- * 2. **install_termux** — [Localized] [Localized] [Localized] [Localized] Termux [Localized] Shizuku.
- * 3. **repair_all** — [Localized] [Localized] install_termux [Localized] Termux [Localized] [Localized].
- * 4. [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+ * ### Context note Context note Context note Context note
+ * 1. **fix_shizuku** — Context note Context note Context note (reflection vs API mismatch) Context note
+ *    `Shizuku.newProcess()` Context note Context note echo test Context note.
+ * 2. **install_termux** — Context note Context note Context note Context note Termux Context note Shizuku.
+ * 3. **repair_all** — Context note Context note install_termux Context note Termux Context note Context note.
+ * 4. Context note Context note Context note Context note Context note Context note.
  */
 object OmniExecutionDiagnostics {
 
@@ -81,7 +81,7 @@ Actions:
         sb.appendLine("║   pingBinder : ${if (shizukuAvail) "✅ Works" else "❌ Not responding"}")
         sb.appendLine("║   Permission : ${if (shizukuPerm) "✅ Granted" else "❌ Not granted"}")
         if (shizukuAvail && shizukuPerm) {
-            // [Localized] [Localized] [Localized] Shizuku.newProcess()
+            // Context note Context note Context note Shizuku.newProcess()
             val testResult = ShizukuCommandTool.execute("echo shizuku_ok")
             val works = testResult.outputOrNull()?.contains("shizuku_ok") == true
             sb.appendLine("║   newProcess : ${if (works) "✅ Direct call works" else "❌ Failed (${testResult.toDisplayString().take(80)})"}")
@@ -176,28 +176,28 @@ Actions:
     }
 
     // ──────────────────────────────────────────────────────────────
-    // fix_shizuku — [Localized] [Localized]
+    // fix_shizuku — Context note Context note
     // ──────────────────────────────────────────────────────────────
     private suspend fun fixShizuku(): ToolExecutionResult {
         val sb = StringBuilder("🔧 Diagnosing and Fixing Shizuku\n\n")
 
-        // 1. [Localized] [Localized] [Localized]
+        // 1. Context note Context note Context note
         if (!ShizukuCommandTool.isAvailable()) {
             return ToolExecutionResult(
                 sb.append(
                     "❌ Shizuku is NOT connected (pingBinder failed).\n\n" +
-                    "[Localized]:\n" +
-                    "1. [Localized] [Localized] Shizuku\n" +
-                    "2. [Localized] 'Start' ([Localized] [Localized] root) [Localized] [Localized] [Localized] wireless ADB\n" +
-                    "3. [Localized] [Localized] [Localized] Shizuku [Localized] 'Running'\n" +
-                    "4. [Localized] [Localized] [Localized] [Localized]"
+                    "Info:\n" +
+                    "1. Info Info Shizuku\n" +
+                    "2. Info 'Start' (Info Info root) Info Info Info wireless ADB\n" +
+                    "3. Info Info Info Shizuku Info 'Running'\n" +
+                    "4. Info Info Info Info"
                 ).toString(),
                 isError = true
             )
         }
         sb.appendLine("✅ Shizuku pingBinder: OK")
 
-        // 2. [Localized] [Localized] [Localized] [Localized]
+        // 2. Context note Context note Context note Context note
         if (!ShizukuCommandTool.hasPermission()) {
             sb.appendLine("⏳ Requesting Shizuku permission...")
             runCatching { rikka.shizuku.Shizuku.requestPermission(1001) }
@@ -212,17 +212,17 @@ Actions:
             return ToolExecutionResult(
                 sb.append(
                     "❌ Permission not granted after 15s.\n\n" +
-                    "[Localized]:\n" +
-                    "1. [Localized] [Localized] Shizuku\n" +
-                    "2. [Localized] [Localized] [Localized] [Localized]\n" +
-                    "3. [Localized] [Localized] OmniDev Workspace [Localized] '[Localized] [Localized]'"
+                    "Info:\n" +
+                    "1. Info Info Shizuku\n" +
+                    "2. Info Info Info Info\n" +
+                    "3. Info Info OmniDev Workspace Info 'Info Info'"
                 ).toString(),
                 isError = true
             )
         }
         sb.appendLine("✅ Permission: Granted")
 
-        // 3. [Localized] Shizuku.newProcess() [Localized]
+        // 3. Context note Shizuku.newProcess() Context note
         sb.appendLine("\n📋 Testing Shizuku.newProcess() directly...")
 
         val tests = listOf(
@@ -248,16 +248,16 @@ Actions:
 
         return if (allPassed) {
             sb.appendLine("\n✅ Shizuku.newProcess() is working correctly!")
-            sb.appendLine("[Localized] [Localized] [Localized] [Localized] [Localized] [Localized]:")
+            sb.appendLine("Info Info Info Info Info Info:")
             sb.appendLine("  privileged_tool action=shell command=getprop ro.build.version.release")
             sb.appendLine("  privileged_tool action=getprop key=ro.build.version.sdk")
             ToolExecutionResult(sb.toString())
         } else {
-            sb.appendLine("\n⚠️ [Localized] [Localized] [Localized].")
-            sb.appendLine("[Localized]:")
-            sb.appendLine("  1. Shizuku service [Localized] — [Localized] [Localized]")
-            sb.appendLine("  2. [Localized] Shizuku [Localized] — [Localized] [Localized]")
-            sb.appendLine("  3. [Localized] [Localized] [Localized] [Localized] — [Localized] [Localized] Shizuku")
+            sb.appendLine("\n⚠️ Info Info Info.")
+            sb.appendLine("Info:")
+            sb.appendLine("  1. Shizuku service Info — Info Info")
+            sb.appendLine("  2. Info Shizuku Info — Info Info")
+            sb.appendLine("  3. Info Info Info Info — Info Info Shizuku")
             ToolExecutionResult(sb.toString(), isError = true)
         }
     }
@@ -272,16 +272,16 @@ Actions:
             return ToolExecutionResult(
                 sb.append(
                     "❌ Termux bash not found: ${TermuxEnvironmentBridge.TERMUX_BASH}\n\n" +
-                    "[Localized]:\n" +
-                    "1. [Localized] [Localized]: action=install_termux\n" +
-                    "2. [Localized] [Localized]: https://f-droid.org/en/packages/com.termux/\n" +
-                    "   [Localized] [Localized]: pkg update && pkg upgrade -y"
+                    "Info:\n" +
+                    "1. Info Info: action=install_termux\n" +
+                    "2. Context note Context note: https://f-droid.org/en/packages/com.termux/\n" +
+                    "   Info Info: pkg update && pkg upgrade -y"
                 ).toString(),
                 isError = true
             )
         }
 
-        // [Localized] [Localized] /tmp
+        // Context note Context note /tmp
         val tmpDir = File(TermuxEnvironmentBridge.TERMUX_PREFIX + "/tmp")
         if (!tmpDir.exists()) {
             PrivilegedExecutionManager.executeCommand(
@@ -291,7 +291,7 @@ Actions:
         sb.appendLine("✅ Termux bash: Found")
         sb.appendLine("✅ TERMUX_PREFIX: ${TermuxEnvironmentBridge.TERMUX_PREFIX}")
 
-        // [Localized] [Localized]
+        // Context note Context note
         val envPfx = TermuxEnvironmentBridge.buildEnvPrefix()
         val envTest = PrivilegedExecutionManager.executeCommand(
             "${envPfx}${TermuxEnvironmentBridge.TERMUX_BASH} -c \"echo TERMUX_ENV_OK && python3 --version 2>&1 || echo no_python\" 2>&1"
@@ -333,7 +333,7 @@ Actions:
 
         sb.appendLine("❌ Python not found. Trying to install...")
 
-        // [Localized] Termux
+        // Context note Termux
         if (TermuxEnvironmentBridge.isTermuxUsable()) {
             sb.appendLine("→ pkg install python via Termux...")
             val installResult = TermuxEnvironmentBridge.pkgInstall("python")
@@ -351,7 +351,7 @@ Actions:
             val termuxInstall = installTermux()
             sb.appendLine(termuxInstall.output)
             if (!termuxInstall.isError) {
-                // [Localized] [Localized] [Localized] Termux[Localized] [Localized] [Localized] Python
+                // Context note Context note Context note TermuxContext note Context note Context note Python
                 if (TermuxEnvironmentBridge.isTermuxUsable()) {
                     TermuxEnvironmentBridge.pkgInstall("python")
                     val newPath = TermuxEnvironmentBridge.findPythonInterpreter()
@@ -366,10 +366,10 @@ Actions:
         return ToolExecutionResult(
             sb.append(
                 "\n❌ Cannot install Python automatically.\n" +
-                "[Localized] [Localized]:\n" +
-                "1. [Localized] Termux\n" +
+                "Info Info:\n" +
+                "1. Info Termux\n" +
                 "2. pkg install python\n" +
-                "3. [Localized] [Localized] [Localized]"
+                "3. Info Info Info"
             ).toString(),
             isError = true
         )
@@ -410,7 +410,7 @@ Actions:
     }
 
     // ──────────────────────────────────────────────────────────────
-    // install_termux — [Localized] [Localized]
+    // install_termux — Context note Context note
     // ──────────────────────────────────────────────────────────────
     private suspend fun installTermux(): ToolExecutionResult {
         val sb = StringBuilder("📦 Installing Termux via Shizuku\n\n")
@@ -422,29 +422,29 @@ Actions:
         if (!PrivilegedExecutionManager.isShizukuReady()) {
             return ToolExecutionResult(
                 sb.append(
-                    "❌ Shizuku [Localized] [Localized]. [Localized] [Localized] [Localized] Termux [Localized].\n\n" +
-                    "[Localized]:\n" +
-                    "1. [Localized] Shizuku [Localized]: action=fix_shizuku\n" +
-                    "2. [Localized] Termux [Localized] [Localized] F-Droid:\n" +
+                    "❌ Shizuku Info Info. Info Info Info Termux Info.\n\n" +
+                    "Info:\n" +
+                    "1. Info Shizuku Info: action=fix_shizuku\n" +
+                    "2. Info Termux Info Info F-Droid:\n" +
                     "   https://f-droid.org/en/packages/com.termux/"
                 ).toString(),
                 isError = true
             )
         }
 
-        sb.appendLine("Shizuku [Localized]. [Localized] [Localized] Termux APK...")
+        sb.appendLine("Shizuku Info. Info Info Termux APK...")
         sb.appendLine(PrivilegedExecutionManager.getTermuxBootstrapHints())
         sb.appendLine()
 
         val result = PrivilegedExecutionManager.installTermuxViaShizuku()
-        sb.appendLine(result.getOrElse { "❌ [Localized]: ${it.message}" })
+        sb.appendLine(result.getOrElse { "❌ Info: ${it.message}" })
 
         return if (result.isSuccess) {
             ToolExecutionResult(sb.toString())
         } else {
             ToolExecutionResult(
                 sb.append(
-                    "\n\n[Localized] — [Localized] [Localized] [Localized] Shizuku shell:\n" +
+                    "\n\nInfo — Info Info Info Shizuku shell:\n" +
                     "  privileged_tool action=shell command=\"wget -O /data/local/tmp/termux.apk https://f-droid.org/repo/com.termux_118.apk && pm install -r -g /data/local/tmp/termux.apk\""
                 ).toString(),
                 isError = true
@@ -458,25 +458,25 @@ Actions:
     private suspend fun testCommand(command: String): ToolExecutionResult {
         val sb = StringBuilder("🧪 Testing command: ${command.take(100)}\n\n")
 
-        // 1. Shizuku [Localized]
-        sb.appendLine("─── [1] Shizuku.newProcess() [Localized] ───")
+        // 1. Shizuku Context note
+        sb.appendLine("─── [1] Shizuku.newProcess() Info ───")
         if (ShizukuCommandTool.isAvailable() && ShizukuCommandTool.hasPermission()) {
             val r = ShizukuCommandTool.execute(command)
             sb.appendLine("Type: ${r::class.simpleName}")
-            sb.appendLine("Output: ${r.outputOrNull()?.take(300) ?: "([Localized])"}")
+            sb.appendLine("Output: ${r.outputOrNull()?.take(300) ?: "(Info)"}")
             if (r is ShizukuResult.PartialSuccess) sb.appendLine("Exit: ${r.exitCode}")
         } else {
-            sb.appendLine("⚠️ Shizuku [Localized] [Localized]/[Localized]")
+            sb.appendLine("⚠️ Shizuku Info Info/Info")
         }
 
-        // 2. [Localized] [Localized] Termux
-        sb.appendLine("\n─── [2] [Localized] Termux env ───")
+        // 2. Context note Context note Termux
+        sb.appendLine("\n─── [2] Info Termux env ───")
         if (TermuxEnvironmentBridge.isTermuxUsable()) {
             val envPfx = TermuxEnvironmentBridge.buildEnvPrefix()
             val r2 = PrivilegedExecutionManager.executeCommand("${envPfx}${command}")
             sb.appendLine("Result: ${r2.getOrNull()?.take(300) ?: r2.exceptionOrNull()?.message}")
         } else {
-            sb.appendLine("⚠️ Termux [Localized] [Localized]")
+            sb.appendLine("⚠️ Termux Info Info")
         }
 
         // 3. PrivilegedExecutionManager
@@ -499,9 +499,9 @@ Actions:
         sb.appendLine(shizukuFix.output)
         sb.appendLine()
 
-        // 2. Termux ([Localized] [Localized] [Localized] [Localized])
+        // 2. Termux (Context note Context note Context note Context note)
         if (!TermuxEnvironmentBridge.isTermuxUsable()) {
-            sb.appendLine("=== [2/5] Termux ([Localized]) ===")
+            sb.appendLine("=== [2/5] Termux (Info) ===")
             val termuxInstall = installTermux()
             sb.appendLine(termuxInstall.output)
             sb.appendLine()
@@ -515,9 +515,9 @@ Actions:
         // 3. rish setup
         sb.appendLine("=== [3/5] rish ===")
         if (!PrivilegedExecutionManager.isRishReady()) {
-            sb.appendLine("⚠️ rish [Localized] [Localized] — [Localized]: privileged_tool action=rish_setup")
+            sb.appendLine("⚠️ rish Info Info — Info: privileged_tool action=rish_setup")
         } else {
-            sb.appendLine("✅ rish [Localized]")
+            sb.appendLine("✅ rish Info")
         }
         sb.appendLine()
 
@@ -537,12 +537,12 @@ Actions:
         val hasTermux  = TermuxEnvironmentBridge.isTermuxUsable()
 
         sb.appendLine(
-            if (hasShizuku) "✅ Shizuku [Localized] — [Localized] [Localized] [Localized]."
-            else "⚠️ [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized])."
+            if (hasShizuku) "✅ Shizuku Info — Info Info Info."
+            else "⚠️ Info Info Info Info Info (Info Info Info)."
         )
 
         if (!hasTermux) {
-            sb.appendLine("⚠️ Termux [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] Shizuku shell [Localized].")
+            sb.appendLine("⚠️ Termux Info Info — Info Info Info Info Shizuku shell Info.")
         }
 
         return ToolExecutionResult(sb.toString().trimEnd(), isError = !hasShizuku && !hasTermux)

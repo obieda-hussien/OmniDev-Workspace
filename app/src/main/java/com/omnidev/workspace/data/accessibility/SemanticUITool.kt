@@ -13,28 +13,28 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * SemanticUITool — [Localized] [Localized] [Localized] [Localized]
+ * SemanticUITool — Context note Context note Context note Context note
  *
- * [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized]
+ * Context note Context note: Context note Context note Context note Context note Context note
  * ─────────────────────────────────────────────────────────────────────────────
- * [Localized] [Localized]:
+ * Context note Context note:
  * ─────────────────────────────────────────────────────────────────────────────
- * • `find_element` — [Localized] [Localized] [Localized] [Localized] [Localized] dump_tree [Localized] ([Localized] [Localized])
- * • `wait_for`     — [Localized] [Localized] [Localized] [Localized]/[Localized] [Localized] [Localized] (timeout [Localized] [Localized])
- * • `smart_fill`   — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
- * • `get_summary`  — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
- * • `get_text`     — [Localized] [Localized] [Localized] [Localized] [Localized] dump_tree
- * • `verify`       — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
- * • `chain`        — [Localized] [Localized] [Localized] [Localized] [Localized]
- * • `record_start` / `record_stop` / `macro_play` — [Localized] [Localized]
- * • `scroll_to`    — [Localized] [Localized] [Localized] [Localized] [Localized]
- * • `describe`     — [Localized] [Localized] [Localized] node_id [Localized] [Localized] [Localized]
+ * • `find_element` — Context note Context note Context note Context note Context note dump_tree Context note (Context note Context note)
+ * • `wait_for`     — Context note Context note Context note Context note/Context note Context note Context note (timeout Context note Context note)
+ * • `smart_fill`   — Context note Context note Context note Context note Context note Context note Context note Context note Context note
+ * • `get_summary`  — Context note Context note Context note Context note Context note Context note
+ * • `get_text`     — Context note Context note Context note Context note Context note dump_tree
+ * • `verify`       — Context note Context note Context note Context note Context note Context note Context note
+ * • `chain`        — Context note Context note Context note Context note Context note
+ * • `record_start` / `record_stop` / `macro_play` — Context note Context note
+ * • `scroll_to`    — Context note Context note Context note Context note Context note
+ * • `describe`     — Context note Context note Context note node_id Context note Context note Context note
  *
- * [Localized] [Localized] [Localized] [Localized]:
+ * Context note Context note Context note Context note:
  * ─────────────────────────────────────────────────────────────────────────────
- * • [Localized] `click`  [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
- * • `type` [Localized] [Localized] clear_first [Localized] [Localized] [Localized]
- * • `dump_tree` [Localized] [Localized] + [Localized] [Localized] + [Localized] [Localized]
+ * • Context note `click`  Context note Context note Context note Context note Context note Context note
+ * • `type` Context note Context note clear_first Context note Context note Context note
+ * • `dump_tree` Context note Context note + Context note Context note + Context note Context note
  */
 object SemanticUITool {
 
@@ -49,66 +49,66 @@ object SemanticUITool {
         ToolDefinition(
             name = "semantic_ui",
             description = """
-[Localized] [Localized] [Localized] [Localized] [Localized] Android. [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
-[Localized] [Localized]:
+Info Info Info Info Info Android. Info Info Info Info Info Info.
+Info Info:
 
-📋 [Localized]:
-• dump_tree    — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
-• get_summary  — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
-• find_element — [Localized] [Localized] [Localized] [Localized] [Localized]
-• get_text     — [Localized] [Localized] [Localized] [Localized] [Localized] node_id
-• describe     — [Localized] [Localized] [Localized] [Localized] [Localized]
-• verify       — [Localized] [Localized] [Localized] [Localized]
+📋 Info:
+• dump_tree    — Info Info Info Info Info Info
+• get_summary  — Info Info Info Info Info Info
+• find_element — Info Info Info Info Info
+• get_text     — Info Info Info Info Info node_id
+• describe     — Info Info Info Info Info
+• verify       — Info Info Info Info
 
-⚡ [Localized]:
-• click / long_click — [Localized] [Localized] / [Localized] [Localized] node_id
-• type          — [Localized] [Localized] [Localized] [Localized] [Localized]
-• scroll        — [Localized] [Localized]
-• smart_fill    — [Localized] [Localized] [Localized] [Localized] {nodeId: text}
-• chain         — [Localized] [Localized] (tap+type+tap [Localized] [Localized] [Localized])
+⚡ Info:
+• click / long_click — Info Info / Info Info node_id
+• type          — Info Info Info Info Info
+• scroll        — Info Info
+• smart_fill    — Info Info Info Info {nodeId: text}
+• chain         — Info Info (tap+type+tap Info Info Info)
 
-⏱️ [Localized]:
-• wait_for      — [Localized] [Localized] [Localized] [Localized] [Localized]
-• scroll_to     — [Localized] [Localized] [Localized] [Localized] [Localized]
+⏱️ Info:
+• wait_for      — Info Info Info Info Info
+• scroll_to     — Info Info Info Info Info
 
 🔧 Shizuku God-Mode:
 • force_click / force_long_click / force_type
-• auto_enable   — [Localized] [Localized] [Localized] accessibility [Localized]
+• auto_enable   — Info Info Info accessibility Info
 
-📼 [Localized]:
+📼 Info:
 • record_start / record_stop / macro_play / macro_list
 
-🌍 [Localized]:
+🌍 Info:
 • back / home / recents
 • swipe / tap_xy
 """.trimIndent(),
             parameters = listOf(
                 ToolParameter("action", "string",
-                    "[Localized] [Localized] ([Localized] [Localized] [Localized])", required = true),
+                    "Info Info (Info Info Info)", required = true),
                 ToolParameter("node_id", "string",
-                    "[Localized] [Localized] [Localized] dump_tree ([Localized] N3). [Localized] [Localized]: click, type, scroll, etc."),
+                    "Info Info Info dump_tree (Info N3). Info Info: click, type, scroll, etc."),
                 ToolParameter("text", "string",
-                    "[Localized] [Localized] (type/force_type) [Localized] [Localized] (find_element/wait_for)"),
+                    "Info Info (type/force_type) Info Info (find_element/wait_for)"),
                 ToolParameter("direction", "string",
-                    "[Localized] [Localized]/[Localized]: forward/backward/up/down/left/right"),
+                    "Info Info/Info: forward/backward/up/down/left/right"),
                 ToolParameter("timeout_ms", "string",
-                    "[Localized] [Localized] [Localized] [Localized] ([Localized] wait_for). [Localized]: 10000"),
+                    "Info Info Info Info (Info wait_for). Info: 10000"),
                 ToolParameter("clear_first", "string",
-                    "true [Localized] [Localized] [Localized] [Localized] ([Localized] type)"),
+                    "true Info Info Info Info (Info type)"),
                 ToolParameter("verify_change", "string",
-                    "false [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]"),
+                    "false Info Info Info Info Info Info Info"),
                 ToolParameter("form_data", "string",
-                    "JSON: {\"N1\":\"text1\",\"N2\":\"text2\"} [Localized] smart_fill"),
+                    "JSON: {\"N1\":\"text1\",\"N2\":\"text2\"} Info smart_fill"),
                 ToolParameter("chain_steps", "string",
-                    "JSON array [Localized] [Localized] [Localized] chain"),
+                    "JSON array Info Info Info chain"),
                 ToolParameter("macro_name", "string",
-                    "[Localized] [Localized] [Localized] record_start/record_stop/macro_play"),
+                    "Info Info Info record_start/record_stop/macro_play"),
                 ToolParameter("expected_state", "string",
-                    "[Localized] [Localized] [Localized] (Checked/Focused/Enabled/etc.) [Localized] verify"),
-                ToolParameter("duration_ms", "string", "[Localized] [Localized] swipe [Localized] [Localized]"),
-                ToolParameter("distance_ratio", "string", "[Localized] [Localized] [Localized] swipe (0.1..0.9)"),
-                ToolParameter("x", "string", "[Localized] X [Localized] tap_xy"),
-                ToolParameter("y", "string", "[Localized] Y [Localized] tap_xy")
+                    "Info Info Info (Checked/Focused/Enabled/etc.) Info verify"),
+                ToolParameter("duration_ms", "string", "Info Info swipe Info Info"),
+                ToolParameter("distance_ratio", "string", "Info Info Info swipe (0.1..0.9)"),
+                ToolParameter("x", "string", "Info X Info tap_xy"),
+                ToolParameter("y", "string", "Info Y Info tap_xy")
             )
         )
     )
@@ -124,9 +124,9 @@ object SemanticUITool {
                 }
                 if (!AccessibilityStateManager.isServiceConnected.value) {
                     return@withContext ToolExecutionResult(
-                        "⚠️ [Localized] [Localized] Accessibility [Localized] [Localized]. " +
-                            "[Localized] [Localized] [Localized] → [Localized] [Localized] → OmniDev [Localized] " +
-                            "[Localized] [Localized] [Localized] 'auto_enable'.",
+                        "⚠️ Info Info Accessibility Info Info. " +
+                            "Info Info Info → Info Info → OmniDev Info " +
+                            "Info Info Info 'auto_enable'.",
                         isError = true
                     )
                 }
@@ -160,17 +160,17 @@ object SemanticUITool {
                 "macro_play"       -> playMacro(params["macro_name"])
                 "macro_list"       -> listMacros()
                 else -> ToolExecutionResult(
-                    "[Localized] [Localized] [Localized]: '$action'. [Localized] dump_tree [Localized] [Localized].",
+                    "Info Info Info: '$action'. Info dump_tree Info Info.",
                     isError = true
                 )
             }
         }
 
-    // ── [Localized] ─────────────────────────────────────────────────────────────
+    // ── Context note ─────────────────────────────────────────────────────────────
 
     private fun dumpTree(): ToolExecutionResult {
         val root = AccessibilityStateManager.rootNode.value
-            ?: return ToolExecutionResult("[Localized] [Localized] [Localized] [Localized]. [Localized] [Localized] [Localized] [Localized].", isError = true)
+            ?: return ToolExecutionResult("Info Info Info Info. Info Info Info Info.", isError = true)
 
         return try {
             val result = SemanticTreeParser.parse(
@@ -181,12 +181,12 @@ object SemanticUITool {
             lastParseResult = result
 
             val output = buildString {
-                append("📋 [Localized]: ${result.summary}\n\n")
+                append("📋 Info: ${result.summary}\n\n")
                 append(result.semanticTree)
-                append("\n\n── [Localized]: ${result.extractedNodes} [Localized] [Localized] / ${result.totalRawNodes} [Localized] ──")
+                append("\n\n── Info: ${result.extractedNodes} Info Info / ${result.totalRawNodes} Info ──")
 
                 if (result.detectedForms.isNotEmpty()) {
-                    append("\n\n📝 [Localized] [Localized]:")
+                    append("\n\n📝 Info Info:")
                     result.detectedForms.forEach { form ->
                         append("\n  • ${form.groupName}: ")
                         append(form.fields.joinToString(", ") { "[${it.nodeId}]${it.fieldType.name}" })
@@ -194,17 +194,17 @@ object SemanticUITool {
                 }
 
                 if (result.priorityOrder.isNotEmpty()) {
-                    append("\n⭐ [Localized] [Localized]: ${result.priorityOrder.take(8).joinToString(" → ")}")
+                    append("\n⭐ Info Info: ${result.priorityOrder.take(8).joinToString(" → ")}")
                 }
 
                 if (AccessibilityStateManager.shouldWaitForUI()) {
-                    append("\n\n⏳ [Localized] [Localized] [Localized]. [Localized] [Localized] [Localized] [Localized].")
+                    append("\n\n⏳ Info Info Info. Info Info Info Info.")
                 }
             }
 
             ToolExecutionResult(output, truncated = result.extractedNodes >= 150)
         } catch (e: Exception) {
-            ToolExecutionResult("[Localized] [Localized] [Localized]: ${e.message}", isError = true)
+            ToolExecutionResult("Info Info Info: ${e.message}", isError = true)
         }
     }
 
@@ -214,12 +214,12 @@ object SemanticUITool {
                 append(AccessibilityStateManager.buildContextSummary())
                 val result = lastParseResult
                 if (result != null) {
-                    append("\n\n📋 [Localized] [Localized] [Localized]: ${result.extractedNodes} [Localized]")
+                    append("\n\n📋 Info Info Info: ${result.extractedNodes} Info")
                     if (result.detectedForms.isNotEmpty()) {
-                        append("\n📝 [Localized]: ${result.detectedForms.joinToString(", ") { it.groupName }}")
+                        append("\n📝 Info: ${result.detectedForms.joinToString(", ") { it.groupName }}")
                     }
                 } else {
-                    append("\n\n💡 [Localized] [Localized] [Localized] [Localized]. [Localized] dump_tree.")
+                    append("\n\n💡 Info Info Info Info. Info dump_tree.")
                 }
             }
         )
@@ -227,10 +227,10 @@ object SemanticUITool {
 
     private fun findElement(text: String?): ToolExecutionResult {
         if (text.isNullOrBlank()) {
-            return ToolExecutionResult("[Localized] [Localized] 'text' [Localized].", isError = true)
+            return ToolExecutionResult("Info Info 'text' Info.", isError = true)
         }
         val found = AccessibilityStateManager.findNodeByText(text)
-            ?: return ToolExecutionResult("❌ [Localized] [Localized] [Localized] '$text' [Localized] [Localized] [Localized].", isError = true)
+            ?: return ToolExecutionResult("❌ Info Info Info '$text' Info Info Info.", isError = true)
 
         val bounds = Rect().also { found.getBoundsInScreen(it) }
         val className = found.className?.toString()?.substringAfterLast('.') ?: "View"
@@ -239,19 +239,19 @@ object SemanticUITool {
 
         return ToolExecutionResult(
             buildString {
-                append("✅ [Localized] '$text'\n")
-                append("[Localized]: $className\n")
-                append("[Localized]: [${bounds.left}, ${bounds.top}, ${bounds.right}, ${bounds.bottom}]\n")
-                if (isClickable) append("[Localized] [Localized]: [Localized]\n")
-                if (isEditable) append("[Localized] [Localized]: [Localized]\n")
-                append("\n[Localized]: [Localized] [Localized] dump_tree [Localized] [Localized] node_id [Localized].")
+                append("✅ Info '$text'\n")
+                append("Info: $className\n")
+                append("Info: [${bounds.left}, ${bounds.top}, ${bounds.right}, ${bounds.bottom}]\n")
+                if (isClickable) append("Info Info: Info\n")
+                if (isEditable) append("Info Info: Info\n")
+                append("\nInfo: Info Info dump_tree Info Info node_id Info.")
             }
         )
     }
 
     private suspend fun waitFor(text: String?, timeoutMs: Long): ToolExecutionResult {
         if (text.isNullOrBlank()) {
-            return ToolExecutionResult("[Localized] [Localized] 'text' [Localized].", isError = true)
+            return ToolExecutionResult("Info Info 'text' Info.", isError = true)
         }
 
         val startTime = System.currentTimeMillis()
@@ -267,10 +267,10 @@ object SemanticUITool {
 
         val elapsed = System.currentTimeMillis() - startTime
         return if (found == true) {
-            ToolExecutionResult("✅ [Localized] '$text' [Localized] ${elapsed}ms")
+            ToolExecutionResult("✅ Info '$text' Info ${elapsed}ms")
         } else {
             ToolExecutionResult(
-                "⏱️ [Localized] [Localized] '$text' [Localized] ${timeoutMs}ms. [Localized] [Localized]: ${AccessibilityStateManager.activePackage.value}",
+                "⏱️ Info Info '$text' Info ${timeoutMs}ms. Info Info: ${AccessibilityStateManager.activePackage.value}",
                 isError = true
             )
         }
@@ -278,7 +278,7 @@ object SemanticUITool {
 
     private suspend fun scrollToText(text: String?, direction: String?): ToolExecutionResult {
         if (text.isNullOrBlank()) {
-            return ToolExecutionResult("[Localized] [Localized] 'text' [Localized] [Localized].", isError = true)
+            return ToolExecutionResult("Info Info 'text' Info Info.", isError = true)
         }
         val result = withContext(Dispatchers.IO) {
             GodModeAccessibility.scrollUntilVisible(text, direction ?: "down")
@@ -289,13 +289,13 @@ object SemanticUITool {
     private suspend fun smartFill(formDataJson: String?): ToolExecutionResult {
         if (formDataJson.isNullOrBlank()) {
             return ToolExecutionResult(
-                "[Localized] [Localized] 'form_data' [Localized] JSON: {\"N1\":\"value1\",\"N2\":\"value2\"}",
+                "Info Info 'form_data' Info JSON: {\"N1\":\"value1\",\"N2\":\"value2\"}",
                 isError = true
             )
         }
 
         val parseResult = lastParseResult
-            ?: return ToolExecutionResult("[Localized] dump_tree [Localized] [Localized] [Localized] node_ids.", isError = true)
+            ?: return ToolExecutionResult("Info dump_tree Info Info Info node_ids.", isError = true)
 
         return try {
             val data = parseJsonMap(formDataJson)
@@ -305,22 +305,22 @@ object SemanticUITool {
             for ((nodeId, value) in data) {
                 val node = parseResult.nodeMap[nodeId.uppercase()]
                 if (node == null) {
-                    results.add("⚠️ $nodeId: [Localized] [Localized] [Localized]")
+                    results.add("⚠️ $nodeId: Info Info Info")
                     continue
                 }
                 if (!node.isEditable) {
-                    results.add("⚠️ $nodeId: [Localized] [Localized] [Localized]")
+                    results.add("⚠️ $nodeId: Info Info Info")
                     continue
                 }
 
                 val service = OmniAccessibilityService.instance
-                    ?: return ToolExecutionResult("[Localized] [Localized] accessibility [Localized] [Localized].", isError = true)
+                    ?: return ToolExecutionResult("Info Info accessibility Info Info.", isError = true)
 
-                // [Localized] [Localized] [Localized] [Localized]
+                // Context note Context note Context note Context note
                 service.clickNode(node)
                 delay(200)
 
-                // [Localized] [Localized]
+                // Context note Context note
                 val typed = service.typeIntoNode(node, value)
                 if (typed) {
                     results.add("✅ $nodeId ← \"$value\"")
@@ -337,19 +337,19 @@ object SemanticUITool {
             }
 
             ToolExecutionResult(
-                "📝 smart_fill: $successCount/${data.size} [Localized]\n${results.joinToString("\n")}"
+                "📝 smart_fill: $successCount/${data.size} Info\n${results.joinToString("\n")}"
             )
         } catch (e: Exception) {
-            ToolExecutionResult("❌ [Localized] [Localized] smart_fill: ${e.message}", isError = true)
+            ToolExecutionResult("❌ Info Info smart_fill: ${e.message}", isError = true)
         }
     }
 
     private fun getNodeText(nodeId: String?): ToolExecutionResult {
         if (nodeId.isNullOrBlank()) {
-            return ToolExecutionResult("[Localized] [Localized] 'node_id'.", isError = true)
+            return ToolExecutionResult("Info Info 'node_id'.", isError = true)
         }
         val node = lastParseResult?.nodeMap?.get(nodeId.uppercase())
-            ?: return ToolExecutionResult("[$nodeId] [Localized] [Localized]. [Localized] dump_tree.", isError = true)
+            ?: return ToolExecutionResult("[$nodeId] Info Info. Info dump_tree.", isError = true)
 
         val text = node.text?.toString() ?: ""
         val desc = node.contentDescription?.toString() ?: ""
@@ -358,33 +358,33 @@ object SemanticUITool {
 
     private fun describeNode(nodeId: String?): ToolExecutionResult {
         if (nodeId.isNullOrBlank()) {
-            return ToolExecutionResult("[Localized] [Localized] 'node_id'.", isError = true)
+            return ToolExecutionResult("Info Info 'node_id'.", isError = true)
         }
         val node = lastParseResult?.nodeMap?.get(nodeId.uppercase())
-            ?: return ToolExecutionResult("[$nodeId] [Localized] [Localized]. [Localized] dump_tree.", isError = true)
+            ?: return ToolExecutionResult("[$nodeId] Info Info. Info dump_tree.", isError = true)
 
         val bounds = Rect().also { node.getBoundsInScreen(it) }
         return ToolExecutionResult(buildString {
-            append("[Localized] [$nodeId]:\n")
-            append("[Localized]: ${node.className?.toString()?.substringAfterLast('.') ?: "Unknown"}\n")
-            append("[Localized]: ${node.text ?: "([Localized] [Localized])"}\n")
-            append("[Localized]: ${node.contentDescription ?: "([Localized] [Localized])"}\n")
-            append("[Localized] [Localized]: ${node.isClickable}\n")
-            append("[Localized] [Localized]: ${node.isEditable}\n")
-            append("[Localized] [Localized]: ${node.isScrollable}\n")
-            append("[Localized]: ${node.isEnabled}\n")
-            append("[Localized]: ${node.isVisibleToUser}\n")
-            append("[Localized]: (${bounds.centerX()}, ${bounds.centerY()})\n")
-            append("[Localized]: [${bounds.left}, ${bounds.top}] → [${bounds.right}, ${bounds.bottom}]")
+            append("Info [$nodeId]:\n")
+            append("Info: ${node.className?.toString()?.substringAfterLast('.') ?: "Unknown"}\n")
+            append("Info: ${node.text ?: "(Info Info)"}\n")
+            append("Info: ${node.contentDescription ?: "(Info Info)"}\n")
+            append("Info Info: ${node.isClickable}\n")
+            append("Info Info: ${node.isEditable}\n")
+            append("Info Info: ${node.isScrollable}\n")
+            append("Info: ${node.isEnabled}\n")
+            append("Info: ${node.isVisibleToUser}\n")
+            append("Info: (${bounds.centerX()}, ${bounds.centerY()})\n")
+            append("Info: [${bounds.left}, ${bounds.top}] → [${bounds.right}, ${bounds.bottom}]")
         })
     }
 
     private fun verifyNode(nodeId: String?, expectedState: String?): ToolExecutionResult {
         if (nodeId.isNullOrBlank()) {
-            return ToolExecutionResult("[Localized] [Localized] 'node_id'.", isError = true)
+            return ToolExecutionResult("Info Info 'node_id'.", isError = true)
         }
         val node = lastParseResult?.nodeMap?.get(nodeId.uppercase())
-            ?: return ToolExecutionResult("[$nodeId] [Localized] [Localized]. [Localized] [Localized] [Localized] — [Localized] dump_tree.", isError = true)
+            ?: return ToolExecutionResult("[$nodeId] Info Info. Info Info Info — Info dump_tree.", isError = true)
 
         val exists = true
         val stateMatch = when (expectedState?.lowercase()) {
@@ -406,8 +406,8 @@ object SemanticUITool {
         }
 
         return ToolExecutionResult(
-            if (stateMatch) "✅ [$nodeId] [Localized] [Localized]${expectedState?.let { ": $it" } ?: ""}"
-            else "❌ [$nodeId] [Localized] [Localized]. [Localized] [Localized]: $expectedState",
+            if (stateMatch) "✅ [$nodeId] Info Info${expectedState?.let { ": $it" } ?: ""}"
+            else "❌ [$nodeId] Info Info. Info Info: $expectedState",
             isError = !stateMatch
         )
     }
@@ -415,7 +415,7 @@ object SemanticUITool {
     private suspend fun executeChain(chainStepsJson: String?): ToolExecutionResult {
         if (chainStepsJson.isNullOrBlank()) {
             return ToolExecutionResult(
-                "[Localized] [Localized] 'chain_steps' [Localized] JSON array: [{\"action\":\"click\",\"node_id\":\"N3\"},{\"action\":\"type\",\"node_id\":\"N4\",\"text\":\"hello\"}]",
+                "Info Info 'chain_steps' Info JSON array: [{\"action\":\"click\",\"node_id\":\"N3\"},{\"action\":\"type\",\"node_id\":\"N4\",\"text\":\"hello\"}]",
                 isError = true
             )
         }
@@ -430,64 +430,64 @@ object SemanticUITool {
                 results.add("${index + 1}. [$stepAction] ${stepResult.output.take(80)}")
                 if (stepResult.isError) {
                     return ToolExecutionResult(
-                        "❌ [Localized] [Localized] [Localized] ${index + 1} ($stepAction):\n${results.joinToString("\n")}",
+                        "❌ Info Info Info ${index + 1} ($stepAction):\n${results.joinToString("\n")}",
                         isError = true
                     )
                 }
                 delay(200)
             }
 
-            ToolExecutionResult("✅ chain [Localized] (${steps.size} [Localized]):\n${results.joinToString("\n")}")
+            ToolExecutionResult("✅ chain Info (${steps.size} Info):\n${results.joinToString("\n")}")
         } catch (e: Exception) {
-            ToolExecutionResult("❌ [Localized] [Localized] chain: ${e.message}", isError = true)
+            ToolExecutionResult("❌ Info Info chain: ${e.message}", isError = true)
         }
     }
 
-    // ── [Localized] [Localized] ([Localized]) ──────────────────────────────────────────
+    // ── Context note Context note (Context note) ──────────────────────────────────────────
 
     private suspend fun clickNode(nodeId: String?, verifyChange: Boolean = true): ToolExecutionResult {
-        if (nodeId.isNullOrBlank()) return ToolExecutionResult("[Localized] [Localized] 'node_id'.", isError = true)
+        if (nodeId.isNullOrBlank()) return ToolExecutionResult("Info Info 'node_id'.", isError = true)
         val node = resolveNode(nodeId) ?: return ToolExecutionResult(
-            "[$nodeId] [Localized] [Localized]. [Localized] dump_tree [Localized] [Localized].", isError = true)
+            "[$nodeId] Info Info. Info dump_tree Info Info.", isError = true)
 
         val preTime = AccessibilityStateManager.lastUpdateTime.value
         val service = OmniAccessibilityService.instance
-            ?: return ToolExecutionResult("[Localized] [Localized] accessibility [Localized] [Localized].", isError = true)
+            ?: return ToolExecutionResult("Info Info accessibility Info Info.", isError = true)
 
         val success = service.clickNode(node)
-        if (!success) return ToolExecutionResult("❌ [Localized] [Localized] [Localized] [$nodeId].", isError = true)
+        if (!success) return ToolExecutionResult("❌ Info Info Info [$nodeId].", isError = true)
 
         if (verifyChange) {
             delay(POST_ACTION_VERIFY_MS.toLong())
             val postTime = AccessibilityStateManager.lastUpdateTime.value
             val changed = postTime > preTime
             return ToolExecutionResult(
-                if (changed) "✅ [Localized] [Localized] [Localized] [$nodeId] — [Localized] [Localized]"
-                else "✅ [Localized] [Localized] [Localized] [$nodeId] — ([Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized])"
+                if (changed) "✅ Info Info Info [$nodeId] — Info Info"
+                else "✅ Info Info Info [$nodeId] — (Info Info Info Info Info Info Info Info)"
             )
         }
-        return ToolExecutionResult("✅ [Localized] [Localized] [Localized] [$nodeId]")
+        return ToolExecutionResult("✅ Info Info Info [$nodeId]")
     }
 
     private fun longClickNode(nodeId: String?): ToolExecutionResult {
-        if (nodeId.isNullOrBlank()) return ToolExecutionResult("[Localized] [Localized] 'node_id'.", isError = true)
-        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] [Localized] [Localized].", isError = true)
+        if (nodeId.isNullOrBlank()) return ToolExecutionResult("Info Info 'node_id'.", isError = true)
+        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] Info Info.", isError = true)
         val service = OmniAccessibilityService.instance
-            ?: return ToolExecutionResult("[Localized] [Localized] accessibility [Localized] [Localized].", isError = true)
+            ?: return ToolExecutionResult("Info Info accessibility Info Info.", isError = true)
 
-        return if (service.longClickNode(node)) ToolExecutionResult("✅ [Localized] [Localized] [Localized] [$nodeId]")
-        else ToolExecutionResult("❌ [Localized] [Localized] [Localized] [Localized] [$nodeId].", isError = true)
+        return if (service.longClickNode(node)) ToolExecutionResult("✅ Info Info Info [$nodeId]")
+        else ToolExecutionResult("❌ Info Info Info Info [$nodeId].", isError = true)
     }
 
     private suspend fun typeText(nodeId: String?, text: String?, clearFirst: Boolean): ToolExecutionResult {
-        if (nodeId.isNullOrBlank()) return ToolExecutionResult("[Localized] [Localized] 'node_id'.", isError = true)
-        if (text == null) return ToolExecutionResult("[Localized] [Localized] 'text'.", isError = true)
-        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] [Localized] [Localized].", isError = true)
+        if (nodeId.isNullOrBlank()) return ToolExecutionResult("Info Info 'node_id'.", isError = true)
+        if (text == null) return ToolExecutionResult("Info Info 'text'.", isError = true)
+        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] Info Info.", isError = true)
         val service = OmniAccessibilityService.instance
-            ?: return ToolExecutionResult("[Localized] [Localized] accessibility [Localized] [Localized].", isError = true)
+            ?: return ToolExecutionResult("Info Info accessibility Info Info.", isError = true)
 
         if (!node.isEditable) {
-            return ToolExecutionResult("[$nodeId] [Localized] [Localized] [Localized]. [Localized] force_type [Localized] [Localized] [Localized].", isError = true)
+            return ToolExecutionResult("[$nodeId] Info Info Info. Info force_type Info Info Info.", isError = true)
         }
 
         if (clearFirst) {
@@ -501,7 +501,7 @@ object SemanticUITool {
         }
 
         return if (service.typeIntoNode(node, text)) {
-            ToolExecutionResult("✅ [Localized] [Localized] [$nodeId]: \"${text.take(50)}\"")
+            ToolExecutionResult("✅ Info Info [$nodeId]: \"${text.take(50)}\"")
         } else {
             // Fallback: Shizuku
             service.clickNode(node)
@@ -509,29 +509,29 @@ object SemanticUITool {
             val shizukuResult = withContext(Dispatchers.IO) {
                 GodModeAccessibility.hybridType(text, node, clearFirst)
             }
-            ToolExecutionResult("⚠️ Accessibility type [Localized]. $shizukuResult")
+            ToolExecutionResult("⚠️ Accessibility type Info. $shizukuResult")
         }
     }
 
     private fun scrollNode(nodeId: String?, direction: String?): ToolExecutionResult {
         val forward = direction?.lowercase() != "backward" && direction?.lowercase() != "up"
         val service = OmniAccessibilityService.instance
-            ?: return ToolExecutionResult("[Localized] [Localized] accessibility [Localized] [Localized].", isError = true)
+            ?: return ToolExecutionResult("Info Info accessibility Info Info.", isError = true)
 
         if (!nodeId.isNullOrBlank()) {
-            val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] [Localized] [Localized].", isError = true)
+            val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] Info Info.", isError = true)
             return if (service.scrollNode(node, forward))
-                ToolExecutionResult("✅ [Localized] [$nodeId] ${if (forward) "[Localized]" else "[Localized]"}")
-            else ToolExecutionResult("❌ [Localized] [Localized] [Localized] [$nodeId].", isError = true)
+                ToolExecutionResult("✅ Info [$nodeId] ${if (forward) "Info" else "Info"}")
+            else ToolExecutionResult("❌ Info Info Info [$nodeId].", isError = true)
         }
 
         val root = AccessibilityStateManager.rootNode.value
-            ?: return ToolExecutionResult("[Localized] [Localized] [Localized] [Localized].", isError = true)
+            ?: return ToolExecutionResult("Info Info Info Info.", isError = true)
         val scrollable = findFirstScrollable(root)
-            ?: return ToolExecutionResult("[Localized] [Localized] [Localized] [Localized] [Localized].", isError = true)
+            ?: return ToolExecutionResult("Info Info Info Info Info.", isError = true)
         return if (service.scrollNode(scrollable, forward))
-            ToolExecutionResult("✅ [Localized] [Localized] ${if (forward) "[Localized]" else "[Localized]"}")
-        else ToolExecutionResult("❌ [Localized] [Localized].", isError = true)
+            ToolExecutionResult("✅ Info Info ${if (forward) "Info" else "Info"}")
+        else ToolExecutionResult("❌ Info Info.", isError = true)
     }
 
     private fun pressBack() = performGlobal("BACK") { OmniAccessibilityService.instance?.pressBack() }
@@ -540,37 +540,37 @@ object SemanticUITool {
 
     private fun performGlobal(name: String, action: () -> Boolean?): ToolExecutionResult {
         val service = OmniAccessibilityService.instance
-            ?: return ToolExecutionResult("[Localized] [Localized] accessibility [Localized] [Localized].", isError = true)
+            ?: return ToolExecutionResult("Info Info accessibility Info Info.", isError = true)
         return if (action() == true) ToolExecutionResult("✅ $name")
-        else ToolExecutionResult("❌ [Localized] $name.", isError = true)
+        else ToolExecutionResult("❌ Info $name.", isError = true)
     }
 
     private fun tapXY(x: String?, y: String?): ToolExecutionResult {
-        val xVal = x?.toFloatOrNull() ?: return ToolExecutionResult("x [Localized] [Localized].", isError = true)
-        val yVal = y?.toFloatOrNull() ?: return ToolExecutionResult("y [Localized] [Localized].", isError = true)
+        val xVal = x?.toFloatOrNull() ?: return ToolExecutionResult("x Info Info.", isError = true)
+        val yVal = y?.toFloatOrNull() ?: return ToolExecutionResult("y Info Info.", isError = true)
         val service = OmniAccessibilityService.instance
-            ?: return ToolExecutionResult("[Localized] [Localized] accessibility [Localized] [Localized].", isError = true)
-        return if (service.tapAtCoordinates(xVal, yVal)) ToolExecutionResult("✅ [Localized] [Localized] ($xVal, $yVal)")
-        else ToolExecutionResult("❌ [Localized] [Localized].", isError = true)
+            ?: return ToolExecutionResult("Info Info accessibility Info Info.", isError = true)
+        return if (service.tapAtCoordinates(xVal, yVal)) ToolExecutionResult("✅ Info Info ($xVal, $yVal)")
+        else ToolExecutionResult("❌ Info Info.", isError = true)
     }
 
     private fun swipe(direction: String?, durationMs: String?, distanceRatio: String?, nodeId: String?): ToolExecutionResult {
         val service = OmniAccessibilityService.instance
-            ?: return ToolExecutionResult("[Localized] [Localized] accessibility [Localized] [Localized].", isError = true)
+            ?: return ToolExecutionResult("Info Info accessibility Info Info.", isError = true)
         val dir = direction?.lowercase() ?: "forward"
         val duration = durationMs?.toLongOrNull()?.coerceIn(120L, 2500L) ?: 320L
         val ratio = distanceRatio?.toFloatOrNull()?.coerceIn(0.1f, 0.9f) ?: 0.35f
 
         val area = if (nodeId.isNullOrBlank()) {
             val root = AccessibilityStateManager.rootNode.value
-                ?: return ToolExecutionResult("[Localized] [Localized] [Localized] [Localized].", isError = true)
+                ?: return ToolExecutionResult("Info Info Info Info.", isError = true)
             Rect().apply { root.getBoundsInScreen(this) }
         } else {
-            val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] [Localized] [Localized].", isError = true)
+            val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] Info Info.", isError = true)
             Rect().apply { node.getBoundsInScreen(this) }
         }
 
-        if (area.isEmpty) return ToolExecutionResult("[Localized] [Localized] [Localized].", isError = true)
+        if (area.isEmpty) return ToolExecutionResult("Info Info Info.", isError = true)
 
         val dx = area.width() * ratio; val dy = area.height() * ratio
         val cx = area.exactCenterX(); val cy = area.exactCenterY()
@@ -583,7 +583,7 @@ object SemanticUITool {
         }
         return if (service.swipeGesture(sx, sy, ex, ey, duration))
             ToolExecutionResult("✅ swipe $dir")
-        else ToolExecutionResult("❌ [Localized] [Localized] swipe.", isError = true)
+        else ToolExecutionResult("❌ Info Info swipe.", isError = true)
     }
 
     private suspend fun autoEnable(): ToolExecutionResult {
@@ -592,40 +592,40 @@ object SemanticUITool {
     }
 
     private suspend fun forceClick(nodeId: String?): ToolExecutionResult {
-        if (nodeId.isNullOrBlank()) return ToolExecutionResult("[Localized] [Localized] 'node_id'.", isError = true)
-        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] [Localized] [Localized].", isError = true)
+        if (nodeId.isNullOrBlank()) return ToolExecutionResult("Info Info 'node_id'.", isError = true)
+        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] Info Info.", isError = true)
         val result = withContext(Dispatchers.IO) { GodModeAccessibility.hybridTap(node) }
         return ToolExecutionResult(result, isError = result.startsWith("❌"))
     }
 
     private suspend fun forceLongClick(nodeId: String?): ToolExecutionResult {
-        if (nodeId.isNullOrBlank()) return ToolExecutionResult("[Localized] [Localized] 'node_id'.", isError = true)
-        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] [Localized] [Localized].", isError = true)
+        if (nodeId.isNullOrBlank()) return ToolExecutionResult("Info Info 'node_id'.", isError = true)
+        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] Info Info.", isError = true)
         val result = withContext(Dispatchers.IO) { GodModeAccessibility.hybridLongPress(node) }
         return ToolExecutionResult(result, isError = result.startsWith("❌"))
     }
 
     private suspend fun forceType(text: String?, nodeId: String?): ToolExecutionResult {
-        if (text.isNullOrBlank()) return ToolExecutionResult("[Localized] [Localized] 'text'.", isError = true)
+        if (text.isNullOrBlank()) return ToolExecutionResult("Info Info 'text'.", isError = true)
         val fallbackNode = nodeId?.let { resolveNode(it) }
         val result = withContext(Dispatchers.IO) { GodModeAccessibility.hybridType(text, fallbackNode) }
         return ToolExecutionResult(result, isError = result.startsWith("❌"))
     }
 
     private fun startRecording(macroName: String?): ToolExecutionResult {
-        if (macroName.isNullOrBlank()) return ToolExecutionResult("[Localized] [Localized] 'macro_name'.", isError = true)
+        if (macroName.isNullOrBlank()) return ToolExecutionResult("Info Info 'macro_name'.", isError = true)
         GodModeAccessibility.startRecording(macroName)
-        return ToolExecutionResult("🎬 [Localized] [Localized] [Localized] '$macroName'")
+        return ToolExecutionResult("🎬 Info Info Info '$macroName'")
     }
 
     private fun stopRecording(macroName: String?): ToolExecutionResult {
-        if (macroName.isNullOrBlank()) return ToolExecutionResult("[Localized] [Localized] 'macro_name'.", isError = true)
+        if (macroName.isNullOrBlank()) return ToolExecutionResult("Info Info 'macro_name'.", isError = true)
         val count = GodModeAccessibility.stopRecording(macroName)
-        return ToolExecutionResult("⏹️ [Localized] [Localized] '$macroName': $count [Localized]")
+        return ToolExecutionResult("⏹️ Info Info '$macroName': $count Info")
     }
 
     private suspend fun playMacro(macroName: String?): ToolExecutionResult {
-        if (macroName.isNullOrBlank()) return ToolExecutionResult("[Localized] [Localized] 'macro_name'.", isError = true)
+        if (macroName.isNullOrBlank()) return ToolExecutionResult("Info Info 'macro_name'.", isError = true)
         val result = GodModeAccessibility.playMacro(macroName)
         return ToolExecutionResult(result, isError = result.startsWith("❌"))
     }
@@ -655,7 +655,7 @@ object SemanticUITool {
         return null
     }
 
-    /** [Localized] JSON [Localized] [Localized] [Localized] {key: value} */
+    /** Context note JSON Context note Context note Context note {key: value} */
     private fun parseJsonMap(json: String): Map<String, String> {
         val result = mutableMapOf<String, String>()
         val cleaned = json.trim().removePrefix("{").removeSuffix("}")
@@ -670,10 +670,10 @@ object SemanticUITool {
         return result
     }
 
-    /** [Localized] JSON array [Localized] [Localized] [Localized] [{key: value}] */
+    /** Context note JSON array Context note Context note Context note [{key: value}] */
     private fun parseJsonArrayOfMaps(json: String): List<Map<String, String>> {
         val result = mutableListOf<Map<String, String>>()
-        // [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note
         val cleaned = json.trim().removePrefix("[").removeSuffix("]")
         var depth = 0
         var start = 0

@@ -78,8 +78,8 @@ class MainActivity : ComponentActivity() {
         val notionPublisherTool = com.omnidev.workspace.data.tools.NotionPublisherTool(settingsRepository)
 
         // ── Agent Brain 2.0 + Action Insurance + Repo Context + Build Doctor Pro ──
-        // [Localized] [Localized] [Localized] OmniDevApp.onCreate() — [Localized] [Localized] [Localized] [Localized] [Localized]
-        // [Localized] [Localized] [Localized] Agent [Localized] [Localized] ReAct loop.
+        // Context note Context note Context note OmniDevApp.onCreate() — Context note Context note Context note Context note Context note
+        // Context note Context note Context note Agent Context note Context note ReAct loop.
         val app = OmniDevApp.instance
         val agentBrainTools = AgentBrainTools(
             reflexion = app.reflexionEngine,

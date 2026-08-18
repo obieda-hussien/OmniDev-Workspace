@@ -27,14 +27,14 @@ class OmniScreenCaptureService : Service() {
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
     
-    // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+    // Context note Context note Context note Context note Context note Context note
     private var latestBitmap: Bitmap? = null
 
     companion object {
         const val CHANNEL_ID = "ScreenCaptureServiceChannel"
         const val NOTIFICATION_ID = 1001
         
-        // [Localized] [Localized] Intent
+        // Context note Context note Intent
         const val EXTRA_RESULT_CODE = "EXTRA_RESULT_CODE"
         const val EXTRA_RESULT_DATA = "EXTRA_RESULT_DATA"
     }
@@ -51,15 +51,15 @@ class OmniScreenCaptureService : Service() {
         createNotificationChannel()
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Omni Agent Vision")
-            .setContentText("[Localized] [Localized] [Localized] [Localized] [Localized]...")
-            //.setSmallIcon(R.mipmap.ic_launcher) // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+            .setContentText("Info Info Info Info Info...")
+            //.setSmallIcon(R.mipmap.ic_launcher) // Context note Context note Context note Context note Context note Context note Context note
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
-        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] Media Projection ([Localized] [Localized] [Localized] 14+)
+        // Context note Context note Context note Context note Context note Context note Media Projection (Context note Context note Context note 14+)
         startForeground(NOTIFICATION_ID, notification)
 
-        // [Localized] [Localized] [Localized] [Localized] [Localized] Activity
+        // Context note Context note Context note Context note Context note Activity
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
         val resultData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent?.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
@@ -84,7 +84,7 @@ class OmniScreenCaptureService : Service() {
         val height = metrics.heightPixels
         val density = metrics.densityDpi
 
-        // [Localized] ImageReader [Localized] [Localized] [Localized]
+        // Context note ImageReader Context note Context note Context note
         imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
         
         virtualDisplay = mediaProjection?.createVirtualDisplay(
@@ -94,7 +94,7 @@ class OmniScreenCaptureService : Service() {
             imageReader?.surface, null, null
         )
 
-        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note Context note
         imageReader?.setOnImageAvailableListener({ reader ->
             val image = reader.acquireLatestImage()
             if (image != null) {
@@ -104,11 +104,11 @@ class OmniScreenCaptureService : Service() {
                 val rowStride = planes[0].rowStride
                 val rowPadding = rowStride - pixelStride * width
 
-                // [Localized] [Localized] [Localized] Bitmap [Localized] [Localized] [Localized]
+                // Context note Context note Context note Bitmap Context note Context note Context note
                 val bitmap = Bitmap.createBitmap(width + rowPadding / pixelStride, height, Bitmap.Config.ARGB_8888)
                 bitmap.copyPixelsFromBuffer(buffer)
                 
-                // [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized])
+                // Context note Context note Context note (Context note Context note Context note Context note)
                 latestBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height)
                 
                 image.close()
@@ -116,13 +116,13 @@ class OmniScreenCaptureService : Service() {
         }, null)
     }
 
-    // [Localized] [Localized] [Localized] [Localized] (AI) [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+    // Context note Context note Context note Context note (AI) Context note Context note Context note Context note Context note Context note
     fun getLatestFrame(): Bitmap? {
         return latestBitmap
     }
 
     private fun createNotificationChannel() {
-        // [Localized] [Localized] [Localized] [Localized] [Localized] 8.0 (API 26) [Localized] [Localized]
+        // Context note Context note Context note Context note Context note 8.0 (API 26) Context note Context note
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,

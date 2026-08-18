@@ -175,12 +175,12 @@ class AgentPipeline(
     private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null,
     private val memoryManager: com.omnidev.workspace.data.tools.MemoryManager? = null,
     /**
-     * SmartLearningBridge — [Localized] [Localized] [Localized] [Localized]
-     * [Localized] [Localized] [Localized] [Localized] Agent [Localized]:
-     * - [Localized] [Localized] [Localized] [Localized]
-     * - [Localized] [Localized] [Localized] [Localized] [Localized]
-     * - [Localized] [Localized] [Localized] [Localized] System Prompt
-     * - [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+     * SmartLearningBridge — Context note Context note Context note Context note
+     * Context note Context note Context note Context note Agent Context note:
+     * - Context note Context note Context note Context note
+     * - Context note Context note Context note Context note Context note
+     * - Context note Context note Context note Context note System Prompt
+     * - Context note Context note Context note Context note Context note Context note
      */
     private val smartLearningBridge: com.omnidev.workspace.data.brain.SmartLearningBridge? = null,
     private val toolOrchestrator: ToolOrchestrator = ToolOrchestrator(),
@@ -609,7 +609,7 @@ Rules:
         )
 
         // ═══════════════════════════════════════════════════════════════
-        // 🧠 Agent Brain 2.0 — [Localized] [Localized] [Localized] ([Localized] episodic memory)
+        // 🧠 Agent Brain 2.0 — Context note Context note Context note (Context note episodic memory)
         // ═══════════════════════════════════════════════════════════════
         smartLearningBridge?.onTaskStart(userMessage)
 
@@ -693,8 +693,8 @@ Rules:
             }
             // ═══════════════════════════════════════════════════════════════
             // 🧠 SMART LEARNING BRIDGE CONTEXT INJECTION
-            // [Localized] [Localized] [Localized] + [Localized] [Localized] + [Localized] [Localized] [Localized]
-            // [Localized] [Localized] [Localized] [Localized] Agent [Localized] [Localized] Claude Code / GitHub Copilot Agent
+            // Context note Context note Context note + Context note Context note + Context note Context note Context note
+            // Context note Context note Context note Context note Agent Context note Context note Claude Code / GitHub Copilot Agent
             // ═══════════════════════════════════════════════════════════════
             if (brainContext.isNotBlank()) {
                 appendLine()
@@ -756,7 +756,7 @@ Rules:
         // ── ReAct Loop ──
         while (iteration < config.maxIterations) {
             iteration++
-            // Agent Brain 2.0 — [Localized] iterations [Localized] [Localized] episode [Localized]
+            // Agent Brain 2.0 — Context note iterations Context note Context note episode Context note
             smartLearningBridge?.onIterationStart()
 
             // ── Wall-clock timeout check ──
@@ -953,7 +953,7 @@ Rules:
                     AgentExecutionPhase.REPORT,
                     "Publishing final answer"
                 )
-                // Agent Brain 2.0 — [Localized] episode [Localized] [Localized]
+                // Agent Brain 2.0 — Context note episode Context note Context note
                 smartLearningBridge?.onTaskEnd(
                     outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.SUCCESS,
                     finalSummary = finalContent.take(500)
@@ -1010,7 +1010,7 @@ Rules:
                     arguments = toolCall.arguments,
                     iteration = iteration
                 ))
-                // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized])
+                // Context note Context note Context note Context note Context note Context note Context note Context note (Context note Context note)
                 smartLearningBridge?.onToolExecutionStart(toolCall.name, callId = toolCall.id)
             }
 
@@ -1102,12 +1102,12 @@ Rules:
                 ))
 
                 // ═══════════════════════════════════════════════════════════════
-                // 🧠 SMART LEARNING HOOK — [Localized] [Localized] [Localized] [Localized] [Localized]
-                // [Localized] [Localized] [Localized] [Localized] SmartLearningBridge [Localized]:
-                // - ToolExecutionJournal ([Localized] [Localized])
-                // - ToolAwarenessEngine ([Localized] [Localized])
-                // - ToolIntelligenceEngine ([Localized] [Localized])
-                // - ToolMachineLearningEngine ([Localized])
+                // 🧠 SMART LEARNING HOOK — Context note Context note Context note Context note Context note
+                // Context note Context note Context note Context note SmartLearningBridge Context note:
+                // - ToolExecutionJournal (Context note Context note)
+                // - ToolAwarenessEngine (Context note Context note)
+                // - ToolIntelligenceEngine (Context note Context note)
+                // - ToolMachineLearningEngine (Context note)
                 // ═══════════════════════════════════════════════════════════════
                 smartLearningBridge?.let { bridge ->
                     val redactedContext = userMessage.take(200)
@@ -1187,7 +1187,7 @@ Rules:
         }
 
         // ── Max iterations reached ──
-        // Agent Brain 2.0 — [Localized] episode [Localized] [Localized] maxIterations
+        // Agent Brain 2.0 — Context note episode Context note Context note maxIterations
         smartLearningBridge?.onTaskEnd(
             outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.ABANDONED,
             finalSummary = "max iterations reached after ${config.maxIterations} loops"

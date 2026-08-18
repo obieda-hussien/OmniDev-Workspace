@@ -2,28 +2,28 @@ package com.omnidev.workspace.data.brain
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * CausalChainPlanner — [Localized] [Localized] [Localized] [Localized] [Localized] (Mobile-First)
+ * CausalChainPlanner — Context note Context note Context note Context note Context note (Mobile-First)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] "[Localized] [Localized]" (Causal Graph)
- * [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized]: [Localized] [Localized] [Localized] [Localized] [Localized]).
+ * Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note "Context note Context note" (Causal Graph)
+ * Context note Context note Context note Context note Context note (Context note: Context note Context note Context note Context note Context note).
  *
- * ## [Localized] [Localized]:
- * 1. **[Localized] [Localized]** (analyzeToolCall): [Localized] [Localized] [Localized] → [Localized] [Localized] [Localized] + [Localized]
- * 2. **[Localized] [Localized]** (buildChain): [Localized] DAG [Localized] [Localized] [Localized] [Localized]
- * 3. **[Localized] [Localized]** (detectConflicts): [Localized] [Localized] [Localized] [Localized] (Read-After-Delete[Localized] [Localized])
- * 4. **[Localized] [Localized]** (simulate): [Localized] [Localized] [Localized] [Localized] [Localized]
- * 5. **[Localized] What-If** (whatIf): [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
- * 6. **[Localized] [Localized] Prompt** (buildPromptInjection): [Localized] [Localized] [Localized] [Localized] system prompt
+ * ## Context note Context note:
+ * 1. **Context note Context note** (analyzeToolCall): Context note Context note Context note → Context note Context note Context note + Context note
+ * 2. **Context note Context note** (buildChain): Context note DAG Context note Context note Context note Context note
+ * 3. **Context note Context note** (detectConflicts): Context note Context note Context note Context note (Read-After-DeleteContext note Context note)
+ * 4. **Context note Context note** (simulate): Context note Context note Context note Context note Context note
+ * 5. **Context note What-If** (whatIf): Context note Context note Context note Context note Context note Context note Context note
+ * 6. **Context note Context note Prompt** (buildPromptInjection): Context note Context note Context note Context note system prompt
  *
- * ## Mobile-First (4 GB RAM [Localized] [Localized]):
- * - [Localized] [Localized] LLM [Localized] — [Localized] [Localized] rule-based
- * - [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] (in-memory)
- * - [Localized] [Localized] [maxNodes] [Localized] [Localized] [Localized]
- * - [Localized] [Localized] < 5ms [Localized] 20 [Localized]
+ * ## Mobile-First (4 GB RAM Context note Context note):
+ * - Context note Context note LLM Context note — Context note Context note rule-based
+ * - Context note Context note Context note — Context note Context note Context note (in-memory)
+ * - Context note Context note [maxNodes] Context note Context note Context note
+ * - Context note Context note < 5ms Context note 20 Context note
  */
 class CausalChainPlanner(
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] OOM). */
+    /** Context note Context note Context note Context note Context note Context note Context note (Context note Context note OOM). */
     val maxNodes: Int = 50
 ) {
 
@@ -32,39 +32,39 @@ class CausalChainPlanner(
     // ──────────────────────────────────────────────────────────────────────────
 
     enum class EffectType {
-        CREATE,   // [Localized] [Localized] [Localized] [Localized] [Localized]
-        DELETE,   // [Localized] [Localized] [Localized] [Localized]
-        MODIFY,   // [Localized] [Localized] [Localized]
-        READ,     // [Localized] [Localized] ([Localized] [Localized] [Localized])
-        EXECUTE,  // [Localized] [Localized] [Localized] Shell [Localized] [Localized] [Localized]
-        SYSTEM,   // [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] Git[Localized] [Localized])
-        NETWORK   // [Localized] [Localized] [Localized] [Localized]
+        CREATE,   // Context note Context note Context note Context note Context note
+        DELETE,   // Context note Context note Context note Context note
+        MODIFY,   // Context note Context note Context note
+        READ,     // Context note Context note (Context note Context note Context note)
+        EXECUTE,  // Context note Context note Context note Shell Context note Context note Context note
+        SYSTEM,   // Context note Context note Context note Context note (Context note Context note GitContext note Context note)
+        NETWORK   // Context note Context note Context note Context note
     }
 
     enum class RiskLevel(val score: Int) {
         LOW(1), MEDIUM(2), HIGH(3), CRITICAL(4);
 
         fun label(): String = when (this) {
-            LOW      -> "🟢 [Localized]"
-            MEDIUM   -> "🟡 [Localized]"
-            HIGH     -> "🔴 [Localized]"
-            CRITICAL -> "💥 [Localized]"
+            LOW      -> "🟢 Info"
+            MEDIUM   -> "🟡 Info"
+            HIGH     -> "🔴 Info"
+            CRITICAL -> "💥 Info"
         }
     }
 
     enum class ConflictType {
-        READ_AFTER_DELETE,      // [Localized] [Localized] [Localized] [Localized]
-        MODIFY_AFTER_DELETE,    // [Localized] [Localized] [Localized] [Localized]
-        DOUBLE_CREATE,          // [Localized] [Localized] [Localized] [Localized]
-        OVERWRITE_UNREAD,       // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized])
-        DELETE_AFTER_MODIFY,    // [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized])
-        CRITICAL_COMMAND,       // [Localized] [Localized] [Localized] [Localized] (rm -rf, git reset --hard)
-        CIRCULAR_DEPENDENCY,    // A [Localized] [Localized] B [Localized] B [Localized] [Localized] A
+        READ_AFTER_DELETE,      // Context note Context note Context note Context note
+        MODIFY_AFTER_DELETE,    // Context note Context note Context note Context note
+        DOUBLE_CREATE,          // Context note Context note Context note Context note
+        OVERWRITE_UNREAD,       // Context note Context note Context note Context note Context note Context note (Context note Context note Context note)
+        DELETE_AFTER_MODIFY,    // Context note Context note Context note Context note (Context note Context note)
+        CRITICAL_COMMAND,       // Context note Context note Context note Context note (rm -rf, git reset --hard)
+        CIRCULAR_DEPENDENCY,    // A Context note Context note B Context note B Context note Context note A
     }
 
     data class CausalEffect(
         val type: EffectType,
-        /** [Localized] [Localized] [Localized] [Localized] (null [Localized] [Localized] [Localized] [Localized]). */
+        /** Context note Context note Context note Context note (null Context note Context note Context note Context note). */
         val targetPath: String?,
         val description: String
     )
@@ -82,11 +82,11 @@ class CausalChainPlanner(
 
     data class CausalConflict(
         val type: ConflictType,
-        val stepA: Int,       // [Localized] [Localized] [Localized]
-        val stepB: Int,       // [Localized] [Localized] [Localized] (-1 [Localized] [Localized] [Localized])
+        val stepA: Int,       // Context note Context note Context note
+        val stepB: Int,       // Context note Context note Context note (-1 Context note Context note Context note)
         val path: String?,
         val message: String,
-        val isFatal: Boolean  // [Localized] [Localized] [Localized] [Localized]
+        val isFatal: Boolean  // Context note Context note Context note Context note
     )
 
     data class CausalGraph(
@@ -112,13 +112,13 @@ class CausalChainPlanner(
     data class SimulationResult(
         val steps: List<SimulationStep>,
         val overallSuccess: Boolean,
-        val firstFailureIndex: Int,   // -1 [Localized] [Localized] [Localized]
+        val firstFailureIndex: Int,   // -1 Context note Context note Context note
         val warningMessages: List<String>
     )
 
     /**
-     * [Localized] [Localized] [Localized]/[Localized] [Localized] [Localized].
-     * [Localized] [Localized] — [Localized] sets [Localized] [Localized].
+     * Context note Context note Context note/Context note Context note Context note.
+     * Context note Context note — Context note sets Context note Context note.
      */
     data class VirtualState(
         val createdPaths: Set<String>,
@@ -138,8 +138,8 @@ class CausalChainPlanner(
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [CausalNode] [Localized] [Localized].
-     * [Localized] 100% rule-based — [Localized] LLM[Localized] [Localized] [Localized] [Localized] < 1ms.
+     * Context note Context note Context note Context note Context note [CausalNode] Context note Context note.
+     * Context note 100% rule-based — Context note LLMContext note Context note Context note Context note < 1ms.
      */
     fun analyzeToolCall(
         stepIndex: Int,
@@ -160,9 +160,9 @@ class CausalChainPlanner(
     }
 
     /**
-     * [Localized] [CausalGraph] [Localized] [Localized] [Localized] [Localized] [Localized].
-     * [Localized] [Localized] [Localized] [Localized] [Localized].
-     * [Localized] [Localized] [Localized] [maxNodes][Localized] [Localized] [Localized].
+     * Context note [CausalGraph] Context note Context note Context note Context note Context note.
+     * Context note Context note Context note Context note Context note.
+     * Context note Context note Context note [maxNodes]Context note Context note Context note.
      */
     fun buildChain(steps: List<Pair<String, Map<String, String>>>): CausalGraph {
         val bounded = steps.take(maxNodes)
@@ -174,11 +174,11 @@ class CausalChainPlanner(
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note Context note Context note Context note Context note Context note Context note Context note.
      */
     fun detectConflicts(nodes: List<CausalNode>): List<CausalConflict> {
         val conflicts = mutableListOf<CausalConflict>()
-        // [Localized]: path → [Localized] [Localized] [Localized]
+        // Context note: path → Context note Context note Context note
         val lastCreate  = mutableMapOf<String, Int>()
         val lastDelete  = mutableMapOf<String, Int>()
         val lastModify  = mutableMapOf<String, Int>()
@@ -194,7 +194,7 @@ class CausalChainPlanner(
                             conflicts += CausalConflict(
                                 type = ConflictType.READ_AFTER_DELETE,
                                 stepA = delIdx, stepB = i, path = path,
-                                message = "⚠️ [Localized] $i [Localized] '$path' [Localized] [Localized] [Localized] [Localized] $delIdx.",
+                                message = "⚠️ Info $i Info '$path' Info Info Info Info $delIdx.",
                                 isFatal = true
                             )
                         }
@@ -205,7 +205,7 @@ class CausalChainPlanner(
                             conflicts += CausalConflict(
                                 type = ConflictType.MODIFY_AFTER_DELETE,
                                 stepA = delIdx, stepB = i, path = path,
-                                message = "❌ [Localized] $i [Localized] '$path' [Localized] [Localized] [Localized] [Localized] $delIdx.",
+                                message = "❌ Info $i Info '$path' Info Info Info Info $delIdx.",
                                 isFatal = true
                             )
                         }
@@ -217,7 +217,7 @@ class CausalChainPlanner(
                                 conflicts += CausalConflict(
                                     type = ConflictType.DOUBLE_CREATE,
                                     stepA = prevIdx, stepB = i, path = path,
-                                    message = "⚠️ [Localized] $i [Localized] '$path' [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized] [Localized] $prevIdx).",
+                                    message = "⚠️ Info $i Info '$path' Info Info (Info Info Info Info Info $prevIdx).",
                                     isFatal = false
                                 )
                             }
@@ -231,7 +231,7 @@ class CausalChainPlanner(
                                 conflicts += CausalConflict(
                                     type = ConflictType.DELETE_AFTER_MODIFY,
                                     stepA = modIdx, stepB = i, path = path,
-                                    message = "⚠️ [Localized] $i [Localized] '$path' [Localized] [Localized] [Localized] [Localized] $modIdx — [Localized] [Localized].",
+                                    message = "⚠️ Info $i Info '$path' Info Info Info Info $modIdx — Info Info.",
                                     isFatal = false
                                 )
                             }
@@ -239,13 +239,13 @@ class CausalChainPlanner(
                         lastDelete[path] = i
                     }
                     EffectType.EXECUTE -> {
-                        // CRITICAL risk [Localized] [Localized] [Localized] (rm -rf, git reset --hard, etc.)
+                        // CRITICAL risk Context note Context note Context note (rm -rf, git reset --hard, etc.)
                         if (node.riskLevel == RiskLevel.CRITICAL) {
                             conflicts += CausalConflict(
                                 type = ConflictType.CRITICAL_COMMAND,
                                 stepA = i, stepB = -1, path = path,
-                                message = "💥 [Localized] $i [Localized] [Localized] [Localized]: ${node.humanSummary}",
-                                isFatal = false // [Localized] [Localized] [Localized] [Localized]
+                                message = "💥 Info $i Info Info Info: ${node.humanSummary}",
+                                isFatal = false // Context note Context note Context note Context note
                             )
                         }
                     }
@@ -257,8 +257,8 @@ class CausalChainPlanner(
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
-     * [Localized] "[Localized] [Localized] [Localized]" [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note Context note Context note Context note Context note Context note Context note Context note Context note.
+     * Context note "Context note Context note Context note" Context note Context note Context note Context note Context note.
      */
     fun simulate(graph: CausalGraph): SimulationResult {
         val warnings = mutableListOf<String>()
@@ -282,10 +282,10 @@ class CausalChainPlanner(
         }
 
         if (graph.highestRisk >= RiskLevel.HIGH) {
-            warnings += "⚠️ [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized] (rollback group)."
+            warnings += "⚠️ Info Info Info Info Info Info Info — Info Info Info Info Info (rollback group)."
         }
         if (graph.nodes.count { it.riskLevel == RiskLevel.CRITICAL } > 0) {
-            warnings += "💥 [Localized]: [Localized] ${graph.nodes.count { it.riskLevel == RiskLevel.CRITICAL }} [Localized]([Localized]) [Localized]([Localized]) [Localized] [Localized]."
+            warnings += "💥 Info: Info ${graph.nodes.count { it.riskLevel == RiskLevel.CRITICAL }} Info(Info) Info(Info) Info Info."
         }
         for (c in graph.conflicts) {
             if (c.isFatal) warnings += c.message
@@ -300,8 +300,8 @@ class CausalChainPlanner(
     }
 
     /**
-     * [Localized] What-If: "[Localized] [Localized] [Localized] [Localized]/[Localized] [Localized] [Localized]"
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * Context note What-If: "Context note Context note Context note Context note/Context note Context note Context note"
+     * Context note Context note Context note Context note Context note Context note.
      */
     fun whatIf(
         baseline: CausalGraph,
@@ -319,17 +319,17 @@ class CausalChainPlanner(
         val modSim = simulate(modifiedGraph)
 
         return buildString {
-            appendLine("🔬 [Localized] What-If:")
+            appendLine("🔬 Info What-If:")
             appendLine()
             when {
                 removeStepIndex != null -> {
                     val removed = baseline.nodes.find { it.stepIndex == removeStepIndex }
-                    appendLine("❌ [Localized] [Localized] [Localized] $removeStepIndex (${removed?.toolName ?: "?"}):")
+                    appendLine("❌ Info Info Info $removeStepIndex (${removed?.toolName ?: "?"}):")
                 }
                 insertStep != null ->
-                    appendLine("➕ [Localized] [Localized] [Localized] [Localized] (${insertStep.first}):")
+                    appendLine("➕ Info Info Info Info (${insertStep.first}):")
                 else ->
-                    appendLine("📊 [Localized] [Localized]:")
+                    appendLine("📊 Info Info:")
             }
             appendLine()
 
@@ -337,31 +337,31 @@ class CausalChainPlanner(
             val modConflicts = modifiedGraph.conflicts.size
             when {
                 modConflicts < baseConflicts ->
-                    appendLine("✅ [Localized] [Localized] [Localized]: $baseConflicts → $modConflicts")
+                    appendLine("✅ Info Info Info: $baseConflicts → $modConflicts")
                 modConflicts > baseConflicts ->
-                    appendLine("⚠️ [Localized] [Localized] [Localized]: $baseConflicts → $modConflicts")
+                    appendLine("⚠️ Info Info Info: $baseConflicts → $modConflicts")
                 else ->
-                    appendLine("ℹ️ [Localized] [Localized] [Localized] [Localized]: $modConflicts")
+                    appendLine("ℹ️ Info Info Info Info: $modConflicts")
             }
 
             val baseRisk = baseline.highestRisk
             val modRisk = modifiedGraph.highestRisk
             if (modRisk.score > baseRisk.score)
-                appendLine("⬆️ [Localized] [Localized]: ${baseRisk.label()} → ${modRisk.label()}")
+                appendLine("⬆️ Info Info: ${baseRisk.label()} → ${modRisk.label()}")
             else if (modRisk.score < baseRisk.score)
-                appendLine("⬇️ [Localized] [Localized]: ${baseRisk.label()} → ${modRisk.label()}")
+                appendLine("⬇️ Info Info: ${baseRisk.label()} → ${modRisk.label()}")
 
             val baseSuccess = baseSim.overallSuccess
             val modSuccess = modSim.overallSuccess
             when {
-                !baseSuccess && modSuccess  -> appendLine("🎉 [Localized] [Localized] [Localized] [Localized]!")
-                baseSuccess && !modSuccess  -> appendLine("💔 [Localized] [Localized] [Localized] [Localized]!")
-                else                         -> appendLine("ℹ️ [Localized] [Localized] [Localized] [Localized] (${if (modSuccess) "[Localized]" else "[Localized]"})")
+                !baseSuccess && modSuccess  -> appendLine("🎉 Info Info Info Info!")
+                baseSuccess && !modSuccess  -> appendLine("💔 Info Info Info Info!")
+                else                         -> appendLine("ℹ️ Info Info Info Info (${if (modSuccess) "Info" else "Info"})")
             }
 
             if (modifiedGraph.conflicts.isNotEmpty()) {
                 appendLine()
-                appendLine("📋 [Localized] [Localized] [Localized] [Localized]:")
+                appendLine("📋 Info Info Info Info:")
                 for (c in modifiedGraph.conflicts.take(5)) {
                     appendLine("  • ${c.message}")
                 }
@@ -370,8 +370,8 @@ class CausalChainPlanner(
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] system prompt [Localized] [Localized] [Localized].
-     * [Localized] [Localized] [maxChars] [Localized] context window.
+     * Context note Context note Context note Context note system prompt Context note Context note Context note.
+     * Context note Context note [maxChars] Context note context window.
      */
     fun buildPromptInjection(graph: CausalGraph, maxChars: Int = 700): String {
         if (graph.nodes.isEmpty()) return ""
@@ -380,11 +380,11 @@ class CausalChainPlanner(
         if (fatalConflicts.isEmpty() && warnings.isEmpty() && graph.highestRisk < RiskLevel.HIGH) return ""
 
         return buildString {
-            appendLine("\n🗺️ [Localized] [Localized] [Localized] (Causal Chain):")
-            appendLine("  [Localized]: ${graph.nodes.size} | [Localized] [Localized]: ${graph.highestRisk.label()}")
+            appendLine("\n🗺️ Info Info Info (Causal Chain):")
+            appendLine("  Info: ${graph.nodes.size} | Info Info: ${graph.highestRisk.label()}")
 
             if (fatalConflicts.isNotEmpty()) {
-                appendLine("❌ [Localized] [Localized]:")
+                appendLine("❌ Info Info:")
                 for (c in fatalConflicts.take(3)) {
                     val line = "  • ${c.message.take(120)}"
                     if (length + line.length > maxChars) return@buildString
@@ -392,7 +392,7 @@ class CausalChainPlanner(
                 }
             }
             if (warnings.isNotEmpty()) {
-                appendLine("⚠️ [Localized]:")
+                appendLine("⚠️ Info:")
                 for (c in warnings.take(3)) {
                     val line = "  • ${c.message.take(100)}"
                     if (length + line.length > maxChars) return@buildString
@@ -413,7 +413,7 @@ class CausalChainPlanner(
         val humanSummary: String
     )
 
-    /** [Localized] [Localized] [Localized] + [Localized] [Localized] [Localized] [Localized]. */
+    /** Context note Context note Context note + Context note Context note Context note Context note. */
     private fun findRule(toolName: String, params: Map<String, String>): ToolRule {
         val path = params["path"]?.trim()
             ?: params["file_path"]?.trim()
@@ -422,24 +422,24 @@ class CausalChainPlanner(
         return when (toolName) {
             // ── File Read Operations (LOW risk) ──────────────────────────────
             "read_file_lines", "read_file" ->
-                readRule(path, "[Localized] [Localized]")
+                readRule(path, "Info Info")
             "multi_read" ->
-                readRule(path, "[Localized] [Localized] [Localized]")
+                readRule(path, "Info Info Info")
             "search_codebase" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.READ, null, "[Localized] [Localized] [Localized] [Localized]")),
+                    effects = listOf(CausalEffect(EffectType.READ, null, "Info Info Info Info")),
                     preconditions = emptyList(),
                     riskLevel = RiskLevel.LOW,
-                    humanSummary = "🔍 [Localized] [Localized] [Localized]: ${params["query"]?.take(40) ?: "?"}"
+                    humanSummary = "🔍 Info Info Info: ${params["query"]?.take(40) ?: "?"}"
                 )
 
             // ── File Create Operations ────────────────────────────────────────
             "create_file" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.CREATE, path, "[Localized] [Localized] [Localized]")),
-                    preconditions = if (path != null) listOf("'$path' [Localized] [Localized]") else emptyList(),
+                    effects = listOf(CausalEffect(EffectType.CREATE, path, "Info Info Info")),
+                    preconditions = if (path != null) listOf("'$path' Info Info") else emptyList(),
                     riskLevel = RiskLevel.LOW,
-                    humanSummary = "📄 [Localized]: ${path ?: "?"}"
+                    humanSummary = "📄 Info: ${path ?: "?"}"
                 )
 
             // ── File Modify Operations ────────────────────────────────────────
@@ -447,28 +447,28 @@ class CausalChainPlanner(
             "delete_text", "delete_lines", "insert_lines",
             "replace_lines", "append_to_file" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.MODIFY, path, "[Localized] [Localized]")),
-                    preconditions = if (path != null) listOf("'$path' [Localized]") else emptyList(),
+                    effects = listOf(CausalEffect(EffectType.MODIFY, path, "Info Info")),
+                    preconditions = if (path != null) listOf("'$path' Info") else emptyList(),
                     riskLevel = RiskLevel.MEDIUM,
-                    humanSummary = "✏️ [Localized]: ${path ?: "?"}"
+                    humanSummary = "✏️ Info: ${path ?: "?"}"
                 )
 
             // ── Destructive: clear_file ───────────────────────────────────────
             "clear_file" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.MODIFY, path, "[Localized] [Localized] [Localized] [Localized]")),
-                    preconditions = if (path != null) listOf("'$path' [Localized]") else emptyList(),
+                    effects = listOf(CausalEffect(EffectType.MODIFY, path, "Info Info Info Info")),
+                    preconditions = if (path != null) listOf("'$path' Info") else emptyList(),
                     riskLevel = RiskLevel.HIGH,
-                    humanSummary = "🗑️ [Localized] [Localized] [Localized]: ${path ?: "?"}"
+                    humanSummary = "🗑️ Info Info Info: ${path ?: "?"}"
                 )
 
             // ── Delete Operations ─────────────────────────────────────────────
             "delete_file" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.DELETE, path, "[Localized] [Localized]")),
-                    preconditions = if (path != null) listOf("'$path' [Localized]") else emptyList(),
+                    effects = listOf(CausalEffect(EffectType.DELETE, path, "Info Info")),
+                    preconditions = if (path != null) listOf("'$path' Info") else emptyList(),
                     riskLevel = RiskLevel.HIGH,
-                    humanSummary = "🗑️ [Localized] [Localized]: ${path ?: "?"}"
+                    humanSummary = "🗑️ Info Info: ${path ?: "?"}"
                 )
 
             // ── Terminal / Shell ──────────────────────────────────────────────
@@ -483,35 +483,35 @@ class CausalChainPlanner(
             "web_search", "web_search_deep", "web_scraper", "scrape_multiple",
             "network_request" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.NETWORK, null, "[Localized] [Localized]")),
+                    effects = listOf(CausalEffect(EffectType.NETWORK, null, "Info Info")),
                     preconditions = emptyList(),
                     riskLevel = RiskLevel.LOW,
-                    humanSummary = "🌐 [Localized] [Localized]: $toolName"
+                    humanSummary = "🌐 Info Info: $toolName"
                 )
 
             // ── Memory Operations (LOW risk) ──────────────────────────────────
             "remember_fact", "update_memory", "delete_memory",
             "vector_store", "brain_record_episode" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.MODIFY, null, "[Localized] [Localized]")),
+                    effects = listOf(CausalEffect(EffectType.MODIFY, null, "Info Info")),
                     preconditions = emptyList(),
                     riskLevel = RiskLevel.LOW,
-                    humanSummary = "🧠 [Localized] [Localized]: $toolName"
+                    humanSummary = "🧠 Info Info: $toolName"
                 )
 
             // ── System Tools ──────────────────────────────────────────────────
             "hardware_toggle_tool", "vpn_control", "system_power" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.SYSTEM, null, "[Localized] [Localized] [Localized]")),
+                    effects = listOf(CausalEffect(EffectType.SYSTEM, null, "Info Info Info")),
                     preconditions = emptyList(),
                     riskLevel = RiskLevel.MEDIUM,
-                    humanSummary = "⚙️ [Localized] [Localized]: $toolName"
+                    humanSummary = "⚙️ Info Info: $toolName"
                 )
 
             // ── Default: unknown tool treated as low-risk read ────────────────
             else ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.READ, null, "[Localized] [Localized] [Localized]")),
+                    effects = listOf(CausalEffect(EffectType.READ, null, "Info Info Info")),
                     preconditions = emptyList(),
                     riskLevel = RiskLevel.LOW,
                     humanSummary = "🔧 $toolName"
@@ -521,36 +521,36 @@ class CausalChainPlanner(
 
     private fun readRule(path: String?, label: String): ToolRule = ToolRule(
         effects = listOf(CausalEffect(EffectType.READ, path, label)),
-        preconditions = if (path != null) listOf("'$path' [Localized]") else emptyList(),
+        preconditions = if (path != null) listOf("'$path' Info") else emptyList(),
         riskLevel = RiskLevel.LOW,
         humanSummary = "📖 $label: ${path ?: "?"}"
     )
 
-    /** [Localized] [Localized] [Localized] Shell [Localized] [Localized] [Localized]. */
+    /** Context note Context note Context note Shell Context note Context note Context note. */
     private fun analyzeShellCommand(toolName: String, params: Map<String, String>): ToolRule {
         val command = (params["command"] ?: params["code"] ?: "").lowercase()
         val (riskLevel, description) = when {
             "rm -rf" in command || "rm -r" in command ->
-                RiskLevel.CRITICAL to "[Localized] [Localized] — [Localized] [Localized] [Localized]"
+                RiskLevel.CRITICAL to "Info Info — Info Info Info"
             Regex("""^rm\s""").containsMatchIn(command) || "unlink" in command ->
-                RiskLevel.HIGH to "[Localized] [Localized]([Localized])"
+                RiskLevel.HIGH to "Info Info(Info)"
             "git reset --hard" in command || "git clean -fd" in command ->
-                RiskLevel.HIGH to "[Localized] [Localized] Git [Localized]"
+                RiskLevel.HIGH to "Info Info Git Info"
             "git push --force" in command || "git push -f" in command ->
-                RiskLevel.HIGH to "Git force push — [Localized] [Localized] [Localized] [Localized] [Localized]"
+                RiskLevel.HIGH to "Git force push — Info Info Info Info Info"
             "chmod 777" in command || "chmod -r" in command.replace(" ", "").replace("--", "-") ->
-                RiskLevel.MEDIUM to "[Localized] [Localized] [Localized]"
+                RiskLevel.MEDIUM to "Info Info Info"
             "apt install" in command || "pkg install" in command || "pip install" in command ->
-                RiskLevel.LOW to "[Localized] [Localized]"
+                RiskLevel.LOW to "Info Info"
             "mkfs" in command || "fdisk" in command || "dd if=" in command ->
-                RiskLevel.CRITICAL to "[Localized] [Localized]/[Localized] [Localized] — [Localized] [Localized]"
+                RiskLevel.CRITICAL to "Info Info/Info Info — Info Info"
             else ->
-                RiskLevel.MEDIUM to "[Localized] [Localized]: ${command.take(60)}"
+                RiskLevel.MEDIUM to "Info Info: ${command.take(60)}"
         }
         val effectPath = extractPathFromCommand(command)
 
-        // [Localized] [Localized] (rm, unlink) [Localized] [Localized] DELETE [Localized] [Localized] [Localized] READ_AFTER_DELETE/MODIFY_AFTER_DELETE
-        // [Localized] [Localized] [Localized] [Localized] [Localized] EXECUTE (git reset, mkfs, dd[Localized] [Localized])
+        // Context note Context note (rm, unlink) Context note Context note DELETE Context note Context note Context note READ_AFTER_DELETE/MODIFY_AFTER_DELETE
+        // Context note Context note Context note Context note Context note EXECUTE (git reset, mkfs, ddContext note Context note)
         val effectType = when {
             "rm -rf" in command || "rm -r" in command -> EffectType.DELETE
             Regex("""^rm\s""").containsMatchIn(command) || "unlink" in command -> EffectType.DELETE
@@ -567,28 +567,28 @@ class CausalChainPlanner(
             ),
             preconditions = emptyList(),
             riskLevel = riskLevel,
-            humanSummary = "${riskLevel.label()} [Localized]: ${command.take(80)}"
+            humanSummary = "${riskLevel.label()} Info: ${command.take(80)}"
         )
     }
 
-    /** [Localized] [Localized] Git [Localized] [Localized] [Localized]. */
+    /** Context note Context note Git Context note Context note Context note. */
     private fun analyzeGitAction(params: Map<String, String>): ToolRule {
         val action = params["action"]?.lowercase() ?: ""
         val (risk, desc, effType) = when {
             action in listOf("push", "force_push") ->
-                Triple(RiskLevel.MEDIUM, "[Localized] [Localized]", EffectType.NETWORK)
+                Triple(RiskLevel.MEDIUM, "Info Info", EffectType.NETWORK)
             action in listOf("reset", "clean") ->
-                Triple(RiskLevel.HIGH, "[Localized] [Localized] Git", EffectType.SYSTEM)
+                Triple(RiskLevel.HIGH, "Info Info Git", EffectType.SYSTEM)
             action in listOf("merge", "rebase") ->
-                Triple(RiskLevel.MEDIUM, "[Localized]/[Localized] [Localized] [Localized]", EffectType.MODIFY)
+                Triple(RiskLevel.MEDIUM, "Info/Info Info Info", EffectType.MODIFY)
             action in listOf("commit", "add", "stage") ->
-                Triple(RiskLevel.LOW, "[Localized] [Localized]", EffectType.SYSTEM)
+                Triple(RiskLevel.LOW, "Info Info", EffectType.SYSTEM)
             action in listOf("clone", "fetch", "pull") ->
-                Triple(RiskLevel.LOW, "[Localized] [Localized]", EffectType.NETWORK)
+                Triple(RiskLevel.LOW, "Info Info", EffectType.NETWORK)
             action in listOf("branch_delete", "tag_delete") ->
-                Triple(RiskLevel.HIGH, "[Localized] [Localized]/[Localized]", EffectType.DELETE)
+                Triple(RiskLevel.HIGH, "Info Info/Info", EffectType.DELETE)
             else ->
-                Triple(RiskLevel.LOW, "[Localized] Git: $action", EffectType.READ)
+                Triple(RiskLevel.LOW, "Info Git: $action", EffectType.READ)
         }
         return ToolRule(
             effects = listOf(CausalEffect(effType, null, desc)),
@@ -599,24 +599,24 @@ class CausalChainPlanner(
     }
 
     /**
-     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
-     * [Localized] (wouldSucceed, failReason, newState).
+     * Context note Context note Context note Context note Context note Context note Context note.
+     * Context note (wouldSucceed, failReason, newState).
      */
     private fun simulateStep(
         node: CausalNode,
         state: VirtualState
     ): Triple<Boolean, String?, VirtualState> {
-        // [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note
         for (precondition in node.preconditions) {
-            // [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized]: "'path/file' [Localized]")
+            // Context note Context note Context note Context note Context note (Context note: "'path/file' Context note")
             val pathMatch = Regex("'([^']+)'").find(precondition)
             val requiredPath = pathMatch?.groupValues?.get(1) ?: continue
-            if (precondition.contains("[Localized]") && state.wasDeleted(requiredPath)) {
-                return Triple(false, "[Localized] '$requiredPath' [Localized] [Localized] [Localized] [Localized] [Localized].", state)
+            if (precondition.contains("Info") && state.wasDeleted(requiredPath)) {
+                return Triple(false, "Info '$requiredPath' Info Info Info Info Info.", state)
             }
         }
 
-        // [Localized] [Localized] [Localized] [Localized] [Localized]
+        // Context note Context note Context note Context note Context note
         var created = state.createdPaths.toMutableSet()
         var deleted = state.deletedPaths.toMutableSet()
         var modified = state.modifiedPaths.toMutableSet()
@@ -639,7 +639,7 @@ class CausalChainPlanner(
         )
     }
 
-    /** [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] shell [Localized] [Localized]. */
+    /** Context note Context note Context note Context note Context note Context note shell Context note Context note. */
     private fun extractPathFromCommand(command: String): String? {
         val pathRegex = Regex("""[/~][^\s'"]+|'([^']+)'|"([^"]+)"""")
         return pathRegex.find(command)?.let {
