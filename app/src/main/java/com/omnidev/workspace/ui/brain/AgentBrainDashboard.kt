@@ -31,15 +31,15 @@ import java.util.*
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * AgentBrainDashboard — Context note Context note Context note Context note Agent
+ * AgentBrainDashboard — لوحة تحكم عقل الـ Agent
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Context note:
- * 1. Context note Context note Context note Context note Context note Context note
- * 2. Context note Context note Context note
- * 3. Context note Context note Context note
- * 4. Context note Context note Context note
- * 5. Context note Context note Context note
+ * تعرض:
+ * 1. إحصائيات أداء الأدوات في الوقت الفعلي
+ * 2. سجل آخر التنفيذات
+ * 3. قاعدة المعرفة المكتسبة
+ * 4. حالة البيئة والنظام
+ * 5. مؤشر التعلم والتحسين
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,7 +55,7 @@ fun AgentBrainDashboard(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Context note Context note Context note
+                        // أيقونة النبض الحي
                         PulsingDot()
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
@@ -65,7 +65,7 @@ fun AgentBrainDashboard(
                                 fontSize = 18.sp
                             )
                             Text(
-                                text = "Info Info Info Info",
+                                text = "نظام الذاكرة والوعي الذكي",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
@@ -74,12 +74,12 @@ fun AgentBrainDashboard(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Info")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "رجوع")
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Info")
+                        Icon(Icons.Default.Refresh, contentDescription = "تحديث")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -103,10 +103,10 @@ fun AgentBrainDashboard(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // ─── Context note Context note Context note ─────────────────────────────
+            // ─── بطاقات الإحصائيات السريعة ─────────────────────────────
             StatsHeaderRow(uiState)
 
-            // ─── Context note ───────────────────────────────────────────────
+            // ─── التبويبات ───────────────────────────────────────────────
             ScrollableTabRow(
                 selectedTabIndex = selectedTab,
                 edgePadding = 12.dp,
@@ -115,26 +115,26 @@ fun AgentBrainDashboard(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("📊 Info") }
+                    text = { Text("📊 الأداء") }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("📔 Info") }
+                    text = { Text("📔 السجل") }
                 )
                 Tab(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    text = { Text("🧠 Info") }
+                    text = { Text("🧠 المعرفة") }
                 )
                 Tab(
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 },
-                    text = { Text("🌐 Info") }
+                    text = { Text("🌐 البيئة") }
                 )
             }
 
-            // ─── Context note Context note ─────────────────────────────────────────
+            // ─── محتوى التبويبات ─────────────────────────────────────────
             when (selectedTab) {
                 0 -> PerformanceTab(uiState)
                 1 -> ExecutionLogTab(
@@ -154,7 +154,7 @@ fun AgentBrainDashboard(
     }
 }
 
-// ─── Context note Context note Context notehighest ──────────────────────────────────────────────────
+// ─── إحصائيات في الأعلى ──────────────────────────────────────────────────
 
 @Composable
 private fun StatsHeaderRow(state: AgentBrainUiState) {
@@ -168,7 +168,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "⚡",
                 value = state.totalExecutions.toString(),
-                label = "Info",
+                label = "عملية",
                 color = Color(0xFF2196F3)
             )
         }
@@ -176,7 +176,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "✅",
                 value = "${(state.successRate * 100).toInt()}%",
-                label = "Info",
+                label = "نجاح",
                 color = if (state.successRate > 0.8f) Color(0xFF4CAF50) else Color(0xFFFF9800)
             )
         }
@@ -184,7 +184,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "🧠",
                 value = state.totalKnowledge.toString(),
-                label = "Info",
+                label = "معرفة",
                 color = Color(0xFF9C27B0)
             )
         }
@@ -192,7 +192,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "🔧",
                 value = state.sessionToolCount.toString(),
-                label = "Info/Info",
+                label = "أداة/جلسة",
                 color = Color(0xFF00BCD4)
             )
         }
@@ -201,7 +201,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
                 MiniStatCard(
                     icon = "⚠️",
                     value = state.problematicTools.size.toString(),
-                    label = "Info",
+                    label = "مشكلة",
                     color = Color(0xFFF44336)
                 )
             }
@@ -243,7 +243,7 @@ private fun MiniStatCard(
     }
 }
 
-// ─── Context note Context note ────────────────────────────────────────────────────────
+// ─── تبويب الأداء ────────────────────────────────────────────────────────
 
 @Composable
 private fun PerformanceTab(state: AgentBrainUiState) {
@@ -252,29 +252,29 @@ private fun PerformanceTab(state: AgentBrainUiState) {
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Context note Context note Context note
+        // أفضل وأسوأ الأدوات
         item {
             InfoCard(
-                title = "🏆 Info Info",
+                title = "🏆 أداء الأدوات",
                 content = buildString {
-                    appendLine("🥇 Info: ${state.bestTool}")
-                    appendLine("🥉 Info: ${state.worstTool}")
-                    appendLine("🔥 Info Info: ${state.mostUsedTool}")
+                    appendLine("🥇 الأفضل: ${state.bestTool}")
+                    appendLine("🥉 الأسوأ: ${state.worstTool}")
+                    appendLine("🔥 الأكثر استخداماً: ${state.mostUsedTool}")
                 }
             )
         }
 
-        // Context note Context note
+        // الأدوات المشكلة
         if (state.problematicTools.isNotEmpty()) {
             item {
                 WarningCard(
-                    title = "⚠️ Info Info Info",
+                    title = "⚠️ أدوات تحتاج انتباه",
                     items = state.problematicTools
                 )
             }
         }
 
-        // Context note Context note
+        // مستوى التعلم
         item {
             LearningProgressCard(
                 totalExecutions = state.totalExecutions,
@@ -284,7 +284,7 @@ private fun PerformanceTab(state: AgentBrainUiState) {
     }
 }
 
-// ─── Context note Context note ────────────────────────────────────────────────────────
+// ─── تبويب السجل ────────────────────────────────────────────────────────
 
 @Composable
 private fun ExecutionLogTab(
@@ -292,7 +292,7 @@ private fun ExecutionLogTab(
     onDeleteEntry: (Long) -> Unit
 ) {
     if (entries.isEmpty()) {
-        EmptyState(message = "Info Info Info Info Info")
+        EmptyState(message = "لا توجد عمليات مسجلة بعد")
         return
     }
 
@@ -326,7 +326,7 @@ private fun ExecutionEntryCard(
             modifier = Modifier.padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Context note Context note
+            // أيقونة الحالة
             Text(
                 text = if (entry.success) "✅" else "❌",
                 fontSize = 18.sp
@@ -380,7 +380,7 @@ private fun ExecutionEntryCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "Info Info",
+                        contentDescription = "حذف السجل",
                         tint = Color(0xFFF44336),
                         modifier = Modifier.size(14.dp)
                     )
@@ -390,7 +390,7 @@ private fun ExecutionEntryCard(
     }
 }
 
-// ─── Context note Context note ───────────────────────────────────────────────────────
+// ─── تبويب المعرفة ───────────────────────────────────────────────────────
 
 @Composable
 private fun KnowledgeTab(
@@ -399,7 +399,7 @@ private fun KnowledgeTab(
     onUpdateEntry: (Long, String, String, Float) -> Unit
 ) {
     if (entries.isEmpty()) {
-        EmptyState(message = "Info Info Info Agent Info Info")
+        EmptyState(message = "لم يكتسب الـ Agent معرفة بعد")
         return
     }
 
@@ -508,7 +508,7 @@ private fun KnowledgeEntryCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Edit,
-                            contentDescription = "Info Info",
+                            contentDescription = "تعديل المعرفة",
                             tint = color,
                             modifier = Modifier.size(15.dp)
                         )
@@ -519,7 +519,7 @@ private fun KnowledgeEntryCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = "Info Info",
+                            contentDescription = "حذف المعرفة",
                             tint = Color(0xFFF44336),
                             modifier = Modifier.size(15.dp)
                         )
@@ -544,33 +544,33 @@ private fun KnowledgeEntryCard(
                             onUpdateEntry(entry.id, editedSubject, editedContent, confidence)
                             showEditDialog = false
                         } else {
-                            validationError = "Info Info Info: Info Info Info Info Info 0.0 Info 1.0"
+                            validationError = "تحقق من الحقول: الثقة يجب أن تكون بين 0.0 و 1.0"
                         }
                     }
-                ) { Text("Info") }
+                ) { Text("حفظ") }
             },
             dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) { Text("Info") }
+                TextButton(onClick = { showEditDialog = false }) { Text("إلغاء") }
             },
-            title = { Text("Info Info") },
+            title = { Text("تعديل المعرفة") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = editedSubject,
                         onValueChange = { editedSubject = it },
-                        label = { Text("Info") },
+                        label = { Text("العنوان") },
                         singleLine = true
                     )
                     OutlinedTextField(
                         value = editedContent,
                         onValueChange = { editedContent = it },
-                        label = { Text("Info") },
+                        label = { Text("المحتوى") },
                         minLines = 3
                     )
                     OutlinedTextField(
                         value = editedConfidence,
                         onValueChange = { editedConfidence = it },
-                        label = { Text("Info (0.0 - 1.0)") },
+                        label = { Text("الثقة (0.0 - 1.0)") },
                         singleLine = true
                     )
                     validationError?.let {
@@ -607,12 +607,12 @@ private fun KnowledgeTypeFilters(
     }
 }
 
-// ─── Context note Context note ────────────────────────────────────────────────────────
+// ─── Environment Tab ────────────────────────────────────────────────────────
 
 @Composable
 private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
     if (stats == null) {
-        EmptyState(message = "Info Info Info...")
+        EmptyState(message = "Discovering environment...")
         return
     }
 
@@ -621,12 +621,12 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Context note Context note Context note
+        // حالة الأدوات البيئية
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
-                        "🌐 Info Info",
+                        "🌐 البيئات المتاحة",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -641,12 +641,12 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
             }
         }
 
-        // Context note Context note
+        // توزيع المعرفة
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
-                        "📊 Info Info Info (${stats.totalKnowledge} Info)",
+                        "📊 توزيع قاعدة المعرفة (${stats.totalKnowledge} إجمالي)",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -658,7 +658,7 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
             }
         }
 
-        // Context note Context note
+        // حالة الإعداد
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -680,13 +680,13 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            if (stats.isInitialized) "Info Info Info" else "Info Info Info Info",
+                            if (stats.isInitialized) "النظام مُعدّ ومُتعلِّم" else "النظام يعمل على الاكتشاف",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
                         Text(
-                            if (stats.isInitialized) "Info Agent Info Info Info"
-                            else "Info Agent Info Info Info...",
+                            if (stats.isInitialized) "الـ Agent واعٍ ببيئته تماماً"
+                            else "الـ Agent يكتشف القدرات المتاحة...",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -697,7 +697,7 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
     }
 }
 
-// ─── Context note Context note ───────────────────────────────────────────────────────
+// ─── مكونات مساعدة ───────────────────────────────────────────────────────
 
 @Composable
 private fun InfoCard(title: String, content: String) {
@@ -757,13 +757,13 @@ private fun LearningProgressCard(totalExecutions: Int, successRate: Float) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("🎯 Info Info", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("🎯 مستوى التعلم", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     text = when {
-                        totalExecutions < 20 -> "Info"
-                        totalExecutions < 100 -> "Info"
-                        totalExecutions < 500 -> "Info"
-                        else -> "Info"
+                        totalExecutions < 20 -> "مبتدئ"
+                        totalExecutions < 100 -> "متوسط"
+                        totalExecutions < 500 -> "متقدم"
+                        else -> "خبير"
                     },
                     fontWeight = FontWeight.Bold,
                     color = progressColor,
@@ -779,7 +779,7 @@ private fun LearningProgressCard(totalExecutions: Int, successRate: Float) {
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Context note Context note: ${(successRate * 100).toInt()}% | Context note: $totalExecutions",
+                text = "معدل النجاح: ${(successRate * 100).toInt()}% | التنفيذات: $totalExecutions",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
@@ -801,7 +801,7 @@ private fun EnvironmentRow(name: String, available: Boolean) {
             containerColor = if (available) Color(0xFF4CAF50) else Color(0xFF9E9E9E)
         ) {
             Text(
-                if (available) "Info" else "Info Info",
+                if (available) "متاح" else "غير متاح",
                 fontSize = 10.sp,
                 color = Color.White,
                 modifier = Modifier.padding(horizontal = 4.dp)
@@ -831,17 +831,17 @@ private fun KnowledgeTypeRow(type: String, count: Int) {
 }
 
 private fun knowledgeTypeLabel(type: String): String = when (type) {
-    "ALL" -> "📚 Info Info"
-    ToolAwarenessEngine.TYPE_BEST_PRACTICE -> "💡 Info Info"
-    ToolAwarenessEngine.TYPE_TOOL_CAPABILITY -> "🔧 Info Info"
-    ToolAwarenessEngine.TYPE_TOOL_LIMITATION -> "🚫 Info Info"
-    ToolAwarenessEngine.TYPE_SYSTEM_INFO -> "📱 Info Info"
-    ToolAwarenessEngine.TYPE_ENVIRONMENT -> "🌐 Info Info"
-    ToolAwarenessEngine.TYPE_WARNING -> "⚠️ Info"
-    ToolAwarenessEngine.TYPE_PATTERN -> "🔗 Info Info"
-    ToolAwarenessEngine.TYPE_SYSTEM_CAPABILITY -> "🧩 Info Info"
-    ToolAwarenessEngine.TYPE_TOOL_REQUIREMENT -> "📌 Info Info"
-    ToolAwarenessEngine.TYPE_TOOL_DEPENDENCY -> "🔀 Info Info"
+    "ALL" -> "📚 All Knowledge"
+    ToolAwarenessEngine.TYPE_BEST_PRACTICE -> "💡 Best Practices"
+    ToolAwarenessEngine.TYPE_TOOL_CAPABILITY -> "🔧 Tool Capabilities"
+    ToolAwarenessEngine.TYPE_TOOL_LIMITATION -> "🚫 Tool Limitations"
+    ToolAwarenessEngine.TYPE_SYSTEM_INFO -> "📱 System Info"
+    ToolAwarenessEngine.TYPE_ENVIRONMENT -> "🌐 Environments"
+    ToolAwarenessEngine.TYPE_WARNING -> "⚠️ Warnings"
+    ToolAwarenessEngine.TYPE_PATTERN -> "🔗 Patterns"
+    ToolAwarenessEngine.TYPE_SYSTEM_CAPABILITY -> "🧩 System Capabilities"
+    ToolAwarenessEngine.TYPE_TOOL_REQUIREMENT -> "📌 Tool Requirements"
+    ToolAwarenessEngine.TYPE_TOOL_DEPENDENCY -> "🔀 Tool Dependencies"
     else -> "ℹ️ $type"
 }
 

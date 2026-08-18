@@ -53,8 +53,8 @@ object Routes {
         const val MCP_SETTINGS = "mcp_settings"
     const val PROFILE = "profile"
     const val ANALYTICS = "analytics"
-    const val AGENT_BRAIN = "agent_brain"  // Context note Context note Context note Agent Context note
-    const val BROWSER_VIEWER = "browser_viewer"  // Context note Context note Context note Context note Context note
+    const val AGENT_BRAIN = "agent_brain"  // شاشة عقل الـ Agent الجديدة
+    const val BROWSER_VIEWER = "browser_viewer"  // شاشة عرض متصفح الوكيل المخفي
 }
 
 /**
@@ -176,7 +176,6 @@ fun AppNavigation(
 
         composable(Routes.PROFILE) {
             UserProfileScreen(
-                settingsRepository = settingsRepository,
                 onNavigateBack = { navController.popBackStack() }
             )
         }
@@ -192,7 +191,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // 🧠 Agent Brain Dashboard — Context note Context note Context note Context note Agent
+        // 🧠 Agent Brain Dashboard — لوحة تحكم عقل الـ Agent
         // ═══════════════════════════════════════════════════════════════
         composable(Routes.AGENT_BRAIN) {
             val app = OmniDevApp.instance
@@ -210,7 +209,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // 👁 Browser Viewer — Context note Context note Context note Context note Context note Context note Context note Context note
+        // 👁 Browser Viewer — شاشة عرض و التحكم في متصفح الوكيل المخفي
         // ═══════════════════════════════════════════════════════════════
         composable(Routes.BROWSER_VIEWER) {
             val app = OmniDevApp.instance
