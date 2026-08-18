@@ -7,27 +7,27 @@ import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 import kotlinx.coroutines.delay
 
 /**
- * GodModeAccessibility — طبقة الهجين المتقدمة (Shizuku + Accessibility)
+ * GodModeAccessibility — [Localized] [Localized] [Localized] (Shizuku + Accessibility)
  *
- * الجيل الثاني: تحسينات جوهرية
+ * [Localized] [Localized]: [Localized] [Localized]
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. **إعادة المحاولة التكيّفية (Adaptive Retry)**: خوارزمية Exponential Backoff
- *    مع Jitter لمنع الاصطدام في الحمل الزائد.
+ * 1. **[Localized] [Localized] [Localized] (Adaptive Retry)**: [Localized] Exponential Backoff
+ *    [Localized] Jitter [Localized] [Localized] [Localized] [Localized] [Localized].
  *
- * 2. **البحث الدلالي عن العناصر (Semantic Element Finder)**: يبحث عن عناصر
- *    بالنص / الوصف / الـ viewId — بدون الحاجة لـ node_id مُسبق.
+ * 2. **[Localized] [Localized] [Localized] [Localized] (Semantic Element Finder)**: [Localized] [Localized] [Localized]
+ *    [Localized] / [Localized] / [Localized] viewId — [Localized] [Localized] [Localized] node_id [Localized].
  *
- * 3. **تسلسل الإجراءات (Action Chain)**: ينفّذ سلسلة من tap → type → tap
- *    في خطوة واحدة مع تحقق من النتيجة بين كل خطوة.
+ * 3. **[Localized] [Localized] (Action Chain)**: [Localized] [Localized] [Localized] tap → type → tap
+ *    [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
  *
- * 4. **تسجيل الإجراءات (Action Recorder)**: يُسجّل كل عملية ناجحة ويُشكّل
- *    "ماكرو" قابل للتشغيل لاحقاً.
+ * 4. **[Localized] [Localized] (Action Recorder)**: [Localized] [Localized] [Localized] [Localized] [Localized]
+ *    "[Localized]" [Localized] [Localized] [Localized].
  *
- * 5. **التمرير الذكي (Smart Scroll-To)**: يمرّر الشاشة حتى يظهر العنصر المستهدف
- *    بدلاً من تمرير عدد محدد من المرات.
+ * 5. **[Localized] [Localized] (Smart Scroll-To)**: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+ *    [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
  *
- * 6. **التحقق من النتيجة (Post-Action Verification)**: بعد كل tap يتحقق أن
- *    الواجهة تغيّرت فعلاً — ويُعيد المحاولة إذا بقيت ثابتة.
+ * 6. **[Localized] [Localized] [Localized] (Post-Action Verification)**: [Localized] [Localized] tap [Localized] [Localized]
+ *    [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized].
  */
 object GodModeAccessibility {
 
@@ -42,7 +42,7 @@ object GodModeAccessibility {
     private const val VERIFICATION_WAIT_MS = 600L
     private const val SCROLL_TO_MAX_ATTEMPTS = 10
 
-    /** سجل الإجراءات المسجّلة (ماكروات) */
+    /** [Localized] [Localized] [Localized] ([Localized]) */
     private val actionRecordings = mutableMapOf<String, List<RecordedAction>>()
 
     @Volatile
@@ -55,10 +55,10 @@ object GodModeAccessibility {
 
     suspend fun autoEnableOmniVision(): String {
         if (!PrivilegedExecutionManager.isShizukuReady()) {
-            return "❌ Shizuku غير متاح أو غير مخوّل."
+            return "❌ Shizuku [Localized] [Localized] [Localized] [Localized] [Localized]."
         }
         if (AccessibilityStateManager.isServiceConnected.value) {
-            return "✅ OmniAccessibilityService نشطة بالفعل."
+            return "✅ OmniAccessibilityService [Localized] [Localized]."
         }
 
         return retryWithBackoff(maxRetries = 2, operationName = "auto_enable_accessibility") {
@@ -83,19 +83,19 @@ object GodModeAccessibility {
                 "settings put secure accessibility_enabled 1"
             ).getOrThrow()
 
-            "✅ OmniAccessibilityService تم تفعيلها عبر Shizuku. ستتصل خلال ثوانٍ."
+            "✅ OmniAccessibilityService [Localized] [Localized] [Localized] Shizuku. [Localized] [Localized] [Localized]."
         }
     }
 
     /**
-     * نقر هجين مع التحقق من التأثير.
-     * يُعيد المحاولة تلقائياً إذا لم تتغيّر الواجهة.
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
      */
     suspend fun hybridTap(node: AccessibilityNodeInfo, verifyChange: Boolean = true): String {
         val bounds = Rect()
         node.getBoundsInScreen(bounds)
         if (bounds.isEmpty || bounds.centerX() <= 0 || bounds.centerY() <= 0) {
-            return "❌ العقدة لها حدود غير صحيحة: $bounds"
+            return "❌ [Localized] [Localized] [Localized] [Localized] [Localized]: $bounds"
         }
 
         val preTimestamp = AccessibilityStateManager.lastUpdateTime.value
@@ -111,7 +111,7 @@ object GodModeAccessibility {
                     onSuccess = { "✅ Hardware tap at ($centerX, $centerY)" },
                     onFailure = { err ->
                         val fallback = OmniAccessibilityService.instance?.clickNode(node) == true
-                        if (fallback) "⚠️ Fallback → Semantic tap نجح"
+                        if (fallback) "⚠️ Fallback → Semantic tap [Localized]"
                         else throw err
                     }
                 )
@@ -121,8 +121,8 @@ object GodModeAccessibility {
             delay(VERIFICATION_WAIT_MS)
             val postTimestamp = AccessibilityStateManager.lastUpdateTime.value
             if (postTimestamp == preTimestamp) {
-                Log.w(TAG, "Tap at ($centerX,$centerY) — لم تتغيّر الواجهة!")
-                return "$result\n⚠️ تحذير: لم تتغيّر الواجهة بعد النقر."
+                Log.w(TAG, "Tap at ($centerX,$centerY) — [Localized] [Localized] [Localized]!")
+                return "$result\n⚠️ [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized]."
             }
         }
 
@@ -134,7 +134,7 @@ object GodModeAccessibility {
     }
 
     /**
-     * نقر طويل هجين مع fallback ذكي.
+     * [Localized] [Localized] [Localized] [Localized] fallback [Localized].
      */
     suspend fun hybridLongPress(
         node: AccessibilityNodeInfo,
@@ -142,7 +142,7 @@ object GodModeAccessibility {
     ): String {
         val bounds = Rect()
         node.getBoundsInScreen(bounds)
-        if (bounds.isEmpty) return "❌ حدود العقدة غير صحيحة: $bounds"
+        if (bounds.isEmpty) return "❌ [Localized] [Localized] [Localized] [Localized]: $bounds"
 
         val cx = bounds.centerX(); val cy = bounds.centerY()
 
@@ -152,7 +152,7 @@ object GodModeAccessibility {
                     onSuccess = { "✅ Hardware long-press at ($cx, $cy) for ${durationMs}ms" },
                     onFailure = { err ->
                         val fallback = OmniAccessibilityService.instance?.longClickNode(node) == true
-                        if (fallback) "⚠️ Fallback → Semantic long-press نجح"
+                        if (fallback) "⚠️ Fallback → Semantic long-press [Localized]"
                         else throw err
                     }
                 )
@@ -162,17 +162,17 @@ object GodModeAccessibility {
     }
 
     /**
-     * حقن نص هجين مع escape ذكي للأحرف الخاصة.
-     * يدعم Unicode، الأحرف العربية، والـ emojis.
+     * [Localized] [Localized] [Localized] [Localized] escape [Localized] [Localized] [Localized].
+     * [Localized] Unicode[Localized] [Localized] [Localized] [Localized] emojis.
      */
     suspend fun hybridType(
         text: String,
         fallbackNode: AccessibilityNodeInfo? = null,
         clearFirst: Boolean = false
     ): String {
-        if (text.isEmpty()) return "❌ النص فارغ"
+        if (text.isEmpty()) return "❌ [Localized] [Localized]"
 
-        // تنظيف الحقل أولاً إذا طُلب
+        // [Localized] [Localized] [Localized] [Localized] [Localized]
         if (clearFirst) {
             PrivilegedExecutionManager.executeCommand("input keyevent KEYCODE_CTRL_A")
             delay(100)
@@ -181,7 +181,7 @@ object GodModeAccessibility {
         }
 
         return retryWithBackoff(maxRetries = 2, operationName = "hybrid_type") {
-            // الـ text يُقسَّم لأجزاء صغيرة إذا كان طويلاً (لتجنب قيود الـ shell)
+            // [Localized] text [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] shell)
             if (text.length <= 200 && !containsSpecialChars(text)) {
                 val escaped = text.replace("'", "'\\''").replace(" ", "%s")
                 PrivilegedExecutionManager.executeCommand("input text '$escaped'")
@@ -190,8 +190,8 @@ object GodModeAccessibility {
                         onFailure = { err -> injectViaAccessibility(text, fallbackNode) ?: throw err }
                     )
             } else {
-                // نص معقد: استخدام clipboard كـ bridge
-                injectViaClipboard(text) ?: (injectViaAccessibility(text, fallbackNode) ?: "❌ فشل حقن النص")
+                // [Localized] [Localized]: [Localized] clipboard [Localized] bridge
+                injectViaClipboard(text) ?: (injectViaAccessibility(text, fallbackNode) ?: "❌ [Localized] [Localized] [Localized]")
             }
         }.also {
             if (isRecording) currentRecording.add(RecordedAction.TypeText(text))
@@ -199,34 +199,34 @@ object GodModeAccessibility {
     }
 
     /**
-     * [جديد] تمرير ذكي حتى يظهر عنصر محدد.
-     * يمرّر تدريجياً ويتحقق بعد كل تمرير — حتى SCROLL_TO_MAX_ATTEMPTS مرة.
+     * [[Localized]] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] — [Localized] SCROLL_TO_MAX_ATTEMPTS [Localized].
      *
-     * @param targetText النص المستهدف للبحث عنه
-     * @param scrollDirection "down" أو "up"
-     * @return الـ node عند إيجاده، أو null
+     * @param targetText [Localized] [Localized] [Localized] [Localized]
+     * @param scrollDirection "down" [Localized] "up"
+     * @return [Localized] node [Localized] [Localized] [Localized] null
      */
     suspend fun scrollUntilVisible(
         targetText: String,
         scrollDirection: String = "down"
     ): ScrollToResult {
         val service = OmniAccessibilityService.instance
-            ?: return ScrollToResult(false, "❌ خدمة الـ accessibility غير نشطة")
+            ?: return ScrollToResult(false, "❌ [Localized] [Localized] accessibility [Localized] [Localized]")
 
         for (attempt in 1..SCROLL_TO_MAX_ATTEMPTS) {
-            // بحث أولاً
+            // [Localized] [Localized]
             val found = AccessibilityStateManager.findNodeByText(targetText)
             if (found != null) {
-                return ScrollToResult(true, "✅ وُجد '$targetText' بعد $attempt تمريرة", found)
+                return ScrollToResult(true, "✅ [Localized] '$targetText' [Localized] $attempt [Localized]", found)
             }
 
-            // تمرير
+            // [Localized]
             val root = AccessibilityStateManager.rootNode.value ?: break
             val forward = scrollDirection != "up"
             val scrollable = findFirstScrollable(root)
             if (scrollable == null) {
 
-                    // استخدام gesture كـ fallback
+                    // [Localized] gesture [Localized] fallback
                     val h = root.let { Rect().also { r -> it.getBoundsInScreen(r) }.height() }
                     val w = root.let { Rect().also { r -> it.getBoundsInScreen(r) }.width() }
                     val halfW = w / 2f
@@ -244,12 +244,12 @@ object GodModeAccessibility {
             delay(350)
         }
 
-        return ScrollToResult(false, "❌ لم يُعثر على '$targetText' بعد $SCROLL_TO_MAX_ATTEMPTS تمريرة")
+        return ScrollToResult(false, "❌ [Localized] [Localized] [Localized] '$targetText' [Localized] $SCROLL_TO_MAX_ATTEMPTS [Localized]")
     }
 
     /**
-     * [جديد] تنفيذ سلسلة إجراءات atomically.
-     * إذا فشل أي إجراء، يتوقف ويُرجع تقريراً كاملاً.
+     * [[Localized]] [Localized] [Localized] [Localized] atomically.
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
      */
     suspend fun executeActionChain(
         actions: List<ChainedAction>,
@@ -288,7 +288,7 @@ object GodModeAccessibility {
                     }
                 }
             } catch (e: Exception) {
-                val errorMsg = "❌ فشل عند الخطوة ${index + 1} (${action::class.simpleName}): ${e.message}"
+                val errorMsg = "❌ [Localized] [Localized] [Localized] ${index + 1} (${action::class.simpleName}): ${e.message}"
                 results.add(errorMsg)
                 failedAt = index
                 if (stopOnFirstError) break
@@ -296,7 +296,7 @@ object GodModeAccessibility {
             }
             results.add(result)
             if (action is ChainedAction.WaitMs) continue
-            delay(150) // تأخير طبيعي بين الإجراءات
+            delay(150) // [Localized] [Localized] [Localized] [Localized]
         }
 
         return ActionChainResult(
@@ -309,33 +309,33 @@ object GodModeAccessibility {
     }
 
     /**
-     * [جديد] يبدأ تسجيل الإجراءات كـ macro قابل للإعادة.
+     * [[Localized]] [Localized] [Localized] [Localized] [Localized] macro [Localized] [Localized].
      */
     fun startRecording(macroName: String) {
         currentRecording = mutableListOf()
         isRecording = true
-        Log.i(TAG, "🎬 بدأ تسجيل الماكرو: $macroName")
+        Log.i(TAG, "🎬 [Localized] [Localized] [Localized]: $macroName")
     }
 
     /**
-     * [جديد] يوقف التسجيل ويحفظ الماكرو.
-     * @return عدد الإجراءات المسجّلة
+     * [[Localized]] [Localized] [Localized] [Localized] [Localized].
+     * @return [Localized] [Localized] [Localized]
      */
     fun stopRecording(macroName: String): Int {
         isRecording = false
         actionRecordings[macroName] = currentRecording.toList()
         val count = currentRecording.size
         currentRecording = mutableListOf()
-        Log.i(TAG, "⏹️ توقف تسجيل '$macroName': $count إجراء")
+        Log.i(TAG, "⏹️ [Localized] [Localized] '$macroName': $count [Localized]")
         return count
     }
 
     /**
-     * [جديد] يُشغّل ماكرو مسجّلاً مسبقاً.
+     * [[Localized]] [Localized] [Localized] [Localized] [Localized].
      */
     suspend fun playMacro(macroName: String): String {
         val actions = actionRecordings[macroName]
-            ?: return "❌ ماكرو '$macroName' غير موجود. المتاح: ${actionRecordings.keys}"
+            ?: return "❌ [Localized] '$macroName' [Localized] [Localized]. [Localized]: ${actionRecordings.keys}"
 
         val chainedActions = actions.map { recorded ->
             when (recorded) {
@@ -349,26 +349,26 @@ object GodModeAccessibility {
 
         val result = executeActionChain(chainedActions)
         return if (result.success) {
-            "✅ ماكرو '$macroName' نُفّذ بنجاح (${result.completedSteps}/${result.totalSteps} خطوة)"
+            "✅ [Localized] '$macroName' [Localized] [Localized] (${result.completedSteps}/${result.totalSteps} [Localized])"
         } else {
-            "⚠️ ماكرو '$macroName' فشل في الخطوة ${result.failedAtStep + 1}:\n${result.results.joinToString("\n")}"
+            "⚠️ [Localized] '$macroName' [Localized] [Localized] [Localized] ${result.failedAtStep + 1}:\n${result.results.joinToString("\n")}"
         }
     }
 
     /**
-     * [جديد] يُرجع قائمة الماكروات المحفوظة مع تفاصيلها.
+     * [[Localized]] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
      */
     fun listMacros(): String {
-        if (actionRecordings.isEmpty()) return "لا توجد ماكروات محفوظة."
+        if (actionRecordings.isEmpty()) return "[Localized] [Localized] [Localized] [Localized]."
         return actionRecordings.entries.joinToString("\n") { (name, actions) ->
-            "📼 $name: ${actions.size} إجراء"
+            "📼 $name: ${actions.size} [Localized]"
         }
     }
 
     // ── Private Helpers ───────────────────────────────────────────────────────
 
     /**
-     * Exponential backoff مع Jitter للتعامل مع الأخطاء المؤقتة.
+     * Exponential backoff [Localized] Jitter [Localized] [Localized] [Localized] [Localized].
      */
     private suspend fun <T> retryWithBackoff(
         maxRetries: Int = DEFAULT_MAX_RETRIES,
@@ -384,7 +384,7 @@ object GodModeAccessibility {
                 if (attempt < maxRetries) {
                     val delayMs = (BASE_DELAY_MS * (1L shl attempt) + (0..100).random())
                         .coerceAtMost(MAX_DELAY_MS)
-                    Log.w(TAG, "$operationName: محاولة ${attempt + 1}/$maxRetries فشلت. انتظار ${delayMs}ms")
+                    Log.w(TAG, "$operationName: [Localized] ${attempt + 1}/$maxRetries [Localized]. [Localized] ${delayMs}ms")
                     delay(delayMs)
                 }
             }
@@ -397,13 +397,13 @@ object GodModeAccessibility {
 
     private suspend fun injectViaClipboard(text: String): String? {
         return try {
-            // نسخ النص للـ clipboard عبر Shizuku ثم paste
+            // [Localized] [Localized] [Localized] clipboard [Localized] Shizuku [Localized] paste
             PrivilegedExecutionManager.executeCommand(
                 "am broadcast -a clipper.set -e text '${text.replace("'", "\\'")}'"
             )
             delay(200)
             PrivilegedExecutionManager.executeCommand("input keyevent KEYCODE_CTRL_V")
-            "✅ حُقن النص عبر Clipboard"
+            "✅ [Localized] [Localized] [Localized] Clipboard"
         } catch (e: Exception) {
             null
         }
@@ -415,10 +415,10 @@ object GodModeAccessibility {
     ): String? {
         val service = OmniAccessibilityService.instance ?: return null
         return if (fallbackNode != null) {
-            if (service.typeIntoNode(fallbackNode, text)) "⚠️ Fallback → Accessibility typing نجح"
+            if (service.typeIntoNode(fallbackNode, text)) "⚠️ Fallback → Accessibility typing [Localized]"
             else null
         } else {
-            if (service.typeIntoFocusedNode(text)) "⚠️ Fallback → Accessibility focused typing نجح"
+            if (service.typeIntoFocusedNode(text)) "⚠️ Fallback → Accessibility focused typing [Localized]"
             else null
         }
     }
@@ -427,10 +427,10 @@ object GodModeAccessibility {
         val startTime = System.currentTimeMillis()
         while (System.currentTimeMillis() - startTime < timeoutMs) {
             val found = AccessibilityStateManager.findNodeByText(text)
-            if (found != null) return "✅ ظهر النص '$text' خلال ${System.currentTimeMillis() - startTime}ms"
+            if (found != null) return "✅ [Localized] [Localized] '$text' [Localized] ${System.currentTimeMillis() - startTime}ms"
             delay(300)
         }
-        return "⏱️ انتهى الوقت: '$text' لم يظهر خلال ${timeoutMs}ms"
+        return "⏱️ [Localized] [Localized]: '$text' [Localized] [Localized] [Localized] ${timeoutMs}ms"
     }
 
     private fun findFirstScrollable(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
@@ -459,8 +459,8 @@ object GodModeAccessibility {
         val completedSteps: Int
     ) {
         override fun toString(): String = buildString {
-            append(if (success) "✅ السلسلة نجحت" else "❌ السلسلة فشلت")
-            append(" ($completedSteps/$totalSteps خطوة)\n")
+            append(if (success) "✅ [Localized] [Localized]" else "❌ [Localized] [Localized]")
+            append(" ($completedSteps/$totalSteps [Localized])\n")
             results.forEachIndexed { i, r -> append("${i + 1}. $r\n") }
         }
     }

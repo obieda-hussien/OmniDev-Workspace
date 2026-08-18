@@ -4,24 +4,24 @@ import com.omnidev.workspace.data.db.entities.RepoSymbolEntry
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * RepoSymbolExtractor — استخراج خفيف للرموز (Live Repository Context Engine)
+ * RepoSymbolExtractor — [Localized] [Localized] [Localized] (Live Repository Context Engine)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Mobile-first: لا Tree-sitter، لا Compiler، لا ANTLR. مجرد regex خفيفة على
- * الـ tokens المرئية في كل لغة. يكفي لـ:
- *   - أسماء الـ classes / objects / interfaces / enums
- *   - أسماء الـ functions / methods / lambdas المسماة
- *   - أسماء الـ properties / variables / constants على top-level
+ * Mobile-first: [Localized] Tree-sitter[Localized] [Localized] Compiler[Localized] [Localized] ANTLR. [Localized] regex [Localized] [Localized]
+ * [Localized] tokens [Localized] [Localized] [Localized] [Localized]. [Localized] [Localized]:
+ *   - [Localized] [Localized] classes / objects / interfaces / enums
+ *   - [Localized] [Localized] functions / methods / lambdas [Localized]
+ *   - [Localized] [Localized] properties / variables / constants [Localized] top-level
  *
- * يعمل على Snapdragon 660 بسرعة ~1 MB/s، أي ملف 50 KB في 50ms.
- * يلائم 2-4 GB RAM لأنه streaming بدون تحميل AST في الذاكرة.
+ * [Localized] [Localized] Snapdragon 660 [Localized] ~1 MB/s[Localized] [Localized] [Localized] 50 KB [Localized] 50ms.
+ * [Localized] 2-4 GB RAM [Localized] streaming [Localized] [Localized] AST [Localized] [Localized].
  */
 object RepoSymbolExtractor {
 
-    /** أقصى طول للـ snippet المخزّن. */
+    /** [Localized] [Localized] [Localized] snippet [Localized]. */
     private const val MAX_SNIPPET_LEN = 240
 
-    /** أقصى عدد رموز نستخرجها من ملف واحد (حماية من ضخامة). */
+    /** [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized]). */
     private const val MAX_SYMBOLS_PER_FILE = 400
 
     // ──────────────────────────────────────────────────────────────────
@@ -67,8 +67,8 @@ object RepoSymbolExtractor {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * يستخرج كل الرموز من نص ملف. يعمل على top-level + nested تقريبي بالـ
-     * indent (يكفي للـ retrieval، لا نحتاج AST دقيق).
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]. [Localized] [Localized] top-level + nested [Localized] [Localized]
+     * indent ([Localized] [Localized] retrieval[Localized] [Localized] [Localized] AST [Localized]).
      */
     fun extract(
         scopePath: String,
@@ -89,7 +89,7 @@ object RepoSymbolExtractor {
             val line = rawLine.trimStart()
             if (line.isEmpty() || line.startsWith("//") || line.startsWith("#") || line.startsWith("*")) continue
 
-            // package / module للـ qualifiedName
+            // package / module [Localized] qualifiedName
             extractPackage(line, language)?.let { packageOrModule = it }
 
             val matches = matchSymbols(line, language)
@@ -119,7 +119,7 @@ object RepoSymbolExtractor {
 
     private data class SymbolMatch(val kind: String, val name: String, val visibility: String)
 
-    /** يلتقط package/module declaration. */
+    /** [Localized] package/module declaration. */
     private fun extractPackage(line: String, language: String): String? {
         return when (language) {
             "kotlin", "java", "scala" -> {

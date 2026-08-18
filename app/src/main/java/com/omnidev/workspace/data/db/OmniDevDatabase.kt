@@ -130,7 +130,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
          */
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                // جدول سجل تنفيذ الأدوات
+                // [Localized] [Localized] [Localized] [Localized]
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS tool_execution_log (
                         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -154,12 +154,12 @@ abstract class OmniDevDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
 
-                // فهرس لتسريع البحث بالأداة والجلسة
+                // [Localized] [Localized] [Localized] [Localized] [Localized]
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_tool ON tool_execution_log(toolName)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_session ON tool_execution_log(sessionId)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_tool_log_time ON tool_execution_log(timestamp)")
 
-                // جدول قاعدة المعرفة بالنظام
+                // [Localized] [Localized] [Localized] [Localized]
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS system_knowledge (
                         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -177,7 +177,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
 
-                // فهرس لتسريع البحث
+                // [Localized] [Localized] [Localized]
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_sys_knowledge_type ON system_knowledge(knowledgeType)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_sys_knowledge_subject ON system_knowledge(subject)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_sys_knowledge_priority ON system_knowledge(injectionPriority)")

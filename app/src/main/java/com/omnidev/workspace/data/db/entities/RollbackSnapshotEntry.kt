@@ -5,18 +5,18 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * RollbackSnapshotEntry — لقطة "تأمين الإجراء" قبل العمليات المدمّرة على الملفات.
+ * RollbackSnapshotEntry — [Localized] "[Localized] [Localized]" [Localized] [Localized] [Localized] [Localized] [Localized].
  *
- * Mobile-first design (يعمل بدون root):
- * - الملفات ≤ 4 KB → نخزن المحتوى الكامل مضغوطاً (Deflate)
- * - الملفات > 4 KB → نخزن unified diff فقط (توفير 70%+ من المساحة)
- * - حد أقصى 200 snapshot لكل actionGroup، LRU eviction
- * - حد إجمالي 50 MB لكل المخزن
+ * Mobile-first design ([Localized] [Localized] root):
+ * - [Localized] ≤ 4 KB → [Localized] [Localized] [Localized] [Localized] (Deflate)
+ * - [Localized] > 4 KB → [Localized] unified diff [Localized] ([Localized] 70%+ [Localized] [Localized])
+ * - [Localized] [Localized] 200 snapshot [Localized] actionGroup[Localized] LRU eviction
+ * - [Localized] [Localized] 50 MB [Localized] [Localized]
  *
- * @property actionGroupId يربط لقطات نفس العملية المتعددة (لـ rollback ذرّي)
- * @property contentBlob إما diff مضغوط أو محتوى ملف كامل مضغوط (Deflate)
- * @property storedAsDiff true = diff، false = full content
- * @property pinned snapshot مثبّت لا يُحذف بـ LRU
+ * @property actionGroupId [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] rollback [Localized])
+ * @property contentBlob [Localized] diff [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] (Deflate)
+ * @property storedAsDiff true = diff[Localized] false = full content
+ * @property pinned snapshot [Localized] [Localized] [Localized] [Localized] LRU
  */
 @Entity(
     tableName = "rollback_snapshots",

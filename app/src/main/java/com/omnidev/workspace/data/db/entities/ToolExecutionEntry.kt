@@ -6,13 +6,13 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * ToolExecutionEntry — سجل تنفيذ الأداة الدائم
+ * ToolExecutionEntry — [Localized] [Localized] [Localized] [Localized]
  *
- * يحفظ كل عملية تنفيذ أداة بكافة تفاصيلها لضمان:
- * - الذاكرة الكاملة عبر الجلسات
- * - التعلم من الأخطاء والنجاحات
- * - التشخيص الذاتي والتحسين
- * - الوعي الكامل بتاريخ استخدام الأدوات
+ * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]:
+ * - [Localized] [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized] [Localized] [Localized]
  */
 @Entity(
     tableName = "tool_execution_log",
@@ -25,67 +25,67 @@ import androidx.room.PrimaryKey
 data class ToolExecutionEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
 
-    /** اسم الأداة المُستخدمة */
+    /** [Localized] [Localized] [Localized] */
     val toolName: String,
 
-    /** المعاملات كـ JSON string */
+    /** [Localized] [Localized] JSON string */
     @ColumnInfo(defaultValue = "'{}'")
     val parametersJson: String = "{}",
 
-    /** نتيجة التنفيذ (مقتطع لتوفير المساحة) */
+    /** [Localized] [Localized] ([Localized] [Localized] [Localized]) */
     @ColumnInfo(defaultValue = "''")
     val resultSummary: String = "",
 
-    /** هل نجح التنفيذ؟ */
+    /** [Localized] [Localized] [Localized] */
     val success: Boolean,
 
-    /** وقت التنفيذ بالميلي ثانية */
+    /** [Localized] [Localized] [Localized] [Localized] */
     val executionTimeMs: Long,
 
-    /** حجم النتيجة بالأحرف */
+    /** [Localized] [Localized] [Localized] */
     @ColumnInfo(defaultValue = "0")
     val resultSize: Int = 0,
 
-    /** السياق: ماذا كان الـ Agent يحاول فعله */
+    /** [Localized]: [Localized] [Localized] [Localized] Agent [Localized] [Localized] */
     @ColumnInfo(defaultValue = "''")
     val agentContext: String = "",
 
-    /** الأداة السابقة في نفس الجلسة */
+    /** [Localized] [Localized] [Localized] [Localized] [Localized] */
     @ColumnInfo(defaultValue = "''")
     val previousToolName: String = "",
 
-    /** رقم الجلسة */
+    /** [Localized] [Localized] */
     @ColumnInfo(defaultValue = "''")
     val sessionId: String = "",
 
-    /** وضع التشغيل (DEVELOPER, RESEARCHER, etc.) */
+    /** [Localized] [Localized] (DEVELOPER, RESEARCHER, etc.) */
     @ColumnInfo(defaultValue = "''")
     val agentMode: String = "",
 
-    /** رسالة الخطأ إذا فشل التنفيذ */
+    /** [Localized] [Localized] [Localized] [Localized] [Localized] */
     @ColumnInfo(defaultValue = "''")
     val errorMessage: String = "",
 
-    /** تقييم جودة النتيجة (0.0 - 1.0) */
+    /** [Localized] [Localized] [Localized] (0.0 - 1.0) */
     @ColumnInfo(defaultValue = "0.5")
     val resultQuality: Float = 0.5f,
 
-    /** الوقت من اليوم (0-23) */
+    /** [Localized] [Localized] [Localized] (0-23) */
     @ColumnInfo(defaultValue = "0")
     val hourOfDay: Int = 0,
 
-    /** يوم الأسبوع (1-7) */
+    /** [Localized] [Localized] (1-7) */
     @ColumnInfo(defaultValue = "1")
     val dayOfWeek: Int = 1,
 
-    /** ملاحظات التعلم الذاتي */
+    /** [Localized] [Localized] [Localized] */
     @ColumnInfo(defaultValue = "''")
     val learningNote: String = "",
 
-    /** هل تم وضع علامة للمراجعة؟ */
+    /** [Localized] [Localized] [Localized] [Localized] [Localized] */
     @ColumnInfo(defaultValue = "0")
     val flaggedForReview: Boolean = false,
 
-    /** الطابع الزمني */
+    /** [Localized] [Localized] */
     val timestamp: Long = System.currentTimeMillis()
 )

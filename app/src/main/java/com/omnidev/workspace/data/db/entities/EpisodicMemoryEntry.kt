@@ -5,17 +5,17 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * EpisodicMemoryEntry — حلقة كاملة (episode) من مهمة Agent سابقة (Brain 2.0).
+ * EpisodicMemoryEntry — [Localized] [Localized] (episode) [Localized] [Localized] Agent [Localized] (Brain 2.0).
  *
- * بعكس ReflexionLessonEntry الذي يخزن "درساً" قصيراً مرتبطاً بأداة، الـ episode
- * يلخّص مهمة بأكملها: ما طلبه المستخدم، الأدوات المستخدمة، النتيجة النهائية.
- * يُسترجع لإحضار "memory shots" مشابهة لمهام جديدة.
+ * [Localized] ReflexionLessonEntry [Localized] [Localized] "[Localized]" [Localized] [Localized] [Localized] [Localized] episode
+ * [Localized] [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+ * [Localized] [Localized] "memory shots" [Localized] [Localized] [Localized].
  *
  * Mobile-first:
- * - الـ summary ≤ 500 حرف
- * - userIntent ≤ 200 حرف (مفتاح البحث الدلالي)
+ * - [Localized] summary ≤ 500 [Localized]
+ * - userIntent ≤ 200 [Localized] ([Localized] [Localized] [Localized])
  * - 256-float embedding (≈ 1 KB)
- * - 2000 episode كحد أقصى ≈ 2-3 MB
+ * - 2000 episode [Localized] [Localized] ≈ 2-3 MB
  */
 @Entity(
     tableName = "episodic_memory",

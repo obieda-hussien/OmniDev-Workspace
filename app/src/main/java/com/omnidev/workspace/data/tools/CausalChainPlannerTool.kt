@@ -4,39 +4,39 @@ import com.omnidev.workspace.data.brain.CausalChainPlanner
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * CausalChainPlannerTool — أداة Agent للتخطيط السببي متعدد الخطوات
+ * CausalChainPlannerTool — [Localized] Agent [Localized] [Localized] [Localized] [Localized]
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * تعرض قدرات [CausalChainPlanner] للوكيل عبر أربع أدوات:
+ * [Localized] [Localized] [CausalChainPlanner] [Localized] [Localized] [Localized] [Localized]:
  *
- *   - **causal_plan_analyze**: يُحلّل خطوات مخطّطة ويُنشئ خريطة سببية كاملة
- *     بالتعارضات والتحذيرات.
+ *   - **causal_plan_analyze**: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+ *     [Localized] [Localized].
  *
- *   - **causal_plan_simulate**: يُحاكي تنفيذ الخطوات افتراضياً دون أي تأثير حقيقي
- *     على الجهاز — يكتشف الخطوات التي ستفشل قبل التنفيذ الفعلي.
+ *   - **causal_plan_simulate**: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+ *     [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
  *
- *   - **causal_plan_what_if**: يُجيب على "ماذا يحدث لو أضفنا أو حذفنا خطوة؟"
- *     ويُظهر الفرق في مستوى الخطر والتعارضات.
+ *   - **causal_plan_what_if**: [Localized] [Localized] "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]"
+ *     [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
  *
- *   - **causal_plan_clear**: يُفرغ مخزن الخطط المؤقتة (session cache).
+ *   - **causal_plan_clear**: [Localized] [Localized] [Localized] [Localized] (session cache).
  *
  * ## Mobile-First:
- * - لا LLM إضافي — تحليل rule-based بالكامل (< 5ms لـ 20 خطوة)
- * - لا قاعدة بيانات — ذاكرة الجلسة فقط، حد أقصى 10 خطط مؤقتة
- * - آمن لجميع الـ Tiers (Lite → OEM) لأنه قراءة/تحليل فقط
+ * - [Localized] LLM [Localized] — [Localized] rule-based [Localized] (< 5ms [Localized] 20 [Localized])
+ * - [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized] 10 [Localized] [Localized]
+ * - [Localized] [Localized] [Localized] Tiers (Lite → OEM) [Localized] [Localized]/[Localized] [Localized]
  *
- * ## طريقة الاستخدام المثالية:
- * 1. الوكيل يُنشئ قائمة الخطوات المخطّطة
- * 2. يستدعي `causal_plan_analyze` أولاً
- * 3. إذا وجد تعارضات حرجة → يُعدّل الخطة
- * 4. يستدعي `causal_plan_simulate` للتحقق النهائي
- * 5. يُنفّذ الخطوات مع rollback group واحد
+ * ## [Localized] [Localized] [Localized]:
+ * 1. [Localized] [Localized] [Localized] [Localized] [Localized]
+ * 2. [Localized] `causal_plan_analyze` [Localized]
+ * 3. [Localized] [Localized] [Localized] [Localized] → [Localized] [Localized]
+ * 4. [Localized] `causal_plan_simulate` [Localized] [Localized]
+ * 5. [Localized] [Localized] [Localized] rollback group [Localized]
  */
 class CausalChainPlannerTool(
     private val planner: CausalChainPlanner = CausalChainPlanner()
 ) {
 
-    /** مخزن الخطط المؤقتة (session-scoped, max 10). */
+    /** [Localized] [Localized] [Localized] (session-scoped, max 10). */
     private val planCache = mutableMapOf<String, CausalChainPlanner.CausalGraph>()
     private val maxCacheSize = 10
 
@@ -48,31 +48,31 @@ class CausalChainPlannerTool(
 
         ToolDefinition(
             name = "causal_plan_analyze",
-            description = """تحليل خطة متعددة الخطوات وبناء خريطة سببية (Causal Graph) كاملة.
-يكتشف التعارضات المنطقية قبل التنفيذ مثل:
-- قراءة ملف محذوف (Read-After-Delete)
-- تعديل ملف بعد حذفه (Modify-After-Delete)
-- إنشاء نفس الملف مرتين (Double-Create)
-- عمل ضائع (تعديل ثم حذف فوراً)
-- أوامر ذات خطر حرج (rm -rf, git reset --hard)
+            description = """[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] (Causal Graph) [Localized].
+[Localized] [Localized] [Localized] [Localized] [Localized] [Localized]:
+- [Localized] [Localized] [Localized] (Read-After-Delete)
+- [Localized] [Localized] [Localized] [Localized] (Modify-After-Delete)
+- [Localized] [Localized] [Localized] [Localized] (Double-Create)
+- [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized])
+- [Localized] [Localized] [Localized] [Localized] (rm -rf, git reset --hard)
 
-استخدم قبل تنفيذ أي سلسلة عمليات معقدة لتجنب الكوارث.
-مثال steps: "create_file|path=/src/A.kt,patch_file_content|path=/src/A.kt,delete_file|path=/src/A.kt"
+[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+[Localized] steps: "create_file|path=/src/A.kt,patch_file_content|path=/src/A.kt,delete_file|path=/src/A.kt"
 """,
             parameters = listOf(
                 ToolParameter(
                     name = "steps",
                     type = "string",
-                    description = """قائمة الخطوات المخطّطة بالتنسيق:
+                    description = """[Localized] [Localized] [Localized] [Localized]:
 "toolName|param1=val1&param2=val2,toolName2|param1=val1"
-مثال: "create_file|path=/src/Main.kt,patch_file_content|path=/src/Main.kt,run_terminal|command=rm -rf /tmp"
-يمكن الفصل بفاصلة (,) أو سطر جديد.""",
+[Localized]: "create_file|path=/src/Main.kt,patch_file_content|path=/src/Main.kt,run_terminal|command=rm -rf /tmp"
+[Localized] [Localized] [Localized] (,) [Localized] [Localized] [Localized].""",
                     required = true
                 ),
                 ToolParameter(
                     name = "plan_id",
                     type = "string",
-                    description = "معرف الخطة لحفظها مؤقتاً (للاستخدام لاحقاً في simulate/what_if). اختياري.",
+                    description = "[Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] simulate/what_if). [Localized].",
                     required = false
                 )
             )
@@ -80,22 +80,22 @@ class CausalChainPlannerTool(
 
         ToolDefinition(
             name = "causal_plan_simulate",
-            description = """محاكاة افتراضية لتنفيذ خطة دون أي تأثير حقيقي على الجهاز.
-يبني "نظام ملفات افتراضي" ويُتحقق من كل خطوة ضده.
-يُخبرك: أي خطوة ستفشل، ولماذا، وما هي حالة النظام بعدها.
+            description = """[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+[Localized] "[Localized] [Localized] [Localized]" [Localized] [Localized] [Localized] [Localized] [Localized].
+[Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
 
-استخدم بعد causal_plan_analyze للتحقق النهائي قبل التنفيذ.""",
+[Localized] [Localized] causal_plan_analyze [Localized] [Localized] [Localized] [Localized].""",
             parameters = listOf(
                 ToolParameter(
                     name = "steps",
                     type = "string",
-                    description = "نفس تنسيق causal_plan_analyze. يمكن تركه فارغاً إذا حددت plan_id.",
+                    description = "[Localized] [Localized] causal_plan_analyze. [Localized] [Localized] [Localized] [Localized] [Localized] plan_id.",
                     required = false
                 ),
                 ToolParameter(
                     name = "plan_id",
                     type = "string",
-                    description = "استخدم خطة محفوظة مسبقاً بـ causal_plan_analyze.",
+                    description = "[Localized] [Localized] [Localized] [Localized] [Localized] causal_plan_analyze.",
                     required = false
                 )
             )
@@ -103,26 +103,26 @@ class CausalChainPlannerTool(
 
         ToolDefinition(
             name = "causal_plan_what_if",
-            description = """تحليل What-If: "ماذا يحدث لو أضفنا أو حذفنا خطوة؟"
-يُظهر الفرق في مستوى الخطر والتعارضات والنجاح/الفشل بين الخطة الأصلية والمُعدَّلة.
-مفيد جداً قبل اتخاذ قرار بتغيير ترتيب الخطوات.""",
+            description = """[Localized] What-If: "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]"
+[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]/[Localized] [Localized] [Localized] [Localized] [Localized].
+[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].""",
             parameters = listOf(
                 ToolParameter(
                     name = "plan_id",
                     type = "string",
-                    description = "معرف الخطة المحفوظة (من causal_plan_analyze).",
+                    description = "[Localized] [Localized] [Localized] ([Localized] causal_plan_analyze).",
                     required = true
                 ),
                 ToolParameter(
                     name = "insert_step",
                     type = "string",
-                    description = "خطوة جديدة بتنسيق 'toolName|param1=val1&param2=val2'. اختياري.",
+                    description = "[Localized] [Localized] [Localized] 'toolName|param1=val1&param2=val2'. [Localized].",
                     required = false
                 ),
                 ToolParameter(
                     name = "remove_step_index",
                     type = "string",
-                    description = "فهرس الخطوة المراد حذفها (0-based). اختياري.",
+                    description = "[Localized] [Localized] [Localized] [Localized] (0-based). [Localized].",
                     required = false
                 )
             )
@@ -130,12 +130,12 @@ class CausalChainPlannerTool(
 
         ToolDefinition(
             name = "causal_plan_clear",
-            description = "إفراغ مخزن الخطط المؤقتة. استخدم في بداية مهمة جديدة.",
+            description = "[Localized] [Localized] [Localized] [Localized]. [Localized] [Localized] [Localized] [Localized] [Localized].",
             parameters = listOf(
                 ToolParameter(
                     name = "plan_id",
                     type = "string",
-                    description = "معرف خطة بعينها لحذفها. إذا لم يُحدد، يُفرغ الكل.",
+                    description = "[Localized] [Localized] [Localized] [Localized]. [Localized] [Localized] [Localized] [Localized] [Localized].",
                     required = false
                 )
             )
@@ -146,7 +146,7 @@ class CausalChainPlannerTool(
     // Execution
     // ──────────────────────────────────────────────────────────────────────────
 
-    /** يُرجع null إذا الأداة ليست مملوكة لهذا الـ wrapper. */
+    /** [Localized] null [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] wrapper. */
     suspend fun execute(name: String, args: Map<String, String>): ToolExecutionResult? {
         if (name !in HANDLED) return null
         return try {
@@ -165,9 +165,9 @@ class CausalChainPlannerTool(
     fun handles(name: String): Boolean = name in HANDLED
 
     /**
-     * يُرجع نص حقن Prompt لآخر خطة مؤقتة في الـ cache.
-     * يُستخدم من SmartLearningBridge لإثراء System Prompt بالتحذيرات السببية.
-     * يُرجع null إذا كان الـ cache فارغاً أو لا يوجد تحذيرات تستحق الحقن.
+     * [Localized] [Localized] [Localized] Prompt [Localized] [Localized] [Localized] [Localized] [Localized] cache.
+     * [Localized] [Localized] SmartLearningBridge [Localized] System Prompt [Localized] [Localized].
+     * [Localized] null [Localized] [Localized] [Localized] cache [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
      */
     fun getLastPlanInjection(maxChars: Int = 500): String? {
         val lastGraph = planCache.values.lastOrNull() ?: return null
@@ -181,19 +181,19 @@ class CausalChainPlannerTool(
 
     private fun doAnalyze(args: Map<String, String>): ToolExecutionResult {
         val stepsRaw = args["steps"]?.trim()
-            ?: return ToolExecutionResult("steps مطلوبة", isError = true)
+            ?: return ToolExecutionResult("steps [Localized]", isError = true)
 
         val steps = parseSteps(stepsRaw)
         if (steps.isEmpty()) return ToolExecutionResult(
-            "لم يتم التعرف على أي خطوة صحيحة في المدخلات.", isError = true
+            "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].", isError = true
         )
 
         val graph = planner.buildChain(steps)
 
-        // حفظ في الـ cache إذا طُلب
+        // [Localized] [Localized] [Localized] cache [Localized] [Localized]
         val planId = args["plan_id"]?.trim()
         if (!planId.isNullOrBlank()) {
-            // إزالة أقدم عنصر إذا امتلأ الـ cache
+            // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] cache
             if (planCache.size >= maxCacheSize) {
                 planCache.keys.firstOrNull()?.let { planCache.remove(it) }
             }
@@ -201,11 +201,11 @@ class CausalChainPlannerTool(
         }
 
         return ToolExecutionResult(buildString {
-            appendLine("🗺️ خريطة سببية لـ ${graph.nodes.size} خطوة:")
+            appendLine("🗺️ [Localized] [Localized] [Localized] ${graph.nodes.size} [Localized]:")
             appendLine()
 
-            // ملخص الخطوات
-            appendLine("📋 الخطوات:")
+            // [Localized] [Localized]
+            appendLine("📋 [Localized]:")
             for (node in graph.nodes) {
                 val icon = when (node.riskLevel) {
                     CausalChainPlanner.RiskLevel.LOW      -> "🟢"
@@ -217,7 +217,7 @@ class CausalChainPlannerTool(
             }
             appendLine()
 
-            // التأثيرات المجمّعة
+            // [Localized] [Localized]
             val allEffects = graph.nodes.flatMap { it.effects }
             val deletedPaths = allEffects
                 .filter { it.type == CausalChainPlanner.EffectType.DELETE && it.targetPath != null }
@@ -229,69 +229,69 @@ class CausalChainPlannerTool(
                 .filter { it.type == CausalChainPlanner.EffectType.MODIFY && it.targetPath != null }
                 .mapNotNull { it.targetPath }.distinct()
 
-            if (deletedPaths.isNotEmpty()) appendLine("🗑️ سيُحذف: ${deletedPaths.take(5).joinToString(", ")}")
-            if (createdPaths.isNotEmpty()) appendLine("📄 سيُنشأ: ${createdPaths.take(5).joinToString(", ")}")
-            if (modifiedPaths.isNotEmpty()) appendLine("✏️ سيُعدَّل: ${modifiedPaths.take(5).joinToString(", ")}")
+            if (deletedPaths.isNotEmpty()) appendLine("🗑️ [Localized]: ${deletedPaths.take(5).joinToString(", ")}")
+            if (createdPaths.isNotEmpty()) appendLine("📄 [Localized]: ${createdPaths.take(5).joinToString(", ")}")
+            if (modifiedPaths.isNotEmpty()) appendLine("✏️ [Localized]: ${modifiedPaths.take(5).joinToString(", ")}")
             appendLine()
 
-            // مستوى الخطر الكلي
-            appendLine("⚠️ مستوى الخطر الأعلى: ${graph.highestRisk.label()}")
+            // [Localized] [Localized] [Localized]
+            appendLine("⚠️ [Localized] [Localized] [Localized]: ${graph.highestRisk.label()}")
             appendLine()
 
-            // التعارضات
+            // [Localized]
             if (graph.conflicts.isEmpty()) {
-                appendLine("✅ لا توجد تعارضات — الخطة آمنة.")
+                appendLine("✅ [Localized] [Localized] [Localized] — [Localized] [Localized].")
             } else {
                 val fatal = graph.conflicts.filter { it.isFatal }
                 val warnings = graph.conflicts.filter { !it.isFatal }
                 if (fatal.isNotEmpty()) {
-                    appendLine("❌ تعارضات حرجة (${fatal.size}):")
+                    appendLine("❌ [Localized] [Localized] (${fatal.size}):")
                     for (c in fatal) appendLine("  • ${c.message}")
                     appendLine()
                 }
                 if (warnings.isNotEmpty()) {
-                    appendLine("⚠️ تحذيرات (${warnings.size}):")
+                    appendLine("⚠️ [Localized] (${warnings.size}):")
                     for (c in warnings) appendLine("  • ${c.message}")
                 }
             }
 
-            if (!planId.isNullOrBlank()) appendLine("\n💾 حُفظت الخطة كـ '$planId' للاستخدام في simulate/what_if.")
+            if (!planId.isNullOrBlank()) appendLine("\n💾 [Localized] [Localized] [Localized] '$planId' [Localized] [Localized] simulate/what_if.")
         })
     }
 
     private fun doSimulate(args: Map<String, String>): ToolExecutionResult {
         val graph = resolveGraph(args)
             ?: return ToolExecutionResult(
-                "يجب تحديد 'steps' أو 'plan_id' خطة محفوظة مسبقاً.", isError = true
+                "[Localized] [Localized] 'steps' [Localized] 'plan_id' [Localized] [Localized] [Localized].", isError = true
             )
 
         val result = planner.simulate(graph)
         return ToolExecutionResult(buildString {
-            appendLine("🎬 نتيجة المحاكاة الافتراضية:")
+            appendLine("🎬 [Localized] [Localized] [Localized]:")
             appendLine()
             for (step in result.steps) {
                 val status = if (step.wouldSucceed) "✅" else "❌"
                 val risk = when (step.riskLevel) {
                     CausalChainPlanner.RiskLevel.LOW      -> ""
-                    CausalChainPlanner.RiskLevel.MEDIUM   -> " [متوسط]"
-                    CausalChainPlanner.RiskLevel.HIGH     -> " [⚠️ مرتفع]"
-                    CausalChainPlanner.RiskLevel.CRITICAL -> " [💥 حرج]"
+                    CausalChainPlanner.RiskLevel.MEDIUM   -> " [[Localized]]"
+                    CausalChainPlanner.RiskLevel.HIGH     -> " [⚠️ [Localized]]"
+                    CausalChainPlanner.RiskLevel.CRITICAL -> " [💥 [Localized]]"
                 }
                 appendLine("  ${step.stepIndex}. $status${risk} ${step.humanSummary}")
                 if (!step.wouldSucceed && step.failReason != null) {
-                    appendLine("       💔 السبب: ${step.failReason}")
+                    appendLine("       💔 [Localized]: ${step.failReason}")
                 }
             }
             appendLine()
             if (result.overallSuccess) {
-                appendLine("✅ المحاكاة نجحت — جميع الخطوات قابلة للتنفيذ.")
+                appendLine("✅ [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized].")
             } else {
-                appendLine("❌ المحاكاة اكتشفت فشلاً في الخطوة ${result.firstFailureIndex}.")
-                appendLine("   📌 يُنصح بتعديل الخطة أو استخدام causal_plan_what_if.")
+                appendLine("❌ [Localized] [Localized] [Localized] [Localized] [Localized] ${result.firstFailureIndex}.")
+                appendLine("   📌 [Localized] [Localized] [Localized] [Localized] [Localized] causal_plan_what_if.")
             }
             if (result.warningMessages.isNotEmpty()) {
                 appendLine()
-                appendLine("⚠️ تحذيرات إضافية:")
+                appendLine("⚠️ [Localized] [Localized]:")
                 for (w in result.warningMessages) appendLine("  • $w")
             }
         })
@@ -299,10 +299,10 @@ class CausalChainPlannerTool(
 
     private fun doWhatIf(args: Map<String, String>): ToolExecutionResult {
         val planId = args["plan_id"]?.trim()
-            ?: return ToolExecutionResult("plan_id مطلوب", isError = true)
+            ?: return ToolExecutionResult("plan_id [Localized]", isError = true)
         val baseline = planCache[planId]
             ?: return ToolExecutionResult(
-                "لم يُعثر على خطة '$planId'. استخدم causal_plan_analyze أولاً.", isError = true
+                "[Localized] [Localized] [Localized] [Localized] '$planId'. [Localized] causal_plan_analyze [Localized].", isError = true
             )
 
         val insertRaw = args["insert_step"]?.trim()
@@ -314,7 +314,7 @@ class CausalChainPlannerTool(
 
         if (insertStep == null && removeIdx == null) {
             return ToolExecutionResult(
-                "يجب تحديد insert_step أو remove_step_index.", isError = true
+                "[Localized] [Localized] insert_step [Localized] remove_step_index.", isError = true
             )
         }
 
@@ -327,20 +327,20 @@ class CausalChainPlannerTool(
         return if (planId.isNullOrBlank()) {
             val count = planCache.size
             planCache.clear()
-            ToolExecutionResult("✅ تم حذف $count خطة مؤقتة من الذاكرة.")
+            ToolExecutionResult("✅ [Localized] [Localized] $count [Localized] [Localized] [Localized] [Localized].")
         } else {
             val existed = planCache.remove(planId) != null
-            if (existed) ToolExecutionResult("✅ تم حذف الخطة '$planId'.")
-            else ToolExecutionResult("⚠️ لم تُعثر على خطة بمعرف '$planId'.")
+            if (existed) ToolExecutionResult("✅ [Localized] [Localized] [Localized] '$planId'.")
+            else ToolExecutionResult("⚠️ [Localized] [Localized] [Localized] [Localized] [Localized] '$planId'.")
         }
     }
 
     /**
-     * يُحلّل نص الخطوات إلى قائمة (toolName → parameters).
+     * [Localized] [Localized] [Localized] [Localized] [Localized] (toolName → parameters).
      *
-     * التنسيق المقبول:
+     * [Localized] [Localized]:
      *   "toolName|param1=val1&param2=val2,toolName2|param1=val1"
-     * أو سطر جديد بدل الفاصلة.
+     * [Localized] [Localized] [Localized] [Localized] [Localized].
      */
     private fun parseSteps(raw: String): List<Pair<String, Map<String, String>>> {
         return raw
@@ -350,7 +350,7 @@ class CausalChainPlannerTool(
             .mapNotNull { entry ->
                 val pipeIdx = entry.indexOf('|')
                 if (pipeIdx < 0) {
-                    // اسم الأداة فقط بدون معاملات
+                    // [Localized] [Localized] [Localized] [Localized] [Localized]
                     entry.trim() to emptyMap<String, String>()
                 } else {
                     val toolName = entry.substring(0, pipeIdx).trim()
@@ -367,7 +367,7 @@ class CausalChainPlannerTool(
             }
     }
 
-    /** يجلب الـ CausalGraph من الـ cache أو يبنيه من steps. */
+    /** [Localized] [Localized] CausalGraph [Localized] [Localized] cache [Localized] [Localized] [Localized] steps. */
     private fun resolveGraph(args: Map<String, String>): CausalChainPlanner.CausalGraph? {
         val planId = args["plan_id"]?.trim()
         if (!planId.isNullOrBlank() && planCache.containsKey(planId)) {

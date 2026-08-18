@@ -31,15 +31,15 @@ import java.util.*
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * AgentBrainDashboard — لوحة تحكم عقل الـ Agent
+ * AgentBrainDashboard — [Localized] [Localized] [Localized] [Localized] Agent
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * تعرض:
- * 1. إحصائيات أداء الأدوات في الوقت الفعلي
- * 2. سجل آخر التنفيذات
- * 3. قاعدة المعرفة المكتسبة
- * 4. حالة البيئة والنظام
- * 5. مؤشر التعلم والتحسين
+ * [Localized]:
+ * 1. [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+ * 2. [Localized] [Localized] [Localized]
+ * 3. [Localized] [Localized] [Localized]
+ * 4. [Localized] [Localized] [Localized]
+ * 5. [Localized] [Localized] [Localized]
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,7 +55,7 @@ fun AgentBrainDashboard(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // أيقونة النبض الحي
+                        // [Localized] [Localized] [Localized]
                         PulsingDot()
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
@@ -65,7 +65,7 @@ fun AgentBrainDashboard(
                                 fontSize = 18.sp
                             )
                             Text(
-                                text = "نظام الذاكرة والوعي الذكي",
+                                text = "[Localized] [Localized] [Localized] [Localized]",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
@@ -74,12 +74,12 @@ fun AgentBrainDashboard(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "رجوع")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "[Localized]")
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "تحديث")
+                        Icon(Icons.Default.Refresh, contentDescription = "[Localized]")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -103,10 +103,10 @@ fun AgentBrainDashboard(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // ─── بطاقات الإحصائيات السريعة ─────────────────────────────
+            // ─── [Localized] [Localized] [Localized] ─────────────────────────────
             StatsHeaderRow(uiState)
 
-            // ─── التبويبات ───────────────────────────────────────────────
+            // ─── [Localized] ───────────────────────────────────────────────
             ScrollableTabRow(
                 selectedTabIndex = selectedTab,
                 edgePadding = 12.dp,
@@ -115,26 +115,26 @@ fun AgentBrainDashboard(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("📊 الأداء") }
+                    text = { Text("📊 [Localized]") }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("📔 السجل") }
+                    text = { Text("📔 [Localized]") }
                 )
                 Tab(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    text = { Text("🧠 المعرفة") }
+                    text = { Text("🧠 [Localized]") }
                 )
                 Tab(
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 },
-                    text = { Text("🌐 البيئة") }
+                    text = { Text("🌐 [Localized]") }
                 )
             }
 
-            // ─── محتوى التبويبات ─────────────────────────────────────────
+            // ─── [Localized] [Localized] ─────────────────────────────────────────
             when (selectedTab) {
                 0 -> PerformanceTab(uiState)
                 1 -> ExecutionLogTab(
@@ -154,7 +154,7 @@ fun AgentBrainDashboard(
     }
 }
 
-// ─── إحصائيات في الأعلى ──────────────────────────────────────────────────
+// ─── [Localized] [Localized] [Localized] ──────────────────────────────────────────────────
 
 @Composable
 private fun StatsHeaderRow(state: AgentBrainUiState) {
@@ -168,7 +168,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "⚡",
                 value = state.totalExecutions.toString(),
-                label = "عملية",
+                label = "[Localized]",
                 color = Color(0xFF2196F3)
             )
         }
@@ -176,7 +176,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "✅",
                 value = "${(state.successRate * 100).toInt()}%",
-                label = "نجاح",
+                label = "[Localized]",
                 color = if (state.successRate > 0.8f) Color(0xFF4CAF50) else Color(0xFFFF9800)
             )
         }
@@ -184,7 +184,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "🧠",
                 value = state.totalKnowledge.toString(),
-                label = "معرفة",
+                label = "[Localized]",
                 color = Color(0xFF9C27B0)
             )
         }
@@ -192,7 +192,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "🔧",
                 value = state.sessionToolCount.toString(),
-                label = "أداة/جلسة",
+                label = "[Localized]/[Localized]",
                 color = Color(0xFF00BCD4)
             )
         }
@@ -201,7 +201,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
                 MiniStatCard(
                     icon = "⚠️",
                     value = state.problematicTools.size.toString(),
-                    label = "مشكلة",
+                    label = "[Localized]",
                     color = Color(0xFFF44336)
                 )
             }
@@ -243,7 +243,7 @@ private fun MiniStatCard(
     }
 }
 
-// ─── تبويب الأداء ────────────────────────────────────────────────────────
+// ─── [Localized] [Localized] ────────────────────────────────────────────────────────
 
 @Composable
 private fun PerformanceTab(state: AgentBrainUiState) {
@@ -252,29 +252,29 @@ private fun PerformanceTab(state: AgentBrainUiState) {
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // أفضل وأسوأ الأدوات
+        // [Localized] [Localized] [Localized]
         item {
             InfoCard(
-                title = "🏆 أداء الأدوات",
+                title = "🏆 [Localized] [Localized]",
                 content = buildString {
-                    appendLine("🥇 الأفضل: ${state.bestTool}")
-                    appendLine("🥉 الأسوأ: ${state.worstTool}")
-                    appendLine("🔥 الأكثر استخداماً: ${state.mostUsedTool}")
+                    appendLine("🥇 [Localized]: ${state.bestTool}")
+                    appendLine("🥉 [Localized]: ${state.worstTool}")
+                    appendLine("🔥 [Localized] [Localized]: ${state.mostUsedTool}")
                 }
             )
         }
 
-        // الأدوات المشكلة
+        // [Localized] [Localized]
         if (state.problematicTools.isNotEmpty()) {
             item {
                 WarningCard(
-                    title = "⚠️ أدوات تحتاج انتباه",
+                    title = "⚠️ [Localized] [Localized] [Localized]",
                     items = state.problematicTools
                 )
             }
         }
 
-        // مستوى التعلم
+        // [Localized] [Localized]
         item {
             LearningProgressCard(
                 totalExecutions = state.totalExecutions,
@@ -284,7 +284,7 @@ private fun PerformanceTab(state: AgentBrainUiState) {
     }
 }
 
-// ─── تبويب السجل ────────────────────────────────────────────────────────
+// ─── [Localized] [Localized] ────────────────────────────────────────────────────────
 
 @Composable
 private fun ExecutionLogTab(
@@ -292,7 +292,7 @@ private fun ExecutionLogTab(
     onDeleteEntry: (Long) -> Unit
 ) {
     if (entries.isEmpty()) {
-        EmptyState(message = "لا توجد عمليات مسجلة بعد")
+        EmptyState(message = "[Localized] [Localized] [Localized] [Localized] [Localized]")
         return
     }
 
@@ -326,7 +326,7 @@ private fun ExecutionEntryCard(
             modifier = Modifier.padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // أيقونة الحالة
+            // [Localized] [Localized]
             Text(
                 text = if (entry.success) "✅" else "❌",
                 fontSize = 18.sp
@@ -380,7 +380,7 @@ private fun ExecutionEntryCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "حذف السجل",
+                        contentDescription = "[Localized] [Localized]",
                         tint = Color(0xFFF44336),
                         modifier = Modifier.size(14.dp)
                     )
@@ -390,7 +390,7 @@ private fun ExecutionEntryCard(
     }
 }
 
-// ─── تبويب المعرفة ───────────────────────────────────────────────────────
+// ─── [Localized] [Localized] ───────────────────────────────────────────────────────
 
 @Composable
 private fun KnowledgeTab(
@@ -399,7 +399,7 @@ private fun KnowledgeTab(
     onUpdateEntry: (Long, String, String, Float) -> Unit
 ) {
     if (entries.isEmpty()) {
-        EmptyState(message = "لم يكتسب الـ Agent معرفة بعد")
+        EmptyState(message = "[Localized] [Localized] [Localized] Agent [Localized] [Localized]")
         return
     }
 
@@ -508,7 +508,7 @@ private fun KnowledgeEntryCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Edit,
-                            contentDescription = "تعديل المعرفة",
+                            contentDescription = "[Localized] [Localized]",
                             tint = color,
                             modifier = Modifier.size(15.dp)
                         )
@@ -519,7 +519,7 @@ private fun KnowledgeEntryCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = "حذف المعرفة",
+                            contentDescription = "[Localized] [Localized]",
                             tint = Color(0xFFF44336),
                             modifier = Modifier.size(15.dp)
                         )
@@ -544,33 +544,33 @@ private fun KnowledgeEntryCard(
                             onUpdateEntry(entry.id, editedSubject, editedContent, confidence)
                             showEditDialog = false
                         } else {
-                            validationError = "تحقق من الحقول: الثقة يجب أن تكون بين 0.0 و 1.0"
+                            validationError = "[Localized] [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] 0.0 [Localized] 1.0"
                         }
                     }
-                ) { Text("حفظ") }
+                ) { Text("[Localized]") }
             },
             dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) { Text("إلغاء") }
+                TextButton(onClick = { showEditDialog = false }) { Text("[Localized]") }
             },
-            title = { Text("تعديل المعرفة") },
+            title = { Text("[Localized] [Localized]") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = editedSubject,
                         onValueChange = { editedSubject = it },
-                        label = { Text("العنوان") },
+                        label = { Text("[Localized]") },
                         singleLine = true
                     )
                     OutlinedTextField(
                         value = editedContent,
                         onValueChange = { editedContent = it },
-                        label = { Text("المحتوى") },
+                        label = { Text("[Localized]") },
                         minLines = 3
                     )
                     OutlinedTextField(
                         value = editedConfidence,
                         onValueChange = { editedConfidence = it },
-                        label = { Text("الثقة (0.0 - 1.0)") },
+                        label = { Text("[Localized] (0.0 - 1.0)") },
                         singleLine = true
                     )
                     validationError?.let {
@@ -607,12 +607,12 @@ private fun KnowledgeTypeFilters(
     }
 }
 
-// ─── تبويب البيئة ────────────────────────────────────────────────────────
+// ─── [Localized] [Localized] ────────────────────────────────────────────────────────
 
 @Composable
 private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
     if (stats == null) {
-        EmptyState(message = "جاري اكتشاف البيئة...")
+        EmptyState(message = "[Localized] [Localized] [Localized]...")
         return
     }
 
@@ -621,12 +621,12 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // حالة الأدوات البيئية
+        // [Localized] [Localized] [Localized]
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
-                        "🌐 البيئات المتاحة",
+                        "🌐 [Localized] [Localized]",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -641,12 +641,12 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
             }
         }
 
-        // توزيع المعرفة
+        // [Localized] [Localized]
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
-                        "📊 توزيع قاعدة المعرفة (${stats.totalKnowledge} إجمالي)",
+                        "📊 [Localized] [Localized] [Localized] (${stats.totalKnowledge} [Localized])",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -658,7 +658,7 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
             }
         }
 
-        // حالة الإعداد
+        // [Localized] [Localized]
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -680,13 +680,13 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            if (stats.isInitialized) "النظام مُعدّ ومُتعلِّم" else "النظام يعمل على الاكتشاف",
+                            if (stats.isInitialized) "[Localized] [Localized] [Localized]" else "[Localized] [Localized] [Localized] [Localized]",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
                         Text(
-                            if (stats.isInitialized) "الـ Agent واعٍ ببيئته تماماً"
-                            else "الـ Agent يكتشف القدرات المتاحة...",
+                            if (stats.isInitialized) "[Localized] Agent [Localized] [Localized] [Localized]"
+                            else "[Localized] Agent [Localized] [Localized] [Localized]...",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -697,7 +697,7 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
     }
 }
 
-// ─── مكونات مساعدة ───────────────────────────────────────────────────────
+// ─── [Localized] [Localized] ───────────────────────────────────────────────────────
 
 @Composable
 private fun InfoCard(title: String, content: String) {
@@ -757,13 +757,13 @@ private fun LearningProgressCard(totalExecutions: Int, successRate: Float) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("🎯 مستوى التعلم", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("🎯 [Localized] [Localized]", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     text = when {
-                        totalExecutions < 20 -> "مبتدئ"
-                        totalExecutions < 100 -> "متوسط"
-                        totalExecutions < 500 -> "متقدم"
-                        else -> "خبير"
+                        totalExecutions < 20 -> "[Localized]"
+                        totalExecutions < 100 -> "[Localized]"
+                        totalExecutions < 500 -> "[Localized]"
+                        else -> "[Localized]"
                     },
                     fontWeight = FontWeight.Bold,
                     color = progressColor,
@@ -779,7 +779,7 @@ private fun LearningProgressCard(totalExecutions: Int, successRate: Float) {
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "معدل النجاح: ${(successRate * 100).toInt()}% | التنفيذات: $totalExecutions",
+                text = "[Localized] [Localized]: ${(successRate * 100).toInt()}% | [Localized]: $totalExecutions",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
@@ -801,7 +801,7 @@ private fun EnvironmentRow(name: String, available: Boolean) {
             containerColor = if (available) Color(0xFF4CAF50) else Color(0xFF9E9E9E)
         ) {
             Text(
-                if (available) "متاح" else "غير متاح",
+                if (available) "[Localized]" else "[Localized] [Localized]",
                 fontSize = 10.sp,
                 color = Color.White,
                 modifier = Modifier.padding(horizontal = 4.dp)
@@ -831,17 +831,17 @@ private fun KnowledgeTypeRow(type: String, count: Int) {
 }
 
 private fun knowledgeTypeLabel(type: String): String = when (type) {
-    "ALL" -> "📚 كل المعرفة"
-    ToolAwarenessEngine.TYPE_BEST_PRACTICE -> "💡 أفضل الممارسات"
-    ToolAwarenessEngine.TYPE_TOOL_CAPABILITY -> "🔧 قدرات الأدوات"
-    ToolAwarenessEngine.TYPE_TOOL_LIMITATION -> "🚫 قيود الأدوات"
-    ToolAwarenessEngine.TYPE_SYSTEM_INFO -> "📱 معلومات النظام"
-    ToolAwarenessEngine.TYPE_ENVIRONMENT -> "🌐 بيئات التشغيل"
-    ToolAwarenessEngine.TYPE_WARNING -> "⚠️ تحذيرات"
-    ToolAwarenessEngine.TYPE_PATTERN -> "🔗 أنماط مكتشفة"
-    ToolAwarenessEngine.TYPE_SYSTEM_CAPABILITY -> "🧩 قدرات النظام"
-    ToolAwarenessEngine.TYPE_TOOL_REQUIREMENT -> "📌 متطلبات الأدوات"
-    ToolAwarenessEngine.TYPE_TOOL_DEPENDENCY -> "🔀 تبعيات الأدوات"
+    "ALL" -> "📚 [Localized] [Localized]"
+    ToolAwarenessEngine.TYPE_BEST_PRACTICE -> "💡 [Localized] [Localized]"
+    ToolAwarenessEngine.TYPE_TOOL_CAPABILITY -> "🔧 [Localized] [Localized]"
+    ToolAwarenessEngine.TYPE_TOOL_LIMITATION -> "🚫 [Localized] [Localized]"
+    ToolAwarenessEngine.TYPE_SYSTEM_INFO -> "📱 [Localized] [Localized]"
+    ToolAwarenessEngine.TYPE_ENVIRONMENT -> "🌐 [Localized] [Localized]"
+    ToolAwarenessEngine.TYPE_WARNING -> "⚠️ [Localized]"
+    ToolAwarenessEngine.TYPE_PATTERN -> "🔗 [Localized] [Localized]"
+    ToolAwarenessEngine.TYPE_SYSTEM_CAPABILITY -> "🧩 [Localized] [Localized]"
+    ToolAwarenessEngine.TYPE_TOOL_REQUIREMENT -> "📌 [Localized] [Localized]"
+    ToolAwarenessEngine.TYPE_TOOL_DEPENDENCY -> "🔀 [Localized] [Localized]"
     else -> "ℹ️ $type"
 }
 

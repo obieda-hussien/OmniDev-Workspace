@@ -166,7 +166,7 @@ class DiscordPollingService : Service() {
     private val toolManager: CompositeToolManager by lazy {
         val db = OmniDevDatabase.getInstance(applicationContext)
         val memoryManager = MemoryManager(db.knowledgeDao())
-        // ── Agent Brain 2.0: المحركات مُهيَّأة في OmniDevApp ──
+        // ── Agent Brain 2.0: [Localized] [Localized] [Localized] OmniDevApp ──
         val omniApp = com.omnidev.workspace.OmniDevApp.instance
         CompositeToolManager(
             fileToolManager = FileToolManager(),
@@ -332,22 +332,22 @@ class DiscordPollingService : Service() {
                 when {
                     lc == "!mode_chat"  -> {
                         channelModes[channelId] = OmniMode.CHAT
-                        sendDiscordMessage(token, channelId, "✅ Mode: **Chat** — محادثة عادية. اكتب `!omni سؤالك` للرد.")
+                        sendDiscordMessage(token, channelId, "✅ Mode: **Chat** — [Localized] [Localized]. [Localized] `!omni [Localized]` [Localized].")
                         continue
                     }
                     lc == "!mode_agent" -> {
                         channelModes[channelId] = OmniMode.AGENT
-                        sendDiscordMessage(token, channelId, "✅ Mode: **Agent** 🤖 — وكيل ذاتي كامل بكل الأدوات.")
+                        sendDiscordMessage(token, channelId, "✅ Mode: **Agent** 🤖 — [Localized] [Localized] [Localized] [Localized] [Localized].")
                         continue
                     }
                     lc == "!mode_swarm" -> {
                         channelModes[channelId] = OmniMode.SWARM
-                        sendDiscordMessage(token, channelId, "✅ Mode: **Swarm** 🐝 — فريق من الوكلاء.")
+                        sendDiscordMessage(token, channelId, "✅ Mode: **Swarm** 🐝 — [Localized] [Localized] [Localized].")
                         continue
                     }
                     lc == "!clear" -> {
                         sessionHistory.remove(channelId)
-                        sendDiscordMessage(token, channelId, "🧹 سياق المحادثة تم مسحه.")
+                        sendDiscordMessage(token, channelId, "🧹 [Localized] [Localized] [Localized] [Localized].")
                         continue
                     }
                     lc == "!status" -> {
@@ -390,7 +390,7 @@ class DiscordPollingService : Service() {
                         withTypingIndicator(token, channelId) {
                             processMessage(query, channelId, mode, username)
                         }
-                    } ?: "⏱ انتهت مهلة الوكيل (8 دقائق). حاول تبسيط الطلب."
+                    } ?: "⏱ [Localized] [Localized] [Localized] (8 [Localized]). [Localized] [Localized] [Localized]."
 
                     // Persist user + bot messages to Room
                     if (sessionId != null) {
@@ -586,15 +586,15 @@ class DiscordPollingService : Service() {
         appendLine("🤖 **Omni Discord Bot**")
         appendLine()
         appendLine("**Modes:**")
-        appendLine("`!mode_chat`  — محادثة عادية (افتراضي)")
-        appendLine("`!mode_agent` — وكيل ذاتي بكل الأدوات")
-        appendLine("`!mode_swarm` — فريق من الوكلاء")
+        appendLine("`!mode_chat`  — [Localized] [Localized] ([Localized])")
+        appendLine("`!mode_agent` — [Localized] [Localized] [Localized] [Localized]")
+        appendLine("`!mode_swarm` — [Localized] [Localized] [Localized]")
         appendLine()
         appendLine("**Commands:**")
-        appendLine("`!omni <message>` — أرسل رسالة للبوت")
-        appendLine("`!status`         — الوضع الحالي والإحصائيات")
-        appendLine("`!clear`          — امسح سياق المحادثة")
-        appendLine("`!help`           — هذه القائمة")
+        appendLine("`!omni <message>` — [Localized] [Localized] [Localized]")
+        appendLine("`!status`         — [Localized] [Localized] [Localized]")
+        appendLine("`!clear`          — [Localized] [Localized] [Localized]")
+        appendLine("`!help`           — [Localized] [Localized]")
         appendLine()
         appendLine("In AGENT/SWARM mode: all messages are processed automatically.")
     }

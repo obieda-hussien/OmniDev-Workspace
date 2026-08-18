@@ -47,7 +47,7 @@ import kotlinx.coroutines.launch
  * User Profile screen — lets the user set their display name and a short persona bio.
  *
  * **Name** is used by the AI assistant for personalised greetings
- * (e.g. "أنا هنا يا Ahmed، قولي عايز إيه؟").
+ * (e.g. "[Localized] [Localized] [Localized] Ahmed[Localized] [Localized] [Localized] [Localized]").
  *
  * **Persona** is injected into the AI's system prompt so the model can tailor
  * advice, code style, and explanations to this specific person
@@ -89,12 +89,12 @@ fun UserProfileScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("الملف الشخصي") },
+                title = { Text("[Localized] [Localized]") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "رجوع"
+                            contentDescription = "[Localized]"
                         )
                     }
                 },
@@ -134,7 +134,7 @@ fun UserProfileScreen(
 
             // ── Subtitle ──
             Text(
-                text = "اكتب اسمك وبيانات عنك عشان أومني يعرفك ويكلمك بطريقة مناسبة",
+                text = "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 modifier = Modifier.fillMaxWidth()
@@ -145,11 +145,11 @@ fun UserProfileScreen(
                 value = name,
                 onValueChange = { name = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("اسمك") },
-                placeholder = { Text("مثلاً: أحمد") },
+                label = { Text("[Localized]") },
+                placeholder = { Text("[Localized]: [Localized]") },
                 singleLine = true,
                 supportingText = {
-                    Text("المساعد هيستخدم اسمك في السلام — 'أنا هنا يا ${name.ifBlank { "اسمك" }}، قولي عايز إيه؟'")
+                    Text("[Localized] [Localized] [Localized] [Localized] [Localized] — '[Localized] [Localized] [Localized] ${name.ifBlank { "[Localized]" }}[Localized] [Localized] [Localized] [Localized]'")
                 }
             )
 
@@ -160,15 +160,15 @@ fun UserProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(160.dp),
-                label = { Text("بياناتك الشخصية (اختياري)") },
+                label = { Text("[Localized] [Localized] ([Localized])") },
                 placeholder = {
                     Text(
-                        "مثلاً: مطور Android محترف، بيفضل Kotlin، بيبني تطبيقات مستقلة." +
-                        "\nده بيساعد الذكاء الاصطناعي يفهم أسلوبك ويديك نصايح مناسبة."
+                        "[Localized]: [Localized] Android [Localized] [Localized] Kotlin[Localized] [Localized] [Localized] [Localized]." +
+                        "\n[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]."
                     )
                 },
                 supportingText = {
-                    Text("هيتضاف تلقائياً لـ System Prompt عشان الـ AI يعرف أكتر عنك")
+                    Text("[Localized] [Localized] [Localized] System Prompt [Localized] [Localized] AI [Localized] [Localized] [Localized]")
                 }
             )
 
@@ -178,12 +178,12 @@ fun UserProfileScreen(
                     scope.launch {
                         settingsRepository.setUserName(name.trim().ifBlank { null })
                         settingsRepository.setUserPersona(persona.trim().ifBlank { null })
-                        snackbarHostState.showSnackbar("✅ تم الحفظ!")
+                        snackbarHostState.showSnackbar("✅ [Localized] [Localized]!")
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("حفظ")
+                Text("[Localized]")
             }
 
             Spacer(Modifier.height(16.dp))

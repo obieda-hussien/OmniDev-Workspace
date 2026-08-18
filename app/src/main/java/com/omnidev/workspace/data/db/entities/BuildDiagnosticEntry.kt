@@ -5,21 +5,21 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * BuildDiagnosticEntry — تشخيص خطأ بناء (Build Doctor Pro / Brain 2.0).
+ * BuildDiagnosticEntry — [Localized] [Localized] [Localized] (Build Doctor Pro / Brain 2.0).
  *
- * كل سجل يجمع:
- *   - بصمة الخطأ (fingerprint) للكشف عن نفس الخطأ المتكرر
- *   - تصنيف (compile / link / dependency / resource / runtime / config)
- *   - حل ناجح سابق (مضغوط Deflate) لإعادة استخدامه
- *   - إحصاءات نجاح/فشل لتقييم الحلول
+ * [Localized] [Localized] [Localized]:
+ *   - [Localized] [Localized] (fingerprint) [Localized] [Localized] [Localized] [Localized] [Localized]
+ *   - [Localized] (compile / link / dependency / resource / runtime / config)
+ *   - [Localized] [Localized] [Localized] ([Localized] Deflate) [Localized] [Localized]
+ *   - [Localized] [Localized]/[Localized] [Localized] [Localized]
  *
  * Mobile-first:
- * - 500 سجل كحد أقصى مع LRU eviction
- * - solutionDiff مضغوط بـ Deflate (~70% توفير)
+ * - 500 [Localized] [Localized] [Localized] [Localized] LRU eviction
+ * - solutionDiff [Localized] [Localized] Deflate (~70% [Localized])
  *
- * @property errorFingerprint MD5(message normalized) — للبحث السريع عن خطأ نفسه
- * @property occurrenceCount كم مرة شُوهد هذا الخطأ
- * @property successfulFixCount كم مرة نجح الحل المخزن في إصلاحه
+ * @property errorFingerprint MD5(message normalized) — [Localized] [Localized] [Localized] [Localized] [Localized]
+ * @property occurrenceCount [Localized] [Localized] [Localized] [Localized] [Localized]
+ * @property successfulFixCount [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
  */
 @Entity(
     tableName = "build_diagnostics",

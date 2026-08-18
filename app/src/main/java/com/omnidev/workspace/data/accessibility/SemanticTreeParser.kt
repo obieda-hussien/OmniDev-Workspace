@@ -4,26 +4,26 @@ import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 
 /**
- * SemanticTreeParser — محلّل الشجرة الدلالية المتقدم
+ * SemanticTreeParser — [Localized] [Localized] [Localized] [Localized]
  *
- * الجيل الثاني: ذكاء هيكلي شامل
+ * [Localized] [Localized]: [Localized] [Localized] [Localized]
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. **كشف النماذج (Form Detection)**: يُجمّع حقول الإدخال المتجاورة تلقائياً
- *    تحت مجموعة "Form Group" مع تسميات مستنتجة.
+ * 1. **[Localized] [Localized] (Form Detection)**: [Localized] [Localized] [Localized] [Localized] [Localized]
+ *    [Localized] [Localized] "Form Group" [Localized] [Localized] [Localized].
  *
- * 2. **رسم العلاقات (Relationship Mapping)**: لكل حقل إدخال، يُحدد أقرب
- *    TextView كـ label ويربطهما في الوصف.
+ * 2. **[Localized] [Localized] (Relationship Mapping)**: [Localized] [Localized] [Localized] [Localized] [Localized]
+ *    TextView [Localized] label [Localized] [Localized] [Localized].
  *
- * 3. **نظام الأولوية (Priority Scoring)**: يُعطي نقاطاً لكل عنصر بناءً على
- *    قابلية التفاعل + الموضع + الأهمية الدلالية.
+ * 3. **[Localized] [Localized] (Priority Scoring)**: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+ *    [Localized] [Localized] + [Localized] + [Localized] [Localized].
  *
- * 4. **ملخص تنفيذي (Executive Summary)**: يُنتج وصفاً نثرياً للشاشة يساعد
- *    الوكيل في الفهم الفوري.
+ * 4. **[Localized] [Localized] (Executive Summary)**: [Localized] [Localized] [Localized] [Localized] [Localized]
+ *    [Localized] [Localized] [Localized] [Localized].
  *
- * 5. **كشف عناصر التنقل (Navigation Detection)**: يُحدد Bottom Nav / Tab Bar /
- *    Drawer / FAB ويُميّزها بوضوح.
+ * 5. **[Localized] [Localized] [Localized] (Navigation Detection)**: [Localized] Bottom Nav / Tab Bar /
+ *    Drawer / FAB [Localized] [Localized].
  *
- * 6. **دعم Compose متقدم**: يُحلّل semantics extras بعمق ويستخرج
+ * 6. **[Localized] Compose [Localized]**: [Localized] semantics extras [Localized] [Localized]
  *    stateDescription / roleDescription / headings.
  */
 object SemanticTreeParser {
@@ -34,20 +34,20 @@ object SemanticTreeParser {
     private const val MAX_DISPLAY_LENGTH = 80
 
     /**
-     * نتيجة التحليل الكاملة — مُثرّاة بالسياق الهيكلي.
+     * [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized].
      */
     data class ParseResult(
         val semanticTree: String,
         val nodeMap: Map<String, AccessibilityNodeInfo>,
         val totalRawNodes: Int,
         val extractedNodes: Int,
-        /** ملخص تنفيذي نثري للشاشة */
+        /** [Localized] [Localized] [Localized] [Localized] */
         val summary: String,
-        /** قائمة النماذج المكتشفة */
+        /** [Localized] [Localized] [Localized] */
         val detectedForms: List<FormGroup>,
-        /** قائمة عناصر التنقل */
+        /** [Localized] [Localized] [Localized] */
         val navigationElements: List<String>,
-        /** العناصر مرتّبة حسب الأولوية (الأهم أولاً) */
+        /** [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized]) */
         val priorityOrder: List<String>
     )
 
@@ -67,7 +67,7 @@ object SemanticTreeParser {
         TEXT, EMAIL, PASSWORD, NUMBER, PHONE, SEARCH, MULTILINE, UNKNOWN
     }
 
-    // ── إحصاءات داخلية للتحليل ─────────────────────────────────────────────
+    // ── [Localized] [Localized] [Localized] ─────────────────────────────────────────────
 
     private data class NodeMeta(
         val node: AccessibilityNodeInfo,
@@ -79,7 +79,7 @@ object SemanticTreeParser {
         val labelCandidate: AccessibilityNodeInfo?
     )
 
-    // ── API الرئيسي ───────────────────────────────────────────────────────────
+    // ── API [Localized] ───────────────────────────────────────────────────────────
 
     fun parse(
         root: AccessibilityNodeInfo,
@@ -91,7 +91,7 @@ object SemanticTreeParser {
         var nodeCounter = 0
         var totalRawNodes = 0
 
-        // المرور الأول: جمع كل العقد مع حساب الـ priority
+        // [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] priority
         fun traverse(node: AccessibilityNodeInfo, depth: Int, parent: AccessibilityNodeInfo?) {
             if (depth > MAX_DEPTH || nodeCounter >= MAX_NODES) return
             totalRawNodes++
@@ -128,21 +128,21 @@ object SemanticTreeParser {
 
         traverse(root, 0, null)
 
-        // المرور الثاني: بناء الشجرة المنسّقة
+        // [Localized] [Localized]: [Localized] [Localized] [Localized]
         val lines = mutableListOf<String>()
         val header = buildHeader(packageName, activityName, totalRawNodes, nodeCounter)
         lines.add(header)
 
-        // إضافة العقد مُجمَّعة بشكل ذكي
+        // [Localized] [Localized] [Localized] [Localized] [Localized]
         buildFormattedTree(root, allMeta, lines)
 
-        if (nodeCounter == 0) lines.add("(لا توجد عناصر تفاعلية على الشاشة)")
-        if (nodeCounter >= MAX_NODES) lines.add("... [تم الاقتطاع عند $MAX_NODES عقدة]")
+        if (nodeCounter == 0) lines.add("([Localized] [Localized] [Localized] [Localized] [Localized] [Localized])")
+        if (nodeCounter >= MAX_NODES) lines.add("... [[Localized] [Localized] [Localized] $MAX_NODES [Localized]]")
 
-        // كشف النماذج
+        // [Localized] [Localized]
         val forms = detectForms(allMeta, nodeMap)
 
-        // استخراج عناصر التنقل
+        // [Localized] [Localized] [Localized]
         val navElements = allMeta
             .filter { it.isNavigational }
             .map { meta ->
@@ -150,13 +150,13 @@ object SemanticTreeParser {
                 "${meta.nodeId}: ${node?.text ?: node?.contentDescription ?: "nav"}"
             }
 
-        // ترتيب حسب الأولوية
+        // [Localized] [Localized] [Localized]
         val priorityOrder = allMeta
             .sortedByDescending { it.priority }
             .take(20)
             .map { it.nodeId }
 
-        // الملخص التنفيذي
+        // [Localized] [Localized]
         val summary = buildExecutiveSummary(
             packageName, allMeta, forms, navElements, nodeCounter
         )
@@ -173,7 +173,7 @@ object SemanticTreeParser {
         )
     }
 
-    // ── بناء الشجرة ───────────────────────────────────────────────────────────
+    // ── [Localized] [Localized] ───────────────────────────────────────────────────────────
 
     private fun buildFormattedTree(
         root: AccessibilityNodeInfo,
@@ -184,23 +184,23 @@ object SemanticTreeParser {
             compareBy({ it.bounds.top }, { it.bounds.left })
         )
 
-        // تجميع الـ navigation elements أولاً
+        // [Localized] [Localized] navigation elements [Localized]
         val navMeta = metaByPriority.filter { it.isNavigational }
         val formMeta = metaByPriority.filter { it.isFormField && !it.isNavigational }
         val restMeta = metaByPriority.filter { !it.isNavigational && !it.isFormField }
 
         if (navMeta.isNotEmpty()) {
-            lines.add("\n📍 عناصر التنقل:")
+            lines.add("\n📍 [Localized] [Localized]:")
             navMeta.forEach { meta -> lines.add(buildNodeLine(meta)) }
         }
 
         if (formMeta.isNotEmpty()) {
-            lines.add("\n📝 حقول الإدخال:")
+            lines.add("\n📝 [Localized] [Localized]:")
             formMeta.forEach { meta -> lines.add(buildNodeLine(meta, showLabel = true)) }
         }
 
         if (restMeta.isNotEmpty()) {
-            lines.add("\n🖱️ عناصر الواجهة:")
+            lines.add("\n🖱️ [Localized] [Localized]:")
             restMeta.forEach { meta -> lines.add(buildNodeLine(meta)) }
         }
     }
@@ -221,7 +221,7 @@ object SemanticTreeParser {
         val className = node.className?.toString()?.substringAfterLast('.') ?: "View"
         append(className)
 
-        // Label من الـ parent (للنماذج)
+        // Label [Localized] [Localized] parent ([Localized])
         if (showLabel && meta.labelCandidate != null) {
             val labelText = meta.labelCandidate.text?.toString()?.trim()
                 ?: meta.labelCandidate.contentDescription?.toString()?.trim()
@@ -230,46 +230,46 @@ object SemanticTreeParser {
             }
         }
 
-        // النص
+        // [Localized]
         val text = node.text?.toString()?.trim()
         if (!text.isNullOrEmpty()) {
             if (node.isPassword) append(": \"••••\"")
             else append(": \"${truncate(text)}\"")
         }
 
-        // الوصف
+        // [Localized]
         val desc = node.contentDescription?.toString()?.trim()
         if (!desc.isNullOrEmpty() && desc != text) {
             append(" [desc: \"${truncate(desc)}\"]")
         }
 
-        // الحالة الدلالية من extras
+        // [Localized] [Localized] [Localized] extras
         val semanticState = readSemanticState(node)
         if (!semanticState.isNullOrEmpty()) {
             append(" [state: \"${truncate(semanticState)}\"]")
         }
 
-        // نوع الحقل للـ EditText
+        // [Localized] [Localized] [Localized] EditText
         if (node.isEditable) {
             append(" (${inferFieldType(node).name})")
         }
 
-        // الخصائص
+        // [Localized]
         val flags = buildFlagsList(node)
         if (flags.isNotEmpty()) append(" (${flags.joinToString(", ")})")
 
-        // الحدود
+        // [Localized]
         if (!meta.bounds.isEmpty) {
             append(" {${meta.bounds.left},${meta.bounds.top}–${meta.bounds.right},${meta.bounds.bottom}}")
         }
 
-        // الـ resource ID المختصر
+        // [Localized] resource ID [Localized]
         node.viewIdResourceName?.substringAfterLast('/')?.let {
             append(" #$it")
         }
     }
 
-    // ── كشف النماذج ───────────────────────────────────────────────────────────
+    // ── [Localized] [Localized] ───────────────────────────────────────────────────────────
 
     private fun detectForms(
         allMeta: List<NodeMeta>,
@@ -278,7 +278,7 @@ object SemanticTreeParser {
         val editableMeta = allMeta.filter { it.isFormField }
         if (editableMeta.isEmpty()) return emptyList()
 
-        // تجميع حقول متجاورة رأسياً ضمن نفس المنطقة
+        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
         val groups = mutableListOf<MutableList<NodeMeta>>()
         var currentGroup = mutableListOf<NodeMeta>()
 
@@ -288,7 +288,7 @@ object SemanticTreeParser {
             } else {
                 val lastBottom = currentGroup.last().bounds.bottom
                 val gap = meta.bounds.top - lastBottom
-                if (gap < 250) { // حقول ضمن 250px من بعض = نفس النموذج
+                if (gap < 250) { // [Localized] [Localized] 250px [Localized] [Localized] = [Localized] [Localized]
                     currentGroup.add(meta)
                 } else {
                     groups.add(currentGroup)
@@ -313,16 +313,16 @@ object SemanticTreeParser {
                 )
             }
             val groupName = when {
-                fields.any { it.fieldType == FieldType.PASSWORD } -> "نموذج تسجيل الدخول"
-                fields.any { it.fieldType == FieldType.EMAIL } -> "نموذج التسجيل"
-                fields.size == 1 && fields.first().fieldType == FieldType.SEARCH -> "صندوق البحث"
-                else -> "نموذج ${groupIndex + 1}"
+                fields.any { it.fieldType == FieldType.PASSWORD } -> "[Localized] [Localized] [Localized]"
+                fields.any { it.fieldType == FieldType.EMAIL } -> "[Localized] [Localized]"
+                fields.size == 1 && fields.first().fieldType == FieldType.SEARCH -> "[Localized] [Localized]"
+                else -> "[Localized] ${groupIndex + 1}"
             }
             FormGroup(groupName, fields)
         }
     }
 
-    // ── الملخص التنفيذي ───────────────────────────────────────────────────────
+    // ── [Localized] [Localized] ───────────────────────────────────────────────────────
 
     private fun buildExecutiveSummary(
         packageName: String?,
@@ -331,20 +331,20 @@ object SemanticTreeParser {
         navElements: List<String>,
         totalNodes: Int
     ): String = buildString {
-        val appName = packageName?.substringAfterLast('.') ?: "مجهول"
-        append("الشاشة الحالية في $appName تحتوي على $totalNodes عنصراً تفاعلياً. ")
+        val appName = packageName?.substringAfterLast('.') ?: "[Localized]"
+        append("[Localized] [Localized] [Localized] $appName [Localized] [Localized] $totalNodes [Localized] [Localized]. ")
 
         if (forms.isNotEmpty()) {
-            append("يوجد ${forms.size} نموذج: ${forms.joinToString(", ") { it.groupName }}. ")
+            append("[Localized] ${forms.size} [Localized]: ${forms.joinToString(", ") { it.groupName }}. ")
         }
 
         val clickableCount = allMeta.count { it.node.isClickable }
         if (clickableCount > 0) {
-            append("$clickableCount زر/عنصر قابل للنقر. ")
+            append("$clickableCount [Localized]/[Localized] [Localized] [Localized]. ")
         }
 
         if (navElements.isNotEmpty()) {
-            append("${navElements.size} عنصر تنقل (تبويبات/قائمة). ")
+            append("${navElements.size} [Localized] [Localized] ([Localized]/[Localized]). ")
         }
 
         val topNodes = allMeta.sortedByDescending { it.priority }.take(3)
@@ -354,7 +354,7 @@ object SemanticTreeParser {
                     ?: meta.node.contentDescription?.toString()?.trim()
             }.take(3)
             if (topDesc.isNotEmpty()) {
-                append("أبرز العناصر: ${topDesc.joinToString(", ") { "\"$it\"" }}.")
+                append("[Localized] [Localized]: ${topDesc.joinToString(", ") { "\"$it\"" }}.")
             }
         }
     }
@@ -371,7 +371,7 @@ object SemanticTreeParser {
         append("\nNodes: $extracted extracted / $total total")
     }
 
-    // ── أدوات التحليل ─────────────────────────────────────────────────────────
+    // ── [Localized] [Localized] ─────────────────────────────────────────────────────────
 
     private fun computePriority(
         node: AccessibilityNodeInfo,
@@ -380,24 +380,24 @@ object SemanticTreeParser {
     ): Int {
         var score = 0
 
-        // قابلية التفاعل
+        // [Localized] [Localized]
         if (node.isClickable) score += 30
         if (node.isEditable) score += 40
         if (node.isFocused) score += 25
         if (node.isFocusable) score += 10
         if (node.isScrollable) score += 20
 
-        // عمق الشجرة (الأعمق = أقل أهمية)
+        // [Localized] [Localized] ([Localized] = [Localized] [Localized])
         score -= depth * 2
 
-        // موضع الشاشة (الأعلى = أكثر أهمية عموماً)
-        // لكن عناصر الأسفل (Bottom Nav) أيضاً مهمة
+        // [Localized] [Localized] ([Localized] = [Localized] [Localized] [Localized])
+        // [Localized] [Localized] [Localized] (Bottom Nav) [Localized] [Localized]
         if (bounds.top < 400) score += 10
 
-        // وجود نص
+        // [Localized] [Localized]
         val text = node.text?.toString()
         if (!text.isNullOrEmpty()) score += 10
-        if (text?.length in 2..30) score += 5 // نص قصير ومعبّر
+        if (text?.length in 2..30) score += 5 // [Localized] [Localized] [Localized]
 
         // Compose
         if (isComposeNode(node)) score += 5
@@ -428,7 +428,7 @@ object SemanticTreeParser {
         parent: AccessibilityNodeInfo?
     ): AccessibilityNodeInfo? {
         if (parent == null || !node.isEditable) return null
-        // ابحث عن TextView سابق مباشرة كـ sibling
+        // [Localized] [Localized] TextView [Localized] [Localized] [Localized] sibling
         for (i in 0 until parent.childCount) {
             val sibling = parent.getChild(i) ?: continue
             if (sibling == node) break

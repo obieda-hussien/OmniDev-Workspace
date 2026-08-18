@@ -6,18 +6,18 @@ import kotlinx.coroutines.withContext
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * ProgressiveTrustTool — أدوات الثقة التدريجية
+ * ProgressiveTrustTool — [Localized] [Localized] [Localized]
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * تُعرّض [ProgressiveTrustEngine] للوكيل عبر ثلاث أدوات:
+ * [Localized] [ProgressiveTrustEngine] [Localized] [Localized] [Localized] [Localized]:
  *
- *   - **get_trust_profile**: يعرض الملف الشخصي الكامل (score، level، capabilities)
- *   - **reset_trust**: يُعيد الملف إلى الحالة الافتراضية (يطلب تأكيداً)
- *   - **list_earned_capabilities**: يسرد الصلاحيات المكتسبة والمتاحة قريباً
+ *   - **get_trust_profile**: [Localized] [Localized] [Localized] [Localized] (score[Localized] level[Localized] capabilities)
+ *   - **reset_trust**: [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized])
+ *   - **list_earned_capabilities**: [Localized] [Localized] [Localized] [Localized] [Localized]
  *
  * ## Mobile-First:
- * - بدون LLM، بدون DB — يعمل من SharedPreferences مباشرة
- * - كل استدعاء < 1ms
+ * - [Localized] LLM[Localized] [Localized] DB — [Localized] [Localized] SharedPreferences [Localized]
+ * - [Localized] [Localized] < 1ms
  */
 class ProgressiveTrustTool(
     private val trustEngine: ProgressiveTrustEngine
@@ -31,30 +31,30 @@ class ProgressiveTrustTool(
 
         ToolDefinition(
             name = "get_trust_profile",
-            description = """عرض ملف الثقة التدريجي للوكيل.
-يُظهر:
-- trustScore (0.0 → 1.0): مستوى الثقة المتراكمة
+            description = """[Localized] [Localized] [Localized] [Localized] [Localized].
+[Localized]:
+- trustScore (0.0 → 1.0): [Localized] [Localized] [Localized]
 - TrustLevel: NOVICE / TRUSTED / EXPERT / GUARDIAN
-- عدد العمليات الناجحة والفاشلة
-- الصلاحيات المكتسبة (earned capabilities)
-- العتبة التالية للارتقاء
+- [Localized] [Localized] [Localized] [Localized]
+- [Localized] [Localized] (earned capabilities)
+- [Localized] [Localized] [Localized]
 
-الثقة تُبنى تلقائياً مع كل عملية ناجحة.
+[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
 """,
             parameters = emptyList()
         ),
 
         ToolDefinition(
             name = "reset_trust",
-            description = """إعادة ملف الثقة إلى الحالة الافتراضية.
-⚠️ هذا الإجراء لا يمكن التراجع عنه — سيُفقد كل تاريخ العمليات والصلاحيات المكتسبة.
-يتطلب تمرير confirm=true للتأكيد.
+            description = """[Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+⚠️ [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+[Localized] [Localized] confirm=true [Localized].
 """,
             parameters = listOf(
                 ToolParameter(
                     name = "confirm",
                     type = "string",
-                    description = "يجب أن تكون 'true' للتأكيد. أي قيمة أخرى ستلغي العملية.",
+                    description = "[Localized] [Localized] [Localized] 'true' [Localized]. [Localized] [Localized] [Localized] [Localized] [Localized].",
                     required = true
                 )
             )
@@ -62,20 +62,20 @@ class ProgressiveTrustTool(
 
         ToolDefinition(
             name = "list_earned_capabilities",
-            description = """سرد الصلاحيات المكتسبة وتلك التي يمكن كسبها.
-الصلاحيات المتاحة:
-- file_write: الكتابة على الملفات (trustScore >= 0.2)
-- terminal_access: تشغيل أوامر الطرفية (trustScore >= 0.3)
-- god_mode: وضع القوة الكاملة (trustScore >= 0.8)
-- swarm_control: التحكم في عمليات متعددة (trustScore >= 0.9)
+            description = """[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+[Localized] [Localized]:
+- file_write: [Localized] [Localized] [Localized] (trustScore >= 0.2)
+- terminal_access: [Localized] [Localized] [Localized] (trustScore >= 0.3)
+- god_mode: [Localized] [Localized] [Localized] (trustScore >= 0.8)
+- swarm_control: [Localized] [Localized] [Localized] [Localized] (trustScore >= 0.9)
 
-تُمنح الصلاحيات تلقائياً عند تجاوز العتبة.
+[Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
 """,
             parameters = listOf(
                 ToolParameter(
                     name = "capability",
                     type = "string",
-                    description = "اسم صلاحية معينة للتحقق منها فقط (اختياري). مثال: 'god_mode'",
+                    description = "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized]). [Localized]: 'god_mode'",
                     required = false
                 )
             )
@@ -86,7 +86,7 @@ class ProgressiveTrustTool(
     // Execution
     // ──────────────────────────────────────────────────────────────────────────
 
-    /** يُعيد null إذا الأداة ليست مملوكة لهذا الـ wrapper. */
+    /** [Localized] null [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] wrapper. */
     suspend fun execute(name: String, args: Map<String, String>): ToolExecutionResult? {
         if (name !in HANDLED) return null
         return try {
@@ -117,14 +117,14 @@ class ProgressiveTrustTool(
         val confirm = args["confirm"]?.trim()?.lowercase()
         if (confirm != "true") {
             return ToolExecutionResult(
-                "⚠️ إعادة ضبط الثقة لم تتم — يتطلب confirm=true.\n" +
-                "هذا الإجراء سيُفقد كل تاريخ العمليات والصلاحيات المكتسبة.",
+                "⚠️ [Localized] [Localized] [Localized] [Localized] [Localized] — [Localized] confirm=true.\n" +
+                "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].",
                 isError = false
             )
         }
         trustEngine.resetProfile()
         return ToolExecutionResult(
-            "✅ تم إعادة ملف الثقة إلى الحالة الافتراضية.\n" +
+            "✅ [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].\n" +
             "trustScore = 0.100 | NOVICE | No capabilities"
         )
     }
@@ -134,24 +134,24 @@ class ProgressiveTrustTool(
         val p = trustEngine.getProfile()
         val level = trustEngine.getTrustLevel()
 
-        // لو طُلبت صلاحية بعينها
+        // [Localized] [Localized] [Localized] [Localized]
         if (!specificCap.isNullOrBlank()) {
             val isEarned = specificCap in p.earnedCapabilities
             val isAvailable = trustEngine.checkCapability(specificCap)
             return ToolExecutionResult(buildString {
-                appendLine("🔍 فحص الصلاحية: $specificCap")
-                appendLine("   مكتسبة: ${if (isEarned) "✅ نعم" else "❌ لا"}")
-                appendLine("   متوفرة بالـ score الحالي: ${if (isAvailable) "✅ نعم" else "❌ لا"}")
-                appendLine("   trustScore الحالي: ${"%.3f".format(p.trustScore)}")
+                appendLine("🔍 [Localized] [Localized]: $specificCap")
+                appendLine("   [Localized]: ${if (isEarned) "✅ [Localized]" else "❌ [Localized]"}")
+                appendLine("   [Localized] [Localized] score [Localized]: ${if (isAvailable) "✅ [Localized]" else "❌ [Localized]"}")
+                appendLine("   trustScore [Localized]: ${"%.3f".format(p.trustScore)}")
             })
         }
 
-        // قائمة كاملة
+        // [Localized] [Localized]
         return ToolExecutionResult(buildString {
-            appendLine("🏆 الصلاحيات التدريجية (Progressive Capabilities)")
-            appendLine("Score الحالي: ${"%.3f".format(p.trustScore)} | المستوى: ${level.label}")
+            appendLine("🏆 [Localized] [Localized] (Progressive Capabilities)")
+            appendLine("Score [Localized]: ${"%.3f".format(p.trustScore)} | [Localized]: ${level.label}")
             appendLine()
-            appendLine("الصلاحية           | العتبة | الحالة")
+            appendLine("[Localized]           | [Localized] | [Localized]")
             appendLine("─────────────────────────────────────")
             appendCapabilityRow(this, "file_write",      0.2f, p.trustScore, p.earnedCapabilities)
             appendCapabilityRow(this, "terminal_access", 0.3f, p.trustScore, p.earnedCapabilities)
@@ -159,9 +159,9 @@ class ProgressiveTrustTool(
             appendCapabilityRow(this, "swarm_control",   0.9f, p.trustScore, p.earnedCapabilities)
             appendLine()
             if (p.earnedCapabilities.isEmpty()) {
-                appendLine("💡 لا توجد صلاحيات مكتسبة بعد — ابدأ بتنفيذ عمليات ناجحة.")
+                appendLine("💡 [Localized] [Localized] [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized].")
             } else {
-                appendLine("✅ الصلاحيات المكتسبة: ${p.earnedCapabilities.joinToString(", ")}")
+                appendLine("✅ [Localized] [Localized]: ${p.earnedCapabilities.joinToString(", ")}")
             }
         })
     }
@@ -174,11 +174,11 @@ class ProgressiveTrustTool(
         earned: Set<String>
     ) {
         val statusIcon = when {
-            cap in earned             -> "✅ مكتسبة"
-            score >= threshold        -> "🔓 متوفرة"
+            cap in earned             -> "✅ [Localized]"
+            score >= threshold        -> "🔓 [Localized]"
             else -> {
                 val remaining = threshold - score
-                "🔒 تحتاج +${"%.3f".format(remaining)}"
+                "🔒 [Localized] +${"%.3f".format(remaining)}"
             }
         }
         sb.appendLine("%-20s | %-6.1f | %s".format(cap, threshold, statusIcon))

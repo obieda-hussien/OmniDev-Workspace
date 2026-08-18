@@ -9,10 +9,10 @@ import com.omnidev.workspace.data.db.entities.ReflexionLessonEntry
 import kotlinx.coroutines.flow.Flow
 
 /**
- * DAO لجدول ReflexionLessonEntry. مُحسَّن لأجهزة Android الضعيفة:
- * - candidates pre-filtering في SQL (سريع، مُفهرس)
- * - cosine ranking في JVM على ≤ 100 صف
- * - تحديثات atomic بدون قراءة الـ blob
+ * DAO [Localized] ReflexionLessonEntry. [Localized] [Localized] Android [Localized]:
+ * - candidates pre-filtering [Localized] SQL ([Localized] [Localized])
+ * - cosine ranking [Localized] JVM [Localized] ≤ 100 [Localized]
+ * - [Localized] atomic [Localized] [Localized] [Localized] blob
  */
 @Dao
 interface ReflexionDao {
@@ -26,7 +26,7 @@ interface ReflexionDao {
     @Query("SELECT * FROM reflexion_lessons WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): ReflexionLessonEntry?
 
-    /** Top-K مرتبة حسب جودة-استخدام-وقت (لـ general retrieval). */
+    /** Top-K [Localized] [Localized] [Localized]-[Localized]-[Localized] ([Localized] general retrieval). */
     @Query("""
         SELECT * FROM reflexion_lessons
         ORDER BY quality DESC, useCount DESC, createdAt DESC
@@ -34,7 +34,7 @@ interface ReflexionDao {
     """)
     suspend fun getTopCandidates(limit: Int = 60): List<ReflexionLessonEntry>
 
-    /** دروس مرتبطة بأداة معينة. */
+    /** [Localized] [Localized] [Localized] [Localized]. */
     @Query("""
         SELECT * FROM reflexion_lessons
         WHERE toolName = :toolName
@@ -43,7 +43,7 @@ interface ReflexionDao {
     """)
     suspend fun getByTool(toolName: String, limit: Int = 30): List<ReflexionLessonEntry>
 
-    /** للكشف عن duplicates (نفس بصمة الخطأ). */
+    /** [Localized] [Localized] duplicates ([Localized] [Localized] [Localized]). */
     @Query("""
         SELECT * FROM reflexion_lessons
         WHERE errorSignature = :signature
@@ -52,7 +52,7 @@ interface ReflexionDao {
     """)
     suspend fun getBySignature(signature: String, limit: Int = 1): List<ReflexionLessonEntry>
 
-    /** زيادة استخدام + جودة بشكل atomic (عند الحقن أو بعد النجاح). */
+    /** [Localized] [Localized] + [Localized] [Localized] atomic ([Localized] [Localized] [Localized] [Localized] [Localized]). */
     @Query("""
         UPDATE reflexion_lessons
         SET useCount = useCount + 1,
@@ -62,7 +62,7 @@ interface ReflexionDao {
     """)
     suspend fun recordUsage(id: Long, now: Long, qualityDelta: Float)
 
-    /** عقوبة عند فشل المهمة بعد حقن الدرس. */
+    /** [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]. */
     @Query("""
         UPDATE reflexion_lessons
         SET quality = MAX(0.0, quality - :penalty)
@@ -73,7 +73,7 @@ interface ReflexionDao {
     @Query("SELECT COUNT(*) FROM reflexion_lessons")
     suspend fun count(): Int
 
-    /** LRU eviction: حذف أقل الدروس جودة (لتطبيق الـ quota). */
+    /** LRU eviction: [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] quota). */
     @Query("""
         DELETE FROM reflexion_lessons
         WHERE id IN (

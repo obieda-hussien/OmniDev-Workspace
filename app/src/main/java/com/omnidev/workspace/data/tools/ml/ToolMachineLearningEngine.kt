@@ -11,21 +11,21 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.*
 
 /**
- * ToolMachineLearningEngine — نظام التعلم الآلي المتقدم للأدوات
+ * ToolMachineLearningEngine — [Localized] [Localized] [Localized] [Localized] [Localized]
  * 
- * المميزات:
- * - تعلم أنماط استخدام الأدوات
- * - التنبؤ بالأدوات التالية
- * - تحسين ترتيب الأدوات
- * - اكتشاف الأنماط الشاذة
- * - توصيات ذكية للمستخدم
- * - نماذج تعلم متعددة
+ * [Localized]:
+ * - [Localized] [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized]
  * 
- * النماذج المدعومة:
+ * [Localized] [Localized]:
  * - Naive Bayes
  * - K-Nearest Neighbors
  * - Decision Trees
- * - Neural Networks (بسيطة)
+ * - Neural Networks ([Localized])
  * - Ensemble Learning
  */
 class ToolMachineLearningEngine(
@@ -42,19 +42,19 @@ class ToolMachineLearningEngine(
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     
-    // مخزن البيانات
+    // [Localized] [Localized]
     private val executionHistory = mutableListOf<ToolExecutionRecord>()
     private val toolSequences = ConcurrentHashMap<String, MutableList<String>>()
     private val toolSuccessRates = ConcurrentHashMap<String, ToolStats>()
     private val userPatterns = ConcurrentHashMap<String, UserPattern>()
     
-    // النماذج
+    // [Localized]
     private val naiveBayesModel = NaiveBayesClassifier()
     private val knnModel = KNearestNeighbors(k = 5)
     private val decisionTree = SimpleDecisionTree()
     private val neuralNet = SimpleFeedforwardNN(inputSize = 10, hiddenSize = 20, outputSize = 5)
     
-    // الإحصائيات
+    // [Localized]
     private var totalPredictions = 0
     private var correctPredictions = 0
     private var trainingEpochs = 0
@@ -67,11 +67,11 @@ class ToolMachineLearningEngine(
     }
 
     // ══════════════════════════════════════════════════════════════
-    // التسجيل والتعلم
+    // [Localized] [Localized]
     // ══════════════════════════════════════════════════════════════
 
     /**
-     * تسجيل تنفيذ أداة
+     * [Localized] [Localized] [Localized]
      */
     suspend fun recordExecution(
         toolName: String,
@@ -90,7 +90,7 @@ class ToolMachineLearningEngine(
             contextualData = contextualData
         )
 
-        // تحديث السجل
+        // [Localized] [Localized]
         synchronized(executionHistory) {
             executionHistory.add(record)
             if (executionHistory.size > MAX_HISTORY_SIZE) {
@@ -98,23 +98,23 @@ class ToolMachineLearningEngine(
             }
         }
 
-        // تحديث الإحصائيات
+        // [Localized] [Localized]
         updateToolStats(toolName, !result.isError, executionTimeMs)
         
-        // تحديث التسلسلات
+        // [Localized] [Localized]
         updateSequences(toolName)
         
-        // تحديث أنماط المستخدم
+        // [Localized] [Localized] [Localized]
         updateUserPatterns(toolName, contextualData)
         
-        // التدريب التدريجي
+        // [Localized] [Localized]
         if (executionHistory.size % 50 == 0) {
             trainIncrementally(record)
         }
     }
 
     /**
-     * التنبؤ بالأداة التالية
+     * [Localized] [Localized] [Localized]
      */
     suspend fun predictNextTool(
         currentTool: String? = null,
@@ -123,7 +123,7 @@ class ToolMachineLearningEngine(
     ): ToolPrediction = withContext(Dispatchers.Default) {
         val features = extractFeatures(currentTool, recentTools, contextualData)
         
-        // التنبؤ باستخدام نماذج متعددة
+        // [Localized] [Localized] [Localized] [Localized]
         val predictions = mutableListOf<Pair<String, Double>>()
         
         // Naive Bayes
@@ -146,7 +146,7 @@ class ToolMachineLearningEngine(
         val nnPredictions = neuralNet.predict(features)
         predictions.addAll(nnPredictions)
         
-        // دمج النتائج (Ensemble)
+        // [Localized] [Localized] (Ensemble)
         val aggregated = aggregatePredictions(predictions)
         
         totalPredictions++
@@ -159,7 +159,7 @@ class ToolMachineLearningEngine(
     }
 
     /**
-     * اكتشاف الأنماط الشاذة
+     * [Localized] [Localized] [Localized]
      */
     suspend fun detectAnomalies(
         toolName: String,
@@ -175,34 +175,34 @@ class ToolMachineLearningEngine(
         val anomalies = mutableListOf<String>()
         var anomalyScore = 0.0
         
-        // فحص وقت التنفيذ
+        // [Localized] [Localized] [Localized]
         val timeZScore = abs(executionTimeMs - stats.avgExecutionTime) / 
                          (stats.stdDevExecutionTime + 1.0)
         if (timeZScore > 3.0) {
-            anomalies.add("وقت تنفيذ غير طبيعي: ${executionTimeMs}ms (متوسط: ${stats.avgExecutionTime.toInt()}ms)")
+            anomalies.add("[Localized] [Localized] [Localized] [Localized]: ${executionTimeMs}ms ([Localized]: ${stats.avgExecutionTime.toInt()}ms)")
             anomalyScore += 0.3
         }
         
-        // فحص معدل النجاح
+        // [Localized] [Localized] [Localized]
         if (result.isError && stats.successRate > 0.9) {
-            anomalies.add("فشل غير متوقع (معدل النجاح الطبيعي: ${(stats.successRate * 100).toInt()}%)")
+            anomalies.add("[Localized] [Localized] [Localized] ([Localized] [Localized] [Localized]: ${(stats.successRate * 100).toInt()}%)")
             anomalyScore += 0.4
         }
         
-        // فحص حجم النتيجة
+        // [Localized] [Localized] [Localized]
         val resultSizeZScore = abs(result.output.length - stats.avgResultSize) / 
                                (stats.stdDevResultSize + 1.0)
         if (resultSizeZScore > 3.0) {
-            anomalies.add("حجم نتيجة غير طبيعي: ${result.output.length} حرف")
+            anomalies.add("[Localized] [Localized] [Localized] [Localized]: ${result.output.length} [Localized]")
             anomalyScore += 0.2
         }
         
-        // فحص التسلسل
+        // [Localized] [Localized]
         val expectedTools = getExpectedNextTools(toolName)
         if (expectedTools.isNotEmpty()) {
             val lastTool = executionHistory.lastOrNull()?.toolName
             if (lastTool != null && !expectedTools.contains(lastTool)) {
-                anomalies.add("تسلسل غير متوقع: $lastTool → $toolName")
+                anomalies.add("[Localized] [Localized] [Localized]: $lastTool → $toolName")
                 anomalyScore += 0.1
             }
         }
@@ -215,28 +215,28 @@ class ToolMachineLearningEngine(
     }
 
     /**
-     * الحصول على توصيات ذكية
+     * [Localized] [Localized] [Localized] [Localized]
      */
     suspend fun getRecommendations(
         currentContext: Map<String, Any>
     ): List<ToolRecommendation> = withContext(Dispatchers.Default) {
         val recommendations = mutableListOf<ToolRecommendation>()
         
-        // 1. بناءً على الوقت
+        // 1. [Localized] [Localized] [Localized]
         val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
         val timeBasedTools = findToolsUsedAtTime(hour)
         timeBasedTools.forEach { (tool, frequency) ->
             recommendations.add(
                 ToolRecommendation(
                     toolName = tool,
-                    reason = "يُستخدم عادةً في هذا الوقت",
+                    reason = "[Localized] [Localized] [Localized] [Localized] [Localized]",
                     confidence = frequency,
                     priority = 1
                 )
             )
         }
         
-        // 2. بناءً على التسلسل
+        // 2. [Localized] [Localized] [Localized]
         val lastTool = executionHistory.lastOrNull()?.toolName
         if (lastTool != null) {
             val sequenceTools = toolSequences[lastTool] ?: emptyList()
@@ -248,7 +248,7 @@ class ToolMachineLearningEngine(
                     recommendations.add(
                         ToolRecommendation(
                             toolName = tool,
-                            reason = "يُستخدم عادةً بعد $lastTool",
+                            reason = "[Localized] [Localized] [Localized] $lastTool",
                             confidence = count.toDouble() / sequenceTools.size,
                             priority = 2
                         )
@@ -256,7 +256,7 @@ class ToolMachineLearningEngine(
                 }
         }
         
-        // 3. بناءً على معدل النجاح
+        // 3. [Localized] [Localized] [Localized] [Localized]
         toolSuccessRates.entries
             .filter { it.value.successRate > 0.95 && it.value.executionCount > 20 }
             .sortedByDescending { it.value.successRate }
@@ -265,21 +265,21 @@ class ToolMachineLearningEngine(
                 recommendations.add(
                     ToolRecommendation(
                         toolName = tool,
-                        reason = "معدل نجاح عالي: ${(stats.successRate * 100).toInt()}%",
+                        reason = "[Localized] [Localized] [Localized]: ${(stats.successRate * 100).toInt()}%",
                         confidence = stats.successRate,
                         priority = 3
                     )
                 )
             }
         
-        // 4. بناءً على السياق
+        // 4. [Localized] [Localized] [Localized]
         currentContext["task_type"]?.let { taskType ->
             val contextTools = findToolsForTaskType(taskType.toString())
             contextTools.forEach { (tool, relevance) ->
                 recommendations.add(
                     ToolRecommendation(
                         toolName = tool,
-                        reason = "مناسب لنوع المهمة: $taskType",
+                        reason = "[Localized] [Localized] [Localized]: $taskType",
                         confidence = relevance,
                         priority = 0
                     )
@@ -287,7 +287,7 @@ class ToolMachineLearningEngine(
             }
         }
         
-        // ترتيب حسب الأولوية والثقة
+        // [Localized] [Localized] [Localized] [Localized]
         recommendations
             .sortedWith(compareBy({ it.priority }, { -it.confidence }))
             .distinctBy { it.toolName }
@@ -295,7 +295,7 @@ class ToolMachineLearningEngine(
     }
 
     /**
-     * تحليل أداء الأدوات
+     * [Localized] [Localized] [Localized]
      */
     suspend fun analyzeToolPerformance(): PerformanceAnalysis = withContext(Dispatchers.Default) {
         val totalExecutions = executionHistory.size
@@ -352,7 +352,7 @@ class ToolMachineLearningEngine(
     }
 
     // ══════════════════════════════════════════════════════════════
-    // التدريب
+    // [Localized]
     // ══════════════════════════════════════════════════════════════
 
     private suspend fun trainIncrementally(record: ToolExecutionRecord) = withContext(Dispatchers.Default) {
@@ -360,30 +360,30 @@ class ToolMachineLearningEngine(
             val features = extractFeaturesFromRecord(record)
             val label = record.toolName
             
-            // تدريب Naive Bayes
+            // [Localized] Naive Bayes
             naiveBayesModel.train(features, label)
             
-            // تدريب KNN (إضافة نقطة بيانات)
+            // [Localized] KNN ([Localized] [Localized] [Localized])
             knnModel.addDataPoint(features, label)
             
-            // تدريب Decision Tree
+            // [Localized] Decision Tree
             decisionTree.train(listOf(features to label))
             
-            // تدريب Neural Network
+            // [Localized] Neural Network
             val targetVector = createOneHotVector(label)
             neuralNet.train(features, targetVector, learningRate = 0.01)
             
             trainingEpochs++
             
         } catch (e: Exception) {
-            Log.e(TAG, "خطأ في التدريب التدريجي: ${e.message}")
+            Log.e(TAG, "[Localized] [Localized] [Localized] [Localized]: ${e.message}")
         }
     }
 
     private suspend fun startPeriodicTraining() {
         scope.launch {
             while (isActive) {
-                delay(3600_000) // كل ساعة
+                delay(3600_000) // [Localized] [Localized]
                 
                 if (executionHistory.size >= MIN_TRAINING_SAMPLES) {
                     trainFullModel()
@@ -395,13 +395,13 @@ class ToolMachineLearningEngine(
 
     private suspend fun trainFullModel() = withContext(Dispatchers.Default) {
         try {
-            Log.d(TAG, "بدء التدريب الكامل على ${executionHistory.size} سجل...")
+            Log.d(TAG, "[Localized] [Localized] [Localized] [Localized] ${executionHistory.size} [Localized]...")
             
             val trainingData = executionHistory.map { record ->
                 extractFeaturesFromRecord(record) to record.toolName
             }
             
-            // تدريب جميع النماذج
+            // [Localized] [Localized] [Localized]
             naiveBayesModel.trainBatch(trainingData)
             knnModel.trainBatch(trainingData)
             decisionTree.train(trainingData)
@@ -409,15 +409,15 @@ class ToolMachineLearningEngine(
             
             trainingEpochs++
             
-            Log.d(TAG, "اكتمل التدريب - Epoch: $trainingEpochs")
+            Log.d(TAG, "[Localized] [Localized] - Epoch: $trainingEpochs")
             
         } catch (e: Exception) {
-            Log.e(TAG, "خطأ في التدريب الكامل: ${e.message}")
+            Log.e(TAG, "[Localized] [Localized] [Localized] [Localized]: ${e.message}")
         }
     }
 
     // ══════════════════════════════════════════════════════════════
-    // استخراج الميزات
+    // [Localized] [Localized]
     // ══════════════════════════════════════════════════════════════
 
     private fun extractFeatures(
@@ -427,30 +427,30 @@ class ToolMachineLearningEngine(
     ): DoubleArray {
         val features = DoubleArray(10)
         
-        // الميزة 1: هاش الأداة الحالية
+        // [Localized] 1: [Localized] [Localized] [Localized]
         features[0] = (currentTool?.hashCode()?.rem(1000) ?: 0).toDouble()
         
-        // الميزات 2-4: الأدوات الأخيرة
+        // [Localized] 2-4: [Localized] [Localized]
         recentTools.take(3).forEachIndexed { index, tool ->
             features[index + 1] = tool.hashCode().rem(1000).toDouble()
         }
         
-        // الميزة 5: الوقت من اليوم (0-23)
+        // [Localized] 5: [Localized] [Localized] [Localized] (0-23)
         features[4] = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY).toDouble()
         
-        // الميزة 6: يوم الأسبوع (1-7)
+        // [Localized] 6: [Localized] [Localized] (1-7)
         features[5] = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_WEEK).toDouble()
         
-        // الميزة 7: عدد الأدوات المستخدمة مؤخرًا
+        // [Localized] 7: [Localized] [Localized] [Localized] [Localized]
         features[6] = recentTools.size.toDouble()
         
-        // الميزة 8: نوع المهمة
+        // [Localized] 8: [Localized] [Localized]
         features[7] = (contextualData["task_type"]?.hashCode()?.rem(1000) ?: 0).toDouble()
         
-        // الميزة 9: الأولوية
+        // [Localized] 9: [Localized]
         features[8] = (contextualData["priority"] as? Number)?.toDouble() ?: 0.0
         
-        // الميزة 10: السياق
+        // [Localized] 10: [Localized]
         features[9] = (contextualData["context"]?.hashCode()?.rem(1000) ?: 0).toDouble()
         
         return features
@@ -474,7 +474,7 @@ class ToolMachineLearningEngine(
     }
 
     // ══════════════════════════════════════════════════════════════
-    // الدوال المساعدة
+    // [Localized] [Localized]
     // ══════════════════════════════════════════════════════════════
 
     private fun updateToolStats(toolName: String, success: Boolean, executionTimeMs: Long) {
@@ -484,11 +484,11 @@ class ToolMachineLearningEngine(
             stats.executionCount++
             if (success) stats.successCount++
             
-            // تحديث المتوسطات
+            // [Localized] [Localized]
             val n = stats.executionCount.toDouble()
             stats.avgExecutionTime = ((stats.avgExecutionTime * (n - 1.0)) + executionTimeMs.toDouble()) / n
             
-            // تحديث الانحراف المعياري
+            // [Localized] [Localized] [Localized]
             val diff = executionTimeMs.toDouble() - stats.avgExecutionTime
             stats.stdDevExecutionTime = sqrt(
                 ((stats.stdDevExecutionTime * stats.stdDevExecutionTime * (n - 1.0)) + diff * diff) / n
@@ -541,7 +541,7 @@ class ToolMachineLearningEngine(
     }
 
     private fun createOneHotVector(label: String): DoubleArray {
-        // تبسيط: استخدام هاش بدلاً من one-hot كامل
+        // [Localized]: [Localized] [Localized] [Localized] [Localized] one-hot [Localized]
         val vector = DoubleArray(5)
         val index = abs(label.hashCode()) % 5
         vector[index] = 1.0
@@ -553,19 +553,19 @@ class ToolMachineLearningEngine(
             val modelDir = File(context.filesDir, "ml_models")
             if (!modelDir.exists()) return@withContext
             
-            // تحميل البيانات التاريخية
+            // [Localized] [Localized] [Localized]
             val historyFile = File(modelDir, "execution_history.json")
             if (historyFile.exists()) {
                 val json = JSONArray(historyFile.readText())
                 for (i in 0 until json.length()) {
                     val obj = json.getJSONObject(i)
-                    // تحليل وإضافة السجلات...
+                    // [Localized] [Localized] [Localized]...
                 }
             }
             
-            Log.d(TAG, "تم تحميل النماذج بنجاح")
+            Log.d(TAG, "[Localized] [Localized] [Localized] [Localized]")
         } catch (e: Exception) {
-            Log.e(TAG, "خطأ في تحميل النماذج: ${e.message}")
+            Log.e(TAG, "[Localized] [Localized] [Localized] [Localized]: ${e.message}")
         }
     }
 
@@ -574,7 +574,7 @@ class ToolMachineLearningEngine(
             val modelDir = File(context.filesDir, "ml_models")
             modelDir.mkdirs()
             
-            // حفظ البيانات التاريخية
+            // [Localized] [Localized] [Localized]
             val historyFile = File(modelDir, "execution_history.json")
             val jsonArray = JSONArray()
             executionHistory.takeLast(1000).forEach { record ->
@@ -587,9 +587,9 @@ class ToolMachineLearningEngine(
             }
             historyFile.writeText(jsonArray.toString())
             
-            Log.d(TAG, "تم حفظ النماذج بنجاح")
+            Log.d(TAG, "[Localized] [Localized] [Localized] [Localized]")
         } catch (e: Exception) {
-            Log.e(TAG, "خطأ في حفظ النماذج: ${e.message}")
+            Log.e(TAG, "[Localized] [Localized] [Localized] [Localized]: ${e.message}")
         }
     }
 
@@ -663,7 +663,7 @@ class ToolMachineLearningEngine(
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// نماذج التعلم الآلي
+// [Localized] [Localized] [Localized]
 // ══════════════════════════════════════════════════════════════════════
 
 /**
@@ -789,7 +789,7 @@ class SimpleDecisionTree {
             return LeafNode(majorityLabel, labels[majorityLabel]!!.toDouble() / data.size)
         }
         
-        // إيجاد أفضل تقسيم
+        // [Localized] [Localized] [Localized]
         val bestSplit = findBestSplit(data)
         if (bestSplit == null) {
             return LeafNode(majorityLabel, labels[majorityLabel]!!.toDouble() / data.size)
@@ -900,7 +900,7 @@ class SimpleFeedforwardNN(
         // Backward pass (simplified)
         val outputError = DoubleArray(outputSize) { i -> target[i] - output[i] }
         
-        // تحديث الأوزان (gradient descent مبسط)
+        // [Localized] [Localized] (gradient descent [Localized])
         for (i in weightsHiddenOutput.indices) {
             for (j in weightsHiddenOutput[i].indices) {
                 weightsHiddenOutput[i][j] += learningRate * outputError[j] * hidden[i]
@@ -912,7 +912,7 @@ class SimpleFeedforwardNN(
         repeat(epochs) {
             data.forEach { (features, _) ->
                 val target = DoubleArray(outputSize) { 0.0 }
-                target[0] = 1.0 // تبسيط
+                target[0] = 1.0 // [Localized]
                 train(features, target, learningRate)
             }
         }

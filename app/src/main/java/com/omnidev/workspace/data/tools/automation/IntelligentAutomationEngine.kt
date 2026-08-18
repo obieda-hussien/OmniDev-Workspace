@@ -8,14 +8,14 @@ import kotlin.math.min
 /**
  * 🤖 **Intelligent Automation Engine**
  * 
- * نظام أتمتة ذكي يتعلم من سلوك المستخدم وينفذ مهام معقدة بشكل مستقل.
+ * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
  * 
- * **القدرات:**
- * - تعلم الأنماط السلوكية للمستخدم
- * - تنفيذ Workflows معقدة بناءً على Triggers
- * - التكيف الذكي مع الأخطاء
- * - التنبؤ بالمهام القادمة
- * - التحسين الذاتي للأداء
+ * **[Localized]:**
+ * - [Localized] [Localized] [Localized] [Localized]
+ * - [Localized] Workflows [Localized] [Localized] [Localized] Triggers
+ * - [Localized] [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized]
  */
 object IntelligentAutomationEngine {
     
@@ -166,7 +166,7 @@ object IntelligentAutomationEngine {
     private val patternLearningScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     
     /**
-     * تسجيل حدث للتعلم من الأنماط
+     * [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     fun recordEvent(eventType: String, data: Map<String, Any>) {
         synchronized(patternEventBuffer) {
@@ -178,7 +178,7 @@ object IntelligentAutomationEngine {
                 )
             )
             
-            // تحليل الأنماط كل 50 حدث
+            // [Localized] [Localized] [Localized] 50 [Localized]
             if (patternEventBuffer.size >= 50) {
                 patternLearningScope.launch {
                     analyzeAndLearnPatterns()
@@ -188,7 +188,7 @@ object IntelligentAutomationEngine {
     }
     
     /**
-     * تحليل الأحداث واكتشاف الأنماط
+     * [Localized] [Localized] [Localized] [Localized]
      */
     private suspend fun analyzeAndLearnPatterns() = withContext(Dispatchers.Default) {
         val events = synchronized(patternEventBuffer) {
@@ -197,46 +197,46 @@ object IntelligentAutomationEngine {
             copy
         }
         
-        // اكتشاف تسلسلات الأحداث المتكررة
+        // [Localized] [Localized] [Localized] [Localized]
         val sequences = findSequentialPatterns(events)
         
-        // اكتشاف أنماط زمنية
+        // [Localized] [Localized] [Localized]
         val temporalPatterns = findTemporalPatterns(events)
         
-        // اكتشاف أنماط سياقية
+        // [Localized] [Localized] [Localized]
         val contextualPatterns = findContextualPatterns(events)
         
-        // دمج الأنماط المكتشفة
+        // [Localized] [Localized] [Localized]
         (sequences + temporalPatterns + contextualPatterns).forEach { pattern ->
             val existingPattern = learnedPatterns[pattern.id]
             if (existingPattern != null) {
-                // تحديث النمط الموجود
+                // [Localized] [Localized] [Localized]
                 learnedPatterns[pattern.id] = existingPattern.copy(
                     frequency = existingPattern.frequency + 1,
                     confidence = min(existingPattern.confidence + 0.05, 1.0),
                     lastSeen = System.currentTimeMillis()
                 )
             } else {
-                // إضافة نمط جديد
+                // [Localized] [Localized] [Localized]
                 learnedPatterns[pattern.id] = pattern
             }
         }
         
-        // تنظيف الأنماط القديمة (لم تُشاهد منذ 30 يوم)
+        // [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] 30 [Localized])
         val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
         learnedPatterns.entries.removeIf { it.value.lastSeen < thirtyDaysAgo }
     }
     
     private fun findSequentialPatterns(events: List<PatternEvent>): List<UserPattern> {
         val patterns = mutableListOf<UserPattern>()
-        val windowSize = 5 // حجم النافذة للتسلسل
+        val windowSize = 5 // [Localized] [Localized] [Localized]
         
         if (events.size < windowSize) return patterns
         for (i in 0..events.size - windowSize) {
             val sequence = events.subList(i, i + windowSize)
             val typeSequence = sequence.map { it.eventType }
             
-            // تحقق من تكرار التسلسل
+            // [Localized] [Localized] [Localized] [Localized]
             val occurrences = countSequenceOccurrences(events, typeSequence)
             if (occurrences >= 3) {
                 patterns.add(
@@ -268,7 +268,7 @@ object IntelligentAutomationEngine {
     private fun findTemporalPatterns(events: List<PatternEvent>): List<UserPattern> {
         val patterns = mutableListOf<UserPattern>()
         
-        // مثال: اكتشاف أحداث تحدث في نفس الوقت من اليوم
+        // [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
         val eventsByHour = events.groupBy { 
             java.util.Calendar.getInstance().apply {
                 timeInMillis = it.timestamp
@@ -302,7 +302,7 @@ object IntelligentAutomationEngine {
     private fun findContextualPatterns(events: List<PatternEvent>): List<UserPattern> {
         val patterns = mutableListOf<UserPattern>()
         
-        // مثال: أحداث مرتبطة ببيانات سياقية معينة
+        // [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized]
         val eventsByContext = events.groupBy { event ->
             event.data.entries.sortedBy { it.key }
                 .joinToString(",") { "${it.key}=${it.value}" }
@@ -337,12 +337,12 @@ object IntelligentAutomationEngine {
     private val executionScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     
     /**
-     * تسجيل Workflow جديد
+     * [Localized] Workflow [Localized]
      */
     fun registerWorkflow(workflow: AutomationWorkflow): Boolean {
         workflows[workflow.id] = workflow
         
-        // بدء المراقبة للـ Triggers
+        // [Localized] [Localized] [Localized] Triggers
         when (workflow.trigger) {
             is WorkflowTrigger.TimeBasedTrigger -> scheduleTimedWorkflow(workflow)
             is WorkflowTrigger.EventTrigger -> subscribeToEvents(workflow)
@@ -354,7 +354,7 @@ object IntelligentAutomationEngine {
     }
     
     /**
-     * تنفيذ Workflow
+     * [Localized] Workflow
      */
     suspend fun executeWorkflow(
         workflowId: String,
@@ -378,14 +378,14 @@ object IntelligentAutomationEngine {
         activeExecutions[executionId] = execution
         
         try {
-            // التحقق من الشروط
+            // [Localized] [Localized] [Localized]
             if (!evaluateConditions(workflow.conditions, context)) {
                 execution.status = ExecutionStatus.CANCELLED
                 execution.logs.add("Conditions not met")
                 return@withContext execution
             }
             
-            // تنفيذ الإجراءات
+            // [Localized] [Localized]
             workflow.actions.forEach { action ->
                 val actionResult = executeAction(action, context, execution)
                 execution.actionResults.add(actionResult)
@@ -399,7 +399,7 @@ object IntelligentAutomationEngine {
             
             execution.status = ExecutionStatus.COMPLETED
             
-            // التعلم من التنفيذ
+            // [Localized] [Localized] [Localized]
             if (workflow.learnFromExecution) {
                 learnFromExecution(execution, workflow)
             }
@@ -413,7 +413,7 @@ object IntelligentAutomationEngine {
             activeExecutions.remove(executionId)
             synchronized(executionHistory) {
                 executionHistory.add(execution)
-                // الاحتفاظ بآخر 1000 تنفيذ فقط
+                // [Localized] [Localized] 1000 [Localized] [Localized]
                 if (executionHistory.size > 1000) {
                     executionHistory.removeAt(0)
                 }
@@ -474,7 +474,7 @@ object IntelligentAutomationEngine {
             }
         }
         
-        // إذا فشلت كل المحاولات، تجربة fallback
+        // [Localized] [Localized] [Localized] [Localized] [Localized] fallback
         if (action.fallbackAction != null) {
             execution.logs.add("Executing fallback for ${action.id}")
             return executeAction(action.fallbackAction, context, execution)
@@ -513,7 +513,7 @@ object IntelligentAutomationEngine {
         
         val toolParams = action.parameters["params"] as? Map<String, Any> ?: emptyMap()
         
-        // هنا يمكن الاتصال بـ CompositeToolManager لتنفيذ الأداة
+        // [Localized] [Localized] [Localized] [Localized] CompositeToolManager [Localized] [Localized]
         return "Tool $toolName executed with params: $toolParams"
     }
     
@@ -528,7 +528,7 @@ object IntelligentAutomationEngine {
         val headers = action.parameters["headers"] as? Map<String, String> ?: emptyMap()
         val body = action.parameters["body"] as? String
         
-        // تنفيذ API call (يمكن استخدام NetworkRequestTool هنا)
+        // [Localized] API call ([Localized] [Localized] NetworkRequestTool [Localized])
         return "API call to $url executed"
     }
     
@@ -539,7 +539,7 @@ object IntelligentAutomationEngine {
         val title = action.parameters["title"] as? String ?: "Automation"
         val message = action.parameters["message"] as? String ?: ""
         
-        // إرسال إشعار
+        // [Localized] [Localized]
         return "Notification sent: $title - $message"
     }
     
@@ -552,7 +552,7 @@ object IntelligentAutomationEngine {
         
         val data = action.parameters["data"]
         
-        // معالجة البيانات حسب نوع العملية
+        // [Localized] [Localized] [Localized] [Localized] [Localized]
         return when (operation) {
             "transform" -> transformData(data, action.parameters)
             "filter" -> filterData(data, action.parameters)
@@ -562,17 +562,17 @@ object IntelligentAutomationEngine {
     }
     
     private fun transformData(data: Any?, params: Map<String, Any>): Any? {
-        // تحويل البيانات
+        // [Localized] [Localized]
         return data
     }
     
     private fun filterData(data: Any?, params: Map<String, Any>): Any? {
-        // تصفية البيانات
+        // [Localized] [Localized]
         return data
     }
     
     private fun aggregateData(data: Any?, params: Map<String, Any>): Any? {
-        // تجميع البيانات
+        // [Localized] [Localized]
         return data
     }
     
@@ -583,7 +583,7 @@ object IntelligentAutomationEngine {
         val condition = action.parameters["condition"] as? String
             ?: throw IllegalArgumentException("Condition required")
         
-        // تقييم الشرط وتنفيذ الفرع المناسب
+        // [Localized] [Localized] [Localized] [Localized] [Localized]
         return "Branch evaluated"
     }
     
@@ -595,7 +595,7 @@ object IntelligentAutomationEngine {
         val loopAction = action.parameters["action"] as? WorkflowAction
             ?: throw IllegalArgumentException("Loop action required")
         
-        // تنفيذ الحلقة
+        // [Localized] [Localized]
         return "Loop executed $iterations times"
     }
     
@@ -640,7 +640,7 @@ object IntelligentAutomationEngine {
         
         val language = action.parameters["language"] as? String ?: "javascript"
         
-        // تنفيذ Script مخصص
+        // [Localized] Script [Localized]
         return "Custom script executed: $language"
     }
     
@@ -651,7 +651,7 @@ object IntelligentAutomationEngine {
     private fun scheduleTimedWorkflow(workflow: AutomationWorkflow) {
         val trigger = workflow.trigger as WorkflowTrigger.TimeBasedTrigger
         
-        // جدولة تنفيذ بناءً على CRON
+        // [Localized] [Localized] [Localized] [Localized] CRON
         executionScope.launch {
             while (isActive) {
                 val nextExecution = calculateNextCronExecution(trigger.cronExpression)
@@ -670,19 +670,19 @@ object IntelligentAutomationEngine {
     private fun subscribeToEvents(workflow: AutomationWorkflow) {
         val trigger = workflow.trigger as WorkflowTrigger.EventTrigger
         
-        // الاشتراك في الأحداث
+        // [Localized] [Localized] [Localized]
         executionScope.launch {
-            // هنا يمكن الاشتراك في event bus
+            // [Localized] [Localized] [Localized] [Localized] event bus
         }
     }
     
     private fun monitorPatterns(workflow: AutomationWorkflow) {
         val trigger = workflow.trigger as WorkflowTrigger.PatternTrigger
         
-        // مراقبة الأنماط المتعلمة
+        // [Localized] [Localized] [Localized]
         executionScope.launch {
             while (isActive) {
-                delay(60_000L) // فحص كل دقيقة
+                delay(60_000L) // [Localized] [Localized] [Localized]
                 
                 val pattern = learnedPatterns[trigger.patternId]
                 if (pattern != null && pattern.confidence >= trigger.confidence) {
@@ -695,8 +695,8 @@ object IntelligentAutomationEngine {
     }
     
     private fun calculateNextCronExecution(cronExpression: String): Long {
-        // تحليل CRON expression وحساب الوقت القادم
-        // هذا مثال بسيط - يمكن استخدام مكتبة CRON متقدمة
+        // [Localized] CRON expression [Localized] [Localized] [Localized]
+        // [Localized] [Localized] [Localized] - [Localized] [Localized] [Localized] CRON [Localized]
         return System.currentTimeMillis() + 60_000L
     }
     
@@ -736,31 +736,31 @@ object IntelligentAutomationEngine {
     
     private fun learnFromExecution(execution: WorkflowExecution, workflow: AutomationWorkflow) {
         executionScope.launch {
-            // تحليل نجاح/فشل التنفيذ
+            // [Localized] [Localized]/[Localized] [Localized]
             val successRate = execution.actionResults.count { it.success }.toDouble() / 
                              execution.actionResults.size.toDouble()
             
-            // تسجيل الأداء
+            // [Localized] [Localized]
             val avgDuration = execution.actionResults.map { it.duration }.average()
             
-            // اقتراح تحسينات
+            // [Localized] [Localized]
             if (successRate < 0.8) {
                 suggestWorkflowImprovements(workflow, execution)
             }
             
-            // تحديث أولوية الـ workflow بناءً على الأداء
+            // [Localized] [Localized] [Localized] workflow [Localized] [Localized] [Localized]
             if (successRate > 0.95 && avgDuration < 5000) {
-                // هذا workflow جيد - زيادة أولويته
+                // [Localized] workflow [Localized] - [Localized] [Localized]
             }
         }
     }
     
     private fun suggestWorkflowImprovements(workflow: AutomationWorkflow, execution: WorkflowExecution) {
-        // تحليل الأخطاء واقتراح حلول
+        // [Localized] [Localized] [Localized] [Localized]
         val failedActions = execution.actionResults.filter { !it.success }
         
         failedActions.forEach { actionResult ->
-            // اقتراح زيادة timeout أو تغيير retry policy
+            // [Localized] [Localized] timeout [Localized] [Localized] retry policy
         }
     }
     

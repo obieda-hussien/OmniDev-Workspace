@@ -4,23 +4,23 @@ import java.security.MessageDigest
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * BuildErrorParser — مُحلل أخطاء البناء (Build Doctor Pro / Brain 2.0)
+ * BuildErrorParser — [Localized] [Localized] [Localized] (Build Doctor Pro / Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * يستخرج من stdout/stderr الـ build:
- *   - أخطاء فردية مع موقعها (file:line:col)
- *   - تصنيف الخطأ (compile / link / dependency / resource / runtime / config)
- *   - بصمة (fingerprint) ثابتة لتجميع الأخطاء المتكررة
+ * [Localized] [Localized] stdout/stderr [Localized] build:
+ *   - [Localized] [Localized] [Localized] [Localized] (file:line:col)
+ *   - [Localized] [Localized] (compile / link / dependency / resource / runtime / config)
+ *   - [Localized] (fingerprint) [Localized] [Localized] [Localized] [Localized]
  *
- * **Mobile-first**: regex-based فقط، لا parsing ثقيل، لا alloc كبيرة.
- * يعالج 1 MB stdout في < 50 ms على Snapdragon 660.
+ * **Mobile-first**: regex-based [Localized] [Localized] parsing [Localized] [Localized] alloc [Localized].
+ * [Localized] 1 MB stdout [Localized] < 50 ms [Localized] Snapdragon 660.
  */
 object BuildErrorParser {
 
-    /** أقصى طول رسالة خطأ يُحفظ. */
+    /** [Localized] [Localized] [Localized] [Localized] [Localized]. */
     private const val MAX_MESSAGE_LEN = 600
 
-    /** أقصى عدد أخطاء نُرجعها من stdout واحد. */
+    /** [Localized] [Localized] [Localized] [Localized] [Localized] stdout [Localized]. */
     private const val MAX_ERRORS_PER_BUILD = 50
 
     data class ParsedError(
@@ -48,7 +48,7 @@ object BuildErrorParser {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Patterns — مرتبة من الأكثر دقة إلى الأقل
+    // Patterns — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
     // ──────────────────────────────────────────────────────────────────
 
     // Kotlin / Java: e:/path/Foo.kt:12:8 error: ...
@@ -101,7 +101,7 @@ object BuildErrorParser {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * يُحلل output الـ build ويُرجع قائمة أخطاء مُصنّفة (≤ MAX_ERRORS_PER_BUILD).
+     * [Localized] output [Localized] build [Localized] [Localized] [Localized] [Localized] (≤ MAX_ERRORS_PER_BUILD).
      */
     fun parse(buildOutput: String): List<ParsedError> {
         if (buildOutput.isBlank()) return emptyList()
@@ -118,7 +118,7 @@ object BuildErrorParser {
         return out
     }
 
-    /** يُحلل سطراً واحداً (مفيد لـ streaming). */
+    /** [Localized] [Localized] [Localized] ([Localized] [Localized] streaming). */
     fun parseLine(line: String): ParsedError? {
         // 1) Kotlin
         KOTLIN_ERROR.find(line)?.let { m ->
@@ -146,7 +146,7 @@ object BuildErrorParser {
                 rawLine = line
             )
         }
-        // 5) Hints بدون موقع محدد
+        // 5) Hints [Localized] [Localized] [Localized]
         if (DEPENDENCY_HINT.containsMatchIn(line)) {
             return makeError(Category.DEPENDENCY, line.take(MAX_MESSAGE_LEN), "", 0, 0, line)
         }
@@ -162,7 +162,7 @@ object BuildErrorParser {
         return null
     }
 
-    /** بصمة ثابتة (16 hex) لرسالة خطأ بعد تطبيع الأرقام والمسارات. */
+    /** [Localized] [Localized] (16 hex) [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]. */
     fun fingerprint(message: String, category: String = ""): String {
         val normalized = (category.ifBlank { "" } + " " + message)
             .replace(Regex("/[\\w./_-]+"), "/PATH")

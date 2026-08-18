@@ -11,22 +11,22 @@ import kotlinx.coroutines.withContext
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * EpisodicMemoryStore — ذاكرة المهام الكاملة (Agent Brain 2.0)
+ * EpisodicMemoryStore — [Localized] [Localized] [Localized] (Agent Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * بعكس [ToolExecutionJournal] الذي يسجّل كل أداة على حدة، هذا الـ Store يحفظ
- * **مهمة كاملة** كحلقة (episode) واحدة:
+ * [Localized] [ToolExecutionJournal] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] Store [Localized]
+ * **[Localized] [Localized]** [Localized] (episode) [Localized]:
  *
  *   "User asked X → Agent ran tools [A, B, C] → Result: Y"
  *
- * عند مهمة جديدة مشابهة، نسترجع 1-2 episode متشابهين دلالياً ونحقنهم في الـ
- * system prompt كـ "memory shots". هذا يقلل trial-and-error ويرفع نسبة النجاح.
+ * [Localized] [Localized] [Localized] [Localized] [Localized] 1-2 episode [Localized] [Localized] [Localized] [Localized] [Localized]
+ * system prompt [Localized] "memory shots". [Localized] [Localized] trial-and-error [Localized] [Localized] [Localized].
  *
- * **Mobile-first** (يعمل على 2-4 GB RAM):
- * - HashEmbedder (لا نموذج، 0 RAM دائم)
- * - candidates ≤ 80 ثم cosine في JVM
- * - حد أقصى 2000 حلقة (~2-3 MB)
- * - Eviction للأقدم تلقائياً
+ * **Mobile-first** ([Localized] [Localized] 2-4 GB RAM):
+ * - HashEmbedder ([Localized] [Localized] 0 RAM [Localized])
+ * - candidates ≤ 80 [Localized] cosine [Localized] JVM
+ * - [Localized] [Localized] 2000 [Localized] (~2-3 MB)
+ * - Eviction [Localized] [Localized]
  */
 class EpisodicMemoryStore(
     private val dao: EpisodicMemoryDao,
@@ -42,7 +42,7 @@ class EpisodicMemoryStore(
         private const val MAX_TOOLS_STORED = 10
     }
 
-    /** يحفظ episode جديد بشكل غير متزامن (لا يبطئ AgentPipeline). */
+    /** [Localized] episode [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] AgentPipeline). */
     fun recordEpisodeAsync(
         summary: String,
         userIntent: String,
@@ -79,7 +79,7 @@ class EpisodicMemoryStore(
         val truncatedIntent = userIntent.take(200)
         val toolsCsv = toolsUsed.takeLast(MAX_TOOLS_STORED).joinToString(",")
 
-        // embedding من intent + summary لاسترجاع دقيق
+        // embedding [Localized] intent + summary [Localized] [Localized]
         val embedding = HashEmbedder.embed("$truncatedIntent $truncatedSummary")
 
         val entry = EpisodicMemoryEntry(
@@ -100,10 +100,10 @@ class EpisodicMemoryStore(
     }
 
     /**
-     * استرجاع episodes مشابهة:
-     *   1) candidates من DB (ناجحين حديثين أساساً + بعض الفاشلين للحذر)
-     *   2) cosine ranking في JVM
-     *   3) فلترة بـ minSimilarity → topK = 2
+     * [Localized] episodes [Localized]:
+     *   1) candidates [Localized] DB ([Localized] [Localized] [Localized] + [Localized] [Localized] [Localized])
+     *   2) cosine ranking [Localized] JVM
+     *   3) [Localized] [Localized] minSimilarity → topK = 2
      */
     suspend fun retrieveSimilar(
         query: String,
@@ -114,7 +114,7 @@ class EpisodicMemoryStore(
 
         val queryVec = HashEmbedder.embed(query)
 
-        // candidates = ناجحين حديثين + بعض الفاشلين (للحذر)
+        // candidates = [Localized] [Localized] + [Localized] [Localized] ([Localized])
         val candidates = mutableListOf<EpisodicMemoryEntry>()
         if (preferSuccess) {
             candidates += dao.getByOutcome(EpisodeOutcome.SUCCESS.name, limit = 60)
@@ -138,7 +138,7 @@ class EpisodicMemoryStore(
             .map { it.first }
     }
 
-    /** يبني نص الحقن للـ system prompt من episodes متشابهة. */
+    /** [Localized] [Localized] [Localized] [Localized] system prompt [Localized] episodes [Localized]. */
     suspend fun buildPromptInjection(
         query: String,
         topK: Int = 2,
@@ -148,7 +148,7 @@ class EpisodicMemoryStore(
         if (episodes.isEmpty()) return@withContext ""
 
         buildString {
-            appendLine("\n📚 ذاكرة مهام سابقة مشابهة (Episodic Memory):")
+            appendLine("\n📚 [Localized] [Localized] [Localized] [Localized] (Episodic Memory):")
             for (ep in episodes) {
                 val icon = when (ep.finalOutcome) {
                     "SUCCESS" -> "✅"
@@ -157,7 +157,7 @@ class EpisodicMemoryStore(
                 }
                 val tools = ep.toolsUsedCsv.split(',').take(5).joinToString(" → ")
                 val line = "$icon ${ep.summary.take(180)}"
-                val toolLine = if (tools.isNotBlank()) "   🔧 المسار: $tools" else ""
+                val toolLine = if (tools.isNotBlank()) "   🔧 [Localized]: $tools" else ""
                 if (length + line.length + toolLine.length + 2 > maxChars) break
                 appendLine(line)
                 if (toolLine.isNotBlank()) appendLine(toolLine)
@@ -179,5 +179,5 @@ class EpisodicMemoryStore(
     }
 }
 
-/** نتيجة المهمة المسجَّلة. */
+/** [Localized] [Localized] [Localized]. */
 enum class EpisodeOutcome { SUCCESS, FAILURE, ABANDONED }

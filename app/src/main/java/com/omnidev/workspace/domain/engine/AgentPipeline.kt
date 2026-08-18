@@ -175,12 +175,12 @@ class AgentPipeline(
     private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null,
     private val memoryManager: com.omnidev.workspace.data.tools.MemoryManager? = null,
     /**
-     * SmartLearningBridge — الجسر الذكي للتعلم والوعي
-     * عند توفيره يُعزّز الـ Agent بـ:
-     * - وعي كامل بالأدوات والبيئة
-     * - ذاكرة تنفيذ دائمة عبر الجلسات
-     * - حقن سياق ذكي في System Prompt
-     * - تعلم مستمر من كل عملية تنفيذ
+     * SmartLearningBridge — [Localized] [Localized] [Localized] [Localized]
+     * [Localized] [Localized] [Localized] [Localized] Agent [Localized]:
+     * - [Localized] [Localized] [Localized] [Localized]
+     * - [Localized] [Localized] [Localized] [Localized] [Localized]
+     * - [Localized] [Localized] [Localized] [Localized] System Prompt
+     * - [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     private val smartLearningBridge: com.omnidev.workspace.data.brain.SmartLearningBridge? = null,
     private val toolOrchestrator: ToolOrchestrator = ToolOrchestrator(),
@@ -609,7 +609,7 @@ Rules:
         )
 
         // ═══════════════════════════════════════════════════════════════
-        // 🧠 Agent Brain 2.0 — تسجيل بداية المهمة (لربط episodic memory)
+        // 🧠 Agent Brain 2.0 — [Localized] [Localized] [Localized] ([Localized] episodic memory)
         // ═══════════════════════════════════════════════════════════════
         smartLearningBridge?.onTaskStart(userMessage)
 
@@ -693,8 +693,8 @@ Rules:
             }
             // ═══════════════════════════════════════════════════════════════
             // 🧠 SMART LEARNING BRIDGE CONTEXT INJECTION
-            // يحقن وعي الأدوات + ذاكرة التنفيذ + أفضل الممارسات المكتسبة
-            // هذا ما يجعل الـ Agent يتصرف كـ Claude Code / GitHub Copilot Agent
+            // [Localized] [Localized] [Localized] + [Localized] [Localized] + [Localized] [Localized] [Localized]
+            // [Localized] [Localized] [Localized] [Localized] Agent [Localized] [Localized] Claude Code / GitHub Copilot Agent
             // ═══════════════════════════════════════════════════════════════
             if (brainContext.isNotBlank()) {
                 appendLine()
@@ -756,7 +756,7 @@ Rules:
         // ── ReAct Loop ──
         while (iteration < config.maxIterations) {
             iteration++
-            // Agent Brain 2.0 — تتبّع iterations الحالية لتسجيل episode دقيق
+            // Agent Brain 2.0 — [Localized] iterations [Localized] [Localized] episode [Localized]
             smartLearningBridge?.onIterationStart()
 
             // ── Wall-clock timeout check ──
@@ -953,7 +953,7 @@ Rules:
                     AgentExecutionPhase.REPORT,
                     "Publishing final answer"
                 )
-                // Agent Brain 2.0 — تسجيل episode كامل للنجاح
+                // Agent Brain 2.0 — [Localized] episode [Localized] [Localized]
                 smartLearningBridge?.onTaskEnd(
                     outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.SUCCESS,
                     finalSummary = finalContent.take(500)
@@ -1010,7 +1010,7 @@ Rules:
                     arguments = toolCall.arguments,
                     iteration = iteration
                 ))
-                // سجّل وقت بداية التنفيذ بمعرف فريد لكل استدعاء (لدعم التوازي)
+                // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized])
                 smartLearningBridge?.onToolExecutionStart(toolCall.name, callId = toolCall.id)
             }
 
@@ -1102,12 +1102,12 @@ Rules:
                 ))
 
                 // ═══════════════════════════════════════════════════════════════
-                // 🧠 SMART LEARNING HOOK — يتعلم من كل عملية تنفيذ
-                // يُرسل نتيجة التنفيذ لـ SmartLearningBridge لتحديث:
-                // - ToolExecutionJournal (الذاكرة الدائمة)
-                // - ToolAwarenessEngine (الوعي بالأدوات)
-                // - ToolIntelligenceEngine (التعلم بالتعزيز)
-                // - ToolMachineLearningEngine (التنبؤ)
+                // 🧠 SMART LEARNING HOOK — [Localized] [Localized] [Localized] [Localized] [Localized]
+                // [Localized] [Localized] [Localized] [Localized] SmartLearningBridge [Localized]:
+                // - ToolExecutionJournal ([Localized] [Localized])
+                // - ToolAwarenessEngine ([Localized] [Localized])
+                // - ToolIntelligenceEngine ([Localized] [Localized])
+                // - ToolMachineLearningEngine ([Localized])
                 // ═══════════════════════════════════════════════════════════════
                 smartLearningBridge?.let { bridge ->
                     val redactedContext = userMessage.take(200)
@@ -1187,7 +1187,7 @@ Rules:
         }
 
         // ── Max iterations reached ──
-        // Agent Brain 2.0 — تسجيل episode للإيقاف بسبب maxIterations
+        // Agent Brain 2.0 — [Localized] episode [Localized] [Localized] maxIterations
         smartLearningBridge?.onTaskEnd(
             outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.ABANDONED,
             finalSummary = "max iterations reached after ${config.maxIterations} loops"

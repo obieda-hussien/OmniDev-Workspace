@@ -5,18 +5,18 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * ReflexionLessonEntry — درس مستفاد من تجربة Agent سابقة (Brain 2.0).
+ * ReflexionLessonEntry — [Localized] [Localized] [Localized] [Localized] Agent [Localized] (Brain 2.0).
  *
  * Mobile-first design:
- * - الدرس ≤ 280 حرف ليبقى صالحاً للحقن في الـ system prompt دون تضخمه
- * - الـ embedding 256 floats (≈ 1 KB) — hash-based، بدون تحميل أي نموذج
- * - 2000 درس كحد أقصى ≈ 2 MB إجمالي
- * - LRU eviction حسب الجودة عند تجاوز الحد
+ * - [Localized] ≤ 280 [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] system prompt [Localized] [Localized]
+ * - [Localized] embedding 256 floats (≈ 1 KB) — hash-based[Localized] [Localized] [Localized] [Localized] [Localized]
+ * - 2000 [Localized] [Localized] [Localized] ≈ 2 MB [Localized]
+ * - LRU eviction [Localized] [Localized] [Localized] [Localized] [Localized]
  *
- * @property errorSignature MD5 (16 hex) لرسالة الخطأ بعد تطبيع المسارات/الأرقام
- *           — يستخدم لكشف التكرار وتجميع نفس النوع من الفشل
- * @property successContext true لو الدرس مستخلص من نجاح بطيء/ضخم، false لو من فشل
- * @property quality قيمة بين 0..1 تتحسن مع كل استخدام ناجح وتتراجع مع الفشل
+ * @property errorSignature MD5 (16 hex) [Localized] [Localized] [Localized] [Localized] [Localized]/[Localized]
+ *           — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+ * @property successContext true [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]/[Localized] false [Localized] [Localized] [Localized]
+ * @property quality [Localized] [Localized] 0..1 [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
  */
 @Entity(
     tableName = "reflexion_lessons",

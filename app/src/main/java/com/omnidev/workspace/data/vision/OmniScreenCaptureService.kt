@@ -27,14 +27,14 @@ class OmniScreenCaptureService : Service() {
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
     
-    // متغير لحفظ أحدث لقطة شاشة للوكيل
+    // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
     private var latestBitmap: Bitmap? = null
 
     companion object {
         const val CHANNEL_ID = "ScreenCaptureServiceChannel"
         const val NOTIFICATION_ID = 1001
         
-        // مفاتيح الـ Intent
+        // [Localized] [Localized] Intent
         const val EXTRA_RESULT_CODE = "EXTRA_RESULT_CODE"
         const val EXTRA_RESULT_DATA = "EXTRA_RESULT_DATA"
     }
@@ -51,15 +51,15 @@ class OmniScreenCaptureService : Service() {
         createNotificationChannel()
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Omni Agent Vision")
-            .setContentText("الوكيل الذكي يحلل الشاشة الآن...")
-            //.setSmallIcon(R.mipmap.ic_launcher) // تأكد من تغيير هذا للأيقونة الخاصة بك
+            .setContentText("[Localized] [Localized] [Localized] [Localized] [Localized]...")
+            //.setSmallIcon(R.mipmap.ic_launcher) // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
-        // يجب تشغيل الخدمة في الأمام لأنها Media Projection (إجباري في أندرويد 14+)
+        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] Media Projection ([Localized] [Localized] [Localized] 14+)
         startForeground(NOTIFICATION_ID, notification)
 
-        // استلام بيانات الصلاحية من الـ Activity
+        // [Localized] [Localized] [Localized] [Localized] [Localized] Activity
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
         val resultData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent?.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
@@ -84,7 +84,7 @@ class OmniScreenCaptureService : Service() {
         val height = metrics.heightPixels
         val density = metrics.densityDpi
 
-        // إنشاء ImageReader لاستقبال الفريمات كصور
+        // [Localized] ImageReader [Localized] [Localized] [Localized]
         imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
         
         virtualDisplay = mediaProjection?.createVirtualDisplay(
@@ -94,7 +94,7 @@ class OmniScreenCaptureService : Service() {
             imageReader?.surface, null, null
         )
 
-        // مستمع لالتقاط الصور كلما تغيرت الشاشة
+        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
         imageReader?.setOnImageAvailableListener({ reader ->
             val image = reader.acquireLatestImage()
             if (image != null) {
@@ -104,11 +104,11 @@ class OmniScreenCaptureService : Service() {
                 val rowStride = planes[0].rowStride
                 val rowPadding = rowStride - pixelStride * width
 
-                // تحويل الفريم إلى Bitmap ليقوم الوكيل بتحليله
+                // [Localized] [Localized] [Localized] Bitmap [Localized] [Localized] [Localized]
                 val bitmap = Bitmap.createBitmap(width + rowPadding / pixelStride, height, Bitmap.Config.ARGB_8888)
                 bitmap.copyPixelsFromBuffer(buffer)
                 
-                // حفظ آخر لقطة (مع قص الحواف الزائدة)
+                // [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized])
                 latestBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height)
                 
                 image.close()
@@ -116,13 +116,13 @@ class OmniScreenCaptureService : Service() {
         }, null)
     }
 
-    // دالة يستخدمها الوكيل الذكي (AI) للحصول على أحدث صورة للشاشة فوراً
+    // [Localized] [Localized] [Localized] [Localized] (AI) [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
     fun getLatestFrame(): Bitmap? {
         return latestBitmap
     }
 
     private fun createNotificationChannel() {
-        // التأكد من أن إصدار الأندرويد 8.0 (API 26) أو أحدث
+        // [Localized] [Localized] [Localized] [Localized] [Localized] 8.0 (API 26) [Localized] [Localized]
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,

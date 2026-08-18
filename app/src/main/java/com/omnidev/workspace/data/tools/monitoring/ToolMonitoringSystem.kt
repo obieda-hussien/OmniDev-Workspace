@@ -6,14 +6,14 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * ToolMonitoringSystem — نظام مراقبة وتتبع شامل لجميع الأدوات
+ * ToolMonitoringSystem — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
  * 
- * الميزات:
- * - تتبع الأداء في الوقت الفعلي
- * - كشف الاختناقات والبطء
- * - تنبيهات ذكية عند الفشل المتكرر
- * - تحليل الأنماط وتوقع المشاكل
- * - تقارير مفصلة عن استخدام الموارد
+ * [Localized]:
+ * - [Localized] [Localized] [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized] [Localized] [Localized]
  */
 object ToolMonitoringSystem {
     private const val TAG = "ToolMonitor"
@@ -22,20 +22,20 @@ object ToolMonitoringSystem {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     
     // ═══════════════════════════════════════════════════════════════
-    // البيانات المراقبة
+    // [Localized] [Localized]
     // ═══════════════════════════════════════════════════════════════
     
     private val executionMetrics = ConcurrentHashMap<String, ToolMetrics>()
     private val activeExecutions = ConcurrentHashMap<String, ExecutionTrace>()
     private val realtimeEvents = MutableSharedFlow<MonitoringEvent>(replay = 100)
     
-    // عدادات عالمية
+    // [Localized] [Localized]
     private val totalExecutions = AtomicLong(0)
     private val totalFailures = AtomicLong(0)
     private val totalRetries = AtomicLong(0)
     
     // ═══════════════════════════════════════════════════════════════
-    // بيانات القياس
+    // [Localized] [Localized]
     // ═══════════════════════════════════════════════════════════════
     
     data class ToolMetrics(
@@ -78,11 +78,11 @@ object ToolMonitoringSystem {
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // API الرئيسية
+    // API [Localized]
     // ═══════════════════════════════════════════════════════════════
     
     /**
-     * بدء تتبع تنفيذ أداة
+     * [Localized] [Localized] [Localized] [Localized]
      */
     fun startExecution(
         toolName: String,
@@ -101,7 +101,7 @@ object ToolMonitoringSystem {
         activeExecutions[traceId] = trace
         totalExecutions.incrementAndGet()
         
-        // إرسال حدث البدء
+        // [Localized] [Localized] [Localized]
         scope.launch {
             realtimeEvents.emit(
                 MonitoringEvent.ToolStarted(toolName, traceId, trace.startTime)
@@ -112,7 +112,7 @@ object ToolMonitoringSystem {
     }
     
     /**
-     * إنهاء تتبع تنفيذ أداة
+     * [Localized] [Localized] [Localized] [Localized]
      */
     fun endExecution(
         traceId: String,
@@ -122,7 +122,7 @@ object ToolMonitoringSystem {
         val trace = activeExecutions.remove(traceId) ?: return
         val durationMs = System.currentTimeMillis() - trace.startTime
         
-        // تحديث الإحصائيات
+        // [Localized] [Localized]
         val metrics = executionMetrics.getOrPut(trace.toolName) {
             ToolMetrics(trace.toolName)
         }
@@ -147,7 +147,7 @@ object ToolMonitoringSystem {
             metrics.lastExecutionTime = System.currentTimeMillis()
             metrics.avgDurationMs = metrics.totalDurationMs.toDouble() / metrics.executionCount
             
-            // حفظ لقطة الأداء
+            // [Localized] [Localized] [Localized]
             metrics.performanceHistory.add(
                 PerformanceSnapshot(
                     timestamp = System.currentTimeMillis(),
@@ -157,13 +157,13 @@ object ToolMonitoringSystem {
                 )
             )
             
-            // الحد الأقصى للتاريخ
+            // [Localized] [Localized] [Localized]
             if (metrics.performanceHistory.size > 500) {
                 metrics.performanceHistory.removeAt(0)
             }
         }
         
-        // إرسال الأحداث
+        // [Localized] [Localized]
         scope.launch {
             realtimeEvents.emit(
                 MonitoringEvent.ToolCompleted(trace.toolName, traceId, durationMs, success)
@@ -175,14 +175,14 @@ object ToolMonitoringSystem {
                 )
             }
             
-            // كشف التنفيذ البطيء
+            // [Localized] [Localized] [Localized]
             if (durationMs > 5000) {
                 realtimeEvents.emit(
                     MonitoringEvent.SlowExecution(trace.toolName, durationMs, 5000)
                 )
             }
             
-            // كشف معدل الفشل المرتفع
+            // [Localized] [Localized] [Localized] [Localized]
             val failureRate = metrics.failureCount.toDouble() / metrics.executionCount
             if (metrics.executionCount >= 10 && failureRate > 0.3) {
                 realtimeEvents.emit(
@@ -190,27 +190,27 @@ object ToolMonitoringSystem {
                 )
             }
             
-            // كشف الشذوذ
+            // [Localized] [Localized]
             detectAnomalies(trace.toolName, metrics)
         }
     }
     
     /**
-     * الحصول على إحصائيات أداة معينة
+     * [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     fun getToolMetrics(toolName: String): ToolMetrics? {
         return executionMetrics[toolName]
     }
     
     /**
-     * الحصول على جميع الإحصائيات
+     * [Localized] [Localized] [Localized] [Localized]
      */
     fun getAllMetrics(): Map<String, ToolMetrics> {
         return executionMetrics.toMap()
     }
     
     /**
-     * الحصول على الأدوات الأكثر استخدامًا
+     * [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     fun getMostUsedTools(limit: Int = 10): List<Pair<String, Long>> {
         return executionMetrics.entries
@@ -220,7 +220,7 @@ object ToolMonitoringSystem {
     }
     
     /**
-     * الحصول على الأدوات الأبطأ
+     * [Localized] [Localized] [Localized] [Localized]
      */
     fun getSlowestTools(limit: Int = 10): List<Pair<String, Double>> {
         return executionMetrics.entries
@@ -230,7 +230,7 @@ object ToolMonitoringSystem {
     }
     
     /**
-     * الحصول على الأدوات الأكثر فشلاً
+     * [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     fun getMostFailedTools(limit: Int = 10): List<Pair<String, Long>> {
         return executionMetrics.entries
@@ -240,12 +240,12 @@ object ToolMonitoringSystem {
     }
     
     /**
-     * الاشتراك في الأحداث الفورية
+     * [Localized] [Localized] [Localized] [Localized]
      */
     fun getEventStream(): SharedFlow<MonitoringEvent> = realtimeEvents.asSharedFlow()
     
     /**
-     * إعادة تعيين جميع الإحصائيات
+     * [Localized] [Localized] [Localized] [Localized]
      */
     fun resetAllMetrics() {
         executionMetrics.clear()
@@ -256,7 +256,7 @@ object ToolMonitoringSystem {
     }
     
     /**
-     * تقرير شامل عن حالة النظام
+     * [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     fun generateSystemReport(): SystemHealthReport {
         val now = System.currentTimeMillis()
@@ -266,22 +266,22 @@ object ToolMonitoringSystem {
         val totalFails = totalFailures.get()
         val globalFailureRate = if (totalExecs > 0) totalFails.toDouble() / totalExecs else 0.0
         
-        // الأدوات النشطة حاليًا
+        // [Localized] [Localized] [Localized]
         val activeTools = activeExecutions.values.groupBy { it.toolName }
             .mapValues { it.value.size }
         
-        // الأدوات المتعطلة (معدل فشل > 50%)
+        // [Localized] [Localized] ([Localized] [Localized] > 50%)
         val brokenTools = allMetrics.filter { (_, metrics) ->
             metrics.executionCount >= 5 && 
             metrics.failureCount.toDouble() / metrics.executionCount > 0.5
         }.keys.toList()
         
-        // الأدوات البطيئة (متوسط > 3 ثانية)
+        // [Localized] [Localized] ([Localized] > 3 [Localized])
         val slowTools = allMetrics.filter { (_, metrics) ->
             metrics.avgDurationMs > 3000
         }.keys.toList()
         
-        // الأخطاء الأكثر شيوعًا
+        // [Localized] [Localized] [Localized]
         val topErrors = allMetrics.values
             .flatMap { it.errorFrequency.entries }
             .groupBy { it.key }
@@ -310,11 +310,11 @@ object ToolMonitoringSystem {
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // كشف الشذوذ الذكي
+    // [Localized] [Localized] [Localized]
     // ═══════════════════════════════════════════════════════════════
     
     private suspend fun detectAnomalies(toolName: String, metrics: ToolMetrics) {
-        // 1. كشف الارتفاع المفاجئ في وقت التنفيذ
+        // 1. [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
         if (metrics.performanceHistory.size >= 20) {
             val recentAvg = metrics.performanceHistory.takeLast(5)
                 .filter { it.success }
@@ -338,7 +338,7 @@ object ToolMonitoringSystem {
             }
         }
         
-        // 2. كشف الفشل المتتالي
+        // 2. [Localized] [Localized] [Localized]
         val recentFailures = metrics.performanceHistory.takeLast(5).count { !it.success }
         if (recentFailures >= 3) {
             realtimeEvents.emit(
@@ -350,7 +350,7 @@ object ToolMonitoringSystem {
             )
         }
         
-        // 3. كشف الأخطاء الجديدة
+        // 3. [Localized] [Localized] [Localized]
         val recentErrors = metrics.performanceHistory.takeLast(10)
             .mapNotNull { it.errorType }
             .toSet()
@@ -373,7 +373,7 @@ object ToolMonitoringSystem {
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // وظائف مساعدة
+    // [Localized] [Localized]
     // ═══════════════════════════════════════════════════════════════
     
     private fun generateTraceId(): String {
@@ -394,7 +394,7 @@ object ToolMonitoringSystem {
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // تقرير صحة النظام
+    // [Localized] [Localized] [Localized]
     // ═══════════════════════════════════════════════════════════════
     
     data class SystemHealthReport(
@@ -474,7 +474,7 @@ object ToolMonitoringSystem {
 }
 
 /**
- * Extension function لتتبع تنفيذ الأدوات تلقائيًا
+ * Extension function [Localized] [Localized] [Localized] [Localized]
  */
 suspend inline fun <T> monitoredExecution(
     toolName: String,

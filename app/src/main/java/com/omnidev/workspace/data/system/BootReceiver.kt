@@ -13,42 +13,42 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * BootReceiver — مُشغّل الإقلاع الذكي
+ * BootReceiver — [Localized] [Localized] [Localized]
  *
- * الجيل الثاني: إقلاع مرحلي ذكي
+ * [Localized] [Localized]: [Localized] [Localized] [Localized]
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. **كشف نوع الإقلاع (Boot Type Detection)**:
- *    - COLD_BOOT: إقلاع كامل من إيقاف تشغيل
- *    - WARM_BOOT: إعادة تشغيل عادية
- *    - UPDATE_BOOT: ترقية/تحديث التطبيق
+ * 1. **[Localized] [Localized] [Localized] (Boot Type Detection)**:
+ *    - COLD_BOOT: [Localized] [Localized] [Localized] [Localized] [Localized]
+ *    - WARM_BOOT: [Localized] [Localized] [Localized]
+ *    - UPDATE_BOOT: [Localized]/[Localized] [Localized]
  *    - QUICK_BOOT: Fast Boot (Qualcomm/HTC)
- *    لكل نوع سياسة تشغيل خدمات مختلفة.
+ *    [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
  *
- * 2. **الإقلاع المرحلي (Phased Startup)**:
- *    المرحلة 1 (فوري): SyncService — أحرص خدمة، تبدأ أولاً
- *    المرحلة 2 (+8s): فحص صحة الخدمات والتحقق من نجاح الإقلاع
- *    هذا يمنع قتل الخدمات بسبب بدء كل شيء دفعة واحدة في الذاكرة المحدودة.
+ * 2. **[Localized] [Localized] (Phased Startup)**:
+ *    [Localized] 1 ([Localized]): SyncService — [Localized] [Localized] [Localized] [Localized]
+ *    [Localized] 2 (+8s): [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+ *    [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
  *
- * 3. **سجل الإقلاع (Boot Log)**:
- *    يُسجّل كل إقلاع مع: الوقت، النوع، الخدمات التي بدأت، الإخفاقات.
- *    مفيد لتشخيص مشاكل الإقلاع والـ ANR.
+ * 3. **[Localized] [Localized] (Boot Log)**:
+ *    [Localized] [Localized] [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+ *    [Localized] [Localized] [Localized] [Localized] [Localized] ANR.
  *
- * 4. **حماية من الـ Storm**: إذا أُعيد الإقلاع 3 مرات في 5 دقائق →
- *    تأخير الخدمات لتجنب الحلقة المفرغة.
+ * 4. **[Localized] [Localized] [Localized] Storm**: [Localized] [Localized] [Localized] 3 [Localized] [Localized] 5 [Localized] →
+ *    [Localized] [Localized] [Localized] [Localized] [Localized].
  */
 class BootReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "BootReceiver"
 
-        // تأخيرات المراحل (بالمللي ثانية)
+        // [Localized] [Localized] ([Localized] [Localized])
         private const val PHASE_1_DELAY_MS = 0L
         private const val PHASE_2_DELAY_MS = 8_000L
 
-        // حماية من إعادة الإقلاع المتكررة
+        // [Localized] [Localized] [Localized] [Localized] [Localized]
         private const val RAPID_REBOOT_THRESHOLD = 3
-        private const val RAPID_REBOOT_WINDOW_MS = 5 * 60 * 1000L // 5 دقائق
-        private const val RAPID_REBOOT_PENALTY_DELAY_MS = 15_000L  // تأخير 15 ثانية
+        private const val RAPID_REBOOT_WINDOW_MS = 5 * 60 * 1000L // 5 [Localized]
+        private const val RAPID_REBOOT_PENALTY_DELAY_MS = 15_000L  // [Localized] 15 [Localized]
 
         private val recentBootTimes = mutableListOf<Long>()
 
@@ -58,9 +58,9 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     enum class BootType {
-        COLD_BOOT,   // إقلاع كامل
-        WARM_BOOT,   // إعادة تشغيل
-        UPDATE_BOOT, // تحديث التطبيق
+        COLD_BOOT,   // [Localized] [Localized]
+        WARM_BOOT,   // [Localized] [Localized]
+        UPDATE_BOOT, // [Localized] [Localized]
         QUICK_BOOT   // Fast Boot
     }
 
@@ -69,12 +69,12 @@ class BootReceiver : BroadcastReceiver() {
         val bootType = detectBootType(action)
         val bootTime = System.currentTimeMillis()
 
-        Log.i(TAG, "🚀 حدث إقلاع: $action | النوع: $bootType")
+        Log.i(TAG, "🚀 [Localized] [Localized]: $action | [Localized]: $bootType")
 
-        // سجّل هذا الإقلاع
+        // [Localized] [Localized] [Localized]
         DebugLogManager.appendInfo(TAG, buildString {
-            append("إقلاع جديد: $bootType")
-            append(" في ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(bootTime))}")
+            append("[Localized] [Localized]: $bootType")
+            append(" [Localized] ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(bootTime))}")
         })
 
         when (action) {
@@ -99,34 +99,34 @@ class BootReceiver : BroadcastReceiver() {
 
         CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
             try {
-                // ── حماية من إعادة الإقلاع المتكررة ──
+                // ── [Localized] [Localized] [Localized] [Localized] [Localized] ──
                 val isRapidRebooting = checkRapidReboot(bootTime)
                 if (isRapidRebooting) {
-                    Log.w(TAG, "⚠️ إقلاع متكرر — تأخير بدء الخدمات ${RAPID_REBOOT_PENALTY_DELAY_MS}ms")
-                    DebugLogManager.appendWarning(TAG, "إقلاع متكرر مكتشف — تأخير الخدمات")
+                    Log.w(TAG, "⚠️ [Localized] [Localized] — [Localized] [Localized] [Localized] ${RAPID_REBOOT_PENALTY_DELAY_MS}ms")
+                    DebugLogManager.appendWarning(TAG, "[Localized] [Localized] [Localized] — [Localized] [Localized]")
                     delay(RAPID_REBOOT_PENALTY_DELAY_MS)
                 }
 
                 // ─────────────────────────────────────────────────────────────
-                // المرحلة 1: خدمات الأساس (SyncService)
+                // [Localized] 1: [Localized] [Localized] (SyncService)
                 // ─────────────────────────────────────────────────────────────
                 delay(PHASE_1_DELAY_MS)
-                Log.i(TAG, "📌 المرحلة 1: خدمات الأساس")
+                Log.i(TAG, "📌 [Localized] 1: [Localized] [Localized]")
                 val phase1Results = startPhase1Services(context, bootType)
-                DebugLogManager.appendInfo(TAG, "المرحلة 1: ${phase1Results.joinToString(", ")}")
+                DebugLogManager.appendInfo(TAG, "[Localized] 1: ${phase1Results.joinToString(", ")}")
 
                 // ─────────────────────────────────────────────────────────────
-                // المرحلة 2: التحقق من الصحة
+                // [Localized] 2: [Localized] [Localized] [Localized]
                 // ─────────────────────────────────────────────────────────────
                 delay(PHASE_2_DELAY_MS)
-                Log.i(TAG, "📌 المرحلة 2: فحص صحة الخدمات")
+                Log.i(TAG, "📌 [Localized] 2: [Localized] [Localized] [Localized]")
                 val healthReport = validateServiceHealth(context)
-                DebugLogManager.appendInfo(TAG, "صحة الإقلاع: $healthReport")
+                DebugLogManager.appendInfo(TAG, "[Localized] [Localized]: $healthReport")
 
-                Log.i(TAG, "✅ الإقلاع المرحلي اكتمل — ${bootType.name}")
+                Log.i(TAG, "✅ [Localized] [Localized] [Localized] — ${bootType.name}")
 
             } catch (e: Exception) {
-                Log.e(TAG, "❌ خطأ في الإقلاع المرحلي: ${e.message}", e)
+                Log.e(TAG, "❌ [Localized] [Localized] [Localized] [Localized]: ${e.message}", e)
                 DebugLogManager.appendError(TAG, e)
             } finally {
                 pendingResult.finish()
@@ -135,12 +135,12 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     /**
-     * المرحلة 1: الخدمات الأساسية التي يجب أن تبدأ دائماً.
+     * [Localized] 1: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
      */
     private fun startPhase1Services(context: Context, bootType: BootType): List<String> {
         val results = mutableListOf<String>()
 
-        // SyncService — أساسي دائماً
+        // SyncService — [Localized] [Localized]
         safeStartForeground(context, OmniSyncService::class.java)
             .let { results.add(if (it) "✅ SyncService" else "❌ SyncService") }
 
@@ -148,12 +148,12 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     /**
-     * المرحلة 2: التحقق من صحة الخدمات وتسجيل التقرير.
+     * [Localized] 2: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
      */
     private fun validateServiceHealth(context: Context): String = buildString {
-        append("فحص بعد الإقلاع:\n")
+        append("[Localized] [Localized] [Localized]:\n")
 
-        // يمكن توسيع هذا للتحقق من SyncService state وما إلى ذلك
+        // [Localized] [Localized] [Localized] [Localized] [Localized] SyncService state [Localized] [Localized] [Localized]
         val syncState = OmniSyncService.syncState.value
         append("  SyncService: ${syncState.name}\n")
 
@@ -161,22 +161,22 @@ class BootReceiver : BroadcastReceiver() {
         append("  Circuit Breaker: ${circuitState.name}\n")
 
         if (syncState == OmniSyncService.SyncState.ERROR) {
-            append("  ⚠️ SyncService في حالة خطأ — ستُعيد المحاولة تلقائياً")
+            append("  ⚠️ SyncService [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized]")
         }
     }
 
     /**
-     * يكتشف ما إذا كانت هناك إقلاعات متكررة في فترة قصيرة.
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
      */
     private fun checkRapidReboot(bootTime: Long): Boolean {
         recentBootTimes.add(bootTime)
-        // إزالة الإقلاعات القديمة خارج النافذة الزمنية
+        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
         recentBootTimes.removeAll { bootTime - it > RAPID_REBOOT_WINDOW_MS }
         return recentBootTimes.size >= RAPID_REBOOT_THRESHOLD
     }
 
     /**
-     * يبدأ خدمة Foreground بأمان مع معالجة استثناءات كل إصدار Android.
+     * [Localized] [Localized] Foreground [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] Android.
      */
     private fun <T : android.app.Service> safeStartForeground(
         context: Context,
@@ -189,10 +189,10 @@ class BootReceiver : BroadcastReceiver() {
             } else {
                 context.startService(intent)
             }
-            Log.i(TAG, "بدأت: ${serviceClass.simpleName}")
+            Log.i(TAG, "[Localized]: ${serviceClass.simpleName}")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "فشل بدء ${serviceClass.simpleName}: ${e.message}")
+            Log.e(TAG, "[Localized] [Localized] ${serviceClass.simpleName}: ${e.message}")
             false
         }
     }

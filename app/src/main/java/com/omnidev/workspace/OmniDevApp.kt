@@ -45,31 +45,31 @@ import kotlinx.coroutines.launch
  * OmniDev Workspace Application class.
  * Initializes application-wide dependencies and services.
  *
- * النظام الجديد يتضمن:
- * - SmartLearningBridge: الجسر المنسق للتعلم والذاكرة
- * - ToolExecutionJournal: سجل التنفيذ الدائم
- * - ToolAwarenessEngine: محرك الوعي بالأدوات والبيئة
+ * [Localized] [Localized] [Localized]:
+ * - SmartLearningBridge: [Localized] [Localized] [Localized] [Localized]
+ * - ToolExecutionJournal: [Localized] [Localized] [Localized]
+ * - ToolAwarenessEngine: [Localized] [Localized] [Localized] [Localized]
  */
 class OmniDevApp : Application() {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // ─── مكونات النظام الذكي (Agent Brain) ────────────────────────────
+    // ─── [Localized] [Localized] [Localized] (Agent Brain) ────────────────────────────
 
-    /** مجلة تنفيذ الأدوات — الذاكرة الدائمة */
+    /** [Localized] [Localized] [Localized] — [Localized] [Localized] */
     lateinit var toolExecutionJournal: ToolExecutionJournal
         private set
 
-    /** محرك الوعي بالأدوات والنظام */
+    /** [Localized] [Localized] [Localized] [Localized] */
     lateinit var toolAwarenessEngine: ToolAwarenessEngine
         private set
 
 
-    /** سجل أدوات MCP (الخوادم الخارجية) */
+    /** [Localized] [Localized] MCP ([Localized] [Localized]) */
     lateinit var mcpRegistry: McpRegistry
         private set
 
-    /** الجسر الذكي المنسق — يربط كل مكونات الذكاء */
+    /** [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] */
 
     lateinit var smartLearningBridge: SmartLearningBridge
         private set
@@ -80,39 +80,39 @@ class OmniDevApp : Application() {
     //     low-end Android with 2-4 GB RAM, no native libs, no extra LLM calls).
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /** محرك Reflexion — دروس مستفادة من تجارب الـ Agent. */
+    /** [Localized] Reflexion — [Localized] [Localized] [Localized] [Localized] [Localized] Agent. */
     lateinit var reflexionEngine: ReflexionEngine
         private set
 
-    /** ذاكرة المهام الكاملة (Episodic Memory). */
+    /** [Localized] [Localized] [Localized] (Episodic Memory). */
     lateinit var episodicMemoryStore: EpisodicMemoryStore
         private set
 
-    /** نظام التراجع — Action Insurance. */
+    /** [Localized] [Localized] — Action Insurance. */
     lateinit var rollbackManager: RollbackManager
         private set
 
-    /** فهرس المستودع المحلي (incremental). */
+    /** [Localized] [Localized] [Localized] (incremental). */
     lateinit var repoIndexer: RepoIndexer
         private set
 
-    /** محرك سياق المستودع للـ retrieval. */
+    /** [Localized] [Localized] [Localized] [Localized] retrieval. */
     lateinit var repoContextEngine: RepoContextEngine
         private set
 
-    /** Build Doctor Pro — تشخيص + ذاكرة حلول البناء. */
+    /** Build Doctor Pro — [Localized] + [Localized] [Localized] [Localized]. */
     lateinit var buildDoctorPro: BuildDoctorPro
         private set
 
-    /** محرك التخطيط السببي — تحليل سلاسل الأوامر قبل تنفيذها. */
+    /** [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized]. */
     lateinit var causalChainPlannerTool: CausalChainPlannerTool
         private set
 
-    /** محرك الثقة التدريجية — يتتبّع الثقة ويمنح الصلاحيات. */
+    /** [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized]. */
     lateinit var progressiveTrustEngine: ProgressiveTrustEngine
         private set
 
-    /** مدير المتصفح الخفي — مشترك بين الـ Agent وشاشة عرض المتصفح. */
+    /** [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] Agent [Localized] [Localized] [Localized]. */
     lateinit var headlessBrowserManager: HeadlessBrowserManager
         private set
 
@@ -158,7 +158,7 @@ class OmniDevApp : Application() {
         ExtensionConnectionManager.initialize(applicationContext)
 
         // ═══════════════════════════════════════════════════════════════
-        // 🧠 تهيئة نظام الذاكرة والوعي الذكي (Agent Brain System)
+        // 🧠 [Localized] [Localized] [Localized] [Localized] [Localized] (Agent Brain System)
         // ═══════════════════════════════════════════════════════════════
         initializeAgentBrainSystem()
 
@@ -167,42 +167,42 @@ class OmniDevApp : Application() {
     }
 
     /**
-     * تهيئة نظام عقل الـ Agent الكامل
-     * يتضمن: ذاكرة التنفيذ + الوعي بالأدوات + نظام التعلم
+     * [Localized] [Localized] [Localized] [Localized] Agent [Localized]
+     * [Localized]: [Localized] [Localized] + [Localized] [Localized] + [Localized] [Localized]
      */
     private fun initializeAgentBrainSystem() {
         try {
             val db = OmniDevDatabase.getInstance(applicationContext)
 
-            // 1. إنشاء مجلة التنفيذ
+            // 1. [Localized] [Localized] [Localized]
             toolExecutionJournal = ToolExecutionJournal(
                 dao = db.toolExecutionDao(),
                 scope = appScope
             )
 
-            // 2. إنشاء محرك الوعي بالأدوات
+            // 2. [Localized] [Localized] [Localized] [Localized]
             toolAwarenessEngine = ToolAwarenessEngine(
                 context = applicationContext,
                 systemKnowledgeDao = db.systemKnowledgeDao(),
                 scope = appScope
             )
 
-            // 3. إنشاء مكونات التعلم الذكي
+            // 3. [Localized] [Localized] [Localized] [Localized]
             val intelligenceEngine = ToolIntelligenceEngine(applicationContext, appScope)
             val mlEngine = ToolMachineLearningEngine(applicationContext)
             val monitoringSystem = ToolMonitoringSystem
 
 
-            // 4. إنشاء محرك MCP
+            // 4. [Localized] [Localized] MCP
             val mcpConfigManager = McpConfigManager(applicationContext)
             mcpRegistry = McpRegistry(mcpConfigManager)
 
-            // 5. إنشاء الجسر الذكي المنسق مع Progressive Trust Engine
+            // 5. [Localized] [Localized] [Localized] [Localized] [Localized] Progressive Trust Engine
             val trustEngine = ProgressiveTrustEngine(applicationContext)
             progressiveTrustEngine = trustEngine
 
-            // 6f. Causal Chain Planner — تحليل سلاسل الأوامر قبل تنفيذها (in-memory, no DB)
-            //     مُبكَّر قبل SmartLearningBridge حتى يمكن تمريره كـ dependency
+            // 6f. Causal Chain Planner — [Localized] [Localized] [Localized] [Localized] [Localized] (in-memory, no DB)
+            //     [Localized] [Localized] SmartLearningBridge [Localized] [Localized] [Localized] [Localized] dependency
             //     50 node max per graph — mobile-safe (~50 KB peak)
             causalChainPlannerTool = CausalChainPlannerTool(CausalChainPlanner(maxNodes = 50))
 
@@ -223,15 +223,15 @@ class OmniDevApp : Application() {
             // 🧠 6. Agent Brain 2.0 + Action Insurance + Repo Context + Build Doctor
             // ═══════════════════════════════════════════════════════════════
 
-            // 6a. Reflexion — لقطات الدروس المستفادة (rule-based, on-device)
+            // 6a. Reflexion — [Localized] [Localized] [Localized] (rule-based, on-device)
             reflexionEngine = ReflexionEngine(
                 dao = db.reflexionDao(),
-                maxLessons = 2000,           // ~2 MB في DB
-                topKForInjection = 3,        // 3 دروس فقط في الـ prompt (موفر للـ tokens)
+                maxLessons = 2000,           // ~2 MB [Localized] DB
+                topKForInjection = 3,        // 3 [Localized] [Localized] [Localized] [Localized] prompt ([Localized] [Localized] tokens)
                 scope = appScope
             )
 
-            // 6b. Episodic Memory — حلقات المهام السابقة
+            // 6b. Episodic Memory — [Localized] [Localized] [Localized]
             episodicMemoryStore = EpisodicMemoryStore(
                 dao = db.episodicMemoryDao(),
                 maxEpisodes = 2000,
@@ -239,7 +239,7 @@ class OmniDevApp : Application() {
             )
 
             // 6c. Rollback Manager — Action Insurance
-            //     50 MB max storage، 200 snapshot max، diff-based للملفات الكبيرة
+            //     50 MB max storage[Localized] 200 snapshot max[Localized] diff-based [Localized] [Localized]
             rollbackManager = RollbackManager(
                 dao = db.rollbackDao(),
                 maxSnapshotsPerGroup = 200,
@@ -247,7 +247,7 @@ class OmniDevApp : Application() {
             )
 
             // 6d. Repo Indexer + Context Engine — Live Repository Context
-            //     time budget 30s لكل pass، يعمل incremental
+            //     time budget 30s [Localized] pass[Localized] [Localized] incremental
             repoIndexer = RepoIndexer(
                 dao = db.repoIndexDao(),
                 maxFileSizeBytes = 500L * 1024,
@@ -256,13 +256,13 @@ class OmniDevApp : Application() {
             )
             repoContextEngine = RepoContextEngine(dao = db.repoIndexDao(), indexer = repoIndexer)
 
-            // 6e. Build Doctor Pro — تشخيص + ذاكرة حلول
+            // 6e. Build Doctor Pro — [Localized] + [Localized] [Localized]
             buildDoctorPro = BuildDoctorPro(
                 dao = db.buildDiagnosticDao(),
                 maxEntries = 500
             )
 
-            // 7. تهيئة النظام في الخلفية (اكتشاف البيئة + إحصاءات الذاكرة)
+            // 7. [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] + [Localized] [Localized])
             appScope.launch {
                 try {
                     toolAwarenessEngine.initialize()
@@ -271,26 +271,26 @@ class OmniDevApp : Application() {
                     val episodes = db.episodicMemoryDao().count()
                     val diagnostics = db.buildDiagnosticDao().count()
                     Log.i("OmniDevApp",
-                        "✅ Agent Brain 2.0 جاهز  •  دروس=$lessons  حلقات=$episodes  حلول-بناء=$diagnostics")
+                        "✅ Agent Brain 2.0 [Localized]  •  [Localized]=$lessons  [Localized]=$episodes  [Localized]-[Localized]=$diagnostics")
                 } catch (e: Exception) {
-                    Log.e("OmniDevApp", "⚠️ خطأ في تهيئة Agent Brain: ${e.message}")
+                    Log.e("OmniDevApp", "⚠️ [Localized] [Localized] [Localized] Agent Brain: ${e.message}")
                 }
             }
 
         } catch (e: Exception) {
-            Log.e("OmniDevApp", "❌ فشل في تهيئة Agent Brain System: ${e.message}")
-            // إنشاء نسخ طوارئ حتى لا يتعطل التطبيق
+            Log.e("OmniDevApp", "❌ [Localized] [Localized] [Localized] Agent Brain System: ${e.message}")
+            // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
             val db = OmniDevDatabase.getInstance(applicationContext)
 
             toolExecutionJournal = ToolExecutionJournal(db.toolExecutionDao())
             toolAwarenessEngine = ToolAwarenessEngine(applicationContext, db.systemKnowledgeDao())
             mcpRegistry = McpRegistry(McpConfigManager(applicationContext))
 
-            // إنشاء ProgressiveTrustEngine قبل SmartLearningBridge حتى يمكن تمريره
+            // [Localized] ProgressiveTrustEngine [Localized] SmartLearningBridge [Localized] [Localized] [Localized]
             val fallbackTrustEngine = ProgressiveTrustEngine(applicationContext)
             progressiveTrustEngine = fallbackTrustEngine
 
-            // إنشاء CausalChainPlannerTool قبل SmartLearningBridge حتى يمكن تمريره
+            // [Localized] CausalChainPlannerTool [Localized] SmartLearningBridge [Localized] [Localized] [Localized]
             val fallbackCausalTool = CausalChainPlannerTool(CausalChainPlanner())
             causalChainPlannerTool = fallbackCausalTool
 

@@ -10,14 +10,14 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.exp
 
 /**
- * ToolIntelligenceEngine - محرك الذكاء الاصطناعي للأدوات
+ * ToolIntelligenceEngine - [Localized] [Localized] [Localized] [Localized]
  * 
- * القدرات:
- * 1. التعلم من الاستخدام السابق (Reinforcement Learning)
- * 2. التنبؤ بالأدوات المطلوبة
- * 3. التحسين الذاتي للأداء
- * 4. اكتشاف الأنماط
- * 5. التكيف مع سلوك المستخدم
+ * [Localized]:
+ * 1. [Localized] [Localized] [Localized] [Localized] (Reinforcement Learning)
+ * 2. [Localized] [Localized] [Localized]
+ * 3. [Localized] [Localized] [Localized]
+ * 4. [Localized] [Localized]
+ * 5. [Localized] [Localized] [Localized] [Localized]
  */
 class ToolIntelligenceEngine(
     private val context: Context,
@@ -100,7 +100,7 @@ class ToolIntelligenceEngine(
     // ═══════════════════════════════════════════════════════════════
     
     /**
-     * يتنبأ بأفضل أداة للمهمة الحالية
+     * [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     internal fun predictBestTool(
         taskDescription: String,
@@ -112,10 +112,10 @@ class ToolIntelligenceEngine(
         }
         
         val bestTool = if (shouldExplore()) {
-            // Exploration: اختيار أداة عشوائية للتعلم
+            // Exploration: [Localized] [Localized] [Localized] [Localized]
             availableTools.random()
         } else {
-            // Exploitation: اختيار أفضل أداة معروفة
+            // Exploitation: [Localized] [Localized] [Localized] [Localized]
             scores.maxByOrNull { it.value }?.key ?: availableTools.first()
         }
         
@@ -135,7 +135,7 @@ class ToolIntelligenceEngine(
     }
     
     /**
-     * يحسب درجة الأداة بناءً على عدة عوامل
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     private fun calculateToolScore(
         toolName: String,
@@ -152,13 +152,13 @@ class ToolIntelligenceEngine(
             state.successCount.toDouble() / state.executionCount
         } else 0.5
         
-        // Recency score (أدوات استخدمت مؤخراً)
+        // Recency score ([Localized] [Localized] [Localized])
         val recencyScore = if (state.lastUsed > 0) {
             val hoursSinceUse = (System.currentTimeMillis() - state.lastUsed) / 3600000.0
-            exp(-hoursSinceUse / 24.0) // تضمحل على 24 ساعة
+            exp(-hoursSinceUse / 24.0) // [Localized] [Localized] 24 [Localized]
         } else 0.0
         
-        // Performance score (أدوات سريعة)
+        // Performance score ([Localized] [Localized])
         val performanceScore = if (state.avgExecutionTime > 0) {
             1.0 - (state.avgExecutionTime.toDouble() / SLOW_THRESHOLD_MS).coerceIn(0.0, 1.0)
         } else 0.5
@@ -180,7 +180,7 @@ class ToolIntelligenceEngine(
     }
     
     /**
-     * يحدث نموذج التعلم بعد تنفيذ الأداة
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     internal suspend fun recordExecution(
         toolName: String,
@@ -246,7 +246,7 @@ class ToolIntelligenceEngine(
     }
     
     /**
-     * يحسب المكافأة للتعلم بالتعزيز
+     * [Localized] [Localized] [Localized] [Localized]
      */
     private fun calculateReward(
         success: Boolean,
@@ -281,7 +281,7 @@ class ToolIntelligenceEngine(
     // ═══════════════════════════════════════════════════════════════
     
     /**
-     * يكتشف أنماط استخدام الأدوات
+     * [Localized] [Localized] [Localized] [Localized]
      */
     private fun detectPatterns() {
         if (executionHistory.size < PATTERN_WINDOW_SIZE) return
@@ -317,12 +317,12 @@ class ToolIntelligenceEngine(
         // Clean old patterns
         val now = System.currentTimeMillis()
         detectedPatterns.entries.removeIf { 
-            (now - it.value.lastSeen) > 7 * 24 * 3600000L // أسبوع
+            (now - it.value.lastSeen) > 7 * 24 * 3600000L // [Localized]
         }
     }
     
     /**
-     * يحسب احتمالية أن تكون الأداة جزءاً من نمط
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     private fun calculatePatternScore(
         toolName: String,
@@ -345,7 +345,7 @@ class ToolIntelligenceEngine(
     // ═══════════════════════════════════════════════════════════════
     
     /**
-     * يحلل أداء الأدوات ويقدم توصيات
+     * [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     fun analyzePerformance(): PerformanceReport {
         val recentExecutions = executionHistory.takeLast(PERFORMANCE_WINDOW)
@@ -393,17 +393,17 @@ class ToolIntelligenceEngine(
         val score = scores[tool] ?: 0.0
         
         return buildString {
-            appendLine("🎯 اختيار الأداة: $tool")
-            appendLine("📊 الدرجة الإجمالية: ${(score * 100).toInt()}%")
+            appendLine("🎯 [Localized] [Localized]: $tool")
+            appendLine("📊 [Localized] [Localized]: ${(score * 100).toInt()}%")
             
             state?.let {
                 if (it.executionCount > 0) {
                     val successRate = (it.successCount.toDouble() / it.executionCount * 100).toInt()
-                    appendLine("✅ معدل النجاح: $successRate% (${it.successCount}/${it.executionCount})")
+                    appendLine("✅ [Localized] [Localized]: $successRate% (${it.successCount}/${it.executionCount})")
                 }
                 
                 if (it.avgExecutionTime > 0) {
-                    appendLine("⚡ متوسط وقت التنفيذ: ${it.avgExecutionTime}ms")
+                    appendLine("⚡ [Localized] [Localized] [Localized]: ${it.avgExecutionTime}ms")
                 }
             }
             
@@ -412,11 +412,11 @@ class ToolIntelligenceEngine(
                 it.sequence.getOrNull(it.sequence.size - 2) == context.previousTool
             }
             pattern?.let {
-                appendLine("🔗 جزء من نمط متكرر (${it.frequency} مرات)")
+                appendLine("🔗 [Localized] [Localized] [Localized] [Localized] (${it.frequency} [Localized])")
             }
             
             if (shouldExplore() && scores[tool] != scores.maxByOrNull { it.value }?.value) {
-                appendLine("🔍 وضع الاستكشاف - تجربة أداة جديدة")
+                appendLine("🔍 [Localized] [Localized] - [Localized] [Localized] [Localized]")
             }
         }
     }
@@ -490,7 +490,7 @@ class ToolIntelligenceEngine(
     )
     
     /**
-     * حفظ البيانات للاستمرارية
+     * [Localized] [Localized] [Localized]
      */
     suspend fun persist() = withContext(Dispatchers.IO) {
         try {
@@ -535,7 +535,7 @@ class ToolIntelligenceEngine(
     }
     
     /**
-     * استعادة البيانات
+     * [Localized] [Localized]
      */
     suspend fun restore() = withContext(Dispatchers.IO) {
         try {

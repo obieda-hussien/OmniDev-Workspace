@@ -248,8 +248,8 @@ fun AISettingsScreen(
             )
 
             SettingsNavCard(
-                title = "👤 الملف الشخصي",
-                subtitle = "اسمك وبيانات عنك — أومني هيسلم عليك بالاسم ويتكيف مع أسلوبك",
+                title = "👤 [Localized] [Localized]",
+                subtitle = "[Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]",
                 onClick = onNavigateToProfile
             )
 
@@ -297,11 +297,11 @@ fun AISettingsScreen(
             )
 
             // ═══════════════════════════════════════════════════════════════
-            // 🧠 Agent Brain Dashboard — نظام الذاكرة والوعي الذكي
+            // 🧠 Agent Brain Dashboard — [Localized] [Localized] [Localized] [Localized]
             // ═══════════════════════════════════════════════════════════════
             SettingsNavCard(
                 title = "🧠 Agent Brain",
-                subtitle = "نظام الذاكرة والوعي بالأدوات — سجل التنفيذ، الأنماط المكتسبة، وحالة التعلم",
+                subtitle = "[Localized] [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]",
                 onClick = onNavigateToAgentBrain
             )
 

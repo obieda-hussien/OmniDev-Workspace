@@ -16,20 +16,20 @@ import java.io.File
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * ToolAwarenessEngine — محرك الوعي بالأدوات والنظام
+ * ToolAwarenessEngine — [Localized] [Localized] [Localized] [Localized]
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * يبني وعياً عميقاً ومستمراً عن:
- * 1. الأدوات المتاحة وقدراتها ومتطلباتها
- * 2. حالة النظام والبيئة (Android, Termux, Shizuku, etc.)
- * 3. التبعيات بين الأدوات
- * 4. القيود والحدود لكل أداة
- * 5. أفضل استراتيجيات الاستخدام
+ * [Localized] [Localized] [Localized] [Localized] [Localized]:
+ * 1. [Localized] [Localized] [Localized] [Localized]
+ * 2. [Localized] [Localized] [Localized] (Android, Termux, Shizuku, etc.)
+ * 3. [Localized] [Localized] [Localized]
+ * 4. [Localized] [Localized] [Localized] [Localized]
+ * 5. [Localized] [Localized] [Localized]
  *
- * مستوحى من نهج Claude Code في:
- * - فهم البيئة قبل التنفيذ
- * - تحديث المعرفة بناءً على التجربة
- * - تقديم context enrichment ذكي
+ * [Localized] [Localized] [Localized] Claude Code [Localized]:
+ * - [Localized] [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized] [Localized] [Localized]
+ * - [Localized] context enrichment [Localized]
  */
 class ToolAwarenessEngine(
     private val context: Context,
@@ -40,7 +40,7 @@ class ToolAwarenessEngine(
     companion object {
         private const val TAG = "ToolAwareness"
 
-        // أنواع المعرفة
+        // [Localized] [Localized]
         const val TYPE_TOOL_CAPABILITY = "TOOL_CAPABILITY"
         const val TYPE_TOOL_REQUIREMENT = "TOOL_REQUIREMENT"
         const val TYPE_TOOL_LIMITATION = "TOOL_LIMITATION"
@@ -53,43 +53,43 @@ class ToolAwarenessEngine(
         const val TYPE_ENVIRONMENT = "ENVIRONMENT"
     }
 
-    // ─── الحالة الحالية ───────────────────────────────────────────────
+    // ─── [Localized] [Localized] ───────────────────────────────────────────────
 
     private val runtimeEnvironmentCache = mutableMapOf<String, String>()
     private var isInitialized = false
 
-    // ─── الإعداد الأولي ───────────────────────────────────────────────
+    // ─── [Localized] [Localized] ───────────────────────────────────────────────
 
     /**
-     * الإعداد الأولي: يكتشف البيئة ويسجل المعرفة الأساسية
+     * [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     suspend fun initialize(availableTools: List<ToolDefinition> = emptyList()) = withContext(Dispatchers.IO) {
         if (isInitialized) return@withContext
         
-        Log.d(TAG, "🔍 بدء اكتشاف النظام والأدوات...")
+        Log.d(TAG, "🔍 [Localized] [Localized] [Localized] [Localized]...")
 
-        // 1. معلومات النظام الأساسية
+        // 1. [Localized] [Localized] [Localized]
         discoverSystemEnvironment()
 
-        // 2. فحص الأدوات المتاحة
+        // 2. [Localized] [Localized] [Localized]
         if (availableTools.isNotEmpty()) {
             registerToolCapabilities(availableTools)
         }
 
-        // 3. فحص قدرات الجهاز
+        // 3. [Localized] [Localized] [Localized]
         discoverDeviceCapabilities()
 
-        // 4. فحص البيئات المتاحة
+        // 4. [Localized] [Localized] [Localized]
         discoverRuntimeEnvironments()
 
-        // 5. تسجيل أفضل الممارسات المبدئية
+        // 5. [Localized] [Localized] [Localized] [Localized]
         registerInitialBestPractices()
 
         isInitialized = true
-        Log.d(TAG, "✅ اكتمل اكتشاف النظام - ${systemKnowledgeDao.getCount()} معرفة محفوظة")
+        Log.d(TAG, "✅ [Localized] [Localized] [Localized] - ${systemKnowledgeDao.getCount()} [Localized] [Localized]")
     }
 
-    // ─── اكتشاف البيئة ───────────────────────────────────────────────
+    // ─── [Localized] [Localized] ───────────────────────────────────────────────
 
     private suspend fun discoverSystemEnvironment() {
         val deviceInfo = buildString {
@@ -107,22 +107,22 @@ class ToolAwarenessEngine(
             tags = "android,device,sdk,system"
         )
 
-        // حالة Android API
+        // [Localized] Android API
         val apiLevel = Build.VERSION.SDK_INT
         when {
             apiLevel >= 33 -> saveOrUpdateKnowledge(
                 type = TYPE_SYSTEM_INFO, subject = "android_api",
-                content = "Android 13+ (API $apiLevel): كامل القدرات. MediaStore محدود، Scoped Storage إلزامي.",
+                content = "Android 13+ (API $apiLevel): [Localized] [Localized]. MediaStore [Localized] Scoped Storage [Localized].",
                 priority = 2
             )
             apiLevel >= 30 -> saveOrUpdateKnowledge(
                 type = TYPE_SYSTEM_INFO, subject = "android_api",
-                content = "Android 11+ (API $apiLevel): Scoped Storage. بعض عمليات الملفات تحتاج MANAGE_EXTERNAL_STORAGE.",
+                content = "Android 11+ (API $apiLevel): Scoped Storage. [Localized] [Localized] [Localized] [Localized] MANAGE_EXTERNAL_STORAGE.",
                 priority = 2
             )
             apiLevel >= 26 -> saveOrUpdateKnowledge(
                 type = TYPE_SYSTEM_INFO, subject = "android_api",
-                content = "Android 8+ (API $apiLevel): JobScheduler متاح. Background Limits مُطبَّقة.",
+                content = "Android 8+ (API $apiLevel): JobScheduler [Localized]. Background Limits [Localized].",
                 priority = 3
             )
         }
@@ -131,36 +131,36 @@ class ToolAwarenessEngine(
     private suspend fun discoverDeviceCapabilities() {
         val pm = context.packageManager
 
-        // فحص الكاميرا
+        // [Localized] [Localized]
         val hasCamera = pm.hasSystemFeature("android.hardware.camera")
         if (hasCamera) {
-            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "camera", "الجهاز يدعم الكاميرا", priority = 8)
+            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "camera", "[Localized] [Localized] [Localized]", priority = 8)
         }
 
-        // فحص البلوتوث
+        // [Localized] [Localized]
         val hasBluetooth = pm.hasSystemFeature("android.hardware.bluetooth")
         if (hasBluetooth) {
-            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "bluetooth", "الجهاز يدعم البلوتوث", priority = 8)
+            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "bluetooth", "[Localized] [Localized] [Localized]", priority = 8)
         }
 
-        // حجم الذاكرة
+        // [Localized] [Localized]
         val runtime = Runtime.getRuntime()
         val maxMemMB = runtime.maxMemory() / (1024 * 1024)
         saveKnowledge(
             TYPE_SYSTEM_INFO, "memory",
-            "ذاكرة JVM متاحة: ${maxMemMB}MB - استخدم عمليات streaming للملفات الكبيرة",
+            "[Localized] JVM [Localized]: ${maxMemMB}MB - [Localized] [Localized] streaming [Localized] [Localized]",
             priority = 4,
             tags = "memory,performance,heap"
         )
 
-        // حجم التخزين
+        // [Localized] [Localized]
         try {
             val dataDir = context.filesDir
             val free = dataDir.freeSpace / (1024 * 1024)
             val total = dataDir.totalSpace / (1024 * 1024)
             saveKnowledge(
                 TYPE_SYSTEM_INFO, "storage",
-                "التخزين: ${free}MB حر من أصل ${total}MB",
+                "[Localized]: ${free}MB [Localized] [Localized] [Localized] ${total}MB",
                 priority = 5,
                 tags = "storage,disk,space"
             )
@@ -168,13 +168,13 @@ class ToolAwarenessEngine(
     }
 
     private suspend fun discoverRuntimeEnvironments() {
-        // فحص Termux
+        // [Localized] Termux
         val termuxInstalled = isPackageInstalled("com.termux")
         runtimeEnvironmentCache["termux"] = termuxInstalled.toString()
         if (termuxInstalled) {
             saveKnowledge(
                 TYPE_ENVIRONMENT, "termux",
-                "Termux متاح: يمكن تشغيل Python, Node.js, bash, gcc, git عبر termux_bridge",
+                "Termux [Localized]: [Localized] [Localized] Python, Node.js, bash, gcc, git [Localized] termux_bridge",
                 confidence = 0.9f,
                 priority = 2,
                 tags = "termux,python,nodejs,bash,linux"
@@ -182,20 +182,20 @@ class ToolAwarenessEngine(
         } else {
             saveKnowledge(
                 TYPE_WARNING, "termux",
-                "Termux غير متاح: استخدم AgentRuntimeTool للكود أو agent_sandbox",
+                "Termux [Localized] [Localized]: [Localized] AgentRuntimeTool [Localized] [Localized] agent_sandbox",
                 confidence = 1.0f,
                 priority = 3,
                 tags = "termux,warning"
             )
         }
 
-        // فحص Shizuku
+        // [Localized] Shizuku
         val shizukuInstalled = isPackageInstalled("moe.shizuku.privileged.api")
         runtimeEnvironmentCache["shizuku"] = shizukuInstalled.toString()
         if (shizukuInstalled) {
             saveKnowledge(
                 TYPE_ENVIRONMENT, "shizuku",
-                "Shizuku متاح: يمكن تنفيذ أوامر ADB-level بدون root عبر shizuku_command",
+                "Shizuku [Localized]: [Localized] [Localized] [Localized] ADB-level [Localized] root [Localized] shizuku_command",
                 confidence = 0.8f,
                 priority = 2,
                 tags = "shizuku,adb,privileged,root"
@@ -203,32 +203,32 @@ class ToolAwarenessEngine(
         } else {
             saveKnowledge(
                 TYPE_WARNING, "shizuku",
-                "Shizuku غير متاح: بعض أوامر النظام المتميزة لن تعمل",
+                "Shizuku [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]",
                 confidence = 1.0f,
                 priority = 3,
                 tags = "shizuku,warning"
             )
         }
 
-        // فحص Python مباشرة
+        // [Localized] Python [Localized]
         val pythonExists = File("/data/data/com.termux/files/usr/bin/python3").exists() ||
                            File("/data/data/com.termux/files/usr/bin/python").exists()
         if (pythonExists) {
             saveKnowledge(
                 TYPE_ENVIRONMENT, "python",
-                "Python متاح في Termux: استخدم agent_runtime/python_run لتنفيذ الكود",
+                "Python [Localized] [Localized] Termux: [Localized] agent_runtime/python_run [Localized] [Localized]",
                 confidence = 0.95f,
                 priority = 2,
                 tags = "python,termux,runtime,code"
             )
         }
 
-        // فحص Git
+        // [Localized] Git
         val gitExists = File("/data/data/com.termux/files/usr/bin/git").exists()
         if (gitExists) {
             saveKnowledge(
                 TYPE_ENVIRONMENT, "git",
-                "Git متاح في Termux: استخدم git_manager أو terminal لعمليات Git",
+                "Git [Localized] [Localized] Termux: [Localized] git_manager [Localized] terminal [Localized] Git",
                 confidence = 0.95f,
                 priority = 3,
                 tags = "git,termux,vcs"
@@ -239,11 +239,11 @@ class ToolAwarenessEngine(
     private suspend fun registerToolCapabilities(tools: List<ToolDefinition>) {
         tools.forEach { tool ->
             val capability = buildString {
-                append("الأداة: ${tool.name}")
-                append(" | الوصف: ${tool.description.take(200)}")
+                append("[Localized]: ${tool.name}")
+                append(" | [Localized]: ${tool.description.take(200)}")
                 if (tool.parameters.isNotEmpty()) {
-                    append(" | المعاملات: ${tool.parameters.joinToString(", ") { p ->
-                        "${p.name}(${if (p.required) "مطلوب" else "اختياري"})"
+                    append(" | [Localized]: ${tool.parameters.joinToString(", ") { p ->
+                        "${p.name}(${if (p.required) "[Localized]" else "[Localized]"})"
                     }}")
                 }
             }
@@ -257,44 +257,44 @@ class ToolAwarenessEngine(
                 source = "tool_registry"
             )
         }
-        Log.d(TAG, "📋 سُجِّل ${tools.size} أداة في قاعدة المعرفة")
+        Log.d(TAG, "📋 [Localized] ${tools.size} [Localized] [Localized] [Localized] [Localized]")
     }
 
     private suspend fun registerInitialBestPractices() {
         val practices = listOf(
             Triple(
                 "file_operations",
-                "عند قراءة الملفات: استخدم read_file_lines للملفات الصغيرة. للملفات الكبيرة (+1MB) استخدم find_files أو grep_search أولاً لتحديد المقطع المطلوب.",
+                "[Localized] [Localized] [Localized]: [Localized] read_file_lines [Localized] [Localized]. [Localized] [Localized] (+1MB) [Localized] find_files [Localized] grep_search [Localized] [Localized] [Localized] [Localized].",
                 "file,read,performance"
             ),
             Triple(
                 "memory_usage",
-                "ابدأ كل مهمة بـ search_knowledge للبحث عن معلومات ذات صلة. احفظ القرارات المهمة بـ remember_fact. لا تكرر البحث عن نفس المعلومة.",
+                "[Localized] [Localized] [Localized] [Localized] search_knowledge [Localized] [Localized] [Localized] [Localized] [Localized]. [Localized] [Localized] [Localized] [Localized] remember_fact. [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].",
                 "memory,context,efficiency"
             ),
             Triple(
                 "terminal_safety",
-                "قبل تنفيذ أوامر terminal خطرة: استخدم dry-run أو echo أولاً. تجنب rm -rf. استخدم paths مطلقة دائماً.",
+                "[Localized] [Localized] [Localized] terminal [Localized]: [Localized] dry-run [Localized] echo [Localized]. [Localized] rm -rf. [Localized] paths [Localized] [Localized].",
                 "terminal,safety,commands"
             ),
             Triple(
                 "web_search_strategy",
-                "للبحث: ابدأ بـ web_search (سريع). استخدم web_scraper للصفحات المحددة. استخدم headless_browser فقط للمواقع التي تحتاج JavaScript.",
+                "[Localized]: [Localized] [Localized] web_search ([Localized]). [Localized] web_scraper [Localized] [Localized]. [Localized] headless_browser [Localized] [Localized] [Localized] [Localized] JavaScript.",
                 "web,search,strategy"
             ),
             Triple(
                 "git_workflow",
-                "سير عمل Git: تحقق من الفروع أولاً → اعمل في فرع مؤقت → commit متكرر → لا تدفع مباشرة للـ main",
+                "[Localized] [Localized] Git: [Localized] [Localized] [Localized] [Localized] → [Localized] [Localized] [Localized] [Localized] → commit [Localized] → [Localized] [Localized] [Localized] [Localized] main",
                 "git,workflow,best_practice"
             ),
             Triple(
                 "error_handling",
-                "عند الفشل: اقرأ رسالة الخطأ بالكامل → تحقق من الصلاحيات → جرب بديلاً أبسط → سجل التعلم بـ remember_fact",
+                "[Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] → [Localized] [Localized] [Localized] → [Localized] [Localized] [Localized] → [Localized] [Localized] [Localized] remember_fact",
                 "error,debugging,recovery"
             ),
             Triple(
                 "tool_selection",
-                "اختر الأداة الأبسط أولاً. مثال: للبحث في الكود استخدم grep_search (أسرع) قبل read_file. للنظام استخدم get_device_info قبل shizuku_command.",
+                "[Localized] [Localized] [Localized] [Localized]. [Localized]: [Localized] [Localized] [Localized] [Localized] grep_search ([Localized]) [Localized] read_file. [Localized] [Localized] get_device_info [Localized] shizuku_command.",
                 "tool_selection,efficiency,performance"
             )
         )
@@ -311,10 +311,10 @@ class ToolAwarenessEngine(
         }
     }
 
-    // ─── التحديث الديناميكي ───────────────────────────────────────────
+    // ─── [Localized] [Localized] ───────────────────────────────────────────
 
     /**
-     * يحدث المعرفة بناءً على تجربة تنفيذ أداة
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     suspend fun learnFromExecution(
         toolName: String,
@@ -328,7 +328,7 @@ class ToolAwarenessEngine(
                 saveOrUpdateKnowledge(
                     type = TYPE_TOOL_REQUIREMENT,
                     subject = toolName,
-                    content = "⚠️ $toolName تحتاج صلاحيات خاصة. خطأ: ${errorMessage.take(150)}",
+                    content = "⚠️ $toolName [Localized] [Localized] [Localized]. [Localized]: ${errorMessage.take(150)}",
                     confidence = 0.9f,
                     priority = 2,
                     tags = "permission,requirement,$toolName"
@@ -339,7 +339,7 @@ class ToolAwarenessEngine(
                 saveOrUpdateKnowledge(
                     type = TYPE_TOOL_LIMITATION,
                     subject = toolName,
-                    content = "🚫 $toolName غير متاحة في هذه البيئة: ${errorMessage.take(150)}",
+                    content = "🚫 $toolName [Localized] [Localized] [Localized] [Localized] [Localized]: ${errorMessage.take(150)}",
                     confidence = 0.95f,
                     priority = 1,
                     tags = "unavailable,limitation,$toolName"
@@ -350,7 +350,7 @@ class ToolAwarenessEngine(
                 saveOrUpdateKnowledge(
                     type = TYPE_TOOL_LIMITATION,
                     subject = "${toolName}_timeout",
-                    content = "⏱️ $toolName تنتهي مدتها عند معاملات معينة (${executionTimeMs}ms). استخدم نطاقاً أضيق.",
+                    content = "⏱️ $toolName [Localized] [Localized] [Localized] [Localized] [Localized] (${executionTimeMs}ms). [Localized] [Localized] [Localized].",
                     confidence = 0.8f,
                     priority = 2,
                     tags = "timeout,performance,$toolName"
@@ -358,11 +358,11 @@ class ToolAwarenessEngine(
             }
 
             success && executionTimeMs < 200 -> {
-                // أداة سريعة جداً - معلومة مفيدة
+                // [Localized] [Localized] [Localized] - [Localized] [Localized]
                 saveOrUpdateKnowledge(
                     type = TYPE_TOOL_CAPABILITY,
                     subject = "${toolName}_performance",
-                    content = "⚡ $toolName سريعة جداً (avg ~${executionTimeMs}ms) - يمكن استخدامها بحرية",
+                    content = "⚡ $toolName [Localized] [Localized] (avg ~${executionTimeMs}ms) - [Localized] [Localized] [Localized]",
                     confidence = 0.7f,
                     priority = 7,
                     tags = "fast,performance,$toolName"
@@ -372,7 +372,7 @@ class ToolAwarenessEngine(
     }
 
     /**
-     * يكتشف ويسجل تبعية بين أداتين
+     * [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     suspend fun recordToolDependency(toolA: String, toolB: String, description: String) {
         saveKnowledge(
@@ -385,7 +385,7 @@ class ToolAwarenessEngine(
     }
 
     /**
-     * يسجل نمطاً اكتشفه الـ Agent
+     * [Localized] [Localized] [Localized] [Localized] Agent
      */
     suspend fun recordPattern(patternName: String, description: String, confidence: Float = 0.8f) {
         saveKnowledge(
@@ -398,11 +398,11 @@ class ToolAwarenessEngine(
         )
     }
 
-    // ─── بناء System Prompt Context ───────────────────────────────────
+    // ─── [Localized] System Prompt Context ───────────────────────────────────
 
     /**
-     * يبني حقن السياق لـ System Prompt
-     * هذا ما يجعل الـ Agent "واعياً" بالبيئة والأدوات
+     * [Localized] [Localized] [Localized] [Localized] System Prompt
+     * [Localized] [Localized] [Localized] [Localized] Agent "[Localized]" [Localized] [Localized]
      */
     suspend fun buildSystemPromptContext(): String = withContext(Dispatchers.IO) {
         val systemInfo = systemKnowledgeDao.getByType(TYPE_SYSTEM_INFO)
@@ -417,34 +417,34 @@ class ToolAwarenessEngine(
             appendLine("║  🧠 SYSTEM & TOOL AWARENESS CONTEXT         ║")
             appendLine("╚══════════════════════════════════════════════╝")
 
-            // معلومات البيئة
+            // [Localized] [Localized]
             if (environments.isNotEmpty() || systemInfo.isNotEmpty()) {
-                appendLine("\n📱 البيئة المتاحة:")
+                appendLine("\n📱 [Localized] [Localized]:")
                 (environments + systemInfo.filter { it.subject.contains("android") || it.subject == "memory" })
                     .take(6).forEach { k ->
                         appendLine("  • ${k.content.take(120)}")
                     }
             }
 
-            // القيود والتحذيرات (مهم جداً!)
+            // [Localized] [Localized] ([Localized] [Localized]!)
             if (limitations.isNotEmpty() || warnings.isNotEmpty()) {
-                appendLine("\n⚠️ قيود معروفة (تجنّب هذه الأخطاء):")
+                appendLine("\n⚠️ [Localized] [Localized] ([Localized] [Localized] [Localized]):")
                 (limitations + warnings).take(5).forEach { k ->
                     appendLine("  ✗ ${k.content.take(120)}")
                 }
             }
 
-            // أفضل الممارسات
+            // [Localized] [Localized]
             if (bestPractices.isNotEmpty()) {
-                appendLine("\n💡 أفضل الممارسات:")
+                appendLine("\n💡 [Localized] [Localized]:")
                 bestPractices.take(5).forEach { k ->
                     appendLine("  ✓ [${k.subject}] ${k.content.take(150)}")
                 }
             }
 
-            // قدرات خاصة
+            // [Localized] [Localized]
             if (capabilities.isNotEmpty()) {
-                appendLine("\n⚡ قدرات متاحة: ${capabilities.joinToString(", ") { it.subject }}")
+                appendLine("\n⚡ [Localized] [Localized]: ${capabilities.joinToString(", ") { it.subject }}")
             }
 
             appendLine("══════════════════════════════════════════════")
@@ -452,7 +452,7 @@ class ToolAwarenessEngine(
     }
 
     /**
-     * يبحث عن معرفة ذات صلة بأداة معينة
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     suspend fun getToolKnowledge(toolName: String): String? = withContext(Dispatchers.IO) {
         val entries = systemKnowledgeDao.search(toolName, limit = 8)
@@ -472,13 +472,13 @@ class ToolAwarenessEngine(
     }
 
     /**
-     * يسترجع كل المعرفة ذات الأولوية العالية لحقنها في System Prompt
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] System Prompt
      */
     suspend fun getCriticalKnowledge(): List<SystemKnowledgeEntry> = withContext(Dispatchers.IO) {
         systemKnowledgeDao.getForSystemPrompt(maxPriority = 3, limit = 10)
     }
 
-    // ─── الدوال المساعدة ─────────────────────────────────────────────
+    // ─── [Localized] [Localized] ─────────────────────────────────────────────
 
     private suspend fun saveKnowledge(
         type: String,
@@ -504,7 +504,7 @@ class ToolAwarenessEngine(
                 )
             )
         } catch (e: Exception) {
-            Log.w(TAG, "فشل في حفظ المعرفة: $subject - ${e.message}")
+            Log.w(TAG, "[Localized] [Localized] [Localized] [Localized]: $subject - ${e.message}")
         }
     }
 
@@ -541,7 +541,7 @@ class ToolAwarenessEngine(
         }
     }
 
-    // ─── Flow للواجهة ─────────────────────────────────────────────────
+    // ─── Flow [Localized] ─────────────────────────────────────────────────
 
     fun observeKnowledge(): Flow<List<SystemKnowledgeEntry>> = systemKnowledgeDao.observeAllValid()
 
@@ -570,7 +570,7 @@ class ToolAwarenessEngine(
         systemKnowledgeDao.invalidateById(id)
     }
 
-    // ─── إحصائيات ────────────────────────────────────────────────────
+    // ─── [Localized] ────────────────────────────────────────────────────
 
     suspend fun getStats(): AwarenessStats = withContext(Dispatchers.IO) {
         val total = systemKnowledgeDao.getCount()

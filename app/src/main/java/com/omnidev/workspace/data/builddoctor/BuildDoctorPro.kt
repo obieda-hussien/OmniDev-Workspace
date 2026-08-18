@@ -9,23 +9,23 @@ import kotlinx.coroutines.withContext
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * BuildDoctorPro — طبيب البناء الذكي (Brain 2.0)
+ * BuildDoctorPro — [Localized] [Localized] [Localized] (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Mobile-first: قاعدة معرفة محلية تتعلم من فشل/نجاح إصلاحات سابقة:
+ * Mobile-first: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]/[Localized] [Localized] [Localized]:
  *
- *   1) **Fingerprint-based dedup**: نفس الخطأ المتكرر يُحفظ مرة واحدة، عدّاد
- *      تكراراته يزداد.
+ *   1) **Fingerprint-based dedup**: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+ *      [Localized] [Localized].
  *
- *   2) **Solution memory**: لو نجح إصلاح سابقاً (الـ Agent عدّل الكود وبنى بنجاح)،
- *      نخزن الـ diff مضغوطاً Deflate ونسترجعه بثقة في المرة التالية.
+ *   2) **Solution memory**: [Localized] [Localized] [Localized] [Localized] ([Localized] Agent [Localized] [Localized] [Localized] [Localized])[Localized]
+ *      [Localized] [Localized] diff [Localized] Deflate [Localized] [Localized] [Localized] [Localized] [Localized].
  *
- *   3) **Confidence ranking**: الحلول مع successfulFixCount > 0 تُقدَّم أولاً.
- *      الحلول التي فشلت أكثر من مرة تُعاقب.
+ *   3) **Confidence ranking**: [Localized] [Localized] successfulFixCount > 0 [Localized] [Localized].
+ *      [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
  *
- *   4) **500 سجل max + LRU eviction** (مساحة < 5 MB إجمالاً).
+ *   4) **500 [Localized] max + LRU eviction** ([Localized] < 5 MB [Localized]).
  *
- *   5) **No external deps**: لا API calls، لا LLM. خوارزميات regex + SQL فقط.
+ *   5) **No external deps**: [Localized] API calls[Localized] [Localized] LLM. [Localized] regex + SQL [Localized].
  */
 class BuildDoctorPro(
     private val dao: BuildDiagnosticDao,
@@ -37,7 +37,7 @@ class BuildDoctorPro(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Diagnose — تحليل + إعادة استخدام حلول سابقة
+    // Diagnose — [Localized] + [Localized] [Localized] [Localized] [Localized]
     // ──────────────────────────────────────────────────────────────────
 
     data class Diagnosis(
@@ -60,10 +60,10 @@ class BuildDoctorPro(
     )
 
     /**
-     * يُحلل output الـ build، يُرجع:
-     *   - الأخطاء المُحلَّلة
-     *   - الحلول المعروفة (لأخطاء سبق رؤيتها)
-     *   - الأخطاء الجديدة (لم تُسجَّل من قبل)
+     * [Localized] output [Localized] build[Localized] [Localized]:
+     *   - [Localized] [Localized]
+     *   - [Localized] [Localized] ([Localized] [Localized] [Localized])
+     *   - [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized])
      */
     suspend fun diagnose(
         buildOutput: String,
@@ -107,7 +107,7 @@ class BuildDoctorPro(
                     )
                 }
             } else {
-                // سجل خطأ جديد بدون حل
+                // [Localized] [Localized] [Localized] [Localized] [Localized]
                 val files = if (err.filePath.isNotBlank()) err.filePath.take(200) else ""
                 val now = System.currentTimeMillis()
                 val entry = BuildDiagnosticEntry(
@@ -148,14 +148,14 @@ class BuildDoctorPro(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Solution recording (يُستدعى بعد محاولة إصلاح)
+    // Solution recording ([Localized] [Localized] [Localized] [Localized])
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * يُسجل أن الإصلاح نجح: نخزن الـ diff الذي قاد للنجاح.
-     * @param fingerprint بصمة الخطأ
-     * @param solutionDiff الـ diff الذي طبّقه الـ Agent (سيُضغط)
-     * @param explanation شرح بشري قصير (≤ 200 حرف)
+     * [Localized] [Localized] [Localized] [Localized]: [Localized] [Localized] diff [Localized] [Localized] [Localized].
+     * @param fingerprint [Localized] [Localized]
+     * @param solutionDiff [Localized] diff [Localized] [Localized] [Localized] Agent ([Localized])
+     * @param explanation [Localized] [Localized] [Localized] (≤ 200 [Localized])
      */
     suspend fun recordSuccessfulFix(
         fingerprint: String,
@@ -182,7 +182,7 @@ class BuildDoctorPro(
         }
     }
 
-    /** يُسجل فشل المحاولة (لا يحذف الحل، فقط يخفض ثقته). */
+    /** [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized] [Localized] [Localized]). */
     suspend fun recordFailedFix(fingerprint: String) = withContext(Dispatchers.IO) {
         try {
             val existing = dao.findByFingerprint(fingerprint) ?: return@withContext

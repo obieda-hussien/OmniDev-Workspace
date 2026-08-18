@@ -6,30 +6,30 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * ScriptRunnerTool — تشغيل السكريبتات للـ Norm Tier فما فوق
+ * ScriptRunnerTool — [Localized] [Localized] [Localized] Norm Tier [Localized] [Localized]
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * يُوفّر أداتين:
+ * [Localized] [Localized]:
  *
- * 1. **run_script** — تشغيل سكريبت بلغات مختلفة:
- *    - `shell` → يُعيد توجيه إلى `run_terminal` (أو ProcessBuilder إذا لم يكن متاحاً)
- *    - `python` → يُعيد توجيه إلى Python عبر Termux إن وجد
- *    - `js`     → تقييم تعبيرات JavaScript بسيطة عبر المُقيّم الداخلي
+ * 1. **run_script** — [Localized] [Localized] [Localized] [Localized]:
+ *    - `shell` → [Localized] [Localized] [Localized] `run_terminal` ([Localized] ProcessBuilder [Localized] [Localized] [Localized] [Localized])
+ *    - `python` → [Localized] [Localized] [Localized] Python [Localized] Termux [Localized] [Localized]
+ *    - `js`     → [Localized] [Localized] JavaScript [Localized] [Localized] [Localized] [Localized]
  *
- * 2. **eval_expression** — تقييم تعبيرات رياضية/منطقية بأمان تام:
- *    - يدعم: +، -، *، /، %، >، <، ==، !=، &&، ||، !
- *    - Recursive-descent parser — بدون eval() أو reflection
- *    - آمن تماماً ضد code injection
+ * 2. **eval_expression** — [Localized] [Localized] [Localized]/[Localized] [Localized] [Localized]:
+ *    - [Localized]: +[Localized] -[Localized] *[Localized] /[Localized] %[Localized] >[Localized] <[Localized] ==[Localized] !=[Localized] &&[Localized] ||[Localized] !
+ *    - Recursive-descent parser — [Localized] eval() [Localized] reflection
+ *    - [Localized] [Localized] [Localized] code injection
  *
  * ## Mobile-First:
- * - بدون مكتبات خارجية
- * - المُقيّم الداخلي < 1ms لمعظم التعبيرات
- * - Timeout قابل للضبط (افتراضي 5000ms)
+ * - [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] < 1ms [Localized] [Localized]
+ * - Timeout [Localized] [Localized] ([Localized] 5000ms)
  *
- * ## الأمان:
- * - shell/python يُعيد توجيه فقط — لا تنفيذ مباشر
- * - JS evaluator يسمح فقط بالعمليات الحسابية/المنطقية
- * - لا eval()، لا Reflection، لا ClassLoader
+ * ## [Localized]:
+ * - shell/python [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized]
+ * - JS evaluator [Localized] [Localized] [Localized] [Localized]/[Localized]
+ * - [Localized] eval()[Localized] [Localized] Reflection[Localized] [Localized] ClassLoader
  */
 class ScriptRunnerTool {
 
@@ -41,32 +41,32 @@ class ScriptRunnerTool {
 
         ToolDefinition(
             name = "run_script",
-            description = """تشغيل سكريبت في بيئة محكومة.
-اللغات المدعومة:
-- shell  → يُنفَّذ عبر ProcessBuilder أو يُعيد توجيه إلى run_terminal
-- python → يُنفَّذ عبر Termux Python إن كان مثبتاً
-- js     → تقييم تعبيرات JavaScript أساسية (حسابات، سلاسل نصية، متغيرات)
+            description = """[Localized] [Localized] [Localized] [Localized] [Localized].
+[Localized] [Localized]:
+- shell  → [Localized] [Localized] ProcessBuilder [Localized] [Localized] [Localized] [Localized] run_terminal
+- python → [Localized] [Localized] Termux Python [Localized] [Localized] [Localized]
+- js     → [Localized] [Localized] JavaScript [Localized] ([Localized] [Localized] [Localized] [Localized])
 
-ملاحظة: shell وpython يتطلبان صلاحية terminal_access (NORM+).
-لتقييم تعابير رياضية/منطقية بسيطة استخدم eval_expression.
+[Localized]: shell [Localized]python [Localized] [Localized] terminal_access (NORM+).
+[Localized] [Localized] [Localized]/[Localized] [Localized] [Localized] eval_expression.
 """,
             parameters = listOf(
                 ToolParameter(
                     name = "language",
                     type = "string",
-                    description = "لغة السكريبت: 'js' | 'python' | 'shell'",
+                    description = "[Localized] [Localized]: 'js' | 'python' | 'shell'",
                     required = true
                 ),
                 ToolParameter(
                     name = "code",
                     type = "string",
-                    description = "كود السكريبت المراد تشغيله",
+                    description = "[Localized] [Localized] [Localized] [Localized]",
                     required = true
                 ),
                 ToolParameter(
                     name = "timeout_ms",
                     type = "string",
-                    description = "مهلة التنفيذ بالميلي ثانية (افتراضي: 5000)",
+                    description = "[Localized] [Localized] [Localized] [Localized] ([Localized]: 5000)",
                     required = false
                 )
             )
@@ -74,29 +74,29 @@ class ScriptRunnerTool {
 
         ToolDefinition(
             name = "eval_expression",
-            description = """تقييم تعبيرات رياضية ومنطقية بأمان تام.
-تدعم:
-- العمليات الحسابية: +، -، *، /، %، القيم السالبة
-- المقارنات: >، <، >=، <=، ==، !=
-- المنطق: &&، ||، !
-- الأقواس للتقديم والتأخير
-- الأعداد الصحيحة والعشرية
-- قيم boolean: true/false
+            description = """[Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+[Localized]:
+- [Localized] [Localized]: +[Localized] -[Localized] *[Localized] /[Localized] %[Localized] [Localized] [Localized]
+- [Localized]: >[Localized] <[Localized] >=[Localized] <=[Localized] ==[Localized] !=
+- [Localized]: &&[Localized] ||[Localized] !
+- [Localized] [Localized] [Localized]
+- [Localized] [Localized] [Localized]
+- [Localized] boolean: true/false
 
-أمثلة:
+[Localized]:
 - "2 + 3 * 4" → 14
 - "(2 + 3) * 4" → 20
 - "10 > 5 && 3 < 7" → true
 - "100 % 7" → 2
 - "!false || (3 == 3)" → true
 
-آمن تماماً — لا eval()، لا reflection، لا access للنظام.
+[Localized] [Localized] — [Localized] eval()[Localized] [Localized] reflection[Localized] [Localized] access [Localized].
 """,
             parameters = listOf(
                 ToolParameter(
                     name = "expression",
                     type = "string",
-                    description = "التعبير المراد تقييمه",
+                    description = "[Localized] [Localized] [Localized]",
                     required = true
                 )
             )
@@ -107,7 +107,7 @@ class ScriptRunnerTool {
     // Execution
     // ──────────────────────────────────────────────────────────────────────────
 
-    /** يُعيد null إذا الأداة ليست مملوكة لهذا الـ wrapper. */
+    /** [Localized] null [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] wrapper. */
     suspend fun execute(name: String, args: Map<String, String>): ToolExecutionResult? {
         if (name !in HANDLED) return null
         return try {
@@ -150,13 +150,13 @@ class ScriptRunnerTool {
     }
 
     /**
-     * تشغيل JavaScript — محاولة تقييم تعبيرات بسيطة عبر المُقيّم الداخلي.
-     * بالنسبة للسكريبتات المعقدة التي تتضمن console.log أو دالات، نُعيد رسالة واضحة.
+     * [Localized] JavaScript — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * [Localized] [Localized] [Localized] [Localized] [Localized] console.log [Localized] [Localized] [Localized] [Localized] [Localized].
      */
     private suspend fun runJavaScript(code: String, timeoutMs: Long): ToolExecutionResult {
         return withTimeoutOrNull(timeoutMs) {
             try {
-                // محاولة استخدام ScriptEngineManager إن كان متاحاً (JVM فقط، ليس Android)
+                // [Localized] [Localized] ScriptEngineManager [Localized] [Localized] [Localized] (JVM [Localized] [Localized] Android)
                 tryScriptEngineManager(code)
                     ?: runJsWithBasicInterpreter(code)
             } catch (e: Exception) {
@@ -166,8 +166,8 @@ class ScriptRunnerTool {
     }
 
     /**
-     * محاولة ScriptEngineManager (يعمل على JVM/Roboelectric، لا يعمل على Android runtime).
-     * يُعيد null إذا لم يكن متاحاً.
+     * [Localized] ScriptEngineManager ([Localized] [Localized] JVM/Roboelectric[Localized] [Localized] [Localized] [Localized] Android runtime).
+     * [Localized] null [Localized] [Localized] [Localized] [Localized].
      */
     private fun tryScriptEngineManager(code: String): ToolExecutionResult? {
         return try {
@@ -181,42 +181,42 @@ class ScriptRunnerTool {
             val result = evalMethod.invoke(engine, code)
             ToolExecutionResult("${result ?: "undefined"}")
         } catch (e: ClassNotFoundException) {
-            null // ScriptEngineManager غير متاح (Android runtime)
+            null // ScriptEngineManager [Localized] [Localized] (Android runtime)
         } catch (e: Exception) {
             null
         }
     }
 
     /**
-     * مُفسّر JavaScript بسيط للتعبيرات الأساسية.
-     * يدعم: العمليات الحسابية، المقارنات، المنطق، الـ String literals.
+     * [Localized] JavaScript [Localized] [Localized] [Localized].
+     * [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] String literals.
      */
     private fun runJsWithBasicInterpreter(code: String): ToolExecutionResult {
         val trimmed = code.trim()
 
-        // إذا كان السكريبت أكثر من سطر أو يحتوي على function/var/let/const/console
+        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] function/var/let/const/console
         val hasComplexKeywords = listOf("function", "var ", "let ", "const ", "console.", "return ", "if ", "for ", "while ").any {
             trimmed.contains(it)
         }
 
         if (hasComplexKeywords || trimmed.contains('\n')) {
-            // بالنسبة للسكريبتات المعقدة: نحاول تنفيذها عبر Termux Node.js
+            // [Localized] [Localized] [Localized]: [Localized] [Localized] [Localized] Termux Node.js
             return runViaTermuxNode(trimmed)
         }
 
-        // محاولة eval_expression للتعبيرات البسيطة
+        // [Localized] eval_expression [Localized] [Localized]
         return try {
             val parser = SafeExpressionParser(trimmed)
             val result = parser.parse()
             ToolExecutionResult(formatEvalResult(result))
         } catch (e: Exception) {
-            // محاولة أخيرة: Termux
+            // [Localized] [Localized]: Termux
             runViaTermuxNode(trimmed)
         }
     }
 
     /**
-     * تشغيل عبر Termux Node.js إن كان متاحاً.
+     * [Localized] [Localized] Termux Node.js [Localized] [Localized] [Localized].
      */
     private fun runViaTermuxNode(code: String): ToolExecutionResult {
         return try {
@@ -238,12 +238,12 @@ class ScriptRunnerTool {
     }
 
     /**
-     * تشغيل Python عبر Termux.
+     * [Localized] Python [Localized] Termux.
      */
     private suspend fun runPython(code: String, timeoutMs: Long): ToolExecutionResult {
         return withTimeoutOrNull(timeoutMs) {
             try {
-                // محاولة python3 أولاً، ثم python
+                // [Localized] python3 [Localized] [Localized] python
                 val pythonBins = listOf(
                     "/data/data/com.termux/files/usr/bin/python3",
                     "/data/data/com.termux/files/usr/bin/python",
@@ -277,7 +277,7 @@ class ScriptRunnerTool {
     }
 
     /**
-     * تشغيل Shell — يستخدم sh/bash مباشرة.
+     * [Localized] Shell — [Localized] sh/bash [Localized].
      */
     private suspend fun runShell(code: String, timeoutMs: Long): ToolExecutionResult {
         return withTimeoutOrNull(timeoutMs) {
@@ -293,7 +293,7 @@ class ScriptRunnerTool {
     }
 
     /**
-     * تشغيل عملية خارجية مع Timeout.
+     * [Localized] [Localized] [Localized] [Localized] Timeout.
      */
     private fun runProcessWithTimeout(command: List<String>, timeoutMs: Long): ToolExecutionResult {
         val process = ProcessBuilder(command)
@@ -350,7 +350,7 @@ class ScriptRunnerTool {
     companion object {
         val HANDLED = setOf("run_script", "eval_expression")
 
-        /** تنسيق نتيجة التقييم بشكل قابل للقراءة */
+        /** [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] */
         internal fun formatEvalResult(result: Any): String = when (result) {
             is Double -> if (result % 1.0 == 0.0 && result >= Long.MIN_VALUE.toDouble() && result <= Long.MAX_VALUE.toDouble()) {
                 result.toLong().toString()
@@ -364,17 +364,17 @@ class ScriptRunnerTool {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// SafeExpressionParser — مُقيّم تعابير بأمان تام
-// Recursive-descent parser — لا eval()، لا reflection
+// SafeExpressionParser — [Localized] [Localized] [Localized] [Localized]
+// Recursive-descent parser — [Localized] eval()[Localized] [Localized] reflection
 // ════════════════════════════════════════════════════════════════════════════
 
-/** استثناء خاص بأخطاء تحليل التعابير */
+/** [Localized] [Localized] [Localized] [Localized] [Localized] */
 class ExpressionParseException(message: String) : Exception(message)
 
 /**
- * مُقيّم تعابير رياضية/منطقية آمن.
+ * [Localized] [Localized] [Localized]/[Localized] [Localized].
  *
- * القواعد المدعومة (بترتيب الأولوية من الأدنى للأعلى):
+ * [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized] [Localized]):
  *   expr     → or_expr
  *   or_expr  → and_expr ('||' and_expr)*
  *   and_expr → not_expr ('&&' not_expr)*
@@ -389,7 +389,7 @@ internal class SafeExpressionParser(private val input: String) {
 
     private var pos = 0
 
-    /** نقطة الدخول الرئيسية */
+    /** [Localized] [Localized] [Localized] */
     fun parse(): Any {
         skipWhitespace()
         val result = parseOr()
@@ -402,7 +402,7 @@ internal class SafeExpressionParser(private val input: String) {
         return result
     }
 
-    // ── مستويات الأولوية ──────────────────────────────────────────────────
+    // ── [Localized] [Localized] ──────────────────────────────────────────────────
 
     private fun parseOr(): Any {
         var left = parseAnd()
@@ -428,9 +428,9 @@ internal class SafeExpressionParser(private val input: String) {
         skipWhitespace()
         if (pos < input.length && input[pos] == '!') {
             pos++ // consume '!'
-            // تأكد من أنه ليس !=
+            // [Localized] [Localized] [Localized] [Localized] !=
             if (pos < input.length && input[pos] == '=') {
-                pos-- // أعده، سيتعامل معه cmp_expr
+                pos-- // [Localized] [Localized] [Localized] cmp_expr
                 return parseComparison()
             }
             val operand = parseNot()
@@ -529,7 +529,7 @@ internal class SafeExpressionParser(private val input: String) {
         skipWhitespace()
         if (pos >= input.length) throw ExpressionParseException("Unexpected end of expression")
 
-        // أقواس
+        // [Localized]
         if (input[pos] == '(') {
             pos++ // consume '('
             val result = parseOr()
@@ -551,7 +551,7 @@ internal class SafeExpressionParser(private val input: String) {
             return false
         }
 
-        // أرقام (صحيحة أو عشرية)
+        // [Localized] ([Localized] [Localized] [Localized])
         if (input[pos].isDigit() || (input[pos] == '.' && pos + 1 < input.length && input[pos + 1].isDigit())) {
             return parseNumber()
         }
@@ -571,7 +571,7 @@ internal class SafeExpressionParser(private val input: String) {
             ?: throw ExpressionParseException("Invalid number: $numStr")
     }
 
-    // ── أدوات مساعدة ──────────────────────────────────────────────────────
+    // ── [Localized] [Localized] ──────────────────────────────────────────────────────
 
     private fun skipWhitespace() {
         while (pos < input.length && input[pos].isWhitespace()) pos++
@@ -605,7 +605,7 @@ internal class SafeExpressionParser(private val input: String) {
 }
 
 /**
- * تنسيق نتيجة التقييم — wrapper للاستخدام خارج ScriptRunnerTool.
- * مُصدَّر للاختبارات.
+ * [Localized] [Localized] [Localized] — wrapper [Localized] [Localized] ScriptRunnerTool.
+ * [Localized] [Localized].
  */
 internal fun Any.formatResult(): String = ScriptRunnerTool.formatEvalResult(this)

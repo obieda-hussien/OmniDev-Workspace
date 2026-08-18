@@ -5,15 +5,15 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * RepoFileIndexEntry — سجل كل ملف في Live Repository Context Engine.
+ * RepoFileIndexEntry — [Localized] [Localized] [Localized] [Localized] Live Repository Context Engine.
  *
- * يستخدم لكشف التغييرات تدريجياً (incremental indexing): نُعيد تحليل الملف
- * فقط لو تغيّرت mtime أو الحجم — يوفر اجتياح كامل لمشروع 5000 ملف على
- * أجهزة Android الضعيفة.
+ * [Localized] [Localized] [Localized] [Localized] (incremental indexing): [Localized] [Localized] [Localized]
+ * [Localized] [Localized] [Localized] mtime [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] 5000 [Localized] [Localized]
+ * [Localized] Android [Localized].
  *
- * @property scopePath جذر المشروع المُفهرس (يدعم تعدد المشاريع المتزامنة)
- * @property contentHash SHA-256 مقطوع (16 hex) للكشف عن تغييرات السطر-السطر
- * @property skipReason لو الملف مُتجاهَل (binary/large/excluded) → نسجل السبب
+ * @property scopePath [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized])
+ * @property contentHash SHA-256 [Localized] (16 hex) [Localized] [Localized] [Localized] [Localized]-[Localized]
+ * @property skipReason [Localized] [Localized] [Localized] (binary/large/excluded) → [Localized] [Localized]
  */
 @Entity(
     tableName = "repo_file_index",

@@ -5,15 +5,15 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * RepoSymbolEntry — رمز (class/function/variable...) مُستخرج من ملف مصدر.
+ * RepoSymbolEntry — [Localized] (class/function/variable...) [Localized] [Localized] [Localized] [Localized].
  *
  * Mobile-first:
- * - استخراج خفيف بـ regex (لا Tree-sitter ولا Compiler) — يلائم 2 GB RAM
- * - snippet ≤ 240 حرف (سطر التعريف فقط)
- * - 5000 رمز كحد أقصى لكل scope مع LRU eviction
+ * - [Localized] [Localized] [Localized] regex ([Localized] Tree-sitter [Localized] Compiler) — [Localized] 2 GB RAM
+ * - snippet ≤ 240 [Localized] ([Localized] [Localized] [Localized])
+ * - 5000 [Localized] [Localized] [Localized] [Localized] scope [Localized] LRU eviction
  *
  * @property symbolKind class | object | interface | function | variable | property | enum
- * @property qualifiedName اسم كامل للبحث الدقيق (e.g. "com.example.Foo.bar")
+ * @property qualifiedName [Localized] [Localized] [Localized] [Localized] (e.g. "com.example.Foo.bar")
  */
 @Entity(
     tableName = "repo_symbols",

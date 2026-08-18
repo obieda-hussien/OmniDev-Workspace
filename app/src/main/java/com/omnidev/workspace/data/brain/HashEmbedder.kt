@@ -6,32 +6,32 @@ import kotlin.math.sqrt
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * HashEmbedder — محرك Embedding خفيف بدون نموذج (Brain 2.0)
+ * HashEmbedder — [Localized] Embedding [Localized] [Localized] [Localized] (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
  * Mobile-first by design:
- *   - 0 RAM دائم (stateless، singleton object)
- *   - 0 disk I/O (لا تحميل أوزان)
- *   - ~0.5 ms لجملة 100 حرف على Snapdragon 660
- *   - يعمل offline بالكامل
+ *   - 0 RAM [Localized] (stateless[Localized] singleton object)
+ *   - 0 disk I/O ([Localized] [Localized] [Localized])
+ *   - ~0.5 ms [Localized] 100 [Localized] [Localized] Snapdragon 660
+ *   - [Localized] offline [Localized]
  *
- * **التقنية**: hashing trick + character n-grams + bigrams.
+ * **[Localized]**: hashing trick + character n-grams + bigrams.
  *   1) Tokenize (lowercase + diacritic strip + punctuation strip)
- *   2) إزالة stop-words عربية/إنجليزية شائعة
- *   3) لكل token: hash(word) → index، إضافة وزن مُوقَّع
- *   4) لكل token: char 3-grams و 4-grams → فهارس إضافية
- *   5) bigrams بين tokens متتالية
- *   6) L2-normalize → cosine similarity على الـ vector الناتج
+ *   2) [Localized] stop-words [Localized]/[Localized] [Localized]
+ *   3) [Localized] token: hash(word) → index[Localized] [Localized] [Localized] [Localized]
+ *   4) [Localized] token: char 3-grams [Localized] 4-grams → [Localized] [Localized]
+ *   5) bigrams [Localized] tokens [Localized]
+ *   6) L2-normalize → cosine similarity [Localized] [Localized] vector [Localized]
  *
- * يدعم العربية والإنجليزية بنفس الكفاءة لأنه على مستوى البايت/الحرف.
- * أفضل من TF-IDF للـ retrieval، أصغر بكثير من any embedding model.
+ * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]/[Localized].
+ * [Localized] [Localized] TF-IDF [Localized] retrieval[Localized] [Localized] [Localized] [Localized] any embedding model.
  */
 object HashEmbedder {
 
-    /** أبعاد الـ embedding — 256 floats × 4 bytes = 1024 bytes. */
+    /** [Localized] [Localized] embedding — 256 floats × 4 bytes = 1024 bytes. */
     const val DIM = 256
 
-    /** Stop-words عربية وإنجليزية شائعة (إزالة الضوضاء قبل embedding). */
+    /** Stop-words [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] embedding). */
     private val STOP_WORDS = setOf(
         // English
         "the", "a", "an", "and", "or", "but", "is", "are", "was", "were", "be",
@@ -39,9 +39,9 @@ object HashEmbedder {
         "in", "on", "for", "with", "at", "by", "from", "as", "this", "that",
         "it", "its", "i", "you", "he", "she", "we", "they", "them",
         // Arabic
-        "في", "من", "على", "إلى", "عن", "هو", "هي", "هذا", "هذه", "ذلك",
-        "تلك", "كان", "كانت", "أن", "إن", "ما", "لا", "لم", "لن", "قد",
-        "و", "أو", "ثم", "كل", "بعض", "غير", "هل"
+        "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]",
+        "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]",
+        "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]", "[Localized]"
     )
 
     private const val MAX_TOKENS = 200
@@ -50,7 +50,7 @@ object HashEmbedder {
     // Public API
     // ──────────────────────────────────────────────────────────────────
 
-    /** يولّد embedding L2-normalized للنص. */
+    /** [Localized] embedding L2-normalized [Localized]. */
     fun embed(text: String): FloatArray {
         if (text.isBlank()) return FloatArray(DIM)
 
@@ -63,7 +63,7 @@ object HashEmbedder {
             addHashed(vec, tok, weight = 1.0f)
         }
 
-        // 2) char n-grams (3 و 4) — يلتقط جذور الكلمات
+        // 2) char n-grams (3 [Localized] 4) — [Localized] [Localized] [Localized]
         for (tok in tokens) {
             if (tok.length < 3) continue
             for (n in 3..4) {
@@ -74,7 +74,7 @@ object HashEmbedder {
             }
         }
 
-        // 3) bigrams بين tokens متتالية (سياق محلي)
+        // 3) bigrams [Localized] tokens [Localized] ([Localized] [Localized])
         for (i in 0 until tokens.size - 1) {
             addHashed(vec, "${tokens[i]}_${tokens[i + 1]}", weight = 0.3f)
         }
@@ -83,7 +83,7 @@ object HashEmbedder {
         return vec
     }
 
-    /** Cosine similarity بين متجهين L2-normalized — مجرد dot product. */
+    /** Cosine similarity [Localized] [Localized] L2-normalized — [Localized] dot product. */
     fun cosine(a: FloatArray, b: FloatArray): Float {
         if (a.size != b.size) return 0f
         var sum = 0f
@@ -92,7 +92,7 @@ object HashEmbedder {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Serialization (FloatArray ↔ ByteArray) للتخزين في Room
+    // Serialization (FloatArray ↔ ByteArray) [Localized] [Localized] Room
     // ──────────────────────────────────────────────────────────────────
 
     fun toBytes(vec: FloatArray): ByteArray {
@@ -136,8 +136,8 @@ object HashEmbedder {
     }
 
     /**
-     * Hashing trick: نختار 2 indices في الـ vector + علامة من نفس الـ hash.
-     * هذا يقلل التضارب ويعطي توزيع أفضل بدون double-hashing مكلف.
+     * Hashing trick: [Localized] 2 indices [Localized] [Localized] vector + [Localized] [Localized] [Localized] [Localized] hash.
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] double-hashing [Localized].
      */
     private fun addHashed(vec: FloatArray, token: String, weight: Float) {
         val h = stableHash(token)
@@ -146,7 +146,7 @@ object HashEmbedder {
         vec[idx] += sign * weight
     }
 
-    /** Murmur-like 32-bit hash. مستقر بين نسخ الـ JVM (لا يعتمد على String.hashCode). */
+    /** Murmur-like 32-bit hash. [Localized] [Localized] [Localized] [Localized] JVM ([Localized] [Localized] [Localized] String.hashCode). */
     private fun stableHash(s: String): Int {
         var h = 0x9E3779B1.toInt()
         for (i in s.indices) {

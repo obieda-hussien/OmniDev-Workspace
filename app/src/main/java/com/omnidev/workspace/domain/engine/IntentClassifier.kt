@@ -17,57 +17,57 @@ object IntentClassifier {
     data class Phrase(val text: String, val weight: Int)
 
     // ── SWARM phrases — multi-agent coordinated project work ──
-    // Arabic: "اعمل التطبيق"=make the app, "ابني"=build (imperative),
-    //         "افعل كل"=do everything, "كل الكود"=all the code,
-    //         "من الصفر"=from scratch, "مشروع كامل"=full project
+    // Arabic: "[Localized] [Localized]"=make the app, "[Localized]"=build (imperative),
+    //         "[Localized] [Localized]"=do everything, "[Localized] [Localized]"=all the code,
+    //         "[Localized] [Localized]"=from scratch, "[Localized] [Localized]"=full project
     val SWARM_PHRASES = listOf(
-        Phrase("from scratch", 4), Phrase("من الصفر", 4),
-        Phrase("entire codebase", 5), Phrase("full project", 4), Phrase("مشروع كامل", 4),
+        Phrase("from scratch", 4), Phrase("[Localized] [Localized]", 4),
+        Phrase("entire codebase", 5), Phrase("full project", 4), Phrase("[Localized] [Localized]", 4),
         Phrase("create the entire", 5), Phrase("implement the full", 4),
         Phrase("end to end", 4), Phrase("end-to-end", 4),
         Phrase("complete implementation", 4), Phrase("implement all", 3),
         Phrase("write all", 3), Phrase("create all", 3),
         Phrase("refactor the whole", 4), Phrase("migrate the whole", 4),
-        Phrase("اعمل التطبيق", 5), Phrase("ابني التطبيق", 5),
-        Phrase("افعل كل", 4), Phrase("كل الكود", 4), Phrase("ابني", 3)
+        Phrase("[Localized] [Localized]", 5), Phrase("[Localized] [Localized]", 5),
+        Phrase("[Localized] [Localized]", 4), Phrase("[Localized] [Localized]", 4), Phrase("[Localized]", 3)
     )
 
     // ── AGENT phrases — execution / tool-use / file operations ──
-    // Arabic: "انشئ"=create, "اكتب"=write, "ابحث"=search, "افحص"=check,
-    //         "عدل"=edit, "احذف"=delete, "اضف"=add, "شغل"=run,
-    //         "اعمل"=do/make, "ملف"=file, "كود"=code, "صلح"=fix
+    // Arabic: "[Localized]"=create, "[Localized]"=write, "[Localized]"=search, "[Localized]"=check,
+    //         "[Localized]"=edit, "[Localized]"=delete, "[Localized]"=add, "[Localized]"=run,
+    //         "[Localized]"=do/make, "[Localized]"=file, "[Localized]"=code, "[Localized]"=fix
     val AGENT_PHRASES = listOf(
-        Phrase("fix", 3), Phrase("bug", 3), Phrase("صلح", 3), Phrase("خطأ", 2),
-        Phrase("refactor", 3), Phrase("edit", 3), Phrase("عدل", 3),
-        Phrase("implement", 3), Phrase("write the", 2), Phrase("اكتب", 2),
-        Phrase("add", 2), Phrase("اضف", 2), Phrase("remove", 2), Phrase("احذف", 2),
-        Phrase("update", 2), Phrase("create", 2), Phrase("انشئ", 2),
-        Phrase("run", 2), Phrase("شغل", 2), Phrase("execute", 2),
+        Phrase("fix", 3), Phrase("bug", 3), Phrase("[Localized]", 3), Phrase("[Localized]", 2),
+        Phrase("refactor", 3), Phrase("edit", 3), Phrase("[Localized]", 3),
+        Phrase("implement", 3), Phrase("write the", 2), Phrase("[Localized]", 2),
+        Phrase("add", 2), Phrase("[Localized]", 2), Phrase("remove", 2), Phrase("[Localized]", 2),
+        Phrase("update", 2), Phrase("create", 2), Phrase("[Localized]", 2),
+        Phrase("run", 2), Phrase("[Localized]", 2), Phrase("execute", 2),
         Phrase("debug", 3), Phrase("compile", 3), Phrase("build", 2),
-        Phrase("test", 2), Phrase("اختبر", 2),
-        Phrase("search codebase", 3), Phrase("ابحث", 2),
-        Phrase("read file", 3), Phrase("ملف", 2), Phrase("file", 2),
+        Phrase("test", 2), Phrase("[Localized]", 2),
+        Phrase("search codebase", 3), Phrase("[Localized]", 2),
+        Phrase("read file", 3), Phrase("[Localized]", 2), Phrase("file", 2),
         Phrase("kotlin", 3), Phrase("java", 3), Phrase("android", 2),
         Phrase("gradle", 3), Phrase("manifest", 3), Phrase("dependency", 2),
         Phrase("function", 2), Phrase("class", 2), Phrase("api", 2),
         Phrase("patch", 3), Phrase("deploy", 3), Phrase("install", 2),
-        Phrase("configure", 2), Phrase("setup", 2), Phrase("code", 2), Phrase("كود", 2),
-        Phrase("lint", 2), Phrase("analyze", 2), Phrase("افحص", 2)
+        Phrase("configure", 2), Phrase("setup", 2), Phrase("code", 2), Phrase("[Localized]", 2),
+        Phrase("lint", 2), Phrase("analyze", 2), Phrase("[Localized]", 2)
     )
 
     // ── CHAT phrases — conversational / informational / question ──
-    // Arabic: "ايه"=what, "ازاي"=how, "ليه"=why, "امتى"=when,
-    //         "شرح"=explain, "اشرحلي"=explain to me, "فرق"=difference
+    // Arabic: "[Localized]"=what, "[Localized]"=how, "[Localized]"=why, "[Localized]"=when,
+    //         "[Localized]"=explain, "[Localized]"=explain to me, "[Localized]"=difference
     val CHAT_PHRASES = listOf(
-        Phrase("what is", 3), Phrase("what are", 3), Phrase("ايه هو", 3), Phrase("ايه هي", 3),
-        Phrase("how does", 3), Phrase("how do", 3), Phrase("ازاي", 3),
-        Phrase("why", 2), Phrase("ليه", 2),
-        Phrase("explain", 3), Phrase("اشرحلي", 3), Phrase("شرح", 3),
-        Phrase("difference between", 4), Phrase("فرق بين", 4),
+        Phrase("what is", 3), Phrase("what are", 3), Phrase("[Localized] [Localized]", 3), Phrase("[Localized] [Localized]", 3),
+        Phrase("how does", 3), Phrase("how do", 3), Phrase("[Localized]", 3),
+        Phrase("why", 2), Phrase("[Localized]", 2),
+        Phrase("explain", 3), Phrase("[Localized]", 3), Phrase("[Localized]", 3),
+        Phrase("difference between", 4), Phrase("[Localized] [Localized]", 4),
         Phrase("what's the", 3), Phrase("can you tell", 2),
-        Phrase("هل", 2), Phrase("is it", 2), Phrase("should i", 2),
-        Phrase("example of", 3), Phrase("مثال", 3),
-        Phrase("define", 3), Phrase("meaning", 3), Phrase("معنى", 3),
+        Phrase("[Localized]", 2), Phrase("is it", 2), Phrase("should i", 2),
+        Phrase("example of", 3), Phrase("[Localized]", 3),
+        Phrase("define", 3), Phrase("meaning", 3), Phrase("[Localized]", 3),
         Phrase("recommend", 2), Phrase("suggest", 2), Phrase("opinion", 2)
     )
 

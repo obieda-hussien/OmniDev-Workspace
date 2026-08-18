@@ -10,32 +10,32 @@ import java.util.UUID
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * RollbackManager — نظام "تأمين الإجراء" (Action Insurance / Brain 2.0)
+ * RollbackManager — [Localized] "[Localized] [Localized]" (Action Insurance / Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * **القصة**: قبل أي عملية مدمّرة على ملف (write/patch/delete)، يلتقط الـ
- * Manager snapshot يسمح بإلغاء العملية لاحقاً بأمر واحد. الـ snapshots مجمّعة
- * في "action groups" بحيث يُمكن التراجع عن مهمة كاملة (متعددة الملفات) ذرّياً.
+ * **[Localized]**: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] (write/patch/delete)[Localized] [Localized] [Localized]
+ * Manager snapshot [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]. [Localized] snapshots [Localized]
+ * [Localized] "action groups" [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized]) [Localized].
  *
  * **Mobile-first**:
- * - يعمل بدون root (يقرأ/يكتب الملف نفسه عبر File API العادي)
- * - الملفات ≤ 4 KB → نخزن المحتوى الكامل مضغوطاً Deflate
- * - الملفات > 4 KB → unified diff فقط (توفير ~70%)
- * - 200 snapshot/group max + 50 MB max storage إجمالي + LRU eviction
- * - عمليات SHA-256 للتحقق من سلامة الاستعادة
+ * - [Localized] [Localized] root ([Localized]/[Localized] [Localized] [Localized] [Localized] File API [Localized])
+ * - [Localized] ≤ 4 KB → [Localized] [Localized] [Localized] [Localized] Deflate
+ * - [Localized] > 4 KB → unified diff [Localized] ([Localized] ~70%)
+ * - 200 snapshot/group max + 50 MB max storage [Localized] + LRU eviction
+ * - [Localized] SHA-256 [Localized] [Localized] [Localized] [Localized]
  *
  * **API**:
- *   - newGroup() → يُنشئ actionGroupId جديد لربط lapsohots مهمة
- *   - captureBeforeWrite(...) → يلتقط لقطة قبل عملية write/patch
- *   - rollbackGroup(id) → يستعيد كل ملفات الـ group
- *   - rollbackById(id) → يستعيد snapshot بعينه
+ *   - newGroup() → [Localized] actionGroupId [Localized] [Localized] lapsohots [Localized]
+ *   - captureBeforeWrite(...) → [Localized] [Localized] [Localized] [Localized] write/patch
+ *   - rollbackGroup(id) → [Localized] [Localized] [Localized] [Localized] group
+ *   - rollbackById(id) → [Localized] snapshot [Localized]
  *   - listRecent / listGroups / pin / unpin
  */
 class RollbackManager(
     private val dao: RollbackDao,
-    /** أقصى حجم تخزين للـ snapshots غير المثبّتة (50 MB افتراضياً). */
+    /** [Localized] [Localized] [Localized] [Localized] snapshots [Localized] [Localized] (50 MB [Localized]). */
     private val maxBytesEvictable: Long = 50L * 1024 * 1024,
-    /** أقصى عدد لقطات/group قبل bevaluation. */
+    /** [Localized] [Localized] [Localized]/group [Localized] bevaluation. */
     private val maxSnapshotsPerGroup: Int = 200
 ) {
 
@@ -54,18 +54,18 @@ class RollbackManager(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Capture (قبل العملية المدمّرة)
+    // Capture ([Localized] [Localized] [Localized])
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * يلتقط snapshot قبل تعديل/حذف ملف. ينبغي أن يُستدعى من FileToolManager
-     * قبل write_file / patch_file / delete_file.
+     * [Localized] snapshot [Localized] [Localized]/[Localized] [Localized]. [Localized] [Localized] [Localized] [Localized] FileToolManager
+     * [Localized] write_file / patch_file / delete_file.
      *
-     * @param actionGroupId معرّف المجموعة (من newGroup())
-     * @param toolName الأداة التي ستُجري التعديل (للتقارير)
-     * @param filePath المسار المطلق
-     * @param reason سبب العملية (سطر واحد)
-     * @return معرّف الـ snapshot أو -1 لو فشل التقاط (الفشل لا يعطّل العملية)
+     * @param actionGroupId [Localized] [Localized] ([Localized] newGroup())
+     * @param toolName [Localized] [Localized] [Localized] [Localized] ([Localized])
+     * @param filePath [Localized] [Localized]
+     * @param reason [Localized] [Localized] ([Localized] [Localized])
+     * @return [Localized] [Localized] snapshot [Localized] -1 [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized])
      */
     suspend fun captureBeforeWrite(
         actionGroupId: String,
@@ -78,7 +78,7 @@ class RollbackManager(
             val existed = file.exists()
 
             if (!existed) {
-                // الملف لم يكن موجوداً → snapshot "فارغ" يخبرنا بحذفه عند الـ rollback
+                // [Localized] [Localized] [Localized] [Localized] → snapshot "[Localized]" [Localized] [Localized] [Localized] [Localized] rollback
                 val entry = RollbackSnapshotEntry(
                     actionGroupId = actionGroupId,
                     toolName = toolName,
@@ -104,10 +104,10 @@ class RollbackManager(
             val hash = DiffUtils.sha256(original)
             val storedAsDiff = original.size > DiffUtils.FULL_CONTENT_THRESHOLD_BYTES
 
-            // عند الالتقاط، لا نعرف بعد محتوى ما-بعد التعديل → نخزن الكامل مضغوطاً.
-            // لو storedAsDiff = true لاحقاً، يمكن استبدال المحتوى بـ diff عند نهاية الـ tool.
-            // للبساطة على الأجهزة الضعيفة، نخزن دائماً المحتوى الكامل مضغوطاً هنا
-            // ونحوّله لـ diff (اختيارياً) عبر finalizeAfterWrite().
+            // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]-[Localized] [Localized] → [Localized] [Localized] [Localized].
+            // [Localized] storedAsDiff = true [Localized] [Localized] [Localized] [Localized] [Localized] diff [Localized] [Localized] [Localized] tool.
+            // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+            // [Localized] [Localized] diff ([Localized]) [Localized] finalizeAfterWrite().
             val compressed = DiffUtils.compress(original)
 
             val entry = RollbackSnapshotEntry(
@@ -131,8 +131,8 @@ class RollbackManager(
     }
 
     /**
-     * بعد إتمام الكتابة، تحويل snapshot من "محتوى كامل" إلى "diff" لتوفير مساحة.
-     * يُستدعى اختيارياً من FileToolManager بعد write/patch.
+     * [Localized] [Localized] [Localized] [Localized] snapshot [Localized] "[Localized] [Localized]" [Localized] "diff" [Localized] [Localized].
+     * [Localized] [Localized] [Localized] FileToolManager [Localized] write/patch.
      */
     suspend fun finalizeAfterWrite(snapshotId: Long, filePath: String) =
         withContext(Dispatchers.IO) {
@@ -152,7 +152,7 @@ class RollbackManager(
 
                 val diff = DiffUtils.buildDiff(before = original, after = current)
                 if (diff.length >= original.length) {
-                    // الـ diff لم يوفر شيء → نُبقي المحتوى الكامل
+                    // [Localized] diff [Localized] [Localized] [Localized] → [Localized] [Localized] [Localized]
                     return@withContext
                 }
                 val diffCompressed = DiffUtils.compress(diff.toByteArray())
@@ -173,8 +173,8 @@ class RollbackManager(
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * يستعيد ملف واحد من snapshot بعينه.
-     * @return true لو نجح
+     * [Localized] [Localized] [Localized] [Localized] snapshot [Localized].
+     * @return true [Localized] [Localized]
      */
     suspend fun rollbackById(id: Long): Boolean = withContext(Dispatchers.IO) {
         val snap = dao.getById(id) ?: return@withContext false
@@ -182,8 +182,8 @@ class RollbackManager(
     }
 
     /**
-     * يستعيد كل ملفات الـ group ذرّياً (best-effort).
-     * @return عدد الملفات التي استُعيدت بنجاح
+     * [Localized] [Localized] [Localized] [Localized] group [Localized] (best-effort).
+     * @return [Localized] [Localized] [Localized] [Localized] [Localized]
      */
     suspend fun rollbackGroup(groupId: String): RollbackResult = withContext(Dispatchers.IO) {
         val snaps = dao.getByGroup(groupId, limit = maxSnapshotsPerGroup)
@@ -206,12 +206,12 @@ class RollbackManager(
         val file = File(snap.filePath)
         return try {
             if (!snap.existedBefore) {
-                // الملف لم يكن موجوداً → نحذفه لاستعادة الحالة الأصلية
+                // [Localized] [Localized] [Localized] [Localized] → [Localized] [Localized] [Localized] [Localized]
                 if (file.exists()) file.delete()
             } else {
                 file.parentFile?.mkdirs()
                 if (snap.storedAsDiff) {
-                    // diff → نحتاج المحتوى الحالي + الـ diff لاستعادة الأصل
+                    // diff → [Localized] [Localized] [Localized] + [Localized] diff [Localized] [Localized]
                     val diff = DiffUtils.decompress(snap.contentBlob).toString(Charsets.UTF_8)
                     val current = if (file.exists()) file.readText(Charsets.UTF_8) else ""
                     val original = DiffUtils.applyReverseDiff(current, diff)
@@ -251,7 +251,7 @@ class RollbackManager(
         try {
             val used = dao.totalEvictableBytes()
             if (used > maxBytesEvictable) {
-                // نحذف 20% من غير المثبّت (دفعة واحدة لتقليل I/O)
+                // [Localized] 20% [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] I/O)
                 val cnt = dao.countEvictable()
                 val toEvict = (cnt / 5).coerceAtLeast(20)
                 dao.evictOldestUnpinned(toEvict)

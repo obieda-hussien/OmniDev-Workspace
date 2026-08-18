@@ -53,8 +53,8 @@ object Routes {
         const val MCP_SETTINGS = "mcp_settings"
     const val PROFILE = "profile"
     const val ANALYTICS = "analytics"
-    const val AGENT_BRAIN = "agent_brain"  // شاشة عقل الـ Agent الجديدة
-    const val BROWSER_VIEWER = "browser_viewer"  // شاشة عرض متصفح الوكيل المخفي
+    const val AGENT_BRAIN = "agent_brain"  // [Localized] [Localized] [Localized] Agent [Localized]
+    const val BROWSER_VIEWER = "browser_viewer"  // [Localized] [Localized] [Localized] [Localized] [Localized]
 }
 
 /**
@@ -192,7 +192,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // 🧠 Agent Brain Dashboard — لوحة تحكم عقل الـ Agent
+        // 🧠 Agent Brain Dashboard — [Localized] [Localized] [Localized] [Localized] Agent
         // ═══════════════════════════════════════════════════════════════
         composable(Routes.AGENT_BRAIN) {
             val app = OmniDevApp.instance
@@ -210,7 +210,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // 👁 Browser Viewer — شاشة عرض و التحكم في متصفح الوكيل المخفي
+        // 👁 Browser Viewer — [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
         // ═══════════════════════════════════════════════════════════════
         composable(Routes.BROWSER_VIEWER) {
             val app = OmniDevApp.instance

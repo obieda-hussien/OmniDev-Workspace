@@ -8,8 +8,8 @@ import com.omnidev.workspace.data.db.entities.RollbackSnapshotEntry
 import kotlinx.coroutines.flow.Flow
 
 /**
- * DAO لجدول rollback_snapshots. الاستعلامات مُحسَّنة لتجنب تحميل blobs الكبيرة
- * في الذاكرة عند العمليات الإحصائية.
+ * DAO [Localized] rollback_snapshots. [Localized] [Localized] [Localized] [Localized] blobs [Localized]
+ * [Localized] [Localized] [Localized] [Localized] [Localized].
  */
 @Dao
 interface RollbackDao {
@@ -43,7 +43,7 @@ interface RollbackDao {
     """)
     suspend fun getRecent(limit: Int = 50): List<RollbackSnapshotEntry>
 
-    /** عدد الـ snapshots غير المثبّتة (المرشّحة للـ eviction). */
+    /** [Localized] [Localized] snapshots [Localized] [Localized] ([Localized] [Localized] eviction). */
     @Query("SELECT COUNT(*) FROM rollback_snapshots WHERE pinned = 0")
     suspend fun countEvictable(): Int
 
@@ -62,7 +62,7 @@ interface RollbackDao {
     @Query("DELETE FROM rollback_snapshots WHERE actionGroupId = :groupId")
     suspend fun deleteGroup(groupId: String)
 
-    /** LRU eviction (للأقدم غير المثبّتة). */
+    /** LRU eviction ([Localized] [Localized] [Localized]). */
     @Query("""
         DELETE FROM rollback_snapshots
         WHERE id IN (
@@ -77,7 +77,7 @@ interface RollbackDao {
     @Query("SELECT * FROM rollback_snapshots ORDER BY createdAt DESC LIMIT 100")
     fun observeLatest(): Flow<List<RollbackSnapshotEntry>>
 
-    /** ملخص لكل actionGroup للعرض في UI. */
+    /** [Localized] [Localized] actionGroup [Localized] [Localized] UI. */
     @Query("""
         SELECT actionGroupId,
                MIN(createdAt) AS firstAt,

@@ -119,11 +119,11 @@ object TaskSchedulerTool {
         private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
         fun toNotificationTitle(): String =
-            if (isSuccess) "✅ ${taskName.take(40)}" else "❌ فشلت: ${taskName.take(35)}"
+            if (isSuccess) "✅ ${taskName.take(40)}" else "❌ [Localized]: ${taskName.take(35)}"
 
         fun toNotificationBody(): String = buildString {
-            appendLine("⏱ بدأ: ${timeFmt.format(Date(startTimeMs))} | انتهى: ${timeFmt.format(Date(endTimeMs))} (${durationSec}s)")
-            appendLine("🛠 أدوات: $toolsUsed | تكرارات: $iterationsUsed")
+            appendLine("⏱ [Localized]: ${timeFmt.format(Date(startTimeMs))} | [Localized]: ${timeFmt.format(Date(endTimeMs))} (${durationSec}s)")
+            appendLine("🛠 [Localized]: $toolsUsed | [Localized]: $iterationsUsed")
             if (toolNames.isNotEmpty()) {
                 appendLine("📋 ${toolNames.distinct().take(4).joinToString(", ")}${if(toolNames.distinct().size > 4) "..." else ""}")
             }

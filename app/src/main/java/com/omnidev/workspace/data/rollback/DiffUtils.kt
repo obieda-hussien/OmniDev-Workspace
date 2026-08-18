@@ -9,26 +9,26 @@ import java.util.zip.InflaterOutputStream
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * DiffUtils — أدوات Diff خفيفة لنظام Rollback (Brain 2.0)
+ * DiffUtils — [Localized] Diff [Localized] [Localized] Rollback (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
  * Mobile-first:
- * - LCS (Longest Common Subsequence) محدود بـ 8000 سطر لتفادي O(n²) memory
- * - الملفات > 4 KB → unified diff (توفير ~70% من المساحة)
- * - الملفات ≤ 4 KB → نخزن المحتوى الكامل مضغوطاً Deflate
- * - SHA-256 truncated (16 hex) للتحقق من سلامة الـ rollback
+ * - LCS (Longest Common Subsequence) [Localized] [Localized] 8000 [Localized] [Localized] O(n²) memory
+ * - [Localized] > 4 KB → unified diff ([Localized] ~70% [Localized] [Localized])
+ * - [Localized] ≤ 4 KB → [Localized] [Localized] [Localized] [Localized] Deflate
+ * - SHA-256 truncated (16 hex) [Localized] [Localized] [Localized] [Localized] rollback
  *
- * كل العمليات synchronous — يجب استدعاؤها من Dispatchers.IO.
+ * [Localized] [Localized] synchronous — [Localized] [Localized] [Localized] Dispatchers.IO.
  */
 object DiffUtils {
 
-    /** الحد الذي بعده نلجأ للـ diff بدل تخزين المحتوى الكامل. */
+    /** [Localized] [Localized] [Localized] [Localized] [Localized] diff [Localized] [Localized] [Localized] [Localized]. */
     const val FULL_CONTENT_THRESHOLD_BYTES = 4 * 1024
 
-    /** سقف عدد السطور لخوارزمية الـ LCS (حماية من OOM على هواتف ضعيفة). */
+    /** [Localized] [Localized] [Localized] [Localized] [Localized] LCS ([Localized] [Localized] OOM [Localized] [Localized] [Localized]). */
     private const val MAX_LCS_LINES = 8_000
 
-    /** أقصى حجم للملف يُسمح بمعالجته (10 MB). */
+    /** [Localized] [Localized] [Localized] [Localized] [Localized] (10 MB). */
     const val MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024
 
     // ──────────────────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ object DiffUtils {
     fun sha256(text: String): String = sha256(text.toByteArray())
 
     // ──────────────────────────────────────────────────────────────────
-    // Compression (Deflate — متوفر في كل JVM/Android بدون مكتبات إضافية)
+    // Compression (Deflate — [Localized] [Localized] [Localized] JVM/Android [Localized] [Localized] [Localized])
     // ──────────────────────────────────────────────────────────────────
 
     fun compress(data: ByteArray): ByteArray {
@@ -66,20 +66,20 @@ object DiffUtils {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * يبني unified diff بسيط بين النصين.
-     * format: لكل سطر:
-     *   "= line"   = نفس السطر (context — نخزن lines قليلة فقط)
-     *   "- line"   = سطر مُزال
-     *   "+ line"   = سطر مُضاف
+     * [Localized] unified diff [Localized] [Localized] [Localized].
+     * format: [Localized] [Localized]:
+     *   "= line"   = [Localized] [Localized] (context — [Localized] lines [Localized] [Localized])
+     *   "- line"   = [Localized] [Localized]
+     *   "+ line"   = [Localized] [Localized]
      *
-     * Mobile-first: لا نخزن context كامل، فقط hunks المتغيرة + 2 سطر context.
-     * هذا يوفر مساحة هائلة في الملفات الكبيرة.
+     * Mobile-first: [Localized] [Localized] context [Localized] [Localized] hunks [Localized] + 2 [Localized] context.
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
      */
     fun buildDiff(before: String, after: String): String {
         val a = before.split('\n')
         val b = after.split('\n')
 
-        // حماية: لو الملف ضخم، نتراجع لتخزين المحتوى كاملاً (يُتعامل معه خارجياً)
+        // [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized])
         if (a.size > MAX_LCS_LINES || b.size > MAX_LCS_LINES) {
             return buildSimpleDiff(a, b)
         }
@@ -89,21 +89,21 @@ object DiffUtils {
     }
 
     /**
-     * يستعيد المحتوى الأصلي من unified diff + المحتوى الحالي.
-     * @return المحتوى الأصلي (قبل الـ edit) إذا نجح، null لو فشل.
+     * [Localized] [Localized] [Localized] [Localized] unified diff + [Localized] [Localized].
+     * @return [Localized] [Localized] ([Localized] [Localized] edit) [Localized] [Localized] null [Localized] [Localized].
      */
     fun applyReverseDiff(currentContent: String, diff: String): String? {
         if (diff.isBlank()) return currentContent
         return try {
-            // العملية العكسية: نحول diff إلى قائمة عمليات ثم نعكسها
+            // [Localized] [Localized]: [Localized] diff [Localized] [Localized] [Localized] [Localized] [Localized]
             val ops = parseDiff(diff)
             val current = currentContent.split('\n').toMutableList()
             val original = mutableListOf<String>()
 
-            // ابسط طريقة: نمشي على ops ونبني الأصل
-            // - = → نأخذ من current
-            // + → نتجاهل (كان مُضاف في after، يُحذف لاستعادة before)
-            // - → نضع السطر (كان موجوداً في before، يُستعاد)
+            // [Localized] [Localized]: [Localized] [Localized] ops [Localized] [Localized]
+            // - = → [Localized] [Localized] current
+            // + → [Localized] ([Localized] [Localized] [Localized] after[Localized] [Localized] [Localized] before)
+            // - → [Localized] [Localized] ([Localized] [Localized] [Localized] before[Localized] [Localized])
             var ci = 0
             for (op in ops) {
                 when (op.kind) {
@@ -116,17 +116,17 @@ object DiffUtils {
                         }
                     }
                     DiffOp.Kind.ADDED -> {
-                        // كان مضافاً في after — نتجاهله ونتقدم في current
+                        // [Localized] [Localized] [Localized] after — [Localized] [Localized] [Localized] current
                         if (ci < current.size && current[ci] == op.line) ci++
                     }
                     DiffOp.Kind.REMOVED -> {
-                        // كان موجوداً في before — نضعه
+                        // [Localized] [Localized] [Localized] before — [Localized]
                         original += op.line
                     }
                 }
             }
 
-            // إذا بقيت أسطر في current لم يغطها diff (لا يفترض)، نضيفها كما هي
+            // [Localized] [Localized] [Localized] [Localized] current [Localized] [Localized] diff ([Localized] [Localized])[Localized] [Localized] [Localized] [Localized]
             while (ci < current.size) {
                 original += current[ci]
                 ci++
@@ -146,11 +146,11 @@ object DiffUtils {
         enum class Kind { CONTEXT, ADDED, REMOVED }
     }
 
-    /** يحسب LCS operations بـ DP table O(m*n) memory — مقبول حتى 8K×8K. */
+    /** [Localized] LCS operations [Localized] DP table O(m*n) memory — [Localized] [Localized] 8K×8K. */
     private fun computeLcsOps(a: List<String>, b: List<String>): List<DiffOp> {
         val m = a.size
         val n = b.size
-        // نستخدم IntArray مُسطّح لتقليل overhead الـ Object[]
+        // [Localized] IntArray [Localized] [Localized] overhead [Localized] Object[]
         val dp = IntArray((m + 1) * (n + 1))
         val w = n + 1
         for (i in m - 1 downTo 0) {
@@ -186,7 +186,7 @@ object DiffUtils {
         return ops
     }
 
-    /** Fallback لما الملف أكبر من حد LCS — diff بدائي خط-بخط. */
+    /** Fallback [Localized] [Localized] [Localized] [Localized] [Localized] LCS — diff [Localized] [Localized]-[Localized]. */
     private fun buildSimpleDiff(a: List<String>, b: List<String>): String {
         val sb = StringBuilder()
         val limit = minOf(a.size, b.size)
@@ -202,7 +202,7 @@ object DiffUtils {
         return sb.toString()
     }
 
-    /** يحوّل ops إلى hunks مع context محدود (توفير مساحة). */
+    /** [Localized] ops [Localized] hunks [Localized] context [Localized] ([Localized] [Localized]). */
     private fun formatHunks(ops: List<DiffOp>, contextLines: Int): String {
         val sb = StringBuilder()
         for (op in ops) {

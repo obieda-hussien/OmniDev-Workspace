@@ -16,29 +16,29 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.LinkedList
 
 /**
- * OmniInputMethodService — لوحة المفاتيح الذكية المتقدمة
+ * OmniInputMethodService — [Localized] [Localized] [Localized] [Localized]
  *
- * الجيل الثاني: ذكاء سياقي وأمان متقدم
+ * [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized]
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. **كشف السياق الذكي (Context Detection)**:
- *    يُحلّل معلومات EditorInfo لتصنيف نوع الحقل تلقائياً:
+ * 1. **[Localized] [Localized] [Localized] (Context Detection)**:
+ *    [Localized] [Localized] EditorInfo [Localized] [Localized] [Localized] [Localized]:
  *    PASSWORD, EMAIL, SEARCH, PHONE, MULTILINE, CHAT, URL, etc.
- *    يُرسل السياق للوكيل قبل أي تفاعل.
+ *    [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
  *
- * 2. **ذاكرة الـ Clipboard الذكية (Smart Clipboard)**:
- *    يحفظ آخر 10 نصوص نُسخت (غير كلمات المرور).
- *    يُتيح للوكيل قراءتها وإدارتها.
+ * 2. **[Localized] [Localized] Clipboard [Localized] (Smart Clipboard)**:
+ *    [Localized] [Localized] 10 [Localized] [Localized] ([Localized] [Localized] [Localized]).
+ *    [Localized] [Localized] [Localized] [Localized].
  *
- * 3. **تحليل أنماط الإدخال (Input Pattern Analysis)**:
- *    يتتبع وتيرة الكتابة، عدد التصحيحات، اللغة المستخدمة.
- *    يُرسل "keystroke analytics" للوكيل.
+ * 3. **[Localized] [Localized] [Localized] (Input Pattern Analysis)**:
+ *    [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+ *    [Localized] "keystroke analytics" [Localized].
  *
- * 4. **حقن نص متقدم (Advanced Text Injection)**:
- *    commitText مع دعم selection، cursor placement، و markdown injection.
+ * 4. **[Localized] [Localized] [Localized] (Advanced Text Injection)**:
+ *    commitText [Localized] [Localized] selection[Localized] cursor placement[Localized] [Localized] markdown injection.
  *
- * 5. **أمان: منع تسريب كلمات المرور**:
- *    حقول PASSWORD لا تُرسل أحداث النص أبداً.
- *    الـ analytics تُخفّف تلقائياً لهذه الحقول.
+ * 5. **[Localized]: [Localized] [Localized] [Localized] [Localized]**:
+ *    [Localized] PASSWORD [Localized] [Localized] [Localized] [Localized] [Localized].
+ *    [Localized] analytics [Localized] [Localized] [Localized] [Localized].
  */
 class OmniInputMethodService : InputMethodService() {
 
@@ -61,18 +61,18 @@ class OmniInputMethodService : InputMethodService() {
         private val _inputAnalytics = MutableStateFlow(InputAnalytics())
         val inputAnalytics: StateFlow<InputAnalytics> = _inputAnalytics.asStateFlow()
 
-        /** تاريخ الـ Clipboard: أحدث النصوص أولاً */
+        /** [Localized] [Localized] Clipboard: [Localized] [Localized] [Localized] */
         private val clipboardHistory = LinkedList<ClipboardEntry>()
 
         @Volatile
         private var activeService: OmniInputMethodService? = null
 
         // ─────────────────────────────────────────────────────────────────────
-        // API العام
+        // API [Localized]
         // ─────────────────────────────────────────────────────────────────────
 
         /**
-         * يُدخل نصاً في الحقل الحالي مع خيارات متقدمة.
+         * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
          */
         fun commitText(
             text: String,
@@ -84,7 +84,7 @@ class OmniInputMethodService : InputMethodService() {
                 val ic = service.currentInputConnection ?: return false
 
                 if (replaceSelection) {
-                    // استبدال النص المحدد
+                    // [Localized] [Localized] [Localized]
                     ic.beginBatchEdit()
                     ic.commitText(text, if (moveCursorToEnd) 1 else 0)
                     ic.endBatchEdit()
@@ -92,18 +92,18 @@ class OmniInputMethodService : InputMethodService() {
                     ic.commitText(text, if (moveCursorToEnd) 1 else 0)
                 }
 
-                // تحديث الـ analytics
+                // [Localized] [Localized] analytics
                 updateAnalyticsOnCommit(text)
                 Log.d(TAG, "✅ commitText: ${text.take(30)}")
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "❌ فشل commitText: ${e.message}")
+                Log.e(TAG, "❌ [Localized] commitText: ${e.message}")
                 false
             }
         }
 
         /**
-         * [جديد] يُدخل نصاً ثم يُضيف محاطاً بـ wrapper (مثل: bold = "**text**").
+         * [[Localized]] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] wrapper ([Localized]: bold = "**text**").
          */
         fun commitWrappedText(
             innerText: String,
@@ -114,8 +114,8 @@ class OmniInputMethodService : InputMethodService() {
         }
 
         /**
-         * [جديد] يُدخل قالباً مع مؤشر ($cursor) ويُحرك الـ cursor للموضع المحدد.
-         * مثال: insertTemplate("```\n$cursor\n```") يُدخل كود block ويضع المؤشر داخله.
+         * [[Localized]] [Localized] [Localized] [Localized] [Localized] ($cursor) [Localized] [Localized] cursor [Localized] [Localized].
+         * [Localized]: insertTemplate("```\n$cursor\n```") [Localized] [Localized] block [Localized] [Localized] [Localized].
          */
         fun insertTemplate(template: String, cursorPlaceholder: String = "\$cursor"): Boolean {
             val service = activeService ?: return false
@@ -128,7 +128,7 @@ class OmniInputMethodService : InputMethodService() {
                     val before = template.substring(0, cursorIndex)
                     val after = template.substring(cursorIndex + cursorPlaceholder.length)
                     ic.commitText(before + after, 1)
-                    // نرجّع المؤشر لموضع $cursor
+                    // [Localized] [Localized] [Localized] $cursor
                     if (after.isNotEmpty()) {
                         ic.setSelection(
                             ic.getTextBeforeCursor(after.length + before.length, 0)?.length?.minus(after.length) ?: 0,
@@ -138,7 +138,7 @@ class OmniInputMethodService : InputMethodService() {
                 }
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "insertTemplate فشل: ${e.message}")
+                Log.e(TAG, "insertTemplate [Localized]: ${e.message}")
                 false
             }
         }
@@ -169,45 +169,45 @@ class OmniInputMethodService : InputMethodService() {
             activeService?.currentInputConnection?.getTextAfterCursor(length, 0)?.toString()
 
         /**
-         * [جديد] يُرجع السياق الكامل للحقل الحالي.
+         * [[Localized]] [Localized] [Localized] [Localized] [Localized] [Localized].
          */
         fun getFullFieldContext(): String = buildString {
             val context = _currentFieldContext.value
-            if (context == null) { append("لا يوجد حقل نشط"); return@buildString }
+            if (context == null) { append("[Localized] [Localized] [Localized] [Localized]"); return@buildString }
 
-            append("📝 سياق الحقل:\n")
-            append("النوع: ${context.fieldType.name}\n")
-            append("التطبيق: ${context.packageName}\n")
-            append("hint: ${context.hint ?: "(لا يوجد)"}\n")
-            append("كلمة مرور: ${if (context.isPassword) "نعم 🔒" else "لا"}\n")
-            append("متعدد الأسطر: ${context.isMultiline}\n")
+            append("📝 [Localized] [Localized]:\n")
+            append("[Localized]: ${context.fieldType.name}\n")
+            append("[Localized]: ${context.packageName}\n")
+            append("hint: ${context.hint ?: "([Localized] [Localized])"}\n")
+            append("[Localized] [Localized]: ${if (context.isPassword) "[Localized] 🔒" else "[Localized]"}\n")
+            append("[Localized] [Localized]: ${context.isMultiline}\n")
 
             val textBefore = getTextBeforeCursor(MAX_FIELD_CONTEXT_CHARS)
             if (!textBefore.isNullOrEmpty()) {
-                append("النص الحالي (آخر ${textBefore.length} حرف): \"${textBefore.takeLast(80)}\"")
+                append("[Localized] [Localized] ([Localized] ${textBefore.length} [Localized]): \"${textBefore.takeLast(80)}\"")
             }
         }
 
         /**
-         * [جديد] يُضيف نصاً لتاريخ الـ Clipboard (للاستخدام من الوكيل).
+         * [[Localized]] [Localized] [Localized] [Localized] [Localized] Clipboard ([Localized] [Localized] [Localized]).
          */
         fun addToClipboardHistory(text: String, label: String = "Agent") {
-            if (text.length > 2000) return // تجنب النصوص الضخمة
+            if (text.length > 2000) return // [Localized] [Localized] [Localized]
             val entry = ClipboardEntry(text, label, System.currentTimeMillis())
             synchronized(clipboardHistory) {
-                if (clipboardHistory.firstOrNull()?.text == text) return // تجنب التكرار
+                if (clipboardHistory.firstOrNull()?.text == text) return // [Localized] [Localized]
                 clipboardHistory.addFirst(entry)
                 if (clipboardHistory.size > MAX_CLIPBOARD_HISTORY) clipboardHistory.removeLast()
             }
         }
 
         /**
-         * [جديد] يُرجع تاريخ الـ Clipboard للوكيل.
+         * [[Localized]] [Localized] [Localized] [Localized] Clipboard [Localized].
          */
         fun getClipboardHistory(): String = buildString {
             val history = synchronized(clipboardHistory) { clipboardHistory.toList() }
-            if (history.isEmpty()) { append("تاريخ الـ Clipboard فارغ"); return@buildString }
-            append("📋 تاريخ الـ Clipboard (آخر ${history.size}):\n")
+            if (history.isEmpty()) { append("[Localized] [Localized] Clipboard [Localized]"); return@buildString }
+            append("📋 [Localized] [Localized] Clipboard ([Localized] ${history.size}):\n")
             history.forEachIndexed { i, entry ->
                 append("${i + 1}. [${entry.label}] ${entry.text.take(60)}\n")
             }
@@ -240,14 +240,14 @@ class OmniInputMethodService : InputMethodService() {
         super.onCreate()
         activeService = this
         _isActive.value = true
-        Log.i(TAG, "✅ OmniDev IME بدأت")
+        Log.i(TAG, "✅ OmniDev IME [Localized]")
     }
 
     override fun onDestroy() {
         activeService = null
         _isActive.value = false
         _currentFieldContext.value = null
-        Log.i(TAG, "OmniDev IME أوقفت")
+        Log.i(TAG, "OmniDev IME [Localized]")
         super.onDestroy()
     }
 
@@ -257,20 +257,20 @@ class OmniInputMethodService : InputMethodService() {
         super.onStartInput(attribute, restarting)
         attribute ?: return
 
-        // بناء سياق الحقل بالكامل
+        // [Localized] [Localized] [Localized] [Localized]
         val context = buildFieldContext(attribute)
         _currentFieldContext.value = context
 
-        // تحديث الـ analytics
+        // [Localized] [Localized] analytics
         val current = _inputAnalytics.value
         _inputAnalytics.value = current.copy(
             fieldSwitchCount = current.fieldSwitchCount + 1,
             currentFieldType = context.fieldType
         )
 
-        Log.d(TAG, "بدأ إدخال — ${context.fieldType.name} في ${context.packageName}")
+        Log.d(TAG, "[Localized] [Localized] — ${context.fieldType.name} [Localized] ${context.packageName}")
 
-        // بث حدث تغيير الحقل للوكيل
+        // [Localized] [Localized] [Localized] [Localized] [Localized]
         _textInputFlow.tryEmit(
             TextInputEvent(
                 text = "",
@@ -302,7 +302,7 @@ class OmniInputMethodService : InputMethodService() {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
 
         val context = _currentFieldContext.value ?: return
-        // لا تُرسل أحداث لحقول كلمة المرور
+        // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
         if (context.isPassword) return
 
         if (newSelStart > oldSelStart) {
@@ -320,7 +320,7 @@ class OmniInputMethodService : InputMethodService() {
                                 fieldContext = context
                             )
                         )
-                        // تحديث analytics
+                        // [Localized] analytics
                         val current = _inputAnalytics.value
                         _inputAnalytics.value = current.copy(
                             totalCharsTyped = current.totalCharsTyped + newText.length,
@@ -369,10 +369,10 @@ class OmniInputMethodService : InputMethodService() {
         if (hint == null) return FieldType.TEXT
         val h = hint.lowercase()
         return when {
-            "search" in h || "بحث" in h -> FieldType.SEARCH
-            "email" in h || "بريد" in h || "@" in h -> FieldType.EMAIL
-            "phone" in h || "هاتف" in h || "mobile" in h -> FieldType.PHONE
-            "message" in h || "رسالة" in h || "comment" in h -> FieldType.CHAT
+            "search" in h || "[Localized]" in h -> FieldType.SEARCH
+            "email" in h || "[Localized]" in h || "@" in h -> FieldType.EMAIL
+            "phone" in h || "[Localized]" in h || "mobile" in h -> FieldType.PHONE
+            "message" in h || "[Localized]" in h || "comment" in h -> FieldType.CHAT
             "url" in h || "website" in h || "link" in h -> FieldType.URL
             else -> FieldType.TEXT
         }

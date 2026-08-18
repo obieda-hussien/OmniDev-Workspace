@@ -6,14 +6,14 @@ import com.omnidev.workspace.data.brain.ReflexionEngine
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * AgentBrainTools — أدوات Agent للوصول لذاكرته (Brain 2.0)
+ * AgentBrainTools — [Localized] Agent [Localized] [Localized] (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- *   - brain_recall_lessons: استرجاع دروس Reflexion ذات صلة
- *   - brain_recall_episodes: استرجاع episodes (مهام كاملة) مشابهة
- *   - brain_record_episode: تسجيل episode يدوياً (نادر — عادة آلي)
+ *   - brain_recall_lessons: [Localized] [Localized] Reflexion [Localized] [Localized]
+ *   - brain_recall_episodes: [Localized] episodes ([Localized] [Localized]) [Localized]
+ *   - brain_record_episode: [Localized] episode [Localized] ([Localized] — [Localized] [Localized])
  *
- * كل الأدوات on-device بالكامل (Lite-friendly).
+ * [Localized] [Localized] on-device [Localized] (Lite-friendly).
  */
 class AgentBrainTools(
     private val reflexion: ReflexionEngine,
@@ -23,68 +23,68 @@ class AgentBrainTools(
     fun getDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "brain_recall_lessons",
-            description = "استرجاع دروس مستفادة (Reflexion) ذات صلة بسؤال أو أداة معينة. " +
-                "يساعدك على تجنب أخطاء سابقة وإعادة استخدام أنماط ناجحة.",
+            description = "[Localized] [Localized] [Localized] (Reflexion) [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]. " +
+                "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].",
             parameters = listOf(
-                ToolParameter("query", "string", "سؤال/سياق للبحث الدلالي"),
-                ToolParameter("tool_name", "string", "اسم أداة للتركيز عليها", required = false),
-                ToolParameter("limit", "integer", "عدد الدروس (1-10، الافتراضي 5)", required = false)
+                ToolParameter("query", "string", "[Localized]/[Localized] [Localized] [Localized]"),
+                ToolParameter("tool_name", "string", "[Localized] [Localized] [Localized] [Localized]", required = false),
+                ToolParameter("limit", "integer", "[Localized] [Localized] (1-10[Localized] [Localized] 5)", required = false)
             )
         ),
         ToolDefinition(
             name = "brain_recall_episodes",
-            description = "استرجاع episodes (مهام كاملة) مشابهة من الذاكرة العَرَضية. " +
-                "كل episode = ملخص مهمة + الأدوات المستخدمة + النتيجة.",
+            description = "[Localized] episodes ([Localized] [Localized]) [Localized] [Localized] [Localized] [Localized]. " +
+                "[Localized] episode = [Localized] [Localized] + [Localized] [Localized] + [Localized].",
             parameters = listOf(
-                ToolParameter("query", "string", "وصف المهمة الحالية"),
-                ToolParameter("limit", "integer", "عدد الـ episodes (1-5، الافتراضي 3)", required = false),
-                ToolParameter("prefer_success", "string", "true لتفضيل الناجحين (الافتراضي true)", required = false)
+                ToolParameter("query", "string", "[Localized] [Localized] [Localized]"),
+                ToolParameter("limit", "integer", "[Localized] [Localized] episodes (1-5[Localized] [Localized] 3)", required = false),
+                ToolParameter("prefer_success", "string", "true [Localized] [Localized] ([Localized] true)", required = false)
             )
         ),
         ToolDefinition(
             name = "brain_record_episode",
-            description = "تسجيل episode يدوياً (نادر — عادة AgentPipeline يفعل هذا تلقائياً). " +
-                "استخدم فقط لو تريد حفظ ملخص مهمة معينة بشكل صريح.",
+            description = "[Localized] episode [Localized] ([Localized] — [Localized] AgentPipeline [Localized] [Localized] [Localized]). " +
+                "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].",
             parameters = listOf(
-                ToolParameter("summary", "string", "ملخص المهمة (≤ 500 حرف)"),
-                ToolParameter("user_intent", "string", "ما طلبه المستخدم"),
+                ToolParameter("summary", "string", "[Localized] [Localized] (≤ 500 [Localized])"),
+                ToolParameter("user_intent", "string", "[Localized] [Localized] [Localized]"),
                 ToolParameter("outcome", "string", "SUCCESS / FAILURE / ABANDONED"),
-                ToolParameter("tools_used", "string", "قائمة الأدوات مفصولة بفواصل", required = false)
+                ToolParameter("tools_used", "string", "[Localized] [Localized] [Localized] [Localized]", required = false)
             )
         )
     )
 
-    /** يُرجع null إذا الأداة ليست مملوكة لهذا الـ wrapper (لتمرير fall-through). */
+    /** [Localized] null [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] wrapper ([Localized] fall-through). */
     suspend fun execute(name: String, args: Map<String, String>): ToolExecutionResult? {
         if (name !in HANDLED) return null
         return try {
             when (name) {
                 "brain_recall_lessons" -> {
                     val q = args["query"]?.trim()
-                        ?: return ToolExecutionResult("query مطلوب", isError = true)
+                        ?: return ToolExecutionResult("query [Localized]", isError = true)
                     val tool = args["tool_name"]?.takeIf { it.isNotBlank() }
                     val k = args["limit"]?.toIntOrNull()?.coerceIn(1, 10) ?: 5
                     val lessons = reflexion.retrieveRelevantLessons(q, tool, topK = k)
-                    if (lessons.isEmpty()) ToolExecutionResult("لا دروس ذات صلة.")
+                    if (lessons.isEmpty()) ToolExecutionResult("[Localized] [Localized] [Localized] [Localized].")
                     else ToolExecutionResult(buildString {
-                        appendLine("💡 ${lessons.size} درس ذو صلة:")
+                        appendLine("💡 ${lessons.size} [Localized] [Localized] [Localized]:")
                         for (l in lessons) {
                             val icon = if (l.successContext) "✅" else "⚠️"
                             val toolHint = if (l.toolName.isNotBlank()) "[${l.toolName}] " else ""
                             appendLine("  $icon $toolHint${l.lesson}")
-                            appendLine("       جودة=${"%.2f".format(l.quality)} | استخدم=${l.useCount}")
+                            appendLine("       [Localized]=${"%.2f".format(l.quality)} | [Localized]=${l.useCount}")
                         }
                     })
                 }
                 "brain_recall_episodes" -> {
                     val q = args["query"]?.trim()
-                        ?: return ToolExecutionResult("query مطلوب", isError = true)
+                        ?: return ToolExecutionResult("query [Localized]", isError = true)
                     val k = args["limit"]?.toIntOrNull()?.coerceIn(1, 5) ?: 3
                     val preferSuccess = args["prefer_success"]?.trim()?.lowercase() != "false"
                     val episodes = episodic.retrieveSimilar(q, topK = k, preferSuccess = preferSuccess)
-                    if (episodes.isEmpty()) ToolExecutionResult("لا episodes مشابهة.")
+                    if (episodes.isEmpty()) ToolExecutionResult("[Localized] episodes [Localized].")
                     else ToolExecutionResult(buildString {
-                        appendLine("📚 ${episodes.size} episode مشابه:")
+                        appendLine("📚 ${episodes.size} episode [Localized]:")
                         for (ep in episodes) {
                             val icon = when (ep.finalOutcome) {
                                 "SUCCESS" -> "✅"
@@ -95,20 +95,20 @@ class AgentBrainTools(
                             appendLine("       intent: ${ep.userIntent.take(120)}")
                             val tools = ep.toolsUsedCsv.split(',').take(8).joinToString(" → ")
                             if (tools.isNotBlank()) appendLine("       🔧 $tools")
-                            appendLine("       تكرارات=${ep.iterationsCount} | وقت=${ep.totalTimeMs}ms")
+                            appendLine("       [Localized]=${ep.iterationsCount} | [Localized]=${ep.totalTimeMs}ms")
                         }
                     })
                 }
                 "brain_record_episode" -> {
                     val summary = args["summary"]?.trim()
-                        ?: return ToolExecutionResult("summary مطلوب", isError = true)
+                        ?: return ToolExecutionResult("summary [Localized]", isError = true)
                     val intent = args["user_intent"]?.trim()
-                        ?: return ToolExecutionResult("user_intent مطلوب", isError = true)
+                        ?: return ToolExecutionResult("user_intent [Localized]", isError = true)
                     val outcomeStr = args["outcome"]?.trim()?.uppercase() ?: "SUCCESS"
                     val outcome = try {
                         EpisodeOutcome.valueOf(outcomeStr)
                     } catch (_: Throwable) {
-                        return ToolExecutionResult("outcome يجب أن يكون SUCCESS/FAILURE/ABANDONED", isError = true)
+                        return ToolExecutionResult("outcome [Localized] [Localized] [Localized] SUCCESS/FAILURE/ABANDONED", isError = true)
                     }
                     val tools = args["tools_used"]?.split(',')
                         ?.map { it.trim() }
@@ -122,8 +122,8 @@ class AgentBrainTools(
                         totalTimeMs = 0,
                         sessionId = "manual"
                     )
-                    if (id > 0) ToolExecutionResult("✅ سُجِّل episode #$id")
-                    else ToolExecutionResult("❌ فشل التسجيل", isError = true)
+                    if (id > 0) ToolExecutionResult("✅ [Localized] episode #$id")
+                    else ToolExecutionResult("❌ [Localized] [Localized]", isError = true)
                 }
                 else -> ToolExecutionResult("Unknown tool: $name", isError = true)
             }

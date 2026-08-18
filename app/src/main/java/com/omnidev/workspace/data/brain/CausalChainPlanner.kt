@@ -2,28 +2,28 @@ package com.omnidev.workspace.data.brain
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * CausalChainPlanner — محرك التخطيط السببي متعدد الخطوات (Mobile-First)
+ * CausalChainPlanner — [Localized] [Localized] [Localized] [Localized] [Localized] (Mobile-First)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * قبل أن يُنفّذ الوكيل سلسلة أوامر معقدة، يبني هذا المحرك "خريطة سببية" (Causal Graph)
- * تتنبأ بالتأثيرات الجانبية وتكتشف التعارضات (مثل: حذف ملف ثم محاولة قراءته).
+ * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] "[Localized] [Localized]" (Causal Graph)
+ * [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized]: [Localized] [Localized] [Localized] [Localized] [Localized]).
  *
- * ## الميزات الأساسية:
- * 1. **تحليل الأدوات** (analyzeToolCall): يُحوّل أمر أداة → عقدة سببية بمتطلبات + تأثيرات
- * 2. **بناء المخطط** (buildChain): يبني DAG من قائمة خطوات مخطّطة
- * 3. **اكتشاف التعارضات** (detectConflicts): يبحث عن مشاكل منطقية (Read-After-Delete، إلخ)
- * 4. **المحاكاة الافتراضية** (simulate): يحاكي التنفيذ دون تأثير حقيقي
- * 5. **تحليل What-If** (whatIf): يُظهر الفرق لو أضفنا أو حذفنا خطوة
- * 6. **حقن الـ Prompt** (buildPromptInjection): يُنشئ نص تحذيري للـ system prompt
+ * ## [Localized] [Localized]:
+ * 1. **[Localized] [Localized]** (analyzeToolCall): [Localized] [Localized] [Localized] → [Localized] [Localized] [Localized] + [Localized]
+ * 2. **[Localized] [Localized]** (buildChain): [Localized] DAG [Localized] [Localized] [Localized] [Localized]
+ * 3. **[Localized] [Localized]** (detectConflicts): [Localized] [Localized] [Localized] [Localized] (Read-After-Delete[Localized] [Localized])
+ * 4. **[Localized] [Localized]** (simulate): [Localized] [Localized] [Localized] [Localized] [Localized]
+ * 5. **[Localized] What-If** (whatIf): [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]
+ * 6. **[Localized] [Localized] Prompt** (buildPromptInjection): [Localized] [Localized] [Localized] [Localized] system prompt
  *
- * ## Mobile-First (4 GB RAM أو أقل):
- * - لا نماذج LLM إضافية — كل التحليل rule-based
- * - لا قاعدة بيانات — ذاكرة الجلسة فقط (in-memory)
- * - حد أقصى [maxNodes] عقدة لحماية الذاكرة
- * - معالجة كاملة < 5ms لـ 20 خطوة
+ * ## Mobile-First (4 GB RAM [Localized] [Localized]):
+ * - [Localized] [Localized] LLM [Localized] — [Localized] [Localized] rule-based
+ * - [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] (in-memory)
+ * - [Localized] [Localized] [maxNodes] [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] < 5ms [Localized] 20 [Localized]
  */
 class CausalChainPlanner(
-    /** أقصى عدد عقد في خريطة سببية واحدة (حماية من OOM). */
+    /** [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] OOM). */
     val maxNodes: Int = 50
 ) {
 
@@ -32,39 +32,39 @@ class CausalChainPlanner(
     // ──────────────────────────────────────────────────────────────────────────
 
     enum class EffectType {
-        CREATE,   // ينشئ ملفاً أو موردًا جديداً
-        DELETE,   // يحذف ملفاً أو مورداً
-        MODIFY,   // يعدّل ملفاً موجوداً
-        READ,     // يقرأ فقط (لا جانب آمن)
-        EXECUTE,  // ينفّذ أمراً في Shell أو وقت التشغيل
-        SYSTEM,   // يغيّر إعداداً في النظام (شبكة، صلاحيات، Git، إلخ)
-        NETWORK   // يُرسل طلباً عبر الشبكة
+        CREATE,   // [Localized] [Localized] [Localized] [Localized] [Localized]
+        DELETE,   // [Localized] [Localized] [Localized] [Localized]
+        MODIFY,   // [Localized] [Localized] [Localized]
+        READ,     // [Localized] [Localized] ([Localized] [Localized] [Localized])
+        EXECUTE,  // [Localized] [Localized] [Localized] Shell [Localized] [Localized] [Localized]
+        SYSTEM,   // [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] Git[Localized] [Localized])
+        NETWORK   // [Localized] [Localized] [Localized] [Localized]
     }
 
     enum class RiskLevel(val score: Int) {
         LOW(1), MEDIUM(2), HIGH(3), CRITICAL(4);
 
         fun label(): String = when (this) {
-            LOW      -> "🟢 منخفض"
-            MEDIUM   -> "🟡 متوسط"
-            HIGH     -> "🔴 مرتفع"
-            CRITICAL -> "💥 حرج"
+            LOW      -> "🟢 [Localized]"
+            MEDIUM   -> "🟡 [Localized]"
+            HIGH     -> "🔴 [Localized]"
+            CRITICAL -> "💥 [Localized]"
         }
     }
 
     enum class ConflictType {
-        READ_AFTER_DELETE,      // محاولة قراءة ملف محذوف
-        MODIFY_AFTER_DELETE,    // محاولة تعديل ملف محذوف
-        DOUBLE_CREATE,          // إنشاء نفس الملف مرتين
-        OVERWRITE_UNREAD,       // تعديل ملف لم يُقرأ بعد إنشائه (احتمال ضياع بيانات)
-        DELETE_AFTER_MODIFY,    // حذف ملف بعد تعديله (عمل ضائع)
-        CRITICAL_COMMAND,       // أمر بمستوى خطر حرج (rm -rf, git reset --hard)
-        CIRCULAR_DEPENDENCY,    // A يعتمد على B و B يعتمد على A
+        READ_AFTER_DELETE,      // [Localized] [Localized] [Localized] [Localized]
+        MODIFY_AFTER_DELETE,    // [Localized] [Localized] [Localized] [Localized]
+        DOUBLE_CREATE,          // [Localized] [Localized] [Localized] [Localized]
+        OVERWRITE_UNREAD,       // [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized])
+        DELETE_AFTER_MODIFY,    // [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized])
+        CRITICAL_COMMAND,       // [Localized] [Localized] [Localized] [Localized] (rm -rf, git reset --hard)
+        CIRCULAR_DEPENDENCY,    // A [Localized] [Localized] B [Localized] B [Localized] [Localized] A
     }
 
     data class CausalEffect(
         val type: EffectType,
-        /** المسار أو المورد المتأثر (null إذا كان التأثير عاماً). */
+        /** [Localized] [Localized] [Localized] [Localized] (null [Localized] [Localized] [Localized] [Localized]). */
         val targetPath: String?,
         val description: String
     )
@@ -82,11 +82,11 @@ class CausalChainPlanner(
 
     data class CausalConflict(
         val type: ConflictType,
-        val stepA: Int,       // فهرس الخطوة الأولى
-        val stepB: Int,       // فهرس الخطوة الثانية (-1 إذا كانت واحدة)
+        val stepA: Int,       // [Localized] [Localized] [Localized]
+        val stepB: Int,       // [Localized] [Localized] [Localized] (-1 [Localized] [Localized] [Localized])
         val path: String?,
         val message: String,
-        val isFatal: Boolean  // هل يجب إيقاف التنفيذ؟
+        val isFatal: Boolean  // [Localized] [Localized] [Localized] [Localized]
     )
 
     data class CausalGraph(
@@ -112,13 +112,13 @@ class CausalChainPlanner(
     data class SimulationResult(
         val steps: List<SimulationStep>,
         val overallSuccess: Boolean,
-        val firstFailureIndex: Int,   // -1 إذا نجح الكل
+        val firstFailureIndex: Int,   // -1 [Localized] [Localized] [Localized]
         val warningMessages: List<String>
     )
 
     /**
-     * الحالة الافتراضية للجهاز/النظام أثناء المحاكاة.
-     * خفيفة جداً — فقط sets من المسارات.
+     * [Localized] [Localized] [Localized]/[Localized] [Localized] [Localized].
+     * [Localized] [Localized] — [Localized] sets [Localized] [Localized].
      */
     data class VirtualState(
         val createdPaths: Set<String>,
@@ -138,8 +138,8 @@ class CausalChainPlanner(
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * يُحلّل أمر أداة واحد ويُنشئ [CausalNode] بالمتطلبات والتأثيرات.
-     * يعمل 100% rule-based — لا LLM، لا شبكة، سرعة < 1ms.
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [CausalNode] [Localized] [Localized].
+     * [Localized] 100% rule-based — [Localized] LLM[Localized] [Localized] [Localized] [Localized] < 1ms.
      */
     fun analyzeToolCall(
         stepIndex: Int,
@@ -160,9 +160,9 @@ class CausalChainPlanner(
     }
 
     /**
-     * يبني [CausalGraph] من قائمة من الخطوات المخطّطة.
-     * يكتشف التعارضات تلقائياً بعد البناء.
-     * إذا تجاوزت الخطوات [maxNodes]، يُقلّص بأمان.
+     * [Localized] [CausalGraph] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * [Localized] [Localized] [Localized] [Localized] [Localized].
+     * [Localized] [Localized] [Localized] [maxNodes][Localized] [Localized] [Localized].
      */
     fun buildChain(steps: List<Pair<String, Map<String, String>>>): CausalGraph {
         val bounded = steps.take(maxNodes)
@@ -174,11 +174,11 @@ class CausalChainPlanner(
     }
 
     /**
-     * يكتشف التعارضات المنطقية في قائمة عقد مُرتَّبة زمنياً.
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
      */
     fun detectConflicts(nodes: List<CausalNode>): List<CausalConflict> {
         val conflicts = mutableListOf<CausalConflict>()
-        // تتبع: path → آخر عملية عليه
+        // [Localized]: path → [Localized] [Localized] [Localized]
         val lastCreate  = mutableMapOf<String, Int>()
         val lastDelete  = mutableMapOf<String, Int>()
         val lastModify  = mutableMapOf<String, Int>()
@@ -194,7 +194,7 @@ class CausalChainPlanner(
                             conflicts += CausalConflict(
                                 type = ConflictType.READ_AFTER_DELETE,
                                 stepA = delIdx, stepB = i, path = path,
-                                message = "⚠️ الخطوة $i تقرأ '$path' الذي حُذف في الخطوة $delIdx.",
+                                message = "⚠️ [Localized] $i [Localized] '$path' [Localized] [Localized] [Localized] [Localized] $delIdx.",
                                 isFatal = true
                             )
                         }
@@ -205,7 +205,7 @@ class CausalChainPlanner(
                             conflicts += CausalConflict(
                                 type = ConflictType.MODIFY_AFTER_DELETE,
                                 stepA = delIdx, stepB = i, path = path,
-                                message = "❌ الخطوة $i تُعدّل '$path' الذي حُذف في الخطوة $delIdx.",
+                                message = "❌ [Localized] $i [Localized] '$path' [Localized] [Localized] [Localized] [Localized] $delIdx.",
                                 isFatal = true
                             )
                         }
@@ -217,7 +217,7 @@ class CausalChainPlanner(
                                 conflicts += CausalConflict(
                                     type = ConflictType.DOUBLE_CREATE,
                                     stepA = prevIdx, stepB = i, path = path,
-                                    message = "⚠️ الخطوة $i تُنشئ '$path' مرة ثانية (أُنشئ أول مرة في الخطوة $prevIdx).",
+                                    message = "⚠️ [Localized] $i [Localized] '$path' [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized] [Localized] $prevIdx).",
                                     isFatal = false
                                 )
                             }
@@ -231,7 +231,7 @@ class CausalChainPlanner(
                                 conflicts += CausalConflict(
                                     type = ConflictType.DELETE_AFTER_MODIFY,
                                     stepA = modIdx, stepB = i, path = path,
-                                    message = "⚠️ الخطوة $i تحذف '$path' بعد تعديله في الخطوة $modIdx — عمل ضائع.",
+                                    message = "⚠️ [Localized] $i [Localized] '$path' [Localized] [Localized] [Localized] [Localized] $modIdx — [Localized] [Localized].",
                                     isFatal = false
                                 )
                             }
@@ -239,13 +239,13 @@ class CausalChainPlanner(
                         lastDelete[path] = i
                     }
                     EffectType.EXECUTE -> {
-                        // CRITICAL risk يعني أمر خطير (rm -rf, git reset --hard, etc.)
+                        // CRITICAL risk [Localized] [Localized] [Localized] (rm -rf, git reset --hard, etc.)
                         if (node.riskLevel == RiskLevel.CRITICAL) {
                             conflicts += CausalConflict(
                                 type = ConflictType.CRITICAL_COMMAND,
                                 stepA = i, stepB = -1, path = path,
-                                message = "💥 الخطوة $i تُنفّذ أمراً حرجاً: ${node.humanSummary}",
-                                isFatal = false // تحذير ليس خطأ فادح
+                                message = "💥 [Localized] $i [Localized] [Localized] [Localized]: ${node.humanSummary}",
+                                isFatal = false // [Localized] [Localized] [Localized] [Localized]
                             )
                         }
                     }
@@ -257,8 +257,8 @@ class CausalChainPlanner(
     }
 
     /**
-     * يُحاكي تنفيذ المخطط دون أي تأثير حقيقي على الجهاز.
-     * يبني "نظام ملفات افتراضي" ويُتحقق من كل خطوة ضده.
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * [Localized] "[Localized] [Localized] [Localized]" [Localized] [Localized] [Localized] [Localized] [Localized].
      */
     fun simulate(graph: CausalGraph): SimulationResult {
         val warnings = mutableListOf<String>()
@@ -282,10 +282,10 @@ class CausalChainPlanner(
         }
 
         if (graph.highestRisk >= RiskLevel.HIGH) {
-            warnings += "⚠️ هذه السلسلة تحتوي على عمليات عالية الخطورة — تأكد من وجود نسخة احتياطية (rollback group)."
+            warnings += "⚠️ [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] — [Localized] [Localized] [Localized] [Localized] [Localized] (rollback group)."
         }
         if (graph.nodes.count { it.riskLevel == RiskLevel.CRITICAL } > 0) {
-            warnings += "💥 تحذير: يوجد ${graph.nodes.count { it.riskLevel == RiskLevel.CRITICAL }} أمر(أوامر) حرج(ة) في المخطط."
+            warnings += "💥 [Localized]: [Localized] ${graph.nodes.count { it.riskLevel == RiskLevel.CRITICAL }} [Localized]([Localized]) [Localized]([Localized]) [Localized] [Localized]."
         }
         for (c in graph.conflicts) {
             if (c.isFatal) warnings += c.message
@@ -300,8 +300,8 @@ class CausalChainPlanner(
     }
 
     /**
-     * تحليل What-If: "ماذا يحدث لو أضفنا/حذفنا هذه الخطوة؟"
-     * يُرجع نصاً يصف الفرق بين خطتين.
+     * [Localized] What-If: "[Localized] [Localized] [Localized] [Localized]/[Localized] [Localized] [Localized]"
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
      */
     fun whatIf(
         baseline: CausalGraph,
@@ -319,17 +319,17 @@ class CausalChainPlanner(
         val modSim = simulate(modifiedGraph)
 
         return buildString {
-            appendLine("🔬 تحليل What-If:")
+            appendLine("🔬 [Localized] What-If:")
             appendLine()
             when {
                 removeStepIndex != null -> {
                     val removed = baseline.nodes.find { it.stepIndex == removeStepIndex }
-                    appendLine("❌ لو حذفنا الخطوة $removeStepIndex (${removed?.toolName ?: "?"}):")
+                    appendLine("❌ [Localized] [Localized] [Localized] $removeStepIndex (${removed?.toolName ?: "?"}):")
                 }
                 insertStep != null ->
-                    appendLine("➕ لو أضفنا خطوة جديدة (${insertStep.first}):")
+                    appendLine("➕ [Localized] [Localized] [Localized] [Localized] (${insertStep.first}):")
                 else ->
-                    appendLine("📊 مقارنة المخططين:")
+                    appendLine("📊 [Localized] [Localized]:")
             }
             appendLine()
 
@@ -337,31 +337,31 @@ class CausalChainPlanner(
             val modConflicts = modifiedGraph.conflicts.size
             when {
                 modConflicts < baseConflicts ->
-                    appendLine("✅ التعديل يُقلّل التعارضات: $baseConflicts → $modConflicts")
+                    appendLine("✅ [Localized] [Localized] [Localized]: $baseConflicts → $modConflicts")
                 modConflicts > baseConflicts ->
-                    appendLine("⚠️ التعديل يُضيف تعارضات: $baseConflicts → $modConflicts")
+                    appendLine("⚠️ [Localized] [Localized] [Localized]: $baseConflicts → $modConflicts")
                 else ->
-                    appendLine("ℹ️ عدد التعارضات لم يتغير: $modConflicts")
+                    appendLine("ℹ️ [Localized] [Localized] [Localized] [Localized]: $modConflicts")
             }
 
             val baseRisk = baseline.highestRisk
             val modRisk = modifiedGraph.highestRisk
             if (modRisk.score > baseRisk.score)
-                appendLine("⬆️ الخطر يرتفع: ${baseRisk.label()} → ${modRisk.label()}")
+                appendLine("⬆️ [Localized] [Localized]: ${baseRisk.label()} → ${modRisk.label()}")
             else if (modRisk.score < baseRisk.score)
-                appendLine("⬇️ الخطر ينخفض: ${baseRisk.label()} → ${modRisk.label()}")
+                appendLine("⬇️ [Localized] [Localized]: ${baseRisk.label()} → ${modRisk.label()}")
 
             val baseSuccess = baseSim.overallSuccess
             val modSuccess = modSim.overallSuccess
             when {
-                !baseSuccess && modSuccess  -> appendLine("🎉 التعديل يُصلح سلسلة فاشلة!")
-                baseSuccess && !modSuccess  -> appendLine("💔 التعديل يُسبّب فشلاً جديداً!")
-                else                         -> appendLine("ℹ️ نتيجة التنفيذ لم تتغير (${if (modSuccess) "ناجح" else "فاشل"})")
+                !baseSuccess && modSuccess  -> appendLine("🎉 [Localized] [Localized] [Localized] [Localized]!")
+                baseSuccess && !modSuccess  -> appendLine("💔 [Localized] [Localized] [Localized] [Localized]!")
+                else                         -> appendLine("ℹ️ [Localized] [Localized] [Localized] [Localized] (${if (modSuccess) "[Localized]" else "[Localized]"})")
             }
 
             if (modifiedGraph.conflicts.isNotEmpty()) {
                 appendLine()
-                appendLine("📋 التعارضات في المخطط المُعدَّل:")
+                appendLine("📋 [Localized] [Localized] [Localized] [Localized]:")
                 for (c in modifiedGraph.conflicts.take(5)) {
                     appendLine("  • ${c.message}")
                 }
@@ -370,8 +370,8 @@ class CausalChainPlanner(
     }
 
     /**
-     * يُنشئ نص حقن للـ system prompt يُلخّص التحذيرات الحرجة.
-     * مُحدود بـ [maxChars] لتوفير context window.
+     * [Localized] [Localized] [Localized] [Localized] system prompt [Localized] [Localized] [Localized].
+     * [Localized] [Localized] [maxChars] [Localized] context window.
      */
     fun buildPromptInjection(graph: CausalGraph, maxChars: Int = 700): String {
         if (graph.nodes.isEmpty()) return ""
@@ -380,11 +380,11 @@ class CausalChainPlanner(
         if (fatalConflicts.isEmpty() && warnings.isEmpty() && graph.highestRisk < RiskLevel.HIGH) return ""
 
         return buildString {
-            appendLine("\n🗺️ تحليل السلسلة السببية (Causal Chain):")
-            appendLine("  خطوات: ${graph.nodes.size} | مستوى خطر: ${graph.highestRisk.label()}")
+            appendLine("\n🗺️ [Localized] [Localized] [Localized] (Causal Chain):")
+            appendLine("  [Localized]: ${graph.nodes.size} | [Localized] [Localized]: ${graph.highestRisk.label()}")
 
             if (fatalConflicts.isNotEmpty()) {
-                appendLine("❌ تعارضات حرجة:")
+                appendLine("❌ [Localized] [Localized]:")
                 for (c in fatalConflicts.take(3)) {
                     val line = "  • ${c.message.take(120)}"
                     if (length + line.length > maxChars) return@buildString
@@ -392,7 +392,7 @@ class CausalChainPlanner(
                 }
             }
             if (warnings.isNotEmpty()) {
-                appendLine("⚠️ تحذيرات:")
+                appendLine("⚠️ [Localized]:")
                 for (c in warnings.take(3)) {
                     val line = "  • ${c.message.take(100)}"
                     if (length + line.length > maxChars) return@buildString
@@ -413,7 +413,7 @@ class CausalChainPlanner(
         val humanSummary: String
     )
 
-    /** يُطابق اسم الأداة + معاملاتها لاستخراج القاعدة السببية. */
+    /** [Localized] [Localized] [Localized] + [Localized] [Localized] [Localized] [Localized]. */
     private fun findRule(toolName: String, params: Map<String, String>): ToolRule {
         val path = params["path"]?.trim()
             ?: params["file_path"]?.trim()
@@ -422,24 +422,24 @@ class CausalChainPlanner(
         return when (toolName) {
             // ── File Read Operations (LOW risk) ──────────────────────────────
             "read_file_lines", "read_file" ->
-                readRule(path, "قراءة ملف")
+                readRule(path, "[Localized] [Localized]")
             "multi_read" ->
-                readRule(path, "قراءة عدة ملفات")
+                readRule(path, "[Localized] [Localized] [Localized]")
             "search_codebase" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.READ, null, "بحث في قاعدة الكود")),
+                    effects = listOf(CausalEffect(EffectType.READ, null, "[Localized] [Localized] [Localized] [Localized]")),
                     preconditions = emptyList(),
                     riskLevel = RiskLevel.LOW,
-                    humanSummary = "🔍 بحث في الكود: ${params["query"]?.take(40) ?: "?"}"
+                    humanSummary = "🔍 [Localized] [Localized] [Localized]: ${params["query"]?.take(40) ?: "?"}"
                 )
 
             // ── File Create Operations ────────────────────────────────────────
             "create_file" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.CREATE, path, "إنشاء ملف جديد")),
-                    preconditions = if (path != null) listOf("'$path' غير موجود") else emptyList(),
+                    effects = listOf(CausalEffect(EffectType.CREATE, path, "[Localized] [Localized] [Localized]")),
+                    preconditions = if (path != null) listOf("'$path' [Localized] [Localized]") else emptyList(),
                     riskLevel = RiskLevel.LOW,
-                    humanSummary = "📄 إنشاء: ${path ?: "?"}"
+                    humanSummary = "📄 [Localized]: ${path ?: "?"}"
                 )
 
             // ── File Modify Operations ────────────────────────────────────────
@@ -447,28 +447,28 @@ class CausalChainPlanner(
             "delete_text", "delete_lines", "insert_lines",
             "replace_lines", "append_to_file" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.MODIFY, path, "تعديل ملف")),
-                    preconditions = if (path != null) listOf("'$path' موجود") else emptyList(),
+                    effects = listOf(CausalEffect(EffectType.MODIFY, path, "[Localized] [Localized]")),
+                    preconditions = if (path != null) listOf("'$path' [Localized]") else emptyList(),
                     riskLevel = RiskLevel.MEDIUM,
-                    humanSummary = "✏️ تعديل: ${path ?: "?"}"
+                    humanSummary = "✏️ [Localized]: ${path ?: "?"}"
                 )
 
             // ── Destructive: clear_file ───────────────────────────────────────
             "clear_file" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.MODIFY, path, "مسح محتوى الملف بالكامل")),
-                    preconditions = if (path != null) listOf("'$path' موجود") else emptyList(),
+                    effects = listOf(CausalEffect(EffectType.MODIFY, path, "[Localized] [Localized] [Localized] [Localized]")),
+                    preconditions = if (path != null) listOf("'$path' [Localized]") else emptyList(),
                     riskLevel = RiskLevel.HIGH,
-                    humanSummary = "🗑️ مسح محتوى الملف: ${path ?: "?"}"
+                    humanSummary = "🗑️ [Localized] [Localized] [Localized]: ${path ?: "?"}"
                 )
 
             // ── Delete Operations ─────────────────────────────────────────────
             "delete_file" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.DELETE, path, "حذف ملف")),
-                    preconditions = if (path != null) listOf("'$path' موجود") else emptyList(),
+                    effects = listOf(CausalEffect(EffectType.DELETE, path, "[Localized] [Localized]")),
+                    preconditions = if (path != null) listOf("'$path' [Localized]") else emptyList(),
                     riskLevel = RiskLevel.HIGH,
-                    humanSummary = "🗑️ حذف ملف: ${path ?: "?"}"
+                    humanSummary = "🗑️ [Localized] [Localized]: ${path ?: "?"}"
                 )
 
             // ── Terminal / Shell ──────────────────────────────────────────────
@@ -483,35 +483,35 @@ class CausalChainPlanner(
             "web_search", "web_search_deep", "web_scraper", "scrape_multiple",
             "network_request" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.NETWORK, null, "طلب شبكي")),
+                    effects = listOf(CausalEffect(EffectType.NETWORK, null, "[Localized] [Localized]")),
                     preconditions = emptyList(),
                     riskLevel = RiskLevel.LOW,
-                    humanSummary = "🌐 طلب شبكي: $toolName"
+                    humanSummary = "🌐 [Localized] [Localized]: $toolName"
                 )
 
             // ── Memory Operations (LOW risk) ──────────────────────────────────
             "remember_fact", "update_memory", "delete_memory",
             "vector_store", "brain_record_episode" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.MODIFY, null, "تعديل الذاكرة")),
+                    effects = listOf(CausalEffect(EffectType.MODIFY, null, "[Localized] [Localized]")),
                     preconditions = emptyList(),
                     riskLevel = RiskLevel.LOW,
-                    humanSummary = "🧠 تحديث الذاكرة: $toolName"
+                    humanSummary = "🧠 [Localized] [Localized]: $toolName"
                 )
 
             // ── System Tools ──────────────────────────────────────────────────
             "hardware_toggle_tool", "vpn_control", "system_power" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.SYSTEM, null, "تغيير إعداد نظام")),
+                    effects = listOf(CausalEffect(EffectType.SYSTEM, null, "[Localized] [Localized] [Localized]")),
                     preconditions = emptyList(),
                     riskLevel = RiskLevel.MEDIUM,
-                    humanSummary = "⚙️ إعداد نظام: $toolName"
+                    humanSummary = "⚙️ [Localized] [Localized]: $toolName"
                 )
 
             // ── Default: unknown tool treated as low-risk read ────────────────
             else ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.READ, null, "أداة غير محددة")),
+                    effects = listOf(CausalEffect(EffectType.READ, null, "[Localized] [Localized] [Localized]")),
                     preconditions = emptyList(),
                     riskLevel = RiskLevel.LOW,
                     humanSummary = "🔧 $toolName"
@@ -521,36 +521,36 @@ class CausalChainPlanner(
 
     private fun readRule(path: String?, label: String): ToolRule = ToolRule(
         effects = listOf(CausalEffect(EffectType.READ, path, label)),
-        preconditions = if (path != null) listOf("'$path' موجود") else emptyList(),
+        preconditions = if (path != null) listOf("'$path' [Localized]") else emptyList(),
         riskLevel = RiskLevel.LOW,
         humanSummary = "📖 $label: ${path ?: "?"}"
     )
 
-    /** يُحلّل أوامر الـ Shell لتحديد تأثيراتها السببية. */
+    /** [Localized] [Localized] [Localized] Shell [Localized] [Localized] [Localized]. */
     private fun analyzeShellCommand(toolName: String, params: Map<String, String>): ToolRule {
         val command = (params["command"] ?: params["code"] ?: "").lowercase()
         val (riskLevel, description) = when {
             "rm -rf" in command || "rm -r" in command ->
-                RiskLevel.CRITICAL to "حذف تعاودي — خطر فقدان بيانات"
+                RiskLevel.CRITICAL to "[Localized] [Localized] — [Localized] [Localized] [Localized]"
             Regex("""^rm\s""").containsMatchIn(command) || "unlink" in command ->
-                RiskLevel.HIGH to "حذف ملف(ات)"
+                RiskLevel.HIGH to "[Localized] [Localized]([Localized])"
             "git reset --hard" in command || "git clean -fd" in command ->
-                RiskLevel.HIGH to "إعادة ضبط Git الصارمة"
+                RiskLevel.HIGH to "[Localized] [Localized] Git [Localized]"
             "git push --force" in command || "git push -f" in command ->
-                RiskLevel.HIGH to "Git force push — لا يمكن التراجع على الخادم"
+                RiskLevel.HIGH to "Git force push — [Localized] [Localized] [Localized] [Localized] [Localized]"
             "chmod 777" in command || "chmod -r" in command.replace(" ", "").replace("--", "-") ->
-                RiskLevel.MEDIUM to "تغيير صلاحيات الملفات"
+                RiskLevel.MEDIUM to "[Localized] [Localized] [Localized]"
             "apt install" in command || "pkg install" in command || "pip install" in command ->
-                RiskLevel.LOW to "تثبيت حزمة"
+                RiskLevel.LOW to "[Localized] [Localized]"
             "mkfs" in command || "fdisk" in command || "dd if=" in command ->
-                RiskLevel.CRITICAL to "عملية تهيئة/نسخ قرص — خطر بالغ"
+                RiskLevel.CRITICAL to "[Localized] [Localized]/[Localized] [Localized] — [Localized] [Localized]"
             else ->
-                RiskLevel.MEDIUM to "تنفيذ أمر: ${command.take(60)}"
+                RiskLevel.MEDIUM to "[Localized] [Localized]: ${command.take(60)}"
         }
         val effectPath = extractPathFromCommand(command)
 
-        // أوامر الحذف (rm, unlink) تُنتج تأثير DELETE حتى يعمل اكتشاف READ_AFTER_DELETE/MODIFY_AFTER_DELETE
-        // كل الأوامر الأخرى تُنتج تأثير EXECUTE (git reset, mkfs, dd، إلخ)
+        // [Localized] [Localized] (rm, unlink) [Localized] [Localized] DELETE [Localized] [Localized] [Localized] READ_AFTER_DELETE/MODIFY_AFTER_DELETE
+        // [Localized] [Localized] [Localized] [Localized] [Localized] EXECUTE (git reset, mkfs, dd[Localized] [Localized])
         val effectType = when {
             "rm -rf" in command || "rm -r" in command -> EffectType.DELETE
             Regex("""^rm\s""").containsMatchIn(command) || "unlink" in command -> EffectType.DELETE
@@ -567,28 +567,28 @@ class CausalChainPlanner(
             ),
             preconditions = emptyList(),
             riskLevel = riskLevel,
-            humanSummary = "${riskLevel.label()} تنفيذ: ${command.take(80)}"
+            humanSummary = "${riskLevel.label()} [Localized]: ${command.take(80)}"
         )
     }
 
-    /** يُحلّل عمليات Git لتحديد مستوى الخطر. */
+    /** [Localized] [Localized] Git [Localized] [Localized] [Localized]. */
     private fun analyzeGitAction(params: Map<String, String>): ToolRule {
         val action = params["action"]?.lowercase() ?: ""
         val (risk, desc, effType) = when {
             action in listOf("push", "force_push") ->
-                Triple(RiskLevel.MEDIUM, "رفع تغييرات", EffectType.NETWORK)
+                Triple(RiskLevel.MEDIUM, "[Localized] [Localized]", EffectType.NETWORK)
             action in listOf("reset", "clean") ->
-                Triple(RiskLevel.HIGH, "إعادة ضبط Git", EffectType.SYSTEM)
+                Triple(RiskLevel.HIGH, "[Localized] [Localized] Git", EffectType.SYSTEM)
             action in listOf("merge", "rebase") ->
-                Triple(RiskLevel.MEDIUM, "دمج/إعادة بناء فروع", EffectType.MODIFY)
+                Triple(RiskLevel.MEDIUM, "[Localized]/[Localized] [Localized] [Localized]", EffectType.MODIFY)
             action in listOf("commit", "add", "stage") ->
-                Triple(RiskLevel.LOW, "تسجيل تغييرات", EffectType.SYSTEM)
+                Triple(RiskLevel.LOW, "[Localized] [Localized]", EffectType.SYSTEM)
             action in listOf("clone", "fetch", "pull") ->
-                Triple(RiskLevel.LOW, "جلب بيانات", EffectType.NETWORK)
+                Triple(RiskLevel.LOW, "[Localized] [Localized]", EffectType.NETWORK)
             action in listOf("branch_delete", "tag_delete") ->
-                Triple(RiskLevel.HIGH, "حذف فرع/وسم", EffectType.DELETE)
+                Triple(RiskLevel.HIGH, "[Localized] [Localized]/[Localized]", EffectType.DELETE)
             else ->
-                Triple(RiskLevel.LOW, "عملية Git: $action", EffectType.READ)
+                Triple(RiskLevel.LOW, "[Localized] Git: $action", EffectType.READ)
         }
         return ToolRule(
             effects = listOf(CausalEffect(effType, null, desc)),
@@ -599,24 +599,24 @@ class CausalChainPlanner(
     }
 
     /**
-     * يُحاكي خطوة واحدة ضد الحالة الافتراضية الحالية.
-     * يُرجع (wouldSucceed, failReason, newState).
+     * [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].
+     * [Localized] (wouldSucceed, failReason, newState).
      */
     private fun simulateStep(
         node: CausalNode,
         state: VirtualState
     ): Triple<Boolean, String?, VirtualState> {
-        // فحص المتطلبات ضد الحالة الافتراضية
+        // [Localized] [Localized] [Localized] [Localized] [Localized]
         for (precondition in node.preconditions) {
-            // استخراج المسار من نص المتطلب (مثل: "'path/file' موجود")
+            // [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized]: "'path/file' [Localized]")
             val pathMatch = Regex("'([^']+)'").find(precondition)
             val requiredPath = pathMatch?.groupValues?.get(1) ?: continue
-            if (precondition.contains("موجود") && state.wasDeleted(requiredPath)) {
-                return Triple(false, "الملف '$requiredPath' محذوف ولا يمكن الوصول إليه.", state)
+            if (precondition.contains("[Localized]") && state.wasDeleted(requiredPath)) {
+                return Triple(false, "[Localized] '$requiredPath' [Localized] [Localized] [Localized] [Localized] [Localized].", state)
             }
         }
 
-        // تطبيق التأثيرات على الحالة الافتراضية
+        // [Localized] [Localized] [Localized] [Localized] [Localized]
         var created = state.createdPaths.toMutableSet()
         var deleted = state.deletedPaths.toMutableSet()
         var modified = state.modifiedPaths.toMutableSet()
@@ -639,7 +639,7 @@ class CausalChainPlanner(
         )
     }
 
-    /** يستخرج أول مسار ملف من أمر shell بطريقة بسيطة. */
+    /** [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] shell [Localized] [Localized]. */
     private fun extractPathFromCommand(command: String): String? {
         val pathRegex = Regex("""[/~][^\s'"]+|'([^']+)'|"([^"]+)"""")
         return pathRegex.find(command)?.let {

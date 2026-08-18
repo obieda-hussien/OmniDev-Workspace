@@ -5,17 +5,17 @@ import com.omnidev.workspace.data.repo.RepoIndexer
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * RepoContextTools — أدوات استعلام Live Repository Context (Brain 2.0)
+ * RepoContextTools — [Localized] [Localized] Live Repository Context (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * توفّر للـ Agent قدرات بحث رمزي خفيفة (mobile-first):
- *   - repo_index_scope: فهرسة scope بالكامل تدريجياً
- *   - repo_search_symbols: بحث fuzzy بالاسم/qualified name
- *   - repo_symbols_by_kind: كل الـ classes / functions / interfaces
- *   - repo_file_symbols: قائمة رموز ملف
- *   - repo_stats: إحصاءات المشروع المُفهرس
+ * [Localized] [Localized] Agent [Localized] [Localized] [Localized] [Localized] (mobile-first):
+ *   - repo_index_scope: [Localized] scope [Localized] [Localized]
+ *   - repo_search_symbols: [Localized] fuzzy [Localized]/qualified name
+ *   - repo_symbols_by_kind: [Localized] [Localized] classes / functions / interfaces
+ *   - repo_file_symbols: [Localized] [Localized] [Localized]
+ *   - repo_stats: [Localized] [Localized] [Localized]
  *
- * كل الاستعلامات SQL-only (≤ 50 رمز/استعلام) — آمنة لأجهزة 2-4 GB RAM.
+ * [Localized] [Localized] SQL-only (≤ 50 [Localized]/[Localized]) — [Localized] [Localized] 2-4 GB RAM.
  */
 class RepoContextTools(
     @Suppress("unused") private val indexer: RepoIndexer,
@@ -25,61 +25,61 @@ class RepoContextTools(
     fun getDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "repo_index_scope",
-            description = "فهرسة scope/مشروع بالكامل (تدريجياً، لا يعيد فهرسة ما لم يتغيّر). " +
-                "استخدم مرة واحدة في بداية المهمة لو لم يُفهرس بعد.",
+            description = "[Localized] scope/[Localized] [Localized] ([Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized]). " +
+                "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] [Localized].",
             parameters = listOf(
-                ToolParameter("scope_path", "string", "المسار المطلق لجذر المشروع", required = false)
+                ToolParameter("scope_path", "string", "[Localized] [Localized] [Localized] [Localized]", required = false)
             )
         ),
         ToolDefinition(
             name = "repo_search_symbols",
-            description = "بحث fuzzy بالاسم في الرموز المُفهرسة (classes, functions, properties...). " +
-                "أسرع وأخف من grep — يستخدم الفهرس المحلي مباشرة.",
+            description = "[Localized] fuzzy [Localized] [Localized] [Localized] [Localized] (classes, functions, properties...). " +
+                "[Localized] [Localized] [Localized] grep — [Localized] [Localized] [Localized] [Localized].",
             parameters = listOf(
-                ToolParameter("query", "string", "اسم أو جزء منه للبحث (e.g. Foo, parseToken)"),
-                ToolParameter("scope_path", "string", "scope (افتراضي scope الجلسة)", required = false),
-                ToolParameter("limit", "integer", "عدد النتائج (1-50، الافتراضي 30)", required = false)
+                ToolParameter("query", "string", "[Localized] [Localized] [Localized] [Localized] [Localized] (e.g. Foo, parseToken)"),
+                ToolParameter("scope_path", "string", "scope ([Localized] scope [Localized])", required = false),
+                ToolParameter("limit", "integer", "[Localized] [Localized] (1-50[Localized] [Localized] 30)", required = false)
             )
         ),
         ToolDefinition(
             name = "repo_symbols_by_kind",
-            description = "استرجاع كل الرموز من نوع معين (class/function/interface/property...). " +
-                "مفيد لاستكشاف بنية المشروع.",
+            description = "[Localized] [Localized] [Localized] [Localized] [Localized] [Localized] (class/function/interface/property...). " +
+                "[Localized] [Localized] [Localized] [Localized].",
             parameters = listOf(
-                ToolParameter("kind", "string", "النوع: class, function, interface, object, enum, property, type"),
-                ToolParameter("scope_path", "string", "scope (افتراضي scope الجلسة)", required = false),
-                ToolParameter("limit", "integer", "عدد النتائج (1-100، الافتراضي 50)", required = false)
+                ToolParameter("kind", "string", "[Localized]: class, function, interface, object, enum, property, type"),
+                ToolParameter("scope_path", "string", "scope ([Localized] scope [Localized])", required = false),
+                ToolParameter("limit", "integer", "[Localized] [Localized] (1-100[Localized] [Localized] 50)", required = false)
             )
         ),
         ToolDefinition(
             name = "repo_file_symbols",
-            description = "قائمة الرموز في ملف بعينه (مفيد لفهم سريع لمحتوى الملف).",
+            description = "[Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized] [Localized] [Localized] [Localized]).",
             parameters = listOf(
-                ToolParameter("file_path", "string", "المسار المطلق للملف"),
-                ToolParameter("scope_path", "string", "scope (افتراضي scope الجلسة)", required = false)
+                ToolParameter("file_path", "string", "[Localized] [Localized] [Localized]"),
+                ToolParameter("scope_path", "string", "scope ([Localized] scope [Localized])", required = false)
             )
         ),
         ToolDefinition(
             name = "repo_stats",
-            description = "إحصاءات المشروع المُفهرس: عدد الملفات والرموز، توزيع اللغات.",
+            description = "[Localized] [Localized] [Localized]: [Localized] [Localized] [Localized] [Localized] [Localized].",
             parameters = listOf(
-                ToolParameter("scope_path", "string", "scope (افتراضي scope الجلسة)", required = false)
+                ToolParameter("scope_path", "string", "scope ([Localized] scope [Localized])", required = false)
             )
         )
     )
 
-    /** يُرجع null إذا الأداة ليست مملوكة لهذا الـ wrapper (لتمرير fall-through). */
+    /** [Localized] null [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] wrapper ([Localized] fall-through). */
     suspend fun execute(name: String, args: Map<String, String>): ToolExecutionResult? {
         if (name !in HANDLED) return null
         val scope = args["scope_path"]?.takeIf { it.isNotBlank() }
-            ?: return ToolExecutionResult("scope_path مطلوب لتنفيذ '$name'.", isError = true)
+            ?: return ToolExecutionResult("scope_path [Localized] [Localized] '$name'.", isError = true)
 
         return try {
             when (name) {
                 "repo_index_scope" -> {
                     val res = engine.indexScope(scope)
                     ToolExecutionResult(buildString {
-                        appendLine("📚 فهرسة $scope مكتملة (${res.elapsedMs}ms):")
+                        appendLine("📚 [Localized] $scope [Localized] (${res.elapsedMs}ms):")
                         appendLine("  scanned = ${res.totalScanned}")
                         appendLine("  indexed (new) = ${res.indexed}")
                         appendLine("  updated = ${res.updated}")
@@ -90,35 +90,35 @@ class RepoContextTools(
                 }
                 "repo_search_symbols" -> {
                     val q = args["query"]?.trim()
-                        ?: return ToolExecutionResult("query مطلوب", isError = true)
+                        ?: return ToolExecutionResult("query [Localized]", isError = true)
                     val limit = args["limit"]?.toIntOrNull()?.coerceIn(1, 50) ?: 30
                     val results = engine.searchSymbols(scope, q, limit)
-                    if (results.isEmpty()) ToolExecutionResult("لم يُعثر على رموز تطابق '$q'.")
-                    else ToolExecutionResult(formatSymbols(results, "🔍 نتائج '$q' (${results.size}):"))
+                    if (results.isEmpty()) ToolExecutionResult("[Localized] [Localized] [Localized] [Localized] [Localized] '$q'.")
+                    else ToolExecutionResult(formatSymbols(results, "🔍 [Localized] '$q' (${results.size}):"))
                 }
                 "repo_symbols_by_kind" -> {
                     val kind = args["kind"]?.trim()?.lowercase()
-                        ?: return ToolExecutionResult("kind مطلوب", isError = true)
+                        ?: return ToolExecutionResult("kind [Localized]", isError = true)
                     val limit = args["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 50
                     val results = engine.symbolsByKind(scope, kind, limit)
-                    if (results.isEmpty()) ToolExecutionResult("لا توجد رموز من النوع '$kind'.")
-                    else ToolExecutionResult(formatSymbols(results, "📋 رموز نوع $kind (${results.size}):"))
+                    if (results.isEmpty()) ToolExecutionResult("[Localized] [Localized] [Localized] [Localized] [Localized] '$kind'.")
+                    else ToolExecutionResult(formatSymbols(results, "📋 [Localized] [Localized] $kind (${results.size}):"))
                 }
                 "repo_file_symbols" -> {
                     val fp = args["file_path"]?.trim()
-                        ?: return ToolExecutionResult("file_path مطلوب", isError = true)
+                        ?: return ToolExecutionResult("file_path [Localized]", isError = true)
                     val results = engine.fileSymbols(scope, fp)
-                    if (results.isEmpty()) ToolExecutionResult("لا توجد رموز في $fp.")
-                    else ToolExecutionResult(formatSymbols(results, "📄 رموز $fp:"))
+                    if (results.isEmpty()) ToolExecutionResult("[Localized] [Localized] [Localized] [Localized] $fp.")
+                    else ToolExecutionResult(formatSymbols(results, "📄 [Localized] $fp:"))
                 }
                 "repo_stats" -> {
                     val s = engine.getStats(scope)
                     ToolExecutionResult(buildString {
-                        appendLine("📊 إحصاءات $scope:")
-                        appendLine("  ملفات: ${s.fileCount}")
-                        appendLine("  رموز: ${s.symbolCount}")
+                        appendLine("📊 [Localized] $scope:")
+                        appendLine("  [Localized]: ${s.fileCount}")
+                        appendLine("  [Localized]: ${s.symbolCount}")
                         if (s.languages.isNotEmpty()) {
-                            appendLine("  لغات:")
+                            appendLine("  [Localized]:")
                             for ((lang, n) in s.languages.take(10)) {
                                 appendLine("    - $lang: $n")
                             }

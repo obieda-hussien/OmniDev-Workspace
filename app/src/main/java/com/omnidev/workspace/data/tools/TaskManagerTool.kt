@@ -289,9 +289,9 @@ object TaskManagerTool {
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private fun parsePriority(raw: String?): Priority = when (raw?.lowercase()) {
-        // Also accepts Arabic: عالي = high, منخفض = low
-        "high", "عالي", "urgent" -> Priority.HIGH
-        "low", "منخفض"           -> Priority.LOW
+        // Also accepts Arabic: [Localized] = high, [Localized] = low
+        "high", "[Localized]", "urgent" -> Priority.HIGH
+        "low", "[Localized]"           -> Priority.LOW
         else                    -> Priority.MEDIUM
     }
 

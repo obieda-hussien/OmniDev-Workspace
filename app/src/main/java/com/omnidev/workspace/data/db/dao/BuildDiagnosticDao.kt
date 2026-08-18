@@ -9,8 +9,8 @@ import com.omnidev.workspace.data.db.entities.BuildDiagnosticEntry
 import kotlinx.coroutines.flow.Flow
 
 /**
- * DAO لقاعدة معرفة Build Doctor Pro. يتعرف على الأخطاء المتكررة عبر
- * fingerprint ويعيد استخدام الحلول الناجحة سابقاً.
+ * DAO [Localized] [Localized] Build Doctor Pro. [Localized] [Localized] [Localized] [Localized] [Localized]
+ * fingerprint [Localized] [Localized] [Localized] [Localized] [Localized].
  */
 @Dao
 interface BuildDiagnosticDao {
@@ -24,7 +24,7 @@ interface BuildDiagnosticDao {
     @Query("SELECT * FROM build_diagnostics WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): BuildDiagnosticEntry?
 
-    /** البحث الأساسي: عبر fingerprint للكشف عن نفس الخطأ المتكرر. */
+    /** [Localized] [Localized]: [Localized] fingerprint [Localized] [Localized] [Localized] [Localized] [Localized]. */
     @Query("SELECT * FROM build_diagnostics WHERE errorFingerprint = :fingerprint LIMIT 1")
     suspend fun findByFingerprint(fingerprint: String): BuildDiagnosticEntry?
 
@@ -36,7 +36,7 @@ interface BuildDiagnosticDao {
     """)
     suspend fun findByCategory(category: String, limit: Int = 20): List<BuildDiagnosticEntry>
 
-    /** الحلول التي نجحت أكثر من مرة (لاقتراحها بثقة). */
+    /** [Localized] [Localized] [Localized] [Localized] [Localized] [Localized] ([Localized] [Localized]). */
     @Query("""
         SELECT * FROM build_diagnostics
         WHERE successfulFixCount >= 1 AND LENGTH(solutionDiff) > 0
@@ -65,7 +65,7 @@ interface BuildDiagnosticDao {
     @Query("SELECT COUNT(*) FROM build_diagnostics")
     suspend fun count(): Int
 
-    /** LRU eviction: حذف الأضعف (الأقدم وأقل نجاحاً). */
+    /** LRU eviction: [Localized] [Localized] ([Localized] [Localized] [Localized]). */
     @Query("""
         DELETE FROM build_diagnostics
         WHERE id IN (

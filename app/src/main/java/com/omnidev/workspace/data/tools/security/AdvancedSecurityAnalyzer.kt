@@ -16,14 +16,14 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipFile
 
 /**
- * Advanced Security Analyzer - نظام التحليل الأمني المتقدم
+ * Advanced Security Analyzer - [Localized] [Localized] [Localized] [Localized]
  * 
- * يوفر:
- * - تحليل ثغرات التطبيقات
- * - فحص الأذونات الخطرة
- * - كشف البرمجيات الخبيثة
- * - تحليل الشبكة والاتصالات
- * - مراقبة سلوك التطبيقات
+ * [Localized]:
+ * - [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized]
+ * - [Localized] [Localized] [Localized]
  */
 object AdvancedSecurityAnalyzer {
 

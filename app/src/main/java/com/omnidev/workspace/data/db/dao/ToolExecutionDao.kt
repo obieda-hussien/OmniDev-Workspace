@@ -5,7 +5,7 @@ import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
 import kotlinx.coroutines.flow.Flow
 
 /**
- * ToolExecutionDao — واجهة الوصول لسجل تنفيذ الأدوات
+ * ToolExecutionDao — [Localized] [Localized] [Localized] [Localized] [Localized]
  */
 @Dao
 interface ToolExecutionDao {
@@ -31,7 +31,7 @@ interface ToolExecutionDao {
     @Query("SELECT * FROM tool_execution_log WHERE flaggedForReview = 1 ORDER BY timestamp DESC")
     suspend fun getFlagged(): List<ToolExecutionEntry>
 
-    // ─── الإحصائيات ──────────────────────────────────────────────────
+    // ─── [Localized] ──────────────────────────────────────────────────
 
     @Query("""
         SELECT toolName, 
@@ -77,7 +77,7 @@ interface ToolExecutionDao {
     @Query("SELECT * FROM tool_execution_log WHERE toolName = :toolName AND success = 0 ORDER BY timestamp DESC LIMIT 5")
     suspend fun getRecentFailures(toolName: String): List<ToolExecutionEntry>
 
-    // ─── تنظيف ───────────────────────────────────────────────────────
+    // ─── [Localized] ───────────────────────────────────────────────────────
 
     @Query("DELETE FROM tool_execution_log WHERE timestamp < :before AND flaggedForReview = 0")
     suspend fun deleteOldEntries(before: Long)
@@ -88,13 +88,13 @@ interface ToolExecutionDao {
     @Query("DELETE FROM tool_execution_log WHERE id = :id")
     suspend fun deleteById(id: Long)
 
-    // ─── Flow للواجهة ────────────────────────────────────────────────
+    // ─── Flow [Localized] ────────────────────────────────────────────────
 
     @Query("SELECT * FROM tool_execution_log ORDER BY timestamp DESC LIMIT 50")
     fun observeRecent(): Flow<List<ToolExecutionEntry>>
 }
 
-// ─── Data Classes للإحصائيات ──────────────────────────────────────────
+// ─── Data Classes [Localized] ──────────────────────────────────────────
 
 data class ToolUsageStats(
     val toolName: String,
