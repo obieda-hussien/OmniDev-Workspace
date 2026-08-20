@@ -16,29 +16,29 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.LinkedList
 
 /**
- * OmniInputMethodService — Context note Context note Context note Context note
+ * OmniInputMethodService — System awareness note System awareness note System awareness note System awareness note
  *
- * Context note Context note: Context note Context note Context note Context note
+ * System awareness note System awareness note: System awareness note System awareness note System awareness note System awareness note
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. **Context note Context note Context note (Context Detection)**:
- *    Context note Context note EditorInfo Context note Context note Context note Context note:
+ * 1. **System awareness note System awareness note System awareness note (Context Detection)**:
+ *    System awareness note System awareness note EditorInfo System awareness note System awareness note System awareness note System awareness note:
  *    PASSWORD, EMAIL, SEARCH, PHONE, MULTILINE, CHAT, URL, etc.
- *    Context note Context note Context note Context note Context note Context note.
+ *    System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
  *
- * 2. **Context note Context note Clipboard Context note (Smart Clipboard)**:
- *    Context note Context note 10 Context note Context note (Context note Context note Context note).
- *    Context note Context note Context note Context note.
+ * 2. **System awareness note System awareness note Clipboard System awareness note (Smart Clipboard)**:
+ *    System awareness note System awareness note 10 System awareness note System awareness note (System awareness note System awareness note System awareness note).
+ *    System awareness note System awareness note System awareness note System awareness note.
  *
- * 3. **Context note Context note Context note (Input Pattern Analysis)**:
- *    Context note Context note Context note Context note Context note Context note Context note.
- *    Context note "keystroke analytics" Context note.
+ * 3. **System awareness note System awareness note System awareness note (Input Pattern Analysis)**:
+ *    System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
+ *    System awareness note "keystroke analytics" System awareness note.
  *
- * 4. **Context note Context note Context note (Advanced Text Injection)**:
- *    commitText Context note Context note selectionContext note cursor placementContext note Context note markdown injection.
+ * 4. **System awareness note System awareness note System awareness note (Advanced Text Injection)**:
+ *    commitText System awareness note System awareness note selectionSystem awareness note cursor placementSystem awareness note System awareness note markdown injection.
  *
- * 5. **Context note: Context note Context note Context note Context note**:
- *    Context note PASSWORD Context note Context note Context note Context note Context note.
- *    Context note analytics Context note Context note Context note Context note.
+ * 5. **System awareness note: System awareness note System awareness note System awareness note System awareness note**:
+ *    System awareness note PASSWORD System awareness note System awareness note System awareness note System awareness note System awareness note.
+ *    System awareness note analytics System awareness note System awareness note System awareness note System awareness note.
  */
 class OmniInputMethodService : InputMethodService() {
 
@@ -61,18 +61,18 @@ class OmniInputMethodService : InputMethodService() {
         private val _inputAnalytics = MutableStateFlow(InputAnalytics())
         val inputAnalytics: StateFlow<InputAnalytics> = _inputAnalytics.asStateFlow()
 
-        /** Context note Context note Clipboard: Context note Context note Context note */
+        /** System awareness note System awareness note Clipboard: System awareness note System awareness note System awareness note */
         private val clipboardHistory = LinkedList<ClipboardEntry>()
 
         @Volatile
         private var activeService: OmniInputMethodService? = null
 
         // ─────────────────────────────────────────────────────────────────────
-        // API Context note
+        // API System awareness note
         // ─────────────────────────────────────────────────────────────────────
 
         /**
-         * Context note Context note Context note Context note Context note Context note Context note Context note.
+         * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
          */
         fun commitText(
             text: String,
@@ -84,7 +84,7 @@ class OmniInputMethodService : InputMethodService() {
                 val ic = service.currentInputConnection ?: return false
 
                 if (replaceSelection) {
-                    // Context note Context note Context note
+                    // System awareness note System awareness note System awareness note
                     ic.beginBatchEdit()
                     ic.commitText(text, if (moveCursorToEnd) 1 else 0)
                     ic.endBatchEdit()
@@ -92,18 +92,18 @@ class OmniInputMethodService : InputMethodService() {
                     ic.commitText(text, if (moveCursorToEnd) 1 else 0)
                 }
 
-                // Context note Context note analytics
+                // System awareness note System awareness note analytics
                 updateAnalyticsOnCommit(text)
                 Log.d(TAG, "✅ commitText: ${text.take(30)}")
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Info commitText: ${e.message}")
+                Log.e(TAG, "❌ System awareness note commitText: ${e.message}")
                 false
             }
         }
 
         /**
-         * [Context note] Context note Context note Context note Context note Context note Context note wrapper (Context note: bold = "**text**").
+         * [System awareness note] System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note wrapper (System awareness note: bold = "**text**").
          */
         fun commitWrappedText(
             innerText: String,
@@ -114,8 +114,8 @@ class OmniInputMethodService : InputMethodService() {
         }
 
         /**
-         * [Context note] Context note Context note Context note Context note ($cursor) Context note Context note cursor Context note Context note.
-         * Context note: insertTemplate("```\n$cursor\n```") Context note Context note block Context note Context note Context note.
+         * [System awareness note] System awareness note System awareness note System awareness note System awareness note ($cursor) System awareness note System awareness note cursor System awareness note System awareness note.
+         * System awareness note: insertTemplate("```\n$cursor\n```") System awareness note System awareness note block System awareness note System awareness note System awareness note.
          */
         fun insertTemplate(template: String, cursorPlaceholder: String = "\$cursor"): Boolean {
             val service = activeService ?: return false
@@ -128,7 +128,7 @@ class OmniInputMethodService : InputMethodService() {
                     val before = template.substring(0, cursorIndex)
                     val after = template.substring(cursorIndex + cursorPlaceholder.length)
                     ic.commitText(before + after, 1)
-                    // Context note Context note Context note $cursor
+                    // System awareness note System awareness note System awareness note $cursor
                     if (after.isNotEmpty()) {
                         ic.setSelection(
                             ic.getTextBeforeCursor(after.length + before.length, 0)?.length?.minus(after.length) ?: 0,
@@ -138,7 +138,7 @@ class OmniInputMethodService : InputMethodService() {
                 }
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "insertTemplate Info: ${e.message}")
+                Log.e(TAG, "insertTemplate System awareness note: ${e.message}")
                 false
             }
         }
@@ -169,45 +169,45 @@ class OmniInputMethodService : InputMethodService() {
             activeService?.currentInputConnection?.getTextAfterCursor(length, 0)?.toString()
 
         /**
-         * [Context note] Context note Context note Context note Context note Context note.
+         * [System awareness note] System awareness note System awareness note System awareness note System awareness note System awareness note.
          */
         fun getFullFieldContext(): String = buildString {
             val context = _currentFieldContext.value
-            if (context == null) { append("Info Info Info Info"); return@buildString }
+            if (context == null) { append("System awareness note System awareness note System awareness note System awareness note"); return@buildString }
 
-            append("📝 Info Info:\n")
-            append("Info: ${context.fieldType.name}\n")
-            append("Info: ${context.packageName}\n")
-            append("hint: ${context.hint ?: "(Info Info)"}\n")
-            append("Info Info: ${if (context.isPassword) "Info 🔒" else "Info"}\n")
-            append("Info Info: ${context.isMultiline}\n")
+            append("📝 System awareness note System awareness note:\n")
+            append("System awareness note: ${context.fieldType.name}\n")
+            append("System awareness note: ${context.packageName}\n")
+            append("hint: ${context.hint ?: "(System awareness note System awareness note)"}\n")
+            append("System awareness note System awareness note: ${if (context.isPassword) "System awareness note 🔒" else "System awareness note"}\n")
+            append("System awareness note System awareness note: ${context.isMultiline}\n")
 
             val textBefore = getTextBeforeCursor(MAX_FIELD_CONTEXT_CHARS)
             if (!textBefore.isNullOrEmpty()) {
-                append("Info Info (Info ${textBefore.length} Info): \"${textBefore.takeLast(80)}\"")
+                append("System awareness note System awareness note (System awareness note ${textBefore.length} System awareness note): \"${textBefore.takeLast(80)}\"")
             }
         }
 
         /**
-         * [Context note] Context note Context note Context note Context note Clipboard (Context note Context note Context note).
+         * [System awareness note] System awareness note System awareness note System awareness note System awareness note Clipboard (System awareness note System awareness note System awareness note).
          */
         fun addToClipboardHistory(text: String, label: String = "Agent") {
-            if (text.length > 2000) return // Context note Context note Context note
+            if (text.length > 2000) return // System awareness note System awareness note System awareness note
             val entry = ClipboardEntry(text, label, System.currentTimeMillis())
             synchronized(clipboardHistory) {
-                if (clipboardHistory.firstOrNull()?.text == text) return // Context note Context note
+                if (clipboardHistory.firstOrNull()?.text == text) return // System awareness note System awareness note
                 clipboardHistory.addFirst(entry)
                 if (clipboardHistory.size > MAX_CLIPBOARD_HISTORY) clipboardHistory.removeLast()
             }
         }
 
         /**
-         * [Context note] Context note Context note Context note Clipboard Context note.
+         * [System awareness note] System awareness note System awareness note System awareness note Clipboard System awareness note.
          */
         fun getClipboardHistory(): String = buildString {
             val history = synchronized(clipboardHistory) { clipboardHistory.toList() }
-            if (history.isEmpty()) { append("Info Info Clipboard Info"); return@buildString }
-            append("📋 Info Info Clipboard (Info ${history.size}):\n")
+            if (history.isEmpty()) { append("System awareness note System awareness note Clipboard System awareness note"); return@buildString }
+            append("📋 System awareness note System awareness note Clipboard (System awareness note ${history.size}):\n")
             history.forEachIndexed { i, entry ->
                 append("${i + 1}. [${entry.label}] ${entry.text.take(60)}\n")
             }
@@ -240,14 +240,14 @@ class OmniInputMethodService : InputMethodService() {
         super.onCreate()
         activeService = this
         _isActive.value = true
-        Log.i(TAG, "✅ OmniDev IME Info")
+        Log.i(TAG, "✅ OmniDev IME System awareness note")
     }
 
     override fun onDestroy() {
         activeService = null
         _isActive.value = false
         _currentFieldContext.value = null
-        Log.i(TAG, "OmniDev IME Info")
+        Log.i(TAG, "OmniDev IME System awareness note")
         super.onDestroy()
     }
 
@@ -257,20 +257,20 @@ class OmniInputMethodService : InputMethodService() {
         super.onStartInput(attribute, restarting)
         attribute ?: return
 
-        // Context note Context note Context note Context note
+        // System awareness note System awareness note System awareness note System awareness note
         val context = buildFieldContext(attribute)
         _currentFieldContext.value = context
 
-        // Context note Context note analytics
+        // System awareness note System awareness note analytics
         val current = _inputAnalytics.value
         _inputAnalytics.value = current.copy(
             fieldSwitchCount = current.fieldSwitchCount + 1,
             currentFieldType = context.fieldType
         )
 
-        Log.d(TAG, "Info Info — ${context.fieldType.name} Info ${context.packageName}")
+        Log.d(TAG, "System awareness note System awareness note — ${context.fieldType.name} System awareness note ${context.packageName}")
 
-        // Context note Context note Context note Context note Context note
+        // System awareness note System awareness note System awareness note System awareness note System awareness note
         _textInputFlow.tryEmit(
             TextInputEvent(
                 text = "",
@@ -302,7 +302,7 @@ class OmniInputMethodService : InputMethodService() {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
 
         val context = _currentFieldContext.value ?: return
-        // Context note Context note Context note Context note Context note Context note
+        // System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
         if (context.isPassword) return
 
         if (newSelStart > oldSelStart) {
@@ -320,7 +320,7 @@ class OmniInputMethodService : InputMethodService() {
                                 fieldContext = context
                             )
                         )
-                        // Context note analytics
+                        // System awareness note analytics
                         val current = _inputAnalytics.value
                         _inputAnalytics.value = current.copy(
                             totalCharsTyped = current.totalCharsTyped + newText.length,
@@ -369,10 +369,10 @@ class OmniInputMethodService : InputMethodService() {
         if (hint == null) return FieldType.TEXT
         val h = hint.lowercase()
         return when {
-            "search" in h || "Info" in h -> FieldType.SEARCH
-            "email" in h || "Info" in h || "@" in h -> FieldType.EMAIL
-            "phone" in h || "Info" in h || "mobile" in h -> FieldType.PHONE
-            "message" in h || "Info" in h || "comment" in h -> FieldType.CHAT
+            "search" in h || "System awareness note" in h -> FieldType.SEARCH
+            "email" in h || "System awareness note" in h || "@" in h -> FieldType.EMAIL
+            "phone" in h || "System awareness note" in h || "mobile" in h -> FieldType.PHONE
+            "message" in h || "System awareness note" in h || "comment" in h -> FieldType.CHAT
             "url" in h || "website" in h || "link" in h -> FieldType.URL
             else -> FieldType.TEXT
         }

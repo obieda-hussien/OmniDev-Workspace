@@ -131,7 +131,7 @@ class OmniSyncService : Service() {
 
         private fun buildSingleLineBody(summary: TaskSchedulerTool.ExecutionSummary): String {
             val dur = "${summary.durationSec}s"
-            val tools = "${summary.toolsUsed} Info"
+            val tools = "${summary.toolsUsed} System awareness note"
             return if (summary.isSuccess) "✅ $dur | $tools | ${summary.result.take(80)}"
                    else "❌ ${summary.errorMessage?.take(100) ?: "Error"}"
         }
@@ -182,8 +182,8 @@ class OmniSyncService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
-        startForegroundSafe(buildNotification("OmniDev Sync Info"))
-        Log.i(TAG, "✅ OmniSyncService Info")
+        startForegroundSafe(buildNotification("OmniDev Sync System awareness note"))
+        Log.i(TAG, "✅ OmniSyncService System awareness note")
 
         // Register notification callback in TaskSchedulerTool
         TaskSchedulerTool.notificationCallback = { task, summary ->
@@ -196,7 +196,7 @@ class OmniSyncService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
 
     override fun onDestroy() {
-        Log.i(TAG, "OmniSyncService Info")
+        Log.i(TAG, "OmniSyncService System awareness note")
         syncJob?.cancel()
         scope.cancel()
         _syncState.value = SyncState.IDLE
@@ -230,7 +230,7 @@ class OmniSyncService : Service() {
                             _circuitState.value = CircuitState.HALF_OPEN
                         } else {
                             _syncState.value = SyncState.CIRCUIT_OPEN
-                            updateNotification("Circuit Open — Info Info ${(CIRCUIT_RECOVERY_MS - elapsed) / 1000}s")
+                            updateNotification("Circuit Open — System awareness note System awareness note ${(CIRCUIT_RECOVERY_MS - elapsed) / 1000}s")
                             delay(min(interval, CIRCUIT_RECOVERY_MS - elapsed + 1000))
                             continue
                         }
@@ -256,14 +256,14 @@ class OmniSyncService : Service() {
                     updateHealthReport(success = true, tasksThisCycle = executed)
 
                     val statusText = if (executed > 0) {
-                        "Info sync: ${formatTime(System.currentTimeMillis())} | Info $executed Info"
+                        "System awareness note sync: ${formatTime(System.currentTimeMillis())} | System awareness note $executed System awareness note"
                     } else {
-                        "Info sync: ${formatTime(System.currentTimeMillis())} | Info Info"
+                        "System awareness note sync: ${formatTime(System.currentTimeMillis())} | System awareness note System awareness note"
                     }
                     updateNotification(statusText)
 
                 } catch (e: Exception) {
-                    Log.e(TAG, "Info Info Info: ${e.message}", e)
+                    Log.e(TAG, "System awareness note System awareness note System awareness note: ${e.message}", e)
                     totalCycles.incrementAndGet()
                     failedCycles.incrementAndGet()
                     val failures = consecutiveFailures.incrementAndGet()
@@ -273,7 +273,7 @@ class OmniSyncService : Service() {
                     if (failures >= CIRCUIT_BREAKER_THRESHOLD) {
                         _circuitState.value = CircuitState.OPEN
                         circuitOpenTime.set(System.currentTimeMillis())
-                        updateNotification("⚠️ Circuit Open — $failures Info")
+                        updateNotification("⚠️ Circuit Open — $failures System awareness note")
                     }
                 }
 
@@ -291,21 +291,21 @@ class OmniSyncService : Service() {
         val readyTasks = TaskSchedulerTool.getReadyTasks()
         if (readyTasks.isEmpty()) return 0
 
-        Log.d(TAG, "Info sync: ${readyTasks.size} Info Info")
+        Log.d(TAG, "System awareness note sync: ${readyTasks.size} System awareness note System awareness note")
         var executedCount = 0
 
         for (task in readyTasks) {
             // Check timeout deadline before execution
             val timeoutDeadline = TaskSchedulerTool.getTimeoutDeadlineMillis(task.id)
             if (timeoutDeadline != null && System.currentTimeMillis() >= timeoutDeadline) {
-                Log.w(TAG, "⏱ Info Info Info: ${task.name}")
+                Log.w(TAG, "⏱ System awareness note System awareness note System awareness note: ${task.name}")
                 val summary = TaskSchedulerTool.ExecutionSummary(
                     taskId = task.id, taskName = task.name,
                     startTimeMs = task.startedAtMillis ?: System.currentTimeMillis(),
                     endTimeMs = System.currentTimeMillis(),
                     toolsUsed = 0, toolNames = emptyList(),
                     result = "", isSuccess = false,
-                    errorMessage = "Info Info (${task.timeoutMinutes} Info)"
+                    errorMessage = "System awareness note System awareness note (${task.timeoutMinutes} System awareness note)"
                 )
                 TaskSchedulerTool.markFailed(task.id, "Timeout after ${task.timeoutMinutes}m", summary)
                 continue
@@ -317,20 +317,20 @@ class OmniSyncService : Service() {
 
                 // Mark as running
                 TaskSchedulerTool.markRunning(task.id,
-                    executionDetails = "Info: ${formatTime(startTime)} | ${displayPrompt}")
+                    executionDetails = "System awareness note: ${formatTime(startTime)} | ${displayPrompt}")
                 _syncState.value = SyncState.EXECUTING_TASK
                 _currentlyRunningTask.value = task.name
 
-                updateNotification("▶️ Info: ${task.name.take(50)}")
+                updateNotification("▶️ System awareness note: ${task.name.take(50)}")
                 notifyTaskStarted(task.name, task.id, displayPrompt)
-                DebugLogManager.appendInfo(TAG, "▶️ Info Info: ${task.name} (${task.id})")
+                DebugLogManager.appendInfo(TAG, "▶️ System awareness note System awareness note: ${task.name} (${task.id})")
 
                 // ═══════════════════════════════════════════════════════════
                 // ACTUAL EXECUTION via executionCallback
                 // ═══════════════════════════════════════════════════════════
                 val callback = TaskSchedulerTool.executionCallback
                 if (callback != null) {
-                    Log.d(TAG, "🤖 Info Info Info AgentPipeline: ${task.name}")
+                    Log.d(TAG, "🤖 System awareness note System awareness note System awareness note AgentPipeline: ${task.name}")
                     try {
                         val summary = withTimeout(
                             ((task.timeoutMinutes ?: 30) * 60 * 1_000L).coerceAtLeast(60_000L)
@@ -340,7 +340,7 @@ class OmniSyncService : Service() {
                         if (summary.isSuccess) {
                             TaskSchedulerTool.markCompleted(task.id, summary.result, summary)
                             tasksSucceeded.incrementAndGet()
-                            DebugLogManager.appendInfo(TAG, "✅ Info Info: ${task.name} (${summary.durationSec}s, ${summary.toolsUsed} Info)")
+                            DebugLogManager.appendInfo(TAG, "✅ System awareness note System awareness note: ${task.name} (${summary.durationSec}s, ${summary.toolsUsed} System awareness note)")
                         } else {
                             TaskSchedulerTool.markFailed(task.id, summary.errorMessage ?: "Unknown error", summary)
                             tasksFailed.incrementAndGet()
@@ -359,7 +359,7 @@ class OmniSyncService : Service() {
                     }
                 } else {
                     // Fallback when callback is not set (should not happen in production)
-                    Log.w(TAG, "⚠️ executionCallback Info Info — Info Info Info: ${task.name}")
+                    Log.w(TAG, "⚠️ executionCallback System awareness note System awareness note — System awareness note System awareness note System awareness note: ${task.name}")
                     val noCallbackSummary = TaskSchedulerTool.ExecutionSummary(
                         taskId = task.id, taskName = task.name,
                         startTimeMs = startTime, endTimeMs = System.currentTimeMillis(),
@@ -383,7 +383,7 @@ class OmniSyncService : Service() {
             } catch (e: CancellationException) {
                 throw e // Always propagate CancellationException
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Info Info Info Info ${task.id}: ${e.message}")
+                Log.e(TAG, "❌ System awareness note System awareness note System awareness note System awareness note ${task.id}: ${e.message}")
                 DebugLogManager.appendError(TAG, e)
                 val errorSummary = TaskSchedulerTool.ExecutionSummary(
                     taskId = task.id, taskName = task.name,
@@ -439,15 +439,15 @@ class OmniSyncService : Service() {
     fun getStatusReport(): String = buildString {
         val h = _healthReport.value
         append("📊 OmniSync:\n")
-        append("  Info: ${h.totalCycles} (${h.successfulCycles}✅ / ${h.failedCycles}❌)\n")
-        append("  Info Info: ${h.totalTasksExecuted} (${h.tasksSucceeded}✅ / ${h.tasksFailed}❌)\n")
-        append("  Info: ${if(h.isHealthy) "🟢 Info" else "🔴 Info"}\n")
+        append("  System awareness note: ${h.totalCycles} (${h.successfulCycles}✅ / ${h.failedCycles}❌)\n")
+        append("  System awareness note System awareness note: ${h.totalTasksExecuted} (${h.tasksSucceeded}✅ / ${h.tasksFailed}❌)\n")
+        append("  System awareness note: ${if(h.isHealthy) "🟢 System awareness note" else "🔴 System awareness note"}\n")
         append("  Circuit: ${_circuitState.value.name}\n")
         val running = _currentlyRunningTask.value
-        if (running != null) append("  🤖 Info Info: $running\n")
+        if (running != null) append("  🤖 System awareness note System awareness note: $running\n")
         val bridgeSet = TaskSchedulerTool.executionCallback != null
-        append("  Execution Bridge: ${if(bridgeSet) "✅ Info" else "❌ Info Info"}\n")
-        h.lastError?.let { append("  Info Info: $it\n") }
+        append("  Execution Bridge: ${if(bridgeSet) "✅ System awareness note" else "❌ System awareness note System awareness note"}\n")
+        h.lastError?.let { append("  System awareness note System awareness note: $it\n") }
     }.trimEnd()
 
     // ── Notifications ─────────────────────────────────────────────────────
@@ -457,14 +457,14 @@ class OmniSyncService : Service() {
             val nm = getSystemService(NotificationManager::class.java)
             nm?.createNotificationChannel(NotificationChannel(
                 CHANNEL_ID, "OmniDev Sync", NotificationManager.IMPORTANCE_LOW
-            ).apply { description = "Info Info"; setShowBadge(false) })
+            ).apply { description = "System awareness note System awareness note"; setShowBadge(false) })
             nm?.createNotificationChannel(NotificationChannel(
-                TASK_EVENTS_CHANNEL_ID, "Info Info Info", NotificationManager.IMPORTANCE_DEFAULT
-            ).apply { description = "Info Info Info"; setShowBadge(true) })
+                TASK_EVENTS_CHANNEL_ID, "System awareness note System awareness note System awareness note", NotificationManager.IMPORTANCE_DEFAULT
+            ).apply { description = "System awareness note System awareness note System awareness note"; setShowBadge(true) })
             nm?.createNotificationChannel(NotificationChannel(
-                TASK_COMPLETE_CHANNEL_ID, "Info Info Info", NotificationManager.IMPORTANCE_HIGH
+                TASK_COMPLETE_CHANNEL_ID, "System awareness note System awareness note System awareness note", NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Info Info Info Info Info Info"
+                description = "System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note"
                 setShowBadge(true)
                 enableVibration(true)
             })
@@ -479,9 +479,9 @@ class OmniSyncService : Service() {
         val allTasks = TaskSchedulerTool.getAllTasks()
         val pending = allTasks.count { it.status.name == "PENDING" }
         val running = allTasks.count { it.status.name == "RUNNING" }
-        val subText = if (running > 0) "▶️ $running Info | ⏳ $pending Info"
-                      else if (pending > 0) "⏳ $pending Info Info"
-                      else "Info Info Info"
+        val subText = if (running > 0) "▶️ $running System awareness note | ⏳ $pending System awareness note"
+                      else if (pending > 0) "⏳ $pending System awareness note System awareness note"
+                      else "System awareness note System awareness note System awareness note"
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle("OmniDev Sync")
@@ -501,10 +501,10 @@ class OmniSyncService : Service() {
         if (!canPostNotifications(applicationContext)) return
         val notification = NotificationCompat.Builder(this, TASK_EVENTS_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("▶️ Info Info")
-            .setContentText("\"$taskName\" Info Info")
+            .setContentTitle("▶️ System awareness note System awareness note")
+            .setContentText("\"$taskName\" System awareness note System awareness note")
             .setStyle(NotificationCompat.BigTextStyle()
-                .bigText("\"$taskName\" Info Info\n📋 ${promptPreview}"))
+                .bigText("\"$taskName\" System awareness note System awareness note\n📋 ${promptPreview}"))
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(PendingIntent.getActivity(

@@ -5,21 +5,21 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * BuildDiagnosticEntry — Context note Context note Context note (Build Doctor Pro / Brain 2.0).
+ * BuildDiagnosticEntry — System awareness note System awareness note System awareness note (Build Doctor Pro / Brain 2.0).
  *
- * Context note Context note Context note:
- *   - Context note Context note (fingerprint) Context note Context note Context note Context note Context note
- *   - Context note (compile / link / dependency / resource / runtime / config)
- *   - Context note Context note Context note (Context note Deflate) Context note Context note
- *   - Context note Context note/Context note Context note Context note
+ * System awareness note System awareness note System awareness note:
+ *   - System awareness note System awareness note (fingerprint) System awareness note System awareness note System awareness note System awareness note System awareness note
+ *   - System awareness note (compile / link / dependency / resource / runtime / config)
+ *   - System awareness note System awareness note System awareness note (System awareness note Deflate) System awareness note System awareness note
+ *   - System awareness note System awareness note/System awareness note System awareness note System awareness note
  *
  * Mobile-first:
- * - 500 Context note Context note Context note Context note LRU eviction
- * - solutionDiff Context note Context note Deflate (~70% Context note)
+ * - 500 System awareness note System awareness note System awareness note System awareness note LRU eviction
+ * - solutionDiff System awareness note System awareness note Deflate (~70% System awareness note)
  *
- * @property errorFingerprint MD5(message normalized) — Context note Context note Context note Context note Context note
- * @property occurrenceCount Context note Context note Context note Context note Context note
- * @property successfulFixCount Context note Context note Context note Context note Context note Context note Context note
+ * @property errorFingerprint MD5(message normalized) — System awareness note System awareness note System awareness note System awareness note System awareness note
+ * @property occurrenceCount System awareness note System awareness note System awareness note System awareness note System awareness note
+ * @property successfulFixCount System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
  */
 @Entity(
     tableName = "build_diagnostics",

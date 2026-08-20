@@ -11,21 +11,21 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.*
 
 /**
- * ToolMachineLearningEngine — Context note Context note Context note Context note Context note
+ * ToolMachineLearningEngine — System awareness note System awareness note System awareness note System awareness note System awareness note
  * 
- * Context note:
- * - Context note Context note Context note Context note
- * - Context note Context note Context note
- * - Context note Context note Context note
- * - Context note Context note Context note
- * - Context note Context note Context note
- * - Context note Context note Context note
+ * System awareness note:
+ * - System awareness note System awareness note System awareness note System awareness note
+ * - System awareness note System awareness note System awareness note
+ * - System awareness note System awareness note System awareness note
+ * - System awareness note System awareness note System awareness note
+ * - System awareness note System awareness note System awareness note
+ * - System awareness note System awareness note System awareness note
  * 
- * Context note Context note:
+ * System awareness note System awareness note:
  * - Naive Bayes
  * - K-Nearest Neighbors
  * - Decision Trees
- * - Neural Networks (Context note)
+ * - Neural Networks (System awareness note)
  * - Ensemble Learning
  */
 class ToolMachineLearningEngine(
@@ -42,19 +42,19 @@ class ToolMachineLearningEngine(
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     
-    // Context note Context note
+    // System awareness note System awareness note
     private val executionHistory = mutableListOf<ToolExecutionRecord>()
     private val toolSequences = ConcurrentHashMap<String, MutableList<String>>()
     private val toolSuccessRates = ConcurrentHashMap<String, ToolStats>()
     private val userPatterns = ConcurrentHashMap<String, UserPattern>()
     
-    // Context note
+    // System awareness note
     private val naiveBayesModel = NaiveBayesClassifier()
     private val knnModel = KNearestNeighbors(k = 5)
     private val decisionTree = SimpleDecisionTree()
     private val neuralNet = SimpleFeedforwardNN(inputSize = 10, hiddenSize = 20, outputSize = 5)
     
-    // Context note
+    // System awareness note
     private var totalPredictions = 0
     private var correctPredictions = 0
     private var trainingEpochs = 0
@@ -67,11 +67,11 @@ class ToolMachineLearningEngine(
     }
 
     // ══════════════════════════════════════════════════════════════
-    // Context note Context note
+    // System awareness note System awareness note
     // ══════════════════════════════════════════════════════════════
 
     /**
-     * Context note Context note Context note
+     * System awareness note System awareness note System awareness note
      */
     suspend fun recordExecution(
         toolName: String,
@@ -90,7 +90,7 @@ class ToolMachineLearningEngine(
             contextualData = contextualData
         )
 
-        // Context note Context note
+        // System awareness note System awareness note
         synchronized(executionHistory) {
             executionHistory.add(record)
             if (executionHistory.size > MAX_HISTORY_SIZE) {
@@ -98,23 +98,23 @@ class ToolMachineLearningEngine(
             }
         }
 
-        // Context note Context note
+        // System awareness note System awareness note
         updateToolStats(toolName, !result.isError, executionTimeMs)
         
-        // Context note Context note
+        // System awareness note System awareness note
         updateSequences(toolName)
         
-        // Context note Context note Context note
+        // System awareness note System awareness note System awareness note
         updateUserPatterns(toolName, contextualData)
         
-        // Context note Context note
+        // System awareness note System awareness note
         if (executionHistory.size % 50 == 0) {
             trainIncrementally(record)
         }
     }
 
     /**
-     * Context note Context note Context note
+     * System awareness note System awareness note System awareness note
      */
     suspend fun predictNextTool(
         currentTool: String? = null,
@@ -123,7 +123,7 @@ class ToolMachineLearningEngine(
     ): ToolPrediction = withContext(Dispatchers.Default) {
         val features = extractFeatures(currentTool, recentTools, contextualData)
         
-        // Context note Context note Context note Context note
+        // System awareness note System awareness note System awareness note System awareness note
         val predictions = mutableListOf<Pair<String, Double>>()
         
         // Naive Bayes
@@ -146,7 +146,7 @@ class ToolMachineLearningEngine(
         val nnPredictions = neuralNet.predict(features)
         predictions.addAll(nnPredictions)
         
-        // Context note Context note (Ensemble)
+        // System awareness note System awareness note (Ensemble)
         val aggregated = aggregatePredictions(predictions)
         
         totalPredictions++
@@ -159,7 +159,7 @@ class ToolMachineLearningEngine(
     }
 
     /**
-     * Context note Context note Context note
+     * System awareness note System awareness note System awareness note
      */
     suspend fun detectAnomalies(
         toolName: String,
@@ -175,34 +175,34 @@ class ToolMachineLearningEngine(
         val anomalies = mutableListOf<String>()
         var anomalyScore = 0.0
         
-        // Context note Context note Context note
+        // System awareness note System awareness note System awareness note
         val timeZScore = abs(executionTimeMs - stats.avgExecutionTime) / 
                          (stats.stdDevExecutionTime + 1.0)
         if (timeZScore > 3.0) {
-            anomalies.add("Info Info Info Info: ${executionTimeMs}ms (Info: ${stats.avgExecutionTime.toInt()}ms)")
+            anomalies.add("System awareness note System awareness note System awareness note System awareness note: ${executionTimeMs}ms (System awareness note: ${stats.avgExecutionTime.toInt()}ms)")
             anomalyScore += 0.3
         }
         
-        // Context note Context note Context note
+        // System awareness note System awareness note System awareness note
         if (result.isError && stats.successRate > 0.9) {
-            anomalies.add("Context note Context note Context note (Context note Context note Context note: ${(stats.successRate * 100).toInt()}%)")
+            anomalies.add("System awareness note System awareness note System awareness note (System awareness note System awareness note System awareness note: ${(stats.successRate * 100).toInt()}%)")
             anomalyScore += 0.4
         }
         
-        // Context note Context note Context note
+        // System awareness note System awareness note System awareness note
         val resultSizeZScore = abs(result.output.length - stats.avgResultSize) / 
                                (stats.stdDevResultSize + 1.0)
         if (resultSizeZScore > 3.0) {
-            anomalies.add("Info Info Info Info: ${result.output.length} Info")
+            anomalies.add("System awareness note System awareness note System awareness note System awareness note: ${result.output.length} System awareness note")
             anomalyScore += 0.2
         }
         
-        // Context note Context note
+        // System awareness note System awareness note
         val expectedTools = getExpectedNextTools(toolName)
         if (expectedTools.isNotEmpty()) {
             val lastTool = executionHistory.lastOrNull()?.toolName
             if (lastTool != null && !expectedTools.contains(lastTool)) {
-                anomalies.add("Info Info Info: $lastTool → $toolName")
+                anomalies.add("System awareness note System awareness note System awareness note: $lastTool → $toolName")
                 anomalyScore += 0.1
             }
         }
@@ -215,28 +215,28 @@ class ToolMachineLearningEngine(
     }
 
     /**
-     * Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note
      */
     suspend fun getRecommendations(
         currentContext: Map<String, Any>
     ): List<ToolRecommendation> = withContext(Dispatchers.Default) {
         val recommendations = mutableListOf<ToolRecommendation>()
         
-        // 1. Context note Context note Context note
+        // 1. System awareness note System awareness note System awareness note
         val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
         val timeBasedTools = findToolsUsedAtTime(hour)
         timeBasedTools.forEach { (tool, frequency) ->
             recommendations.add(
                 ToolRecommendation(
                     toolName = tool,
-                    reason = "Info Info Info Info Info",
+                    reason = "System awareness note System awareness note System awareness note System awareness note System awareness note",
                     confidence = frequency,
                     priority = 1
                 )
             )
         }
         
-        // 2. Context note Context note Context note
+        // 2. System awareness note System awareness note System awareness note
         val lastTool = executionHistory.lastOrNull()?.toolName
         if (lastTool != null) {
             val sequenceTools = toolSequences[lastTool] ?: emptyList()
@@ -248,7 +248,7 @@ class ToolMachineLearningEngine(
                     recommendations.add(
                         ToolRecommendation(
                             toolName = tool,
-                            reason = "Info Info Info $lastTool",
+                            reason = "System awareness note System awareness note System awareness note $lastTool",
                             confidence = count.toDouble() / sequenceTools.size,
                             priority = 2
                         )
@@ -256,7 +256,7 @@ class ToolMachineLearningEngine(
                 }
         }
         
-        // 3. Context note Context note Context note Context note
+        // 3. System awareness note System awareness note System awareness note System awareness note
         toolSuccessRates.entries
             .filter { it.value.successRate > 0.95 && it.value.executionCount > 20 }
             .sortedByDescending { it.value.successRate }
@@ -265,21 +265,21 @@ class ToolMachineLearningEngine(
                 recommendations.add(
                     ToolRecommendation(
                         toolName = tool,
-                        reason = "Context note Context note Context note: ${(stats.successRate * 100).toInt()}%",
+                        reason = "System awareness note System awareness note System awareness note: ${(stats.successRate * 100).toInt()}%",
                         confidence = stats.successRate,
                         priority = 3
                     )
                 )
             }
         
-        // 4. Context note Context note Context note
+        // 4. System awareness note System awareness note System awareness note
         currentContext["task_type"]?.let { taskType ->
             val contextTools = findToolsForTaskType(taskType.toString())
             contextTools.forEach { (tool, relevance) ->
                 recommendations.add(
                     ToolRecommendation(
                         toolName = tool,
-                        reason = "Info Info Info: $taskType",
+                        reason = "System awareness note System awareness note System awareness note: $taskType",
                         confidence = relevance,
                         priority = 0
                     )
@@ -287,7 +287,7 @@ class ToolMachineLearningEngine(
             }
         }
         
-        // Context note Context note Context note Context note
+        // System awareness note System awareness note System awareness note System awareness note
         recommendations
             .sortedWith(compareBy({ it.priority }, { -it.confidence }))
             .distinctBy { it.toolName }
@@ -295,7 +295,7 @@ class ToolMachineLearningEngine(
     }
 
     /**
-     * Context note Context note Context note
+     * System awareness note System awareness note System awareness note
      */
     suspend fun analyzeToolPerformance(): PerformanceAnalysis = withContext(Dispatchers.Default) {
         val totalExecutions = executionHistory.size
@@ -352,7 +352,7 @@ class ToolMachineLearningEngine(
     }
 
     // ══════════════════════════════════════════════════════════════
-    // Context note
+    // System awareness note
     // ══════════════════════════════════════════════════════════════
 
     private suspend fun trainIncrementally(record: ToolExecutionRecord) = withContext(Dispatchers.Default) {
@@ -360,30 +360,30 @@ class ToolMachineLearningEngine(
             val features = extractFeaturesFromRecord(record)
             val label = record.toolName
             
-            // Context note Naive Bayes
+            // System awareness note Naive Bayes
             naiveBayesModel.train(features, label)
             
-            // Context note KNN (Context note Context note Context note)
+            // System awareness note KNN (System awareness note System awareness note System awareness note)
             knnModel.addDataPoint(features, label)
             
-            // Context note Decision Tree
+            // System awareness note Decision Tree
             decisionTree.train(listOf(features to label))
             
-            // Context note Neural Network
+            // System awareness note Neural Network
             val targetVector = createOneHotVector(label)
             neuralNet.train(features, targetVector, learningRate = 0.01)
             
             trainingEpochs++
             
         } catch (e: Exception) {
-            Log.e(TAG, "Info Info Info Info: ${e.message}")
+            Log.e(TAG, "System awareness note System awareness note System awareness note System awareness note: ${e.message}")
         }
     }
 
     private suspend fun startPeriodicTraining() {
         scope.launch {
             while (isActive) {
-                delay(3600_000) // Context note Context note
+                delay(3600_000) // System awareness note System awareness note
                 
                 if (executionHistory.size >= MIN_TRAINING_SAMPLES) {
                     trainFullModel()
@@ -395,13 +395,13 @@ class ToolMachineLearningEngine(
 
     private suspend fun trainFullModel() = withContext(Dispatchers.Default) {
         try {
-            Log.d(TAG, "Info Info Info Info ${executionHistory.size} Info...")
+            Log.d(TAG, "System awareness note System awareness note System awareness note System awareness note ${executionHistory.size} System awareness note...")
             
             val trainingData = executionHistory.map { record ->
                 extractFeaturesFromRecord(record) to record.toolName
             }
             
-            // Context note Context note Context note
+            // System awareness note System awareness note System awareness note
             naiveBayesModel.trainBatch(trainingData)
             knnModel.trainBatch(trainingData)
             decisionTree.train(trainingData)
@@ -409,15 +409,15 @@ class ToolMachineLearningEngine(
             
             trainingEpochs++
             
-            Log.d(TAG, "Info Info - Epoch: $trainingEpochs")
+            Log.d(TAG, "System awareness note System awareness note - Epoch: $trainingEpochs")
             
         } catch (e: Exception) {
-            Log.e(TAG, "Info Info Info Info: ${e.message}")
+            Log.e(TAG, "System awareness note System awareness note System awareness note System awareness note: ${e.message}")
         }
     }
 
     // ══════════════════════════════════════════════════════════════
-    // Context note Context note
+    // System awareness note System awareness note
     // ══════════════════════════════════════════════════════════════
 
     private fun extractFeatures(
@@ -427,30 +427,30 @@ class ToolMachineLearningEngine(
     ): DoubleArray {
         val features = DoubleArray(10)
         
-        // Context note 1: Context note Context note Context note
+        // System awareness note 1: System awareness note System awareness note System awareness note
         features[0] = (currentTool?.hashCode()?.rem(1000) ?: 0).toDouble()
         
-        // Context note 2-4: Context note Context note
+        // System awareness note 2-4: System awareness note System awareness note
         recentTools.take(3).forEachIndexed { index, tool ->
             features[index + 1] = tool.hashCode().rem(1000).toDouble()
         }
         
-        // Context note 5: Context note Context note Context note (0-23)
+        // System awareness note 5: System awareness note System awareness note System awareness note (0-23)
         features[4] = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY).toDouble()
         
-        // Context note 6: Context note Context note (1-7)
+        // System awareness note 6: System awareness note System awareness note (1-7)
         features[5] = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_WEEK).toDouble()
         
-        // Context note 7: Context note Context note Context note Context note
+        // System awareness note 7: System awareness note System awareness note System awareness note System awareness note
         features[6] = recentTools.size.toDouble()
         
-        // Context note 8: Context note Context note
+        // System awareness note 8: System awareness note System awareness note
         features[7] = (contextualData["task_type"]?.hashCode()?.rem(1000) ?: 0).toDouble()
         
-        // Context note 9: Context note
+        // System awareness note 9: System awareness note
         features[8] = (contextualData["priority"] as? Number)?.toDouble() ?: 0.0
         
-        // Context note 10: Context note
+        // System awareness note 10: System awareness note
         features[9] = (contextualData["context"]?.hashCode()?.rem(1000) ?: 0).toDouble()
         
         return features
@@ -474,7 +474,7 @@ class ToolMachineLearningEngine(
     }
 
     // ══════════════════════════════════════════════════════════════
-    // Context note Context note
+    // System awareness note System awareness note
     // ══════════════════════════════════════════════════════════════
 
     private fun updateToolStats(toolName: String, success: Boolean, executionTimeMs: Long) {
@@ -484,11 +484,11 @@ class ToolMachineLearningEngine(
             stats.executionCount++
             if (success) stats.successCount++
             
-            // Context note Context note
+            // System awareness note System awareness note
             val n = stats.executionCount.toDouble()
             stats.avgExecutionTime = ((stats.avgExecutionTime * (n - 1.0)) + executionTimeMs.toDouble()) / n
             
-            // Context note Context note Context note
+            // System awareness note System awareness note System awareness note
             val diff = executionTimeMs.toDouble() - stats.avgExecutionTime
             stats.stdDevExecutionTime = sqrt(
                 ((stats.stdDevExecutionTime * stats.stdDevExecutionTime * (n - 1.0)) + diff * diff) / n
@@ -541,7 +541,7 @@ class ToolMachineLearningEngine(
     }
 
     private fun createOneHotVector(label: String): DoubleArray {
-        // Context note: Context note Context note Context note Context note one-hot Context note
+        // System awareness note: System awareness note System awareness note System awareness note System awareness note one-hot System awareness note
         val vector = DoubleArray(5)
         val index = abs(label.hashCode()) % 5
         vector[index] = 1.0
@@ -553,19 +553,19 @@ class ToolMachineLearningEngine(
             val modelDir = File(context.filesDir, "ml_models")
             if (!modelDir.exists()) return@withContext
             
-            // Context note Context note Context note
+            // System awareness note System awareness note System awareness note
             val historyFile = File(modelDir, "execution_history.json")
             if (historyFile.exists()) {
                 val json = JSONArray(historyFile.readText())
                 for (i in 0 until json.length()) {
                     val obj = json.getJSONObject(i)
-                    // Context note Context note Context note...
+                    // System awareness note System awareness note System awareness note...
                 }
             }
             
-            Log.d(TAG, "Info Info Info Info")
+            Log.d(TAG, "System awareness note System awareness note System awareness note System awareness note")
         } catch (e: Exception) {
-            Log.e(TAG, "Info Info Info Info: ${e.message}")
+            Log.e(TAG, "System awareness note System awareness note System awareness note System awareness note: ${e.message}")
         }
     }
 
@@ -574,7 +574,7 @@ class ToolMachineLearningEngine(
             val modelDir = File(context.filesDir, "ml_models")
             modelDir.mkdirs()
             
-            // Context note Context note Context note
+            // System awareness note System awareness note System awareness note
             val historyFile = File(modelDir, "execution_history.json")
             val jsonArray = JSONArray()
             executionHistory.takeLast(1000).forEach { record ->
@@ -587,9 +587,9 @@ class ToolMachineLearningEngine(
             }
             historyFile.writeText(jsonArray.toString())
             
-            Log.d(TAG, "Info Info Info Info")
+            Log.d(TAG, "System awareness note System awareness note System awareness note System awareness note")
         } catch (e: Exception) {
-            Log.e(TAG, "Info Info Info Info: ${e.message}")
+            Log.e(TAG, "System awareness note System awareness note System awareness note System awareness note: ${e.message}")
         }
     }
 
@@ -663,7 +663,7 @@ class ToolMachineLearningEngine(
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// Context note Context note Context note
+// System awareness note System awareness note System awareness note
 // ══════════════════════════════════════════════════════════════════════
 
 /**
@@ -789,7 +789,7 @@ class SimpleDecisionTree {
             return LeafNode(majorityLabel, labels[majorityLabel]!!.toDouble() / data.size)
         }
         
-        // Context note Context note Context note
+        // System awareness note System awareness note System awareness note
         val bestSplit = findBestSplit(data)
         if (bestSplit == null) {
             return LeafNode(majorityLabel, labels[majorityLabel]!!.toDouble() / data.size)
@@ -900,7 +900,7 @@ class SimpleFeedforwardNN(
         // Backward pass (simplified)
         val outputError = DoubleArray(outputSize) { i -> target[i] - output[i] }
         
-        // Context note Context note (gradient descent Context note)
+        // System awareness note System awareness note (gradient descent System awareness note)
         for (i in weightsHiddenOutput.indices) {
             for (j in weightsHiddenOutput[i].indices) {
                 weightsHiddenOutput[i][j] += learningRate * outputError[j] * hidden[i]
@@ -912,7 +912,7 @@ class SimpleFeedforwardNN(
         repeat(epochs) {
             data.forEach { (features, _) ->
                 val target = DoubleArray(outputSize) { 0.0 }
-                target[0] = 1.0 // Context note
+                target[0] = 1.0 // System awareness note
                 train(features, target, learningRate)
             }
         }

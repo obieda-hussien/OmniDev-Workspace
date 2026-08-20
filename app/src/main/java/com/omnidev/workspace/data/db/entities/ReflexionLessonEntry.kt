@@ -5,18 +5,18 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * ReflexionLessonEntry — Context note Context note Context note Context note Agent Context note (Brain 2.0).
+ * ReflexionLessonEntry — System awareness note System awareness note System awareness note System awareness note Agent System awareness note (Brain 2.0).
  *
  * Mobile-first design:
- * - Context note ≤ 280 Context note Context note Context note Context note Context note Context note system prompt Context note Context note
- * - Context note embedding 256 floats (≈ 1 KB) — hash-basedContext note Context note Context note Context note Context note
- * - 2000 Context note Context note Context note ≈ 2 MB Context note
- * - LRU eviction Context note Context note Context note Context note Context note
+ * - System awareness note ≤ 280 System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note system prompt System awareness note System awareness note
+ * - System awareness note embedding 256 floats (≈ 1 KB) — hash-basedSystem awareness note System awareness note System awareness note System awareness note System awareness note
+ * - 2000 System awareness note System awareness note System awareness note ≈ 2 MB System awareness note
+ * - LRU eviction System awareness note System awareness note System awareness note System awareness note System awareness note
  *
- * @property errorSignature MD5 (16 hex) Context note Context note Context note Context note Context note/Context note
- *           — Context note Context note Context note Context note Context note Context note Context note Context note
- * @property successContext true Context note Context note Context note Context note Context note Context note/Context note false Context note Context note Context note
- * @property quality Context note Context note 0..1 Context note Context note Context note Context note Context note Context note Context note Context note
+ * @property errorSignature MD5 (16 hex) System awareness note System awareness note System awareness note System awareness note System awareness note/System awareness note
+ *           — System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
+ * @property successContext true System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note/System awareness note false System awareness note System awareness note System awareness note
+ * @property quality System awareness note System awareness note 0..1 System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
  */
 @Entity(
     tableName = "reflexion_lessons",

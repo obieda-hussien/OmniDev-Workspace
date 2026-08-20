@@ -45,31 +45,31 @@ import kotlinx.coroutines.launch
  * OmniDev Workspace Application class.
  * Initializes application-wide dependencies and services.
  *
- * Context note Context note Context note:
- * - SmartLearningBridge: Context note Context note Context note Context note
- * - ToolExecutionJournal: Context note Context note Context note
- * - ToolAwarenessEngine: Context note Context note Context note Context note
+ * System and domain documentation note System and domain documentation note System and domain documentation note:
+ * - SmartLearningBridge: System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note
+ * - ToolExecutionJournal: System and domain documentation note System and domain documentation note System and domain documentation note
+ * - ToolAwarenessEngine: System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note
  */
 class OmniDevApp : Application() {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // ─── Context note Context note Context note (Agent Brain) ────────────────────────────
+    // ─── System and domain documentation note System and domain documentation note System and domain documentation note (Agent Brain) ────────────────────────────
 
-    /** Context note Context note Context note — Context note Context note */
+    /** System and domain documentation note System and domain documentation note System and domain documentation note — System and domain documentation note System and domain documentation note */
     lateinit var toolExecutionJournal: ToolExecutionJournal
         private set
 
-    /** Tool and System Awareness Engine */
+    /** System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note */
     lateinit var toolAwarenessEngine: ToolAwarenessEngine
         private set
 
 
-    /** Context note Context note MCP (Context note Context note) */
+    /** System and domain documentation note System and domain documentation note MCP (System and domain documentation note System and domain documentation note) */
     lateinit var mcpRegistry: McpRegistry
         private set
 
-    /** Context note Context note Context note — Context note Context note Context note Context note */
+    /** System and domain documentation note System and domain documentation note System and domain documentation note — System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note */
 
     lateinit var smartLearningBridge: SmartLearningBridge
         private set
@@ -80,39 +80,39 @@ class OmniDevApp : Application() {
     //     low-end Android with 2-4 GB RAM, no native libs, no extra LLM calls).
     // ═══════════════════════════════════════════════════════════════════════════
 
-    /** Context note Reflexion — Context note Context note Context note Context note Context note Agent. */
+    /** System and domain documentation note Reflexion — System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note Agent. */
     lateinit var reflexionEngine: ReflexionEngine
         private set
 
-    /** Context note Context note Context note (Episodic Memory). */
+    /** System and domain documentation note System and domain documentation note System and domain documentation note (Episodic Memory). */
     lateinit var episodicMemoryStore: EpisodicMemoryStore
         private set
 
-    /** Context note Context note — Action Insurance. */
+    /** System and domain documentation note System and domain documentation note — Action Insurance. */
     lateinit var rollbackManager: RollbackManager
         private set
 
-    /** Context note Context note Context note (incremental). */
+    /** System and domain documentation note System and domain documentation note System and domain documentation note (incremental). */
     lateinit var repoIndexer: RepoIndexer
         private set
 
-    /** Context note Context note Context note Context note retrieval. */
+    /** System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note retrieval. */
     lateinit var repoContextEngine: RepoContextEngine
         private set
 
-    /** Build Doctor Pro — Context note + Context note Context note Context note. */
+    /** Build Doctor Pro — System and domain documentation note + System and domain documentation note System and domain documentation note System and domain documentation note. */
     lateinit var buildDoctorPro: BuildDoctorPro
         private set
 
-    /** Context note Context note Context note — Context note Context note Context note Context note Context note. */
+    /** System and domain documentation note System and domain documentation note System and domain documentation note — System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note. */
     lateinit var causalChainPlannerTool: CausalChainPlannerTool
         private set
 
-    /** Context note Context note Context note — Context note Context note Context note Context note. */
+    /** System and domain documentation note System and domain documentation note System and domain documentation note — System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note. */
     lateinit var progressiveTrustEngine: ProgressiveTrustEngine
         private set
 
-    /** Context note Context note Context note — Context note Context note Context note Agent Context note Context note Context note. */
+    /** System and domain documentation note System and domain documentation note System and domain documentation note — System and domain documentation note System and domain documentation note System and domain documentation note Agent System and domain documentation note System and domain documentation note System and domain documentation note. */
     lateinit var headlessBrowserManager: HeadlessBrowserManager
         private set
 
@@ -158,7 +158,7 @@ class OmniDevApp : Application() {
         ExtensionConnectionManager.initialize(applicationContext)
 
         // ═══════════════════════════════════════════════════════════════
-        // 🧠 Context note Context note Context note Context note Context note (Agent Brain System)
+        // 🧠 System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note (Agent Brain System)
         // ═══════════════════════════════════════════════════════════════
         initializeAgentBrainSystem()
 
@@ -167,42 +167,42 @@ class OmniDevApp : Application() {
     }
 
     /**
-     * Context note Context note Context note Context note Agent Context note
-     * Context note: Context note Context note + Context note Context note + Context note Context note
+     * System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note Agent System and domain documentation note
+     * System and domain documentation note: System and domain documentation note System and domain documentation note + System and domain documentation note System and domain documentation note + System and domain documentation note System and domain documentation note
      */
     private fun initializeAgentBrainSystem() {
         try {
             val db = OmniDevDatabase.getInstance(applicationContext)
 
-            // 1. Context note Context note Context note
+            // 1. System and domain documentation note System and domain documentation note System and domain documentation note
             toolExecutionJournal = ToolExecutionJournal(
                 dao = db.toolExecutionDao(),
                 scope = appScope
             )
 
-            // 2. Context note Context note Context note Context note
+            // 2. System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note
             toolAwarenessEngine = ToolAwarenessEngine(
                 context = applicationContext,
                 systemKnowledgeDao = db.systemKnowledgeDao(),
                 scope = appScope
             )
 
-            // 3. Context note Context note Context note Context note
+            // 3. System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note
             val intelligenceEngine = ToolIntelligenceEngine(applicationContext, appScope)
             val mlEngine = ToolMachineLearningEngine(applicationContext)
             val monitoringSystem = ToolMonitoringSystem
 
 
-            // 4. Context note Context note MCP
+            // 4. System and domain documentation note System and domain documentation note MCP
             val mcpConfigManager = McpConfigManager(applicationContext)
             mcpRegistry = McpRegistry(mcpConfigManager)
 
-            // 5. Context note Context note Context note Context note Context note Progressive Trust Engine
+            // 5. System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note Progressive Trust Engine
             val trustEngine = ProgressiveTrustEngine(applicationContext)
             progressiveTrustEngine = trustEngine
 
-            // 6f. Causal Chain Planner — Context note Context note Context note Context note Context note (in-memory, no DB)
-            //     Context note Context note SmartLearningBridge Context note Context note Context note Context note dependency
+            // 6f. Causal Chain Planner — System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note (in-memory, no DB)
+            //     System and domain documentation note System and domain documentation note SmartLearningBridge System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note dependency
             //     50 node max per graph — mobile-safe (~50 KB peak)
             causalChainPlannerTool = CausalChainPlannerTool(CausalChainPlanner(maxNodes = 50))
 
@@ -223,15 +223,15 @@ class OmniDevApp : Application() {
             // 🧠 6. Agent Brain 2.0 + Action Insurance + Repo Context + Build Doctor
             // ═══════════════════════════════════════════════════════════════
 
-            // 6a. Reflexion — Context note Context note Context note (rule-based, on-device)
+            // 6a. Reflexion — System and domain documentation note System and domain documentation note System and domain documentation note (rule-based, on-device)
             reflexionEngine = ReflexionEngine(
                 dao = db.reflexionDao(),
-                maxLessons = 2000,           // ~2 MB Context note DB
-                topKForInjection = 3,        // 3 Context note Context note Context note Context note prompt (Context note Context note tokens)
+                maxLessons = 2000,           // ~2 MB System and domain documentation note DB
+                topKForInjection = 3,        // 3 System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note prompt (System and domain documentation note System and domain documentation note tokens)
                 scope = appScope
             )
 
-            // 6b. Episodic Memory — Context note Context note Context note
+            // 6b. Episodic Memory — System and domain documentation note System and domain documentation note System and domain documentation note
             episodicMemoryStore = EpisodicMemoryStore(
                 dao = db.episodicMemoryDao(),
                 maxEpisodes = 2000,
@@ -239,7 +239,7 @@ class OmniDevApp : Application() {
             )
 
             // 6c. Rollback Manager — Action Insurance
-            //     50 MB max storageContext note 200 snapshot maxContext note diff-based Context note Context note
+            //     50 MB max storageSystem and domain documentation note 200 snapshot maxSystem and domain documentation note diff-based System and domain documentation note System and domain documentation note
             rollbackManager = RollbackManager(
                 dao = db.rollbackDao(),
                 maxSnapshotsPerGroup = 200,
@@ -247,7 +247,7 @@ class OmniDevApp : Application() {
             )
 
             // 6d. Repo Indexer + Context Engine — Live Repository Context
-            //     time budget 30s Context note passContext note Context note incremental
+            //     time budget 30s System and domain documentation note passSystem and domain documentation note System and domain documentation note incremental
             repoIndexer = RepoIndexer(
                 dao = db.repoIndexDao(),
                 maxFileSizeBytes = 500L * 1024,
@@ -256,13 +256,13 @@ class OmniDevApp : Application() {
             )
             repoContextEngine = RepoContextEngine(dao = db.repoIndexDao(), indexer = repoIndexer)
 
-            // 6e. Build Doctor Pro — Context note + Context note Context note
+            // 6e. Build Doctor Pro — System and domain documentation note + System and domain documentation note System and domain documentation note
             buildDoctorPro = BuildDoctorPro(
                 dao = db.buildDiagnosticDao(),
                 maxEntries = 500
             )
 
-            // 7. Context note Context note Context note Context note (Context note Context note + Context note Context note)
+            // 7. System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note (System and domain documentation note System and domain documentation note + System and domain documentation note System and domain documentation note)
             appScope.launch {
                 try {
                     toolAwarenessEngine.initialize()
@@ -271,26 +271,26 @@ class OmniDevApp : Application() {
                     val episodes = db.episodicMemoryDao().count()
                     val diagnostics = db.buildDiagnosticDao().count()
                     Log.i("OmniDevApp",
-                        "✅ Agent Brain 2.0 Info  •  Info=$lessons  Info=$episodes  Info-Info=$diagnostics")
+                        "✅ Agent Brain 2.0 System component status  •  System component status=$lessons  System component status=$episodes  System component status-System component status=$diagnostics")
                 } catch (e: Exception) {
-                    Log.e("OmniDevApp", "⚠️ Info Info Info Agent Brain: ${e.message}")
+                    Log.e("OmniDevApp", "⚠️ System component status System component status System component status Agent Brain: ${e.message}")
                 }
             }
 
         } catch (e: Exception) {
-            Log.e("OmniDevApp", "❌ Info Info Info Agent Brain System: ${e.message}")
-            // Context note Context note Context note Context note Context note Context note Context note
+            Log.e("OmniDevApp", "❌ System component status System component status System component status Agent Brain System: ${e.message}")
+            // System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note
             val db = OmniDevDatabase.getInstance(applicationContext)
 
             toolExecutionJournal = ToolExecutionJournal(db.toolExecutionDao())
             toolAwarenessEngine = ToolAwarenessEngine(applicationContext, db.systemKnowledgeDao())
             mcpRegistry = McpRegistry(McpConfigManager(applicationContext))
 
-            // Context note ProgressiveTrustEngine Context note SmartLearningBridge Context note Context note Context note
+            // System and domain documentation note ProgressiveTrustEngine System and domain documentation note SmartLearningBridge System and domain documentation note System and domain documentation note System and domain documentation note
             val fallbackTrustEngine = ProgressiveTrustEngine(applicationContext)
             progressiveTrustEngine = fallbackTrustEngine
 
-            // Context note CausalChainPlannerTool Context note SmartLearningBridge Context note Context note Context note
+            // System and domain documentation note CausalChainPlannerTool System and domain documentation note SmartLearningBridge System and domain documentation note System and domain documentation note System and domain documentation note
             val fallbackCausalTool = CausalChainPlannerTool(CausalChainPlanner())
             causalChainPlannerTool = fallbackCausalTool
 

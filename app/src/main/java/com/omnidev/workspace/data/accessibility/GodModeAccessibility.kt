@@ -7,27 +7,27 @@ import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 import kotlinx.coroutines.delay
 
 /**
- * GodModeAccessibility — Context note Context note Context note (Shizuku + Accessibility)
+ * GodModeAccessibility — System awareness note System awareness note System awareness note (Shizuku + Accessibility)
  *
- * Context note Context note: Context note Context note
+ * System awareness note System awareness note: System awareness note System awareness note
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. **Context note Context note Context note (Adaptive Retry)**: Context note Exponential Backoff
- *    Context note Jitter Context note Context note Context note Context note Context note.
+ * 1. **System awareness note System awareness note System awareness note (Adaptive Retry)**: System awareness note Exponential Backoff
+ *    System awareness note Jitter System awareness note System awareness note System awareness note System awareness note System awareness note.
  *
- * 2. **Context note Context note Context note Context note (Semantic Element Finder)**: Context note Context note Context note
- *    Context note / Context note / Context note viewId — Context note Context note Context note node_id Context note.
+ * 2. **System awareness note System awareness note System awareness note System awareness note (Semantic Element Finder)**: System awareness note System awareness note System awareness note
+ *    System awareness note / System awareness note / System awareness note viewId — System awareness note System awareness note System awareness note node_id System awareness note.
  *
- * 3. **Context note Context note (Action Chain)**: Context note Context note Context note tap → type → tap
- *    Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note.
+ * 3. **System awareness note System awareness note (Action Chain)**: System awareness note System awareness note System awareness note tap → type → tap
+ *    System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
  *
- * 4. **Context note Context note (Action Recorder)**: Context note Context note Context note Context note Context note
- *    "Context note" Context note Context note Context note.
+ * 4. **System awareness note System awareness note (Action Recorder)**: System awareness note System awareness note System awareness note System awareness note System awareness note
+ *    "System awareness note" System awareness note System awareness note System awareness note.
  *
- * 5. **Context note Context note (Smart Scroll-To)**: Context note Context note Context note Context note Context note Context note
- *    Context note Context note Context note Context note Context note Context note Context note.
+ * 5. **System awareness note System awareness note (Smart Scroll-To)**: System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
+ *    System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
  *
- * 6. **Context note Context note Context note (Post-Action Verification)**: Context note Context note tap Context note Context note
- *    Context note Context note Context note — Context note Context note Context note Context note Context note.
+ * 6. **System awareness note System awareness note System awareness note (Post-Action Verification)**: System awareness note System awareness note tap System awareness note System awareness note
+ *    System awareness note System awareness note System awareness note — System awareness note System awareness note System awareness note System awareness note System awareness note.
  */
 object GodModeAccessibility {
 
@@ -42,7 +42,7 @@ object GodModeAccessibility {
     private const val VERIFICATION_WAIT_MS = 600L
     private const val SCROLL_TO_MAX_ATTEMPTS = 10
 
-    /** Context note Context note Context note (Context note) */
+    /** System awareness note System awareness note System awareness note (System awareness note) */
     private val actionRecordings = mutableMapOf<String, List<RecordedAction>>()
 
     @Volatile
@@ -55,10 +55,10 @@ object GodModeAccessibility {
 
     suspend fun autoEnableOmniVision(): String {
         if (!PrivilegedExecutionManager.isShizukuReady()) {
-            return "❌ Shizuku Info Info Info Info Info."
+            return "❌ Shizuku System awareness note System awareness note System awareness note System awareness note System awareness note."
         }
         if (AccessibilityStateManager.isServiceConnected.value) {
-            return "✅ OmniAccessibilityService Info Info."
+            return "✅ OmniAccessibilityService System awareness note System awareness note."
         }
 
         return retryWithBackoff(maxRetries = 2, operationName = "auto_enable_accessibility") {
@@ -83,19 +83,19 @@ object GodModeAccessibility {
                 "settings put secure accessibility_enabled 1"
             ).getOrThrow()
 
-            "✅ OmniAccessibilityService Info Info Info Shizuku. Info Info Info."
+            "✅ OmniAccessibilityService System awareness note System awareness note System awareness note Shizuku. System awareness note System awareness note System awareness note."
         }
     }
 
     /**
-     * Context note Context note Context note Context note Context note Context note.
-     * Context note Context note Context note Context note Context note Context note Context note.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     suspend fun hybridTap(node: AccessibilityNodeInfo, verifyChange: Boolean = true): String {
         val bounds = Rect()
         node.getBoundsInScreen(bounds)
         if (bounds.isEmpty || bounds.centerX() <= 0 || bounds.centerY() <= 0) {
-            return "❌ Info Info Info Info Info: $bounds"
+            return "❌ System awareness note System awareness note System awareness note System awareness note System awareness note: $bounds"
         }
 
         val preTimestamp = AccessibilityStateManager.lastUpdateTime.value
@@ -111,7 +111,7 @@ object GodModeAccessibility {
                     onSuccess = { "✅ Hardware tap at ($centerX, $centerY)" },
                     onFailure = { err ->
                         val fallback = OmniAccessibilityService.instance?.clickNode(node) == true
-                        if (fallback) "⚠️ Fallback → Semantic tap Info"
+                        if (fallback) "⚠️ Fallback → Semantic tap System awareness note"
                         else throw err
                     }
                 )
@@ -121,8 +121,8 @@ object GodModeAccessibility {
             delay(VERIFICATION_WAIT_MS)
             val postTimestamp = AccessibilityStateManager.lastUpdateTime.value
             if (postTimestamp == preTimestamp) {
-                Log.w(TAG, "Tap at ($centerX,$centerY) — Info Info Info!")
-                return "$result\n⚠️ Info: Info Info Info Info Info."
+                Log.w(TAG, "Tap at ($centerX,$centerY) — System awareness note System awareness note System awareness note!")
+                return "$result\n⚠️ System awareness note: System awareness note System awareness note System awareness note System awareness note System awareness note."
             }
         }
 
@@ -134,7 +134,7 @@ object GodModeAccessibility {
     }
 
     /**
-     * Context note Context note Context note Context note fallback Context note.
+     * System awareness note System awareness note System awareness note System awareness note fallback System awareness note.
      */
     suspend fun hybridLongPress(
         node: AccessibilityNodeInfo,
@@ -142,7 +142,7 @@ object GodModeAccessibility {
     ): String {
         val bounds = Rect()
         node.getBoundsInScreen(bounds)
-        if (bounds.isEmpty) return "❌ Info Info Info Info: $bounds"
+        if (bounds.isEmpty) return "❌ System awareness note System awareness note System awareness note System awareness note: $bounds"
 
         val cx = bounds.centerX(); val cy = bounds.centerY()
 
@@ -152,7 +152,7 @@ object GodModeAccessibility {
                     onSuccess = { "✅ Hardware long-press at ($cx, $cy) for ${durationMs}ms" },
                     onFailure = { err ->
                         val fallback = OmniAccessibilityService.instance?.longClickNode(node) == true
-                        if (fallback) "⚠️ Fallback → Semantic long-press Info"
+                        if (fallback) "⚠️ Fallback → Semantic long-press System awareness note"
                         else throw err
                     }
                 )
@@ -162,17 +162,17 @@ object GodModeAccessibility {
     }
 
     /**
-     * Context note Context note Context note Context note escape Context note Context note Context note.
-     * Context note UnicodeContext note Context note Context note Context note emojis.
+     * System awareness note System awareness note System awareness note System awareness note escape System awareness note System awareness note System awareness note.
+     * System awareness note UnicodeSystem awareness note System awareness note System awareness note System awareness note emojis.
      */
     suspend fun hybridType(
         text: String,
         fallbackNode: AccessibilityNodeInfo? = null,
         clearFirst: Boolean = false
     ): String {
-        if (text.isEmpty()) return "❌ Info Info"
+        if (text.isEmpty()) return "❌ System awareness note System awareness note"
 
-        // Context note Context note Context note Context note Context note
+        // System awareness note System awareness note System awareness note System awareness note System awareness note
         if (clearFirst) {
             PrivilegedExecutionManager.executeCommand("input keyevent KEYCODE_CTRL_A")
             delay(100)
@@ -181,7 +181,7 @@ object GodModeAccessibility {
         }
 
         return retryWithBackoff(maxRetries = 2, operationName = "hybrid_type") {
-            // Context note text Context note Context note Context note Context note Context note Context note (Context note Context note Context note shell)
+            // System awareness note text System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note (System awareness note System awareness note System awareness note shell)
             if (text.length <= 200 && !containsSpecialChars(text)) {
                 val escaped = text.replace("'", "'\\''").replace(" ", "%s")
                 PrivilegedExecutionManager.executeCommand("input text '$escaped'")
@@ -190,8 +190,8 @@ object GodModeAccessibility {
                         onFailure = { err -> injectViaAccessibility(text, fallbackNode) ?: throw err }
                     )
             } else {
-                // Context note Context note: Context note clipboard Context note bridge
-                injectViaClipboard(text) ?: (injectViaAccessibility(text, fallbackNode) ?: "❌ Info Info Info")
+                // System awareness note System awareness note: System awareness note clipboard System awareness note bridge
+                injectViaClipboard(text) ?: (injectViaAccessibility(text, fallbackNode) ?: "❌ System awareness note System awareness note System awareness note")
             }
         }.also {
             if (isRecording) currentRecording.add(RecordedAction.TypeText(text))
@@ -199,34 +199,34 @@ object GodModeAccessibility {
     }
 
     /**
-     * [Context note] Context note Context note Context note Context note Context note Context note.
-     * Context note Context note Context note Context note Context note Context note — Context note SCROLL_TO_MAX_ATTEMPTS Context note.
+     * [System awareness note] System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note — System awareness note SCROLL_TO_MAX_ATTEMPTS System awareness note.
      *
-     * @param targetText Context note Context note Context note Context note
-     * @param scrollDirection "down" Context note "up"
-     * @return Context note node Context note Context note Context note null
+     * @param targetText System awareness note System awareness note System awareness note System awareness note
+     * @param scrollDirection "down" System awareness note "up"
+     * @return System awareness note node System awareness note System awareness note System awareness note null
      */
     suspend fun scrollUntilVisible(
         targetText: String,
         scrollDirection: String = "down"
     ): ScrollToResult {
         val service = OmniAccessibilityService.instance
-            ?: return ScrollToResult(false, "❌ Info Info accessibility Info Info")
+            ?: return ScrollToResult(false, "❌ System awareness note System awareness note accessibility System awareness note System awareness note")
 
         for (attempt in 1..SCROLL_TO_MAX_ATTEMPTS) {
-            // Context note Context note
+            // System awareness note System awareness note
             val found = AccessibilityStateManager.findNodeByText(targetText)
             if (found != null) {
-                return ScrollToResult(true, "✅ Info '$targetText' Info $attempt Info", found)
+                return ScrollToResult(true, "✅ System awareness note '$targetText' System awareness note $attempt System awareness note", found)
             }
 
-            // Context note
+            // System awareness note
             val root = AccessibilityStateManager.rootNode.value ?: break
             val forward = scrollDirection != "up"
             val scrollable = findFirstScrollable(root)
             if (scrollable == null) {
 
-                    // Context note gesture Context note fallback
+                    // System awareness note gesture System awareness note fallback
                     val h = root.let { Rect().also { r -> it.getBoundsInScreen(r) }.height() }
                     val w = root.let { Rect().also { r -> it.getBoundsInScreen(r) }.width() }
                     val halfW = w / 2f
@@ -244,12 +244,12 @@ object GodModeAccessibility {
             delay(350)
         }
 
-        return ScrollToResult(false, "❌ Info Info Info '$targetText' Info $SCROLL_TO_MAX_ATTEMPTS Info")
+        return ScrollToResult(false, "❌ System awareness note System awareness note System awareness note '$targetText' System awareness note $SCROLL_TO_MAX_ATTEMPTS System awareness note")
     }
 
     /**
-     * [Context note] Context note Context note Context note atomically.
-     * Context note Context note Context note Context note Context note Context note Context note Context note.
+     * [System awareness note] System awareness note System awareness note System awareness note atomically.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     suspend fun executeActionChain(
         actions: List<ChainedAction>,
@@ -288,7 +288,7 @@ object GodModeAccessibility {
                     }
                 }
             } catch (e: Exception) {
-                val errorMsg = "❌ Info Info Info ${index + 1} (${action::class.simpleName}): ${e.message}"
+                val errorMsg = "❌ System awareness note System awareness note System awareness note ${index + 1} (${action::class.simpleName}): ${e.message}"
                 results.add(errorMsg)
                 failedAt = index
                 if (stopOnFirstError) break
@@ -296,7 +296,7 @@ object GodModeAccessibility {
             }
             results.add(result)
             if (action is ChainedAction.WaitMs) continue
-            delay(150) // Context note Context note Context note Context note
+            delay(150) // System awareness note System awareness note System awareness note System awareness note
         }
 
         return ActionChainResult(
@@ -309,33 +309,33 @@ object GodModeAccessibility {
     }
 
     /**
-     * [Context note] Context note Context note Context note Context note macro Context note Context note.
+     * [System awareness note] System awareness note System awareness note System awareness note System awareness note macro System awareness note System awareness note.
      */
     fun startRecording(macroName: String) {
         currentRecording = mutableListOf()
         isRecording = true
-        Log.i(TAG, "🎬 Info Info Info: $macroName")
+        Log.i(TAG, "🎬 System awareness note System awareness note System awareness note: $macroName")
     }
 
     /**
-     * [Context note] Context note Context note Context note Context note.
-     * @return Context note Context note Context note
+     * [System awareness note] System awareness note System awareness note System awareness note System awareness note.
+     * @return System awareness note System awareness note System awareness note
      */
     fun stopRecording(macroName: String): Int {
         isRecording = false
         actionRecordings[macroName] = currentRecording.toList()
         val count = currentRecording.size
         currentRecording = mutableListOf()
-        Log.i(TAG, "⏹️ Info Info '$macroName': $count Info")
+        Log.i(TAG, "⏹️ System awareness note System awareness note '$macroName': $count System awareness note")
         return count
     }
 
     /**
-     * [Context note] Context note Context note Context note Context note.
+     * [System awareness note] System awareness note System awareness note System awareness note System awareness note.
      */
     suspend fun playMacro(macroName: String): String {
         val actions = actionRecordings[macroName]
-            ?: return "❌ Info '$macroName' Info Info. Info: ${actionRecordings.keys}"
+            ?: return "❌ System awareness note '$macroName' System awareness note System awareness note. System awareness note: ${actionRecordings.keys}"
 
         val chainedActions = actions.map { recorded ->
             when (recorded) {
@@ -349,26 +349,26 @@ object GodModeAccessibility {
 
         val result = executeActionChain(chainedActions)
         return if (result.success) {
-            "✅ Info '$macroName' Info Info (${result.completedSteps}/${result.totalSteps} Info)"
+            "✅ System awareness note '$macroName' System awareness note System awareness note (${result.completedSteps}/${result.totalSteps} System awareness note)"
         } else {
-            "⚠️ Info '$macroName' Info Info Info ${result.failedAtStep + 1}:\n${result.results.joinToString("\n")}"
+            "⚠️ System awareness note '$macroName' System awareness note System awareness note System awareness note ${result.failedAtStep + 1}:\n${result.results.joinToString("\n")}"
         }
     }
 
     /**
-     * [Context note] Context note Context note Context note Context note Context note Context note.
+     * [System awareness note] System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     fun listMacros(): String {
-        if (actionRecordings.isEmpty()) return "Info Info Info Info."
+        if (actionRecordings.isEmpty()) return "System awareness note System awareness note System awareness note System awareness note."
         return actionRecordings.entries.joinToString("\n") { (name, actions) ->
-            "📼 $name: ${actions.size} Info"
+            "📼 $name: ${actions.size} System awareness note"
         }
     }
 
     // ── Private Helpers ───────────────────────────────────────────────────────
 
     /**
-     * Exponential backoff Context note Jitter Context note Context note Context note Context note.
+     * Exponential backoff System awareness note Jitter System awareness note System awareness note System awareness note System awareness note.
      */
     private suspend fun <T> retryWithBackoff(
         maxRetries: Int = DEFAULT_MAX_RETRIES,
@@ -384,7 +384,7 @@ object GodModeAccessibility {
                 if (attempt < maxRetries) {
                     val delayMs = (BASE_DELAY_MS * (1L shl attempt) + (0..100).random())
                         .coerceAtMost(MAX_DELAY_MS)
-                    Log.w(TAG, "$operationName: Info ${attempt + 1}/$maxRetries Info. Info ${delayMs}ms")
+                    Log.w(TAG, "$operationName: System awareness note ${attempt + 1}/$maxRetries System awareness note. System awareness note ${delayMs}ms")
                     delay(delayMs)
                 }
             }
@@ -397,13 +397,13 @@ object GodModeAccessibility {
 
     private suspend fun injectViaClipboard(text: String): String? {
         return try {
-            // Context note Context note Context note clipboard Context note Shizuku Context note paste
+            // System awareness note System awareness note System awareness note clipboard System awareness note Shizuku System awareness note paste
             PrivilegedExecutionManager.executeCommand(
                 "am broadcast -a clipper.set -e text '${text.replace("'", "\\'")}'"
             )
             delay(200)
             PrivilegedExecutionManager.executeCommand("input keyevent KEYCODE_CTRL_V")
-            "✅ Info Info Info Clipboard"
+            "✅ System awareness note System awareness note System awareness note Clipboard"
         } catch (e: Exception) {
             null
         }
@@ -415,10 +415,10 @@ object GodModeAccessibility {
     ): String? {
         val service = OmniAccessibilityService.instance ?: return null
         return if (fallbackNode != null) {
-            if (service.typeIntoNode(fallbackNode, text)) "⚠️ Fallback → Accessibility typing Info"
+            if (service.typeIntoNode(fallbackNode, text)) "⚠️ Fallback → Accessibility typing System awareness note"
             else null
         } else {
-            if (service.typeIntoFocusedNode(text)) "⚠️ Fallback → Accessibility focused typing Info"
+            if (service.typeIntoFocusedNode(text)) "⚠️ Fallback → Accessibility focused typing System awareness note"
             else null
         }
     }
@@ -427,10 +427,10 @@ object GodModeAccessibility {
         val startTime = System.currentTimeMillis()
         while (System.currentTimeMillis() - startTime < timeoutMs) {
             val found = AccessibilityStateManager.findNodeByText(text)
-            if (found != null) return "✅ Info Info '$text' Info ${System.currentTimeMillis() - startTime}ms"
+            if (found != null) return "✅ System awareness note System awareness note '$text' System awareness note ${System.currentTimeMillis() - startTime}ms"
             delay(300)
         }
-        return "⏱️ Info Info: '$text' Info Info Info ${timeoutMs}ms"
+        return "⏱️ System awareness note System awareness note: '$text' System awareness note System awareness note System awareness note ${timeoutMs}ms"
     }
 
     private fun findFirstScrollable(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
@@ -459,8 +459,8 @@ object GodModeAccessibility {
         val completedSteps: Int
     ) {
         override fun toString(): String = buildString {
-            append(if (success) "✅ Info Info" else "❌ Info Info")
-            append(" ($completedSteps/$totalSteps Info)\n")
+            append(if (success) "✅ System awareness note System awareness note" else "❌ System awareness note System awareness note")
+            append(" ($completedSteps/$totalSteps System awareness note)\n")
             results.forEachIndexed { i, r -> append("${i + 1}. $r\n") }
         }
     }

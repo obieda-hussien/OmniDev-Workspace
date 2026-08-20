@@ -13,42 +13,42 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * BootReceiver — Context note Context note Context note
+ * BootReceiver — System awareness note System awareness note System awareness note
  *
- * Context note Context note: Context note Context note Context note
+ * System awareness note System awareness note: System awareness note System awareness note System awareness note
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. **Context note Context note Context note (Boot Type Detection)**:
- *    - COLD_BOOT: Context note Context note Context note Context note Context note
- *    - WARM_BOOT: Context note Context note Context note
- *    - UPDATE_BOOT: Context note/Context note Context note
+ * 1. **System awareness note System awareness note System awareness note (Boot Type Detection)**:
+ *    - COLD_BOOT: System awareness note System awareness note System awareness note System awareness note System awareness note
+ *    - WARM_BOOT: System awareness note System awareness note System awareness note
+ *    - UPDATE_BOOT: System awareness note/System awareness note System awareness note
  *    - QUICK_BOOT: Fast Boot (Qualcomm/HTC)
- *    Context note Context note Context note Context note Context note Context note.
+ *    System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
  *
- * 2. **Context note Context note (Phased Startup)**:
- *    Context note 1 (Context note): SyncService — Context note Context note Context note Context note
- *    Context note 2 (+8s): Context note Context note Context note Context note Context note Context note Context note
- *    Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note.
+ * 2. **System awareness note System awareness note (Phased Startup)**:
+ *    System awareness note 1 (System awareness note): SyncService — System awareness note System awareness note System awareness note System awareness note
+ *    System awareness note 2 (+8s): System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
+ *    System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
  *
- * 3. **Context note Context note (Boot Log)**:
- *    Context note Context note Context note Context note: Context note Context note Context note Context note Context note Context note.
- *    Context note Context note Context note Context note Context note ANR.
+ * 3. **System awareness note System awareness note (Boot Log)**:
+ *    System awareness note System awareness note System awareness note System awareness note: System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
+ *    System awareness note System awareness note System awareness note System awareness note System awareness note ANR.
  *
- * 4. **Context note Context note Context note Storm**: Context note Context note Context note 3 Context note Context note 5 Context note →
- *    Context note Context note Context note Context note Context note.
+ * 4. **System awareness note System awareness note System awareness note Storm**: System awareness note System awareness note System awareness note 3 System awareness note System awareness note 5 System awareness note →
+ *    System awareness note System awareness note System awareness note System awareness note System awareness note.
  */
 class BootReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "BootReceiver"
 
-        // Context note Context note (Context note Context note)
+        // System awareness note System awareness note (System awareness note System awareness note)
         private const val PHASE_1_DELAY_MS = 0L
         private const val PHASE_2_DELAY_MS = 8_000L
 
-        // Context note Context note Context note Context note Context note
+        // System awareness note System awareness note System awareness note System awareness note System awareness note
         private const val RAPID_REBOOT_THRESHOLD = 3
-        private const val RAPID_REBOOT_WINDOW_MS = 5 * 60 * 1000L // 5 Context note
-        private const val RAPID_REBOOT_PENALTY_DELAY_MS = 15_000L  // Context note 15 Context note
+        private const val RAPID_REBOOT_WINDOW_MS = 5 * 60 * 1000L // 5 System awareness note
+        private const val RAPID_REBOOT_PENALTY_DELAY_MS = 15_000L  // System awareness note 15 System awareness note
 
         private val recentBootTimes = mutableListOf<Long>()
 
@@ -58,9 +58,9 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     enum class BootType {
-        COLD_BOOT,   // Context note Context note
-        WARM_BOOT,   // Context note Context note
-        UPDATE_BOOT, // Context note Context note
+        COLD_BOOT,   // System awareness note System awareness note
+        WARM_BOOT,   // System awareness note System awareness note
+        UPDATE_BOOT, // System awareness note System awareness note
         QUICK_BOOT   // Fast Boot
     }
 
@@ -69,12 +69,12 @@ class BootReceiver : BroadcastReceiver() {
         val bootType = detectBootType(action)
         val bootTime = System.currentTimeMillis()
 
-        Log.i(TAG, "🚀 Info Info: $action | Info: $bootType")
+        Log.i(TAG, "🚀 System awareness note System awareness note: $action | System awareness note: $bootType")
 
-        // Context note Context note Context note
+        // System awareness note System awareness note System awareness note
         DebugLogManager.appendInfo(TAG, buildString {
-            append("Info Info: $bootType")
-            append(" Info ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(bootTime))}")
+            append("System awareness note System awareness note: $bootType")
+            append(" System awareness note ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(bootTime))}")
         })
 
         when (action) {
@@ -99,34 +99,34 @@ class BootReceiver : BroadcastReceiver() {
 
         CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
             try {
-                // ── Context note Context note Context note Context note Context note ──
+                // ── System awareness note System awareness note System awareness note System awareness note System awareness note ──
                 val isRapidRebooting = checkRapidReboot(bootTime)
                 if (isRapidRebooting) {
-                    Log.w(TAG, "⚠️ Info Info — Info Info Info ${RAPID_REBOOT_PENALTY_DELAY_MS}ms")
-                    DebugLogManager.appendWarning(TAG, "Info Info Info — Info Info")
+                    Log.w(TAG, "⚠️ System awareness note System awareness note — System awareness note System awareness note System awareness note ${RAPID_REBOOT_PENALTY_DELAY_MS}ms")
+                    DebugLogManager.appendWarning(TAG, "System awareness note System awareness note System awareness note — System awareness note System awareness note")
                     delay(RAPID_REBOOT_PENALTY_DELAY_MS)
                 }
 
                 // ─────────────────────────────────────────────────────────────
-                // Context note 1: Context note Context note (SyncService)
+                // System awareness note 1: System awareness note System awareness note (SyncService)
                 // ─────────────────────────────────────────────────────────────
                 delay(PHASE_1_DELAY_MS)
-                Log.i(TAG, "📌 Info 1: Info Info")
+                Log.i(TAG, "📌 System awareness note 1: System awareness note System awareness note")
                 val phase1Results = startPhase1Services(context, bootType)
-                DebugLogManager.appendInfo(TAG, "Info 1: ${phase1Results.joinToString(", ")}")
+                DebugLogManager.appendInfo(TAG, "System awareness note 1: ${phase1Results.joinToString(", ")}")
 
                 // ─────────────────────────────────────────────────────────────
-                // Context note 2: Context note Context note Context note
+                // System awareness note 2: System awareness note System awareness note System awareness note
                 // ─────────────────────────────────────────────────────────────
                 delay(PHASE_2_DELAY_MS)
-                Log.i(TAG, "📌 Info 2: Info Info Info")
+                Log.i(TAG, "📌 System awareness note 2: System awareness note System awareness note System awareness note")
                 val healthReport = validateServiceHealth(context)
-                DebugLogManager.appendInfo(TAG, "Info Info: $healthReport")
+                DebugLogManager.appendInfo(TAG, "System awareness note System awareness note: $healthReport")
 
-                Log.i(TAG, "✅ Info Info Info — ${bootType.name}")
+                Log.i(TAG, "✅ System awareness note System awareness note System awareness note — ${bootType.name}")
 
             } catch (e: Exception) {
-                Log.e(TAG, "❌ Info Info Info Info: ${e.message}", e)
+                Log.e(TAG, "❌ System awareness note System awareness note System awareness note System awareness note: ${e.message}", e)
                 DebugLogManager.appendError(TAG, e)
             } finally {
                 pendingResult.finish()
@@ -135,12 +135,12 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     /**
-     * Context note 1: Context note Context note Context note Context note Context note Context note Context note.
+     * System awareness note 1: System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     private fun startPhase1Services(context: Context, bootType: BootType): List<String> {
         val results = mutableListOf<String>()
 
-        // SyncService — Context note Context note
+        // SyncService — System awareness note System awareness note
         safeStartForeground(context, OmniSyncService::class.java)
             .let { results.add(if (it) "✅ SyncService" else "❌ SyncService") }
 
@@ -148,12 +148,12 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     /**
-     * Context note 2: Context note Context note Context note Context note Context note Context note.
+     * System awareness note 2: System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     private fun validateServiceHealth(context: Context): String = buildString {
-        append("Info Info Info:\n")
+        append("System awareness note System awareness note System awareness note:\n")
 
-        // Context note Context note Context note Context note Context note SyncService state Context note Context note Context note
+        // System awareness note System awareness note System awareness note System awareness note System awareness note SyncService state System awareness note System awareness note System awareness note
         val syncState = OmniSyncService.syncState.value
         append("  SyncService: ${syncState.name}\n")
 
@@ -161,22 +161,22 @@ class BootReceiver : BroadcastReceiver() {
         append("  Circuit Breaker: ${circuitState.name}\n")
 
         if (syncState == OmniSyncService.SyncState.ERROR) {
-            append("  ⚠️ SyncService Info Info Info — Info Info Info")
+            append("  ⚠️ SyncService System awareness note System awareness note System awareness note — System awareness note System awareness note System awareness note")
         }
     }
 
     /**
-     * Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     private fun checkRapidReboot(bootTime: Long): Boolean {
         recentBootTimes.add(bootTime)
-        // Context note Context note Context note Context note Context note Context note
+        // System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
         recentBootTimes.removeAll { bootTime - it > RAPID_REBOOT_WINDOW_MS }
         return recentBootTimes.size >= RAPID_REBOOT_THRESHOLD
     }
 
     /**
-     * Context note Context note Foreground Context note Context note Context note Context note Context note Context note Android.
+     * System awareness note System awareness note Foreground System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note Android.
      */
     private fun <T : android.app.Service> safeStartForeground(
         context: Context,
@@ -189,10 +189,10 @@ class BootReceiver : BroadcastReceiver() {
             } else {
                 context.startService(intent)
             }
-            Log.i(TAG, "Info: ${serviceClass.simpleName}")
+            Log.i(TAG, "System awareness note: ${serviceClass.simpleName}")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Info Info ${serviceClass.simpleName}: ${e.message}")
+            Log.e(TAG, "System awareness note System awareness note ${serviceClass.simpleName}: ${e.message}")
             false
         }
     }

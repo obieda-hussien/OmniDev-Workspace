@@ -6,30 +6,30 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * ScriptRunnerTool — Context note Context note Context note Norm Tier Context note Context note
+ * ScriptRunnerTool — System awareness note System awareness note System awareness note Norm Tier System awareness note System awareness note
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Context note Context note:
+ * System awareness note System awareness note:
  *
- * 1. **run_script** — Context note Context note Context note Context note:
- *    - `shell` → Context note Context note Context note `run_terminal` (Context note ProcessBuilder Context note Context note Context note Context note)
- *    - `python` → Context note Context note Context note Python Context note Termux Context note Context note
- *    - `js`     → Context note Context note JavaScript Context note Context note Context note Context note
+ * 1. **run_script** — System awareness note System awareness note System awareness note System awareness note:
+ *    - `shell` → System awareness note System awareness note System awareness note `run_terminal` (System awareness note ProcessBuilder System awareness note System awareness note System awareness note System awareness note)
+ *    - `python` → System awareness note System awareness note System awareness note Python System awareness note Termux System awareness note System awareness note
+ *    - `js`     → System awareness note System awareness note JavaScript System awareness note System awareness note System awareness note System awareness note
  *
- * 2. **eval_expression** — Context note Context note Context note/Context note Context note Context note:
- *    - Context note: +Context note -Context note *Context note /Context note %Context note >Context note <Context note ==Context note !=Context note &&Context note ||Context note !
- *    - Recursive-descent parser — Context note eval() Context note reflection
- *    - Context note Context note Context note code injection
+ * 2. **eval_expression** — System awareness note System awareness note System awareness note/System awareness note System awareness note System awareness note:
+ *    - System awareness note: +System awareness note -System awareness note *System awareness note /System awareness note %System awareness note >System awareness note <System awareness note ==System awareness note !=System awareness note &&System awareness note ||System awareness note !
+ *    - Recursive-descent parser — System awareness note eval() System awareness note reflection
+ *    - System awareness note System awareness note System awareness note code injection
  *
  * ## Mobile-First:
- * - Context note Context note Context note
- * - Context note Context note < 1ms Context note Context note
- * - Timeout Context note Context note (Context note 5000ms)
+ * - System awareness note System awareness note System awareness note
+ * - System awareness note System awareness note < 1ms System awareness note System awareness note
+ * - Timeout System awareness note System awareness note (System awareness note 5000ms)
  *
- * ## Context note:
- * - shell/python Context note Context note Context note — Context note Context note Context note
- * - JS evaluator Context note Context note Context note Context note/Context note
- * - Context note eval()Context note Context note ReflectionContext note Context note ClassLoader
+ * ## System awareness note:
+ * - shell/python System awareness note System awareness note System awareness note — System awareness note System awareness note System awareness note
+ * - JS evaluator System awareness note System awareness note System awareness note System awareness note/System awareness note
+ * - System awareness note eval()System awareness note System awareness note ReflectionSystem awareness note System awareness note ClassLoader
  */
 class ScriptRunnerTool {
 
@@ -41,32 +41,32 @@ class ScriptRunnerTool {
 
         ToolDefinition(
             name = "run_script",
-            description = """Info Info Info Info Info.
-Info Info:
-- shell  → Info Info ProcessBuilder Info Info Info Info run_terminal
-- python → Info Info Termux Python Info Info Info
-- js     → Info Info JavaScript Info (Info Info Info Info)
+            description = """System awareness note System awareness note System awareness note System awareness note System awareness note.
+System awareness note System awareness note:
+- shell  → System awareness note System awareness note ProcessBuilder System awareness note System awareness note System awareness note System awareness note run_terminal
+- python → System awareness note System awareness note Termux Python System awareness note System awareness note System awareness note
+- js     → System awareness note System awareness note JavaScript System awareness note (System awareness note System awareness note System awareness note System awareness note)
 
-Info: shell Infopython Info Info terminal_access (NORM+).
-Info Info Info/Info Info Info eval_expression.
+System awareness note: shell System awareness notepython System awareness note System awareness note terminal_access (NORM+).
+System awareness note System awareness note System awareness note/System awareness note System awareness note System awareness note eval_expression.
 """,
             parameters = listOf(
                 ToolParameter(
                     name = "language",
                     type = "string",
-                    description = "Info Info: 'js' | 'python' | 'shell'",
+                    description = "System awareness note System awareness note: 'js' | 'python' | 'shell'",
                     required = true
                 ),
                 ToolParameter(
                     name = "code",
                     type = "string",
-                    description = "Info Info Info Info",
+                    description = "System awareness note System awareness note System awareness note System awareness note",
                     required = true
                 ),
                 ToolParameter(
                     name = "timeout_ms",
                     type = "string",
-                    description = "Info Info Info Info (Info: 5000)",
+                    description = "System awareness note System awareness note System awareness note System awareness note (System awareness note: 5000)",
                     required = false
                 )
             )
@@ -74,29 +74,29 @@ Info Info Info/Info Info Info eval_expression.
 
         ToolDefinition(
             name = "eval_expression",
-            description = """Info Info Info Info Info Info.
-Info:
-- Context note Context note: +Context note -Context note *Context note /Context note %Context note Context note Context note
-- Info: >Info <Info >=Info <=Info ==Info !=
-- Info: &&Info ||Info !
-- Info Info Info
-- Info Info Info
-- Info boolean: true/false
+            description = """System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
+System awareness note:
+- System awareness note System awareness note: +System awareness note -System awareness note *System awareness note /System awareness note %System awareness note System awareness note System awareness note
+- System awareness note: >System awareness note <System awareness note >=System awareness note <=System awareness note ==System awareness note !=
+- System awareness note: &&System awareness note ||System awareness note !
+- System awareness note System awareness note System awareness note
+- System awareness note System awareness note System awareness note
+- System awareness note boolean: true/false
 
-Info:
+System awareness note:
 - "2 + 3 * 4" → 14
 - "(2 + 3) * 4" → 20
 - "10 > 5 && 3 < 7" → true
 - "100 % 7" → 2
 - "!false || (3 == 3)" → true
 
-Info Info — Info eval()Info Info reflectionInfo Info access Info.
+System awareness note System awareness note — System awareness note eval()System awareness note System awareness note reflectionSystem awareness note System awareness note access System awareness note.
 """,
             parameters = listOf(
                 ToolParameter(
                     name = "expression",
                     type = "string",
-                    description = "Info Info Info",
+                    description = "System awareness note System awareness note System awareness note",
                     required = true
                 )
             )
@@ -107,7 +107,7 @@ Info Info — Info eval()Info Info reflectionInfo Info access Info.
     // Execution
     // ──────────────────────────────────────────────────────────────────────────
 
-    /** Context note null Context note Context note Context note Context note Context note Context note wrapper. */
+    /** System awareness note null System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note wrapper. */
     suspend fun execute(name: String, args: Map<String, String>): ToolExecutionResult? {
         if (name !in HANDLED) return null
         return try {
@@ -150,13 +150,13 @@ Info Info — Info eval()Info Info reflectionInfo Info access Info.
     }
 
     /**
-     * Context note JavaScript — Context note Context note Context note Context note Context note Context note Context note.
-     * Context note Context note Context note Context note Context note console.log Context note Context note Context note Context note Context note.
+     * System awareness note JavaScript — System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note console.log System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     private suspend fun runJavaScript(code: String, timeoutMs: Long): ToolExecutionResult {
         return withTimeoutOrNull(timeoutMs) {
             try {
-                // Context note Context note ScriptEngineManager Context note Context note Context note (JVM Context note Context note Android)
+                // System awareness note System awareness note ScriptEngineManager System awareness note System awareness note System awareness note (JVM System awareness note System awareness note Android)
                 tryScriptEngineManager(code)
                     ?: runJsWithBasicInterpreter(code)
             } catch (e: Exception) {
@@ -166,8 +166,8 @@ Info Info — Info eval()Info Info reflectionInfo Info access Info.
     }
 
     /**
-     * Context note ScriptEngineManager (Context note Context note JVM/RoboelectricContext note Context note Context note Context note Android runtime).
-     * Context note null Context note Context note Context note Context note.
+     * System awareness note ScriptEngineManager (System awareness note System awareness note JVM/RoboelectricSystem awareness note System awareness note System awareness note System awareness note Android runtime).
+     * System awareness note null System awareness note System awareness note System awareness note System awareness note.
      */
     private fun tryScriptEngineManager(code: String): ToolExecutionResult? {
         return try {
@@ -181,42 +181,42 @@ Info Info — Info eval()Info Info reflectionInfo Info access Info.
             val result = evalMethod.invoke(engine, code)
             ToolExecutionResult("${result ?: "undefined"}")
         } catch (e: ClassNotFoundException) {
-            null // ScriptEngineManager Context note Context note (Android runtime)
+            null // ScriptEngineManager System awareness note System awareness note (Android runtime)
         } catch (e: Exception) {
             null
         }
     }
 
     /**
-     * Context note JavaScript Context note Context note Context note.
-     * Context note: Context note Context note Context note Context note Context note String literals.
+     * System awareness note JavaScript System awareness note System awareness note System awareness note.
+     * System awareness note: System awareness note System awareness note System awareness note System awareness note System awareness note String literals.
      */
     private fun runJsWithBasicInterpreter(code: String): ToolExecutionResult {
         val trimmed = code.trim()
 
-        // Context note Context note Context note Context note Context note Context note Context note Context note Context note function/var/let/const/console
+        // System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note function/var/let/const/console
         val hasComplexKeywords = listOf("function", "var ", "let ", "const ", "console.", "return ", "if ", "for ", "while ").any {
             trimmed.contains(it)
         }
 
         if (hasComplexKeywords || trimmed.contains('\n')) {
-            // Context note Context note Context note: Context note Context note Context note Termux Node.js
+            // System awareness note System awareness note System awareness note: System awareness note System awareness note System awareness note Termux Node.js
             return runViaTermuxNode(trimmed)
         }
 
-        // Context note eval_expression Context note Context note
+        // System awareness note eval_expression System awareness note System awareness note
         return try {
             val parser = SafeExpressionParser(trimmed)
             val result = parser.parse()
             ToolExecutionResult(formatEvalResult(result))
         } catch (e: Exception) {
-            // Context note Context note: Termux
+            // System awareness note System awareness note: Termux
             runViaTermuxNode(trimmed)
         }
     }
 
     /**
-     * Context note Context note Termux Node.js Context note Context note Context note.
+     * System awareness note System awareness note Termux Node.js System awareness note System awareness note System awareness note.
      */
     private fun runViaTermuxNode(code: String): ToolExecutionResult {
         return try {
@@ -238,12 +238,12 @@ Info Info — Info eval()Info Info reflectionInfo Info access Info.
     }
 
     /**
-     * Context note Python Context note Termux.
+     * System awareness note Python System awareness note Termux.
      */
     private suspend fun runPython(code: String, timeoutMs: Long): ToolExecutionResult {
         return withTimeoutOrNull(timeoutMs) {
             try {
-                // Context note python3 Context note Context note python
+                // System awareness note python3 System awareness note System awareness note python
                 val pythonBins = listOf(
                     "/data/data/com.termux/files/usr/bin/python3",
                     "/data/data/com.termux/files/usr/bin/python",
@@ -277,7 +277,7 @@ Info Info — Info eval()Info Info reflectionInfo Info access Info.
     }
 
     /**
-     * Context note Shell — Context note sh/bash Context note.
+     * System awareness note Shell — System awareness note sh/bash System awareness note.
      */
     private suspend fun runShell(code: String, timeoutMs: Long): ToolExecutionResult {
         return withTimeoutOrNull(timeoutMs) {
@@ -293,7 +293,7 @@ Info Info — Info eval()Info Info reflectionInfo Info access Info.
     }
 
     /**
-     * Context note Context note Context note Context note Timeout.
+     * System awareness note System awareness note System awareness note System awareness note Timeout.
      */
     private fun runProcessWithTimeout(command: List<String>, timeoutMs: Long): ToolExecutionResult {
         val process = ProcessBuilder(command)
@@ -350,7 +350,7 @@ Info Info — Info eval()Info Info reflectionInfo Info access Info.
     companion object {
         val HANDLED = setOf("run_script", "eval_expression")
 
-        /** Context note Context note Context note Context note Context note Context note */
+        /** System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note */
         internal fun formatEvalResult(result: Any): String = when (result) {
             is Double -> if (result % 1.0 == 0.0 && result >= Long.MIN_VALUE.toDouble() && result <= Long.MAX_VALUE.toDouble()) {
                 result.toLong().toString()
@@ -364,17 +364,17 @@ Info Info — Info eval()Info Info reflectionInfo Info access Info.
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// SafeExpressionParser — Context note Context note Context note Context note
-// Recursive-descent parser — Context note eval()Context note Context note reflection
+// SafeExpressionParser — System awareness note System awareness note System awareness note System awareness note
+// Recursive-descent parser — System awareness note eval()System awareness note System awareness note reflection
 // ════════════════════════════════════════════════════════════════════════════
 
-/** Context note Context note Context note Context note Context note */
+/** System awareness note System awareness note System awareness note System awareness note System awareness note */
 class ExpressionParseException(message: String) : Exception(message)
 
 /**
- * Context note Context note Context note/Context note Context note.
+ * System awareness note System awareness note System awareness note/System awareness note System awareness note.
  *
- * Context note Context note (Context note Context note Context note Context notelowest Context notehighest):
+ * System awareness note System awareness note (System awareness note System awareness note System awareness note System awareness note System awareness note):
  *   expr     → or_expr
  *   or_expr  → and_expr ('||' and_expr)*
  *   and_expr → not_expr ('&&' not_expr)*
@@ -389,7 +389,7 @@ internal class SafeExpressionParser(private val input: String) {
 
     private var pos = 0
 
-    /** Context note Context note Context note */
+    /** System awareness note System awareness note System awareness note */
     fun parse(): Any {
         skipWhitespace()
         val result = parseOr()
@@ -402,7 +402,7 @@ internal class SafeExpressionParser(private val input: String) {
         return result
     }
 
-    // ── Context note Context note ──────────────────────────────────────────────────
+    // ── System awareness note System awareness note ──────────────────────────────────────────────────
 
     private fun parseOr(): Any {
         var left = parseAnd()
@@ -428,9 +428,9 @@ internal class SafeExpressionParser(private val input: String) {
         skipWhitespace()
         if (pos < input.length && input[pos] == '!') {
             pos++ // consume '!'
-            // Context note Context note Context note Context note !=
+            // System awareness note System awareness note System awareness note System awareness note !=
             if (pos < input.length && input[pos] == '=') {
-                pos-- // Context note Context note Context note cmp_expr
+                pos-- // System awareness note System awareness note System awareness note cmp_expr
                 return parseComparison()
             }
             val operand = parseNot()
@@ -529,7 +529,7 @@ internal class SafeExpressionParser(private val input: String) {
         skipWhitespace()
         if (pos >= input.length) throw ExpressionParseException("Unexpected end of expression")
 
-        // Context note
+        // System awareness note
         if (input[pos] == '(') {
             pos++ // consume '('
             val result = parseOr()
@@ -551,7 +551,7 @@ internal class SafeExpressionParser(private val input: String) {
             return false
         }
 
-        // Context note (Context note Context note Context note)
+        // System awareness note (System awareness note System awareness note System awareness note)
         if (input[pos].isDigit() || (input[pos] == '.' && pos + 1 < input.length && input[pos + 1].isDigit())) {
             return parseNumber()
         }
@@ -571,7 +571,7 @@ internal class SafeExpressionParser(private val input: String) {
             ?: throw ExpressionParseException("Invalid number: $numStr")
     }
 
-    // ── Context note Context note ──────────────────────────────────────────────────────
+    // ── System awareness note System awareness note ──────────────────────────────────────────────────────
 
     private fun skipWhitespace() {
         while (pos < input.length && input[pos].isWhitespace()) pos++
@@ -605,7 +605,7 @@ internal class SafeExpressionParser(private val input: String) {
 }
 
 /**
- * Context note Context note Context note — wrapper Context note Context note ScriptRunnerTool.
- * Context note Context note.
+ * System awareness note System awareness note System awareness note — wrapper System awareness note System awareness note ScriptRunnerTool.
+ * System awareness note System awareness note.
  */
 internal fun Any.formatResult(): String = ScriptRunnerTool.formatEvalResult(this)

@@ -9,26 +9,26 @@ import java.util.zip.InflaterOutputStream
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * DiffUtils — Context note Diff Context note Context note Rollback (Brain 2.0)
+ * DiffUtils — System awareness note Diff System awareness note System awareness note Rollback (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
  * Mobile-first:
- * - LCS (Longest Common Subsequence) Context note Context note 8000 Context note Context note O(n²) memory
- * - Context note > 4 KB → unified diff (Context note ~70% Context note Context note)
- * - Context note ≤ 4 KB → Context note Context note Context note Context note Deflate
- * - SHA-256 truncated (16 hex) Context note Context note Context note Context note rollback
+ * - LCS (Longest Common Subsequence) System awareness note System awareness note 8000 System awareness note System awareness note O(n²) memory
+ * - System awareness note > 4 KB → unified diff (System awareness note ~70% System awareness note System awareness note)
+ * - System awareness note ≤ 4 KB → System awareness note System awareness note System awareness note System awareness note Deflate
+ * - SHA-256 truncated (16 hex) System awareness note System awareness note System awareness note System awareness note rollback
  *
- * Context note Context note synchronous — Context note Context note Context note Dispatchers.IO.
+ * System awareness note System awareness note synchronous — System awareness note System awareness note System awareness note Dispatchers.IO.
  */
 object DiffUtils {
 
-    /** Context note Context note Context note Context note Context note diff Context note Context note Context note Context note. */
+    /** System awareness note System awareness note System awareness note System awareness note System awareness note diff System awareness note System awareness note System awareness note System awareness note. */
     const val FULL_CONTENT_THRESHOLD_BYTES = 4 * 1024
 
-    /** Context note Context note Context note Context note Context note LCS (Context note Context note OOM Context note Context note Context note). */
+    /** System awareness note System awareness note System awareness note System awareness note System awareness note LCS (System awareness note System awareness note OOM System awareness note System awareness note System awareness note). */
     private const val MAX_LCS_LINES = 8_000
 
-    /** Context note Context note Context note Context note Context note (10 MB). */
+    /** System awareness note System awareness note System awareness note System awareness note System awareness note (10 MB). */
     const val MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024
 
     // ──────────────────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ object DiffUtils {
     fun sha256(text: String): String = sha256(text.toByteArray())
 
     // ──────────────────────────────────────────────────────────────────
-    // Compression (Deflate — Context note Context note Context note JVM/Android Context note Context note Context note)
+    // Compression (Deflate — System awareness note System awareness note System awareness note JVM/Android System awareness note System awareness note System awareness note)
     // ──────────────────────────────────────────────────────────────────
 
     fun compress(data: ByteArray): ByteArray {
@@ -66,20 +66,20 @@ object DiffUtils {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * Context note unified diff Context note Context note Context note.
-     * format: Context note Context note:
-     *   "= line"   = Context note Context note (context — Context note lines Context note Context note)
-     *   "- line"   = Context note Context note
-     *   "+ line"   = Context note Context note
+     * System awareness note unified diff System awareness note System awareness note System awareness note.
+     * format: System awareness note System awareness note:
+     *   "= line"   = System awareness note System awareness note (context — System awareness note lines System awareness note System awareness note)
+     *   "- line"   = System awareness note System awareness note
+     *   "+ line"   = System awareness note System awareness note
      *
-     * Mobile-first: Context note Context note context Context note Context note hunks Context note + 2 Context note context.
-     * Context note Context note Context note Context note Context note Context note Context note.
+     * Mobile-first: System awareness note System awareness note context System awareness note System awareness note hunks System awareness note + 2 System awareness note context.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     fun buildDiff(before: String, after: String): String {
         val a = before.split('\n')
         val b = after.split('\n')
 
-        // Context note: Context note Context note Context note Context note Context note Context note Context note (Context note Context note Context note)
+        // System awareness note: System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note (System awareness note System awareness note System awareness note)
         if (a.size > MAX_LCS_LINES || b.size > MAX_LCS_LINES) {
             return buildSimpleDiff(a, b)
         }
@@ -89,21 +89,21 @@ object DiffUtils {
     }
 
     /**
-     * Context note Context note Context note Context note unified diff + Context note Context note.
-     * @return Context note Context note (Context note Context note edit) Context note Context note null Context note Context note.
+     * System awareness note System awareness note System awareness note System awareness note unified diff + System awareness note System awareness note.
+     * @return System awareness note System awareness note (System awareness note System awareness note edit) System awareness note System awareness note null System awareness note System awareness note.
      */
     fun applyReverseDiff(currentContent: String, diff: String): String? {
         if (diff.isBlank()) return currentContent
         return try {
-            // Context note Context note: Context note diff Context note Context note Context note Context note Context note
+            // System awareness note System awareness note: System awareness note diff System awareness note System awareness note System awareness note System awareness note System awareness note
             val ops = parseDiff(diff)
             val current = currentContent.split('\n').toMutableList()
             val original = mutableListOf<String>()
 
-            // Context note Context note: Context note Context note ops Context note Context note
-            // - = → Context note Context note current
-            // + → Context note (Context note Context note Context note afterContext note Context note Context note before)
-            // - → Context note Context note (Context note Context note Context note beforeContext note Context note)
+            // System awareness note System awareness note: System awareness note System awareness note ops System awareness note System awareness note
+            // - = → System awareness note System awareness note current
+            // + → System awareness note (System awareness note System awareness note System awareness note afterSystem awareness note System awareness note System awareness note before)
+            // - → System awareness note System awareness note (System awareness note System awareness note System awareness note beforeSystem awareness note System awareness note)
             var ci = 0
             for (op in ops) {
                 when (op.kind) {
@@ -116,17 +116,17 @@ object DiffUtils {
                         }
                     }
                     DiffOp.Kind.ADDED -> {
-                        // Context note Context note Context note after — Context note Context note Context note current
+                        // System awareness note System awareness note System awareness note after — System awareness note System awareness note System awareness note current
                         if (ci < current.size && current[ci] == op.line) ci++
                     }
                     DiffOp.Kind.REMOVED -> {
-                        // Context note Context note Context note before — Context note
+                        // System awareness note System awareness note System awareness note before — System awareness note
                         original += op.line
                     }
                 }
             }
 
-            // Context note Context note Context note Context note current Context note Context note diff (Context note Context note)Context note Context note Context note Context note
+            // System awareness note System awareness note System awareness note System awareness note current System awareness note System awareness note diff (System awareness note System awareness note)System awareness note System awareness note System awareness note System awareness note
             while (ci < current.size) {
                 original += current[ci]
                 ci++
@@ -146,11 +146,11 @@ object DiffUtils {
         enum class Kind { CONTEXT, ADDED, REMOVED }
     }
 
-    /** Context note LCS operations Context note DP table O(m*n) memory — Context note Context note 8K×8K. */
+    /** System awareness note LCS operations System awareness note DP table O(m*n) memory — System awareness note System awareness note 8K×8K. */
     private fun computeLcsOps(a: List<String>, b: List<String>): List<DiffOp> {
         val m = a.size
         val n = b.size
-        // Context note IntArray Context note Context note overhead Context note Object[]
+        // System awareness note IntArray System awareness note System awareness note overhead System awareness note Object[]
         val dp = IntArray((m + 1) * (n + 1))
         val w = n + 1
         for (i in m - 1 downTo 0) {
@@ -186,7 +186,7 @@ object DiffUtils {
         return ops
     }
 
-    /** Fallback Context note Context note Context note Context note Context note LCS — diff Context note Context note-Context note. */
+    /** Fallback System awareness note System awareness note System awareness note System awareness note System awareness note LCS — diff System awareness note System awareness note-System awareness note. */
     private fun buildSimpleDiff(a: List<String>, b: List<String>): String {
         val sb = StringBuilder()
         val limit = minOf(a.size, b.size)
@@ -202,7 +202,7 @@ object DiffUtils {
         return sb.toString()
     }
 
-    /** Context note ops Context note hunks Context note context Context note (Context note Context note). */
+    /** System awareness note ops System awareness note hunks System awareness note context System awareness note (System awareness note System awareness note). */
     private fun formatHunks(ops: List<DiffOp>, contextLines: Int): String {
         val sb = StringBuilder()
         for (op in ops) {

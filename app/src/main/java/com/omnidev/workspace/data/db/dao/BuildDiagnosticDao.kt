@@ -9,8 +9,8 @@ import com.omnidev.workspace.data.db.entities.BuildDiagnosticEntry
 import kotlinx.coroutines.flow.Flow
 
 /**
- * DAO Context note Context note Build Doctor Pro. Context note Context note Context note Context note Context note
- * fingerprint Context note Context note Context note Context note Context note.
+ * DAO System awareness note System awareness note Build Doctor Pro. System awareness note System awareness note System awareness note System awareness note System awareness note
+ * fingerprint System awareness note System awareness note System awareness note System awareness note System awareness note.
  */
 @Dao
 interface BuildDiagnosticDao {
@@ -24,7 +24,7 @@ interface BuildDiagnosticDao {
     @Query("SELECT * FROM build_diagnostics WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): BuildDiagnosticEntry?
 
-    /** Context note Context note: Context note fingerprint Context note Context note Context note Context note Context note. */
+    /** System awareness note System awareness note: System awareness note fingerprint System awareness note System awareness note System awareness note System awareness note System awareness note. */
     @Query("SELECT * FROM build_diagnostics WHERE errorFingerprint = :fingerprint LIMIT 1")
     suspend fun findByFingerprint(fingerprint: String): BuildDiagnosticEntry?
 
@@ -36,7 +36,7 @@ interface BuildDiagnosticDao {
     """)
     suspend fun findByCategory(category: String, limit: Int = 20): List<BuildDiagnosticEntry>
 
-    /** Context note Context note Context note Context note Context note Context note (Context note Context note). */
+    /** System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note (System awareness note System awareness note). */
     @Query("""
         SELECT * FROM build_diagnostics
         WHERE successfulFixCount >= 1 AND LENGTH(solutionDiff) > 0
@@ -65,7 +65,7 @@ interface BuildDiagnosticDao {
     @Query("SELECT COUNT(*) FROM build_diagnostics")
     suspend fun count(): Int
 
-    /** LRU eviction: Context note Context note (Context note Context note Context note). */
+    /** LRU eviction: System awareness note System awareness note (System awareness note System awareness note System awareness note). */
     @Query("""
         DELETE FROM build_diagnostics
         WHERE id IN (

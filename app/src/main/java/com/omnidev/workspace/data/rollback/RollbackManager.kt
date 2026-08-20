@@ -10,32 +10,32 @@ import java.util.UUID
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * RollbackManager — Context note "Context note Context note" (Action Insurance / Brain 2.0)
+ * RollbackManager — System awareness note "System awareness note System awareness note" (Action Insurance / Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * **Context note**: Context note Context note Context note Context note Context note Context note (write/patch/delete)Context note Context note Context note
- * Manager snapshot Context note Context note Context note Context note Context note Context note. Context note snapshots Context note
- * Context note "action groups" Context note Context note Context note Context note Context note Context note (Context note Context note) Context note.
+ * **System awareness note**: System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note (write/patch/delete)System awareness note System awareness note System awareness note
+ * Manager snapshot System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note. System awareness note snapshots System awareness note
+ * System awareness note "action groups" System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note (System awareness note System awareness note) System awareness note.
  *
  * **Mobile-first**:
- * - Context note Context note root (Context note/Context note Context note Context note Context note File API Context note)
- * - Context note ≤ 4 KB → Context note Context note Context note Context note Deflate
- * - Context note > 4 KB → unified diff Context note (Context note ~70%)
- * - 200 snapshot/group max + 50 MB max storage Context note + LRU eviction
- * - Context note SHA-256 Context note Context note Context note Context note
+ * - System awareness note System awareness note root (System awareness note/System awareness note System awareness note System awareness note System awareness note File API System awareness note)
+ * - System awareness note ≤ 4 KB → System awareness note System awareness note System awareness note System awareness note Deflate
+ * - System awareness note > 4 KB → unified diff System awareness note (System awareness note ~70%)
+ * - 200 snapshot/group max + 50 MB max storage System awareness note + LRU eviction
+ * - System awareness note SHA-256 System awareness note System awareness note System awareness note System awareness note
  *
  * **API**:
- *   - newGroup() → Context note actionGroupId Context note Context note lapsohots Context note
- *   - captureBeforeWrite(...) → Context note Context note Context note Context note write/patch
- *   - rollbackGroup(id) → Context note Context note Context note Context note group
- *   - rollbackById(id) → Context note snapshot Context note
+ *   - newGroup() → System awareness note actionGroupId System awareness note System awareness note lapsohots System awareness note
+ *   - captureBeforeWrite(...) → System awareness note System awareness note System awareness note System awareness note write/patch
+ *   - rollbackGroup(id) → System awareness note System awareness note System awareness note System awareness note group
+ *   - rollbackById(id) → System awareness note snapshot System awareness note
  *   - listRecent / listGroups / pin / unpin
  */
 class RollbackManager(
     private val dao: RollbackDao,
-    /** Context note Context note Context note Context note snapshots Context note Context note (50 MB Context note). */
+    /** System awareness note System awareness note System awareness note System awareness note snapshots System awareness note System awareness note (50 MB System awareness note). */
     private val maxBytesEvictable: Long = 50L * 1024 * 1024,
-    /** Context note Context note Context note/group Context note bevaluation. */
+    /** System awareness note System awareness note System awareness note/group System awareness note bevaluation. */
     private val maxSnapshotsPerGroup: Int = 200
 ) {
 
@@ -54,18 +54,18 @@ class RollbackManager(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Capture (Context note Context note Context note)
+    // Capture (System awareness note System awareness note System awareness note)
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * Context note snapshot Context note Context note/Context note Context note. Context note Context note Context note Context note FileToolManager
-     * Context note write_file / patch_file / delete_file.
+     * System awareness note snapshot System awareness note System awareness note/System awareness note System awareness note. System awareness note System awareness note System awareness note System awareness note FileToolManager
+     * System awareness note write_file / patch_file / delete_file.
      *
-     * @param actionGroupId Context note Context note (Context note newGroup())
-     * @param toolName Context note Context note Context note Context note (Context note)
-     * @param filePath Context note Context note
-     * @param reason Context note Context note (Context note Context note)
-     * @return Context note Context note snapshot Context note -1 Context note Context note Context note (Context note Context note Context note Context note)
+     * @param actionGroupId System awareness note System awareness note (System awareness note newGroup())
+     * @param toolName System awareness note System awareness note System awareness note System awareness note (System awareness note)
+     * @param filePath System awareness note System awareness note
+     * @param reason System awareness note System awareness note (System awareness note System awareness note)
+     * @return System awareness note System awareness note snapshot System awareness note -1 System awareness note System awareness note System awareness note (System awareness note System awareness note System awareness note System awareness note)
      */
     suspend fun captureBeforeWrite(
         actionGroupId: String,
@@ -78,7 +78,7 @@ class RollbackManager(
             val existed = file.exists()
 
             if (!existed) {
-                // Context note Context note Context note Context note → snapshot "Context note" Context note Context note Context note Context note rollback
+                // System awareness note System awareness note System awareness note System awareness note → snapshot "System awareness note" System awareness note System awareness note System awareness note System awareness note rollback
                 val entry = RollbackSnapshotEntry(
                     actionGroupId = actionGroupId,
                     toolName = toolName,
@@ -104,10 +104,10 @@ class RollbackManager(
             val hash = DiffUtils.sha256(original)
             val storedAsDiff = original.size > DiffUtils.FULL_CONTENT_THRESHOLD_BYTES
 
-            // Context note Context note Context note Context note Context note Context note Context note-Context note Context note → Context note Context note Context note.
-            // Context note storedAsDiff = true Context note Context note Context note Context note Context note diff Context note Context note Context note tool.
-            // Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note
-            // Context note Context note diff (Context note) Context note finalizeAfterWrite().
+            // System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note-System awareness note System awareness note → System awareness note System awareness note System awareness note.
+            // System awareness note storedAsDiff = true System awareness note System awareness note System awareness note System awareness note System awareness note diff System awareness note System awareness note System awareness note tool.
+            // System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
+            // System awareness note System awareness note diff (System awareness note) System awareness note finalizeAfterWrite().
             val compressed = DiffUtils.compress(original)
 
             val entry = RollbackSnapshotEntry(
@@ -131,8 +131,8 @@ class RollbackManager(
     }
 
     /**
-     * Context note Context note Context note Context note snapshot Context note "Context note Context note" Context note "diff" Context note Context note.
-     * Context note Context note Context note FileToolManager Context note write/patch.
+     * System awareness note System awareness note System awareness note System awareness note snapshot System awareness note "System awareness note System awareness note" System awareness note "diff" System awareness note System awareness note.
+     * System awareness note System awareness note System awareness note FileToolManager System awareness note write/patch.
      */
     suspend fun finalizeAfterWrite(snapshotId: Long, filePath: String) =
         withContext(Dispatchers.IO) {
@@ -152,7 +152,7 @@ class RollbackManager(
 
                 val diff = DiffUtils.buildDiff(before = original, after = current)
                 if (diff.length >= original.length) {
-                    // Context note diff Context note Context note Context note → Context note Context note Context note
+                    // System awareness note diff System awareness note System awareness note System awareness note → System awareness note System awareness note System awareness note
                     return@withContext
                 }
                 val diffCompressed = DiffUtils.compress(diff.toByteArray())
@@ -173,8 +173,8 @@ class RollbackManager(
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * Context note Context note Context note Context note snapshot Context note.
-     * @return true Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note snapshot System awareness note.
+     * @return true System awareness note System awareness note
      */
     suspend fun rollbackById(id: Long): Boolean = withContext(Dispatchers.IO) {
         val snap = dao.getById(id) ?: return@withContext false
@@ -182,8 +182,8 @@ class RollbackManager(
     }
 
     /**
-     * Context note Context note Context note Context note group Context note (best-effort).
-     * @return Context note Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note group System awareness note (best-effort).
+     * @return System awareness note System awareness note System awareness note System awareness note System awareness note
      */
     suspend fun rollbackGroup(groupId: String): RollbackResult = withContext(Dispatchers.IO) {
         val snaps = dao.getByGroup(groupId, limit = maxSnapshotsPerGroup)
@@ -206,12 +206,12 @@ class RollbackManager(
         val file = File(snap.filePath)
         return try {
             if (!snap.existedBefore) {
-                // Context note Context note Context note Context note → Context note Context note Context note Context note
+                // System awareness note System awareness note System awareness note System awareness note → System awareness note System awareness note System awareness note System awareness note
                 if (file.exists()) file.delete()
             } else {
                 file.parentFile?.mkdirs()
                 if (snap.storedAsDiff) {
-                    // diff → Context note Context note Context note + Context note diff Context note Context note
+                    // diff → System awareness note System awareness note System awareness note + System awareness note diff System awareness note System awareness note
                     val diff = DiffUtils.decompress(snap.contentBlob).toString(Charsets.UTF_8)
                     val current = if (file.exists()) file.readText(Charsets.UTF_8) else ""
                     val original = DiffUtils.applyReverseDiff(current, diff)
@@ -251,7 +251,7 @@ class RollbackManager(
         try {
             val used = dao.totalEvictableBytes()
             if (used > maxBytesEvictable) {
-                // Context note 20% Context note Context note Context note (Context note Context note Context note I/O)
+                // System awareness note 20% System awareness note System awareness note System awareness note (System awareness note System awareness note System awareness note I/O)
                 val cnt = dao.countEvictable()
                 val toEvict = (cnt / 5).coerceAtLeast(20)
                 dao.evictOldestUnpinned(toEvict)

@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * ViewModel Verified step Agent Brain Dashboard
+ * ViewModel System and domain documentation note Agent Brain Dashboard
  */
 class AgentBrainViewModel(
     private val bridge: SmartLearningBridge,

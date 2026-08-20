@@ -17,57 +17,57 @@ object IntentClassifier {
     data class Phrase(val text: String, val weight: Int)
 
     // ── SWARM phrases — multi-agent coordinated project work ──
-    // Arabic: "Context note Context note"=make the app, "Context note"=build (imperative),
-    //         "Context note Context note"=do everything, "Context note Context note"=all the code,
-    //         "Context note Context note"=from scratch, "Context note Context note"=full project
+    // Arabic: "System and domain documentation note System and domain documentation note"=make the app, "System and domain documentation note"=build (imperative),
+    //         "System and domain documentation note System and domain documentation note"=do everything, "System and domain documentation note System and domain documentation note"=all the code,
+    //         "System and domain documentation note System and domain documentation note"=from scratch, "System and domain documentation note System and domain documentation note"=full project
     val SWARM_PHRASES = listOf(
-        Phrase("from scratch", 4), Phrase("Info Info", 4),
-        Phrase("entire codebase", 5), Phrase("full project", 4), Phrase("Info Info", 4),
+        Phrase("from scratch", 4), Phrase("System component status System component status", 4),
+        Phrase("entire codebase", 5), Phrase("full project", 4), Phrase("System component status System component status", 4),
         Phrase("create the entire", 5), Phrase("implement the full", 4),
         Phrase("end to end", 4), Phrase("end-to-end", 4),
         Phrase("complete implementation", 4), Phrase("implement all", 3),
         Phrase("write all", 3), Phrase("create all", 3),
         Phrase("refactor the whole", 4), Phrase("migrate the whole", 4),
-        Phrase("Info Info", 5), Phrase("Info Info", 5),
-        Phrase("Info Info", 4), Phrase("Info Info", 4), Phrase("Info", 3)
+        Phrase("System component status System component status", 5), Phrase("System component status System component status", 5),
+        Phrase("System component status System component status", 4), Phrase("System component status System component status", 4), Phrase("System component status", 3)
     )
 
     // ── AGENT phrases — execution / tool-use / file operations ──
-    // Arabic: "Context note"=create, "Context note"=write, "Context note"=search, "Context note"=check,
-    //         "Context note"=edit, "Context note"=delete, "Context note"=add, "Context note"=run,
-    //         "Context note"=do/make, "Context note"=file, "Context note"=code, "Context note"=fix
+    // Arabic: "System and domain documentation note"=create, "System and domain documentation note"=write, "System and domain documentation note"=search, "System and domain documentation note"=check,
+    //         "System and domain documentation note"=edit, "System and domain documentation note"=delete, "System and domain documentation note"=add, "System and domain documentation note"=run,
+    //         "System and domain documentation note"=do/make, "System and domain documentation note"=file, "System and domain documentation note"=code, "System and domain documentation note"=fix
     val AGENT_PHRASES = listOf(
-        Phrase("fix", 3), Phrase("bug", 3), Phrase("Info", 3), Phrase("Info", 2),
-        Phrase("refactor", 3), Phrase("edit", 3), Phrase("Info", 3),
-        Phrase("implement", 3), Phrase("write the", 2), Phrase("Info", 2),
-        Phrase("add", 2), Phrase("Info", 2), Phrase("remove", 2), Phrase("Info", 2),
-        Phrase("update", 2), Phrase("create", 2), Phrase("Info", 2),
-        Phrase("run", 2), Phrase("Info", 2), Phrase("execute", 2),
+        Phrase("fix", 3), Phrase("bug", 3), Phrase("System component status", 3), Phrase("System component status", 2),
+        Phrase("refactor", 3), Phrase("edit", 3), Phrase("System component status", 3),
+        Phrase("implement", 3), Phrase("write the", 2), Phrase("System component status", 2),
+        Phrase("add", 2), Phrase("System component status", 2), Phrase("remove", 2), Phrase("System component status", 2),
+        Phrase("update", 2), Phrase("create", 2), Phrase("System component status", 2),
+        Phrase("run", 2), Phrase("System component status", 2), Phrase("execute", 2),
         Phrase("debug", 3), Phrase("compile", 3), Phrase("build", 2),
-        Phrase("test", 2), Phrase("Info", 2),
-        Phrase("search codebase", 3), Phrase("Info", 2),
-        Phrase("read file", 3), Phrase("Info", 2), Phrase("file", 2),
+        Phrase("test", 2), Phrase("System component status", 2),
+        Phrase("search codebase", 3), Phrase("System component status", 2),
+        Phrase("read file", 3), Phrase("System component status", 2), Phrase("file", 2),
         Phrase("kotlin", 3), Phrase("java", 3), Phrase("android", 2),
         Phrase("gradle", 3), Phrase("manifest", 3), Phrase("dependency", 2),
         Phrase("function", 2), Phrase("class", 2), Phrase("api", 2),
         Phrase("patch", 3), Phrase("deploy", 3), Phrase("install", 2),
-        Phrase("configure", 2), Phrase("setup", 2), Phrase("code", 2), Phrase("Info", 2),
-        Phrase("lint", 2), Phrase("analyze", 2), Phrase("Info", 2)
+        Phrase("configure", 2), Phrase("setup", 2), Phrase("code", 2), Phrase("System component status", 2),
+        Phrase("lint", 2), Phrase("analyze", 2), Phrase("System component status", 2)
     )
 
     // ── CHAT phrases — conversational / informational / question ──
-    // Arabic: "Context note"=what, "Context note"=how, "Context note"=why, "Context note"=when,
-    //         "Context note"=explain, "Context note"=explain to me, "Context note"=difference
+    // Arabic: "System and domain documentation note"=what, "System and domain documentation note"=how, "System and domain documentation note"=why, "System and domain documentation note"=when,
+    //         "System and domain documentation note"=explain, "System and domain documentation note"=explain to me, "System and domain documentation note"=difference
     val CHAT_PHRASES = listOf(
-        Phrase("what is", 3), Phrase("what are", 3), Phrase("Info Info", 3), Phrase("Info Info", 3),
-        Phrase("how does", 3), Phrase("how do", 3), Phrase("Info", 3),
-        Phrase("why", 2), Phrase("Info", 2),
-        Phrase("explain", 3), Phrase("Info", 3), Phrase("Info", 3),
-        Phrase("difference between", 4), Phrase("Info Info", 4),
+        Phrase("what is", 3), Phrase("what are", 3), Phrase("System component status System component status", 3), Phrase("System component status System component status", 3),
+        Phrase("how does", 3), Phrase("how do", 3), Phrase("System component status", 3),
+        Phrase("why", 2), Phrase("System component status", 2),
+        Phrase("explain", 3), Phrase("System component status", 3), Phrase("System component status", 3),
+        Phrase("difference between", 4), Phrase("System component status System component status", 4),
         Phrase("what's the", 3), Phrase("can you tell", 2),
-        Phrase("Info", 2), Phrase("is it", 2), Phrase("should i", 2),
-        Phrase("example of", 3), Phrase("Info", 3),
-        Phrase("define", 3), Phrase("meaning", 3), Phrase("Info", 3),
+        Phrase("System component status", 2), Phrase("is it", 2), Phrase("should i", 2),
+        Phrase("example of", 3), Phrase("System component status", 3),
+        Phrase("define", 3), Phrase("meaning", 3), Phrase("System component status", 3),
         Phrase("recommend", 2), Phrase("suggest", 2), Phrase("opinion", 2)
     )
 

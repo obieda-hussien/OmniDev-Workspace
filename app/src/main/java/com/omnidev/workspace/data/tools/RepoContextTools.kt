@@ -5,17 +5,17 @@ import com.omnidev.workspace.data.repo.RepoIndexer
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * RepoContextTools — Context note Context note Live Repository Context (Brain 2.0)
+ * RepoContextTools — System awareness note System awareness note Live Repository Context (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Context note Context note Agent Context note Context note Context note Context note (mobile-first):
- *   - repo_index_scope: Context note scope Context note Context note
- *   - repo_search_symbols: Context note fuzzy Context note/qualified name
- *   - repo_symbols_by_kind: Context note Context note classes / functions / interfaces
- *   - repo_file_symbols: Context note Context note Context note
- *   - repo_stats: Context note Context note Context note
+ * System awareness note System awareness note Agent System awareness note System awareness note System awareness note System awareness note (mobile-first):
+ *   - repo_index_scope: System awareness note scope System awareness note System awareness note
+ *   - repo_search_symbols: System awareness note fuzzy System awareness note/qualified name
+ *   - repo_symbols_by_kind: System awareness note System awareness note classes / functions / interfaces
+ *   - repo_file_symbols: System awareness note System awareness note System awareness note
+ *   - repo_stats: System awareness note System awareness note System awareness note
  *
- * Context note Context note SQL-only (≤ 50 Context note/Context note) — Context note Context note 2-4 GB RAM.
+ * System awareness note System awareness note SQL-only (≤ 50 System awareness note/System awareness note) — System awareness note System awareness note 2-4 GB RAM.
  */
 class RepoContextTools(
     @Suppress("unused") private val indexer: RepoIndexer,
@@ -25,61 +25,61 @@ class RepoContextTools(
     fun getDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "repo_index_scope",
-            description = "Info scope/Info Info (Info Info Info Info Info Info Info). " +
-                "Info Info Info Info Info Info Info Info Info Info.",
+            description = "System awareness note scope/System awareness note System awareness note (System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note). " +
+                "System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.",
             parameters = listOf(
-                ToolParameter("scope_path", "string", "Info Info Info Info", required = false)
+                ToolParameter("scope_path", "string", "System awareness note System awareness note System awareness note System awareness note", required = false)
             )
         ),
         ToolDefinition(
             name = "repo_search_symbols",
-            description = "Info fuzzy Info Info Info Info (classes, functions, properties...). " +
-                "Info Info Info grep — Info Info Info Info.",
+            description = "System awareness note fuzzy System awareness note System awareness note System awareness note System awareness note (classes, functions, properties...). " +
+                "System awareness note System awareness note System awareness note grep — System awareness note System awareness note System awareness note System awareness note.",
             parameters = listOf(
-                ToolParameter("query", "string", "Info Info Info Info Info (e.g. Foo, parseToken)"),
-                ToolParameter("scope_path", "string", "scope (Info scope Info)", required = false),
-                ToolParameter("limit", "integer", "Info Info (1-50Info Info 30)", required = false)
+                ToolParameter("query", "string", "System awareness note System awareness note System awareness note System awareness note System awareness note (e.g. Foo, parseToken)"),
+                ToolParameter("scope_path", "string", "scope (System awareness note scope System awareness note)", required = false),
+                ToolParameter("limit", "integer", "System awareness note System awareness note (1-50System awareness note System awareness note 30)", required = false)
             )
         ),
         ToolDefinition(
             name = "repo_symbols_by_kind",
-            description = "Info Info Info Info Info Info (class/function/interface/property...). " +
-                "Info Info Info Info.",
+            description = "System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note (class/function/interface/property...). " +
+                "System awareness note System awareness note System awareness note System awareness note.",
             parameters = listOf(
-                ToolParameter("kind", "string", "Info: class, function, interface, object, enum, property, type"),
-                ToolParameter("scope_path", "string", "scope (Info scope Info)", required = false),
-                ToolParameter("limit", "integer", "Info Info (1-100Info Info 50)", required = false)
+                ToolParameter("kind", "string", "System awareness note: class, function, interface, object, enum, property, type"),
+                ToolParameter("scope_path", "string", "scope (System awareness note scope System awareness note)", required = false),
+                ToolParameter("limit", "integer", "System awareness note System awareness note (1-100System awareness note System awareness note 50)", required = false)
             )
         ),
         ToolDefinition(
             name = "repo_file_symbols",
-            description = "Info Info Info Info Info (Info Info Info Info Info).",
+            description = "System awareness note System awareness note System awareness note System awareness note System awareness note (System awareness note System awareness note System awareness note System awareness note System awareness note).",
             parameters = listOf(
-                ToolParameter("file_path", "string", "Info Info Info"),
-                ToolParameter("scope_path", "string", "scope (Info scope Info)", required = false)
+                ToolParameter("file_path", "string", "System awareness note System awareness note System awareness note"),
+                ToolParameter("scope_path", "string", "scope (System awareness note scope System awareness note)", required = false)
             )
         ),
         ToolDefinition(
             name = "repo_stats",
-            description = "Info Info Info: Info Info Info Info Info.",
+            description = "System awareness note System awareness note System awareness note: System awareness note System awareness note System awareness note System awareness note System awareness note.",
             parameters = listOf(
-                ToolParameter("scope_path", "string", "scope (Info scope Info)", required = false)
+                ToolParameter("scope_path", "string", "scope (System awareness note scope System awareness note)", required = false)
             )
         )
     )
 
-    /** Context note null Context note Context note Context note Context note Context note Context note wrapper (Context note fall-through). */
+    /** System awareness note null System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note wrapper (System awareness note fall-through). */
     suspend fun execute(name: String, args: Map<String, String>): ToolExecutionResult? {
         if (name !in HANDLED) return null
         val scope = args["scope_path"]?.takeIf { it.isNotBlank() }
-            ?: return ToolExecutionResult("scope_path Info Info '$name'.", isError = true)
+            ?: return ToolExecutionResult("scope_path System awareness note System awareness note '$name'.", isError = true)
 
         return try {
             when (name) {
                 "repo_index_scope" -> {
                     val res = engine.indexScope(scope)
                     ToolExecutionResult(buildString {
-                        appendLine("📚 Info $scope Info (${res.elapsedMs}ms):")
+                        appendLine("📚 System awareness note $scope System awareness note (${res.elapsedMs}ms):")
                         appendLine("  scanned = ${res.totalScanned}")
                         appendLine("  indexed (new) = ${res.indexed}")
                         appendLine("  updated = ${res.updated}")
@@ -90,35 +90,35 @@ class RepoContextTools(
                 }
                 "repo_search_symbols" -> {
                     val q = args["query"]?.trim()
-                        ?: return ToolExecutionResult("query Info", isError = true)
+                        ?: return ToolExecutionResult("query System awareness note", isError = true)
                     val limit = args["limit"]?.toIntOrNull()?.coerceIn(1, 50) ?: 30
                     val results = engine.searchSymbols(scope, q, limit)
-                    if (results.isEmpty()) ToolExecutionResult("Info Info Info Info Info '$q'.")
-                    else ToolExecutionResult(formatSymbols(results, "🔍 Info '$q' (${results.size}):"))
+                    if (results.isEmpty()) ToolExecutionResult("System awareness note System awareness note System awareness note System awareness note System awareness note '$q'.")
+                    else ToolExecutionResult(formatSymbols(results, "🔍 System awareness note '$q' (${results.size}):"))
                 }
                 "repo_symbols_by_kind" -> {
                     val kind = args["kind"]?.trim()?.lowercase()
-                        ?: return ToolExecutionResult("kind Info", isError = true)
+                        ?: return ToolExecutionResult("kind System awareness note", isError = true)
                     val limit = args["limit"]?.toIntOrNull()?.coerceIn(1, 100) ?: 50
                     val results = engine.symbolsByKind(scope, kind, limit)
-                    if (results.isEmpty()) ToolExecutionResult("Info Info Info Info Info '$kind'.")
-                    else ToolExecutionResult(formatSymbols(results, "📋 Info Info $kind (${results.size}):"))
+                    if (results.isEmpty()) ToolExecutionResult("System awareness note System awareness note System awareness note System awareness note System awareness note '$kind'.")
+                    else ToolExecutionResult(formatSymbols(results, "📋 System awareness note System awareness note $kind (${results.size}):"))
                 }
                 "repo_file_symbols" -> {
                     val fp = args["file_path"]?.trim()
-                        ?: return ToolExecutionResult("file_path Info", isError = true)
+                        ?: return ToolExecutionResult("file_path System awareness note", isError = true)
                     val results = engine.fileSymbols(scope, fp)
-                    if (results.isEmpty()) ToolExecutionResult("Info Info Info Info $fp.")
-                    else ToolExecutionResult(formatSymbols(results, "📄 Info $fp:"))
+                    if (results.isEmpty()) ToolExecutionResult("System awareness note System awareness note System awareness note System awareness note $fp.")
+                    else ToolExecutionResult(formatSymbols(results, "📄 System awareness note $fp:"))
                 }
                 "repo_stats" -> {
                     val s = engine.getStats(scope)
                     ToolExecutionResult(buildString {
-                        appendLine("📊 Info $scope:")
-                        appendLine("  Info: ${s.fileCount}")
-                        appendLine("  Info: ${s.symbolCount}")
+                        appendLine("📊 System awareness note $scope:")
+                        appendLine("  System awareness note: ${s.fileCount}")
+                        appendLine("  System awareness note: ${s.symbolCount}")
                         if (s.languages.isNotEmpty()) {
-                            appendLine("  Info:")
+                            appendLine("  System awareness note:")
                             for ((lang, n) in s.languages.take(10)) {
                                 appendLine("    - $lang: $n")
                             }

@@ -9,7 +9,7 @@ class McpAgentBridge(
     suspend fun syncToolsToAgent() {
         try {
             val tools = mcpRegistry.fetchAllAvailableTools()
-            // Dynamic tools are synced via McpRegistry
+            // Dynamic tools are registered and made accessible via McpRegistry
         } catch (_: Exception) {}
     }
 }

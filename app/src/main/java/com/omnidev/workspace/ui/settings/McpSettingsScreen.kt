@@ -21,6 +21,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -201,8 +204,9 @@ fun McpSettingsScreen(
                     )
                 }
 
-                TextField(
-                    value = jsonConfigState,
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    TextField(
+                        value = jsonConfigState,
                     onValueChange = { viewModel.updateJsonConfig(it) },
                     modifier = Modifier
                         .fillMaxSize()
@@ -211,8 +215,9 @@ fun McpSettingsScreen(
                         fontFamily = FontFamily.Monospace,
                         fontSize = 14.sp,
                         color = Color(0xFFD4D4D4), // VS Code default text color
-                        lineHeight = 20.sp
-                    ),
+                        lineHeight = 20.sp,
+                            textDirection = TextDirection.Ltr
+                        ),
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
@@ -224,10 +229,12 @@ fun McpSettingsScreen(
                         Text(
                             "{\n  \"mcpServers\": {\n    \"example-server\": {\n      \"type\": \"http\",\n      \"url\": \"https://api.example.com\",\n      \"tools\": [\"*\"],\n      \"env\": {\n        \"API_KEY\": \"your_key\"\n      }\n    }\n  }\n}",
                             fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF555555)
-                        )
-                    }
-                )
+                            color = Color(0xFF555555),
+                                style = TextStyle(textDirection = TextDirection.Ltr)
+                            )
+                        }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))

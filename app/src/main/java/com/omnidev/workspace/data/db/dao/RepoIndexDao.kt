@@ -8,8 +8,8 @@ import com.omnidev.workspace.data.db.entities.RepoFileIndexEntry
 import com.omnidev.workspace.data.db.entities.RepoSymbolEntry
 
 /**
- * DAO Context note Context note Live Repository Context Engine — Context note Context note Context note Context note.
- * Context note Context note scope-aware Context note Context note Context note Context note.
+ * DAO System awareness note System awareness note Live Repository Context Engine — System awareness note System awareness note System awareness note System awareness note.
+ * System awareness note System awareness note scope-aware System awareness note System awareness note System awareness note System awareness note.
  */
 @Dao
 interface RepoIndexDao {
@@ -54,7 +54,7 @@ interface RepoIndexDao {
     @Query("DELETE FROM repo_symbols WHERE scopePath = :scope")
     suspend fun clearSymbolsForScope(scope: String)
 
-    /** Fuzzy LIKE-based search (Context note Context note Context note Context note Context note Context note FTS). */
+    /** Fuzzy LIKE-based search (System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note FTS). */
     @Query("""
         SELECT * FROM repo_symbols
         WHERE scopePath = :scope
@@ -100,7 +100,7 @@ interface RepoIndexDao {
     @Query("SELECT COUNT(*) FROM repo_symbols WHERE scopePath = :scope")
     suspend fun countSymbols(scope: String): Int
 
-    /** LRU eviction Context note Context note — Context note Context note 5000 Context note/scope. */
+    /** LRU eviction System awareness note System awareness note — System awareness note System awareness note 5000 System awareness note/scope. */
     @Query("""
         DELETE FROM repo_symbols
         WHERE id IN (

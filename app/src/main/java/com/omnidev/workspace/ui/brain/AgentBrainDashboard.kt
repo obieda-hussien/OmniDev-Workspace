@@ -31,15 +31,15 @@ import java.util.*
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * AgentBrainDashboard — Verified step Verified step Verified step Verified step Agent
+ * AgentBrainDashboard — System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note Agent
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Verified step:
- * 1. Verified step Verified step Verified step Verified step Verified step Verified step
- * 2. Verified step Verified step Verified step
- * 3. Verified step Verified step Verified step
- * 4. Verified step Verified step Verified step
- * 5. Verified step Verified step Verified step
+ * System and domain documentation note:
+ * 1. System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note
+ * 2. System and domain documentation note System and domain documentation note System and domain documentation note
+ * 3. System and domain documentation note System and domain documentation note System and domain documentation note
+ * 4. System and domain documentation note System and domain documentation note System and domain documentation note
+ * 5. System and domain documentation note System and domain documentation note System and domain documentation note
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,7 +55,7 @@ fun AgentBrainDashboard(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Verified step Verified step Verified step
+                        // System and domain documentation note System and domain documentation note System and domain documentation note
                         PulsingDot()
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
@@ -65,7 +65,7 @@ fun AgentBrainDashboard(
                                 fontSize = 18.sp
                             )
                             Text(
-                                text = "Verified step Verified step Verified step Verified step",
+                                text = "System component status System component status System component status System component status",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
@@ -74,12 +74,12 @@ fun AgentBrainDashboard(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Verified step")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "System component status")
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Verified step")
+                        Icon(Icons.Default.Refresh, contentDescription = "System component status")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -103,10 +103,10 @@ fun AgentBrainDashboard(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // ─── Verified step Verified step Verified step ─────────────────────────────
+            // ─── System and domain documentation note System and domain documentation note System and domain documentation note ─────────────────────────────
             StatsHeaderRow(uiState)
 
-            // ─── Verified step ───────────────────────────────────────────────
+            // ─── System and domain documentation note ───────────────────────────────────────────────
             ScrollableTabRow(
                 selectedTabIndex = selectedTab,
                 edgePadding = 12.dp,
@@ -115,26 +115,26 @@ fun AgentBrainDashboard(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("📊 Verified step") }
+                    text = { Text("📊 System component status") }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("📔 Verified step") }
+                    text = { Text("📔 System component status") }
                 )
                 Tab(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    text = { Text("🧠 Verified step") }
+                    text = { Text("🧠 System component status") }
                 )
                 Tab(
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 },
-                    text = { Text("🌐 Verified step") }
+                    text = { Text("🌐 System component status") }
                 )
             }
 
-            // ─── Verified step Verified step ─────────────────────────────────────────
+            // ─── System and domain documentation note System and domain documentation note ─────────────────────────────────────────
             when (selectedTab) {
                 0 -> PerformanceTab(uiState)
                 1 -> ExecutionLogTab(
@@ -154,7 +154,7 @@ fun AgentBrainDashboard(
     }
 }
 
-// ─── Verified step Verified step Verified step ──────────────────────────────────────────────────
+// ─── System and domain documentation note System and domain documentation note System and domain documentation note ──────────────────────────────────────────────────
 
 @Composable
 private fun StatsHeaderRow(state: AgentBrainUiState) {
@@ -168,7 +168,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "⚡",
                 value = state.totalExecutions.toString(),
-                label = "Verified step",
+                label = "System component status",
                 color = Color(0xFF2196F3)
             )
         }
@@ -176,7 +176,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "✅",
                 value = "${(state.successRate * 100).toInt()}%",
-                label = "Success",
+                label = "System component status",
                 color = if (state.successRate > 0.8f) Color(0xFF4CAF50) else Color(0xFFFF9800)
             )
         }
@@ -184,7 +184,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "🧠",
                 value = state.totalKnowledge.toString(),
-                label = "Verified step",
+                label = "System component status",
                 color = Color(0xFF9C27B0)
             )
         }
@@ -192,7 +192,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "🔧",
                 value = state.sessionToolCount.toString(),
-                label = "Verified step/Verified step",
+                label = "System component status/System component status",
                 color = Color(0xFF00BCD4)
             )
         }
@@ -201,7 +201,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
                 MiniStatCard(
                     icon = "⚠️",
                     value = state.problematicTools.size.toString(),
-                    label = "Verified step",
+                    label = "System component status",
                     color = Color(0xFFF44336)
                 )
             }
@@ -243,7 +243,7 @@ private fun MiniStatCard(
     }
 }
 
-// ─── Verified step Verified step ────────────────────────────────────────────────────────
+// ─── System and domain documentation note System and domain documentation note ────────────────────────────────────────────────────────
 
 @Composable
 private fun PerformanceTab(state: AgentBrainUiState) {
@@ -252,29 +252,29 @@ private fun PerformanceTab(state: AgentBrainUiState) {
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Verified step Verified step Verified step
+        // System and domain documentation note System and domain documentation note System and domain documentation note
         item {
             InfoCard(
-                title = "🏆 Verified step Verified step",
+                title = "🏆 System component status System component status",
                 content = buildString {
-                    appendLine("🥇 Verified step: ${state.bestTool}")
-                    appendLine("🥉 Verified step: ${state.worstTool}")
-                    appendLine("🔥 Verified step Verified step: ${state.mostUsedTool}")
+                    appendLine("🥇 System component status: ${state.bestTool}")
+                    appendLine("🥉 System component status: ${state.worstTool}")
+                    appendLine("🔥 System component status System component status: ${state.mostUsedTool}")
                 }
             )
         }
 
-        // Verified step Verified step
+        // System and domain documentation note System and domain documentation note
         if (state.problematicTools.isNotEmpty()) {
             item {
                 WarningCard(
-                    title = "⚠️ Verified step Verified step Verified step",
+                    title = "⚠️ System component status System component status System component status",
                     items = state.problematicTools
                 )
             }
         }
 
-        // Verified step Verified step
+        // System and domain documentation note System and domain documentation note
         item {
             LearningProgressCard(
                 totalExecutions = state.totalExecutions,
@@ -284,7 +284,7 @@ private fun PerformanceTab(state: AgentBrainUiState) {
     }
 }
 
-// ─── Verified step Verified step ────────────────────────────────────────────────────────
+// ─── System and domain documentation note System and domain documentation note ────────────────────────────────────────────────────────
 
 @Composable
 private fun ExecutionLogTab(
@@ -292,7 +292,7 @@ private fun ExecutionLogTab(
     onDeleteEntry: (Long) -> Unit
 ) {
     if (entries.isEmpty()) {
-        EmptyState(message = "Verified step Verified step Verified step Verified step Verified step")
+        EmptyState(message = "System component status System component status System component status System component status System component status")
         return
     }
 
@@ -326,7 +326,7 @@ private fun ExecutionEntryCard(
             modifier = Modifier.padding(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Verified step Verified step
+            // System and domain documentation note System and domain documentation note
             Text(
                 text = if (entry.success) "✅" else "❌",
                 fontSize = 18.sp
@@ -380,7 +380,7 @@ private fun ExecutionEntryCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "Verified step Verified step",
+                        contentDescription = "System component status System component status",
                         tint = Color(0xFFF44336),
                         modifier = Modifier.size(14.dp)
                     )
@@ -390,7 +390,7 @@ private fun ExecutionEntryCard(
     }
 }
 
-// ─── Verified step Verified step ───────────────────────────────────────────────────────
+// ─── System and domain documentation note System and domain documentation note ───────────────────────────────────────────────────────
 
 @Composable
 private fun KnowledgeTab(
@@ -399,7 +399,7 @@ private fun KnowledgeTab(
     onUpdateEntry: (Long, String, String, Float) -> Unit
 ) {
     if (entries.isEmpty()) {
-        EmptyState(message = "Verified step Verified step Verified step Agent Verified step Verified step")
+        EmptyState(message = "System component status System component status System component status Agent System component status System component status")
         return
     }
 
@@ -508,7 +508,7 @@ private fun KnowledgeEntryCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Edit,
-                            contentDescription = "Verified step Verified step",
+                            contentDescription = "System component status System component status",
                             tint = color,
                             modifier = Modifier.size(15.dp)
                         )
@@ -519,7 +519,7 @@ private fun KnowledgeEntryCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = "Verified step Verified step",
+                            contentDescription = "System component status System component status",
                             tint = Color(0xFFF44336),
                             modifier = Modifier.size(15.dp)
                         )
@@ -544,33 +544,33 @@ private fun KnowledgeEntryCard(
                             onUpdateEntry(entry.id, editedSubject, editedContent, confidence)
                             showEditDialog = false
                         } else {
-                            validationError = "Verified step Verified step Verified step: Verified step Verified step Verified step Verified step Verified step 0.0 Verified step 1.0"
+                            validationError = "System component status System component status System component status: System component status System component status System component status System component status System component status 0.0 System component status 1.0"
                         }
                     }
-                ) { Text("Verified step") }
+                ) { Text("System component status") }
             },
             dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) { Text("Verified step") }
+                TextButton(onClick = { showEditDialog = false }) { Text("System component status") }
             },
-            title = { Text("Verified step Verified step") },
+            title = { Text("System component status System component status") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = editedSubject,
                         onValueChange = { editedSubject = it },
-                        label = { Text("Verified step") },
+                        label = { Text("System component status") },
                         singleLine = true
                     )
                     OutlinedTextField(
                         value = editedContent,
                         onValueChange = { editedContent = it },
-                        label = { Text("Verified step") },
+                        label = { Text("System component status") },
                         minLines = 3
                     )
                     OutlinedTextField(
                         value = editedConfidence,
                         onValueChange = { editedConfidence = it },
-                        label = { Text("Verified step (0.0 - 1.0)") },
+                        label = { Text("System component status (0.0 - 1.0)") },
                         singleLine = true
                     )
                     validationError?.let {
@@ -607,12 +607,12 @@ private fun KnowledgeTypeFilters(
     }
 }
 
-// ─── Environment Tab ────────────────────────────────────────────────────────
+// ─── System and domain documentation note System and domain documentation note ────────────────────────────────────────────────────────
 
 @Composable
 private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
     if (stats == null) {
-        EmptyState(message = "Discovering environment...")
+        EmptyState(message = "System component status System component status System component status...")
         return
     }
 
@@ -621,12 +621,12 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
         contentPadding = PaddingValues(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Verified step Verified step Verified step
+        // System and domain documentation note System and domain documentation note System and domain documentation note
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
-                        "🌐 Verified step Verified step",
+                        "🌐 System component status System component status",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -641,12 +641,12 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
             }
         }
 
-        // Verified step Verified step
+        // System and domain documentation note System and domain documentation note
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Text(
-                        "📊 Verified step Verified step Verified step (${stats.totalKnowledge} Verified step)",
+                        "📊 System component status System component status System component status (${stats.totalKnowledge} System component status)",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -658,7 +658,7 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
             }
         }
 
-        // Verified step Verified step
+        // System and domain documentation note System and domain documentation note
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -680,13 +680,13 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            if (stats.isInitialized) "Verified step Verified step Verified step" else "Verified step Verified step Verified step Verified step",
+                            if (stats.isInitialized) "System component status System component status System component status" else "System component status System component status System component status System component status",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
                         Text(
-                            if (stats.isInitialized) "Verified step Agent Verified step Verified step Verified step"
-                            else "Verified step Agent Verified step Verified step Verified step...",
+                            if (stats.isInitialized) "System component status Agent System component status System component status System component status"
+                            else "System component status Agent System component status System component status System component status...",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -697,7 +697,7 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
     }
 }
 
-// ─── Verified step Verified step ───────────────────────────────────────────────────────
+// ─── System and domain documentation note System and domain documentation note ───────────────────────────────────────────────────────
 
 @Composable
 private fun InfoCard(title: String, content: String) {
@@ -757,13 +757,13 @@ private fun LearningProgressCard(totalExecutions: Int, successRate: Float) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("🎯 Verified step Verified step", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("🎯 System component status System component status", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     text = when {
-                        totalExecutions < 20 -> "Verified step"
-                        totalExecutions < 100 -> "Verified step"
-                        totalExecutions < 500 -> "Verified step"
-                        else -> "Verified step"
+                        totalExecutions < 20 -> "System component status"
+                        totalExecutions < 100 -> "System component status"
+                        totalExecutions < 500 -> "System component status"
+                        else -> "System component status"
                     },
                     fontWeight = FontWeight.Bold,
                     color = progressColor,
@@ -779,7 +779,7 @@ private fun LearningProgressCard(totalExecutions: Int, successRate: Float) {
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Verified step Verified stepSuccess: ${(successRate * 100).toInt()}% | Verified step: $totalExecutions",
+                text = "System and domain documentation note System and domain documentation note: ${(successRate * 100).toInt()}% | System and domain documentation note: $totalExecutions",
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
@@ -801,7 +801,7 @@ private fun EnvironmentRow(name: String, available: Boolean) {
             containerColor = if (available) Color(0xFF4CAF50) else Color(0xFF9E9E9E)
         ) {
             Text(
-                if (available) "Verified step" else "Verified step Verified step",
+                if (available) "System component status" else "System component status System component status",
                 fontSize = 10.sp,
                 color = Color.White,
                 modifier = Modifier.padding(horizontal = 4.dp)
@@ -831,17 +831,17 @@ private fun KnowledgeTypeRow(type: String, count: Int) {
 }
 
 private fun knowledgeTypeLabel(type: String): String = when (type) {
-    "ALL" -> "📚 All Knowledge"
-    ToolAwarenessEngine.TYPE_BEST_PRACTICE -> "💡 Best Practices"
-    ToolAwarenessEngine.TYPE_TOOL_CAPABILITY -> "🔧 Tool Capabilities"
-    ToolAwarenessEngine.TYPE_TOOL_LIMITATION -> "🚫 Tool Limitations"
-    ToolAwarenessEngine.TYPE_SYSTEM_INFO -> "📱 System Info"
-    ToolAwarenessEngine.TYPE_ENVIRONMENT -> "🌐 Environments"
-    ToolAwarenessEngine.TYPE_WARNING -> "⚠️ Warnings"
-    ToolAwarenessEngine.TYPE_PATTERN -> "🔗 Patterns"
-    ToolAwarenessEngine.TYPE_SYSTEM_CAPABILITY -> "🧩 System Capabilities"
-    ToolAwarenessEngine.TYPE_TOOL_REQUIREMENT -> "📌 Tool Requirements"
-    ToolAwarenessEngine.TYPE_TOOL_DEPENDENCY -> "🔀 Tool Dependencies"
+    "ALL" -> "📚 System component status System component status"
+    ToolAwarenessEngine.TYPE_BEST_PRACTICE -> "💡 System component status System component status"
+    ToolAwarenessEngine.TYPE_TOOL_CAPABILITY -> "🔧 System component status System component status"
+    ToolAwarenessEngine.TYPE_TOOL_LIMITATION -> "🚫 System component status System component status"
+    ToolAwarenessEngine.TYPE_SYSTEM_INFO -> "📱 System component status System component status"
+    ToolAwarenessEngine.TYPE_ENVIRONMENT -> "🌐 System component status System component status"
+    ToolAwarenessEngine.TYPE_WARNING -> "⚠️ System component status"
+    ToolAwarenessEngine.TYPE_PATTERN -> "🔗 System component status System component status"
+    ToolAwarenessEngine.TYPE_SYSTEM_CAPABILITY -> "🧩 System component status System component status"
+    ToolAwarenessEngine.TYPE_TOOL_REQUIREMENT -> "📌 System component status System component status"
+    ToolAwarenessEngine.TYPE_TOOL_DEPENDENCY -> "🔀 System component status System component status"
     else -> "ℹ️ $type"
 }
 

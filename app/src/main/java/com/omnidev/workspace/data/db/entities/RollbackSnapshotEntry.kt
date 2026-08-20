@@ -5,18 +5,18 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * RollbackSnapshotEntry — Context note "Context note Context note" Context note Context note Context note Context note Context note.
+ * RollbackSnapshotEntry — System awareness note "System awareness note System awareness note" System awareness note System awareness note System awareness note System awareness note System awareness note.
  *
- * Mobile-first design (Context note Context note root):
- * - Context note ≤ 4 KB → Context note Context note Context note Context note (Deflate)
- * - Context note > 4 KB → Context note unified diff Context note (Context note 70%+ Context note Context note)
- * - Context note Context note 200 snapshot Context note actionGroupContext note LRU eviction
- * - Context note Context note 50 MB Context note Context note
+ * Mobile-first design (System awareness note System awareness note root):
+ * - System awareness note ≤ 4 KB → System awareness note System awareness note System awareness note System awareness note (Deflate)
+ * - System awareness note > 4 KB → System awareness note unified diff System awareness note (System awareness note 70%+ System awareness note System awareness note)
+ * - System awareness note System awareness note 200 snapshot System awareness note actionGroupSystem awareness note LRU eviction
+ * - System awareness note System awareness note 50 MB System awareness note System awareness note
  *
- * @property actionGroupId Context note Context note Context note Context note Context note (Context note rollback Context note)
- * @property contentBlob Context note diff Context note Context note Context note Context note Context note Context note (Deflate)
- * @property storedAsDiff true = diffContext note false = full content
- * @property pinned snapshot Context note Context note Context note Context note LRU
+ * @property actionGroupId System awareness note System awareness note System awareness note System awareness note System awareness note (System awareness note rollback System awareness note)
+ * @property contentBlob System awareness note diff System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note (Deflate)
+ * @property storedAsDiff true = diffSystem awareness note false = full content
+ * @property pinned snapshot System awareness note System awareness note System awareness note System awareness note LRU
  */
 @Entity(
     tableName = "rollback_snapshots",

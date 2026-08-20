@@ -27,14 +27,14 @@ class OmniScreenCaptureService : Service() {
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
     
-    // Context note Context note Context note Context note Context note Context note
+    // System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
     private var latestBitmap: Bitmap? = null
 
     companion object {
         const val CHANNEL_ID = "ScreenCaptureServiceChannel"
         const val NOTIFICATION_ID = 1001
         
-        // Context note Context note Intent
+        // System awareness note System awareness note Intent
         const val EXTRA_RESULT_CODE = "EXTRA_RESULT_CODE"
         const val EXTRA_RESULT_DATA = "EXTRA_RESULT_DATA"
     }
@@ -51,15 +51,15 @@ class OmniScreenCaptureService : Service() {
         createNotificationChannel()
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Omni Agent Vision")
-            .setContentText("Info Info Info Info Info...")
-            //.setSmallIcon(R.mipmap.ic_launcher) // Context note Context note Context note Context note Context note Context note Context note
+            .setContentText("System awareness note System awareness note System awareness note System awareness note System awareness note...")
+            //.setSmallIcon(R.mipmap.ic_launcher) // System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
-        // Context note Context note Context note Context note Context note Context note Media Projection (Context note Context note Context note 14+)
+        // System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note Media Projection (System awareness note System awareness note System awareness note 14+)
         startForeground(NOTIFICATION_ID, notification)
 
-        // Context note Context note Context note Context note Context note Activity
+        // System awareness note System awareness note System awareness note System awareness note System awareness note Activity
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
         val resultData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent?.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
@@ -84,7 +84,7 @@ class OmniScreenCaptureService : Service() {
         val height = metrics.heightPixels
         val density = metrics.densityDpi
 
-        // Context note ImageReader Context note Context note Context note
+        // System awareness note ImageReader System awareness note System awareness note System awareness note
         imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
         
         virtualDisplay = mediaProjection?.createVirtualDisplay(
@@ -94,7 +94,7 @@ class OmniScreenCaptureService : Service() {
             imageReader?.surface, null, null
         )
 
-        // Context note Context note Context note Context note Context note Context note
+        // System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
         imageReader?.setOnImageAvailableListener({ reader ->
             val image = reader.acquireLatestImage()
             if (image != null) {
@@ -104,11 +104,11 @@ class OmniScreenCaptureService : Service() {
                 val rowStride = planes[0].rowStride
                 val rowPadding = rowStride - pixelStride * width
 
-                // Context note Context note Context note Bitmap Context note Context note Context note
+                // System awareness note System awareness note System awareness note Bitmap System awareness note System awareness note System awareness note
                 val bitmap = Bitmap.createBitmap(width + rowPadding / pixelStride, height, Bitmap.Config.ARGB_8888)
                 bitmap.copyPixelsFromBuffer(buffer)
                 
-                // Context note Context note Context note (Context note Context note Context note Context note)
+                // System awareness note System awareness note System awareness note (System awareness note System awareness note System awareness note System awareness note)
                 latestBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height)
                 
                 image.close()
@@ -116,13 +116,13 @@ class OmniScreenCaptureService : Service() {
         }, null)
     }
 
-    // Context note Context note Context note Context note (AI) Context note Context note Context note Context note Context note Context note
+    // System awareness note System awareness note System awareness note System awareness note (AI) System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
     fun getLatestFrame(): Bitmap? {
         return latestBitmap
     }
 
     private fun createNotificationChannel() {
-        // Context note Context note Context note Context note Context note 8.0 (API 26) Context note Context note
+        // System awareness note System awareness note System awareness note System awareness note System awareness note 8.0 (API 26) System awareness note System awareness note
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,

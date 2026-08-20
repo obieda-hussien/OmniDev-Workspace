@@ -11,22 +11,22 @@ import kotlinx.coroutines.withContext
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * EpisodicMemoryStore — Context note Context note Context note (Agent Brain 2.0)
+ * EpisodicMemoryStore — System awareness note System awareness note System awareness note (Agent Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Context note [ToolExecutionJournal] Context note Context note Context note Context note Context note Context note Context note Context note Store Context note
- * **Context note Context note** Context note (episode) Context note:
+ * System awareness note [ToolExecutionJournal] System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note Store System awareness note
+ * **System awareness note System awareness note** System awareness note (episode) System awareness note:
  *
  *   "User asked X → Agent ran tools [A, B, C] → Result: Y"
  *
- * Context note Context note Context note Context note Context note 1-2 episode Context note Context note Context note Context note Context note
- * system prompt Context note "memory shots". Context note Context note trial-and-error Context note Context note Context note.
+ * System awareness note System awareness note System awareness note System awareness note System awareness note 1-2 episode System awareness note System awareness note System awareness note System awareness note System awareness note
+ * system prompt System awareness note "memory shots". System awareness note System awareness note trial-and-error System awareness note System awareness note System awareness note.
  *
- * **Mobile-first** (Context note Context note 2-4 GB RAM):
- * - HashEmbedder (Context note Context note 0 RAM Context note)
- * - candidates ≤ 80 Context note cosine Context note JVM
- * - Context note Context note 2000 Context note (~2-3 MB)
- * - Eviction Context note Context note
+ * **Mobile-first** (System awareness note System awareness note 2-4 GB RAM):
+ * - HashEmbedder (System awareness note System awareness note 0 RAM System awareness note)
+ * - candidates ≤ 80 System awareness note cosine System awareness note JVM
+ * - System awareness note System awareness note 2000 System awareness note (~2-3 MB)
+ * - Eviction System awareness note System awareness note
  */
 class EpisodicMemoryStore(
     private val dao: EpisodicMemoryDao,
@@ -42,7 +42,7 @@ class EpisodicMemoryStore(
         private const val MAX_TOOLS_STORED = 10
     }
 
-    /** Context note episode Context note Context note Context note Context note (Context note Context note AgentPipeline). */
+    /** System awareness note episode System awareness note System awareness note System awareness note System awareness note (System awareness note System awareness note AgentPipeline). */
     fun recordEpisodeAsync(
         summary: String,
         userIntent: String,
@@ -79,7 +79,7 @@ class EpisodicMemoryStore(
         val truncatedIntent = userIntent.take(200)
         val toolsCsv = toolsUsed.takeLast(MAX_TOOLS_STORED).joinToString(",")
 
-        // embedding Context note intent + summary Context note Context note
+        // embedding System awareness note intent + summary System awareness note System awareness note
         val embedding = HashEmbedder.embed("$truncatedIntent $truncatedSummary")
 
         val entry = EpisodicMemoryEntry(
@@ -100,10 +100,10 @@ class EpisodicMemoryStore(
     }
 
     /**
-     * Context note episodes Context note:
-     *   1) candidates Context note DB (Context note Context note Context note + Context note Context note Context note)
-     *   2) cosine ranking Context note JVM
-     *   3) Context note Context note minSimilarity → topK = 2
+     * System awareness note episodes System awareness note:
+     *   1) candidates System awareness note DB (System awareness note System awareness note System awareness note + System awareness note System awareness note System awareness note)
+     *   2) cosine ranking System awareness note JVM
+     *   3) System awareness note System awareness note minSimilarity → topK = 2
      */
     suspend fun retrieveSimilar(
         query: String,
@@ -114,7 +114,7 @@ class EpisodicMemoryStore(
 
         val queryVec = HashEmbedder.embed(query)
 
-        // candidates = Context note Context note + Context note Context note (Context note)
+        // candidates = System awareness note System awareness note + System awareness note System awareness note (System awareness note)
         val candidates = mutableListOf<EpisodicMemoryEntry>()
         if (preferSuccess) {
             candidates += dao.getByOutcome(EpisodeOutcome.SUCCESS.name, limit = 60)
@@ -138,7 +138,7 @@ class EpisodicMemoryStore(
             .map { it.first }
     }
 
-    /** Context note Context note Context note Context note system prompt Context note episodes Context note. */
+    /** System awareness note System awareness note System awareness note System awareness note system prompt System awareness note episodes System awareness note. */
     suspend fun buildPromptInjection(
         query: String,
         topK: Int = 2,
@@ -148,7 +148,7 @@ class EpisodicMemoryStore(
         if (episodes.isEmpty()) return@withContext ""
 
         buildString {
-            appendLine("\n📚 Info Info Info Info (Episodic Memory):")
+            appendLine("\n📚 System awareness note System awareness note System awareness note System awareness note (Episodic Memory):")
             for (ep in episodes) {
                 val icon = when (ep.finalOutcome) {
                     "SUCCESS" -> "✅"
@@ -157,7 +157,7 @@ class EpisodicMemoryStore(
                 }
                 val tools = ep.toolsUsedCsv.split(',').take(5).joinToString(" → ")
                 val line = "$icon ${ep.summary.take(180)}"
-                val toolLine = if (tools.isNotBlank()) "   🔧 Info: $tools" else ""
+                val toolLine = if (tools.isNotBlank()) "   🔧 System awareness note: $tools" else ""
                 if (length + line.length + toolLine.length + 2 > maxChars) break
                 appendLine(line)
                 if (toolLine.isNotBlank()) appendLine(toolLine)
@@ -179,5 +179,5 @@ class EpisodicMemoryStore(
     }
 }
 
-/** Context note Context note Context note. */
+/** System awareness note System awareness note System awareness note. */
 enum class EpisodeOutcome { SUCCESS, FAILURE, ABANDONED }

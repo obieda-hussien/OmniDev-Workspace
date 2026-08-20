@@ -248,8 +248,8 @@ fun AISettingsScreen(
             )
 
             SettingsNavCard(
-                title = "👤 Info Info",
-                subtitle = "Info Info Info — Info Info Info Info Info Info Info",
+                title = "👤 System component status System component status",
+                subtitle = "System component status System component status System component status — System component status System component status System component status System component status System component status System component status System component status",
                 onClick = onNavigateToProfile
             )
 
@@ -297,11 +297,11 @@ fun AISettingsScreen(
             )
 
             // ═══════════════════════════════════════════════════════════════
-            // 🧠 Agent Brain Dashboard — Context note Context note Context note Context note
+            // 🧠 Agent Brain Dashboard — System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note
             // ═══════════════════════════════════════════════════════════════
             SettingsNavCard(
                 title = "🧠 Agent Brain",
-                subtitle = "Info Info Info Info — Info Info Info Info Info Info",
+                subtitle = "System component status System component status System component status System component status — System component status System component status System component status System component status System component status System component status",
                 onClick = onNavigateToAgentBrain
             )
 

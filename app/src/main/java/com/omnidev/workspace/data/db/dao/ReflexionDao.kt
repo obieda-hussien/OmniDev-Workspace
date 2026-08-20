@@ -9,10 +9,10 @@ import com.omnidev.workspace.data.db.entities.ReflexionLessonEntry
 import kotlinx.coroutines.flow.Flow
 
 /**
- * DAO Context note ReflexionLessonEntry. Context note Context note Android Context note:
- * - candidates pre-filtering Context note SQL (Context note Context note)
- * - cosine ranking Context note JVM Context note ≤ 100 Context note
- * - Context note atomic Context note Context note Context note blob
+ * DAO System awareness note ReflexionLessonEntry. System awareness note System awareness note Android System awareness note:
+ * - candidates pre-filtering System awareness note SQL (System awareness note System awareness note)
+ * - cosine ranking System awareness note JVM System awareness note ≤ 100 System awareness note
+ * - System awareness note atomic System awareness note System awareness note System awareness note blob
  */
 @Dao
 interface ReflexionDao {
@@ -26,7 +26,7 @@ interface ReflexionDao {
     @Query("SELECT * FROM reflexion_lessons WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): ReflexionLessonEntry?
 
-    /** Top-K Context note Context note Context note-Context note-Context note (Context note general retrieval). */
+    /** Top-K System awareness note System awareness note System awareness note-System awareness note-System awareness note (System awareness note general retrieval). */
     @Query("""
         SELECT * FROM reflexion_lessons
         ORDER BY quality DESC, useCount DESC, createdAt DESC
@@ -34,7 +34,7 @@ interface ReflexionDao {
     """)
     suspend fun getTopCandidates(limit: Int = 60): List<ReflexionLessonEntry>
 
-    /** Context note Context note Context note Context note. */
+    /** System awareness note System awareness note System awareness note System awareness note. */
     @Query("""
         SELECT * FROM reflexion_lessons
         WHERE toolName = :toolName
@@ -43,7 +43,7 @@ interface ReflexionDao {
     """)
     suspend fun getByTool(toolName: String, limit: Int = 30): List<ReflexionLessonEntry>
 
-    /** Context note Context note duplicates (Context note Context note Context note). */
+    /** System awareness note System awareness note duplicates (System awareness note System awareness note System awareness note). */
     @Query("""
         SELECT * FROM reflexion_lessons
         WHERE errorSignature = :signature
@@ -52,7 +52,7 @@ interface ReflexionDao {
     """)
     suspend fun getBySignature(signature: String, limit: Int = 1): List<ReflexionLessonEntry>
 
-    /** Context note Context note + Context note Context note atomic (Context note Context note Context note Context note Context note). */
+    /** System awareness note System awareness note + System awareness note System awareness note atomic (System awareness note System awareness note System awareness note System awareness note System awareness note). */
     @Query("""
         UPDATE reflexion_lessons
         SET useCount = useCount + 1,
@@ -62,7 +62,7 @@ interface ReflexionDao {
     """)
     suspend fun recordUsage(id: Long, now: Long, qualityDelta: Float)
 
-    /** Context note Context note Context note Context note Context note Context note Context note. */
+    /** System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note. */
     @Query("""
         UPDATE reflexion_lessons
         SET quality = MAX(0.0, quality - :penalty)
@@ -73,7 +73,7 @@ interface ReflexionDao {
     @Query("SELECT COUNT(*) FROM reflexion_lessons")
     suspend fun count(): Int
 
-    /** LRU eviction: Context note Context note Context note Context note (Context note Context note quota). */
+    /** LRU eviction: System awareness note System awareness note System awareness note System awareness note (System awareness note System awareness note quota). */
     @Query("""
         DELETE FROM reflexion_lessons
         WHERE id IN (

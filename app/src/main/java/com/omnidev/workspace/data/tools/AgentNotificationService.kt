@@ -1,35 +1,73 @@
 package com.omnidev.workspace.data.tools
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import com.omnidev.workspace.MainActivity
 
-/**
- * System notification listener that captures incoming notifications for the AI agent.
- *
- * * FIXES & UPGRADES:
- * 1. Deep Integration: Delegates the raw StatusBarNotification to the upgraded 
- * [NotificationCaptureTool] to leverage deep text extraction and deduplication.
- * 2. Catch-up Mechanism: Fetches all currently visible notifications the moment 
- * the service connects, ensuring the agent doesn't miss pre-existing alerts.
- * 3. Lifecycle Logging: Tracks connection state to debug if the agent goes "deaf".
- *
- * This service requires the user to grant "Notification Access" in system settings.
- */
 class AgentNotificationService : NotificationListenerService() {
 
     companion object {
         private const val TAG = "AgentNotifService"
+        private const val SCHEDULED_CHANNEL_ID = "omni_scheduled_tasks_channel"
+
+        fun showScheduledTaskNotification(
+            context: Context,
+            taskId: String,
+            sessionId: String,
+            taskTitle: String,
+            statusText: String,
+            isOngoing: Boolean
+        ) {
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    SCHEDULED_CHANNEL_ID,
+                    "OmniDev Scheduled Tasks",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Shows notifications and live progress for background AI tasks"
+                }
+                notificationManager.createNotificationChannel(channel)
+            }
+
+            val intent = Intent(context, MainActivity::class.java).apply {
+                action = "ACTION_OPEN_SCHEDULED_CHAT"
+                putExtra("EXTRA_SESSION_ID", sessionId)
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+
+            val pendingIntent = PendingIntent.getActivity(
+                context,
+                sessionId.hashCode(),
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val notification = NotificationCompat.Builder(context, SCHEDULED_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("⏰ $taskTitle")
+                .setContentText(statusText)
+                .setOngoing(isOngoing)
+                .setAutoCancel(!isOngoing)
+                .setContentIntent(pendingIntent)
+                .build()
+
+            notificationManager.notify(taskId.hashCode(), notification)
+        }
     }
 
-    /**
-     * Fired when the user grants permission and the system binds to this service.
-     */
     override fun onListenerConnected() {
         super.onListenerConnected()
         Log.i(TAG, "Notification Listener Connected! AI Agent is now listening.")
-        
-        // Catch-up: Grab all currently active notifications on the device
         try {
             val activeNotifs = activeNotifications
             if (activeNotifs != null && activeNotifs.isNotEmpty()) {
@@ -43,33 +81,19 @@ class AgentNotificationService : NotificationListenerService() {
         }
     }
 
-    /**
-     * Fired if the system kills the listener or permission is revoked.
-     */
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
         Log.w(TAG, "Notification Listener Disconnected. AI Agent is now deaf.")
     }
 
-    /**
-     * Fired when a brand new notification pops up.
-     */
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         sbn ?: return
         try {
-            // Delegate all the heavy lifting (BigText, App Name resolution, Deduplication)
-            // directly to our upgraded tool.
             NotificationCaptureTool.onNotificationPosted(this, sbn)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to process posted notification from ${sbn.packageName}", e)
         }
     }
 
-    /**
-     * Fired when the user (or system) swipes away a notification.
-     */
-    override fun onNotificationRemoved(sbn: StatusBarNotification?) {
-        // No-op: We deliberately keep dismissed notifications in our in-memory buffer 
-        // so the agent can still read historical alerts (e.g., OTP codes that auto-dismiss).
-    }
+    override fun onNotificationRemoved(sbn: StatusBarNotification?) {}
 }

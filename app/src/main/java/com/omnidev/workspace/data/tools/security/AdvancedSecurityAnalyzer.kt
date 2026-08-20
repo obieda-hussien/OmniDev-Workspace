@@ -16,14 +16,14 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipFile
 
 /**
- * Advanced Security Analyzer - Context note Context note Context note Context note
+ * Advanced Security Analyzer - System awareness note System awareness note System awareness note System awareness note
  * 
- * Context note:
- * - Context note Context note Context note
- * - Context note Context note Context note
- * - Context note Context note Context note
- * - Context note Context note Context note
- * - Context note Context note Context note
+ * System awareness note:
+ * - System awareness note System awareness note System awareness note
+ * - System awareness note System awareness note System awareness note
+ * - System awareness note System awareness note System awareness note
+ * - System awareness note System awareness note System awareness note
+ * - System awareness note System awareness note System awareness note
  */
 object AdvancedSecurityAnalyzer {
 

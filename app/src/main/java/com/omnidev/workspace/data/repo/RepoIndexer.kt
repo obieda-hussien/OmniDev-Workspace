@@ -12,38 +12,38 @@ import java.security.MessageDigest
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * RepoIndexer — Context note Context note Context note (Live Repository Context Engine)
+ * RepoIndexer — System awareness note System awareness note System awareness note (Live Repository Context Engine)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Mobile-first design — Context note 2-4 GB RAMContext note Context note Context note Context note Context note Context note UI:
+ * Mobile-first design — System awareness note 2-4 GB RAMSystem awareness note System awareness note System awareness note System awareness note System awareness note System awareness note UI:
  *
- *   1) **Incremental indexing**: Context note Context note Context note Context note Context note Context note mtime Context note Context note.
- *      Context note 5000 Context note Context note Context note Context note Context note ~10 Context note Context note Context note Context note < 1s.
+ *   1) **Incremental indexing**: System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note mtime System awareness note System awareness note.
+ *      System awareness note 5000 System awareness note System awareness note System awareness note System awareness note System awareness note ~10 System awareness note System awareness note System awareness note System awareness note < 1s.
  *
- *   2) **Yield + chunking**: Context note Context note Context note chunks Context note (50 Context note) Context note
- *      `yield()` Context note Context note chunk Context note Context note Context note Context note Garbage Collector.
+ *   2) **Yield + chunking**: System awareness note System awareness note System awareness note chunks System awareness note (50 System awareness note) System awareness note
+ *      `yield()` System awareness note System awareness note chunk System awareness note System awareness note System awareness note System awareness note Garbage Collector.
  *
- *   3) **Skip rules**: Context note binariesContext note Context note > 500 KBContext note .git, node_modules,
- *      build/, .gradle/, etc. (Context note Context note Context note Context note).
+ *   3) **Skip rules**: System awareness note binariesSystem awareness note System awareness note > 500 KBSystem awareness note .git, node_modules,
+ *      build/, .gradle/, etc. (System awareness note System awareness note System awareness note System awareness note).
  *
- *   4) **5000 Context note/scope** Context note Context note Context note LRU eviction (Context note Context note DB).
+ *   4) **5000 System awareness note/scope** System awareness note System awareness note System awareness note LRU eviction (System awareness note System awareness note DB).
  */
 class RepoIndexer(
     private val dao: RepoIndexDao,
-    /** Context note Context note Context note Context note — Context note Context note Context note Context note. */
+    /** System awareness note System awareness note System awareness note System awareness note — System awareness note System awareness note System awareness note System awareness note. */
     private val maxFileSizeBytes: Long = 500L * 1024,
-    /** Context note Context note Context note Context note Context note scope. */
+    /** System awareness note System awareness note System awareness note System awareness note System awareness note scope. */
     private val maxSymbolsPerScope: Int = 5000,
-    /** chunk size — Context note 2 GB RAM (Context note Context note Context note Context note 50 Context note Context note). */
+    /** chunk size — System awareness note 2 GB RAM (System awareness note System awareness note System awareness note System awareness note 50 System awareness note System awareness note). */
     private val chunkSize: Int = 50,
-    /** delay Context note chunks (ms) Context note Context note Context note CPU/IO Context note Context note Context note. */
+    /** delay System awareness note chunks (ms) System awareness note System awareness note System awareness note CPU/IO System awareness note System awareness note System awareness note. */
     private val chunkDelayMs: Long = 25
 ) {
 
     companion object {
         private const val TAG = "RepoIndexer"
 
-        /** Context note Context note Context note (Context note Context note Context note). */
+        /** System awareness note System awareness note System awareness note (System awareness note System awareness note System awareness note). */
         private val IGNORED_DIRS = setOf(
             ".git", "node_modules", "build", ".gradle", ".idea",
             "dist", "out", "target", ".next", ".cache",
@@ -51,7 +51,7 @@ class RepoIndexer(
             "Pods", "DerivedData"
         )
 
-        /** Context note Context note Context note. */
+        /** System awareness note System awareness note System awareness note. */
         private val IGNORED_EXTENSIONS = setOf(
             "png", "jpg", "jpeg", "gif", "bmp", "ico", "svg", "webp",
             "mp3", "mp4", "mov", "wav", "flac", "ogg", "webm",
@@ -78,8 +78,8 @@ class RepoIndexer(
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * Context note scope Context note Context note Context note.
-     * @param onProgress callback Context note Context note (Context note Context note chunk)
+     * System awareness note scope System awareness note System awareness note System awareness note.
+     * @param onProgress callback System awareness note System awareness note (System awareness note System awareness note chunk)
      */
     suspend fun indexScope(
         scopePath: String,
@@ -91,7 +91,7 @@ class RepoIndexer(
             return@withContext IndexProgress(0, 0, 0, 0, 0, 0, 0)
         }
 
-        // 1) Context note Context note Context note (lazy walk)
+        // 1) System awareness note System awareness note System awareness note (lazy walk)
         val files = collectFiles(root)
         Log.d(TAG, "📁 Scanning ${files.size} files in $scopePath")
 
@@ -101,7 +101,7 @@ class RepoIndexer(
         var unchanged = 0
         var symbols = 0
 
-        // 2) Context note Context note chunks
+        // 2) System awareness note System awareness note chunks
         for ((cidx, chunk) in files.chunked(chunkSize).withIndex()) {
             for (file in chunk) {
                 try {
@@ -117,7 +117,7 @@ class RepoIndexer(
                     skipped++
                 }
             }
-            // Context note Context note chunks (Context note UI)
+            // System awareness note System awareness note chunks (System awareness note UI)
             yield()
             if (chunkDelayMs > 0) delay(chunkDelayMs)
 
@@ -134,7 +134,7 @@ class RepoIndexer(
             )
         }
 
-        // 3) enforce symbol quota Context note scope
+        // 3) enforce symbol quota System awareness note scope
         enforceSymbolQuota(scopePath)
 
         IndexProgress(
@@ -148,7 +148,7 @@ class RepoIndexer(
         )
     }
 
-    /** Context note Context note Context note (Context note Context note live updates Context note Context note save). */
+    /** System awareness note System awareness note System awareness note (System awareness note System awareness note live updates System awareness note System awareness note save). */
     suspend fun reindexFile(scopePath: String, filePath: String) =
         withContext(Dispatchers.IO) {
             try {
@@ -164,7 +164,7 @@ class RepoIndexer(
             }
         }
 
-    /** Context note Context note Context note scope (Context note Context note Context note Context note). */
+    /** System awareness note System awareness note System awareness note scope (System awareness note System awareness note System awareness note System awareness note). */
     suspend fun clearScope(scopePath: String) = withContext(Dispatchers.IO) {
         dao.clearScope(scopePath)
         dao.clearSymbolsForScope(scopePath)
@@ -192,16 +192,16 @@ class RepoIndexer(
         if (ext in IGNORED_EXTENSIONS) return FileResult.Skipped
 
         val existing = dao.getFile(scopePath, relativePath)
-        // incremental: Context note Context note mtime + size → Context note (Context note Context note)
+        // incremental: System awareness note System awareness note mtime + size → System awareness note (System awareness note System awareness note)
         if (existing != null && existing.fileMtime == mtime && existing.fileSize == size) {
             return FileResult.Unchanged
         }
 
-        // Context note Context note
+        // System awareness note System awareness note
         val content = try {
             file.readText(Charsets.UTF_8)
         } catch (t: Throwable) {
-            // Context note binary → Context note
+            // System awareness note binary → System awareness note
             return FileResult.Skipped
         }
 
@@ -226,7 +226,7 @@ class RepoIndexer(
                 indexedAt = System.currentTimeMillis()
             )
         )
-        // Context note Context note Context note Context note Context note Context note Context note
+        // System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
         dao.deleteSymbolsForFile(scopePath, relativePath)
         if (symbols.isNotEmpty()) dao.insertSymbols(symbols)
 
@@ -234,7 +234,7 @@ class RepoIndexer(
         else FileResult.Updated(symbols.size)
     }
 
-    /** Walk recursive Context note Context note IGNORED_DIRS Context note. */
+    /** Walk recursive System awareness note System awareness note IGNORED_DIRS System awareness note. */
     private fun collectFiles(root: File): List<File> {
         val out = ArrayList<File>(1024)
         val stack = ArrayDeque<File>()

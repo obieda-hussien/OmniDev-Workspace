@@ -1136,3 +1136,31 @@ class CompletionService {
     }
 }
 
+
+object CompletionPayloadParser {
+
+    fun buildOpenAiStreamingPayload(prompt: String, model: String): String {
+        return org.json.JSONObject().apply {
+            put("model", model)
+            put("messages", listOf(mapOf("role" to "user", "content" to prompt)))
+            put("stream", true)
+            put("stream_options", org.json.JSONObject().apply {
+                put("include_usage", true)
+            })
+        }.toString()
+    }
+
+    fun extractTokenUsage(responseJson: org.json.JSONObject, isGemini: Boolean): Pair<Int, Int> {
+        return if (isGemini) {
+            val usage = responseJson.optJSONObject("usageMetadata")
+            val prompt = usage?.optInt("promptTokenCount", 0) ?: 0
+            val completion = usage?.optInt("candidatesTokenCount", 0) ?: 0
+            Pair(prompt, completion)
+        } else {
+            val usage = responseJson.optJSONObject("usage")
+            val prompt = usage?.optInt("prompt_tokens", 0) ?: 0
+            val completion = usage?.optInt("completion_tokens", 0) ?: 0
+            Pair(prompt, completion)
+        }
+    }
+}

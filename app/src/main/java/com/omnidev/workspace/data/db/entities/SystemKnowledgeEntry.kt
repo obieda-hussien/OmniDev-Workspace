@@ -4,6 +4,15 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
+/**
+ * SystemKnowledgeEntry — Persisted Agent System Knowledge
+ *
+ * Stores discoveries made by the Agent regarding:
+ * - Tool capabilities and requirements
+ * - System environment and device specs
+ * - Learned patterns and user preferences
+ * - Important system warnings and notes
+ */
 @Entity(
     tableName = "system_knowledge",
     indices = [Index(value = ["category", "key"], unique = true)]
@@ -16,7 +25,7 @@ data class SystemKnowledgeEntry(
     val confidence: Float = 1.0f,
     val timestamp: Long = System.currentTimeMillis(),
 
-    // Backwards-compatibility fields for legacy callers
+    // Backwards compatibility properties
     val knowledgeType: String = category,
     val subject: String = key,
     val verificationCount: Int = 1,

@@ -4,6 +4,9 @@ import androidx.room.*
 import com.omnidev.workspace.data.db.entities.SystemKnowledgeEntry
 import kotlinx.coroutines.flow.Flow
 
+/**
+ * SystemKnowledgeDao — DAO interface for accessing the system knowledge base
+ */
 @Dao
 interface SystemKnowledgeDao {
 
@@ -44,6 +47,7 @@ interface SystemKnowledgeDao {
         }
     }
 
+    /** Purges all duplicate records, keeping only the latest row per (category, key). */
     @Query("""
         DELETE FROM system_knowledge
         WHERE id NOT IN (

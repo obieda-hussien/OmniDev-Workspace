@@ -2,28 +2,28 @@ package com.omnidev.workspace.data.brain
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * CausalChainPlanner — Context note Context note Context note Context note Context note (Mobile-First)
+ * CausalChainPlanner — System awareness note Multi-step Causal Chain Planning (Mobile-First)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note "Context note Context note" (Causal Graph)
- * Context note Context note Context note Context note Context note (Context note: Context note Context note Context note Context note Context note).
+ * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note "System awareness note System awareness note" (Causal Graph)
+ * System awareness note System awareness note System awareness note System awareness note System awareness note (System awareness note: System awareness note System awareness note System awareness note System awareness note System awareness note).
  *
- * ## Context note Context note:
- * 1. **Context note Context note** (analyzeToolCall): Context note Context note Context note → Context note Context note Context note + Context note
- * 2. **Context note Context note** (buildChain): Context note DAG Context note Context note Context note Context note
- * 3. **Context note Context note** (detectConflicts): Context note Context note Context note Context note (Read-After-DeleteContext note Context note)
- * 4. **Context note Context note** (simulate): Context note Context note Context note Context note Context note
- * 5. **Context note What-If** (whatIf): Context note Context note Context note Context note Context note Context note Context note
- * 6. **Context note Context note Prompt** (buildPromptInjection): Context note Context note Context note Context note system prompt
+ * ## System awareness note System awareness note:
+ * 1. **System awareness note System awareness note** (analyzeToolCall): System awareness note System awareness note System awareness note → System awareness note System awareness note System awareness note + System awareness note
+ * 2. **System awareness note System awareness note** (buildChain): System awareness note DAG System awareness note System awareness note System awareness note System awareness note
+ * 3. **System awareness note System awareness note** (detectConflicts): System awareness note System awareness note System awareness note System awareness note (Read-After-DeleteSystem awareness note System awareness note)
+ * 4. **System awareness note System awareness note** (simulate): System awareness note System awareness note System awareness note System awareness note System awareness note
+ * 5. **System awareness note What-If** (whatIf): System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
+ * 6. **System awareness note System awareness note Prompt** (buildPromptInjection): System awareness note System awareness note System awareness note System awareness note system prompt
  *
- * ## Mobile-First (4 GB RAM Context note Context note):
- * - Context note Context note LLM Context note — Context note Context note rule-based
- * - Context note Context note Context note — Context note Context note Context note (in-memory)
- * - Context note Context note [maxNodes] Context note Context note Context note
- * - Context note Context note < 5ms Context note 20 Context note
+ * ## Mobile-First (4 GB RAM System awareness note System awareness note):
+ * - System awareness note System awareness note LLM System awareness note — System awareness note System awareness note rule-based
+ * - System awareness note System awareness note System awareness note — System awareness note System awareness note System awareness note (in-memory)
+ * - System awareness note System awareness note [maxNodes] System awareness note System awareness note System awareness note
+ * - System awareness note System awareness note < 5ms System awareness note 20 System awareness note
  */
 class CausalChainPlanner(
-    /** Context note Context note Context note Context note Context note Context note Context note (Context note Context note OOM). */
+    /** System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note (System awareness note System awareness note OOM). */
     val maxNodes: Int = 50
 ) {
 
@@ -32,39 +32,39 @@ class CausalChainPlanner(
     // ──────────────────────────────────────────────────────────────────────────
 
     enum class EffectType {
-        CREATE,   // Context note Context note Context note Context note Context note
-        DELETE,   // Context note Context note Context note Context note
-        MODIFY,   // Context note Context note Context note
-        READ,     // Context note Context note (Context note Context note Context note)
-        EXECUTE,  // Context note Context note Context note Shell Context note Context note Context note
-        SYSTEM,   // Context note Context note Context note Context note (Context note Context note GitContext note Context note)
-        NETWORK   // Context note Context note Context note Context note
+        CREATE,   // System awareness note System awareness note System awareness note System awareness note System awareness note
+        DELETE,   // System awareness note System awareness note System awareness note System awareness note
+        MODIFY,   // System awareness note System awareness note System awareness note
+        READ,     // System awareness note System awareness note (System awareness note System awareness note System awareness note)
+        EXECUTE,  // System awareness note System awareness note System awareness note Shell System awareness note System awareness note System awareness note
+        SYSTEM,   // System awareness note System awareness note System awareness note System awareness note (System awareness note System awareness note GitSystem awareness note System awareness note)
+        NETWORK   // System awareness note System awareness note System awareness note System awareness note
     }
 
     enum class RiskLevel(val score: Int) {
         LOW(1), MEDIUM(2), HIGH(3), CRITICAL(4);
 
         fun label(): String = when (this) {
-            LOW      -> "🟢 Info"
-            MEDIUM   -> "🟡 Info"
-            HIGH     -> "🔴 Info"
-            CRITICAL -> "💥 Info"
+            LOW      -> "🟢 System awareness note"
+            MEDIUM   -> "🟡 System awareness note"
+            HIGH     -> "🔴 System awareness note"
+            CRITICAL -> "💥 System awareness note"
         }
     }
 
     enum class ConflictType {
-        READ_AFTER_DELETE,      // Context note Context note Context note Context note
-        MODIFY_AFTER_DELETE,    // Context note Context note Context note Context note
-        DOUBLE_CREATE,          // Context note Context note Context note Context note
-        OVERWRITE_UNREAD,       // Context note Context note Context note Context note Context note Context note (Context note Context note Context note)
-        DELETE_AFTER_MODIFY,    // Context note Context note Context note Context note (Context note Context note)
-        CRITICAL_COMMAND,       // Context note Context note Context note Context note (rm -rf, git reset --hard)
-        CIRCULAR_DEPENDENCY,    // A Context note Context note B Context note B Context note Context note A
+        READ_AFTER_DELETE,      // System awareness note System awareness note System awareness note System awareness note
+        MODIFY_AFTER_DELETE,    // System awareness note System awareness note System awareness note System awareness note
+        DOUBLE_CREATE,          // System awareness note System awareness note System awareness note System awareness note
+        OVERWRITE_UNREAD,       // System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note (System awareness note System awareness note System awareness note)
+        DELETE_AFTER_MODIFY,    // System awareness note System awareness note System awareness note System awareness note (System awareness note System awareness note)
+        CRITICAL_COMMAND,       // System awareness note System awareness note System awareness note System awareness note (rm -rf, git reset --hard)
+        CIRCULAR_DEPENDENCY,    // A System awareness note System awareness note B System awareness note B System awareness note System awareness note A
     }
 
     data class CausalEffect(
         val type: EffectType,
-        /** Context note Context note Context note Context note (null Context note Context note Context note Context note). */
+        /** System awareness note System awareness note System awareness note System awareness note (null System awareness note System awareness note System awareness note System awareness note). */
         val targetPath: String?,
         val description: String
     )
@@ -82,11 +82,11 @@ class CausalChainPlanner(
 
     data class CausalConflict(
         val type: ConflictType,
-        val stepA: Int,       // Context note Context note Context note
-        val stepB: Int,       // Context note Context note Context note (-1 Context note Context note Context note)
+        val stepA: Int,       // System awareness note System awareness note System awareness note
+        val stepB: Int,       // System awareness note System awareness note System awareness note (-1 System awareness note System awareness note System awareness note)
         val path: String?,
         val message: String,
-        val isFatal: Boolean  // Context note Context note Context note Context note
+        val isFatal: Boolean  // System awareness note System awareness note System awareness note System awareness note
     )
 
     data class CausalGraph(
@@ -112,13 +112,13 @@ class CausalChainPlanner(
     data class SimulationResult(
         val steps: List<SimulationStep>,
         val overallSuccess: Boolean,
-        val firstFailureIndex: Int,   // -1 Context note Context note Context note
+        val firstFailureIndex: Int,   // -1 System awareness note System awareness note System awareness note
         val warningMessages: List<String>
     )
 
     /**
-     * Context note Context note Context note/Context note Context note Context note.
-     * Context note Context note — Context note sets Context note Context note.
+     * System awareness note System awareness note System awareness note/System awareness note System awareness note System awareness note.
+     * System awareness note System awareness note — System awareness note sets System awareness note System awareness note.
      */
     data class VirtualState(
         val createdPaths: Set<String>,
@@ -138,8 +138,8 @@ class CausalChainPlanner(
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Context note Context note Context note Context note Context note [CausalNode] Context note Context note.
-     * Context note 100% rule-based — Context note LLMContext note Context note Context note Context note < 1ms.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note [CausalNode] System awareness note System awareness note.
+     * System awareness note 100% rule-based — System awareness note LLMSystem awareness note System awareness note System awareness note System awareness note < 1ms.
      */
     fun analyzeToolCall(
         stepIndex: Int,
@@ -160,9 +160,9 @@ class CausalChainPlanner(
     }
 
     /**
-     * Context note [CausalGraph] Context note Context note Context note Context note Context note.
-     * Context note Context note Context note Context note Context note.
-     * Context note Context note Context note [maxNodes]Context note Context note Context note.
+     * System awareness note [CausalGraph] System awareness note System awareness note System awareness note System awareness note System awareness note.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note.
+     * System awareness note System awareness note System awareness note [maxNodes]System awareness note System awareness note System awareness note.
      */
     fun buildChain(steps: List<Pair<String, Map<String, String>>>): CausalGraph {
         val bounded = steps.take(maxNodes)
@@ -174,11 +174,11 @@ class CausalChainPlanner(
     }
 
     /**
-     * Context note Context note Context note Context note Context note Context note Context note Context note.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     fun detectConflicts(nodes: List<CausalNode>): List<CausalConflict> {
         val conflicts = mutableListOf<CausalConflict>()
-        // Context note: path → Context note Context note Context note
+        // System awareness note: path → System awareness note System awareness note System awareness note
         val lastCreate  = mutableMapOf<String, Int>()
         val lastDelete  = mutableMapOf<String, Int>()
         val lastModify  = mutableMapOf<String, Int>()
@@ -194,7 +194,7 @@ class CausalChainPlanner(
                             conflicts += CausalConflict(
                                 type = ConflictType.READ_AFTER_DELETE,
                                 stepA = delIdx, stepB = i, path = path,
-                                message = "⚠️ Info $i Info '$path' Info Info Info Info $delIdx.",
+                                message = "⚠️ System awareness note $i System awareness note '$path' System awareness note System awareness note System awareness note System awareness note $delIdx.",
                                 isFatal = true
                             )
                         }
@@ -205,7 +205,7 @@ class CausalChainPlanner(
                             conflicts += CausalConflict(
                                 type = ConflictType.MODIFY_AFTER_DELETE,
                                 stepA = delIdx, stepB = i, path = path,
-                                message = "❌ Info $i Info '$path' Info Info Info Info $delIdx.",
+                                message = "❌ System awareness note $i System awareness note '$path' System awareness note System awareness note System awareness note System awareness note $delIdx.",
                                 isFatal = true
                             )
                         }
@@ -217,7 +217,7 @@ class CausalChainPlanner(
                                 conflicts += CausalConflict(
                                     type = ConflictType.DOUBLE_CREATE,
                                     stepA = prevIdx, stepB = i, path = path,
-                                    message = "⚠️ Info $i Info '$path' Info Info (Info Info Info Info Info $prevIdx).",
+                                    message = "⚠️ System awareness note $i System awareness note '$path' System awareness note System awareness note (System awareness note System awareness note System awareness note System awareness note System awareness note $prevIdx).",
                                     isFatal = false
                                 )
                             }
@@ -231,7 +231,7 @@ class CausalChainPlanner(
                                 conflicts += CausalConflict(
                                     type = ConflictType.DELETE_AFTER_MODIFY,
                                     stepA = modIdx, stepB = i, path = path,
-                                    message = "⚠️ Info $i Info '$path' Info Info Info Info $modIdx — Info Info.",
+                                    message = "⚠️ System awareness note $i System awareness note '$path' System awareness note System awareness note System awareness note System awareness note $modIdx — System awareness note System awareness note.",
                                     isFatal = false
                                 )
                             }
@@ -239,13 +239,13 @@ class CausalChainPlanner(
                         lastDelete[path] = i
                     }
                     EffectType.EXECUTE -> {
-                        // CRITICAL risk Context note Context note Context note (rm -rf, git reset --hard, etc.)
+                        // CRITICAL risk System awareness note System awareness note System awareness note (rm -rf, git reset --hard, etc.)
                         if (node.riskLevel == RiskLevel.CRITICAL) {
                             conflicts += CausalConflict(
                                 type = ConflictType.CRITICAL_COMMAND,
                                 stepA = i, stepB = -1, path = path,
-                                message = "💥 Info $i Info Info Info: ${node.humanSummary}",
-                                isFatal = false // Context note Context note Context note Context note
+                                message = "💥 System awareness note $i System awareness note System awareness note System awareness note: ${node.humanSummary}",
+                                isFatal = false // System awareness note System awareness note System awareness note System awareness note
                             )
                         }
                     }
@@ -257,8 +257,8 @@ class CausalChainPlanner(
     }
 
     /**
-     * Context note Context note Context note Context note Context note Context note Context note Context note Context note.
-     * Context note "Context note Context note Context note" Context note Context note Context note Context note Context note.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
+     * System awareness note "System awareness note System awareness note System awareness note" System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     fun simulate(graph: CausalGraph): SimulationResult {
         val warnings = mutableListOf<String>()
@@ -282,10 +282,10 @@ class CausalChainPlanner(
         }
 
         if (graph.highestRisk >= RiskLevel.HIGH) {
-            warnings += "⚠️ Info Info Info Info Info Info Info — Info Info Info Info Info (rollback group)."
+            warnings += "⚠️ System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note — System awareness note System awareness note System awareness note System awareness note System awareness note (rollback group)."
         }
         if (graph.nodes.count { it.riskLevel == RiskLevel.CRITICAL } > 0) {
-            warnings += "💥 Info: Info ${graph.nodes.count { it.riskLevel == RiskLevel.CRITICAL }} Info(Info) Info(Info) Info Info."
+            warnings += "💥 System awareness note: System awareness note ${graph.nodes.count { it.riskLevel == RiskLevel.CRITICAL }} System awareness note(System awareness note) System awareness note(System awareness note) System awareness note System awareness note."
         }
         for (c in graph.conflicts) {
             if (c.isFatal) warnings += c.message
@@ -300,8 +300,8 @@ class CausalChainPlanner(
     }
 
     /**
-     * Context note What-If: "Context note Context note Context note Context note/Context note Context note Context note"
-     * Context note Context note Context note Context note Context note Context note.
+     * System awareness note What-If: "System awareness note System awareness note System awareness note System awareness note/System awareness note System awareness note System awareness note"
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     fun whatIf(
         baseline: CausalGraph,
@@ -319,17 +319,17 @@ class CausalChainPlanner(
         val modSim = simulate(modifiedGraph)
 
         return buildString {
-            appendLine("🔬 Info What-If:")
+            appendLine("🔬 System awareness note What-If:")
             appendLine()
             when {
                 removeStepIndex != null -> {
                     val removed = baseline.nodes.find { it.stepIndex == removeStepIndex }
-                    appendLine("❌ Info Info Info $removeStepIndex (${removed?.toolName ?: "?"}):")
+                    appendLine("❌ System awareness note System awareness note System awareness note $removeStepIndex (${removed?.toolName ?: "?"}):")
                 }
                 insertStep != null ->
-                    appendLine("➕ Info Info Info Info (${insertStep.first}):")
+                    appendLine("➕ System awareness note System awareness note System awareness note System awareness note (${insertStep.first}):")
                 else ->
-                    appendLine("📊 Info Info:")
+                    appendLine("📊 System awareness note System awareness note:")
             }
             appendLine()
 
@@ -337,31 +337,31 @@ class CausalChainPlanner(
             val modConflicts = modifiedGraph.conflicts.size
             when {
                 modConflicts < baseConflicts ->
-                    appendLine("✅ Info Info Info: $baseConflicts → $modConflicts")
+                    appendLine("✅ System awareness note System awareness note System awareness note: $baseConflicts → $modConflicts")
                 modConflicts > baseConflicts ->
-                    appendLine("⚠️ Info Info Info: $baseConflicts → $modConflicts")
+                    appendLine("⚠️ System awareness note System awareness note System awareness note: $baseConflicts → $modConflicts")
                 else ->
-                    appendLine("ℹ️ Info Info Info Info: $modConflicts")
+                    appendLine("ℹ️ System awareness note System awareness note System awareness note System awareness note: $modConflicts")
             }
 
             val baseRisk = baseline.highestRisk
             val modRisk = modifiedGraph.highestRisk
             if (modRisk.score > baseRisk.score)
-                appendLine("⬆️ Info Info: ${baseRisk.label()} → ${modRisk.label()}")
+                appendLine("⬆️ System awareness note System awareness note: ${baseRisk.label()} → ${modRisk.label()}")
             else if (modRisk.score < baseRisk.score)
-                appendLine("⬇️ Info Info: ${baseRisk.label()} → ${modRisk.label()}")
+                appendLine("⬇️ System awareness note System awareness note: ${baseRisk.label()} → ${modRisk.label()}")
 
             val baseSuccess = baseSim.overallSuccess
             val modSuccess = modSim.overallSuccess
             when {
-                !baseSuccess && modSuccess  -> appendLine("🎉 Info Info Info Info!")
-                baseSuccess && !modSuccess  -> appendLine("💔 Info Info Info Info!")
-                else                         -> appendLine("ℹ️ Info Info Info Info (${if (modSuccess) "Info" else "Info"})")
+                !baseSuccess && modSuccess  -> appendLine("🎉 System awareness note System awareness note System awareness note System awareness note!")
+                baseSuccess && !modSuccess  -> appendLine("💔 System awareness note System awareness note System awareness note System awareness note!")
+                else                         -> appendLine("ℹ️ System awareness note System awareness note System awareness note System awareness note (${if (modSuccess) "System awareness note" else "System awareness note"})")
             }
 
             if (modifiedGraph.conflicts.isNotEmpty()) {
                 appendLine()
-                appendLine("📋 Info Info Info Info:")
+                appendLine("📋 System awareness note System awareness note System awareness note System awareness note:")
                 for (c in modifiedGraph.conflicts.take(5)) {
                     appendLine("  • ${c.message}")
                 }
@@ -370,8 +370,8 @@ class CausalChainPlanner(
     }
 
     /**
-     * Context note Context note Context note Context note system prompt Context note Context note Context note.
-     * Context note Context note [maxChars] Context note context window.
+     * System awareness note System awareness note System awareness note System awareness note system prompt System awareness note System awareness note System awareness note.
+     * System awareness note System awareness note [maxChars] System awareness note context window.
      */
     fun buildPromptInjection(graph: CausalGraph, maxChars: Int = 700): String {
         if (graph.nodes.isEmpty()) return ""
@@ -380,11 +380,11 @@ class CausalChainPlanner(
         if (fatalConflicts.isEmpty() && warnings.isEmpty() && graph.highestRisk < RiskLevel.HIGH) return ""
 
         return buildString {
-            appendLine("\n🗺️ Info Info Info (Causal Chain):")
-            appendLine("  Info: ${graph.nodes.size} | Info Info: ${graph.highestRisk.label()}")
+            appendLine("\n🗺️ System awareness note System awareness note System awareness note (Causal Chain):")
+            appendLine("  System awareness note: ${graph.nodes.size} | System awareness note System awareness note: ${graph.highestRisk.label()}")
 
             if (fatalConflicts.isNotEmpty()) {
-                appendLine("❌ Info Info:")
+                appendLine("❌ System awareness note System awareness note:")
                 for (c in fatalConflicts.take(3)) {
                     val line = "  • ${c.message.take(120)}"
                     if (length + line.length > maxChars) return@buildString
@@ -392,7 +392,7 @@ class CausalChainPlanner(
                 }
             }
             if (warnings.isNotEmpty()) {
-                appendLine("⚠️ Info:")
+                appendLine("⚠️ System awareness note:")
                 for (c in warnings.take(3)) {
                     val line = "  • ${c.message.take(100)}"
                     if (length + line.length > maxChars) return@buildString
@@ -413,7 +413,7 @@ class CausalChainPlanner(
         val humanSummary: String
     )
 
-    /** Context note Context note Context note + Context note Context note Context note Context note. */
+    /** System awareness note System awareness note System awareness note + System awareness note System awareness note System awareness note System awareness note. */
     private fun findRule(toolName: String, params: Map<String, String>): ToolRule {
         val path = params["path"]?.trim()
             ?: params["file_path"]?.trim()
@@ -422,24 +422,24 @@ class CausalChainPlanner(
         return when (toolName) {
             // ── File Read Operations (LOW risk) ──────────────────────────────
             "read_file_lines", "read_file" ->
-                readRule(path, "Info Info")
+                readRule(path, "System awareness note System awareness note")
             "multi_read" ->
-                readRule(path, "Info Info Info")
+                readRule(path, "System awareness note System awareness note System awareness note")
             "search_codebase" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.READ, null, "Info Info Info Info")),
+                    effects = listOf(CausalEffect(EffectType.READ, null, "System awareness note System awareness note System awareness note System awareness note")),
                     preconditions = emptyList(),
                     riskLevel = RiskLevel.LOW,
-                    humanSummary = "🔍 Info Info Info: ${params["query"]?.take(40) ?: "?"}"
+                    humanSummary = "🔍 System awareness note System awareness note System awareness note: ${params["query"]?.take(40) ?: "?"}"
                 )
 
             // ── File Create Operations ────────────────────────────────────────
             "create_file" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.CREATE, path, "Info Info Info")),
-                    preconditions = if (path != null) listOf("'$path' Info Info") else emptyList(),
+                    effects = listOf(CausalEffect(EffectType.CREATE, path, "System awareness note System awareness note System awareness note")),
+                    preconditions = if (path != null) listOf("'$path' System awareness note System awareness note") else emptyList(),
                     riskLevel = RiskLevel.LOW,
-                    humanSummary = "📄 Info: ${path ?: "?"}"
+                    humanSummary = "📄 System awareness note: ${path ?: "?"}"
                 )
 
             // ── File Modify Operations ────────────────────────────────────────
@@ -447,28 +447,28 @@ class CausalChainPlanner(
             "delete_text", "delete_lines", "insert_lines",
             "replace_lines", "append_to_file" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.MODIFY, path, "Info Info")),
-                    preconditions = if (path != null) listOf("'$path' Info") else emptyList(),
+                    effects = listOf(CausalEffect(EffectType.MODIFY, path, "System awareness note System awareness note")),
+                    preconditions = if (path != null) listOf("'$path' System awareness note") else emptyList(),
                     riskLevel = RiskLevel.MEDIUM,
-                    humanSummary = "✏️ Info: ${path ?: "?"}"
+                    humanSummary = "✏️ System awareness note: ${path ?: "?"}"
                 )
 
             // ── Destructive: clear_file ───────────────────────────────────────
             "clear_file" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.MODIFY, path, "Info Info Info Info")),
-                    preconditions = if (path != null) listOf("'$path' Info") else emptyList(),
+                    effects = listOf(CausalEffect(EffectType.MODIFY, path, "System awareness note System awareness note System awareness note System awareness note")),
+                    preconditions = if (path != null) listOf("'$path' System awareness note") else emptyList(),
                     riskLevel = RiskLevel.HIGH,
-                    humanSummary = "🗑️ Info Info Info: ${path ?: "?"}"
+                    humanSummary = "🗑️ System awareness note System awareness note System awareness note: ${path ?: "?"}"
                 )
 
             // ── Delete Operations ─────────────────────────────────────────────
             "delete_file" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.DELETE, path, "Info Info")),
-                    preconditions = if (path != null) listOf("'$path' Info") else emptyList(),
+                    effects = listOf(CausalEffect(EffectType.DELETE, path, "System awareness note System awareness note")),
+                    preconditions = if (path != null) listOf("'$path' System awareness note") else emptyList(),
                     riskLevel = RiskLevel.HIGH,
-                    humanSummary = "🗑️ Info Info: ${path ?: "?"}"
+                    humanSummary = "🗑️ System awareness note System awareness note: ${path ?: "?"}"
                 )
 
             // ── Terminal / Shell ──────────────────────────────────────────────
@@ -483,35 +483,35 @@ class CausalChainPlanner(
             "web_search", "web_search_deep", "web_scraper", "scrape_multiple",
             "network_request" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.NETWORK, null, "Info Info")),
+                    effects = listOf(CausalEffect(EffectType.NETWORK, null, "System awareness note System awareness note")),
                     preconditions = emptyList(),
                     riskLevel = RiskLevel.LOW,
-                    humanSummary = "🌐 Info Info: $toolName"
+                    humanSummary = "🌐 System awareness note System awareness note: $toolName"
                 )
 
             // ── Memory Operations (LOW risk) ──────────────────────────────────
             "remember_fact", "update_memory", "delete_memory",
             "vector_store", "brain_record_episode" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.MODIFY, null, "Info Info")),
+                    effects = listOf(CausalEffect(EffectType.MODIFY, null, "System awareness note System awareness note")),
                     preconditions = emptyList(),
                     riskLevel = RiskLevel.LOW,
-                    humanSummary = "🧠 Info Info: $toolName"
+                    humanSummary = "🧠 System awareness note System awareness note: $toolName"
                 )
 
             // ── System Tools ──────────────────────────────────────────────────
             "hardware_toggle_tool", "vpn_control", "system_power" ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.SYSTEM, null, "Info Info Info")),
+                    effects = listOf(CausalEffect(EffectType.SYSTEM, null, "System awareness note System awareness note System awareness note")),
                     preconditions = emptyList(),
                     riskLevel = RiskLevel.MEDIUM,
-                    humanSummary = "⚙️ Info Info: $toolName"
+                    humanSummary = "⚙️ System awareness note System awareness note: $toolName"
                 )
 
             // ── Default: unknown tool treated as low-risk read ────────────────
             else ->
                 ToolRule(
-                    effects = listOf(CausalEffect(EffectType.READ, null, "Info Info Info")),
+                    effects = listOf(CausalEffect(EffectType.READ, null, "System awareness note System awareness note System awareness note")),
                     preconditions = emptyList(),
                     riskLevel = RiskLevel.LOW,
                     humanSummary = "🔧 $toolName"
@@ -521,36 +521,36 @@ class CausalChainPlanner(
 
     private fun readRule(path: String?, label: String): ToolRule = ToolRule(
         effects = listOf(CausalEffect(EffectType.READ, path, label)),
-        preconditions = if (path != null) listOf("'$path' Info") else emptyList(),
+        preconditions = if (path != null) listOf("'$path' System awareness note") else emptyList(),
         riskLevel = RiskLevel.LOW,
         humanSummary = "📖 $label: ${path ?: "?"}"
     )
 
-    /** Context note Context note Context note Shell Context note Context note Context note. */
+    /** System awareness note System awareness note System awareness note Shell System awareness note System awareness note System awareness note. */
     private fun analyzeShellCommand(toolName: String, params: Map<String, String>): ToolRule {
         val command = (params["command"] ?: params["code"] ?: "").lowercase()
         val (riskLevel, description) = when {
             "rm -rf" in command || "rm -r" in command ->
-                RiskLevel.CRITICAL to "Info Info — Info Info Info"
+                RiskLevel.CRITICAL to "System awareness note System awareness note — System awareness note System awareness note System awareness note"
             Regex("""^rm\s""").containsMatchIn(command) || "unlink" in command ->
-                RiskLevel.HIGH to "Info Info(Info)"
+                RiskLevel.HIGH to "System awareness note System awareness note(System awareness note)"
             "git reset --hard" in command || "git clean -fd" in command ->
-                RiskLevel.HIGH to "Info Info Git Info"
+                RiskLevel.HIGH to "System awareness note System awareness note Git System awareness note"
             "git push --force" in command || "git push -f" in command ->
-                RiskLevel.HIGH to "Git force push — Info Info Info Info Info"
+                RiskLevel.HIGH to "Git force push — System awareness note System awareness note System awareness note System awareness note System awareness note"
             "chmod 777" in command || "chmod -r" in command.replace(" ", "").replace("--", "-") ->
-                RiskLevel.MEDIUM to "Info Info Info"
+                RiskLevel.MEDIUM to "System awareness note System awareness note System awareness note"
             "apt install" in command || "pkg install" in command || "pip install" in command ->
-                RiskLevel.LOW to "Info Info"
+                RiskLevel.LOW to "System awareness note System awareness note"
             "mkfs" in command || "fdisk" in command || "dd if=" in command ->
-                RiskLevel.CRITICAL to "Info Info/Info Info — Info Info"
+                RiskLevel.CRITICAL to "System awareness note System awareness note/System awareness note System awareness note — System awareness note System awareness note"
             else ->
-                RiskLevel.MEDIUM to "Info Info: ${command.take(60)}"
+                RiskLevel.MEDIUM to "System awareness note System awareness note: ${command.take(60)}"
         }
         val effectPath = extractPathFromCommand(command)
 
-        // Context note Context note (rm, unlink) Context note Context note DELETE Context note Context note Context note READ_AFTER_DELETE/MODIFY_AFTER_DELETE
-        // Context note Context note Context note Context note Context note EXECUTE (git reset, mkfs, ddContext note Context note)
+        // System awareness note System awareness note (rm, unlink) System awareness note System awareness note DELETE System awareness note System awareness note System awareness note READ_AFTER_DELETE/MODIFY_AFTER_DELETE
+        // System awareness note System awareness note System awareness note System awareness note System awareness note EXECUTE (git reset, mkfs, ddSystem awareness note System awareness note)
         val effectType = when {
             "rm -rf" in command || "rm -r" in command -> EffectType.DELETE
             Regex("""^rm\s""").containsMatchIn(command) || "unlink" in command -> EffectType.DELETE
@@ -567,28 +567,28 @@ class CausalChainPlanner(
             ),
             preconditions = emptyList(),
             riskLevel = riskLevel,
-            humanSummary = "${riskLevel.label()} Info: ${command.take(80)}"
+            humanSummary = "${riskLevel.label()} System awareness note: ${command.take(80)}"
         )
     }
 
-    /** Context note Context note Git Context note Context note Context note. */
+    /** System awareness note System awareness note Git System awareness note System awareness note System awareness note. */
     private fun analyzeGitAction(params: Map<String, String>): ToolRule {
         val action = params["action"]?.lowercase() ?: ""
         val (risk, desc, effType) = when {
             action in listOf("push", "force_push") ->
-                Triple(RiskLevel.MEDIUM, "Info Info", EffectType.NETWORK)
+                Triple(RiskLevel.MEDIUM, "System awareness note System awareness note", EffectType.NETWORK)
             action in listOf("reset", "clean") ->
-                Triple(RiskLevel.HIGH, "Info Info Git", EffectType.SYSTEM)
+                Triple(RiskLevel.HIGH, "System awareness note System awareness note Git", EffectType.SYSTEM)
             action in listOf("merge", "rebase") ->
-                Triple(RiskLevel.MEDIUM, "Info/Info Info Info", EffectType.MODIFY)
+                Triple(RiskLevel.MEDIUM, "System awareness note/System awareness note System awareness note System awareness note", EffectType.MODIFY)
             action in listOf("commit", "add", "stage") ->
-                Triple(RiskLevel.LOW, "Info Info", EffectType.SYSTEM)
+                Triple(RiskLevel.LOW, "System awareness note System awareness note", EffectType.SYSTEM)
             action in listOf("clone", "fetch", "pull") ->
-                Triple(RiskLevel.LOW, "Info Info", EffectType.NETWORK)
+                Triple(RiskLevel.LOW, "System awareness note System awareness note", EffectType.NETWORK)
             action in listOf("branch_delete", "tag_delete") ->
-                Triple(RiskLevel.HIGH, "Info Info/Info", EffectType.DELETE)
+                Triple(RiskLevel.HIGH, "System awareness note System awareness note/System awareness note", EffectType.DELETE)
             else ->
-                Triple(RiskLevel.LOW, "Info Git: $action", EffectType.READ)
+                Triple(RiskLevel.LOW, "System awareness note Git: $action", EffectType.READ)
         }
         return ToolRule(
             effects = listOf(CausalEffect(effType, null, desc)),
@@ -599,24 +599,24 @@ class CausalChainPlanner(
     }
 
     /**
-     * Context note Context note Context note Context note Context note Context note Context note.
-     * Context note (wouldSucceed, failReason, newState).
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
+     * System awareness note (wouldSucceed, failReason, newState).
      */
     private fun simulateStep(
         node: CausalNode,
         state: VirtualState
     ): Triple<Boolean, String?, VirtualState> {
-        // Context note Context note Context note Context note Context note
+        // System awareness note System awareness note System awareness note System awareness note System awareness note
         for (precondition in node.preconditions) {
-            // Context note Context note Context note Context note Context note (Context note: "'path/file' Context note")
+            // System awareness note System awareness note System awareness note System awareness note System awareness note (System awareness note: "'path/file' System awareness note")
             val pathMatch = Regex("'([^']+)'").find(precondition)
             val requiredPath = pathMatch?.groupValues?.get(1) ?: continue
-            if (precondition.contains("Info") && state.wasDeleted(requiredPath)) {
-                return Triple(false, "Info '$requiredPath' Info Info Info Info Info.", state)
+            if (precondition.contains("System awareness note") && state.wasDeleted(requiredPath)) {
+                return Triple(false, "System awareness note '$requiredPath' System awareness note System awareness note System awareness note System awareness note System awareness note.", state)
             }
         }
 
-        // Context note Context note Context note Context note Context note
+        // System awareness note System awareness note System awareness note System awareness note System awareness note
         var created = state.createdPaths.toMutableSet()
         var deleted = state.deletedPaths.toMutableSet()
         var modified = state.modifiedPaths.toMutableSet()
@@ -639,7 +639,7 @@ class CausalChainPlanner(
         )
     }
 
-    /** Context note Context note Context note Context note Context note Context note shell Context note Context note. */
+    /** System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note shell System awareness note System awareness note. */
     private fun extractPathFromCommand(command: String): String? {
         val pathRegex = Regex("""[/~][^\s'"]+|'([^']+)'|"([^"]+)"""")
         return pathRegex.find(command)?.let {

@@ -10,14 +10,14 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.exp
 
 /**
- * ToolIntelligenceEngine - Context note Context note Context note Context note
+ * ToolIntelligenceEngine - System awareness note System awareness note System awareness note System awareness note
  * 
- * Context note:
- * 1. Context note Context note Context note Context note (Reinforcement Learning)
- * 2. Context note Context note Context note
- * 3. Context note Context note Context note
- * 4. Context note Context note
- * 5. Context note Context note Context note Context note
+ * System awareness note:
+ * 1. System awareness note System awareness note System awareness note System awareness note (Reinforcement Learning)
+ * 2. System awareness note System awareness note System awareness note
+ * 3. System awareness note System awareness note System awareness note
+ * 4. System awareness note System awareness note
+ * 5. System awareness note System awareness note System awareness note System awareness note
  */
 class ToolIntelligenceEngine(
     private val context: Context,
@@ -100,7 +100,7 @@ class ToolIntelligenceEngine(
     // ═══════════════════════════════════════════════════════════════
     
     /**
-     * Context note Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note System awareness note
      */
     internal fun predictBestTool(
         taskDescription: String,
@@ -112,10 +112,10 @@ class ToolIntelligenceEngine(
         }
         
         val bestTool = if (shouldExplore()) {
-            // Exploration: Context note Context note Context note Context note
+            // Exploration: System awareness note System awareness note System awareness note System awareness note
             availableTools.random()
         } else {
-            // Exploitation: Context note Context note Context note Context note
+            // Exploitation: System awareness note System awareness note System awareness note System awareness note
             scores.maxByOrNull { it.value }?.key ?: availableTools.first()
         }
         
@@ -135,7 +135,7 @@ class ToolIntelligenceEngine(
     }
     
     /**
-     * Context note Context note Context note Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
      */
     private fun calculateToolScore(
         toolName: String,
@@ -152,13 +152,13 @@ class ToolIntelligenceEngine(
             state.successCount.toDouble() / state.executionCount
         } else 0.5
         
-        // Recency score (Context note Context note Context note)
+        // Recency score (System awareness note System awareness note System awareness note)
         val recencyScore = if (state.lastUsed > 0) {
             val hoursSinceUse = (System.currentTimeMillis() - state.lastUsed) / 3600000.0
-            exp(-hoursSinceUse / 24.0) // Context note Context note 24 Context note
+            exp(-hoursSinceUse / 24.0) // System awareness note System awareness note 24 System awareness note
         } else 0.0
         
-        // Performance score (Context note Context note)
+        // Performance score (System awareness note System awareness note)
         val performanceScore = if (state.avgExecutionTime > 0) {
             1.0 - (state.avgExecutionTime.toDouble() / SLOW_THRESHOLD_MS).coerceIn(0.0, 1.0)
         } else 0.5
@@ -180,7 +180,7 @@ class ToolIntelligenceEngine(
     }
     
     /**
-     * Context note Context note Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
      */
     internal suspend fun recordExecution(
         toolName: String,
@@ -246,7 +246,7 @@ class ToolIntelligenceEngine(
     }
     
     /**
-     * Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note
      */
     private fun calculateReward(
         success: Boolean,
@@ -281,7 +281,7 @@ class ToolIntelligenceEngine(
     // ═══════════════════════════════════════════════════════════════
     
     /**
-     * Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note
      */
     private fun detectPatterns() {
         if (executionHistory.size < PATTERN_WINDOW_SIZE) return
@@ -317,12 +317,12 @@ class ToolIntelligenceEngine(
         // Clean old patterns
         val now = System.currentTimeMillis()
         detectedPatterns.entries.removeIf { 
-            (now - it.value.lastSeen) > 7 * 24 * 3600000L // Context note
+            (now - it.value.lastSeen) > 7 * 24 * 3600000L // System awareness note
         }
     }
     
     /**
-     * Context note Context note Context note Context note Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
      */
     private fun calculatePatternScore(
         toolName: String,
@@ -345,7 +345,7 @@ class ToolIntelligenceEngine(
     // ═══════════════════════════════════════════════════════════════
     
     /**
-     * Context note Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note System awareness note
      */
     fun analyzePerformance(): PerformanceReport {
         val recentExecutions = executionHistory.takeLast(PERFORMANCE_WINDOW)
@@ -393,17 +393,17 @@ class ToolIntelligenceEngine(
         val score = scores[tool] ?: 0.0
         
         return buildString {
-            appendLine("🎯 Info Info: $tool")
-            appendLine("📊 Context note Context note: ${(score * 100).toInt()}%")
+            appendLine("🎯 System awareness note System awareness note: $tool")
+            appendLine("📊 System awareness note System awareness note: ${(score * 100).toInt()}%")
             
             state?.let {
                 if (it.executionCount > 0) {
                     val successRate = (it.successCount.toDouble() / it.executionCount * 100).toInt()
-                    appendLine("✅ Info Info: $successRate% (${it.successCount}/${it.executionCount})")
+                    appendLine("✅ System awareness note System awareness note: $successRate% (${it.successCount}/${it.executionCount})")
                 }
                 
                 if (it.avgExecutionTime > 0) {
-                    appendLine("⚡ Info Info Info: ${it.avgExecutionTime}ms")
+                    appendLine("⚡ System awareness note System awareness note System awareness note: ${it.avgExecutionTime}ms")
                 }
             }
             
@@ -412,11 +412,11 @@ class ToolIntelligenceEngine(
                 it.sequence.getOrNull(it.sequence.size - 2) == context.previousTool
             }
             pattern?.let {
-                appendLine("🔗 Info Info Info Info (${it.frequency} Info)")
+                appendLine("🔗 System awareness note System awareness note System awareness note System awareness note (${it.frequency} System awareness note)")
             }
             
             if (shouldExplore() && scores[tool] != scores.maxByOrNull { it.value }?.value) {
-                appendLine("🔍 Info Info - Info Info Info")
+                appendLine("🔍 System awareness note System awareness note - System awareness note System awareness note System awareness note")
             }
         }
     }
@@ -490,7 +490,7 @@ class ToolIntelligenceEngine(
     )
     
     /**
-     * Context note Context note Context note
+     * System awareness note System awareness note System awareness note
      */
     suspend fun persist() = withContext(Dispatchers.IO) {
         try {
@@ -535,7 +535,7 @@ class ToolIntelligenceEngine(
     }
     
     /**
-     * Context note Context note
+     * System awareness note System awareness note
      */
     suspend fun restore() = withContext(Dispatchers.IO) {
         try {

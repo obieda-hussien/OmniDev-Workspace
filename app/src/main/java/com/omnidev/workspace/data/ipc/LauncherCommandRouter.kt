@@ -52,7 +52,7 @@ class LauncherCommandRouter(
     private val memoryManager = MemoryManager(database.knowledgeDao())
     private val completionService = CompletionService()
     private val fileToolManager = FileToolManager()
-    // ── Agent Brain 2.0: Context note Context note Context note Context note OmniDevApp ──
+    // ── Agent Brain 2.0: System awareness note System awareness note System awareness note System awareness note OmniDevApp ──
     private val omniApp = com.omnidev.workspace.OmniDevApp.instance
     private val agentBrainTools = AgentBrainTools(
         reflexion = omniApp.reflexionEngine,

@@ -7,17 +7,17 @@ import kotlinx.coroutines.withContext
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * RepoContextEngine — Context note Context note Live Repository Context (Brain 2.0)
+ * RepoContextEngine — System awareness note System awareness note Live Repository Context (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Context note Context note Context note Context note Context note Context note Context note Agent (Context note AgentBrainTools/RepoContextTools)
- * Context note Context note Context note Context note. Context note Context note SQL-onlyContext note Context note Context note blobs Context note Context note
- * Context note.
+ * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note Agent (System awareness note AgentBrainTools/RepoContextTools)
+ * System awareness note System awareness note System awareness note System awareness note. System awareness note System awareness note SQL-onlySystem awareness note System awareness note System awareness note blobs System awareness note System awareness note
+ * System awareness note.
  *
  * **Mobile-first**:
- * - LIKE-based fuzzy search (Context note + Context note Context note Context note FTS5)
- * - Context note Context note (idx_sym_*)
- * - Context note Context note (50 Context note Context note Context note/Context note) Context note OOM
+ * - LIKE-based fuzzy search (System awareness note + System awareness note System awareness note System awareness note FTS5)
+ * - System awareness note System awareness note (idx_sym_*)
+ * - System awareness note System awareness note (50 System awareness note System awareness note System awareness note/System awareness note) System awareness note OOM
  */
 class RepoContextEngine(
     private val dao: RepoIndexDao,
@@ -42,7 +42,7 @@ class RepoContextEngine(
     // Queries
     // ──────────────────────────────────────────────────────────────────
 
-    /** Fuzzy search Context note Context note/qualified name. */
+    /** Fuzzy search System awareness note System awareness note/qualified name. */
     suspend fun searchSymbols(
         scopePath: String,
         query: String,
@@ -53,7 +53,7 @@ class RepoContextEngine(
         dao.fuzzySearch(scopePath, "%$safe%", safe, limit.coerceAtMost(50))
     }
 
-    /** Context note Context note Context note (e.g. "function" Context note "class"). */
+    /** System awareness note System awareness note System awareness note (e.g. "function" System awareness note "class"). */
     suspend fun symbolsByKind(
         scopePath: String,
         kind: String,
@@ -62,11 +62,11 @@ class RepoContextEngine(
         dao.findByKind(scopePath, kind, limit.coerceAtMost(100))
     }
 
-    /** Context note Context note Context note Context note (Context note Context note). */
+    /** System awareness note System awareness note System awareness note System awareness note (System awareness note System awareness note). */
     suspend fun fileSymbols(scopePath: String, filePath: String): List<RepoSymbolEntry> =
         withContext(Dispatchers.IO) { dao.getFileSymbols(scopePath, filePath) }
 
-    /** Context note Context note Context note qualified name (e.g. com.example.Foo.bar). */
+    /** System awareness note System awareness note System awareness note qualified name (e.g. com.example.Foo.bar). */
     suspend fun findByQualifiedName(
         scopePath: String,
         qname: String
@@ -75,7 +75,7 @@ class RepoContextEngine(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Stats — Context note Context note system prompt
+    // Stats — System awareness note System awareness note system prompt
     // ──────────────────────────────────────────────────────────────────
 
     data class ScopeStats(
@@ -92,18 +92,18 @@ class RepoContextEngine(
         )
     }
 
-    /** Context note Context note Context note Context note Context note Context note Context note system prompt. */
+    /** System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note system prompt. */
     suspend fun buildContextSummary(scopePath: String, maxChars: Int = 400): String =
         withContext(Dispatchers.IO) {
             val stats = getStats(scopePath)
             if (stats.fileCount == 0) return@withContext ""
             buildString {
                 appendLine("\n📂 Live Repo Context: $scopePath")
-                appendLine("Info: ${stats.fileCount} | Info: ${stats.symbolCount}")
+                appendLine("System awareness note: ${stats.fileCount} | System awareness note: ${stats.symbolCount}")
                 if (stats.languages.isNotEmpty()) {
                     val top = stats.languages.take(5)
                         .joinToString(", ") { "${it.first}(${it.second})" }
-                    appendLine("Info: $top")
+                    appendLine("System awareness note: $top")
                 }
             }.take(maxChars)
         }

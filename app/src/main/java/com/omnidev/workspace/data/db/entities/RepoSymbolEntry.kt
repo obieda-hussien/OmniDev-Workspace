@@ -5,15 +5,15 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * RepoSymbolEntry — Context note (class/function/variable...) Context note Context note Context note Context note.
+ * RepoSymbolEntry — System awareness note (class/function/variable...) System awareness note System awareness note System awareness note System awareness note.
  *
  * Mobile-first:
- * - Context note Context note Context note regex (Context note Tree-sitter Context note Compiler) — Context note 2 GB RAM
- * - snippet ≤ 240 Context note (Context note Context note Context note)
- * - 5000 Context note Context note Context note Context note scope Context note LRU eviction
+ * - System awareness note System awareness note System awareness note regex (System awareness note Tree-sitter System awareness note Compiler) — System awareness note 2 GB RAM
+ * - snippet ≤ 240 System awareness note (System awareness note System awareness note System awareness note)
+ * - 5000 System awareness note System awareness note System awareness note System awareness note scope System awareness note LRU eviction
  *
  * @property symbolKind class | object | interface | function | variable | property | enum
- * @property qualifiedName Context note Context note Context note Context note (e.g. "com.example.Foo.bar")
+ * @property qualifiedName System awareness note System awareness note System awareness note System awareness note (e.g. "com.example.Foo.bar")
  */
 @Entity(
     tableName = "repo_symbols",

@@ -6,14 +6,14 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * ToolMonitoringSystem — Comprehensive monitoring and tracking system for all tools
+ * ToolMonitoringSystem — System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
  * 
- * Features:
- * - Real-time performance tracking
- * - Bottleneck and slowness detection
- * - Smart alerts on repeated failures
- * - Pattern analysis and issue prediction
- * - Detailed resource usage reporting
+ * System awareness note:
+ * - System awareness note System awareness note System awareness note System awareness note System awareness note
+ * - System awareness note System awareness note System awareness note
+ * - System awareness note System awareness note System awareness note System awareness note System awareness note
+ * - System awareness note System awareness note System awareness note System awareness note
+ * - System awareness note System awareness note System awareness note System awareness note System awareness note
  */
 object ToolMonitoringSystem {
     private const val TAG = "ToolMonitor"
@@ -22,20 +22,20 @@ object ToolMonitoringSystem {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     
     // ═══════════════════════════════════════════════════════════════
-    // Monitored data
+    // System awareness note System awareness note
     // ═══════════════════════════════════════════════════════════════
     
     private val executionMetrics = ConcurrentHashMap<String, ToolMetrics>()
     private val activeExecutions = ConcurrentHashMap<String, ExecutionTrace>()
     private val realtimeEvents = MutableSharedFlow<MonitoringEvent>(replay = 100)
     
-    // Global counters
+    // System awareness note System awareness note
     private val totalExecutions = AtomicLong(0)
     private val totalFailures = AtomicLong(0)
     private val totalRetries = AtomicLong(0)
     
     // ═══════════════════════════════════════════════════════════════
-    // Context note Context note
+    // System awareness note System awareness note
     // ═══════════════════════════════════════════════════════════════
     
     data class ToolMetrics(
@@ -78,11 +78,11 @@ object ToolMonitoringSystem {
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // API Context note
+    // API System awareness note
     // ═══════════════════════════════════════════════════════════════
     
     /**
-     * Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note
      */
     fun startExecution(
         toolName: String,
@@ -101,7 +101,7 @@ object ToolMonitoringSystem {
         activeExecutions[traceId] = trace
         totalExecutions.incrementAndGet()
         
-        // Context note Context note Context note
+        // System awareness note System awareness note System awareness note
         scope.launch {
             realtimeEvents.emit(
                 MonitoringEvent.ToolStarted(toolName, traceId, trace.startTime)
@@ -112,7 +112,7 @@ object ToolMonitoringSystem {
     }
     
     /**
-     * Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note
      */
     fun endExecution(
         traceId: String,
@@ -122,7 +122,7 @@ object ToolMonitoringSystem {
         val trace = activeExecutions.remove(traceId) ?: return
         val durationMs = System.currentTimeMillis() - trace.startTime
         
-        // Context note Context note
+        // System awareness note System awareness note
         val metrics = executionMetrics.getOrPut(trace.toolName) {
             ToolMetrics(trace.toolName)
         }
@@ -147,7 +147,7 @@ object ToolMonitoringSystem {
             metrics.lastExecutionTime = System.currentTimeMillis()
             metrics.avgDurationMs = metrics.totalDurationMs.toDouble() / metrics.executionCount
             
-            // Context note Context note Context note
+            // System awareness note System awareness note System awareness note
             metrics.performanceHistory.add(
                 PerformanceSnapshot(
                     timestamp = System.currentTimeMillis(),
@@ -157,13 +157,13 @@ object ToolMonitoringSystem {
                 )
             )
             
-            // Context note Context note Context note
+            // System awareness note System awareness note System awareness note
             if (metrics.performanceHistory.size > 500) {
                 metrics.performanceHistory.removeAt(0)
             }
         }
         
-        // Context note Context note
+        // System awareness note System awareness note
         scope.launch {
             realtimeEvents.emit(
                 MonitoringEvent.ToolCompleted(trace.toolName, traceId, durationMs, success)
@@ -175,14 +175,14 @@ object ToolMonitoringSystem {
                 )
             }
             
-            // Context note Context note Context note
+            // System awareness note System awareness note System awareness note
             if (durationMs > 5000) {
                 realtimeEvents.emit(
                     MonitoringEvent.SlowExecution(trace.toolName, durationMs, 5000)
                 )
             }
             
-            // Context note Context note Context note Context note
+            // System awareness note System awareness note System awareness note System awareness note
             val failureRate = metrics.failureCount.toDouble() / metrics.executionCount
             if (metrics.executionCount >= 10 && failureRate > 0.3) {
                 realtimeEvents.emit(
@@ -190,27 +190,27 @@ object ToolMonitoringSystem {
                 )
             }
             
-            // Context note Context note
+            // System awareness note System awareness note
             detectAnomalies(trace.toolName, metrics)
         }
     }
     
     /**
-     * Context note Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note System awareness note
      */
     fun getToolMetrics(toolName: String): ToolMetrics? {
         return executionMetrics[toolName]
     }
     
     /**
-     * Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note
      */
     fun getAllMetrics(): Map<String, ToolMetrics> {
         return executionMetrics.toMap()
     }
     
     /**
-     * Context note Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note System awareness note
      */
     fun getMostUsedTools(limit: Int = 10): List<Pair<String, Long>> {
         return executionMetrics.entries
@@ -220,7 +220,7 @@ object ToolMonitoringSystem {
     }
     
     /**
-     * Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note
      */
     fun getSlowestTools(limit: Int = 10): List<Pair<String, Double>> {
         return executionMetrics.entries
@@ -230,7 +230,7 @@ object ToolMonitoringSystem {
     }
     
     /**
-     * Context note Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note System awareness note
      */
     fun getMostFailedTools(limit: Int = 10): List<Pair<String, Long>> {
         return executionMetrics.entries
@@ -240,12 +240,12 @@ object ToolMonitoringSystem {
     }
     
     /**
-     * Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note
      */
     fun getEventStream(): SharedFlow<MonitoringEvent> = realtimeEvents.asSharedFlow()
     
     /**
-     * Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note
      */
     fun resetAllMetrics() {
         executionMetrics.clear()
@@ -256,7 +256,7 @@ object ToolMonitoringSystem {
     }
     
     /**
-     * Context note Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note System awareness note
      */
     fun generateSystemReport(): SystemHealthReport {
         val now = System.currentTimeMillis()
@@ -266,22 +266,22 @@ object ToolMonitoringSystem {
         val totalFails = totalFailures.get()
         val globalFailureRate = if (totalExecs > 0) totalFails.toDouble() / totalExecs else 0.0
         
-        // Context note Context note Context note
+        // System awareness note System awareness note System awareness note
         val activeTools = activeExecutions.values.groupBy { it.toolName }
             .mapValues { it.value.size }
         
-        // Context note Context note (Context note Context note > 50%)
+        // System awareness note System awareness note (System awareness note System awareness note > 50%)
         val brokenTools = allMetrics.filter { (_, metrics) ->
             metrics.executionCount >= 5 && 
             metrics.failureCount.toDouble() / metrics.executionCount > 0.5
         }.keys.toList()
         
-        // Context note Context note (Context note > 3 Context note)
+        // System awareness note System awareness note (System awareness note > 3 System awareness note)
         val slowTools = allMetrics.filter { (_, metrics) ->
             metrics.avgDurationMs > 3000
         }.keys.toList()
         
-        // Context note Context note Context note
+        // System awareness note System awareness note System awareness note
         val topErrors = allMetrics.values
             .flatMap { it.errorFrequency.entries }
             .groupBy { it.key }
@@ -310,11 +310,11 @@ object ToolMonitoringSystem {
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // Context note Context note Context note
+    // System awareness note System awareness note System awareness note
     // ═══════════════════════════════════════════════════════════════
     
     private suspend fun detectAnomalies(toolName: String, metrics: ToolMetrics) {
-        // 1. Context note Context note Context note Context note Context note Context note
+        // 1. System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
         if (metrics.performanceHistory.size >= 20) {
             val recentAvg = metrics.performanceHistory.takeLast(5)
                 .filter { it.success }
@@ -338,7 +338,7 @@ object ToolMonitoringSystem {
             }
         }
         
-        // 2. Context note Context note Context note
+        // 2. System awareness note System awareness note System awareness note
         val recentFailures = metrics.performanceHistory.takeLast(5).count { !it.success }
         if (recentFailures >= 3) {
             realtimeEvents.emit(
@@ -350,7 +350,7 @@ object ToolMonitoringSystem {
             )
         }
         
-        // 3. Context note Context note Context note
+        // 3. System awareness note System awareness note System awareness note
         val recentErrors = metrics.performanceHistory.takeLast(10)
             .mapNotNull { it.errorType }
             .toSet()
@@ -373,7 +373,7 @@ object ToolMonitoringSystem {
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // Context note Context note
+    // System awareness note System awareness note
     // ═══════════════════════════════════════════════════════════════
     
     private fun generateTraceId(): String {
@@ -394,7 +394,7 @@ object ToolMonitoringSystem {
     }
     
     // ═══════════════════════════════════════════════════════════════
-    // Context note Context note Context note
+    // System awareness note System awareness note System awareness note
     // ═══════════════════════════════════════════════════════════════
     
     data class SystemHealthReport(
@@ -474,7 +474,7 @@ object ToolMonitoringSystem {
 }
 
 /**
- * Extension function Context note Context note Context note Context note
+ * Extension function System awareness note System awareness note System awareness note System awareness note
  */
 suspend inline fun <T> monitoredExecution(
     toolName: String,

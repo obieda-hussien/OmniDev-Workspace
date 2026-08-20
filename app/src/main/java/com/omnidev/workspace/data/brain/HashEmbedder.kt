@@ -6,32 +6,32 @@ import kotlin.math.sqrt
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * HashEmbedder — Context note Embedding Context note Context note Context note (Brain 2.0)
+ * HashEmbedder — System awareness note Embedding System awareness note System awareness note System awareness note (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
  * Mobile-first by design:
- *   - 0 RAM Context note (statelessContext note singleton object)
- *   - 0 disk I/O (Context note Context note Context note)
- *   - ~0.5 ms Context note 100 Context note Context note Snapdragon 660
- *   - Context note offline Context note
+ *   - 0 RAM System awareness note (statelessSystem awareness note singleton object)
+ *   - 0 disk I/O (System awareness note System awareness note System awareness note)
+ *   - ~0.5 ms System awareness note 100 System awareness note System awareness note Snapdragon 660
+ *   - System awareness note offline System awareness note
  *
- * **Context note**: hashing trick + character n-grams + bigrams.
+ * **System awareness note**: hashing trick + character n-grams + bigrams.
  *   1) Tokenize (lowercase + diacritic strip + punctuation strip)
- *   2) Context note stop-words Context note/Context note Context note
- *   3) Context note token: hash(word) → indexContext note Context note Context note Context note
- *   4) Context note token: char 3-grams Context note 4-grams → Context note Context note
- *   5) bigrams Context note tokens Context note
- *   6) L2-normalize → cosine similarity Context note Context note vector Context note
+ *   2) System awareness note stop-words System awareness note/System awareness note System awareness note
+ *   3) System awareness note token: hash(word) → indexSystem awareness note System awareness note System awareness note System awareness note
+ *   4) System awareness note token: char 3-grams System awareness note 4-grams → System awareness note System awareness note
+ *   5) bigrams System awareness note tokens System awareness note
+ *   6) L2-normalize → cosine similarity System awareness note System awareness note vector System awareness note
  *
- * Context note Context note Context note Context note Context note Context note Context note Context note Context note/Context note.
- * Context note Context note TF-IDF Context note retrievalContext note Context note Context note Context note any embedding model.
+ * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note/System awareness note.
+ * System awareness note System awareness note TF-IDF System awareness note retrievalSystem awareness note System awareness note System awareness note System awareness note any embedding model.
  */
 object HashEmbedder {
 
-    /** Context note Context note embedding — 256 floats × 4 bytes = 1024 bytes. */
+    /** System awareness note System awareness note embedding — 256 floats × 4 bytes = 1024 bytes. */
     const val DIM = 256
 
-    /** Stop-words Context note Context note Context note (Context note Context note Context note embedding). */
+    /** Stop-words System awareness note System awareness note System awareness note (System awareness note System awareness note System awareness note embedding). */
     private val STOP_WORDS = setOf(
         // English
         "the", "a", "an", "and", "or", "but", "is", "are", "was", "were", "be",
@@ -39,9 +39,9 @@ object HashEmbedder {
         "in", "on", "for", "with", "at", "by", "from", "as", "this", "that",
         "it", "its", "i", "you", "he", "she", "we", "they", "them",
         // Arabic
-        "Info", "Info", "Info", "Info", "Info", "Info", "Info", "Info", "Info", "Info",
-        "Info", "Info", "Info", "Info", "Info", "Info", "Info", "Info", "Info", "Info",
-        "Info", "Info", "Info", "Info", "Info", "Info", "Info"
+        "System awareness note", "System awareness note", "System awareness note", "System awareness note", "System awareness note", "System awareness note", "System awareness note", "System awareness note", "System awareness note", "System awareness note",
+        "System awareness note", "System awareness note", "System awareness note", "System awareness note", "System awareness note", "System awareness note", "System awareness note", "System awareness note", "System awareness note", "System awareness note",
+        "System awareness note", "System awareness note", "System awareness note", "System awareness note", "System awareness note", "System awareness note", "System awareness note"
     )
 
     private const val MAX_TOKENS = 200
@@ -50,7 +50,7 @@ object HashEmbedder {
     // Public API
     // ──────────────────────────────────────────────────────────────────
 
-    /** Context note embedding L2-normalized Context note. */
+    /** System awareness note embedding L2-normalized System awareness note. */
     fun embed(text: String): FloatArray {
         if (text.isBlank()) return FloatArray(DIM)
 
@@ -63,7 +63,7 @@ object HashEmbedder {
             addHashed(vec, tok, weight = 1.0f)
         }
 
-        // 2) char n-grams (3 Context note 4) — Context note Context note Context note
+        // 2) char n-grams (3 System awareness note 4) — System awareness note System awareness note System awareness note
         for (tok in tokens) {
             if (tok.length < 3) continue
             for (n in 3..4) {
@@ -74,7 +74,7 @@ object HashEmbedder {
             }
         }
 
-        // 3) bigrams Context note tokens Context note (Context note Context note)
+        // 3) bigrams System awareness note tokens System awareness note (System awareness note System awareness note)
         for (i in 0 until tokens.size - 1) {
             addHashed(vec, "${tokens[i]}_${tokens[i + 1]}", weight = 0.3f)
         }
@@ -83,7 +83,7 @@ object HashEmbedder {
         return vec
     }
 
-    /** Cosine similarity Context note Context note L2-normalized — Context note dot product. */
+    /** Cosine similarity System awareness note System awareness note L2-normalized — System awareness note dot product. */
     fun cosine(a: FloatArray, b: FloatArray): Float {
         if (a.size != b.size) return 0f
         var sum = 0f
@@ -92,7 +92,7 @@ object HashEmbedder {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Serialization (FloatArray ↔ ByteArray) Context note Context note Room
+    // Serialization (FloatArray ↔ ByteArray) System awareness note System awareness note Room
     // ──────────────────────────────────────────────────────────────────
 
     fun toBytes(vec: FloatArray): ByteArray {
@@ -136,8 +136,8 @@ object HashEmbedder {
     }
 
     /**
-     * Hashing trick: Context note 2 indices Context note Context note vector + Context note Context note Context note Context note hash.
-     * Context note Context note Context note Context note Context note Context note Context note double-hashing Context note.
+     * Hashing trick: System awareness note 2 indices System awareness note System awareness note vector + System awareness note System awareness note System awareness note System awareness note hash.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note double-hashing System awareness note.
      */
     private fun addHashed(vec: FloatArray, token: String, weight: Float) {
         val h = stableHash(token)
@@ -146,7 +146,7 @@ object HashEmbedder {
         vec[idx] += sign * weight
     }
 
-    /** Murmur-like 32-bit hash. Context note Context note Context note Context note JVM (Context note Context note Context note String.hashCode). */
+    /** Murmur-like 32-bit hash. System awareness note System awareness note System awareness note System awareness note JVM (System awareness note System awareness note System awareness note String.hashCode). */
     private fun stableHash(s: String): Int {
         var h = 0x9E3779B1.toInt()
         for (i in s.indices) {

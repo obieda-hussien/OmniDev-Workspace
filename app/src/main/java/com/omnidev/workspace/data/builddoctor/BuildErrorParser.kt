@@ -4,23 +4,23 @@ import java.security.MessageDigest
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * BuildErrorParser — Context note Context note Context note (Build Doctor Pro / Brain 2.0)
+ * BuildErrorParser — System awareness note System awareness note System awareness note (Build Doctor Pro / Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Context note Context note stdout/stderr Context note build:
- *   - Context note Context note Context note Context note (file:line:col)
- *   - Context note Context note (compile / link / dependency / resource / runtime / config)
- *   - Context note (fingerprint) Context note Context note Context note Context note
+ * System awareness note System awareness note stdout/stderr System awareness note build:
+ *   - System awareness note System awareness note System awareness note System awareness note (file:line:col)
+ *   - System awareness note System awareness note (compile / link / dependency / resource / runtime / config)
+ *   - System awareness note (fingerprint) System awareness note System awareness note System awareness note System awareness note
  *
- * **Mobile-first**: regex-based Context note Context note parsing Context note Context note alloc Context note.
- * Context note 1 MB stdout Context note < 50 ms Context note Snapdragon 660.
+ * **Mobile-first**: regex-based System awareness note System awareness note parsing System awareness note System awareness note alloc System awareness note.
+ * System awareness note 1 MB stdout System awareness note < 50 ms System awareness note Snapdragon 660.
  */
 object BuildErrorParser {
 
-    /** Context note Context note Context note Context note Context note. */
+    /** System awareness note System awareness note System awareness note System awareness note System awareness note. */
     private const val MAX_MESSAGE_LEN = 600
 
-    /** Context note Context note Context note Context note Context note stdout Context note. */
+    /** System awareness note System awareness note System awareness note System awareness note System awareness note stdout System awareness note. */
     private const val MAX_ERRORS_PER_BUILD = 50
 
     data class ParsedError(
@@ -48,7 +48,7 @@ object BuildErrorParser {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Patterns — Context note Context note Context note Context note Context note Context note
+    // Patterns — System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
     // ──────────────────────────────────────────────────────────────────
 
     // Kotlin / Java: e:/path/Foo.kt:12:8 error: ...
@@ -101,7 +101,7 @@ object BuildErrorParser {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * Context note output Context note build Context note Context note Context note Context note (≤ MAX_ERRORS_PER_BUILD).
+     * System awareness note output System awareness note build System awareness note System awareness note System awareness note System awareness note (≤ MAX_ERRORS_PER_BUILD).
      */
     fun parse(buildOutput: String): List<ParsedError> {
         if (buildOutput.isBlank()) return emptyList()
@@ -118,7 +118,7 @@ object BuildErrorParser {
         return out
     }
 
-    /** Context note Context note Context note (Context note Context note streaming). */
+    /** System awareness note System awareness note System awareness note (System awareness note System awareness note streaming). */
     fun parseLine(line: String): ParsedError? {
         // 1) Kotlin
         KOTLIN_ERROR.find(line)?.let { m ->
@@ -146,7 +146,7 @@ object BuildErrorParser {
                 rawLine = line
             )
         }
-        // 5) Hints Context note Context note Context note
+        // 5) Hints System awareness note System awareness note System awareness note
         if (DEPENDENCY_HINT.containsMatchIn(line)) {
             return makeError(Category.DEPENDENCY, line.take(MAX_MESSAGE_LEN), "", 0, 0, line)
         }
@@ -162,7 +162,7 @@ object BuildErrorParser {
         return null
     }
 
-    /** Context note Context note (16 hex) Context note Context note Context note Context note Context note Context note. */
+    /** System awareness note System awareness note (16 hex) System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note. */
     fun fingerprint(message: String, category: String = ""): String {
         val normalized = (category.ifBlank { "" } + " " + message)
             .replace(Regex("/[\\w./_-]+"), "/PATH")

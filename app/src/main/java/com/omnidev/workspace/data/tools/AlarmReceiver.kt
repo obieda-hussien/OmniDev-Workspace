@@ -13,15 +13,15 @@ import androidx.core.app.NotificationCompat
 import java.util.Calendar
 
 /**
- * BroadcastReceiver Context note Context note Context note Context note AlarmManager.
- * (Context note Context note AndroidManifest.xml)
+ * BroadcastReceiver System awareness note System awareness note System awareness note System awareness note AlarmManager.
+ * (System awareness note System awareness note AndroidManifest.xml)
  */
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val title = intent.getStringExtra("title") ?: "Info"
-        Log.i("AlarmReceiver", "🔔 Info Info: \$title")
+        val title = intent.getStringExtra("title") ?: "System awareness note"
+        Log.i("AlarmReceiver", "🔔 System awareness note System awareness note: \$title")
 
-        // Context note Context note Context note Context note Context note
+        // System awareness note System awareness note System awareness note System awareness note System awareness note
         try {
             val alarmIntent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -32,15 +32,15 @@ class AlarmReceiver : BroadcastReceiver() {
             }
             context.startActivity(alarmIntent)
         } catch (_: Exception) {
-            // fallback: notification Context note
+            // fallback: notification System awareness note
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val ch = NotificationChannel("alarm_ch", "Info", NotificationManager.IMPORTANCE_HIGH)
+                val ch = NotificationChannel("alarm_ch", "System awareness note", NotificationManager.IMPORTANCE_HIGH)
                 nm.createNotificationChannel(ch)
             }
             val notif = NotificationCompat.Builder(context, "alarm_ch")
                 .setContentTitle("⏰ \$title")
-                .setContentText("Info Info!")
+                .setContentText("System awareness note System awareness note!")
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setAutoCancel(true)
                 .build()

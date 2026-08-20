@@ -7,9 +7,9 @@ import androidx.room.Query
 import com.omnidev.workspace.data.db.entities.EpisodicMemoryEntry
 
 /**
- * DAO Context note episodic_memory. Context note Context note two-stage retrieval:
- *   - SQL pre-filter (outcome / recent) Context note candidates Context note
- *   - cosine ranking Context note JVM (≤ 80 candidate)
+ * DAO System awareness note episodic_memory. System awareness note System awareness note two-stage retrieval:
+ *   - SQL pre-filter (outcome / recent) System awareness note candidates System awareness note
+ *   - cosine ranking System awareness note JVM (≤ 80 candidate)
  */
 @Dao
 interface EpisodicMemoryDao {
@@ -41,7 +41,7 @@ interface EpisodicMemoryDao {
     @Query("SELECT COUNT(*) FROM episodic_memory")
     suspend fun count(): Int
 
-    /** LRU eviction Context note (Context note Context note Context note 2000 episode). */
+    /** LRU eviction System awareness note (System awareness note System awareness note System awareness note 2000 episode). */
     @Query("""
         DELETE FROM episodic_memory
         WHERE id IN (

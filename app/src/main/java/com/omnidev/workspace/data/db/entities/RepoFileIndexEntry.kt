@@ -5,15 +5,15 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * RepoFileIndexEntry — Context note Context note Context note Context note Live Repository Context Engine.
+ * RepoFileIndexEntry — System awareness note System awareness note System awareness note System awareness note Live Repository Context Engine.
  *
- * Context note Context note Context note Context note (incremental indexing): Context note Context note Context note
- * Context note Context note Context note mtime Context note Context note — Context note Context note Context note Context note 5000 Context note Context note
- * Context note Android Context note.
+ * System awareness note System awareness note System awareness note System awareness note (incremental indexing): System awareness note System awareness note System awareness note
+ * System awareness note System awareness note System awareness note mtime System awareness note System awareness note — System awareness note System awareness note System awareness note System awareness note 5000 System awareness note System awareness note
+ * System awareness note Android System awareness note.
  *
- * @property scopePath Context note Context note Context note (Context note Context note Context note Context note)
- * @property contentHash SHA-256 Context note (16 hex) Context note Context note Context note Context note-Context note
- * @property skipReason Context note Context note Context note (binary/large/excluded) → Context note Context note
+ * @property scopePath System awareness note System awareness note System awareness note (System awareness note System awareness note System awareness note System awareness note)
+ * @property contentHash SHA-256 System awareness note (16 hex) System awareness note System awareness note System awareness note System awareness note-System awareness note
+ * @property skipReason System awareness note System awareness note System awareness note (binary/large/excluded) → System awareness note System awareness note
  */
 @Entity(
     tableName = "repo_file_index",

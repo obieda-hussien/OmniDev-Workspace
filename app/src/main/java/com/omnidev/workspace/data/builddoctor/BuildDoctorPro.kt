@@ -9,23 +9,23 @@ import kotlinx.coroutines.withContext
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * BuildDoctorPro — Context note Context note Context note (Brain 2.0)
+ * BuildDoctorPro — System awareness note System awareness note System awareness note (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Mobile-first: Context note Context note Context note Context note Context note Context note/Context note Context note Context note:
+ * Mobile-first: System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note/System awareness note System awareness note System awareness note:
  *
- *   1) **Fingerprint-based dedup**: Context note Context note Context note Context note Context note Context note Context note
- *      Context note Context note.
+ *   1) **Fingerprint-based dedup**: System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
+ *      System awareness note System awareness note.
  *
- *   2) **Solution memory**: Context note Context note Context note Context note (Context note Agent Context note Context note Context note Context note)Context note
- *      Context note Context note diff Context note Deflate Context note Context note Context note Context note Context note.
+ *   2) **Solution memory**: System awareness note System awareness note System awareness note System awareness note (System awareness note Agent System awareness note System awareness note System awareness note System awareness note)System awareness note
+ *      System awareness note System awareness note diff System awareness note Deflate System awareness note System awareness note System awareness note System awareness note System awareness note.
  *
- *   3) **Confidence ranking**: Context note Context note successfulFixCount > 0 Context note Context note.
- *      Context note Context note Context note Context note Context note Context note Context note.
+ *   3) **Confidence ranking**: System awareness note System awareness note successfulFixCount > 0 System awareness note System awareness note.
+ *      System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
  *
- *   4) **500 Context note max + LRU eviction** (Context note < 5 MB Context note).
+ *   4) **500 System awareness note max + LRU eviction** (System awareness note < 5 MB System awareness note).
  *
- *   5) **No external deps**: Context note API callsContext note Context note LLM. Context note regex + SQL Context note.
+ *   5) **No external deps**: System awareness note API callsSystem awareness note System awareness note LLM. System awareness note regex + SQL System awareness note.
  */
 class BuildDoctorPro(
     private val dao: BuildDiagnosticDao,
@@ -37,7 +37,7 @@ class BuildDoctorPro(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Diagnose — Context note + Context note Context note Context note Context note
+    // Diagnose — System awareness note + System awareness note System awareness note System awareness note System awareness note
     // ──────────────────────────────────────────────────────────────────
 
     data class Diagnosis(
@@ -60,10 +60,10 @@ class BuildDoctorPro(
     )
 
     /**
-     * Context note output Context note buildContext note Context note:
-     *   - Context note Context note
-     *   - Context note Context note (Context note Context note Context note)
-     *   - Context note Context note (Context note Context note Context note Context note)
+     * System awareness note output System awareness note buildSystem awareness note System awareness note:
+     *   - System awareness note System awareness note
+     *   - System awareness note System awareness note (System awareness note System awareness note System awareness note)
+     *   - System awareness note System awareness note (System awareness note System awareness note System awareness note System awareness note)
      */
     suspend fun diagnose(
         buildOutput: String,
@@ -107,7 +107,7 @@ class BuildDoctorPro(
                     )
                 }
             } else {
-                // Context note Context note Context note Context note Context note
+                // System awareness note System awareness note System awareness note System awareness note System awareness note
                 val files = if (err.filePath.isNotBlank()) err.filePath.take(200) else ""
                 val now = System.currentTimeMillis()
                 val entry = BuildDiagnosticEntry(
@@ -148,14 +148,14 @@ class BuildDoctorPro(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Solution recording (Context note Context note Context note Context note)
+    // Solution recording (System awareness note System awareness note System awareness note System awareness note)
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * Context note Context note Context note Context note: Context note Context note diff Context note Context note Context note.
-     * @param fingerprint Context note Context note
-     * @param solutionDiff Context note diff Context note Context note Context note Agent (Context note)
-     * @param explanation Context note Context note Context note (≤ 200 Context note)
+     * System awareness note System awareness note System awareness note System awareness note: System awareness note System awareness note diff System awareness note System awareness note System awareness note.
+     * @param fingerprint System awareness note System awareness note
+     * @param solutionDiff System awareness note diff System awareness note System awareness note System awareness note Agent (System awareness note)
+     * @param explanation System awareness note System awareness note System awareness note (≤ 200 System awareness note)
      */
     suspend fun recordSuccessfulFix(
         fingerprint: String,
@@ -182,7 +182,7 @@ class BuildDoctorPro(
         }
     }
 
-    /** Context note Context note Context note (Context note Context note Context note Context note Context note Context note). */
+    /** System awareness note System awareness note System awareness note (System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note). */
     suspend fun recordFailedFix(fingerprint: String) = withContext(Dispatchers.IO) {
         try {
             val existing = dao.findByFingerprint(fingerprint) ?: return@withContext

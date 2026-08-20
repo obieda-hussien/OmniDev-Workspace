@@ -16,20 +16,20 @@ import java.io.File
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * ToolAwarenessEngine — Tool and System Awareness Engine
+ * ToolAwarenessEngine — Tool & System Awareness Engine
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Builds deep, continuous awareness about:
+ * Builds deep, continuous awareness regarding:
  * 1. Available tools, capabilities, and requirements
- * 2. System state and environment (Android, Termux, Shizuku, etc.)
- * 3. Dependencies between tools
- * 4. Limitations and boundaries for each tool
+ * 2. System & environment state (Android, Termux, Shizuku, etc.)
+ * 3. Tool dependencies
+ * 4. Tool boundaries and limitations
  * 5. Best usage strategies
  *
  * Inspired by Claude Code approach to:
- * - Understanding environment before execution
- * - Updating knowledge based on experience
- * - Providing smart context enrichment
+ * - Environment understanding prior to execution
+ * - Knowledge updates based on execution history
+ * - Smart context enrichment
  */
 class ToolAwarenessEngine(
     private val context: Context,
@@ -40,7 +40,7 @@ class ToolAwarenessEngine(
     companion object {
         private const val TAG = "ToolAwareness"
 
-        // Knowledge types
+        // Knowledge categories
         const val TYPE_TOOL_CAPABILITY = "TOOL_CAPABILITY"
         const val TYPE_TOOL_REQUIREMENT = "TOOL_REQUIREMENT"
         const val TYPE_TOOL_LIMITATION = "TOOL_LIMITATION"
@@ -53,43 +53,43 @@ class ToolAwarenessEngine(
         const val TYPE_ENVIRONMENT = "ENVIRONMENT"
     }
 
-    // ─── Context note Context note ───────────────────────────────────────────────
+    // ─── System awareness note System awareness note ───────────────────────────────────────────────
 
     private val runtimeEnvironmentCache = mutableMapOf<String, String>()
     private var isInitialized = false
 
-    // ─── Context note Context note ───────────────────────────────────────────────
+    // ─── System awareness note System awareness note ───────────────────────────────────────────────
 
     /**
-     * Context note Context note: Context note Context note Context note Context note Context note
+     * System awareness note System awareness note: System awareness note System awareness note System awareness note System awareness note System awareness note
      */
     suspend fun initialize(availableTools: List<ToolDefinition> = emptyList()) = withContext(Dispatchers.IO) {
         if (isInitialized) return@withContext
         
-        Log.d(TAG, "🔍 Info Info Info Info...")
+        Log.d(TAG, "🔍 System awareness note System awareness note System awareness note System awareness note...")
 
-        // 1. Context note Context note Context note
+        // 1. System awareness note System awareness note System awareness note
         discoverSystemEnvironment()
 
-        // 2. Context note Context note Context note
+        // 2. System awareness note System awareness note System awareness note
         if (availableTools.isNotEmpty()) {
             registerToolCapabilities(availableTools)
         }
 
-        // 3. Context note Context note Context note
+        // 3. System awareness note System awareness note System awareness note
         discoverDeviceCapabilities()
 
-        // 4. Context note Context note Context note
+        // 4. System awareness note System awareness note System awareness note
         discoverRuntimeEnvironments()
 
-        // 5. Context note Context note Context note Context note
+        // 5. System awareness note System awareness note System awareness note System awareness note
         registerInitialBestPractices()
 
         isInitialized = true
-        Log.d(TAG, "✅ System discovery completed - ${systemKnowledgeDao.getCount()} Knowledge saved")
+        Log.d(TAG, "✅ System environment discovery completed - ${systemKnowledgeDao.getCount()} entries saved")
     }
 
-    // ─── Context note Context note ───────────────────────────────────────────────
+    // ─── System awareness note System awareness note ───────────────────────────────────────────────
 
     private suspend fun discoverSystemEnvironment() {
         val deviceInfo = buildString {
@@ -107,22 +107,22 @@ class ToolAwarenessEngine(
             tags = "android,device,sdk,system"
         )
 
-        // Context note Android API
+        // System awareness note Android API
         val apiLevel = Build.VERSION.SDK_INT
         when {
             apiLevel >= 33 -> saveOrUpdateKnowledge(
                 type = TYPE_SYSTEM_INFO, subject = "android_api",
-                content = "Android 13+ (API $apiLevel): Info Info. MediaStore Info Scoped Storage Info.",
+                content = "Android 13+ (API $apiLevel): System awareness note System awareness note. MediaStore System awareness note Scoped Storage System awareness note.",
                 priority = 2
             )
             apiLevel >= 30 -> saveOrUpdateKnowledge(
                 type = TYPE_SYSTEM_INFO, subject = "android_api",
-                content = "Android 11+ (API $apiLevel): Scoped Storage. Info Info Info Info MANAGE_EXTERNAL_STORAGE.",
+                content = "Android 11+ (API $apiLevel): Scoped Storage. System awareness note System awareness note System awareness note System awareness note MANAGE_EXTERNAL_STORAGE.",
                 priority = 2
             )
             apiLevel >= 26 -> saveOrUpdateKnowledge(
                 type = TYPE_SYSTEM_INFO, subject = "android_api",
-                content = "Android 8+ (API $apiLevel): JobScheduler Info. Background Limits Info.",
+                content = "Android 8+ (API $apiLevel): JobScheduler System awareness note. Background Limits System awareness note.",
                 priority = 3
             )
         }
@@ -131,36 +131,36 @@ class ToolAwarenessEngine(
     private suspend fun discoverDeviceCapabilities() {
         val pm = context.packageManager
 
-        // Context note Context note
+        // System awareness note System awareness note
         val hasCamera = pm.hasSystemFeature("android.hardware.camera")
         if (hasCamera) {
-            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "camera", "Info Info Info", priority = 8)
+            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "camera", "System awareness note System awareness note System awareness note", priority = 8)
         }
 
-        // Context note Context note
+        // System awareness note System awareness note
         val hasBluetooth = pm.hasSystemFeature("android.hardware.bluetooth")
         if (hasBluetooth) {
-            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "bluetooth", "Info Info Info", priority = 8)
+            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "bluetooth", "System awareness note System awareness note System awareness note", priority = 8)
         }
 
-        // Context note Context note
+        // System awareness note System awareness note
         val runtime = Runtime.getRuntime()
         val maxMemMB = runtime.maxMemory() / (1024 * 1024)
         saveKnowledge(
             TYPE_SYSTEM_INFO, "memory",
-            "Info JVM Info: ${maxMemMB}MB - Info Info streaming Info Info",
+            "System awareness note JVM System awareness note: ${maxMemMB}MB - System awareness note System awareness note streaming System awareness note System awareness note",
             priority = 4,
             tags = "memory,performance,heap"
         )
 
-        // Context note Context note
+        // System awareness note System awareness note
         try {
             val dataDir = context.filesDir
             val free = dataDir.freeSpace / (1024 * 1024)
             val total = dataDir.totalSpace / (1024 * 1024)
             saveKnowledge(
                 TYPE_SYSTEM_INFO, "storage",
-                "Info: ${free}MB Info Info Info ${total}MB",
+                "System awareness note: ${free}MB System awareness note System awareness note System awareness note ${total}MB",
                 priority = 5,
                 tags = "storage,disk,space"
             )
@@ -168,13 +168,13 @@ class ToolAwarenessEngine(
     }
 
     private suspend fun discoverRuntimeEnvironments() {
-        // Context note Termux
+        // System awareness note Termux
         val termuxInstalled = isPackageInstalled("com.termux")
         runtimeEnvironmentCache["termux"] = termuxInstalled.toString()
         if (termuxInstalled) {
             saveKnowledge(
                 TYPE_ENVIRONMENT, "termux",
-                "Termux Info: Info Info Python, Node.js, bash, gcc, git Info termux_bridge",
+                "Termux System awareness note: System awareness note System awareness note Python, Node.js, bash, gcc, git System awareness note termux_bridge",
                 confidence = 0.9f,
                 priority = 2,
                 tags = "termux,python,nodejs,bash,linux"
@@ -182,20 +182,20 @@ class ToolAwarenessEngine(
         } else {
             saveKnowledge(
                 TYPE_WARNING, "termux",
-                "Termux Info Info: Info AgentRuntimeTool Info Info agent_sandbox",
+                "Termux System awareness note System awareness note: System awareness note AgentRuntimeTool System awareness note System awareness note agent_sandbox",
                 confidence = 1.0f,
                 priority = 3,
                 tags = "termux,warning"
             )
         }
 
-        // Context note Shizuku
+        // System awareness note Shizuku
         val shizukuInstalled = isPackageInstalled("moe.shizuku.privileged.api")
         runtimeEnvironmentCache["shizuku"] = shizukuInstalled.toString()
         if (shizukuInstalled) {
             saveKnowledge(
                 TYPE_ENVIRONMENT, "shizuku",
-                "Shizuku Info: Info Info Info ADB-level Info root Info shizuku_command",
+                "Shizuku System awareness note: System awareness note System awareness note System awareness note ADB-level System awareness note root System awareness note shizuku_command",
                 confidence = 0.8f,
                 priority = 2,
                 tags = "shizuku,adb,privileged,root"
@@ -203,32 +203,32 @@ class ToolAwarenessEngine(
         } else {
             saveKnowledge(
                 TYPE_WARNING, "shizuku",
-                "Shizuku Info Info: Info Info Info Info Info Info",
+                "Shizuku System awareness note System awareness note: System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note",
                 confidence = 1.0f,
                 priority = 3,
                 tags = "shizuku,warning"
             )
         }
 
-        // Context note Python Context note
+        // System awareness note Python System awareness note
         val pythonExists = File("/data/data/com.termux/files/usr/bin/python3").exists() ||
                            File("/data/data/com.termux/files/usr/bin/python").exists()
         if (pythonExists) {
             saveKnowledge(
                 TYPE_ENVIRONMENT, "python",
-                "Python Info Info Termux: Info agent_runtime/python_run Info Info",
+                "Python System awareness note System awareness note Termux: System awareness note agent_runtime/python_run System awareness note System awareness note",
                 confidence = 0.95f,
                 priority = 2,
                 tags = "python,termux,runtime,code"
             )
         }
 
-        // Context note Git
+        // System awareness note Git
         val gitExists = File("/data/data/com.termux/files/usr/bin/git").exists()
         if (gitExists) {
             saveKnowledge(
                 TYPE_ENVIRONMENT, "git",
-                "Git Info Info Termux: Info git_manager Info terminal Info Git",
+                "Git System awareness note System awareness note Termux: System awareness note git_manager System awareness note terminal System awareness note Git",
                 confidence = 0.95f,
                 priority = 3,
                 tags = "git,termux,vcs"
@@ -239,11 +239,11 @@ class ToolAwarenessEngine(
     private suspend fun registerToolCapabilities(tools: List<ToolDefinition>) {
         tools.forEach { tool ->
             val capability = buildString {
-                append("Info: ${tool.name}")
-                append(" | Info: ${tool.description.take(200)}")
+                append("System awareness note: ${tool.name}")
+                append(" | System awareness note: ${tool.description.take(200)}")
                 if (tool.parameters.isNotEmpty()) {
-                    append(" | Info: ${tool.parameters.joinToString(", ") { p ->
-                        "${p.name}(${if (p.required) "Info" else "Info"})"
+                    append(" | System awareness note: ${tool.parameters.joinToString(", ") { p ->
+                        "${p.name}(${if (p.required) "System awareness note" else "System awareness note"})"
                     }}")
                 }
             }
@@ -257,44 +257,44 @@ class ToolAwarenessEngine(
                 source = "tool_registry"
             )
         }
-        Log.d(TAG, "📋 Info ${tools.size} Info Info Info Info")
+        Log.d(TAG, "📋 System awareness note ${tools.size} System awareness note System awareness note System awareness note System awareness note")
     }
 
     private suspend fun registerInitialBestPractices() {
         val practices = listOf(
             Triple(
                 "file_operations",
-                "Info Info Info: Info read_file_lines Info Info. Info Info (+1MB) Info find_files Info grep_search Info Info Info Info.",
+                "System awareness note System awareness note System awareness note: System awareness note read_file_lines System awareness note System awareness note. System awareness note System awareness note (+1MB) System awareness note find_files System awareness note grep_search System awareness note System awareness note System awareness note System awareness note.",
                 "file,read,performance"
             ),
             Triple(
                 "memory_usage",
-                "Info Info Info Info search_knowledge Info Info Info Info Info. Info Info Info Info remember_fact. Info Info Info Info Info Info.",
+                "System awareness note System awareness note System awareness note System awareness note search_knowledge System awareness note System awareness note System awareness note System awareness note System awareness note. System awareness note System awareness note System awareness note System awareness note remember_fact. System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.",
                 "memory,context,efficiency"
             ),
             Triple(
                 "terminal_safety",
-                "Info Info Info terminal Info: Info dry-run Info echo Info. Info rm -rf. Info paths Info Info.",
+                "System awareness note System awareness note System awareness note terminal System awareness note: System awareness note dry-run System awareness note echo System awareness note. System awareness note rm -rf. System awareness note paths System awareness note System awareness note.",
                 "terminal,safety,commands"
             ),
             Triple(
                 "web_search_strategy",
-                "Info: Info Info web_search (Info). Info web_scraper Info Info. Info headless_browser Info Info Info Info JavaScript.",
+                "System awareness note: System awareness note System awareness note web_search (System awareness note). System awareness note web_scraper System awareness note System awareness note. System awareness note headless_browser System awareness note System awareness note System awareness note System awareness note JavaScript.",
                 "web,search,strategy"
             ),
             Triple(
                 "git_workflow",
-                "Info Info Git: Info Info Info Info → Info Info Info Info → commit Info → Info Info Info Info main",
+                "System awareness note System awareness note Git: System awareness note System awareness note System awareness note System awareness note → System awareness note System awareness note System awareness note System awareness note → commit System awareness note → System awareness note System awareness note System awareness note System awareness note main",
                 "git,workflow,best_practice"
             ),
             Triple(
                 "error_handling",
-                "Info Info: Info Info Info Info → Info Info Info → Info Info Info → Info Info Info remember_fact",
+                "System awareness note System awareness note: System awareness note System awareness note System awareness note System awareness note → System awareness note System awareness note System awareness note → System awareness note System awareness note System awareness note → System awareness note System awareness note System awareness note remember_fact",
                 "error,debugging,recovery"
             ),
             Triple(
                 "tool_selection",
-                "Info Info Info Info. Info: Info Info Info Info grep_search (Info) Info read_file. Info Info get_device_info Info shizuku_command.",
+                "System awareness note System awareness note System awareness note System awareness note. System awareness note: System awareness note System awareness note System awareness note System awareness note grep_search (System awareness note) System awareness note read_file. System awareness note System awareness note get_device_info System awareness note shizuku_command.",
                 "tool_selection,efficiency,performance"
             )
         )
@@ -311,10 +311,10 @@ class ToolAwarenessEngine(
         }
     }
 
-    // ─── Context note Context note ───────────────────────────────────────────
+    // ─── System awareness note System awareness note ───────────────────────────────────────────
 
     /**
-     * Context note Context note Context note Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
      */
     suspend fun learnFromExecution(
         toolName: String,
@@ -328,7 +328,7 @@ class ToolAwarenessEngine(
                 saveOrUpdateKnowledge(
                     type = TYPE_TOOL_REQUIREMENT,
                     subject = toolName,
-                    content = "⚠️ $toolName Info Info Info. Info: ${errorMessage.take(150)}",
+                    content = "⚠️ $toolName System awareness note System awareness note System awareness note. System awareness note: ${errorMessage.take(150)}",
                     confidence = 0.9f,
                     priority = 2,
                     tags = "permission,requirement,$toolName"
@@ -339,7 +339,7 @@ class ToolAwarenessEngine(
                 saveOrUpdateKnowledge(
                     type = TYPE_TOOL_LIMITATION,
                     subject = toolName,
-                    content = "🚫 $toolName Info Info Info Info Info: ${errorMessage.take(150)}",
+                    content = "🚫 $toolName System awareness note System awareness note System awareness note System awareness note System awareness note: ${errorMessage.take(150)}",
                     confidence = 0.95f,
                     priority = 1,
                     tags = "unavailable,limitation,$toolName"
@@ -350,7 +350,7 @@ class ToolAwarenessEngine(
                 saveOrUpdateKnowledge(
                     type = TYPE_TOOL_LIMITATION,
                     subject = "${toolName}_timeout",
-                    content = "⏱️ $toolName Info Info Info Info Info (${executionTimeMs}ms). Info Info Info.",
+                    content = "⏱️ $toolName System awareness note System awareness note System awareness note System awareness note System awareness note (${executionTimeMs}ms). System awareness note System awareness note System awareness note.",
                     confidence = 0.8f,
                     priority = 2,
                     tags = "timeout,performance,$toolName"
@@ -358,11 +358,11 @@ class ToolAwarenessEngine(
             }
 
             success && executionTimeMs < 200 -> {
-                // Context note Context note Context note - Context note Context note
+                // System awareness note System awareness note System awareness note - System awareness note System awareness note
                 saveOrUpdateKnowledge(
                     type = TYPE_TOOL_CAPABILITY,
                     subject = "${toolName}_performance",
-                    content = "⚡ $toolName Info Info (avg ~${executionTimeMs}ms) - Info Info Info",
+                    content = "⚡ $toolName System awareness note System awareness note (avg ~${executionTimeMs}ms) - System awareness note System awareness note System awareness note",
                     confidence = 0.7f,
                     priority = 7,
                     tags = "fast,performance,$toolName"
@@ -372,7 +372,7 @@ class ToolAwarenessEngine(
     }
 
     /**
-     * Context note Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note System awareness note
      */
     suspend fun recordToolDependency(toolA: String, toolB: String, description: String) {
         saveKnowledge(
@@ -385,7 +385,7 @@ class ToolAwarenessEngine(
     }
 
     /**
-     * Context note Context note Context note Context note Agent
+     * System awareness note System awareness note System awareness note System awareness note Agent
      */
     suspend fun recordPattern(patternName: String, description: String, confidence: Float = 0.8f) {
         saveKnowledge(
@@ -398,11 +398,11 @@ class ToolAwarenessEngine(
         )
     }
 
-    // ─── Context note System Prompt Context ───────────────────────────────────
+    // ─── System awareness note System Prompt Context ───────────────────────────────────
 
     /**
-     * Context note Context note Context note Context note System Prompt
-     * Context note Context note Context note Context note Agent "Context note" Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note System Prompt
+     * System awareness note System awareness note System awareness note System awareness note Agent "System awareness note" System awareness note System awareness note
      */
     suspend fun buildSystemPromptContext(): String = withContext(Dispatchers.IO) {
         val systemInfo = systemKnowledgeDao.getByType(TYPE_SYSTEM_INFO)
@@ -417,34 +417,34 @@ class ToolAwarenessEngine(
             appendLine("║  🧠 SYSTEM & TOOL AWARENESS CONTEXT         ║")
             appendLine("╚══════════════════════════════════════════════╝")
 
-            // Context note Context note
+            // System awareness note System awareness note
             if (environments.isNotEmpty() || systemInfo.isNotEmpty()) {
-                appendLine("\n📱 Info Info:")
+                appendLine("\n📱 System awareness note System awareness note:")
                 (environments + systemInfo.filter { it.subject.contains("android") || it.subject == "memory" })
                     .take(6).forEach { k ->
                         appendLine("  • ${k.content.take(120)}")
                     }
             }
 
-            // Context note Context note (Context note Context note!)
+            // System awareness note System awareness note (System awareness note System awareness note!)
             if (limitations.isNotEmpty() || warnings.isNotEmpty()) {
-                appendLine("\n⚠️ Info Info (Info Info Info):")
+                appendLine("\n⚠️ System awareness note System awareness note (System awareness note System awareness note System awareness note):")
                 (limitations + warnings).take(5).forEach { k ->
                     appendLine("  ✗ ${k.content.take(120)}")
                 }
             }
 
-            // Context note Context note
+            // System awareness note System awareness note
             if (bestPractices.isNotEmpty()) {
-                appendLine("\n💡 Info Info:")
+                appendLine("\n💡 System awareness note System awareness note:")
                 bestPractices.take(5).forEach { k ->
                     appendLine("  ✓ [${k.subject}] ${k.content.take(150)}")
                 }
             }
 
-            // Context note Context note
+            // System awareness note System awareness note
             if (capabilities.isNotEmpty()) {
-                appendLine("\n⚡ Info Info: ${capabilities.joinToString(", ") { it.subject }}")
+                appendLine("\n⚡ System awareness note System awareness note: ${capabilities.joinToString(", ") { it.subject }}")
             }
 
             appendLine("══════════════════════════════════════════════")
@@ -452,7 +452,7 @@ class ToolAwarenessEngine(
     }
 
     /**
-     * Context note Context note Context note Context note Context note Context note Context note
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
      */
     suspend fun getToolKnowledge(toolName: String): String? = withContext(Dispatchers.IO) {
         val entries = systemKnowledgeDao.search(toolName, limit = 8)
@@ -472,13 +472,13 @@ class ToolAwarenessEngine(
     }
 
     /**
-     * Context note Context note Context note Context note Context note Context note Context note Context note System Prompt
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System Prompt
      */
     suspend fun getCriticalKnowledge(): List<SystemKnowledgeEntry> = withContext(Dispatchers.IO) {
         systemKnowledgeDao.getForSystemPrompt(maxPriority = 3, limit = 10)
     }
 
-    // ─── Context note Context note ─────────────────────────────────────────────
+    // ─── System awareness note System awareness note ─────────────────────────────────────────────
 
     private suspend fun saveKnowledge(
         type: String,
@@ -504,7 +504,7 @@ class ToolAwarenessEngine(
                 )
             )
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to save knowledge: $subject - ${e.message}")
+            Log.w(TAG, "Failed to save knowledge entry: $subject - ${e.message}")
         }
     }
 
@@ -541,7 +541,7 @@ class ToolAwarenessEngine(
         }
     }
 
-    // ─── Flow Context note ─────────────────────────────────────────────────
+    // ─── Flow System awareness note ─────────────────────────────────────────────────
 
     fun observeKnowledge(): Flow<List<SystemKnowledgeEntry>> = systemKnowledgeDao.observeAllValid()
 
@@ -570,7 +570,7 @@ class ToolAwarenessEngine(
         systemKnowledgeDao.invalidateById(id)
     }
 
-    // ─── Context note ────────────────────────────────────────────────────
+    // ─── System awareness note ────────────────────────────────────────────────────
 
     suspend fun getStats(): AwarenessStats = withContext(Dispatchers.IO) {
         val total = systemKnowledgeDao.getCount()

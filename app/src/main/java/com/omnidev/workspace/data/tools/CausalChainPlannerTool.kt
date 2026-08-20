@@ -4,39 +4,39 @@ import com.omnidev.workspace.data.brain.CausalChainPlanner
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * CausalChainPlannerTool — Context note Agent Context note Context note Context note Context note
+ * CausalChainPlannerTool — System awareness note Agent System awareness note System awareness note System awareness note System awareness note
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Context note Context note [CausalChainPlanner] Context note Context note Context note Context note:
+ * System awareness note System awareness note [CausalChainPlanner] System awareness note System awareness note System awareness note System awareness note:
  *
- *   - **causal_plan_analyze**: Context note Context note Context note Context note Context note Context note Context note
- *     Context note Context note.
+ *   - **causal_plan_analyze**: System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
+ *     System awareness note System awareness note.
  *
- *   - **causal_plan_simulate**: Context note Context note Context note Context note Context note Context note Context note Context note
- *     Context note Context note — Context note Context note Context note Context note Context note Context note Context note.
+ *   - **causal_plan_simulate**: System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note
+ *     System awareness note System awareness note — System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
  *
- *   - **causal_plan_what_if**: Context note Context note "Context note Context note Context note Context note Context note Context note Context note"
- *     Context note Context note Context note Context note Context note Context note.
+ *   - **causal_plan_what_if**: System awareness note System awareness note "System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note"
+ *     System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
  *
- *   - **causal_plan_clear**: Context note Context note Context note Context note (session cache).
+ *   - **causal_plan_clear**: System awareness note System awareness note System awareness note System awareness note (session cache).
  *
  * ## Mobile-First:
- * - Context note LLM Context note — Context note rule-based Context note (< 5ms Context note 20 Context note)
- * - Context note Context note Context note — Context note Context note Context note Context note Context note 10 Context note Context note
- * - Context note Context note Context note Tiers (Lite → OEM) Context note Context note/Context note Context note
+ * - System awareness note LLM System awareness note — System awareness note rule-based System awareness note (< 5ms System awareness note 20 System awareness note)
+ * - System awareness note System awareness note System awareness note — System awareness note System awareness note System awareness note System awareness note System awareness note 10 System awareness note System awareness note
+ * - System awareness note System awareness note System awareness note Tiers (Lite → OEM) System awareness note System awareness note/System awareness note System awareness note
  *
- * ## Context note Context note Context note:
- * 1. Context note Context note Context note Context note Context note
- * 2. Context note `causal_plan_analyze` Context note
- * 3. Context note Context note Context note Context note → Context note Context note
- * 4. Context note `causal_plan_simulate` Context note Context note
- * 5. Context note Context note Context note rollback group Context note
+ * ## System awareness note System awareness note System awareness note:
+ * 1. System awareness note System awareness note System awareness note System awareness note System awareness note
+ * 2. System awareness note `causal_plan_analyze` System awareness note
+ * 3. System awareness note System awareness note System awareness note System awareness note → System awareness note System awareness note
+ * 4. System awareness note `causal_plan_simulate` System awareness note System awareness note
+ * 5. System awareness note System awareness note System awareness note rollback group System awareness note
  */
 class CausalChainPlannerTool(
     private val planner: CausalChainPlanner = CausalChainPlanner()
 ) {
 
-    /** Context note Context note Context note (session-scoped, max 10). */
+    /** System awareness note System awareness note System awareness note (session-scoped, max 10). */
     private val planCache = mutableMapOf<String, CausalChainPlanner.CausalGraph>()
     private val maxCacheSize = 10
 
@@ -48,31 +48,31 @@ class CausalChainPlannerTool(
 
         ToolDefinition(
             name = "causal_plan_analyze",
-            description = """Info Info Info Info Info Info Info (Causal Graph) Info.
-Info Info Info Info Info Info:
-- Info Info Info (Read-After-Delete)
-- Info Info Info Info (Modify-After-Delete)
-- Info Info Info Info (Double-Create)
-- Info Info (Info Info Info Info)
-- Info Info Info Info (rm -rf, git reset --hard)
+            description = """System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note (Causal Graph) System awareness note.
+System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note:
+- System awareness note System awareness note System awareness note (Read-After-Delete)
+- System awareness note System awareness note System awareness note System awareness note (Modify-After-Delete)
+- System awareness note System awareness note System awareness note System awareness note (Double-Create)
+- System awareness note System awareness note (System awareness note System awareness note System awareness note System awareness note)
+- System awareness note System awareness note System awareness note System awareness note (rm -rf, git reset --hard)
 
-Info Info Info Info Info Info Info Info Info.
-Info steps: "create_file|path=/src/A.kt,patch_file_content|path=/src/A.kt,delete_file|path=/src/A.kt"
+System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
+System awareness note steps: "create_file|path=/src/A.kt,patch_file_content|path=/src/A.kt,delete_file|path=/src/A.kt"
 """,
             parameters = listOf(
                 ToolParameter(
                     name = "steps",
                     type = "string",
-                    description = """Info Info Info Info:
+                    description = """System awareness note System awareness note System awareness note System awareness note:
 "toolName|param1=val1&param2=val2,toolName2|param1=val1"
-Info: "create_file|path=/src/Main.kt,patch_file_content|path=/src/Main.kt,run_terminal|command=rm -rf /tmp"
-Info Info Info (,) Info Info Info.""",
+System awareness note: "create_file|path=/src/Main.kt,patch_file_content|path=/src/Main.kt,run_terminal|command=rm -rf /tmp"
+System awareness note System awareness note System awareness note (,) System awareness note System awareness note System awareness note.""",
                     required = true
                 ),
                 ToolParameter(
                     name = "plan_id",
                     type = "string",
-                    description = "Info Info Info Info (Info Info Info simulate/what_if). Info.",
+                    description = "System awareness note System awareness note System awareness note System awareness note (System awareness note System awareness note System awareness note simulate/what_if). System awareness note.",
                     required = false
                 )
             )
@@ -80,22 +80,22 @@ Info Info Info (,) Info Info Info.""",
 
         ToolDefinition(
             name = "causal_plan_simulate",
-            description = """Info Info Info Info Info Info Info Info Info Info.
-Info "Info Info Info" Info Info Info Info Info.
-Info: Info Info Info Info Info Info Info Info Info.
+            description = """System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
+System awareness note "System awareness note System awareness note System awareness note" System awareness note System awareness note System awareness note System awareness note System awareness note.
+System awareness note: System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
 
-Info Info causal_plan_analyze Info Info Info Info.""",
+System awareness note System awareness note causal_plan_analyze System awareness note System awareness note System awareness note System awareness note.""",
             parameters = listOf(
                 ToolParameter(
                     name = "steps",
                     type = "string",
-                    description = "Info Info causal_plan_analyze. Info Info Info Info Info plan_id.",
+                    description = "System awareness note System awareness note causal_plan_analyze. System awareness note System awareness note System awareness note System awareness note System awareness note plan_id.",
                     required = false
                 ),
                 ToolParameter(
                     name = "plan_id",
                     type = "string",
-                    description = "Info Info Info Info Info causal_plan_analyze.",
+                    description = "System awareness note System awareness note System awareness note System awareness note System awareness note causal_plan_analyze.",
                     required = false
                 )
             )
@@ -103,26 +103,26 @@ Info Info causal_plan_analyze Info Info Info Info.""",
 
         ToolDefinition(
             name = "causal_plan_what_if",
-            description = """Info What-If: "Info Info Info Info Info Info Info"
-Info Info Info Info Info Info Info/Info Info Info Info Info.
-Info Info Info Info Info Info Info Info.""",
+            description = """System awareness note What-If: "System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note"
+System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note/System awareness note System awareness note System awareness note System awareness note System awareness note.
+System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.""",
             parameters = listOf(
                 ToolParameter(
                     name = "plan_id",
                     type = "string",
-                    description = "Info Info Info (Info causal_plan_analyze).",
+                    description = "System awareness note System awareness note System awareness note (System awareness note causal_plan_analyze).",
                     required = true
                 ),
                 ToolParameter(
                     name = "insert_step",
                     type = "string",
-                    description = "Info Info Info 'toolName|param1=val1&param2=val2'. Info.",
+                    description = "System awareness note System awareness note System awareness note 'toolName|param1=val1&param2=val2'. System awareness note.",
                     required = false
                 ),
                 ToolParameter(
                     name = "remove_step_index",
                     type = "string",
-                    description = "Info Info Info Info (0-based). Info.",
+                    description = "System awareness note System awareness note System awareness note System awareness note (0-based). System awareness note.",
                     required = false
                 )
             )
@@ -130,12 +130,12 @@ Info Info Info Info Info Info Info Info.""",
 
         ToolDefinition(
             name = "causal_plan_clear",
-            description = "Info Info Info Info. Info Info Info Info Info.",
+            description = "System awareness note System awareness note System awareness note System awareness note. System awareness note System awareness note System awareness note System awareness note System awareness note.",
             parameters = listOf(
                 ToolParameter(
                     name = "plan_id",
                     type = "string",
-                    description = "Info Info Info Info. Info Info Info Info Info.",
+                    description = "System awareness note System awareness note System awareness note System awareness note. System awareness note System awareness note System awareness note System awareness note System awareness note.",
                     required = false
                 )
             )
@@ -146,7 +146,7 @@ Info Info Info Info Info Info Info Info.""",
     // Execution
     // ──────────────────────────────────────────────────────────────────────────
 
-    /** Context note null Context note Context note Context note Context note Context note Context note wrapper. */
+    /** System awareness note null System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note wrapper. */
     suspend fun execute(name: String, args: Map<String, String>): ToolExecutionResult? {
         if (name !in HANDLED) return null
         return try {
@@ -165,9 +165,9 @@ Info Info Info Info Info Info Info Info.""",
     fun handles(name: String): Boolean = name in HANDLED
 
     /**
-     * Context note Context note Context note Prompt Context note Context note Context note Context note Context note cache.
-     * Context note Context note SmartLearningBridge Context note System Prompt Context note Context note.
-     * Context note null Context note Context note Context note cache Context note Context note Context note Context note Context note Context note Context note.
+     * System awareness note System awareness note System awareness note Prompt System awareness note System awareness note System awareness note System awareness note System awareness note cache.
+     * System awareness note System awareness note SmartLearningBridge System awareness note System Prompt System awareness note System awareness note.
+     * System awareness note null System awareness note System awareness note System awareness note cache System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     fun getLastPlanInjection(maxChars: Int = 500): String? {
         val lastGraph = planCache.values.lastOrNull() ?: return null
@@ -181,19 +181,19 @@ Info Info Info Info Info Info Info Info.""",
 
     private fun doAnalyze(args: Map<String, String>): ToolExecutionResult {
         val stepsRaw = args["steps"]?.trim()
-            ?: return ToolExecutionResult("steps Info", isError = true)
+            ?: return ToolExecutionResult("steps System awareness note", isError = true)
 
         val steps = parseSteps(stepsRaw)
         if (steps.isEmpty()) return ToolExecutionResult(
-            "Info Info Info Info Info Info Info Info Info.", isError = true
+            "System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.", isError = true
         )
 
         val graph = planner.buildChain(steps)
 
-        // Context note Context note Context note cache Context note Context note
+        // System awareness note System awareness note System awareness note cache System awareness note System awareness note
         val planId = args["plan_id"]?.trim()
         if (!planId.isNullOrBlank()) {
-            // Context note Context note Context note Context note Context note Context note cache
+            // System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note cache
             if (planCache.size >= maxCacheSize) {
                 planCache.keys.firstOrNull()?.let { planCache.remove(it) }
             }
@@ -201,11 +201,11 @@ Info Info Info Info Info Info Info Info.""",
         }
 
         return ToolExecutionResult(buildString {
-            appendLine("🗺️ Info Info Info ${graph.nodes.size} Info:")
+            appendLine("🗺️ System awareness note System awareness note System awareness note ${graph.nodes.size} System awareness note:")
             appendLine()
 
-            // Context note Context note
-            appendLine("📋 Info:")
+            // System awareness note System awareness note
+            appendLine("📋 System awareness note:")
             for (node in graph.nodes) {
                 val icon = when (node.riskLevel) {
                     CausalChainPlanner.RiskLevel.LOW      -> "🟢"
@@ -217,7 +217,7 @@ Info Info Info Info Info Info Info Info.""",
             }
             appendLine()
 
-            // Context note Context note
+            // System awareness note System awareness note
             val allEffects = graph.nodes.flatMap { it.effects }
             val deletedPaths = allEffects
                 .filter { it.type == CausalChainPlanner.EffectType.DELETE && it.targetPath != null }
@@ -229,69 +229,69 @@ Info Info Info Info Info Info Info Info.""",
                 .filter { it.type == CausalChainPlanner.EffectType.MODIFY && it.targetPath != null }
                 .mapNotNull { it.targetPath }.distinct()
 
-            if (deletedPaths.isNotEmpty()) appendLine("🗑️ Info: ${deletedPaths.take(5).joinToString(", ")}")
-            if (createdPaths.isNotEmpty()) appendLine("📄 Info: ${createdPaths.take(5).joinToString(", ")}")
-            if (modifiedPaths.isNotEmpty()) appendLine("✏️ Info: ${modifiedPaths.take(5).joinToString(", ")}")
+            if (deletedPaths.isNotEmpty()) appendLine("🗑️ System awareness note: ${deletedPaths.take(5).joinToString(", ")}")
+            if (createdPaths.isNotEmpty()) appendLine("📄 System awareness note: ${createdPaths.take(5).joinToString(", ")}")
+            if (modifiedPaths.isNotEmpty()) appendLine("✏️ System awareness note: ${modifiedPaths.take(5).joinToString(", ")}")
             appendLine()
 
-            // Context note Context note Context note
-            appendLine("⚠️ Info Info Infohighest: ${graph.highestRisk.label()}")
+            // System awareness note System awareness note System awareness note
+            appendLine("⚠️ System awareness note System awareness note System awareness note: ${graph.highestRisk.label()}")
             appendLine()
 
-            // Context note
+            // System awareness note
             if (graph.conflicts.isEmpty()) {
-                appendLine("✅ Info Info Info — Info Info.")
+                appendLine("✅ System awareness note System awareness note System awareness note — System awareness note System awareness note.")
             } else {
                 val fatal = graph.conflicts.filter { it.isFatal }
                 val warnings = graph.conflicts.filter { !it.isFatal }
                 if (fatal.isNotEmpty()) {
-                    appendLine("❌ Info Info (${fatal.size}):")
+                    appendLine("❌ System awareness note System awareness note (${fatal.size}):")
                     for (c in fatal) appendLine("  • ${c.message}")
                     appendLine()
                 }
                 if (warnings.isNotEmpty()) {
-                    appendLine("⚠️ Info (${warnings.size}):")
+                    appendLine("⚠️ System awareness note (${warnings.size}):")
                     for (c in warnings) appendLine("  • ${c.message}")
                 }
             }
 
-            if (!planId.isNullOrBlank()) appendLine("\n💾 Info Info Info '$planId' Info Info simulate/what_if.")
+            if (!planId.isNullOrBlank()) appendLine("\n💾 System awareness note System awareness note System awareness note '$planId' System awareness note System awareness note simulate/what_if.")
         })
     }
 
     private fun doSimulate(args: Map<String, String>): ToolExecutionResult {
         val graph = resolveGraph(args)
             ?: return ToolExecutionResult(
-                "Info Info 'steps' Info 'plan_id' Info Info Info.", isError = true
+                "System awareness note System awareness note 'steps' System awareness note 'plan_id' System awareness note System awareness note System awareness note.", isError = true
             )
 
         val result = planner.simulate(graph)
         return ToolExecutionResult(buildString {
-            appendLine("🎬 Info Info Info:")
+            appendLine("🎬 System awareness note System awareness note System awareness note:")
             appendLine()
             for (step in result.steps) {
                 val status = if (step.wouldSucceed) "✅" else "❌"
                 val risk = when (step.riskLevel) {
                     CausalChainPlanner.RiskLevel.LOW      -> ""
-                    CausalChainPlanner.RiskLevel.MEDIUM   -> " [Info]"
-                    CausalChainPlanner.RiskLevel.HIGH     -> " [⚠️ Info]"
-                    CausalChainPlanner.RiskLevel.CRITICAL -> " [💥 Info]"
+                    CausalChainPlanner.RiskLevel.MEDIUM   -> " [System awareness note]"
+                    CausalChainPlanner.RiskLevel.HIGH     -> " [⚠️ System awareness note]"
+                    CausalChainPlanner.RiskLevel.CRITICAL -> " [💥 System awareness note]"
                 }
                 appendLine("  ${step.stepIndex}. $status${risk} ${step.humanSummary}")
                 if (!step.wouldSucceed && step.failReason != null) {
-                    appendLine("       💔 Info: ${step.failReason}")
+                    appendLine("       💔 System awareness note: ${step.failReason}")
                 }
             }
             appendLine()
             if (result.overallSuccess) {
-                appendLine("✅ Info Info — Info Info Info Info.")
+                appendLine("✅ System awareness note System awareness note — System awareness note System awareness note System awareness note System awareness note.")
             } else {
-                appendLine("❌ Info Info Info Info Info ${result.firstFailureIndex}.")
-                appendLine("   📌 Info Info Info Info Info causal_plan_what_if.")
+                appendLine("❌ System awareness note System awareness note System awareness note System awareness note System awareness note ${result.firstFailureIndex}.")
+                appendLine("   📌 System awareness note System awareness note System awareness note System awareness note System awareness note causal_plan_what_if.")
             }
             if (result.warningMessages.isNotEmpty()) {
                 appendLine()
-                appendLine("⚠️ Info Info:")
+                appendLine("⚠️ System awareness note System awareness note:")
                 for (w in result.warningMessages) appendLine("  • $w")
             }
         })
@@ -299,10 +299,10 @@ Info Info Info Info Info Info Info Info.""",
 
     private fun doWhatIf(args: Map<String, String>): ToolExecutionResult {
         val planId = args["plan_id"]?.trim()
-            ?: return ToolExecutionResult("plan_id Info", isError = true)
+            ?: return ToolExecutionResult("plan_id System awareness note", isError = true)
         val baseline = planCache[planId]
             ?: return ToolExecutionResult(
-                "Info Info Info Info '$planId'. Info causal_plan_analyze Info.", isError = true
+                "System awareness note System awareness note System awareness note System awareness note '$planId'. System awareness note causal_plan_analyze System awareness note.", isError = true
             )
 
         val insertRaw = args["insert_step"]?.trim()
@@ -314,7 +314,7 @@ Info Info Info Info Info Info Info Info.""",
 
         if (insertStep == null && removeIdx == null) {
             return ToolExecutionResult(
-                "Info Info insert_step Info remove_step_index.", isError = true
+                "System awareness note System awareness note insert_step System awareness note remove_step_index.", isError = true
             )
         }
 
@@ -327,20 +327,20 @@ Info Info Info Info Info Info Info Info.""",
         return if (planId.isNullOrBlank()) {
             val count = planCache.size
             planCache.clear()
-            ToolExecutionResult("✅ Info Info $count Info Info Info Info.")
+            ToolExecutionResult("✅ System awareness note System awareness note $count System awareness note System awareness note System awareness note System awareness note.")
         } else {
             val existed = planCache.remove(planId) != null
-            if (existed) ToolExecutionResult("✅ Info Info Info '$planId'.")
-            else ToolExecutionResult("⚠️ Info Info Info Info Info '$planId'.")
+            if (existed) ToolExecutionResult("✅ System awareness note System awareness note System awareness note '$planId'.")
+            else ToolExecutionResult("⚠️ System awareness note System awareness note System awareness note System awareness note System awareness note '$planId'.")
         }
     }
 
     /**
-     * Context note Context note Context note Context note Context note (toolName → parameters).
+     * System awareness note System awareness note System awareness note System awareness note System awareness note (toolName → parameters).
      *
-     * Context note Context note:
+     * System awareness note System awareness note:
      *   "toolName|param1=val1&param2=val2,toolName2|param1=val1"
-     * Context note Context note Context note Context note Context note.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     private fun parseSteps(raw: String): List<Pair<String, Map<String, String>>> {
         return raw
@@ -350,7 +350,7 @@ Info Info Info Info Info Info Info Info.""",
             .mapNotNull { entry ->
                 val pipeIdx = entry.indexOf('|')
                 if (pipeIdx < 0) {
-                    // Context note Context note Context note Context note Context note
+                    // System awareness note System awareness note System awareness note System awareness note System awareness note
                     entry.trim() to emptyMap<String, String>()
                 } else {
                     val toolName = entry.substring(0, pipeIdx).trim()
@@ -367,7 +367,7 @@ Info Info Info Info Info Info Info Info.""",
             }
     }
 
-    /** Context note Context note CausalGraph Context note Context note cache Context note Context note Context note steps. */
+    /** System awareness note System awareness note CausalGraph System awareness note System awareness note cache System awareness note System awareness note System awareness note steps. */
     private fun resolveGraph(args: Map<String, String>): CausalChainPlanner.CausalGraph? {
         val planId = args["plan_id"]?.trim()
         if (!planId.isNullOrBlank() && planCache.containsKey(planId)) {

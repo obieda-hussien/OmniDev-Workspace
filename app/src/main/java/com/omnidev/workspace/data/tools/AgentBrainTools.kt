@@ -6,14 +6,14 @@ import com.omnidev.workspace.data.brain.ReflexionEngine
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * AgentBrainTools — Context note Agent Context note Context note (Brain 2.0)
+ * AgentBrainTools — System awareness note Agent System awareness note System awareness note (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- *   - brain_recall_lessons: Context note Context note Reflexion Context note Context note
- *   - brain_recall_episodes: Context note episodes (Context note Context note) Context note
- *   - brain_record_episode: Context note episode Context note (Context note — Context note Context note)
+ *   - brain_recall_lessons: System awareness note System awareness note Reflexion System awareness note System awareness note
+ *   - brain_recall_episodes: System awareness note episodes (System awareness note System awareness note) System awareness note
+ *   - brain_record_episode: System awareness note episode System awareness note (System awareness note — System awareness note System awareness note)
  *
- * Context note Context note on-device Context note (Lite-friendly).
+ * System awareness note System awareness note on-device System awareness note (Lite-friendly).
  */
 class AgentBrainTools(
     private val reflexion: ReflexionEngine,
@@ -23,68 +23,68 @@ class AgentBrainTools(
     fun getDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "brain_recall_lessons",
-            description = "Info Info Info (Reflexion) Info Info Info Info Info Info. " +
-                "Info Info Info Info Info Info Info Info Info.",
+            description = "System awareness note System awareness note System awareness note (Reflexion) System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note. " +
+                "System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.",
             parameters = listOf(
-                ToolParameter("query", "string", "Info/Info Info Info"),
-                ToolParameter("tool_name", "string", "Info Info Info Info", required = false),
-                ToolParameter("limit", "integer", "Info Info (1-10Info Info 5)", required = false)
+                ToolParameter("query", "string", "System awareness note/System awareness note System awareness note System awareness note"),
+                ToolParameter("tool_name", "string", "System awareness note System awareness note System awareness note System awareness note", required = false),
+                ToolParameter("limit", "integer", "System awareness note System awareness note (1-10System awareness note System awareness note 5)", required = false)
             )
         ),
         ToolDefinition(
             name = "brain_recall_episodes",
-            description = "Info episodes (Info Info) Info Info Info Info. " +
-                "Info episode = Info Info + Info Info + Info.",
+            description = "System awareness note episodes (System awareness note System awareness note) System awareness note System awareness note System awareness note System awareness note. " +
+                "System awareness note episode = System awareness note System awareness note + System awareness note System awareness note + System awareness note.",
             parameters = listOf(
-                ToolParameter("query", "string", "Info Info Info"),
-                ToolParameter("limit", "integer", "Info Info episodes (1-5Info Info 3)", required = false),
-                ToolParameter("prefer_success", "string", "true Info Info (Info true)", required = false)
+                ToolParameter("query", "string", "System awareness note System awareness note System awareness note"),
+                ToolParameter("limit", "integer", "System awareness note System awareness note episodes (1-5System awareness note System awareness note 3)", required = false),
+                ToolParameter("prefer_success", "string", "true System awareness note System awareness note (System awareness note true)", required = false)
             )
         ),
         ToolDefinition(
             name = "brain_record_episode",
-            description = "Info episode Info (Info — Info AgentPipeline Info Info Info). " +
-                "Info Info Info Info Info Info Info Info Info Info.",
+            description = "System awareness note episode System awareness note (System awareness note — System awareness note AgentPipeline System awareness note System awareness note System awareness note). " +
+                "System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.",
             parameters = listOf(
-                ToolParameter("summary", "string", "Info Info (≤ 500 Info)"),
-                ToolParameter("user_intent", "string", "Info Info Info"),
+                ToolParameter("summary", "string", "System awareness note System awareness note (≤ 500 System awareness note)"),
+                ToolParameter("user_intent", "string", "System awareness note System awareness note System awareness note"),
                 ToolParameter("outcome", "string", "SUCCESS / FAILURE / ABANDONED"),
-                ToolParameter("tools_used", "string", "Info Info Info Info", required = false)
+                ToolParameter("tools_used", "string", "System awareness note System awareness note System awareness note System awareness note", required = false)
             )
         )
     )
 
-    /** Context note null Context note Context note Context note Context note Context note Context note wrapper (Context note fall-through). */
+    /** System awareness note null System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note wrapper (System awareness note fall-through). */
     suspend fun execute(name: String, args: Map<String, String>): ToolExecutionResult? {
         if (name !in HANDLED) return null
         return try {
             when (name) {
                 "brain_recall_lessons" -> {
                     val q = args["query"]?.trim()
-                        ?: return ToolExecutionResult("query Info", isError = true)
+                        ?: return ToolExecutionResult("query System awareness note", isError = true)
                     val tool = args["tool_name"]?.takeIf { it.isNotBlank() }
                     val k = args["limit"]?.toIntOrNull()?.coerceIn(1, 10) ?: 5
                     val lessons = reflexion.retrieveRelevantLessons(q, tool, topK = k)
-                    if (lessons.isEmpty()) ToolExecutionResult("Info Info Info Info.")
+                    if (lessons.isEmpty()) ToolExecutionResult("System awareness note System awareness note System awareness note System awareness note.")
                     else ToolExecutionResult(buildString {
-                        appendLine("💡 ${lessons.size} Info Info Info:")
+                        appendLine("💡 ${lessons.size} System awareness note System awareness note System awareness note:")
                         for (l in lessons) {
                             val icon = if (l.successContext) "✅" else "⚠️"
                             val toolHint = if (l.toolName.isNotBlank()) "[${l.toolName}] " else ""
                             appendLine("  $icon $toolHint${l.lesson}")
-                            appendLine("       Info=${"%.2f".format(l.quality)} | Info=${l.useCount}")
+                            appendLine("       System awareness note=${"%.2f".format(l.quality)} | System awareness note=${l.useCount}")
                         }
                     })
                 }
                 "brain_recall_episodes" -> {
                     val q = args["query"]?.trim()
-                        ?: return ToolExecutionResult("query Info", isError = true)
+                        ?: return ToolExecutionResult("query System awareness note", isError = true)
                     val k = args["limit"]?.toIntOrNull()?.coerceIn(1, 5) ?: 3
                     val preferSuccess = args["prefer_success"]?.trim()?.lowercase() != "false"
                     val episodes = episodic.retrieveSimilar(q, topK = k, preferSuccess = preferSuccess)
-                    if (episodes.isEmpty()) ToolExecutionResult("Info episodes Info.")
+                    if (episodes.isEmpty()) ToolExecutionResult("System awareness note episodes System awareness note.")
                     else ToolExecutionResult(buildString {
-                        appendLine("📚 ${episodes.size} episode Info:")
+                        appendLine("📚 ${episodes.size} episode System awareness note:")
                         for (ep in episodes) {
                             val icon = when (ep.finalOutcome) {
                                 "SUCCESS" -> "✅"
@@ -95,20 +95,20 @@ class AgentBrainTools(
                             appendLine("       intent: ${ep.userIntent.take(120)}")
                             val tools = ep.toolsUsedCsv.split(',').take(8).joinToString(" → ")
                             if (tools.isNotBlank()) appendLine("       🔧 $tools")
-                            appendLine("       Info=${ep.iterationsCount} | Info=${ep.totalTimeMs}ms")
+                            appendLine("       System awareness note=${ep.iterationsCount} | System awareness note=${ep.totalTimeMs}ms")
                         }
                     })
                 }
                 "brain_record_episode" -> {
                     val summary = args["summary"]?.trim()
-                        ?: return ToolExecutionResult("summary Info", isError = true)
+                        ?: return ToolExecutionResult("summary System awareness note", isError = true)
                     val intent = args["user_intent"]?.trim()
-                        ?: return ToolExecutionResult("user_intent Info", isError = true)
+                        ?: return ToolExecutionResult("user_intent System awareness note", isError = true)
                     val outcomeStr = args["outcome"]?.trim()?.uppercase() ?: "SUCCESS"
                     val outcome = try {
                         EpisodeOutcome.valueOf(outcomeStr)
                     } catch (_: Throwable) {
-                        return ToolExecutionResult("outcome Info Info Info SUCCESS/FAILURE/ABANDONED", isError = true)
+                        return ToolExecutionResult("outcome System awareness note System awareness note System awareness note SUCCESS/FAILURE/ABANDONED", isError = true)
                     }
                     val tools = args["tools_used"]?.split(',')
                         ?.map { it.trim() }
@@ -122,8 +122,8 @@ class AgentBrainTools(
                         totalTimeMs = 0,
                         sessionId = "manual"
                     )
-                    if (id > 0) ToolExecutionResult("✅ Info episode #$id")
-                    else ToolExecutionResult("❌ Info Info", isError = true)
+                    if (id > 0) ToolExecutionResult("✅ System awareness note episode #$id")
+                    else ToolExecutionResult("❌ System awareness note System awareness note", isError = true)
                 }
                 else -> ToolExecutionResult("Unknown tool: $name", isError = true)
             }

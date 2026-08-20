@@ -198,7 +198,7 @@ class TelegramPollingService : Service() {
     private val toolManager: CompositeToolManager by lazy {
         val db = OmniDevDatabase.getInstance(applicationContext)
         val memoryManager = MemoryManager(db.knowledgeDao())
-        // ── Agent Brain 2.0: Context note Context note Context note Context note OmniDevApp ──
+        // ── Agent Brain 2.0: System awareness note System awareness note System awareness note System awareness note OmniDevApp ──
         val omniApp = com.omnidev.workspace.OmniDevApp.instance
         CompositeToolManager(
             fileToolManager = FileToolManager(),
@@ -309,50 +309,50 @@ class TelegramPollingService : Service() {
                                 val best = photoArr?.optJSONObject((photoArr.length() - 1).coerceAtLeast(0))
                                 val fid = best?.optString("file_id", "") ?: ""
                                 val cap = msg.optString("caption", "")
-                                "[📷 Info${if (cap.isNotBlank()) ": $cap" else ""}] file_id=$fid"
+                                "[📷 System awareness note${if (cap.isNotBlank()) ": $cap" else ""}] file_id=$fid"
                             }
                             msg.has("document") -> {
                                 val doc = msg.optJSONObject("document")
                                 val name = doc?.optString("file_name", "document") ?: "document"
                                 val fid = doc?.optString("file_id", "") ?: ""
                                 val cap = msg.optString("caption", "")
-                                "[📄 Info: $name${if (cap.isNotBlank()) " ($cap)" else ""}] file_id=$fid"
+                                "[📄 System awareness note: $name${if (cap.isNotBlank()) " ($cap)" else ""}] file_id=$fid"
                             }
                             msg.has("location") -> {
                                 val loc = msg.optJSONObject("location")
                                 val lat = loc?.optDouble("latitude") ?: 0.0
                                 val lon = loc?.optDouble("longitude") ?: 0.0
                                 val isLive = loc?.has("live_period") == true
-                                "[${if (isLive) "📍 Info Info" else "📍 Info"}: lat=$lat, lon=$lon]"
+                                "[${if (isLive) "📍 System awareness note System awareness note" else "📍 System awareness note"}: lat=$lat, lon=$lon]"
                             }
                             msg.has("contact") -> {
                                 val c = msg.optJSONObject("contact")
                                 val name = "${c?.optString("first_name", "")} ${c?.optString("last_name", "")}".trim()
                                 val phone = c?.optString("phone_number", "") ?: ""
-                                "[👤 Info Info: $name, Info: $phone]"
+                                "[👤 System awareness note System awareness note: $name, System awareness note: $phone]"
                             }
                             msg.has("sticker") -> {
                                 val e = msg.optJSONObject("sticker")?.optString("emoji", "") ?: ""
-                                "[🎭 Info $e]"
+                                "[🎭 System awareness note $e]"
                             }
                             msg.has("voice") -> {
                                 val fid = msg.optJSONObject("voice")?.optString("file_id", "") ?: ""
-                                "[🎤 Info Info] file_id=$fid"
+                                "[🎤 System awareness note System awareness note] file_id=$fid"
                             }
                             msg.has("video") -> {
                                 val fid = msg.optJSONObject("video")?.optString("file_id", "") ?: ""
                                 val cap = msg.optString("caption", "")
-                                "[🎥 Info${if (cap.isNotBlank()) ": $cap" else ""}] file_id=$fid"
+                                "[🎥 System awareness note${if (cap.isNotBlank()) ": $cap" else ""}] file_id=$fid"
                             }
                             msg.has("audio") -> {
                                 val audio = msg.optJSONObject("audio")
                                 val fid = audio?.optString("file_id", "") ?: ""
                                 val title = audio?.optString("title", "") ?: ""
-                                "[🎵 Info${if (title.isNotBlank()) ": $title" else ""}] file_id=$fid"
+                                "[🎵 System awareness note${if (title.isNotBlank()) ": $title" else ""}] file_id=$fid"
                             }
                             msg.has("video_note") -> {
                                 val fid = msg.optJSONObject("video_note")?.optString("file_id", "") ?: ""
-                                "[📹 Info Info] file_id=$fid"
+                                "[📹 System awareness note System awareness note] file_id=$fid"
                             }
                             else -> ""
                         }
@@ -416,28 +416,28 @@ class TelegramPollingService : Service() {
         when (cmd) {
             "/start" -> {
                 sendReply(token, chatId, messageId,
-                    "👋 Context note! Context note *Context note* — Context note Context note Context note Context note.\n\n" +
-                    "Context note Context note: *${currentMode.label}*\n\n" +
-                    "Info Info Info Info Info Info Info Info 🤖\n\n" +
-                    "/help — Info Info\n/clear — Info Info\n" +
-                    "/mode\\_chat — Info Info Info\n" +
-                    "/mode\\_agent — Info Info (Agent) Info Info\n" +
-                    "/mode\\_swarm — Info Info (Swarm)\n" +
-                    "/status — Info Info Info")
+                    "👋 System awareness note! System awareness note *System awareness note* — System awareness note System awareness note System awareness note System awareness note.\n\n" +
+                    "System awareness note System awareness note: *${currentMode.label}*\n\n" +
+                    "System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note 🤖\n\n" +
+                    "/help — System awareness note System awareness note\n/clear — System awareness note System awareness note\n" +
+                    "/mode\\_chat — System awareness note System awareness note System awareness note\n" +
+                    "/mode\\_agent — System awareness note System awareness note (Agent) System awareness note System awareness note\n" +
+                    "/mode\\_swarm — System awareness note System awareness note (Swarm)\n" +
+                    "/status — System awareness note System awareness note System awareness note")
                 return
             }
 
             "/clear", "/reset" -> {
                 // Archive before clearing
                 val oldHistory = sessionHistory[chatId]
-                val oldName = sessionNameMap[chatId] ?: "Info ${sessionCounters.getOrDefault(chatId, 1)}"
+                val oldName = sessionNameMap[chatId] ?: "System awareness note ${sessionCounters.getOrDefault(chatId, 1)}"
                 if (!oldHistory.isNullOrEmpty()) {
                     val sessionList = namedSessions.getOrPut(chatId) { mutableListOf() }
                     sessionList.add(oldName to oldHistory.size)
                 }
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "✅ Info Info Info Info.\n_Info /sessions Info Info Info._")
+                    "✅ System awareness note System awareness note System awareness note System awareness note.\n_System awareness note /sessions System awareness note System awareness note System awareness note._")
                 return
             }
 
@@ -446,18 +446,18 @@ class TelegramPollingService : Service() {
                     .take(20)
                     .joinToString("\n") { "  • `${it.name}` — ${it.description?.take(60) ?: ""}" }
                 sendReply(token, chatId, messageId,
-                    "*Omni — Context note Context note:*\n\n" +
-                    "🎛️ *Context note:*\n" +
-                    "/mode\\_chat — Info Info\n" +
-                    "/mode\\_agent — Info Info Info Info\n" +
-                    "/mode\\_swarm — Info Info Info\n\n" +
-                    "📋 *Context note Context note:*\n" +
-                    "/status — Info Info Info\n" +
-                    "/new\\_session [Info] — Info Info Info Info Info Info\n" +
-                    "/sessions — Info Info Info\n" +
-                    "/clear — Info Info Info Info\n\n" +
-                    "🛠️ *Context note Context note Context note Context note:*\n$toolList\n\n" +
-                    "_Info / Info Info Info Info_")
+                    "*Omni — System awareness note System awareness note:*\n\n" +
+                    "🎛️ *System awareness note:*\n" +
+                    "/mode\\_chat — System awareness note System awareness note\n" +
+                    "/mode\\_agent — System awareness note System awareness note System awareness note System awareness note\n" +
+                    "/mode\\_swarm — System awareness note System awareness note System awareness note\n\n" +
+                    "📋 *System awareness note System awareness note:*\n" +
+                    "/status — System awareness note System awareness note System awareness note\n" +
+                    "/new\\_session [System awareness note] — System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note\n" +
+                    "/sessions — System awareness note System awareness note System awareness note\n" +
+                    "/clear — System awareness note System awareness note System awareness note System awareness note\n\n" +
+                    "🛠️ *System awareness note System awareness note System awareness note System awareness note:*\n$toolList\n\n" +
+                    "_System awareness note / System awareness note System awareness note System awareness note System awareness note_")
                 return
             }
 
@@ -465,7 +465,7 @@ class TelegramPollingService : Service() {
                 chatModes[chatId] = OmniMode.CHAT
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "✅ Context note Context note Context note *Context note Context note* 💬\nContext note Context note Context note Context note.")
+                    "✅ System awareness note System awareness note System awareness note *System awareness note System awareness note* 💬\nSystem awareness note System awareness note System awareness note System awareness note.")
                 return
             }
 
@@ -473,9 +473,9 @@ class TelegramPollingService : Service() {
                 chatModes[chatId] = OmniMode.AGENT
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "🤖 Context note Context note Context note *Context note Context note* ⚡\n" +
-                    "Info Info Info Info Info Info Info Info Info ReAct.\n" +
-                    "_Info: Info Info Info Info Info Info Info Info._")
+                    "🤖 System awareness note System awareness note System awareness note *System awareness note System awareness note* ⚡\n" +
+                    "System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note ReAct.\n" +
+                    "_System awareness note: System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note._")
                 return
             }
 
@@ -483,9 +483,9 @@ class TelegramPollingService : Service() {
                 chatModes[chatId] = OmniMode.SWARM
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "🐝 Context note Context note Context note *Context note Context note* 🌐\n" +
-                    "Info Info Info Info Info Info Info Info.\n" +
-                    "_Info Info Info Info Info._")
+                    "🐝 System awareness note System awareness note System awareness note *System awareness note System awareness note* 🌐\n" +
+                    "System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.\n" +
+                    "_System awareness note System awareness note System awareness note System awareness note System awareness note._")
                 return
             }
 
@@ -493,23 +493,23 @@ class TelegramPollingService : Service() {
                 val history = sessionHistory[chatId]
                 val msgCount = history?.size ?: 0
                 val toolCount = toolManager.getToolDefinitions().size
-                val sesName = sessionNameMap[chatId] ?: "Info Info"
+                val sesName = sessionNameMap[chatId] ?: "System awareness note System awareness note"
                 sendReply(token, chatId, messageId,
-                    "📊 *Context note Context note:*\n\n" +
-                    "🎛️ Context note: *${(chatModes[chatId] ?: OmniMode.CHAT).label}*\n" +
-                    "📝 Context note Context note: *$sesName*\n" +
-                    "💬 Context note Context note Context note: *$msgCount*\n" +
-                    "🛠️ Context note Context note: *$toolCount*\n" +
-                    "🤖 Info Info: ${if (isRunning) "✅" else "❌"}\n\n" +
-                    "_/new\\_session [Info] — Info Info Info_\n" +
-                    "_/sessions — Info Info Info Info_")
+                    "📊 *System awareness note System awareness note:*\n\n" +
+                    "🎛️ System awareness note: *${(chatModes[chatId] ?: OmniMode.CHAT).label}*\n" +
+                    "📝 System awareness note System awareness note: *$sesName*\n" +
+                    "💬 System awareness note System awareness note System awareness note: *$msgCount*\n" +
+                    "🛠️ System awareness note System awareness note: *$toolCount*\n" +
+                    "🤖 System awareness note System awareness note: ${if (isRunning) "✅" else "❌"}\n\n" +
+                    "_/new\\_session [System awareness note] — System awareness note System awareness note System awareness note_\n" +
+                    "_/sessions — System awareness note System awareness note System awareness note System awareness note_")
                 return
             }
 
             "/new_session" -> {
                 // Archive current session
                 val oldHistory = sessionHistory[chatId]
-                val oldName = sessionNameMap[chatId] ?: "Info ${sessionCounters.getOrDefault(chatId, 1)}"
+                val oldName = sessionNameMap[chatId] ?: "System awareness note ${sessionCounters.getOrDefault(chatId, 1)}"
                 if (!oldHistory.isNullOrEmpty()) {
                     val sessionList = namedSessions.getOrPut(chatId) { mutableListOf() }
                     sessionList.add(oldName to oldHistory.size)
@@ -519,12 +519,12 @@ class TelegramPollingService : Service() {
                 sessionCounters[chatId] = counter
                 val parts = text.split(" ", limit = 2)
                 val newName = if (parts.size > 1 && parts[1].isNotBlank())
-                    parts[1].trim() else "Info $counter"
+                    parts[1].trim() else "System awareness note $counter"
                 sessionHistory.remove(chatId)
                 sessionNameMap[chatId] = newName
                 sendReply(token, chatId, messageId,
-                    "🆕 Context note Context note Context note Context note: *$newName*\n" +
-                    "Info Info Info Info — Info Info Info!")
+                    "🆕 System awareness note System awareness note System awareness note System awareness note: *$newName*\n" +
+                    "System awareness note System awareness note System awareness note System awareness note — System awareness note System awareness note System awareness note!")
                 return
             }
 
@@ -532,16 +532,16 @@ class TelegramPollingService : Service() {
                 val list = namedSessions[chatId]
                 if (list.isNullOrEmpty()) {
                     sendReply(token, chatId, messageId,
-                        "📋 Info Info Info Info Info.\n\n" +
-                        "_Info /new\\_session [Info] Info Info Info Info_")
+                        "📋 System awareness note System awareness note System awareness note System awareness note System awareness note.\n\n" +
+                        "_System awareness note /new\\_session [System awareness note] System awareness note System awareness note System awareness note System awareness note_")
                 } else {
-                    val sb = StringBuilder("📋 *Context note Context note:*\n\n")
+                    val sb = StringBuilder("📋 *System awareness note System awareness note:*\n\n")
                     list.takeLast(10).forEachIndexed { i, (name, count) ->
-                        sb.append("${i + 1}. *$name* — $count Context note\n")
+                        sb.append("${i + 1}. *$name* — $count System awareness note\n")
                     }
-                    val currentName = sessionNameMap[chatId] ?: "Info Info"
+                    val currentName = sessionNameMap[chatId] ?: "System awareness note System awareness note"
                     val currentCount = sessionHistory[chatId]?.size ?: 0
-                    sb.append("\n🟢 Context note: *$currentName* ($currentCount Context note)")
+                    sb.append("\n🟢 System awareness note: *$currentName* ($currentCount System awareness note)")
                     sendReply(token, chatId, messageId, sb.toString())
                 }
                 return
@@ -637,7 +637,7 @@ class TelegramPollingService : Service() {
             }
             reply
         } catch (e: Exception) {
-            "⚠️ Info: ${e.message?.take(200) ?: "Info Info Info"}"
+            "⚠️ System awareness note: ${e.message?.take(200) ?: "System awareness note System awareness note System awareness note"}"
         }
     }
 
@@ -698,8 +698,8 @@ class TelegramPollingService : Service() {
             }
 
             if (result == null) {
-                return "⏱ Info Info Info ($AGENT_TIMEOUT_MINUTES Info). " +
-                    "Info Info Info Info Info."
+                return "⏱ System awareness note System awareness note System awareness note ($AGENT_TIMEOUT_MINUTES System awareness note). " +
+                    "System awareness note System awareness note System awareness note System awareness note System awareness note."
             }
 
             // Store the exchange in session history
@@ -713,14 +713,14 @@ class TelegramPollingService : Service() {
             }
 
             val suffix = if (toolLog.isNotEmpty())
-                "\n\n_⚙️ Info Info:${toolLog}_"
+                "\n\n_⚙️ System awareness note System awareness note:${toolLog}_"
             else ""
 
             (replyBuilder.toString().trim() + suffix).ifBlank {
-                "✅ Info Info Info. (Info Info Info Info Info)"
+                "✅ System awareness note System awareness note System awareness note. (System awareness note System awareness note System awareness note System awareness note System awareness note)"
             }
         } catch (e: Exception) {
-            "⚠️ Info Info Info Info: ${e.message?.take(200) ?: "Info Info Info"}"
+            "⚠️ System awareness note System awareness note System awareness note System awareness note: ${e.message?.take(200) ?: "System awareness note System awareness note System awareness note"}"
         }
     }
 
@@ -749,7 +749,7 @@ class TelegramPollingService : Service() {
                             is com.omnidev.workspace.domain.engine.SwarmEvent.Error ->
                                 replyBuilder.append("\n⚠️ ${event.message}")
                             is com.omnidev.workspace.domain.engine.SwarmEvent.TaskFailed ->
-                                replyBuilder.append("\n❌ Info: ${event.task.description} — ${event.error}")
+                                replyBuilder.append("\n❌ System awareness note: ${event.task.description} — ${event.error}")
                             else -> Unit
                         }
                     }
@@ -758,15 +758,15 @@ class TelegramPollingService : Service() {
             }
 
             if (result == null) {
-                return "⏱ Info Info Info ($AGENT_TIMEOUT_MINUTES Info). " +
-                    "Info Info Info Info Info."
+                return "⏱ System awareness note System awareness note System awareness note ($AGENT_TIMEOUT_MINUTES System awareness note). " +
+                    "System awareness note System awareness note System awareness note System awareness note System awareness note."
             }
 
             replyBuilder.toString().trim().ifBlank {
-                "✅ Info Info Info Info. (Info Info Info Info Info)"
+                "✅ System awareness note System awareness note System awareness note System awareness note. (System awareness note System awareness note System awareness note System awareness note System awareness note)"
             }
         } catch (e: Exception) {
-            "⚠️ Info Info Info Info: ${e.message?.take(200) ?: "Info Info Info"}"
+            "⚠️ System awareness note System awareness note System awareness note System awareness note: ${e.message?.take(200) ?: "System awareness note System awareness note System awareness note"}"
         }
     }
 
@@ -780,15 +780,15 @@ class TelegramPollingService : Service() {
     private suspend fun registerBotCommands(token: String) = withContext(Dispatchers.IO) {
         try {
             val builtIn = listOf(
-                "start" to "Info Info Info Info",
-                "help" to "Info Info Info Info",
-                "clear" to "Info Info Info",
-                "status" to "Info Info Info",
-                "new_session" to "Info Info Info Info Info",
-                "sessions" to "Info Info Info Info",
-                "mode_chat" to "Info Info Info Info 💬",
-                "mode_agent" to "Info Info Info Info 🤖",
-                "mode_swarm" to "Info Info Info Info Info 🐝"
+                "start" to "System awareness note System awareness note System awareness note System awareness note",
+                "help" to "System awareness note System awareness note System awareness note System awareness note",
+                "clear" to "System awareness note System awareness note System awareness note",
+                "status" to "System awareness note System awareness note System awareness note",
+                "new_session" to "System awareness note System awareness note System awareness note System awareness note System awareness note",
+                "sessions" to "System awareness note System awareness note System awareness note System awareness note",
+                "mode_chat" to "System awareness note System awareness note System awareness note System awareness note 💬",
+                "mode_agent" to "System awareness note System awareness note System awareness note System awareness note 🤖",
+                "mode_swarm" to "System awareness note System awareness note System awareness note System awareness note System awareness note 🐝"
             )
 
             // Sanitize tool names to valid Telegram command format (a-z, 0-9, underscore only)

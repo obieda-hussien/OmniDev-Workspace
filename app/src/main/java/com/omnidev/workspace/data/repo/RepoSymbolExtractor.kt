@@ -4,24 +4,24 @@ import com.omnidev.workspace.data.db.entities.RepoSymbolEntry
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * RepoSymbolExtractor — Context note Context note Context note (Live Repository Context Engine)
+ * RepoSymbolExtractor — System awareness note System awareness note System awareness note (Live Repository Context Engine)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * Mobile-first: Context note Tree-sitterContext note Context note CompilerContext note Context note ANTLR. Context note regex Context note Context note
- * Context note tokens Context note Context note Context note Context note. Context note Context note:
- *   - Context note Context note classes / objects / interfaces / enums
- *   - Context note Context note functions / methods / lambdas Context note
- *   - Context note Context note properties / variables / constants Context note top-level
+ * Mobile-first: System awareness note Tree-sitterSystem awareness note System awareness note CompilerSystem awareness note System awareness note ANTLR. System awareness note regex System awareness note System awareness note
+ * System awareness note tokens System awareness note System awareness note System awareness note System awareness note. System awareness note System awareness note:
+ *   - System awareness note System awareness note classes / objects / interfaces / enums
+ *   - System awareness note System awareness note functions / methods / lambdas System awareness note
+ *   - System awareness note System awareness note properties / variables / constants System awareness note top-level
  *
- * Context note Context note Snapdragon 660 Context note ~1 MB/sContext note Context note Context note 50 KB Context note 50ms.
- * Context note 2-4 GB RAM Context note streaming Context note Context note AST Context note Context note.
+ * System awareness note System awareness note Snapdragon 660 System awareness note ~1 MB/sSystem awareness note System awareness note System awareness note 50 KB System awareness note 50ms.
+ * System awareness note 2-4 GB RAM System awareness note streaming System awareness note System awareness note AST System awareness note System awareness note.
  */
 object RepoSymbolExtractor {
 
-    /** Context note Context note Context note snippet Context note. */
+    /** System awareness note System awareness note System awareness note snippet System awareness note. */
     private const val MAX_SNIPPET_LEN = 240
 
-    /** Context note Context note Context note Context note Context note Context note Context note (Context note Context note Context note). */
+    /** System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note (System awareness note System awareness note System awareness note). */
     private const val MAX_SYMBOLS_PER_FILE = 400
 
     // ──────────────────────────────────────────────────────────────────
@@ -67,8 +67,8 @@ object RepoSymbolExtractor {
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * Context note Context note Context note Context note Context note Context note. Context note Context note top-level + nested Context note Context note
-     * indent (Context note Context note retrievalContext note Context note Context note AST Context note).
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note. System awareness note System awareness note top-level + nested System awareness note System awareness note
+     * indent (System awareness note System awareness note retrievalSystem awareness note System awareness note System awareness note AST System awareness note).
      */
     fun extract(
         scopePath: String,
@@ -89,7 +89,7 @@ object RepoSymbolExtractor {
             val line = rawLine.trimStart()
             if (line.isEmpty() || line.startsWith("//") || line.startsWith("#") || line.startsWith("*")) continue
 
-            // package / module Context note qualifiedName
+            // package / module System awareness note qualifiedName
             extractPackage(line, language)?.let { packageOrModule = it }
 
             val matches = matchSymbols(line, language)
@@ -119,7 +119,7 @@ object RepoSymbolExtractor {
 
     private data class SymbolMatch(val kind: String, val name: String, val visibility: String)
 
-    /** Context note package/module declaration. */
+    /** System awareness note package/module declaration. */
     private fun extractPackage(line: String, language: String): String? {
         return when (language) {
             "kotlin", "java", "scala" -> {

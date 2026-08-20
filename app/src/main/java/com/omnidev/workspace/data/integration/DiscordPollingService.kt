@@ -166,7 +166,7 @@ class DiscordPollingService : Service() {
     private val toolManager: CompositeToolManager by lazy {
         val db = OmniDevDatabase.getInstance(applicationContext)
         val memoryManager = MemoryManager(db.knowledgeDao())
-        // ── Agent Brain 2.0: Context note Context note Context note OmniDevApp ──
+        // ── Agent Brain 2.0: System awareness note System awareness note System awareness note OmniDevApp ──
         val omniApp = com.omnidev.workspace.OmniDevApp.instance
         CompositeToolManager(
             fileToolManager = FileToolManager(),
@@ -332,22 +332,22 @@ class DiscordPollingService : Service() {
                 when {
                     lc == "!mode_chat"  -> {
                         channelModes[channelId] = OmniMode.CHAT
-                        sendDiscordMessage(token, channelId, "✅ Mode: **Chat** — Context note Context note. Context note `!omni Context note` Context note.")
+                        sendDiscordMessage(token, channelId, "✅ Mode: **Chat** — System awareness note System awareness note. System awareness note `!omni System awareness note` System awareness note.")
                         continue
                     }
                     lc == "!mode_agent" -> {
                         channelModes[channelId] = OmniMode.AGENT
-                        sendDiscordMessage(token, channelId, "✅ Mode: **Agent** 🤖 — Context note Context note Context note Context note Context note.")
+                        sendDiscordMessage(token, channelId, "✅ Mode: **Agent** 🤖 — System awareness note System awareness note System awareness note System awareness note System awareness note.")
                         continue
                     }
                     lc == "!mode_swarm" -> {
                         channelModes[channelId] = OmniMode.SWARM
-                        sendDiscordMessage(token, channelId, "✅ Mode: **Swarm** 🐝 — Context note Context note Context note.")
+                        sendDiscordMessage(token, channelId, "✅ Mode: **Swarm** 🐝 — System awareness note System awareness note System awareness note.")
                         continue
                     }
                     lc == "!clear" -> {
                         sessionHistory.remove(channelId)
-                        sendDiscordMessage(token, channelId, "🧹 Info Info Info Info.")
+                        sendDiscordMessage(token, channelId, "🧹 System awareness note System awareness note System awareness note System awareness note.")
                         continue
                     }
                     lc == "!status" -> {
@@ -390,7 +390,7 @@ class DiscordPollingService : Service() {
                         withTypingIndicator(token, channelId) {
                             processMessage(query, channelId, mode, username)
                         }
-                    } ?: "⏱ Info Info Info (8 Info). Info Info Info."
+                    } ?: "⏱ System awareness note System awareness note System awareness note (8 System awareness note). System awareness note System awareness note System awareness note."
 
                     // Persist user + bot messages to Room
                     if (sessionId != null) {
@@ -586,15 +586,15 @@ class DiscordPollingService : Service() {
         appendLine("🤖 **Omni Discord Bot**")
         appendLine()
         appendLine("**Modes:**")
-        appendLine("`!mode_chat`  — Info Info (Info)")
-        appendLine("`!mode_agent` — Info Info Info Info")
-        appendLine("`!mode_swarm` — Info Info Info")
+        appendLine("`!mode_chat`  — System awareness note System awareness note (System awareness note)")
+        appendLine("`!mode_agent` — System awareness note System awareness note System awareness note System awareness note")
+        appendLine("`!mode_swarm` — System awareness note System awareness note System awareness note")
         appendLine()
         appendLine("**Commands:**")
-        appendLine("`!omni <message>` — Info Info Info")
-        appendLine("`!status`         — Info Info Info")
-        appendLine("`!clear`          — Info Info Info")
-        appendLine("`!help`           — Info Info")
+        appendLine("`!omni <message>` — System awareness note System awareness note System awareness note")
+        appendLine("`!status`         — System awareness note System awareness note System awareness note")
+        appendLine("`!clear`          — System awareness note System awareness note System awareness note")
+        appendLine("`!help`           — System awareness note System awareness note")
         appendLine()
         appendLine("In AGENT/SWARM mode: all messages are processed automatically.")
     }

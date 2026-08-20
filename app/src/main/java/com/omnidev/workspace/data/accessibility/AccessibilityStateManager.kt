@@ -13,27 +13,27 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 
 /**
- * AccessibilityStateManager — Context note Context note Context note Context note Context note
+ * AccessibilityStateManager — System awareness note System awareness note System awareness note System awareness note System awareness note
  *
- * Context note Context note Context note:
+ * System awareness note System awareness note System awareness note:
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. **Context note Context note Context note Context note (UI Change Velocity)**: Context note Context note Context note Context note
- *    Context note Context note Context note Context note Context note Context note Context note (loading) Context note Context note Context note.
+ * 1. **System awareness note System awareness note System awareness note System awareness note (UI Change Velocity)**: System awareness note System awareness note System awareness note System awareness note
+ *    System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note (loading) System awareness note System awareness note System awareness note.
  *
- * 2. **Context note Context note Context note (Navigation Pattern Detection)**: Context note Context note Context note packages
- *    Context note Context note Context note (Context note: Settings → WiFi → back → Settings).
+ * 2. **System awareness note System awareness note System awareness note (Navigation Pattern Detection)**: System awareness note System awareness note System awareness note packages
+ *    System awareness note System awareness note System awareness note (System awareness note: Settings → WiFi → back → Settings).
  *
- * 3. **Context note Context note Context note (UI State Classification)**: Context note Context note Context note
- *    Context note LOADING / INTERACTIVE / ERROR / DIALOG / LIST / FORM.
+ * 3. **System awareness note System awareness note System awareness note (UI State Classification)**: System awareness note System awareness note System awareness note
+ *    System awareness note LOADING / INTERACTIVE / ERROR / DIALOG / LIST / FORM.
  *
- * 4. **Context note Context note Context note Context note (Smart Debounce)**: Context note Context note Context note
- *    Context note Context note Context note content Context note (scroll, animation).
+ * 4. **System awareness note System awareness note System awareness note System awareness note (Smart Debounce)**: System awareness note System awareness note System awareness note
+ *    System awareness note System awareness note System awareness note content System awareness note (scroll, animation).
  *
- * 5. **Context note Context note (Session Memory)**: Context note Context note Context note Context note —
- *    Context note Context note Context note Context note Context note Context note Context note.
+ * 5. **System awareness note System awareness note (Session Memory)**: System awareness note System awareness note System awareness note System awareness note —
+ *    System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
  *
- * 6. **Context note UI Context note Context note (UI Event Streaming)**: Context note Context note Context note
- *    (UIEvent) Context note Context note Context note Context note Context note Context note — Context note Context note ReAct.
+ * 6. **System awareness note UI System awareness note System awareness note (UI Event Streaming)**: System awareness note System awareness note System awareness note
+ *    (UIEvent) System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note — System awareness note System awareness note ReAct.
  */
 object AccessibilityStateManager {
 
@@ -56,58 +56,58 @@ object AccessibilityStateManager {
 
     // ── Enhanced State ───────────────────────────────────────────────────────
 
-    /** Context note Context note: Context note 20 Context note Context note Context note Context note */
+    /** System awareness note System awareness note: System awareness note 20 System awareness note System awareness note System awareness note System awareness note */
     private val _navigationHistory = MutableStateFlow<List<NavigationEntry>>(emptyList())
     val navigationHistory: StateFlow<List<NavigationEntry>> = _navigationHistory.asStateFlow()
 
-    /** Context note Context note Context note Context note Context note */
+    /** System awareness note System awareness note System awareness note System awareness note System awareness note */
     private val _screenClass = MutableStateFlow(ScreenClass.UNKNOWN)
     val screenClass: StateFlow<ScreenClass> = _screenClass.asStateFlow()
 
-    /** Context note Context note Context note: Context note Context note Context note content Context note Context note 5 Context note */
+    /** System awareness note System awareness note System awareness note: System awareness note System awareness note System awareness note content System awareness note System awareness note 5 System awareness note */
     private val _changeVelocity = MutableStateFlow(0f)
     val changeVelocity: StateFlow<Float> = _changeVelocity.asStateFlow()
 
-    /** Context note Context note Context note Context note Context note (Context note Context note Context note velocity + node count) */
+    /** System awareness note System awareness note System awareness note System awareness note System awareness note (System awareness note System awareness note System awareness note velocity + node count) */
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    /** Context note Context note UI Context note Context note */
+    /** System awareness note System awareness note UI System awareness note System awareness note */
     private val _uiEvents = MutableSharedFlow<UIEvent>(extraBufferCapacity = 32)
     val uiEvents: SharedFlow<UIEvent> = _uiEvents.asSharedFlow()
 
-    /** Context note Context note Context note */
+    /** System awareness note System awareness note System awareness note */
     private val _sessionStats = MutableStateFlow(SessionStats())
     val sessionStats: StateFlow<SessionStats> = _sessionStats.asStateFlow()
 
-    /** Context note snapshot Context note node count (Context note Context note loading) */
+    /** System awareness note snapshot System awareness note node count (System awareness note System awareness note loading) */
     private val _lastNodeCount = MutableStateFlow(0)
     val lastNodeCount: StateFlow<Int> = _lastNodeCount.asStateFlow()
 
     // ── Internal Tracking ────────────────────────────────────────────────────
 
-    /** Context note Context note 5 Context note Context note Context note velocity */
+    /** System awareness note System awareness note 5 System awareness note System awareness note System awareness note velocity */
     private val recentChangeTimestamps = ConcurrentLinkedDeque<Long>()
     private val VELOCITY_WINDOW_MS = 5_000L
 
-    /** Context note Context note Context note root Context note Context note package change */
+    /** System awareness note System awareness note System awareness note root System awareness note System awareness note package change */
     private val rootUpdatesSincePackageChange = AtomicInteger(0)
 
-    /** Context note Context note Context note Context note package */
+    /** System awareness note System awareness note System awareness note System awareness note package */
     private val lastPackageChangeMs = AtomicLong(0L)
 
-    /** Context note Context note Context note Context note */
+    /** System awareness note System awareness note System awareness note System awareness note */
     private val detectedNavigationPatterns = mutableMapOf<String, Int>()
 
-    /** Context note package hash Context note debounce */
+    /** System awareness note package hash System awareness note debounce */
     @Volatile
     private var lastKnownPackage: String? = null
 
     // ── Public API ───────────────────────────────────────────────────────────
 
     /**
-     * Context note Context note root node Context note Context note Context note Context note.
-     * Context note Context note [OmniAccessibilityService] Context note Context note Context note.
+     * System awareness note System awareness note root node System awareness note System awareness note System awareness note System awareness note.
+     * System awareness note System awareness note [OmniAccessibilityService] System awareness note System awareness note System awareness note.
      */
     fun updateRootNode(node: AccessibilityNodeInfo?) {
         recycleOldRoot(node)
@@ -116,7 +116,7 @@ object AccessibilityStateManager {
         _lastUpdateTime.value = now
         rootUpdatesSincePackageChange.incrementAndGet()
 
-        // Context note Context note velocity
+        // System awareness note System awareness note velocity
         trackVelocity(now)
 
         if (node != null) {
@@ -134,7 +134,7 @@ object AccessibilityStateManager {
     }
 
     /**
-     * Context note Context note Context note Context note Context note Context note Context note Context note.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     fun updateActiveWindow(packageName: String?, activityName: String?) {
         val prev = _activePackage.value
@@ -146,25 +146,25 @@ object AccessibilityStateManager {
             lastPackageChangeMs.set(now)
             rootUpdatesSincePackageChange.set(0)
 
-            // Context note Context note Context note
+            // System awareness note System awareness note System awareness note
             val entry = NavigationEntry(packageName, activityName, now)
             val history = _navigationHistory.value.toMutableList()
             history.add(entry)
             if (history.size > 20) history.removeAt(0)
             _navigationHistory.value = history
 
-            // Context note Context note Context note Context note
+            // System awareness note System awareness note System awareness note System awareness note
             analyzeNavigationPattern(history)
 
-            // Context note Context note Context note
+            // System awareness note System awareness note System awareness note
             updateSessionStats(packageName, prev, now)
 
-            // Context note Context note Context note Context note
+            // System awareness note System awareness note System awareness note System awareness note
             _uiEvents.tryEmit(UIEvent.AppSwitched(prev, packageName, now))
         }
     }
 
-    /** Context note Context note Context note Context note Context note / Context note Context note. */
+    /** System awareness note System awareness note System awareness note System awareness note System awareness note / System awareness note System awareness note. */
     fun setServiceConnected(connected: Boolean) {
         _isServiceConnected.value = connected
         if (!connected) {
@@ -182,8 +182,8 @@ object AccessibilityStateManager {
     }
 
     /**
-     * Context note Context note Context note Context note accessibility Context note Context note Context note Context note Context note Context note.
-     * Context note Context note Context note Context note Context note Context note dump_tree Context note.
+     * System awareness note System awareness note System awareness note System awareness note accessibility System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note dump_tree System awareness note.
      */
     fun findNodeByText(text: String, exactMatch: Boolean = false): AccessibilityNodeInfo? {
         val root = _rootNode.value ?: return null
@@ -199,7 +199,7 @@ object AccessibilityStateManager {
     }
 
     /**
-     * Context note Context note Context note Context note Context note — Context note Context note Context note Context note Context note system prompt.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note — System awareness note System awareness note System awareness note System awareness note System awareness note system prompt.
      */
     fun buildContextSummary(): String = buildString {
         append("🖥️ UI Context Summary\n")
@@ -232,7 +232,7 @@ object AccessibilityStateManager {
     }
 
     /**
-     * Context note Context note Context note Context note Context note Context note Context note Context note.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     fun getMostUsedApps(limit: Int = 5): List<Pair<String, Int>> =
         _sessionStats.value.appVisitCounts
@@ -242,12 +242,12 @@ object AccessibilityStateManager {
             .map { it.key to it.value }
 
     /**
-     * Context note Context note Context note Context note Context note Context note Context note Context note (form) — Context note Context note Context note Context note Context note.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note (form) — System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     fun isFormScreen(): Boolean = _screenClass.value == ScreenClass.FORM
 
     /**
-     * Context note Context note Context note Context note Context note Context note Context note Context note Context note Context note.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note.
      */
     fun shouldWaitForUI(): Boolean = _isLoading.value || _changeVelocity.value > 5f
 
@@ -262,7 +262,7 @@ object AccessibilityStateManager {
 
     private fun trackVelocity(now: Long) {
         recentChangeTimestamps.addLast(now)
-        // Context note Context note Context note Context note 5 Context note
+        // System awareness note System awareness note System awareness note System awareness note 5 System awareness note
         while (recentChangeTimestamps.isNotEmpty() &&
             now - recentChangeTimestamps.peekFirst() > VELOCITY_WINDOW_MS) {
             recentChangeTimestamps.pollFirst()
@@ -281,8 +281,8 @@ object AccessibilityStateManager {
     }
 
     /**
-     * Context note Context note Context note Context note Context note Context note node tree.
-     * Context note: Context note Context note heuristics + Context note Context note.
+     * System awareness note System awareness note System awareness note System awareness note System awareness note System awareness note node tree.
+     * System awareness note: System awareness note System awareness note heuristics + System awareness note System awareness note.
      */
     private fun classifyScreen(root: AccessibilityNodeInfo, nodeCount: Int): ScreenClass {
         var editableCount = 0
@@ -329,12 +329,12 @@ object AccessibilityStateManager {
     private fun detectLoading(nodeCount: Int, velocity: Float, screenClass: ScreenClass): Boolean {
         return screenClass == ScreenClass.LOADING ||
                 (nodeCount < 8 && velocity > 3f) ||
-                (velocity > 10f) // Context note Context note Context note Context note = Context note
+                (velocity > 10f) // System awareness note System awareness note System awareness note System awareness note = System awareness note
     }
 
     private fun analyzeNavigationPattern(history: List<NavigationEntry>) {
         if (history.size < 3) return
-        // Context note Context note A→B→A Context note (bounce back patterns)
+        // System awareness note System awareness note A→B→A System awareness note (bounce back patterns)
         val recent = history.takeLast(6)
         val safeSize = recent.size
         for (i in 0 until safeSize - 2) {
@@ -403,19 +403,19 @@ object AccessibilityStateManager {
         fun sessionDurationMs(): Long = lastActivityMs - sessionStartMs
     }
 
-    /** Context note Context note Context note */
+    /** System awareness note System awareness note System awareness note */
     enum class ScreenClass {
-        UNKNOWN,    // Context note Context note Context note
-        LOADING,    // Context note Context note / Context note
-        INTERACTIVE,// Context note Context note Context note
-        FORM,       // Context note Context note Context note
-        SEARCH,     // Context note Context note / Context note Context note
-        LIST,       // Context note Context note
-        DIALOG,     // Context note Context note
-        ERROR       // Context note Context note
+        UNKNOWN,    // System awareness note System awareness note System awareness note
+        LOADING,    // System awareness note System awareness note / System awareness note
+        INTERACTIVE,// System awareness note System awareness note System awareness note
+        FORM,       // System awareness note System awareness note System awareness note
+        SEARCH,     // System awareness note System awareness note / System awareness note System awareness note
+        LIST,       // System awareness note System awareness note
+        DIALOG,     // System awareness note System awareness note
+        ERROR       // System awareness note System awareness note
     }
 
-    /** Context note UI Context note */
+    /** System awareness note UI System awareness note */
     sealed class UIEvent {
         object ServiceConnected : UIEvent()
         object ServiceDisconnected : UIEvent()

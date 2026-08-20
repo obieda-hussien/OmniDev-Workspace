@@ -53,8 +53,8 @@ object Routes {
         const val MCP_SETTINGS = "mcp_settings"
     const val PROFILE = "profile"
     const val ANALYTICS = "analytics"
-    const val AGENT_BRAIN = "agent_brain"  // Verified step Verified step Verified step Agent Verified step
-    const val BROWSER_VIEWER = "browser_viewer"  // Verified step Verified step Verified step Verified step Verified step
+    const val AGENT_BRAIN = "agent_brain"  // System and domain documentation note System and domain documentation note System and domain documentation note Agent System and domain documentation note
+    const val BROWSER_VIEWER = "browser_viewer"  // System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note
 }
 
 /**
@@ -176,6 +176,7 @@ fun AppNavigation(
 
         composable(Routes.PROFILE) {
             UserProfileScreen(
+                settingsRepository = settingsRepository,
                 onNavigateBack = { navController.popBackStack() }
             )
         }
@@ -191,7 +192,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // 🧠 Agent Brain Dashboard — Verified step Verified step Verified step Verified step Agent
+        // 🧠 Agent Brain Dashboard — System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note Agent
         // ═══════════════════════════════════════════════════════════════
         composable(Routes.AGENT_BRAIN) {
             val app = OmniDevApp.instance
@@ -209,7 +210,7 @@ fun AppNavigation(
         }
 
         // ═══════════════════════════════════════════════════════════════
-        // 👁 Browser Viewer — Verified step Verified step Verified step Verified step Verified step Verified step Verified step Verified step
+        // 👁 Browser Viewer — System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note System and domain documentation note
         // ═══════════════════════════════════════════════════════════════
         composable(Routes.BROWSER_VIEWER) {
             val app = OmniDevApp.instance
