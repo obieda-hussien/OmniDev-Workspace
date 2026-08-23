@@ -611,7 +611,7 @@ class CausalChainPlanner(
             //      (: "'path/file' exists")
             val pathMatch = Regex("'([^']+)'").find(precondition)
             val requiredPath = pathMatch?.groupValues?.get(1) ?: continue
-            if (precondition.contains("English Text") && state.wasDeleted(requiredPath)) {
+            if (precondition.contains("exists") && state.wasDeleted(requiredPath)) {
                 return Triple(false, "File '$requiredPath' is deleted and inaccessible.", state)
             }
         }
