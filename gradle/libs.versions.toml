@@ -1,4 +1,5 @@
 [versions]
+owaspDependencyCheck = "11.1.1"
 agp = "8.7.3"
 kotlin = "2.0.21"
 coreKtx = "1.15.0"
@@ -84,3 +85,4 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlinSerialization" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+owasp-dependencycheck = { id = "org.owasp.dependencycheck", version.ref = "owaspDependencyCheck" }
