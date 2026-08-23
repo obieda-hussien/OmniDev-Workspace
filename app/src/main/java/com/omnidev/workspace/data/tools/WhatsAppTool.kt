@@ -63,38 +63,84 @@ object WhatsAppTool {
         )
     )
 
-    suspend fun execute(
-        phoneNumberId: String?,
-        accessToken: String?,
-        args: Map<String, String>
-    ): ToolExecutionResult = withContext(Dispatchers.IO) {
-        if (phoneNumberId.isNullOrBlank() || accessToken.isNullOrBlank()) {
-            return@withContext ToolExecutionResult(
-                "WhatsApp is not configured. Go to Settings → Integrations and set your " +
-                "Phone Number ID and Access Token.",
-                isError = true
-            )
+    suspend fun execute(phoneNumberId: String?, accessToken: String?, bridgeUrl: String?, args: Map<String, String>): ToolExecutionResult = withContext(Dispatchers.IO) {
+        val action = args["action"] ?: return@withContext ToolExecutionResult("action is required.", isError = true)
+
+        // 1. Primary Path: Cloud API
+        if (!phoneNumberId.isNullOrBlank() && !accessToken.isNullOrBlank()) {
+            val res = executeCloud(phoneNumberId, accessToken, action, args)
+            if (!res.isError) return@withContext res
+            // Fall through if error
         }
 
-        when (val action = args["action"]?.lowercase()?.trim() ?: "") {
-            "send_message"  -> sendMessage(phoneNumberId, accessToken, args)
-            "send_image"    -> sendImage(phoneNumberId, accessToken, args)
-            "send_document" -> sendDocument(phoneNumberId, accessToken, args)
-            "send_location" -> sendLocation(phoneNumberId, accessToken, args)
-            "send_contact"  -> sendContact(phoneNumberId, accessToken, args)
-            "send_template" -> sendTemplate(phoneNumberId, accessToken, args)
-            "send_reaction" -> sendReaction(phoneNumberId, accessToken, args)
-            "mark_read"     -> markRead(phoneNumberId, accessToken, args)
-            "get_profile"   -> getProfile(phoneNumberId, accessToken)
-            else -> ToolExecutionResult(
-                "Unknown action '$action'. Valid: send_message, send_image, send_document, " +
-                "send_location, send_contact, send_template, send_reaction, mark_read, get_profile.",
-                isError = true
-            )
+        // 2. Fallback 1: WhatsAppBridgeService IPC
+        if (com.omnidev.workspace.data.integration.WhatsAppBridgeService.isRunning) {
+            val bridgeUrlFinal = bridgeUrl ?: "http://localhost:3000"
+            val res = executeBridge(bridgeUrlFinal, action, args)
+            if (!res.isError) return@withContext res
+            // Fall through if error
+        }
+
+        // 3. Fallback 2: OmniAccessibilityService UI Automation
+        return@withContext executeAccessibility(action, args)
+    }
+
+    private fun executeCloud(phoneNumberId: String, token: String, action: String, args: Map<String, String>): ToolExecutionResult {
+        return when (action) {
+            "send_message" -> sendMessage(phoneNumberId, token, args)
+            "send_image" -> sendImage(phoneNumberId, token, args)
+            "send_document" -> sendDocument(phoneNumberId, token, args)
+            "send_location" -> sendLocation(phoneNumberId, token, args)
+            "send_contact" -> sendContact(phoneNumberId, token, args)
+            "send_template" -> sendTemplate(phoneNumberId, token, args)
+            "send_reaction" -> sendReaction(phoneNumberId, token, args)
+            "mark_read" -> markRead(phoneNumberId, token, args)
+            "get_profile" -> getProfile(phoneNumberId, token)
+            else -> ToolExecutionResult("Unknown action for Cloud API: '$action'.", isError = true)
+        }
+    }
+
+    private suspend fun executeAccessibility(action: String, args: Map<String, String>): ToolExecutionResult {
+        return when (action) {
+            "send_message" -> {
+                val to = args["to"] ?: return ToolExecutionResult("to is required.", isError = true)
+                val msg = args["message"] ?: return ToolExecutionResult("message is required.", isError = true)
+                val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    setPackage("com.whatsapp")
+                    putExtra(android.content.Intent.EXTRA_TEXT, msg)
+                    putExtra("jid", "$to@s.whatsapp.net")
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                }
+
+                // Signal UI automation to click send via Accessibility
+                val clickIntent = android.content.Intent("com.omnidev.workspace.ACCESSIBILITY_ACTION").apply {
+                    putExtra("action", "click_whatsapp_send")
+                    putExtra("target_package", "com.whatsapp")
+                }
+
+                val context = com.omnidev.workspace.OmniDevApp.instance.applicationContext
+                try {
+                    context.startActivity(intent)
+                    kotlinx.coroutines.delay(1000)
+                    context.sendBroadcast(clickIntent)
+                    ToolExecutionResult("✅ UI Automation fallback triggered for sending message to $to")
+                } catch(e: Exception) {
+                    ToolExecutionResult("Fallback UI automation failed: ${e.message}", isError = true)
+                }
+            }
+            else -> ToolExecutionResult("Action '$action' not supported in UI automation fallback.", isError = true)
         }
     }
 
     // ── Private action implementations ─────────────────────────────────────
+
+
+    // ── Bridge UI Fallback (Partial via API if bridging) ──
+    private suspend fun executeBridge(bridgeUrl: String, action: String, args: Map<String, String>): ToolExecutionResult {
+        // Simple bridge stub for fallback
+        return ToolExecutionResult("Fallback bridge currently only routes. Use UI automation if needed.", isError = true)
+    }
 
     private fun sendMessage(phoneNumberId: String, token: String, args: Map<String, String>): ToolExecutionResult {
         val to   = args["to"]      ?: return ToolExecutionResult("to is required.", isError = true)

@@ -31,6 +31,22 @@ private val Context.analyticsDataStore: DataStore<Preferences> by preferencesDat
  * aggregates (provider-level roll-ups, top model per provider, etc.) are derived
  * on-the-fly by [AnalyticsStats.providerBreakdown] so we don't duplicate state.
  */
+
+/**
+ * Persistent per-tool execution statistics.
+ */
+data class ToolStats(
+    val toolName: String = "",
+    val executionCount: Long = 0L,
+    val successCount: Long = 0L,
+    val totalDurationMs: Long = 0L
+) {
+    val averageDurationMs: Double
+        get() = if (executionCount <= 0L) 0.0 else totalDurationMs.toDouble() / executionCount.toDouble()
+    val successRate: Double
+        get() = if (executionCount <= 0L) 0.0 else successCount.toDouble() / executionCount.toDouble()
+}
+
 data class ModelStats(
     /** Provider the model belongs to — cached so UI doesn't have to look up the registry. */
     val provider: ModelProvider? = null,
@@ -115,10 +131,11 @@ data class AnalyticsStats(
     val totalInputTokens: Long = 0L,
     val totalOutputTokens: Long = 0L,
     val totalCostUsd: Double = 0.0,
+    val totalCostEgp: Double = 0.0,
     val totalRequests: Long = 0L,
     val totalErrors: Long = 0L,
     val tokensByModel: Map<String, ModelStats> = emptyMap(),
-    val toolUsageCount: Map<String, Int> = emptyMap(),
+    val toolUsageCount: Map<String, ToolStats> = emptyMap(),
     val totalAgentRuns: Int = 0,
     val totalSwarmRuns: Int = 0,
     /** Daily buckets keyed by ISO date (yyyy-MM-dd UTC). Capped at 90 entries by the repo. */
@@ -296,6 +313,7 @@ class AnalyticsRepository(private val context: Context) {
                 totalInputTokens = current.totalInputTokens + inputTokens,
                 totalOutputTokens = current.totalOutputTokens + outputTokens,
                 totalCostUsd = current.totalCostUsd + costUsd,
+                totalCostEgp = current.totalCostEgp + (costUsd * 50.0),
                 totalRequests = current.totalRequests + 1,
                 totalErrors = current.totalErrors + (if (isError) 1L else 0L),
                 tokensByModel = current.tokensByModel + (modelId to mergedModel),
@@ -305,15 +323,20 @@ class AnalyticsRepository(private val context: Context) {
             )
             prefs[Keys.ANALYTICS_JSON] = updated.toJson()
         }
-    }
-
-    suspend fun recordToolUsage(toolName: String) {
+    }suspend fun recordToolUsage(toolName: String, success: Boolean, durationMs: Long) {
         context.analyticsDataStore.edit { prefs ->
             val current = prefs.readStats()
-            val count = current.toolUsageCount[toolName] ?: 0
+            val stats = current.toolUsageCount[toolName] ?: ToolStats(toolName)
             val now = System.currentTimeMillis()
+
+            val newStats = stats.copy(
+                executionCount = stats.executionCount + 1,
+                successCount = stats.successCount + if (success) 1L else 0L,
+                totalDurationMs = stats.totalDurationMs + durationMs
+            )
+
             val updated = current.copy(
-                toolUsageCount = current.toolUsageCount + (toolName to count + 1),
+                toolUsageCount = current.toolUsageCount + (toolName to newStats),
                 firstRecordedAt = if (current.firstRecordedAt == 0L) now else current.firstRecordedAt,
                 lastRecordedAt = now
             )
@@ -363,6 +386,7 @@ class AnalyticsRepository(private val context: Context) {
         root.put("total_input_tokens", totalInputTokens)
         root.put("total_output_tokens", totalOutputTokens)
         root.put("total_cost_usd", totalCostUsd)
+        root.put("total_cost_egp", totalCostEgp)
         root.put("total_requests", totalRequests)
         root.put("total_errors", totalErrors)
         root.put("total_agent_runs", totalAgentRuns)
@@ -431,12 +455,28 @@ class AnalyticsRepository(private val context: Context) {
                 lastUsedAt = obj.optLong("last_used_at")
             )
         }
-
-        val toolUsage = mutableMapOf<String, Int>()
+        val toolUsage = mutableMapOf<String, ToolStats>()
         val toolObj = root.optJSONObject("tool_usage_count") ?: JSONObject()
         toolObj.keys().forEach { toolName ->
-            toolUsage[toolName] = toolObj.optInt(toolName)
+            val tObj = toolObj.optJSONObject(toolName)
+            if (tObj != null) {
+                toolUsage[toolName] = ToolStats(
+                    toolName = toolName,
+                    executionCount = tObj.optLong("executionCount", 0L),
+                    successCount = tObj.optLong("successCount", 0L),
+                    totalDurationMs = tObj.optLong("totalDurationMs", 0L)
+                )
+            } else {
+                // Backwards compat for old flat count format
+                toolUsage[toolName] = ToolStats(
+                    toolName = toolName,
+                    executionCount = toolObj.optLong(toolName, 0L),
+                    successCount = toolObj.optLong(toolName, 0L),
+                    totalDurationMs = 0L
+                )
+            }
         }
+
 
         val daily = mutableMapOf<String, DailyUsage>()
         val dailyObj = root.optJSONObject("daily_usage") ?: JSONObject()
@@ -455,6 +495,7 @@ class AnalyticsRepository(private val context: Context) {
             totalInputTokens = root.optLong("total_input_tokens"),
             totalOutputTokens = root.optLong("total_output_tokens"),
             totalCostUsd = root.optDouble("total_cost_usd"),
+            totalCostEgp = root.optDouble("total_cost_egp"),
             totalRequests = root.optLong("total_requests"),
             totalErrors = root.optLong("total_errors"),
             totalAgentRuns = root.optInt("total_agent_runs"),

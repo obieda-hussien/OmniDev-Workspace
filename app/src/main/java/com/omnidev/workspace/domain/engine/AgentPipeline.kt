@@ -633,8 +633,11 @@ Rules:
         }
 
         // Build the complete system prompt with tool definitions
+        // Predict the user's intent to lazily inject tools and reduce prompt payload.
+        val relevantDomains = IntentClassifier.getRelevantDomains(userMessage)
         val localToolDefs = toolManager.getToolDefinitions()
             .filter { it.name !in disabledToolNames }
+            .filter { def -> IntentClassifier.getToolDomain(def.name) in relevantDomains }
         val mcpTools = try { mcpRegistry?.fetchAllAvailableTools() ?: emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() } catch(e: Exception) { emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() }
         val toolDefs = localToolDefs + mcpTools
         // Register tool definitions with the brain so it is aware of all available capabilities
@@ -1420,15 +1423,10 @@ Rules:
             val inputTokens = usage?.promptTokens ?: 0
             val outputTokens = usage?.completionTokens ?: 0
 
-            val cost = if (model != null && usage != null) {
-                val inCost = (model.costPer1MInputTokens ?: 0.0) * inputTokens / 1_000_000.0
-                val outCost = (model.costPer1MOutputTokens ?: 0.0) * outputTokens / 1_000_000.0
-                inCost + outCost
-            } else {
-                0.0
-            }
+            val cost = com.omnidev.workspace.data.repository.DynamicPricingManager.calculateCost(request.modelId, inputTokens, outputTokens)
 
             repo.recordTokenUsage(
+
                 modelId = request.modelId,
                 provider = model?.provider,
                 inputTokens = inputTokens,

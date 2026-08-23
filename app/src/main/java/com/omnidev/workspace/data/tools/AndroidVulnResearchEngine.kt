@@ -7,7 +7,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.util.Log
-import com.omnidev.workspace.data.tools.AppManifestAnalyzerTool
+import com.omnidev.workspace.data.tools.EnhancedAppManifestAnalyzerTool
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.data.tools.ShizukuResult
 import kotlinx.coroutines.Dispatchers
@@ -357,7 +357,7 @@ object AndroidVulnResearchEngine {
 
         // ── Exported Activities without permission guard ───────────────────
         packageInfo.activities?.filter { act ->
-            act.exported && (AppManifestAnalyzerTool.getComponentPermission(act) == null)
+            act.exported && (EnhancedAppManifestAnalyzerTool.getComponentPermission(act) == null)
         }?.forEachIndexed { idx, act ->
             val shortName = act.name.removePrefix(pkg)
             findings += VulnerabilityFinding(
@@ -384,7 +384,7 @@ object AndroidVulnResearchEngine {
 
         // ── Exported Services without permission ──────────────────────────
         packageInfo.services?.filter { svc ->
-            svc.exported && (AppManifestAnalyzerTool.getComponentPermission(svc) == null)
+            svc.exported && (EnhancedAppManifestAnalyzerTool.getComponentPermission(svc) == null)
         }?.forEachIndexed { idx, svc ->
             val shortName = svc.name.removePrefix(pkg)
             findings += VulnerabilityFinding(
@@ -482,7 +482,7 @@ object AndroidVulnResearchEngine {
 
         // ── Exported Receivers ────────────────────────────────────────────
         packageInfo.receivers?.filter { rcv ->
-            rcv.exported && AppManifestAnalyzerTool.getComponentPermission(rcv) == null
+            rcv.exported && EnhancedAppManifestAnalyzerTool.getComponentPermission(rcv) == null
         }?.forEachIndexed { idx, rcv ->
             findings += VulnerabilityFinding(
                 id = "MANIFEST-RCV-${idx.toString().padStart(3, '0')}",
@@ -1568,7 +1568,7 @@ object AndroidVulnResearchEngine {
         val exportedRcv = packageInfo.receivers?.count { it.exported } ?: 0
         val exportedPrv = packageInfo.providers?.count { it.exported } ?: 0
         val bareAct = packageInfo.activities?.count {
-            it.exported && AppManifestAnalyzerTool.getComponentPermission(it) == null
+            it.exported && EnhancedAppManifestAnalyzerTool.getComponentPermission(it) == null
         } ?: 0
         return "Exported: Act=$exportedAct (bare=$bareAct) | Svc=$exportedSvc | Rcv=$exportedRcv | Prv=$exportedPrv"
     }

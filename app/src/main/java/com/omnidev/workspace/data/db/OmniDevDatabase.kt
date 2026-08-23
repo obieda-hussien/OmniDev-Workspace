@@ -45,6 +45,8 @@ import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
  *  7 → added `tool_execution_log` and `system_knowledge` tables (Agent Brain)
  *  8 → normalize `tool_execution_log` and `system_knowledge` schemas to match Room entity metadata
  *  9 → added `messageId` and `replyToMessageId` columns to `chat_messages` for threaded replies
+ *  10 → added v10 entities
+ *  11 → added token usage and cost metrics to `chat_messages`
  */
 @Database(
     entities = [
@@ -64,7 +66,7 @@ import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
         // ── Build Doctor Pro (v10) ────────────────────────
         BuildDiagnosticEntry::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -528,6 +530,17 @@ abstract class OmniDevDatabase : RoomDatabase() {
                 if (cursor.moveToFirst()) cursor.getLong(0) else 0L
             }
 
+
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN promptTokens INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN completionTokens INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN totalTokens INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN costUSD REAL NOT NULL DEFAULT 0.0")
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN modelId TEXT")
+            }
+        }
+
         fun getInstance(context: Context): OmniDevDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -544,7 +557,8 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         MIGRATION_6_7,
                         MIGRATION_7_8,
                         MIGRATION_8_9,
-                        MIGRATION_9_10
+                        MIGRATION_9_10,
+                        MIGRATION_10_11
                     )
                     .build().also { INSTANCE = it }
             }

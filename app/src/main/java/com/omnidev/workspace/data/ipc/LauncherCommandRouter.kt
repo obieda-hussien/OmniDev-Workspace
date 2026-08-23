@@ -10,7 +10,7 @@ import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.tools.AgentBrainTools
 import com.omnidev.workspace.data.tools.BuildDoctorTools
 import com.omnidev.workspace.data.tools.CompositeToolManager
-import com.omnidev.workspace.data.tools.DiscordPublisherTool
+import com.omnidev.workspace.data.tools.DiscordBotTool
 import com.omnidev.workspace.data.tools.EnvironmentSetupManager
 import com.omnidev.workspace.data.tools.FileToolManager
 import com.omnidev.workspace.data.tools.GodEyeProfilerTool
@@ -69,7 +69,7 @@ class LauncherCommandRouter(
         environmentSetupManager = EnvironmentSetupManager,
         settingsRepository = settingsRepository,
         godEyeProfilerTool = GodEyeProfilerTool(appContext, ShizukuCommandTool),
-        discordPublisherTool = DiscordPublisherTool(settingsRepository),
+
         notionPublisherTool = NotionPublisherTool(settingsRepository),
         vectorMemoryManager = VectorMemoryManager(database.knowledgeDao()),
         apiKeyRepository = apiKeyRepository,
