@@ -116,6 +116,21 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Zip quality reports
+        if: always()
+        continue-on-error: true
+        run: |
+          zip -r quality-reports.zip app/build/reports/lint-results*.html app/build/reports/lint-results*.xml app/build/reports/ktlint/ app/build/reports/detekt/ || true
+
+      - name: Send quality reports to Telegram
+        if: always()
+        continue-on-error: true
+        run: |
+          FILE="quality-reports.zip"
+          if [ -f "$FILE" ]; then
+            curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$FILE" || true
+          fi
+
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -162,6 +177,21 @@ jobs:
             app/build/reports/tests/
             app/build/test-results/
           retention-days: 14
+
+      - name: Zip test reports
+        if: always()
+        continue-on-error: true
+        run: |
+          zip -r test-reports.zip app/build/reports/tests/ app/build/test-results/ || true
+
+      - name: Send test reports to Telegram
+        if: always()
+        continue-on-error: true
+        run: |
+          FILE="test-reports.zip"
+          if [ -f "$FILE" ]; then
+            curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$FILE" || true
+          fi
 
       - name: Optional extended checks
         if: github.event_name == 'workflow_dispatch' && inputs.enable_extended_checks == true
@@ -217,6 +247,21 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Zip OWASP report
+        if: always()
+        continue-on-error: true
+        run: |
+          find . -name "dependency-check-report.*" | xargs zip -r owasp-report.zip || true
+
+      - name: Send OWASP report to Telegram
+        if: always()
+        continue-on-error: true
+        run: |
+          FILE="owasp-report.zip"
+          if [ -f "$FILE" ]; then
+            curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$FILE" || true
+          fi
+
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@master
         with:
@@ -233,6 +278,15 @@ jobs:
           name: trivy-results-${{ github.run_number }}
           path: trivy-results.sarif
           retention-days: 14
+
+      - name: Send Trivy Results to Telegram
+        if: always()
+        continue-on-error: true
+        run: |
+          FILE="trivy-results.sarif"
+          if [ -f "$FILE" ]; then
+            curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$FILE" || true
+          fi
 
   android-debug:
     name: Android Debug Build
@@ -300,6 +354,25 @@ jobs:
           # Updated path to capture all flavor folders
           path: app/build/outputs/apk/*/debug/*.apk
           retention-days: 14
+
+      - name: Send debug APKs to Telegram
+        if: always()
+        continue-on-error: true
+        run: |
+          for FILE in app/build/outputs/apk/*/debug/*.apk; do
+            if [ -f "$FILE" ]; then
+              SIZE=$(stat -c%s "$FILE")
+              if [ $SIZE -gt 48000000 ]; then
+                split -b 45m "$FILE" "$FILE.part_"
+                for part in "$FILE".part_*; do
+                  curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$part" || true
+                done
+                rm "$FILE".part_*
+              else
+                curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$FILE" || true
+              fi
+            fi
+          done
 
       - name: Debug build summary
         run: |
@@ -436,6 +509,25 @@ jobs:
           name: app-release-flavors-${{ github.run_number }}
           path: app/build/outputs/apk/*/release/*.apk
           retention-days: 30
+
+      - name: Send release APKs to Telegram
+        if: always()
+        continue-on-error: true
+        run: |
+          for FILE in app/build/outputs/apk/*/release/*.apk; do
+            if [ -f "$FILE" ]; then
+              SIZE=$(stat -c%s "$FILE")
+              if [ $SIZE -gt 48000000 ]; then
+                split -b 45m "$FILE" "$FILE.part_"
+                for part in "$FILE".part_*; do
+                  curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$part" || true
+                done
+                rm "$FILE".part_*
+              else
+                curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$FILE" || true
+              fi
+            fi
+          done
 
       - name: Cleanup keystore file
         if: always() && steps.signing.outputs.ready == 'true'
