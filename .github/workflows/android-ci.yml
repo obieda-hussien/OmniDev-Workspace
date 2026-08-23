@@ -226,7 +226,7 @@ jobs:
       - name: Check dependencyCheckAnalyze availability
         id: dependency-check-task
         run: |
-          if ./gradlew tasks --all --no-daemon --console=plain | grep -qE '^dependencyCheckAnalyze( |$)'; then
+          if ./gradlew tasks --all --no-daemon --console=plain | grep -qE '(^|:)dependencyCheckAnalyze( |$)'; then
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
@@ -236,7 +236,7 @@ jobs:
       - name: Run OWASP Dependency Check
         if: steps.dependency-check-task.outputs.available == 'true'
         continue-on-error: true
-        run: ./gradlew --no-daemon dependencyCheckAnalyze
+        run: ./gradlew --no-daemon :app:dependencyCheckAnalyze
 
       - name: Upload OWASP report
         if: always()
