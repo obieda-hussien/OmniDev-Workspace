@@ -92,7 +92,9 @@ data class CompletionRequest(
      * includes them in the API request so the model can invoke tools via the provider's
      * structured tool-call mechanism instead of raw text output.
      */
-    val tools: List<ToolDefinition>? = null
+    val tools: List<ToolDefinition>? = null,
+    val customBaseUrl: String? = null,
+    val customModelId: String? = null
 )
 
 /**

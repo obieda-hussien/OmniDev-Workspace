@@ -367,3 +367,8 @@ android {
         abortOnError = false
     }
 }
+
+dependencyCheck {
+    failOnError = false
+    autoUpdate = false // prevent long downloads in CI without NVD key
+}

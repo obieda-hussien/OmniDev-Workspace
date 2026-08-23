@@ -105,6 +105,9 @@ class SettingsRepository(private val context: Context) {
         val CHAT_DEEP_RESEARCH_ENABLED = booleanPreferencesKey("chat_deep_research_enabled")
         val CHAT_FETCH_PAGE_ENABLED = booleanPreferencesKey("chat_fetch_page_enabled")
         val CHAT_TOOL_ACCESS_MODE = stringPreferencesKey("chat_tool_access_mode")
+        val CUSTOM_OPENAI_BASE_URL = stringPreferencesKey("custom_openai_base_url")
+        val CUSTOM_OPENAI_MODEL_ID = stringPreferencesKey("custom_openai_model_id")
+        val CUSTOM_OPENAI_DISPLAY_NAME = stringPreferencesKey("custom_openai_display_name")
     }
 
     // ──────────────────────────────────────────────
@@ -561,6 +564,40 @@ class SettingsRepository(private val context: Context) {
         ModelRole.AGENT -> Keys.AGENT_MODEL_ID
         ModelRole.SWARM_ORCHESTRATOR -> Keys.SWARM_ORCHESTRATOR_MODEL_ID
         ModelRole.SWARM_WORKER -> Keys.SWARM_WORKER_MODEL_ID
+    }
+
+    // ──────────────────────────────────────────────
+    //  Custom OpenAI Config
+    // ──────────────────────────────────────────────
+
+    fun observeCustomOpenAiBaseUrl(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.CUSTOM_OPENAI_BASE_URL] }
+
+    suspend fun setCustomOpenAiBaseUrl(url: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (url.isNullOrBlank()) prefs.remove(Keys.CUSTOM_OPENAI_BASE_URL)
+            else prefs[Keys.CUSTOM_OPENAI_BASE_URL] = url
+        }
+    }
+
+    fun observeCustomOpenAiModelId(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.CUSTOM_OPENAI_MODEL_ID] }
+
+    suspend fun setCustomOpenAiModelId(modelId: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (modelId.isNullOrBlank()) prefs.remove(Keys.CUSTOM_OPENAI_MODEL_ID)
+            else prefs[Keys.CUSTOM_OPENAI_MODEL_ID] = modelId
+        }
+    }
+
+    fun observeCustomOpenAiDisplayName(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.CUSTOM_OPENAI_DISPLAY_NAME] }
+
+    suspend fun setCustomOpenAiDisplayName(displayName: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (displayName.isNullOrBlank()) prefs.remove(Keys.CUSTOM_OPENAI_DISPLAY_NAME)
+            else prefs[Keys.CUSTOM_OPENAI_DISPLAY_NAME] = displayName
+        }
     }
 
     // ──────────────────────────────────────────────
