@@ -6,32 +6,32 @@ import kotlin.math.sqrt
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * HashEmbedder — محرك Embedding خفيف بدون نموذج (Brain 2.0)
+ * HashEmbedder —  Embedding    (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
  * Mobile-first by design:
- *   - 0 RAM دائم (stateless، singleton object)
- *   - 0 disk I/O (لا تحميل أوزان)
- *   - ~0.5 ms لجملة 100 حرف على Snapdragon 660
- *   - يعمل offline بالكامل
+ *   - 0 RAM  (stateless singleton object)
+ *   - 0 disk I/O (  )
+ *   - ~0.5 ms  100   Snapdragon 660
+ *   -  offline
  *
- * **التقنية**: hashing trick + character n-grams + bigrams.
+ * ****: hashing trick + character n-grams + bigrams.
  *   1) Tokenize (lowercase + diacritic strip + punctuation strip)
- *   2) إزالة stop-words عربية/إنجليزية شائعة
- *   3) لكل token: hash(word) → index، إضافة وزن مُوقَّع
- *   4) لكل token: char 3-grams و 4-grams → فهارس إضافية
- *   5) bigrams بين tokens متتالية
- *   6) L2-normalize → cosine similarity على الـ vector الناتج
+ *   2)  stop-words /
+ *   3)  token: hash(word) → index
+ *   4)  token: char 3-grams  4-grams →
+ *   5) bigrams  tokens
+ *   6) L2-normalize → cosine similarity   vector
  *
- * يدعم العربية والإنجليزية بنفس الكفاءة لأنه على مستوى البايت/الحرف.
- * أفضل من TF-IDF للـ retrieval، أصغر بكثير من any embedding model.
+ *         /.
+ *   TF-IDF  retrieval    any embedding model.
  */
 object HashEmbedder {
 
-    /** أبعاد الـ embedding — 256 floats × 4 bytes = 1024 bytes. */
+    /**   embedding — 256 floats × 4 bytes = 1024 bytes. */
     const val DIM = 256
 
-    /** Stop-words عربية وإنجليزية شائعة (إزالة الضوضاء قبل embedding). */
+    /** Stop-words    (   embedding). */
     private val STOP_WORDS = setOf(
         // English
         "the", "a", "an", "and", "or", "but", "is", "are", "was", "were", "be",
@@ -39,9 +39,9 @@ object HashEmbedder {
         "in", "on", "for", "with", "at", "by", "from", "as", "this", "that",
         "it", "its", "i", "you", "he", "she", "we", "they", "them",
         // Arabic
-        "في", "من", "على", "إلى", "عن", "هو", "هي", "هذا", "هذه", "ذلك",
-        "تلك", "كان", "كانت", "أن", "إن", "ما", "لا", "لم", "لن", "قد",
-        "و", "أو", "ثم", "كل", "بعض", "غير", "هل"
+        "English Text", "English Text", "English Text", "English Text", "English Text", "English Text", "English Text", "English Text", "English Text", "English Text",
+        "English Text", "English Text", "English Text", "English Text", "English Text", "English Text", "English Text", "English Text", "English Text", "English Text",
+        "English Text", "English Text", "English Text", "English Text", "English Text", "English Text", "English Text"
     )
 
     private const val MAX_TOKENS = 200
@@ -50,7 +50,7 @@ object HashEmbedder {
     // Public API
     // ──────────────────────────────────────────────────────────────────
 
-    /** يولّد embedding L2-normalized للنص. */
+    /**  embedding L2-normalized . */
     fun embed(text: String): FloatArray {
         if (text.isBlank()) return FloatArray(DIM)
 
@@ -63,7 +63,7 @@ object HashEmbedder {
             addHashed(vec, tok, weight = 1.0f)
         }
 
-        // 2) char n-grams (3 و 4) — يلتقط جذور الكلمات
+        // 2) char n-grams (3  4) —
         for (tok in tokens) {
             if (tok.length < 3) continue
             for (n in 3..4) {
@@ -74,7 +74,7 @@ object HashEmbedder {
             }
         }
 
-        // 3) bigrams بين tokens متتالية (سياق محلي)
+        // 3) bigrams  tokens  ( )
         for (i in 0 until tokens.size - 1) {
             addHashed(vec, "${tokens[i]}_${tokens[i + 1]}", weight = 0.3f)
         }
@@ -83,7 +83,7 @@ object HashEmbedder {
         return vec
     }
 
-    /** Cosine similarity بين متجهين L2-normalized — مجرد dot product. */
+    /** Cosine similarity   L2-normalized —  dot product. */
     fun cosine(a: FloatArray, b: FloatArray): Float {
         if (a.size != b.size) return 0f
         var sum = 0f
@@ -92,7 +92,7 @@ object HashEmbedder {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Serialization (FloatArray ↔ ByteArray) للتخزين في Room
+    // Serialization (FloatArray ↔ ByteArray)   Room
     // ──────────────────────────────────────────────────────────────────
 
     fun toBytes(vec: FloatArray): ByteArray {
@@ -136,8 +136,8 @@ object HashEmbedder {
     }
 
     /**
-     * Hashing trick: نختار 2 indices في الـ vector + علامة من نفس الـ hash.
-     * هذا يقلل التضارب ويعطي توزيع أفضل بدون double-hashing مكلف.
+     * Hashing trick:  2 indices   vector +     hash.
+     *        double-hashing .
      */
     private fun addHashed(vec: FloatArray, token: String, weight: Float) {
         val h = stableHash(token)
@@ -146,7 +146,7 @@ object HashEmbedder {
         vec[idx] += sign * weight
     }
 
-    /** Murmur-like 32-bit hash. مستقر بين نسخ الـ JVM (لا يعتمد على String.hashCode). */
+    /** Murmur-like 32-bit hash.     JVM (   String.hashCode). */
     private fun stableHash(s: String): Int {
         var h = 0x9E3779B1.toInt()
         for (i in s.indices) {

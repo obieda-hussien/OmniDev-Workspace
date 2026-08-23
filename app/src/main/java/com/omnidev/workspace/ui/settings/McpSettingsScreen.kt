@@ -201,33 +201,35 @@ fun McpSettingsScreen(
                     )
                 }
 
-                TextField(
-                    value = jsonConfigState,
-                    onValueChange = { viewModel.updateJsonConfig(it) },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(scrollState),
-                    textStyle = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 14.sp,
-                        color = Color(0xFFD4D4D4), // VS Code default text color
-                        lineHeight = 20.sp
-                    ),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        cursorColor = MaterialTheme.colorScheme.primary
-                    ),
-                    placeholder = {
-                        Text(
-                            "{\n  \"mcpServers\": {\n    \"example-server\": {\n      \"type\": \"http\",\n      \"url\": \"https://api.example.com\",\n      \"tools\": [\"*\"],\n      \"env\": {\n        \"API_KEY\": \"your_key\"\n      }\n    }\n  }\n}",
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr) {
+                    TextField(
+                        value = jsonConfigState,
+                        onValueChange = { viewModel.updateJsonConfig(it) },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(scrollState),
+                        textStyle = TextStyle(
                             fontFamily = FontFamily.Monospace,
-                            color = Color(0xFF555555)
-                        )
-                    }
-                )
+                            fontSize = 14.sp,
+                            color = Color(0xFFD4D4D4), // VS Code default text color
+                            lineHeight = 20.sp
+                        ),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            cursorColor = MaterialTheme.colorScheme.primary
+                        ),
+                        placeholder = {
+                            Text(
+                                "{\n  \"mcpServers\": {\n    \"example-server\": {\n      \"type\": \"http\",\n      \"url\": \"https://api.example.com\",\n      \"tools\": [\"*\"],\n      \"env\": {\n        \"API_KEY\": \"your_key\"\n      }\n    }\n  }\n}",
+                                fontFamily = FontFamily.Monospace,
+                                color = Color(0xFF555555)
+                            )
+                        }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
