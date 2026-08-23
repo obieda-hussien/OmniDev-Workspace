@@ -15,27 +15,27 @@ import java.util.Calendar
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * ToolExecutionJournal — مجلة تنفيذ الأدوات الدائمة
+ * ToolExecutionJournal —
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * هذا هو "دفتر ذكريات" الـ Agent الكامل. يتذكر:
- * - كل أداة استخدمها وما النتيجة
- * - الأخطاء التي واجهها وكيف تجاوزها
- * - الأنماط التي اكتشفها
- * - التحسينات التي قام بها
+ *   " "  Agent . :
+ * -
+ * -
+ * -
+ * -
  *
- * مستوحى من:
- * - Claude Code: نظام ذاكرة الجلسة المستمرة
- * - GitHub Copilot Agent: التعلم من سياق الكود
- * - Gemini Assistant: الحفاظ على السياق عبر المحادثات
+ *  :
+ * - Claude Code:
+ * - GitHub Copilot Agent:
+ * - Gemini Assistant:
  *
- * الميزات:
- * 1. تسجيل دائم لكل عملية تنفيذ (SQLite)
- * 2. تحليل الأنماط في الوقت الفعلي
- * 3. توليد ملاحظات التعلم الذاتي
- * 4. بناء context enrichment للـ System Prompt
- * 5. الكشف عن الأدوات المشكلة تلقائياً
- * 6. إحصائيات أداء تفصيلية
+ * :
+ * 1.      (SQLite)
+ * 2.
+ * 3.
+ * 4.  context enrichment  System Prompt
+ * 5.
+ * 6.
  */
 class ToolExecutionJournal(
     private val dao: ToolExecutionDao,
@@ -49,7 +49,7 @@ class ToolExecutionJournal(
         private const val CLEANUP_THRESHOLD = 12_000
     }
 
-    // ─── الجلسة الحالية ──────────────────────────────────────────────
+    // ───   ──────────────────────────────────────────────
 
     private var currentSessionId: String = generateSessionId()
     private var currentAgentMode: String = "ASSISTANT"
@@ -61,17 +61,17 @@ class ToolExecutionJournal(
         currentAgentMode = agentMode
         previousToolName = ""
         sessionToolCount = 0
-        Log.d(TAG, "📔 جلسة جديدة: $currentSessionId | وضع: $agentMode")
+        Log.d(TAG, "📔  : $currentSessionId | : $agentMode")
     }
 
     fun updateAgentMode(mode: String) {
         currentAgentMode = mode
     }
 
-    // ─── تسجيل التنفيذ ───────────────────────────────────────────────
+    // ───   ───────────────────────────────────────────────
 
     /**
-     * سجّل نتيجة تنفيذ أداة مع كامل السياق
+     *
      */
     suspend fun recordToolExecution(
         toolName: String,
@@ -84,10 +84,10 @@ class ToolExecutionJournal(
         val hourOfDay = calendar.get(Calendar.HOUR_OF_DAY)
         val dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
 
-        // توليد ملخص النتيجة
+        //
         val resultSummary = buildResultSummary(result)
 
-        // توليد ملاحظة التعلم
+        //
         val learningNote = generateLearningNote(
             toolName = toolName,
             success = !result.isError,
@@ -95,7 +95,7 @@ class ToolExecutionJournal(
             errorMessage = if (result.isError) result.output else ""
         )
 
-        // تقدير جودة النتيجة
+        //
         val quality = estimateResultQuality(result, executionTimeMs)
 
         val entry = ToolExecutionEntry(
@@ -119,24 +119,24 @@ class ToolExecutionJournal(
 
         val id = dao.insert(entry)
 
-        // تحديث حالة الجلسة
+        //
         previousToolName = toolName
         sessionToolCount++
 
-        // تنظيف دوري
+        //
         if (sessionToolCount % 100 == 0) {
             scope.launch { cleanupOldEntries() }
         }
 
-        Log.d(TAG, "📝 سُجِّل: $toolName | نجاح: ${!result.isError} | وقت: ${executionTimeMs}ms")
+        Log.d(TAG, "📝 : $toolName | : ${!result.isError} | : ${executionTimeMs}ms")
         id
     }
 
-    // ─── الذاكرة والسياق ─────────────────────────────────────────────
+    // ───   ─────────────────────────────────────────────
 
     /**
-     * بناء ملخص الذاكرة لحقنه في System Prompt
-     * يعطي الـ Agent وعياً كاملاً بما فعله سابقاً
+     *      System Prompt
+     *   Agent
      */
     suspend fun buildMemoryContext(maxItems: Int = 8): String? = withContext(Dispatchers.IO) {
         val stats = dao.getToolStats()
@@ -148,30 +148,30 @@ class ToolExecutionJournal(
 
         buildString {
             appendLine("\n═══ 🧠 AGENT EXECUTION MEMORY ═══")
-            appendLine("📊 إجمالي العمليات: $totalCount | نجاح: $successCount (${if (totalCount > 0) (successCount * 100 / totalCount) else 0}%)")
+            appendLine("📊 Total : $totalCount | : $successCount (${if (totalCount > 0) (successCount * 100 / totalCount) else 0}%)")
 
-            // أكثر الأدوات استخداماً
+            //
             val topTools = stats.take(5)
             if (topTools.isNotEmpty()) {
-                appendLine("\n🔧 الأدوات الأكثر استخداماً:")
+                appendLine("\n🔧   :")
                 topTools.forEach { s ->
                     val rate = if (s.total > 0) (s.successes * 100 / s.total) else 0
-                    appendLine("  • ${s.toolName}: ${s.total} مرة | نجاح: $rate% | متوسط: ${s.avgTime.toLong()}ms")
+                    appendLine("  • ${s.toolName}: ${s.total}  | : $rate% | : ${s.avgTime.toLong()}ms")
                 }
             }
 
-            // أحدث الأخطاء
+            //
             if (recentFailures.isNotEmpty()) {
-                appendLine("\n⚠️ آخر الأخطاء (تجنّب هذه الأنماط):")
+                appendLine("\n⚠️   (  ):")
                 recentFailures.take(3).forEach { f ->
                     appendLine("  ✗ ${f.toolName}: ${f.errorMessage.take(100)}")
                 }
             }
 
-            // الأنماط المكتشفة
+            //
             val patterns = discoverSessionPatterns()
             if (patterns.isNotEmpty()) {
-                appendLine("\n🔗 أنماط مكتشفة:")
+                appendLine("\n🔗 Discovered Patterns:")
                 patterns.take(3).forEach { p -> appendLine("  → $p") }
             }
 
@@ -180,26 +180,26 @@ class ToolExecutionJournal(
     }
 
     /**
-     * يسترجع سياق جلسة محددة
+     *
      */
     suspend fun getSessionContext(sessionId: String = currentSessionId): String = withContext(Dispatchers.IO) {
         val entries = dao.getBySession(sessionId)
         if (entries.isEmpty()) return@withContext ""
 
         buildString {
-            appendLine("📔 سجل الجلسة الحالية (${entries.size} عملية):")
+            appendLine("📔    (${entries.size} ):")
             entries.takeLast(10).forEach { e ->
                 val status = if (e.success) "✅" else "❌"
                 appendLine("  $status ${e.toolName} (${e.executionTimeMs}ms)")
                 if (!e.success && e.errorMessage.isNotBlank()) {
-                    appendLine("     خطأ: ${e.errorMessage.take(80)}")
+                    appendLine("     : ${e.errorMessage.take(80)}")
                 }
             }
         }
     }
 
     /**
-     * يسترجع تاريخ أداة معينة لتحسين استخدامها
+     *
      */
     suspend fun getToolHistory(toolName: String): ToolHistoryReport = withContext(Dispatchers.IO) {
         val entries = dao.getByTool(toolName, limit = 20)
@@ -233,16 +233,16 @@ class ToolExecutionJournal(
         )
     }
 
-    // ─── التحليل والاكتشاف ───────────────────────────────────────────
+    // ───   ───────────────────────────────────────────
 
     /**
-     * يكتشف الأنماط في الجلسة الحالية
+     *
      */
     private suspend fun discoverSessionPatterns(): List<String> = withContext(Dispatchers.IO) {
         val recent = dao.getRecent(50)
         val patterns = mutableListOf<String>()
 
-        // نمط 1: تسلسلات متكررة
+        //  1:
         if (recent.size >= 4) {
             val sequences = mutableMapOf<String, Int>()
             val safeSize = recent.size
@@ -251,11 +251,11 @@ class ToolExecutionJournal(
                 sequences[seq] = (sequences[seq] ?: 0) + 1
             }
             sequences.filter { it.value >= 2 }.forEach { (seq, count) ->
-                patterns.add("تسلسل متكرر ($count مرات): $seq")
+                patterns.add("  ($count ): $seq")
             }
         }
 
-        // نمط 2: أداة بمعدل فشل عالٍ في الجلسة
+        //  2:
         val sessionEntries = dao.getBySession(currentSessionId)
         val toolFailRates = sessionEntries.groupBy { it.toolName }.mapValues { (_, entries) ->
             val failCount = entries.count { !it.success }
@@ -263,14 +263,14 @@ class ToolExecutionJournal(
         }
         toolFailRates.filter { it.value > 0.5f && toolFailRates[it.key]?.let { r -> r > 0 } == true }
             .forEach { (tool, rate) ->
-                patterns.add("⚠️ ${tool} معدل فشل: ${(rate * 100).toInt()}% في هذه الجلسة")
+                patterns.add("⚠️ ${tool}  : ${(rate * 100).toInt()}%   ")
             }
 
         patterns
     }
 
     /**
-     * يحلل أداء كل الأدوات ويعطي توصيات
+     *
      */
     suspend fun analyzeAllTools(): ToolPerformanceSummary = withContext(Dispatchers.IO) {
         val stats = dao.getToolStats()
@@ -299,7 +299,7 @@ class ToolExecutionJournal(
         )
     }
 
-    // ─── الدوال المساعدة ─────────────────────────────────────────────
+    // ───   ─────────────────────────────────────────────
 
     private fun buildResultSummary(result: ToolExecutionResult): String {
         return if (result.isError) {
@@ -317,19 +317,19 @@ class ToolExecutionJournal(
     ): String {
         return when {
             !success && errorMessage.contains("permission", ignoreCase = true) ->
-                "⚠️ تحتاج إلى صلاحيات لاستخدام $toolName"
+                "⚠️     $toolName"
             !success && errorMessage.contains("timeout", ignoreCase = true) ->
-                "⏱️ $toolName قد تنتهي مدتها - استخدم معاملات أبسط"
+                "⏱️ $toolName    -   "
             !success && errorMessage.contains("not found", ignoreCase = true) ->
-                "🔍 $toolName: المورد غير موجود - تحقق من الإدخال"
+                "🔍 $toolName:    -   "
             !success && errorMessage.contains("network", ignoreCase = true) ->
-                "🌐 $toolName: مشكلة شبكة - حاول لاحقاً"
+                "🌐 $toolName:   -  "
             !success ->
-                "❌ فشل في $toolName - ${errorMessage.take(100)}"
+                "❌   $toolName - ${errorMessage.take(100)}"
             executionTimeMs > 10_000 ->
-                "⚡ $toolName بطيئة (${executionTimeMs}ms) - فكر في بديل أسرع"
+                "⚡ $toolName  (${executionTimeMs}ms) -    "
             success && executionTimeMs < 500 ->
-                "✅ $toolName سريعة وموثوقة (${executionTimeMs}ms)"
+                "✅ $toolName   (${executionTimeMs}ms)"
             else -> ""
         }
     }
@@ -373,7 +373,7 @@ class ToolExecutionJournal(
         val total = dao.getTotalCount()
         if (total > CLEANUP_THRESHOLD) {
             dao.keepOnlyLatest(MAX_ENTRIES_TO_KEEP)
-            Log.d(TAG, "🧹 تنظيف: حُذف ${total - MAX_ENTRIES_TO_KEEP} سجل قديم")
+            Log.d(TAG, "🧹 :  ${total - MAX_ENTRIES_TO_KEEP}  ")
         }
     }
 
@@ -381,7 +381,7 @@ class ToolExecutionJournal(
         return "S${System.currentTimeMillis()}"
     }
 
-    // ─── Flow للواجهة ─────────────────────────────────────────────────
+    // ─── Flow  ─────────────────────────────────────────────────
 
     fun observeRecentExecutions(): Flow<List<ToolExecutionEntry>> = dao.observeRecent()
 

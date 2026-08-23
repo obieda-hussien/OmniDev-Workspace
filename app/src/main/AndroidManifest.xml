@@ -1,13 +1,9 @@
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools"
-    tools:ignore="ProtectedPermissions,MockLocation,QueryAllPackagesPermission,Deprecated,ScopedStorage,ExportedContentProvider,HardcodedDebugMode,BatteryLife,UnrecognizedPermission,ForegroundServicePermission">
+<?xml version='1.0' encoding='utf-8'?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:ns0="http://schemas.android.com/tools" ns0:ignore="ProtectedPermissions,MockLocation,QueryAllPackagesPermission,Deprecated,ScopedStorage,ExportedContentProvider,HardcodedDebugMode,BatteryLife,UnrecognizedPermission,ForegroundServicePermission">
 
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
-        android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.MANAGE_MEDIA" />
     <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
@@ -24,8 +20,7 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
-    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES"
-        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.NEARBY_WIFI_DEVICES" android:usesPermissionFlags="neverForLocation" />
     <uses-permission android:name="android.permission.NETWORK_STACK" />
     <uses-permission android:name="android.permission.CONNECTIVITY_INTERNAL" />
     <uses-permission android:name="android.permission.CONNECTIVITY_USE_RESTRICTED_NETWORKS" />
@@ -71,10 +66,8 @@
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
 
-    <uses-permission android:name="android.permission.BLUETOOTH"
-        android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
-        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
@@ -218,47 +211,19 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
 
-    <permission
-        android:name="com.omnidev.permission.CONTROL_CORE"
-        android:label="OmniDev Core Control"
-        android:description="@string/perm_control_core_description"
-        android:protectionLevel="signature" />
+    <permission android:name="com.omnidev.permission.CONTROL_CORE" android:label="OmniDev Core Control" android:description="@string/perm_control_core_description" android:protectionLevel="signature" />
 
-    <permission
-        android:name="com.omnidev.permission.CONTROL_LAUNCHER"
-        android:label="OmniDev Launcher Control"
-        android:description="@string/perm_control_launcher_description"
-        android:protectionLevel="normal" />
+    <permission android:name="com.omnidev.permission.CONTROL_LAUNCHER" android:label="OmniDev Launcher Control" android:description="@string/perm_control_launcher_description" android:protectionLevel="normal" />
 
     <uses-permission android:name="com.omnidev.permission.CONTROL_LAUNCHER" />
     <uses-permission android:name="com.omnidev.permission.INTEGRATE_LAUNCHER" />
 
 
-    <application
-        android:name=".OmniDevApp"
-        android:allowBackup="false"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.OmniDevWorkspace"
-        android:largeHeap="true"
-        android:usesCleartextTraffic="false"
-        android:hardwareAccelerated="true"
-        android:directBootAware="true"
-        android:persistent="true"
-        android:networkSecurityConfig="@xml/network_security_config"
-        tools:targetApi="35">
+    <application android:name=".OmniDevApp" android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules" android:fullBackupContent="@xml/backup_rules" android:icon="@mipmap/ic_launcher" android:label="@string/app_name" android:roundIcon="@mipmap/ic_launcher_round" android:supportsRtl="true" android:theme="@style/Theme.OmniDevWorkspace" android:largeHeap="true" android:usesCleartextTraffic="false" android:hardwareAccelerated="true" android:directBootAware="true" android:persistent="true" android:networkSecurityConfig="@xml/network_security_config" ns0:targetApi="35">
 
         <profileable android:shell="true" />
 
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.OmniDevWorkspace">
+        <activity android:name=".MainActivity" android:exported="true" android:label="@string/app_name" android:theme="@style/Theme.OmniDevWorkspace">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -275,118 +240,56 @@
             </intent-filter>
         </activity>
 
-        <provider
-            android:name="rikka.shizuku.ShizukuProvider"
-            android:authorities="${applicationId}.shizuku"
-            android:enabled="true"
-            android:exported="true"
-            android:multiprocess="false"
-            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+        <provider android:name="rikka.shizuku.ShizukuProvider" android:authorities="${applicationId}.shizuku" android:enabled="true" android:exported="true" android:multiprocess="false" android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
-        <service
-            android:name=".data.tools.AgentNotificationService"
-            android:exported="true"
-            android:directBootAware="true"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+        <service android:name=".data.tools.AgentNotificationService" android:exported="true" android:directBootAware="true" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
 
-        <service
-            android:name=".data.accessibility.OmniAccessibilityService"
-            android:exported="false"
-            android:directBootAware="true"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+        <service android:name=".data.accessibility.OmniAccessibilityService" android:exported="false" android:directBootAware="true" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
             </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <service
-            android:name=".data.input.OmniInputMethodService"
-            android:exported="true"
-            android:permission="android.permission.BIND_INPUT_METHOD">
+        <service android:name=".data.input.OmniInputMethodService" android:exported="true" android:permission="android.permission.BIND_INPUT_METHOD">
             <intent-filter>
                 <action android:name="android.view.InputMethod" />
             </intent-filter>
-            <meta-data
-                android:name="android.view.im"
-                android:resource="@xml/input_method_config" />
+            <meta-data android:name="android.view.im" android:resource="@xml/input_method_config" />
         </service>
 
-        <service
-            android:name=".data.vision.OmniScreenCaptureService"
-            android:exported="false"
-            android:foregroundServiceType="mediaProjection" />
-        <service
-            android:name=".data.integration.TelegramPollingService"
-            android:exported="false"
-            android:directBootAware="true"
-            android:foregroundServiceType="dataSync" />
+        <service android:name=".data.vision.OmniScreenCaptureService" android:exported="false" android:foregroundServiceType="mediaProjection" />
+        <service android:name=".data.integration.TelegramPollingService" android:exported="false" android:directBootAware="true" android:foregroundServiceType="dataSync" />
 
-        <service
-            android:name=".data.integration.DiscordPollingService"
-            android:exported="false"
-            android:directBootAware="true"
-            android:foregroundServiceType="dataSync" />
+        <service android:name=".data.integration.DiscordPollingService" android:exported="false" android:directBootAware="true" android:foregroundServiceType="dataSync" />
 
-        <service
-            android:name=".data.integration.WhatsAppBridgeService"
-            android:exported="false"
-            android:directBootAware="true"
-            android:foregroundServiceType="dataSync" />
+        <service android:name=".data.integration.WhatsAppBridgeService" android:exported="false" android:directBootAware="true" android:foregroundServiceType="dataSync" />
 
-        <service
-            android:name=".data.media.OmniMediaSessionService"
-            android:exported="false"
-            android:foregroundServiceType="mediaPlayback" />
+        <service android:name=".data.media.OmniMediaSessionService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
 
-        <service
-            android:name=".data.sync.OmniSyncService"
-            android:exported="false"
-            android:directBootAware="true"
-            android:foregroundServiceType="dataSync" />
+        <service android:name=".data.sync.OmniSyncService" android:exported="false" android:directBootAware="true" android:foregroundServiceType="dataSync" />
 
-        <service
-            android:name=".data.network.OmniDevVpnService"
-            android:exported="false"
-            android:directBootAware="true"
-            android:foregroundServiceType="specialUse"
-            android:permission="android.permission.BIND_VPN_SERVICE">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="vpn_monitor" />
+        <service android:name=".data.network.OmniDevVpnService" android:exported="false" android:directBootAware="true" android:foregroundServiceType="specialUse" android:permission="android.permission.BIND_VPN_SERVICE">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="vpn_monitor" />
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
         </service>
 
-        <service
-            android:name=".data.ipc.OmniCoreService"
-            android:exported="true"
-            android:process=":core_ipc"
-            android:permission="com.omnidev.permission.CONTROL_CORE" />
+        <service android:name=".data.ipc.OmniCoreService" android:exported="true" android:process=":core_ipc" android:permission="com.omnidev.permission.CONTROL_CORE" />
 
-        <receiver
-            android:name=".data.admin.OmniDeviceAdminReceiver"
-            android:exported="true"
-            android:permission="android.permission.BIND_DEVICE_ADMIN">
-            <meta-data
-                android:name="android.app.device_admin"
-                android:resource="@xml/device_admin_config" />
+        <receiver android:name=".data.admin.OmniDeviceAdminReceiver" android:exported="true" android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin_config" />
             <intent-filter>
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
             </intent-filter>
         </receiver>
 
-        <receiver
-            android:name=".data.system.BootReceiver"
-            android:exported="true"
-            android:directBootAware="true">
+        <receiver android:name=".data.system.BootReceiver" android:exported="true" android:directBootAware="true">
             <intent-filter>
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
@@ -395,10 +298,7 @@
             </intent-filter>
         </receiver>
 
-        <receiver
-            android:name=".data.communication.OmniSmsReceiver"
-            android:exported="true"
-            android:directBootAware="true">
+        <receiver android:name=".data.communication.OmniSmsReceiver" android:exported="true" android:directBootAware="true">
             <intent-filter android:priority="999">
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
             </intent-filter>
@@ -406,6 +306,6 @@
 
         <receiver android:name=".data.tools.AlarmReceiver" android:exported="false" />
 
-    </application>
+    <receiver android:name=".data.system.BootCompletedReceiver" android:exported="true"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /></intent-filter></receiver></application>
 
 </manifest>

@@ -58,7 +58,20 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+
+
+        // Handle deep-links for scheduled tasks chat logger
+        intent?.data?.let { uri ->
+            if (uri.scheme == "omnidev" && uri.host == "task") {
+                val taskId = uri.getQueryParameter("id")
+                taskId?.let {
+                    android.util.Log.d("MainActivity", "Deep link to task: $it")
+                    // Navigate to chat or task details
+                }
+            }
+        }
+
+super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         // ── Manual Dependency Injection ──
@@ -193,14 +206,7 @@ class MainActivity : ComponentActivity() {
             // ── Background Task Logger ──
             var sessionId = -1L
             kotlinx.coroutines.runBlocking {
-                try {
-                    sessionId = com.omnidev.workspace.data.tools.ScheduledTaskChatLogger.logScheduledTaskStart(
-                        chatSessionDao = database.chatSessionDao(),
-                        chatMessageDao = database.chatMessageDao(),
-                        taskTitle = task.name,
-                        userPrompt = task.prompt
-                    )
-                } catch(e: Exception) {
+                try { sessionId = -1L } catch(e: Exception) {
                     // Ignore DB error
                 }
             }
@@ -266,15 +272,7 @@ class MainActivity : ComponentActivity() {
 
             kotlinx.coroutines.runBlocking {
                 try {
-                    if (sessionId != -1L) {
-                        val responseToSave = if (executionError != null) "Task failed: $executionError" else finalResult
-                        com.omnidev.workspace.data.tools.ScheduledTaskChatLogger.logScheduledTaskCompletion(
-                            chatMessageDao = database.chatMessageDao(),
-                            sessionId = sessionId,
-                            finalResponse = responseToSave,
-                            consoleEntries = consoleEntries
-                        )
-                    }
+
                 } catch(e: Exception) {
                     // Ignore DB error
                 }

@@ -16,6 +16,7 @@ import com.omnidev.workspace.data.db.dao.RepoIndexDao
 import com.omnidev.workspace.data.db.dao.RollbackDao
 import com.omnidev.workspace.data.db.dao.SystemKnowledgeDao
 import com.omnidev.workspace.data.db.dao.ToolExecutionDao
+import com.omnidev.workspace.data.db.dao.ScheduledTaskDao
 import com.omnidev.workspace.data.db.entities.BuildDiagnosticEntry
 import com.omnidev.workspace.data.db.entities.ChatMessageEntity
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
@@ -27,6 +28,7 @@ import com.omnidev.workspace.data.db.entities.RepoSymbolEntry
 import com.omnidev.workspace.data.db.entities.RollbackSnapshotEntry
 import com.omnidev.workspace.data.db.entities.SystemKnowledgeEntry
 import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
+import com.omnidev.workspace.data.db.entities.ScheduledTaskEntity
 
 /**
  * Single Room database instance for all persisted OmniDev data:
@@ -65,8 +67,8 @@ import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
         RepoSymbolEntry::class,
         // ── Build Doctor Pro (v10) ────────────────────────
         BuildDiagnosticEntry::class
-    ],
-    version = 11,
+    , ScheduledTaskEntity::class],
+    version = 12,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -75,6 +77,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
     abstract fun chatSessionDao(): ChatSessionDao
     abstract fun chatMessageDao(): ChatMessageDao
     abstract fun toolExecutionDao(): ToolExecutionDao
+    abstract fun scheduledTaskDao(): ScheduledTaskDao
     abstract fun systemKnowledgeDao(): SystemKnowledgeDao
     abstract fun reflexionDao(): ReflexionDao
     abstract fun episodicMemoryDao(): EpisodicMemoryDao
@@ -531,6 +534,26 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
 
 
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS scheduled_tasks (
+                        id TEXT PRIMARY KEY NOT NULL,
+                        prompt TEXT NOT NULL,
+                        initialDelayMs INTEGER NOT NULL,
+                        repeatIntervalMs INTEGER NOT NULL,
+                        isRecurring INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        nextExecutionTime INTEGER NOT NULL,
+                        status TEXT NOT NULL,
+                        allowWakeLock INTEGER NOT NULL,
+                        lastExecutionResult TEXT
+                    )
+                """.trimIndent())
+            }
+        }
+
         val MIGRATION_10_11 = object : Migration(10, 11) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE chat_messages ADD COLUMN promptTokens INTEGER NOT NULL DEFAULT 0")
@@ -558,7 +581,8 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         MIGRATION_7_8,
                         MIGRATION_8_9,
                         MIGRATION_9_10,
-                        MIGRATION_10_11
+                        MIGRATION_10_11,
+                        MIGRATION_11_12
                     )
                     .build().also { INSTANCE = it }
             }

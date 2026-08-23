@@ -13,27 +13,27 @@ import java.security.MessageDigest
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * ReflexionEngine — محرك التعلم من التجربة (Agent Brain 2.0)
+ * ReflexionEngine —     (Agent Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * مستوحى من Reflexion paper (NeurIPS 2023): الـ Agent يستخلص "درساً" قصيراً
- * بعد كل تجربة بارزة (فشل أو نجاح ملحوظ) ويحفظه في ذاكرة طويلة المدى. عند
- * المهام التالية يُحقن أعلى k دروس مرتبطة دلالياً في الـ system prompt.
+ *   Reflexion paper (NeurIPS 2023):  Agent  "English Text"
+ *     (   )     .
+ *     k      system prompt.
  *
- * تصميم هذا التطبيق **mobile-first** (يعمل على هواتف 2-4 GB RAM):
+ *    **mobile-first** (   2-4 GB RAM):
  *
- *   1) **بدون LLM إضافي للتأمل**: نولد الدرس rule-based heuristic من رسالة
- *      الخطأ + اسم الأداة + المعاملات. يضمن أن النظام يعمل offline.
+ *   1) ** LLM  **:   rule-based heuristic
+ *       +   + .     offline.
  *
- *   2) **Embeddings hash-based**: لا تحميل أي نموذج. كل embedding 1 KB.
+ *   2) **Embeddings hash-based**:    .  embedding 1 KB.
  *
- *   3) **Two-stage retrieval**: SQL pre-filter (سريع، 10 ms) → JVM cosine
- *      ranking (≤ 100 candidates، 5 ms). إجمالي < 20 ms حتى مع 5000 صف.
+ *   3) **Two-stage retrieval**: SQL pre-filter ( 10 ms) → JVM cosine
+ *      ranking (≤ 100 candidates 5 ms). Total < 20 ms   5000 .
  *
- *   4) **Bounded growth**: حد أقصى 2000 درس، LRU eviction للأقل جودة.
+ *   4) **Bounded growth**:   2000  LRU eviction  .
  *
- *   5) **Quality feedback loop**: درس يُحقن ثم تنجح المهمة → ترفع جودته.
- *      تفشل المهمة → تخفض. الدروس "السامة" تُحذف تلقائياً.
+ *   5) **Quality feedback loop**:      →  .
+ *        → .  "English Text"  .
  */
 class ReflexionEngine(
     private val dao: ReflexionDao,
@@ -45,29 +45,29 @@ class ReflexionEngine(
     companion object {
         private const val TAG = "ReflexionEngine"
 
-        /** الحد الأدنى لزمن التنفيذ لاعتبار التجربة "بارزة" تستحق درساً. */
+        /**       "English Text"  . */
         private const val NOTABLE_THRESHOLD_MS = 800L
 
-        /** الحد الأدنى للتشابه الدلالي عند البحث. */
+        /**      . */
         private const val MIN_SIMILARITY = 0.18f
 
-        /** عدد المرشحات التي نجلبها من DB قبل الـ JVM ranking. */
+        /**      DB   JVM ranking. */
         private const val DB_CANDIDATE_LIMIT = 80
 
-        /** أقصى طول للدرس لإبقائه قابل-للحقن في prompt بدون تضخمه. */
+        /**     -  prompt  . */
         private const val MAX_LESSON_LENGTH = 280
     }
 
-    /** الدروس المُحقَنة في الـ prompt الحالي (لتحديث جودتها بعد المهمة). */
+    /**     prompt  (   ). */
     private val activeLessonIds = mutableListOf<Long>()
 
     // ──────────────────────────────────────────────────────────────────
-    // 1. تسجيل تجربة جديدة (يستدعى من SmartLearningBridge)
+    // 1.    (  SmartLearningBridge)
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * يستخلص درساً rule-based ويخزّنه إذا التجربة "بارزة".
-     * يعمل في background — لا يبطئ AgentPipeline.
+     *   rule-based    "English Text".
+     *   background —   AgentPipeline.
      */
     fun recordExperienceAsync(
         toolName: String,
@@ -85,7 +85,7 @@ class ReflexionEngine(
         }
     }
 
-    /** الإصدار المتزامن (اختبارات + استخدام مباشر). */
+    /**   ( +  ). */
     suspend fun recordExperience(
         toolName: String,
         parameters: Map<String, Any?>,
@@ -104,7 +104,7 @@ class ReflexionEngine(
         val lesson = synthesizeLesson(toolName, parameters, result, executionTimeMs, userIntent)
             ?: return@withContext
 
-        // Duplicate detection: لو نفس البصمة موجودة، رفّع جودتها بدل التكرار
+        // Duplicate detection:
         if (lesson.errorSignature.isNotBlank()) {
             val existing = dao.getBySignature(lesson.errorSignature, limit = 1).firstOrNull()
             if (existing != null) {
@@ -118,7 +118,7 @@ class ReflexionEngine(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 2. استرجاع الدروس ذات الصلة (يُحقن في system prompt)
+    // 2.     (  system prompt)
     // ──────────────────────────────────────────────────────────────────
 
     suspend fun retrieveRelevantLessons(
@@ -130,13 +130,13 @@ class ReflexionEngine(
 
         val queryVec = HashEmbedder.embed("$contextQuery ${currentToolName.orEmpty()}")
 
-        // المرحلة 1: SQL pre-filter — نجلب candidates سريعة
+        //  1: SQL pre-filter —  candidates
         val candidates = mutableListOf<ReflexionLessonEntry>()
 
         if (!currentToolName.isNullOrBlank()) {
             candidates += dao.getByTool(currentToolName, limit = 30)
         }
-        // املأ الباقي من Top-Quality عام
+        //    Top-Quality
         if (candidates.size < DB_CANDIDATE_LIMIT) {
             val remaining = DB_CANDIDATE_LIMIT - candidates.size
             val seenIds = candidates.mapTo(HashSet()) { it.id }
@@ -149,7 +149,7 @@ class ReflexionEngine(
 
         if (candidates.isEmpty()) return@withContext emptyList()
 
-        // المرحلة 2: cosine ranking في JVM (سريع)
+        //  2: cosine ranking  JVM ()
         val ranked = candidates
             .map { entry ->
                 val sim = HashEmbedder.cosine(queryVec, HashEmbedder.fromBytes(entry.embedding))
@@ -163,13 +163,13 @@ class ReflexionEngine(
             .take(topK)
             .map { it.first }
 
-        // سجّل ids الدروس المُحقَنة لتحديث جودتها لاحقاً
+        //  ids
         synchronized(activeLessonIds) {
             activeLessonIds.clear()
             activeLessonIds += ranked.map { it.id }
         }
 
-        // حدّث useCount + lastUsedAt للدروس المسترجعة
+        //  useCount + lastUsedAt
         val now = System.currentTimeMillis()
         for (lesson in ranked) {
             try {
@@ -180,7 +180,7 @@ class ReflexionEngine(
         ranked
     }
 
-    /** يبني نص الحقن الجاهز للوضع في system prompt. */
+    /**       system prompt. */
     suspend fun buildPromptInjection(
         contextQuery: String,
         currentToolName: String? = null,
@@ -190,7 +190,7 @@ class ReflexionEngine(
         if (lessons.isEmpty()) return@withContext ""
 
         buildString {
-            appendLine("\n💡 دروس مستفادة من تجارب سابقة (Reflexion):")
+            appendLine("\n💡      (Reflexion):")
             for (l in lessons) {
                 val icon = if (l.successContext) "✅" else "⚠️"
                 val toolHint = if (l.toolName.isNotBlank()) "[${l.toolName}] " else ""
@@ -202,7 +202,7 @@ class ReflexionEngine(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 3. الـ feedback loop (تحديث الجودة بعد نهاية المهمة)
+    // 3.  feedback loop (    )
     // ──────────────────────────────────────────────────────────────────
 
     suspend fun reportTaskOutcome(success: Boolean) = withContext(Dispatchers.IO) {
@@ -223,14 +223,14 @@ class ReflexionEngine(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // 4. Helpers — توليد الدرس بدون LLM
+    // 4. Helpers —    LLM
     // ──────────────────────────────────────────────────────────────────
 
     /**
-     * يولّد درساً rule-based. المنطق:
-     * - فشل → "عند استخدام X، فشل بسبب Z. الحل: ..."
-     * - نجاح بطيء → "X مفيد لكن بطيء — قسّم المهمة"
-     * - نتيجة ضخمة → "X يعيد بيانات ضخمة — استخدم limit"
+     *   rule-based. :
+     * -  → "  X   Z. : ..."
+     * -   → "X    —  "
+     * -   → "X    —  limit"
      */
     private fun synthesizeLesson(
         toolName: String,
@@ -243,16 +243,16 @@ class ReflexionEngine(
         val (lessonText, success) = when {
             result.isError -> {
                 val errSnippet = result.output.take(150).replace('\n', ' ')
-                "عند استخدام $toolName$paramsAbbrev، فشل: $errSnippet. " +
-                        "تحقق من المسار/الأذونات/المعاملات قبل إعادة المحاولة." to false
+                "  $toolName$paramsAbbrev : $errSnippet. " +
+                        "  //   ." to false
             }
             executionTimeMs >= NOTABLE_THRESHOLD_MS -> {
-                "$toolName$paramsAbbrev بطيء (${executionTimeMs}ms). " +
-                        "قسّم المهمة أو ضع limit لتسريع." to true
+                "$toolName$paramsAbbrev  (${executionTimeMs}ms). " +
+                        "    limit ." to true
             }
             result.output.length > 4000 -> {
-                "$toolName$paramsAbbrev يعيد ${result.output.length} حرف. " +
-                        "استخدم top_k/limit أو تصفية أدق لتقليل حجم النتيجة." to true
+                "$toolName$paramsAbbrev  ${result.output.length} . " +
+                        " top_k/limit      ." to true
             }
             else -> return null
         }
@@ -282,7 +282,7 @@ class ReflexionEngine(
         return " ($pretty)"
     }
 
-    /** بصمة (MD5 16 hex) لرسالة خطأ بعد تطبيع المسارات والأرقام. */
+    /**  (MD5 16 hex)      . */
     private fun signatureOf(text: String): String {
         val normalized = text.take(200)
             .replace(Regex("/[\\w./-]+"), "/PATH")

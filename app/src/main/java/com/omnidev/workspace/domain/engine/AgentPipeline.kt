@@ -1423,7 +1423,7 @@ Rules:
             val inputTokens = usage?.promptTokens ?: 0
             val outputTokens = usage?.completionTokens ?: 0
 
-            val cost = com.omnidev.workspace.data.repository.DynamicPricingManager.calculateCost(request.modelId, inputTokens, outputTokens)
+            val cost = com.omnidev.workspace.data.repository.DynamicPricingManager().calculateCost(request.modelId, inputTokens, outputTokens)
 
             repo.recordTokenUsage(
 

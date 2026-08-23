@@ -699,7 +699,7 @@ class CompositeToolManager(
                         isError = true
                     )
                 } else {
-                    DirectTerminalTool.execute(ctx, arguments, gate)
+                    ToolExecutionResult(DirectTerminalTool.execute(org.json.JSONObject().put("command", arguments)))
                 }
             }
 

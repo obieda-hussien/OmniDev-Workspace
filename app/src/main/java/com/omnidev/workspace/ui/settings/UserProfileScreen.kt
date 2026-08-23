@@ -47,7 +47,7 @@ import kotlinx.coroutines.launch
  * User Profile screen — lets the user set their display name and a short persona bio.
  *
  * **Name** is used by the AI assistant for personalised greetings
- * (e.g. "أنا هنا يا Ahmed، قولي عايز إيه؟").
+ * (e.g. "   Ahmed   ").
  *
  * **Persona** is injected into the AI's system prompt so the model can tailor
  * advice, code style, and explanations to this specific person
@@ -89,12 +89,12 @@ fun UserProfileScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("الملف الشخصي") },
+                title = { Text("User Profile") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "رجوع"
+                            contentDescription = "English Text"
                         )
                     }
                 },
@@ -134,7 +134,7 @@ fun UserProfileScreen(
 
             // ── Subtitle ──
             Text(
-                text = "اكتب اسمك وبيانات عنك عشان أومني يعرفك ويكلمك بطريقة مناسبة",
+                text = "         ",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 modifier = Modifier.fillMaxWidth()
@@ -145,11 +145,11 @@ fun UserProfileScreen(
                 value = name,
                 onValueChange = { name = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("اسمك") },
-                placeholder = { Text("مثلاً: أحمد") },
+                label = { Text("English Text") },
+                placeholder = { Text(": ") },
                 singleLine = true,
                 supportingText = {
-                    Text("المساعد هيستخدم اسمك في السلام — 'أنا هنا يا ${name.ifBlank { "اسمك" }}، قولي عايز إيه؟'")
+                    Text("The assistant will use your name in greetings.")
                 }
             )
 
@@ -160,15 +160,15 @@ fun UserProfileScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(160.dp),
-                label = { Text("بياناتك الشخصية (اختياري)") },
+                label = { Text("Your Personal Data (Optional)") },
                 placeholder = {
                     Text(
-                        "مثلاً: مطور Android محترف، بيفضل Kotlin، بيبني تطبيقات مستقلة." +
-                        "\nده بيساعد الذكاء الاصطناعي يفهم أسلوبك ويديك نصايح مناسبة."
+                        "e.g., Professional Android Developer, prefers Kotlin." +
+                        "\nThis helps the AI understand your style."
                     )
                 },
                 supportingText = {
-                    Text("هيتضاف تلقائياً لـ System Prompt عشان الـ AI يعرف أكتر عنك")
+                    Text("Automatically added to the System Prompt.")
                 }
             )
 
@@ -178,12 +178,12 @@ fun UserProfileScreen(
                     scope.launch {
                         settingsRepository.setUserName(name.trim().ifBlank { null })
                         settingsRepository.setUserPersona(persona.trim().ifBlank { null })
-                        snackbarHostState.showSnackbar("✅ تم الحفظ!")
+                        snackbarHostState.showSnackbar("✅ Saved!")
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("حفظ")
+                Text("English Text")
             }
 
             Spacer(Modifier.height(16.dp))
