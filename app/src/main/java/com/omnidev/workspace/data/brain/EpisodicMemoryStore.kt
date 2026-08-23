@@ -11,22 +11,22 @@ import kotlinx.coroutines.withContext
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * EpisodicMemoryStore — ذاكرة المهام الكاملة (Agent Brain 2.0)
+ * EpisodicMemoryStore —    (Agent Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * بعكس [ToolExecutionJournal] الذي يسجّل كل أداة على حدة، هذا الـ Store يحفظ
- * **مهمة كاملة** كحلقة (episode) واحدة:
+ *  [ToolExecutionJournal]         Store
+ * ** **  (episode) :
  *
  *   "User asked X → Agent ran tools [A, B, C] → Result: Y"
  *
- * عند مهمة جديدة مشابهة، نسترجع 1-2 episode متشابهين دلالياً ونحقنهم في الـ
- * system prompt كـ "memory shots". هذا يقلل trial-and-error ويرفع نسبة النجاح.
+ *      1-2 episode
+ * system prompt  "memory shots".   trial-and-error   .
  *
- * **Mobile-first** (يعمل على 2-4 GB RAM):
- * - HashEmbedder (لا نموذج، 0 RAM دائم)
- * - candidates ≤ 80 ثم cosine في JVM
- * - حد أقصى 2000 حلقة (~2-3 MB)
- * - Eviction للأقدم تلقائياً
+ * **Mobile-first** (  2-4 GB RAM):
+ * - HashEmbedder (  0 RAM )
+ * - candidates ≤ 80  cosine  JVM
+ * -   2000  (~2-3 MB)
+ * - Eviction
  */
 class EpisodicMemoryStore(
     private val dao: EpisodicMemoryDao,
@@ -42,7 +42,7 @@ class EpisodicMemoryStore(
         private const val MAX_TOOLS_STORED = 10
     }
 
-    /** يحفظ episode جديد بشكل غير متزامن (لا يبطئ AgentPipeline). */
+    /**  episode     (  AgentPipeline). */
     fun recordEpisodeAsync(
         summary: String,
         userIntent: String,
@@ -79,7 +79,7 @@ class EpisodicMemoryStore(
         val truncatedIntent = userIntent.take(200)
         val toolsCsv = toolsUsed.takeLast(MAX_TOOLS_STORED).joinToString(",")
 
-        // embedding من intent + summary لاسترجاع دقيق
+        // embedding  intent + summary
         val embedding = HashEmbedder.embed("$truncatedIntent $truncatedSummary")
 
         val entry = EpisodicMemoryEntry(
@@ -100,10 +100,10 @@ class EpisodicMemoryStore(
     }
 
     /**
-     * استرجاع episodes مشابهة:
-     *   1) candidates من DB (ناجحين حديثين أساساً + بعض الفاشلين للحذر)
-     *   2) cosine ranking في JVM
-     *   3) فلترة بـ minSimilarity → topK = 2
+     *  episodes :
+     *   1) candidates  DB (   +   )
+     *   2) cosine ranking  JVM
+     *   3)   minSimilarity → topK = 2
      */
     suspend fun retrieveSimilar(
         query: String,
@@ -114,7 +114,7 @@ class EpisodicMemoryStore(
 
         val queryVec = HashEmbedder.embed(query)
 
-        // candidates = ناجحين حديثين + بعض الفاشلين (للحذر)
+        // candidates =   +   ()
         val candidates = mutableListOf<EpisodicMemoryEntry>()
         if (preferSuccess) {
             candidates += dao.getByOutcome(EpisodeOutcome.SUCCESS.name, limit = 60)
@@ -138,7 +138,7 @@ class EpisodicMemoryStore(
             .map { it.first }
     }
 
-    /** يبني نص الحقن للـ system prompt من episodes متشابهة. */
+    /**     system prompt  episodes . */
     suspend fun buildPromptInjection(
         query: String,
         topK: Int = 2,
@@ -148,7 +148,7 @@ class EpisodicMemoryStore(
         if (episodes.isEmpty()) return@withContext ""
 
         buildString {
-            appendLine("\n📚 ذاكرة مهام سابقة مشابهة (Episodic Memory):")
+            appendLine("\n📚     (Episodic Memory):")
             for (ep in episodes) {
                 val icon = when (ep.finalOutcome) {
                     "SUCCESS" -> "✅"
@@ -157,7 +157,7 @@ class EpisodicMemoryStore(
                 }
                 val tools = ep.toolsUsedCsv.split(',').take(5).joinToString(" → ")
                 val line = "$icon ${ep.summary.take(180)}"
-                val toolLine = if (tools.isNotBlank()) "   🔧 المسار: $tools" else ""
+                val toolLine = if (tools.isNotBlank()) "   🔧 : $tools" else "English Text"
                 if (length + line.length + toolLine.length + 2 > maxChars) break
                 appendLine(line)
                 if (toolLine.isNotBlank()) appendLine(toolLine)
@@ -179,5 +179,5 @@ class EpisodicMemoryStore(
     }
 }
 
-/** نتيجة المهمة المسجَّلة. */
+/**   . */
 enum class EpisodeOutcome { SUCCESS, FAILURE, ABANDONED }

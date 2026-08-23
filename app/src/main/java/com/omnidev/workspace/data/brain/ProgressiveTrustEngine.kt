@@ -5,21 +5,21 @@ import android.util.Log
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * ProgressiveTrustEngine — نموذج الثقة التدريجي (Progressive Trust Model)
+ * ProgressiveTrustEngine —    (Progressive Trust Model)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * يُتتبّع ثقة المستخدم/الوكيل بناءً على سجل عملياته ويمنح صلاحيات تدريجياً.
+ *   /       .
  *
- * ## المبدأ:
- * - كل عملية ناجحة تزيد الـ trustScore قليلاً
- * - كل فشل يخفضه أكثر (تكلفة الفشل ضعف تكلفة النجاح)
- * - العمليات الحساسة (delete, patch) لها وزن مضاعف
- * - الصلاحيات تُمنح فقط عند تجاوز عتبات محددة
+ * ## :
+ * -      trustScore
+ * -     (    )
+ * -   (delete, patch)
+ * -
  *
  * ## Mobile-First:
- * - بدون LLM — حسابات rule-based بالكامل (< 1ms لكل تحديث)
- * - تخزين في SharedPreferences كـ JSON (< 5KB)
- * - آمن تماماً للاستخدام على أجهزة 2GB RAM
+ * -  LLM —  rule-based  (< 1ms  )
+ * -   SharedPreferences  JSON (< 5KB)
+ * -      2GB RAM
  */
 class ProgressiveTrustEngine(private val context: Context) {
 
@@ -28,25 +28,25 @@ class ProgressiveTrustEngine(private val context: Context) {
         private const val PREFS_NAME = "omni_trust_prefs"
         private const val PREFS_KEY = "omni_trust_profile"
 
-        // أوزان الأدوات — العمليات الحساسة تؤثر أكثر في الـ score
+        //   —       score
         private const val WEIGHT_DESTRUCTIVE = 2.0f   // delete, patch, root, etc.
         private const val WEIGHT_READ = 1.0f           // read, search, etc.
 
-        // معدلات التغيير
-        private const val SUCCESS_DELTA = 0.01f        // +0.01 * weight عند النجاح
-        private const val FAILURE_DELTA = 0.02f        // -0.02 * weight عند الفشل
+        //
+        private const val SUCCESS_DELTA = 0.01f        // +0.01 * weight
+        private const val FAILURE_DELTA = 0.02f        // -0.02 * weight
 
-        // عتبات الصلاحيات
+        //
         private const val THRESHOLD_FILE_WRITE = 0.2f
         private const val THRESHOLD_TERMINAL_ACCESS = 0.3f
         private const val THRESHOLD_GOD_MODE = 0.8f
         private const val THRESHOLD_SWARM_CONTROL = 0.9f
 
-        // حدود الـ trustScore
+        //   trustScore
         private const val SCORE_MIN = 0.0f
         private const val SCORE_MAX = 1.0f
 
-        // الأدوات ذات الوزن المزدوج (destructive)
+        //     (destructive)
         private val DESTRUCTIVE_TOOLS = setOf(
             "delete_file", "patch_file_content", "create_file",
             "run_terminal", "root_shell_tool", "advanced_root_shell",
@@ -57,7 +57,7 @@ class ProgressiveTrustEngine(private val context: Context) {
         )
     }
 
-    // ─── حالة الملف الشخصي في الذاكرة ────────────────────────────────────
+    // ───  User Profile   ────────────────────────────────────
 
     @Volatile private var profile: AgentTrustProfile = AgentTrustProfile()
 
@@ -65,31 +65,31 @@ class ProgressiveTrustEngine(private val context: Context) {
         loadProfile()
     }
 
-    // ─── نماذج البيانات ──────────────────────────────────────────────────
+    // ───   ──────────────────────────────────────────────────
 
-    /** ملف الثقة الشخصي للمستخدم/الوكيل */
+    /**    / */
     data class AgentTrustProfile(
         val userId: String = "default",
-        val trustScore: Float = 0.1f,          // يبدأ من 0.1 (ليس صفراً كي لا يُحبَط الوكيل)
+        val trustScore: Float = 0.1f,          //   0.1 (     )
         val successfulOps: Int = 0,
         val failedOps: Int = 0,
         val earnedCapabilities: Set<String> = emptySet(),
         val lastUpdated: Long = System.currentTimeMillis()
     )
 
-    /** مستويات الثقة */
+    /**   */
     enum class TrustLevel(val label: String, val arabicLabel: String) {
-        NOVICE("NOVICE", "مبتدئ"),
-        TRUSTED("TRUSTED", "موثوق"),
-        EXPERT("EXPERT", "خبير"),
-        GUARDIAN("GUARDIAN", "حارس")
+        NOVICE("NOVICE", "English Text"),
+        TRUSTED("TRUSTED", "English Text"),
+        EXPERT("EXPERT", "English Text"),
+        GUARDIAN("GUARDIAN", "English Text")
     }
 
-    // ─── الواجهة العامة ──────────────────────────────────────────────────
+    // ───   ──────────────────────────────────────────────────
 
     /**
-     * يُسجّل عملية ناجحة.
-     * الصيغة: trustScore += 0.01 * weight
+     *   .
+     * : trustScore += 0.01 * weight
      */
     fun onOperationSuccess(toolName: String) {
         val weight = getToolWeight(toolName)
@@ -101,14 +101,14 @@ class ProgressiveTrustEngine(private val context: Context) {
                 lastUpdated = System.currentTimeMillis()
             )
         }
-        // تحقق من منح صلاحيات جديدة تلقائياً بعد كل نجاح
+        //
         autoEarnCapabilities()
-        Log.d(TAG, "✅ نجاح: $toolName | Δ=+${"%.4f".format(delta)} | score=${profile.trustScore}")
+        Log.d(TAG, "✅ : $toolName | Δ=+${"%.4f".format(delta)} | score=${profile.trustScore}")
     }
 
     /**
-     * يُسجّل عملية فاشلة.
-     * الصيغة: trustScore -= 0.02 * weight
+     *   .
+     * : trustScore -= 0.02 * weight
      */
     fun onOperationFailure(toolName: String) {
         val weight = getToolWeight(toolName)
@@ -120,15 +120,15 @@ class ProgressiveTrustEngine(private val context: Context) {
                 lastUpdated = System.currentTimeMillis()
             )
         }
-        Log.d(TAG, "❌ فشل: $toolName | Δ=${"%.4f".format(delta)} | score=${profile.trustScore}")
+        Log.d(TAG, "❌ : $toolName | Δ=${"%.4f".format(delta)} | score=${profile.trustScore}")
     }
 
     /**
-     * يتحقق من توفر صلاحية معينة بناءً على الـ trustScore.
+     *         trustScore.
      */
     fun checkCapability(capability: String): Boolean {
         val currentScore = profile.trustScore
-        // الصلاحيات المكتسبة مسبقاً تبقى حتى لو نزل الـ score قليلاً
+        //         score
         if (capability in profile.earnedCapabilities) return true
         return when (capability) {
             "file_write"        -> currentScore >= THRESHOLD_FILE_WRITE
@@ -140,24 +140,24 @@ class ProgressiveTrustEngine(private val context: Context) {
     }
 
     /**
-     * يُضيف صلاحية إلى القائمة المكتسبة إذا تحققت العتبة.
-     * يعود بـ true إذا تمّ المنح، false إذا لم تُستوفَ العتبة.
+     *        .
+     *   true    false    .
      */
     fun earnCapability(capability: String): Boolean {
         if (!checkCapability(capability)) return false
-        if (capability in profile.earnedCapabilities) return true // مُكتسبة مسبقاً
+        if (capability in profile.earnedCapabilities) return true //
         updateProfile { old ->
             old.copy(
                 earnedCapabilities = old.earnedCapabilities + capability,
                 lastUpdated = System.currentTimeMillis()
             )
         }
-        Log.i(TAG, "🏆 صلاحية جديدة: $capability (score=${profile.trustScore})")
+        Log.i(TAG, "🏆  : $capability (score=${profile.trustScore})")
         return true
     }
 
     /**
-     * يُعيد مستوى الثقة الحالي.
+     *    .
      */
     fun getTrustLevel(): TrustLevel {
         return when {
@@ -169,12 +169,12 @@ class ProgressiveTrustEngine(private val context: Context) {
     }
 
     /**
-     * يُعيد نسخة من الملف الشخصي الحالي (للقراءة فقط).
+     *    User Profile  ( ).
      */
     fun getProfile(): AgentTrustProfile = profile
 
     /**
-     * يبني نص حقن للـ System Prompt يُعرّف الوكيل بمستوى الثقة والصلاحيات.
+     *     System Prompt     .
      */
     fun buildPromptInjection(): String {
         val p = profile
@@ -192,7 +192,7 @@ class ProgressiveTrustEngine(private val context: Context) {
     }
 
     /**
-     * يُعيد ملخصاً نصياً للملف الشخصي.
+     *     .
      */
     fun buildProfileSummary(): String {
         val p = profile
@@ -229,7 +229,7 @@ class ProgressiveTrustEngine(private val context: Context) {
     }
 
     /**
-     * يُعيد الملف الشخصي إلى الحالة الافتراضية.
+     *  User Profile   .
      */
     fun resetProfile() {
         profile = AgentTrustProfile()
@@ -237,22 +237,22 @@ class ProgressiveTrustEngine(private val context: Context) {
         Log.i(TAG, "🔄 Trust profile reset to defaults")
     }
 
-    // ─── تنفيذ داخلي ────────────────────────────────────────────────────
+    // ───   ────────────────────────────────────────────────────
 
-    /** يُحدّث الـ score مع التحقق من الحدود */
+    /**   score     */
     private fun updateScore(delta: Float) {
         val newScore = (profile.trustScore + delta).coerceIn(SCORE_MIN, SCORE_MAX)
         updateProfile { old -> old.copy(trustScore = newScore) }
     }
 
-    /** يُحدّث الملف الشخصي وينقله فوراً إلى SharedPreferences */
+    /**  User Profile    SharedPreferences */
     @Synchronized
     private fun updateProfile(transform: (AgentTrustProfile) -> AgentTrustProfile) {
         profile = transform(profile)
         saveProfile()
     }
 
-    /** يمنح الصلاحيات المستوفية تلقائياً */
+    /**     */
     private fun autoEarnCapabilities() {
         val capabilities = listOf("file_write", "terminal_access", "god_mode", "swarm_control")
         for (cap in capabilities) {
@@ -260,12 +260,12 @@ class ProgressiveTrustEngine(private val context: Context) {
         }
     }
 
-    /** يُعيد وزن الأداة (destructive = 2.0، read = 1.0) */
+    /**    (destructive = 2.0 read = 1.0) */
     private fun getToolWeight(toolName: String): Float {
         return if (toolName in DESTRUCTIVE_TOOLS) WEIGHT_DESTRUCTIVE else WEIGHT_READ
     }
 
-    /** بناء تلميح للصلاحية التالية */
+    /**     */
     private fun buildNextUnlockHint(score: Float): String {
         return when {
             score < THRESHOLD_FILE_WRITE -> {
@@ -313,7 +313,7 @@ class ProgressiveTrustEngine(private val context: Context) {
         }
     }
 
-    // ─── بسيط جداً: JSON يدوي (بدون مكتبة خارجية، < 1ms) ────────────────
+    // ───  : JSON  (   < 1ms) ────────────────
 
     private fun profileToJson(p: AgentTrustProfile): String {
         val capsJson = p.earnedCapabilities.joinToString(",") { "\"$it\"" }
