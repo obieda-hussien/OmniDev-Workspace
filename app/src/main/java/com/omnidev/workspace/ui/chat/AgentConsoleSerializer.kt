@@ -56,6 +56,10 @@ object AgentConsoleSerializer {
                 is AgentConsoleEntry.ReplyEntry -> {
                     obj.put("type", "reply")
                 }
+                                is AgentConsoleEntry.ContextSummaryEntry -> {
+                    obj.put("type", "context_summary")
+                    obj.put("summary", entry.summary)
+                }
                 is AgentConsoleEntry.ErrorEntry -> {
                     obj.put("type", "error")
                     obj.put("message", entry.message)
@@ -116,7 +120,12 @@ object AgentConsoleSerializer {
                         id = id
                     )
                     "reply" -> AgentConsoleEntry.ReplyEntry(timestamp = ts, id = id)
-                    "error" -> AgentConsoleEntry.ErrorEntry(
+                                    "context_summary" -> AgentConsoleEntry.ContextSummaryEntry(
+                    summary = obj.optString("summary"),
+                    timestamp = ts,
+                    id = id
+                )
+                "error" -> AgentConsoleEntry.ErrorEntry(
                         message = obj.getString("message"),
                         timestamp = ts,
                         id = id

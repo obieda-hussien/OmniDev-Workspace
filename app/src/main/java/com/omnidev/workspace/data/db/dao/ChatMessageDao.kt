@@ -26,6 +26,12 @@ interface ChatMessageDao {
     )
     suspend fun searchByContent(sessionId: Long, query: String): List<ChatMessageEntity>
 
+    @Query(
+        "SELECT * FROM chat_messages WHERE content LIKE '%' || :query || '%' ORDER BY timestamp DESC LIMIT :limit"
+    )
+    suspend fun searchAllByContent(query: String, limit: Int): List<ChatMessageEntity>
+
+
     @Query("DELETE FROM chat_messages WHERE sessionId = :sessionId")
     suspend fun deleteBySession(sessionId: Long)
 }

@@ -136,6 +136,18 @@ class ChatRepository(
      * Searches messages in the given session whose content contains [query] (case-insensitive
      * substring match via SQL LIKE). Returns matching [ChatMessage] objects ordered by time.
      */
+
+    suspend fun searchAllMessages(query: String, limit: Int = 10): List<ChatMessage> =
+        messageDao.searchAllByContent(query, limit).map { entity ->
+            ChatMessage(
+                role = runCatching { MessageRole.valueOf(entity.role) }.getOrDefault(MessageRole.USER),
+                content = entity.content,
+                timestamp = entity.timestamp,
+                messageId = entity.messageId.ifBlank { entity.id.toString() },
+                replyToMessageId = entity.replyToMessageId
+            )
+        }
+
     suspend fun searchMessages(sessionId: Long, query: String): List<ChatMessage> =
         messageDao.searchByContent(sessionId, query).map { entity ->
             ChatMessage(

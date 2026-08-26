@@ -926,6 +926,14 @@ class ChatViewModel(
                     it.copy(agentStatus = "🔍 Self-reflection (reviewing draft answer)...")
                 }
 
+                        is AgentEvent.ContextCompaction ->
+                _uiState.update {
+                    it.copy(
+                        consoleEntries = it.consoleEntries +
+                            AgentConsoleEntry.ContextSummaryEntry(event.summary)
+                    )
+                }
+
             is AgentEvent.StreamChunk ->
                 _uiState.update {
                     it.copy(streamingContent = (it.streamingContent ?: "") + event.delta)
@@ -1023,6 +1031,9 @@ class ChatViewModel(
                 is AgentConsoleEntry.ErrorEntry ->
                     "• Error observed: ${sanitizeCheckpointText(entry.message, CHECKPOINT_ERROR_PREVIEW_CHARS)}"
                 is AgentConsoleEntry.ReplyEntry -> null
+                is AgentConsoleEntry.ContextSummaryEntry ->
+                    "• Context compressed: ${entry.summary.take(40)}..."
+
             }
         }
 

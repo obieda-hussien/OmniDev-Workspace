@@ -13,6 +13,8 @@ import com.omnidev.workspace.data.media.OmniMediaSessionService
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.data.sync.OmniSyncService
 import com.omnidev.workspace.data.tools.automation.IntelligentAutomationEngine
+import com.omnidev.workspace.data.tools.research.PageFetchTool
+import com.omnidev.workspace.data.tools.research.MessageSearchTool
 import com.omnidev.workspace.data.tools.monitoring.ToolMonitoringSystem
 import com.omnidev.workspace.data.tools.prediction.PredictiveAnalyticsEngine
 import com.omnidev.workspace.data.tools.security.AdvancedSecurityAnalyzer
@@ -157,6 +159,8 @@ class CompositeToolManager(
         scriptRunnerTool?.let { addAll(it.getDefinitions()) }
 
         addAll(fileToolManager.getToolDefinitions().filterNot { it.name == "web_search" })
+        addAll(PageFetchTool.getToolDefinitions())
+        addAll(MessageSearchTool.getToolDefinitions())
         addAll(WebSearchTool.getToolDefinitions())
         addAll(NetworkRequestTool.getToolDefinitions())
         addAll(QualitySecurityTool.getToolDefinitions())
@@ -654,7 +658,10 @@ class CompositeToolManager(
             }
 
             // ── Direct network request tool ──
-            "network_request" -> NetworkRequestTool.execute(arguments)
+            "fetch_page" -> {
+                val url = arguments["url"] ?: return missingArg("url")
+                PageFetchTool.execute(url)
+            }            "network_request" -> NetworkRequestTool.execute(arguments)
 
             // ── Quality/security tooling ──
             "quality_security_tool" -> QualitySecurityTool.execute(context = context, args = arguments)

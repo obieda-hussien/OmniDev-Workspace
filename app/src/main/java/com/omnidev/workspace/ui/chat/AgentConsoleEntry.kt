@@ -88,4 +88,11 @@ sealed class AgentConsoleEntry {
         override val timestamp: Long = System.currentTimeMillis(),
         override val id: Long = nextId()
     ) : AgentConsoleEntry()
+
+    /** Context compressor generated a summary. */
+    data class ContextSummaryEntry(
+        val summary: String,
+        override val timestamp: Long = System.currentTimeMillis(),
+        override val id: Long = nextId()
+    ) : AgentConsoleEntry()
 }

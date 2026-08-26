@@ -815,7 +815,13 @@ Rules:
 
             // Context window trimming — drop oldest non-system messages when approaching limit
             val trimmedMessages = if (config.enableMemoryTrimming) {
-                trimMessagesForContextWindow(hierarchicalMessages, model.contextWindow - config.contextWindowBuffer)
+
+            val budget = config.tokenBudget ?: 128_000
+            val mutableContext = hierarchicalMessages.toMutableList()
+            ContextCompressor.checkAndCompact(mutableContext, budget, modelId, completionProvider) { event ->
+                send(event)
+            }
+                trimMessagesForContextWindow(mutableContext, model.contextWindow - config.contextWindowBuffer)
             } else {
                 hierarchicalMessages
             }
@@ -1509,4 +1515,7 @@ sealed class AgentEvent {
 
     /** An unrecoverable error occurred. */
     data class Error(val message: String) : AgentEvent()
+
+    /** Context compressor generated a summary. */
+    data class ContextCompaction(val summary: String) : AgentEvent()
 }
