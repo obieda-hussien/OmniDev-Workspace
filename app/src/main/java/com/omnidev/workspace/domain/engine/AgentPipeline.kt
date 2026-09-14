@@ -613,6 +613,9 @@ Rules:
         // 🧠 Agent Brain 2.0 — تسجيل بداية المهمة (لربط episodic memory)
         // ═══════════════════════════════════════════════════════════════
         smartLearningBridge?.onTaskStart(userMessage)
+        try { analyticsRepository?.recordAgentRun(isSwarm = false) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { /* Optional telemetry. */ }
 
         val model = ModelRegistry.findModelById(modelId)
             ?: ModelRegistry.getModelById(modelId)
@@ -991,6 +994,19 @@ Rules:
                 smartLearningBridge?.onToolExecutionStart(toolCall.name, callId = toolCall.id)
             }
 
+            suspend fun executeTrackedTool(call: com.omnidev.workspace.data.model.ToolCall): com.omnidev.workspace.data.tools.ToolExecutionResult {
+                val started = System.nanoTime()
+                val result = if (call.name.startsWith("mcp_")) {
+                    val output = mcpRegistry?.executeMcpTool(call.name, call.arguments) ?: "Error: MCP Registry not configured"
+                    com.omnidev.workspace.data.tools.ToolExecutionResult(output, isError = output.startsWith("Error", true))
+                } else toolManager.executeTool(call.name, call.arguments, scopePath)
+                try {
+                    analyticsRepository?.recordToolUsage(call.name, !result.isError, (System.nanoTime() - started) / 1_000_000)
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { /* Telemetry must not break tool execution. */ }
+                return result
+            }
+
             // ── Execute tools: parallel when enabled and >1 call, sequential otherwise ──
             val rawResults: List<com.omnidev.workspace.data.tools.ToolExecutionResult> =
                 if (config.enableParallelToolExecution && response.toolCalls.size > 1) {
@@ -1007,16 +1023,7 @@ Rules:
                                     maxRetries = config.toolExecutionMaxRetries,
                                     baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs
                                 ) {
-                                    if (toolCall.name.startsWith("mcp_")) {
-                                        val output = mcpRegistry?.executeMcpTool(toolCall.name, toolCall.arguments) ?: "Error: MCP Registry not configured"
-                                        com.omnidev.workspace.data.tools.ToolExecutionResult(output = output, isError = output.startsWith("Error", ignoreCase = true))
-                                    } else {
-                                        toolManager.executeTool(
-                                            name = toolCall.name,
-                                            arguments = toolCall.arguments,
-                                            scopePath = scopePath
-                                        )
-                                    }
+                                    executeTrackedTool(toolCall)
                                 }
                                 if (result.isSuccess) {
                                     result.getOrThrow()
@@ -1039,16 +1046,7 @@ Rules:
                             maxRetries = config.toolExecutionMaxRetries,
                             baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs
                         ) {
-                            if (toolCall.name.startsWith("mcp_")) {
-                                val output = mcpRegistry?.executeMcpTool(toolCall.name, toolCall.arguments) ?: "Error: MCP Registry not configured"
-                                com.omnidev.workspace.data.tools.ToolExecutionResult(output = output, isError = output.startsWith("Error", ignoreCase = true))
-                            } else {
-                                toolManager.executeTool(
-                                    name = toolCall.name,
-                                    arguments = toolCall.arguments,
-                                    scopePath = scopePath
-                                )
-                            }
+                            executeTrackedTool(toolCall)
                         }
                         if (result.isSuccess) {
                             result.getOrThrow()

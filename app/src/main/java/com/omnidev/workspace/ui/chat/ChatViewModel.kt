@@ -713,7 +713,6 @@ class ChatViewModel(
         val userPersona = settingsRepository.observeUserPersona().first()
         val chatSettings = _uiState.value.chatSettings
 
-        analyticsRepository?.recordAgentRun(isSwarm = false)
 
         agentPipeline.execute(
             userMessage = input,
@@ -839,7 +838,6 @@ class ChatViewModel(
                             AgentConsoleEntry.ResultEntry(event.toolName, snippet, event.isError, event.output, durationMs)
                     )
                 }
-                viewModelScope.launch { analyticsRepository?.recordToolUsage(event.toolName, success = !event.isError, durationMs = durationMs) }
             }
 
             is AgentEvent.TokenUsageUpdate ->

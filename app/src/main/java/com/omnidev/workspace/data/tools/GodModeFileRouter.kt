@@ -96,11 +96,20 @@ object GodModeFileRouter {
 
         if (!requiresEscalation(canonical) && file.exists() && file.canRead()) {
             return runCatching {
-                val bytes = file.readBytes()
+                val bytes = file.inputStream().use { stream ->
+                    val buffer = ByteArray(MAX_READ_BYTES.toInt() + 1)
+                    var count = 0
+                    while (count < buffer.size) {
+                        val read = stream.read(buffer, count, buffer.size - count)
+                        if (read < 0) break
+                        count += read
+                    }
+                    buffer.copyOf(count)
+                }
                 if (bytes.size > MAX_READ_BYTES) {
                     val preview = bytes.take(MAX_READ_BYTES.toInt()).toByteArray().decodeToString()
                     GodModeResult.Success(
-                        content = "$preview\n\n[TRUNCATED: file is ${bytes.size / 1024}KB, showing first ${MAX_READ_BYTES / 1024}KB]",
+                        content = "$preview\n\n[TRUNCATED: file exceeds ${MAX_READ_BYTES / 1024}KB, showing first ${MAX_READ_BYTES / 1024}KB]",
                         escalated = false
                     )
                 } else {

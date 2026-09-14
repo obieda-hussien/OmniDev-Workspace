@@ -255,11 +255,11 @@ private fun PerformanceTab(state: AgentBrainUiState) {
         //
         item {
             InfoCard(
-                title = "🏆  ",
+                title = "🏆 Tool performance",
                 content = buildString {
-                    appendLine("🥇 : ${state.bestTool}")
-                    appendLine("🥉 : ${state.worstTool}")
-                    appendLine("🔥  : ${state.mostUsedTool}")
+                    appendLine("🥇 Best success rate: ${state.bestTool}")
+                    appendLine("🥉 Lowest success rate: ${state.worstTool}")
+                    appendLine("🔥 Most used: ${state.mostUsedTool}")
                 }
             )
         }
@@ -268,7 +268,7 @@ private fun PerformanceTab(state: AgentBrainUiState) {
         if (state.problematicTools.isNotEmpty()) {
             item {
                 WarningCard(
-                    title = "⚠️   ",
+                    title = "⚠️ Tools needing attention",
                     items = state.problematicTools
                 )
             }
@@ -292,7 +292,7 @@ private fun ExecutionLogTab(
     onDeleteEntry: (Long) -> Unit
 ) {
     if (entries.isEmpty()) {
-        EmptyState(message = "    ")
+        EmptyState(message = "No tool executions recorded yet.")
         return
     }
 
@@ -380,7 +380,7 @@ private fun ExecutionEntryCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = " ",
+                        contentDescription = "Delete execution",
                         tint = Color(0xFFF44336),
                         modifier = Modifier.size(14.dp)
                     )
@@ -508,7 +508,7 @@ private fun KnowledgeEntryCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Edit,
-                            contentDescription = " ",
+                            contentDescription = "Edit knowledge",
                             tint = color,
                             modifier = Modifier.size(15.dp)
                         )
@@ -519,7 +519,7 @@ private fun KnowledgeEntryCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = " ",
+                            contentDescription = "Delete knowledge",
                             tint = Color(0xFFF44336),
                             modifier = Modifier.size(15.dp)
                         )
@@ -544,7 +544,7 @@ private fun KnowledgeEntryCard(
                             onUpdateEntry(entry.id, editedSubject, editedContent, confidence)
                             showEditDialog = false
                         } else {
-                            validationError = "  :      0.0  1.0"
+                            validationError = "Confidence must be a number between 0.0 and 1.0."
                         }
                     }
                 ) { Text("Save changes") }
@@ -680,12 +680,12 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            if (stats.isInitialized) "System Ready & Learned" else "System Discovering",
+                            if (stats.isInitialized) "Environment scan complete" else "System Discovering",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
                         Text(
-                            if (stats.isInitialized) "Agent is fully aware of its environment"
+                            if (stats.isInitialized) "Available capabilities have been recorded; access can change."
                             else "Agent is discovering available capabilities...",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -757,7 +757,7 @@ private fun LearningProgressCard(totalExecutions: Int, successRate: Float) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("🎯 Learning Level", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("🎯 Execution history", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     text = when {
                         totalExecutions < 20 -> "Getting started"
