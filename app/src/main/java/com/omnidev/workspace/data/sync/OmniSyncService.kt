@@ -24,6 +24,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -95,6 +96,11 @@ class OmniSyncService : Service() {
             else context.startService(intent)
         }
 
+        fun taskIntent(context: Context, taskId: String): Intent = Intent(context, MainActivity::class.java).apply {
+            data = android.net.Uri.parse("omnidev://task?id=$taskId")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+
         fun stop(context: Context) = context.stopService(Intent(context, OmniSyncService::class.java))
 
         /**
@@ -111,7 +117,7 @@ class OmniSyncService : Service() {
             val nm = NotificationManagerCompat.from(context)
             val intent = PendingIntent.getActivity(
                 context, task.id.hashCode(),
-                Intent(context, MainActivity::class.java),
+                taskIntent(context, task.id),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
             val channelId = if (summary.isSuccess) TASK_COMPLETE_CHANNEL_ID else TASK_EVENTS_CHANNEL_ID
@@ -190,6 +196,8 @@ class OmniSyncService : Service() {
             postCompletionNotification(applicationContext, task, summary)
         }
 
+        TaskSchedulerTool.executionCallback =
+            com.omnidev.workspace.domain.engine.ScheduledTaskExecutor(applicationContext)::execute
         startAdaptiveSyncLoop()
     }
 
@@ -316,8 +324,8 @@ class OmniSyncService : Service() {
                 val displayPrompt = task.prompt.take(MAX_PROMPT_LENGTH_IN_STATUS)
 
                 // Mark as running
-                TaskSchedulerTool.markRunning(task.id,
-                    executionDetails = "بدأت: ${formatTime(startTime)} | ${displayPrompt}")
+                if (!TaskSchedulerTool.markRunning(task.id,
+                    executionDetails = "بدأت: ${formatTime(startTime)} | ${displayPrompt}")) continue
                 _syncState.value = SyncState.EXECUTING_TASK
                 _currentlyRunningTask.value = task.name
 
@@ -335,7 +343,16 @@ class OmniSyncService : Service() {
                         val summary = withTimeout(
                             ((task.timeoutMinutes ?: 30) * 60 * 1_000L).coerceAtLeast(60_000L)
                         ) {
-                            callback(task)
+                            coroutineScope {
+                                val execution = async { callback(task) }
+                                val cancellation = launch {
+                                    TaskSchedulerTool.tasksFlow.first { list ->
+                                        list.none { it.id == task.id } || list.any { it.id == task.id && it.status == TaskSchedulerTool.TaskStatus.CANCELLED }
+                                    }
+                                    execution.cancel(CancellationException("Task cancelled"))
+                                }
+                                try { execution.await() } finally { cancellation.cancel() }
+                            }
                         }
                         if (summary.isSuccess) {
                             TaskSchedulerTool.markCompleted(task.id, summary.result, summary)
@@ -364,7 +381,7 @@ class OmniSyncService : Service() {
                         taskId = task.id, taskName = task.name,
                         startTimeMs = startTime, endTimeMs = System.currentTimeMillis(),
                         toolsUsed = 0, toolNames = emptyList(),
-                        result = "Execution bridge not configured. Set TaskSchedulerTool.executionCallback in MainActivity.",
+                        result = "Execution bridge not configured. Restart the background task service.",
                         isSuccess = false,
                         errorMessage = "executionCallback not set — AgentPipeline not connected"
                     )
@@ -381,7 +398,9 @@ class OmniSyncService : Service() {
                 }
 
             } catch (e: CancellationException) {
-                throw e // Always propagate CancellationException
+                currentCoroutineContext().ensureActive()
+                if (TaskSchedulerTool.getTaskById(task.id)?.status != TaskSchedulerTool.TaskStatus.CANCELLED &&
+                    TaskSchedulerTool.getTaskById(task.id) != null) throw e
             } catch (e: Exception) {
                 Log.e(TAG, "❌ خطأ في تنفيذ مهمة ${task.id}: ${e.message}")
                 DebugLogManager.appendError(TAG, e)
@@ -508,7 +527,7 @@ class OmniSyncService : Service() {
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(PendingIntent.getActivity(
-                this, taskId.hashCode(), Intent(this, MainActivity::class.java),
+                this, taskId.hashCode(), taskIntent(this, taskId),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )).build()
         runCatching {

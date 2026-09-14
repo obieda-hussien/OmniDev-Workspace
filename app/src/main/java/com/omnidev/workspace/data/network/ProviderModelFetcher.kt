@@ -52,6 +52,10 @@ class ProviderModelFetcher {
     ): Result<List<AIModel>> = withContext(Dispatchers.IO) {
         runCatching {
             when (provider) {
+                ModelProvider.ZENMUX -> fetchCompatibleCatalog(provider, "https://zenmux.ai/api/v1", apiKey)
+                ModelProvider.Z_AI -> listOf(AIModel(id = "Z_AI::glm-5.3", displayName = "GLM-5.3", provider = provider,
+                    contextWindow = 32_768, supportsThinking = true, shortDescription = "Z.ai API; conservative context limit. Use a custom profile to override."))
+                ModelProvider.CUSTOM_OPENAI -> emptyList()
                 ModelProvider.OPEN_ROUTER -> fetchOpenRouter(apiKey)
                 ModelProvider.GROQ -> fetchGroq(apiKey)
                 ModelProvider.OPENAI -> fetchOpenAI(apiKey)
@@ -649,6 +653,19 @@ class ProviderModelFetcher {
                 lower.contains("instant") -> ModelTier.FAST
 
             else -> ModelTier.EXECUTOR
+        }
+    }
+
+    fun fetchCompatibleCatalog(provider: ModelProvider, baseUrl: String, apiKey: String?): List<AIModel> {
+        val body = httpGet("${ProviderEndpoint.normalize(baseUrl)}/models",
+            if (apiKey.isNullOrBlank()) emptyMap() else mapOf("Authorization" to "Bearer $apiKey"))
+        val data = org.json.JSONObject(body).optJSONArray("data") ?: return emptyList()
+        return (0 until data.length()).mapNotNull { i ->
+            val model = data.optJSONObject(i) ?: return@mapNotNull null
+            val id = model.optString("id").takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            AIModel(id = "${provider.name}::$id", displayName = model.optString("name", id), provider = provider,
+                contextWindow = model.optInt("context_length", 32_768).coerceAtLeast(4096),
+                supportsThinking = true)
         }
     }
 

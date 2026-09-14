@@ -188,7 +188,7 @@ class TelegramPollingService : Service() {
     private val apiKeyRepository: ApiKeyRepository by lazy {
         ApiKeyRepository(applicationContext)
     }
-    private val completionService: CompletionService by lazy { CompletionService() }
+    private val completionService: CompletionService by lazy { CompletionService(settingsRepository) }
 
     private val chatRepository: ChatRepository by lazy {
         val db = OmniDevDatabase.getInstance(applicationContext)

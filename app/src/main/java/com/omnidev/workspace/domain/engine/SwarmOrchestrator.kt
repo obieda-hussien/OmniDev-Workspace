@@ -123,7 +123,7 @@ CRITICAL INSTRUCTIONS:
 
         val orchestratorApiKey = apiKeyRepository?.getApiKey(orchestratorModel.provider)
 
-        val godModeNote = if (godModeEnabled) "\n[GOD MODE ENABLED]: You have unrestricted file system access. You can request workers to use god-mode specific operations." else ""
+        val godModeNote = if (godModeEnabled) "\n[GOD MODE ENABLED]: Extended file tools are enabled. Actual access depends on Android permissions and the connected privileged backend." else ""
         val finalOrchestratorPrompt = ORCHESTRATOR_SYSTEM_PROMPT.trimIndent() + godModeNote
 
         val planRequest = CompletionRequest(
@@ -154,6 +154,19 @@ CRITICAL INSTRUCTIONS:
         }
         if (tasks.size > MAX_SUBTASKS) {
             send(SwarmEvent.Error("Too many sub-tasks (${tasks.size}). Maximum is $MAX_SUBTASKS."))
+            return@channelFlow
+        }
+
+        val ids = tasks.map { it.id }
+        if (ids.distinct().size != ids.size || ids.any { it.isBlank() } ||
+            tasks.any { task -> task.dependencies.any { it !in ids || it == task.id } }) {
+            send(SwarmEvent.Error("Invalid task plan: IDs must be unique and dependencies must reference another task."))
+            return@channelFlow
+        }
+        val resolved = mutableSetOf<String>()
+        repeat(tasks.size) { tasks.filter { it.dependencies.all(resolved::contains) }.forEach { resolved.add(it.id) } }
+        if (resolved.size != tasks.size) {
+            send(SwarmEvent.Error("Invalid task plan: circular dependencies. No workers were started."))
             return@channelFlow
         }
 
@@ -209,11 +222,8 @@ CRITICAL INSTRUCTIONS:
             // Remove the ready tasks from the pending list before starting them
             remaining.removeAll(readyNow)
 
-            // Execute all ready tasks concurrently within a coroutineScope
-            // Execute all ready tasks sequentially to prevent CPU thermal throttling
+            // Workers share a writable workspace; serialize execution to avoid conflicting edits.
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default.limitedParallelism(2)) {
-                // Lower thread priority to background to prevent UI lag and phone freezing
-                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
 
                 for (task in readyNow) {
                     send(SwarmEvent.TaskStarted(task))
@@ -225,7 +235,7 @@ CRITICAL INSTRUCTIONS:
                     val workerPrompt = buildString {
                         appendLine("## Sub-Task: ${task.description}")
                         if (godModeEnabled) {
-                            appendLine("\n[GOD MODE ENABLED]: You have full root file system access.")
+                            appendLine("\n[GOD MODE ENABLED]: Extended file tools are enabled; root access is not guaranteed.")
                         }
                         if (dependencyContext.isNotEmpty()) {
                             appendLine()
@@ -268,6 +278,7 @@ CRITICAL INSTRUCTIONS:
                             }
                         }
 
+                        if (taskError == null && taskResult.isBlank()) taskError = "Worker ended without a final response."
                         if (taskError != null) {
                             val errorMsg = if (taskResult.isNotBlank()) "$taskError\n[Partial output]: $taskResult" else taskError
                             failedTasks[task.id] = errorMsg
@@ -339,7 +350,7 @@ CRITICAL INSTRUCTIONS:
 
         send(SwarmEvent.Completed(
             summary = synthesisResponse.content,
-            tasksCompleted = completedTasks.size,
+            tasksCompleted = completedTasks.size - failedTasks.size,
             tasksFailed = failedTasks.size + skippedTasks.size
         ))
     }

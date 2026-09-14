@@ -60,6 +60,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -94,6 +100,15 @@ private enum class SortMode(val label: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduledTasksScreen(onNavigateBack: () -> Unit = {}) {
+    val actionScope = rememberCoroutineScope()
+    val snackbar = remember { SnackbarHostState() }
+    fun changeTask(action: () -> Unit) {
+        actionScope.launch {
+            try { withContext(Dispatchers.IO) { action() } }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (error: Exception) { snackbar.showSnackbar(error.message ?: "Unable to save task") }
+        }
+    }
     val allTasks by TaskSchedulerTool.tasksFlow.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     var activeTab    by remember { mutableStateOf(TabFilter.ALL) }
@@ -121,6 +136,7 @@ fun ScheduledTasksScreen(onNavigateBack: () -> Unit = {}) {
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 title = { Text("Scheduled Tasks") },
@@ -229,12 +245,12 @@ fun ScheduledTasksScreen(onNavigateBack: () -> Unit = {}) {
                     items(displayedTasks, key = { it.id }) { task ->
                         TaskCard(
                             task     = task,
-                            onCancel = { TaskSchedulerTool.cancelTaskById(task.id) },
-                            onDelete = { TaskSchedulerTool.deleteTask(task.id) },
-                            onPause  = { TaskSchedulerTool.pauseTaskById(task.id) },
-                            onResume = { TaskSchedulerTool.resumeTaskById(task.id) },
-                            onRetry  = { TaskSchedulerTool.retryTaskById(task.id) },
-                            onRunNow = { TaskSchedulerTool.runNowById(task.id) }
+                            onCancel = { changeTask { TaskSchedulerTool.cancelTaskById(task.id) } },
+                            onDelete = { changeTask { TaskSchedulerTool.deleteTask(task.id) } },
+                            onPause  = { changeTask { TaskSchedulerTool.pauseTaskById(task.id) } },
+                            onResume = { changeTask { TaskSchedulerTool.resumeTaskById(task.id) } },
+                            onRetry  = { changeTask { TaskSchedulerTool.retryTaskById(task.id) } },
+                            onRunNow = { changeTask { TaskSchedulerTool.runNowById(task.id) } }
                         )
                     }
                     item { Spacer(Modifier.height(80.dp)) }
@@ -247,6 +263,8 @@ fun ScheduledTasksScreen(onNavigateBack: () -> Unit = {}) {
         AddTaskDialog(
             onDismiss = { showAddDialog = false },
             onConfirm = { params ->
+                actionScope.launch {
+                try { withContext(Dispatchers.IO) {
                 TaskSchedulerTool.scheduleTaskDirectly(
                     name                 = params.name,
                     prompt               = params.prompt,
@@ -265,7 +283,11 @@ fun ScheduledTasksScreen(onNavigateBack: () -> Unit = {}) {
                     notifyOnComplete     = params.notifyOnComplete,
                     notifyOnFail         = params.notifyOnFail
                 )
+                }
                 showAddDialog = false
+                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (error: Exception) { snackbar.showSnackbar(error.message ?: "Unable to save task") }
+                }
             }
         )
     }

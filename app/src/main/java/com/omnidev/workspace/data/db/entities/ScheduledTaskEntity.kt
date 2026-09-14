@@ -1,5 +1,6 @@
 package com.omnidev.workspace.data.db.entities
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -15,5 +16,6 @@ data class ScheduledTaskEntity(
     val nextExecutionTime: Long,
     val status: String,
     val allowWakeLock: Boolean,
-    val lastExecutionResult: String? = null
+    val lastExecutionResult: String? = null,
+    @ColumnInfo(defaultValue = "''") val stateJson: String = ""
 )

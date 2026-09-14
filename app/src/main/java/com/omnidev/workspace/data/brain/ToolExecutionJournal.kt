@@ -56,6 +56,8 @@ class ToolExecutionJournal(
     private var previousToolName: String = ""
     private var sessionToolCount: Int = 0
 
+    fun forkForRun() = ToolExecutionJournal(dao, scope)
+
     fun startNewSession(agentMode: String = "ASSISTANT") {
         currentSessionId = generateSessionId()
         currentAgentMode = agentMode

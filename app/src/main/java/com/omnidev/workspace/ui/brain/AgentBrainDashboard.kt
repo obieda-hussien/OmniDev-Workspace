@@ -47,6 +47,14 @@ fun AgentBrainDashboard(
     viewModel: AgentBrainViewModel,
     onNavigateBack: () -> Unit
 ) {
+    CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr
+    ) { AgentBrainDashboardContent(viewModel, onNavigateBack) }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AgentBrainDashboardContent(viewModel: AgentBrainViewModel, onNavigateBack: () -> Unit) {
     val uiState by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
 
@@ -65,7 +73,7 @@ fun AgentBrainDashboard(
                                 fontSize = 18.sp
                             )
                             Text(
-                                text = "   ",
+                                text = "Tool activity, learned knowledge and environment status",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
@@ -74,12 +82,12 @@ fun AgentBrainDashboard(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "English Text")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "English Text")
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -115,22 +123,22 @@ fun AgentBrainDashboard(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("📊 ") }
+                    text = { Text("📊 Overview") }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("📔 ") }
+                    text = { Text("📔 Activity") }
                 )
                 Tab(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    text = { Text("🧠 ") }
+                    text = { Text("🧠 Knowledge") }
                 )
                 Tab(
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 },
-                    text = { Text("🌐 ") }
+                    text = { Text("🌐 Environment") }
                 )
             }
 
@@ -168,7 +176,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "⚡",
                 value = state.totalExecutions.toString(),
-                label = "English Text",
+                label = "Tool executions",
                 color = Color(0xFF2196F3)
             )
         }
@@ -176,7 +184,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "✅",
                 value = "${(state.successRate * 100).toInt()}%",
-                label = "English Text",
+                label = "Success rate",
                 color = if (state.successRate > 0.8f) Color(0xFF4CAF50) else Color(0xFFFF9800)
             )
         }
@@ -184,15 +192,15 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "🧠",
                 value = state.totalKnowledge.toString(),
-                label = "English Text",
+                label = "Knowledge entries",
                 color = Color(0xFF9C27B0)
             )
         }
         item {
             MiniStatCard(
                 icon = "🔧",
-                value = state.sessionToolCount.toString(),
-                label = "/",
+                value = state.recentExecutions.size.toString(),
+                label = "Recent events shown",
                 color = Color(0xFF00BCD4)
             )
         }
@@ -201,7 +209,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
                 MiniStatCard(
                     icon = "⚠️",
                     value = state.problematicTools.size.toString(),
-                    label = "English Text",
+                    label = "Tools with failures",
                     color = Color(0xFFF44336)
                 )
             }
@@ -255,11 +263,11 @@ private fun PerformanceTab(state: AgentBrainUiState) {
         //
         item {
             InfoCard(
-                title = "🏆  ",
+                title = "🏆 Tool performance",
                 content = buildString {
-                    appendLine("🥇 : ${state.bestTool}")
-                    appendLine("🥉 : ${state.worstTool}")
-                    appendLine("🔥  : ${state.mostUsedTool}")
+                    appendLine("🥇 Best success rate: ${state.bestTool}")
+                    appendLine("🥉 Lowest success rate: ${state.worstTool}")
+                    appendLine("🔥 Most used: ${state.mostUsedTool}")
                 }
             )
         }
@@ -268,7 +276,7 @@ private fun PerformanceTab(state: AgentBrainUiState) {
         if (state.problematicTools.isNotEmpty()) {
             item {
                 WarningCard(
-                    title = "⚠️   ",
+                    title = "⚠️ Tools needing attention",
                     items = state.problematicTools
                 )
             }
@@ -292,7 +300,7 @@ private fun ExecutionLogTab(
     onDeleteEntry: (Long) -> Unit
 ) {
     if (entries.isEmpty()) {
-        EmptyState(message = "    ")
+        EmptyState(message = "No tool executions recorded yet.")
         return
     }
 
@@ -340,6 +348,12 @@ private fun ExecutionEntryCard(
                     fontSize = 13.sp,
                     fontFamily = FontFamily.Monospace
                 )
+                Text(
+                    text = entry.parametersJson.take(180),
+                    fontSize = 10.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
                 if (entry.errorMessage.isNotBlank()) {
                     Text(
                         text = entry.errorMessage,
@@ -380,7 +394,7 @@ private fun ExecutionEntryCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = " ",
+                        contentDescription = "Delete execution",
                         tint = Color(0xFFF44336),
                         modifier = Modifier.size(14.dp)
                     )
@@ -399,7 +413,7 @@ private fun KnowledgeTab(
     onUpdateEntry: (Long, String, String, Float) -> Unit
 ) {
     if (entries.isEmpty()) {
-        EmptyState(message = "   Agent  ")
+        EmptyState(message = "No active knowledge recorded yet.")
         return
     }
 
@@ -414,6 +428,8 @@ private fun KnowledgeTab(
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         item {
+            Text("Showing the latest ${entries.size} active entries. Category counts below refer to this view.",
+                style = MaterialTheme.typography.labelSmall)
             KnowledgeTypeFilters(
                 selectedType = selectedType,
                 entries = entries,
@@ -508,7 +524,7 @@ private fun KnowledgeEntryCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Edit,
-                            contentDescription = " ",
+                            contentDescription = "Edit knowledge",
                             tint = color,
                             modifier = Modifier.size(15.dp)
                         )
@@ -519,7 +535,7 @@ private fun KnowledgeEntryCard(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
-                            contentDescription = " ",
+                            contentDescription = "Delete knowledge",
                             tint = Color(0xFFF44336),
                             modifier = Modifier.size(15.dp)
                         )
@@ -544,15 +560,15 @@ private fun KnowledgeEntryCard(
                             onUpdateEntry(entry.id, editedSubject, editedContent, confidence)
                             showEditDialog = false
                         } else {
-                            validationError = "  :      0.0  1.0"
+                            validationError = "Confidence must be a number between 0.0 and 1.0."
                         }
                     }
-                ) { Text("English Text") }
+                ) { Text("Save changes") }
             },
             dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) { Text("English Text") }
+                TextButton(onClick = { showEditDialog = false }) { Text("Cancel") }
             },
-            title = { Text(" ") },
+            title = { Text("Edit knowledge") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
@@ -680,12 +696,12 @@ private fun EnvironmentTab(stats: ToolAwarenessEngine.AwarenessStats?) {
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            if (stats.isInitialized) "System Ready & Learned" else "System Discovering",
+                            if (stats.isInitialized) "Environment scan complete" else "System Discovering",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
                         Text(
-                            if (stats.isInitialized) "Agent is fully aware of its environment"
+                            if (stats.isInitialized) "Available capabilities have been recorded; access can change."
                             else "Agent is discovering available capabilities...",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -757,13 +773,13 @@ private fun LearningProgressCard(totalExecutions: Int, successRate: Float) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("🎯 Learning Level", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("🎯 Execution history", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     text = when {
-                        totalExecutions < 20 -> "English Text"
-                        totalExecutions < 100 -> "English Text"
-                        totalExecutions < 500 -> "English Text"
-                        else -> "English Text"
+                        totalExecutions < 20 -> "Getting started"
+                        totalExecutions < 100 -> "Building experience"
+                        totalExecutions < 500 -> "Experienced"
+                        else -> "Extensive history"
                     },
                     fontWeight = FontWeight.Bold,
                     color = progressColor,
@@ -801,7 +817,7 @@ private fun EnvironmentRow(name: String, available: Boolean) {
             containerColor = if (available) Color(0xFF4CAF50) else Color(0xFF9E9E9E)
         ) {
             Text(
-                if (available) "English Text" else " ",
+                if (available) "Available" else "Unavailable",
                 fontSize = 10.sp,
                 color = Color.White,
                 modifier = Modifier.padding(horizontal = 4.dp)

@@ -38,16 +38,17 @@ object MessageSearchTool {
         if (chatRepository == null) return ToolExecutionResult("ChatRepository is not available.", isError = true)
 
         return try {
-            val maxResults = limit ?: 10
+            if (query.isBlank()) return ToolExecutionResult("Query must not be blank.", isError = true)
+            val maxResults = (limit ?: 10).coerceIn(1, 100)
 
             val messages = if (sessionIdStr.isNullOrBlank()) {
                 chatRepository.searchAllMessages(query, maxResults)
             } else {
                 val sessionId = sessionIdStr.toLongOrNull()
                 if (sessionId != null) {
-                    chatRepository.searchMessages(sessionId, query).take(maxResults)
+                    chatRepository.searchMessages(sessionId, query).takeLast(maxResults)
                 } else {
-                    chatRepository.searchAllMessages(query, maxResults)
+                    return ToolExecutionResult("sessionId must be a valid numeric session ID.", isError = true)
                 }
             }
 
@@ -60,6 +61,8 @@ object MessageSearchTool {
                 appendLine()
                 messages.forEachIndexed { index, msg ->
                     appendLine("--- Result ${index + 1} ---")
+                    appendLine("Message ID: ${msg.messageId}")
+                    appendLine("Timestamp: ${msg.timestamp}")
                     appendLine("Role: ${msg.role.name}")
                     appendLine("Content: ${msg.content.take(500)}${if (msg.content.length > 500) "..." else ""}")
                     appendLine()
@@ -67,6 +70,8 @@ object MessageSearchTool {
             }
 
             ToolExecutionResult(formatted, isError = false)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             ToolExecutionResult("Failed to search messages: ${e.message}", isError = true)
         }

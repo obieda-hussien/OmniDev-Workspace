@@ -332,7 +332,7 @@ class AnalyticsRepository(private val context: Context) {
             val newStats = stats.copy(
                 executionCount = stats.executionCount + 1,
                 successCount = stats.successCount + if (success) 1L else 0L,
-                totalDurationMs = stats.totalDurationMs + durationMs
+                totalDurationMs = stats.totalDurationMs + durationMs.coerceAtLeast(0)
             )
 
             val updated = current.copy(
@@ -381,7 +381,7 @@ class AnalyticsRepository(private val context: Context) {
         }
     }
 
-    private fun AnalyticsStats.toJson(): String {
+    internal fun AnalyticsStats.toJson(): String {
         val root = JSONObject()
         root.put("total_input_tokens", totalInputTokens)
         root.put("total_output_tokens", totalOutputTokens)
@@ -412,7 +412,11 @@ class AnalyticsRepository(private val context: Context) {
 
         val toolUsage = JSONObject()
         toolUsageCount.forEach { (toolName, count) ->
-            toolUsage.put(toolName, count)
+            toolUsage.put(toolName, JSONObject().apply {
+                put("executionCount", count.executionCount)
+                put("successCount", count.successCount)
+                put("totalDurationMs", count.totalDurationMs)
+            })
         }
         root.put("tool_usage_count", toolUsage)
 
@@ -430,7 +434,7 @@ class AnalyticsRepository(private val context: Context) {
         return root.toString()
     }
 
-    private fun String.toAnalyticsStats(): AnalyticsStats {
+    internal fun String.toAnalyticsStats(): AnalyticsStats {
         val root = JSONObject(this)
 
         val byModel = mutableMapOf<String, ModelStats>()
@@ -467,13 +471,7 @@ class AnalyticsRepository(private val context: Context) {
                     totalDurationMs = tObj.optLong("totalDurationMs", 0L)
                 )
             } else {
-                // Backwards compat for old flat count format
-                toolUsage[toolName] = ToolStats(
-                    toolName = toolName,
-                    executionCount = toolObj.optLong(toolName, 0L),
-                    successCount = toolObj.optLong(toolName, 0L),
-                    totalDurationMs = 0L
-                )
+                toolUsage[toolName] = parseLegacyToolStats(toolName, toolObj.opt(toolName))
             }
         }
 
@@ -491,18 +489,35 @@ class AnalyticsRepository(private val context: Context) {
             )
         }
 
+        // Older installs recorded Gemini/OpenRouter token counts before a price
+        // was available. Reconstruct only missing per-model costs from their stored
+        // token totals so the dashboard becomes useful without deleting history.
+        val pricing = DynamicPricingManager()
+        val repairedModels = byModel.mapValues { (modelId, stats) ->
+            if (stats.costUsd == 0.0 && stats.totalTokens > 0L) {
+                stats.copy(costUsd = pricing.calculateCost(
+                    modelId = modelId,
+                    promptTokens = stats.inputTokens.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                    completionTokens = stats.outputTokens.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                ))
+            } else stats
+        }
+        val storedCost = root.optDouble("total_cost_usd")
+        val reconstructedCost = repairedModels.values.sumOf { it.costUsd }
+        val totalCost = maxOf(storedCost, reconstructedCost)
+
         return AnalyticsStats(
             totalInputTokens = root.optLong("total_input_tokens"),
             totalOutputTokens = root.optLong("total_output_tokens"),
-            totalCostUsd = root.optDouble("total_cost_usd"),
-            totalCostEgp = root.optDouble("total_cost_egp"),
+            totalCostUsd = totalCost,
+            totalCostEgp = maxOf(root.optDouble("total_cost_egp"), totalCost * 50.0),
             totalRequests = root.optLong("total_requests"),
             totalErrors = root.optLong("total_errors"),
             totalAgentRuns = root.optInt("total_agent_runs"),
             totalSwarmRuns = root.optInt("total_swarm_runs"),
             firstRecordedAt = root.optLong("first_recorded_at"),
             lastRecordedAt = root.optLong("last_recorded_at"),
-            tokensByModel = byModel,
+            tokensByModel = repairedModels,
             toolUsageCount = toolUsage,
             dailyUsage = daily
         )

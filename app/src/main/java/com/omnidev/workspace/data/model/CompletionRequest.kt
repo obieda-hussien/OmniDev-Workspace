@@ -36,7 +36,9 @@ enum class MessageRole {
 data class ToolCall(
     val id: String,
     val name: String,
-    val arguments: Map<String, String>
+    val arguments: Map<String, String>,
+    /** Opaque provider metadata (including Gemini thought signatures); replay unchanged. */
+    val extraContent: kotlinx.serialization.json.JsonObject? = null
 )
 
 /**
@@ -94,7 +96,8 @@ data class CompletionRequest(
      */
     val tools: List<ToolDefinition>? = null,
     val customBaseUrl: String? = null,
-    val customModelId: String? = null
+    val customModelId: String? = null,
+    @kotlinx.serialization.Transient val onReasoning: (suspend (String) -> Unit)? = null
 )
 
 /**

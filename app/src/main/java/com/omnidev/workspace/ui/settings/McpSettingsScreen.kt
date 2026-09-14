@@ -112,6 +112,12 @@ fun McpSettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            Text(
+                "Use type http for a Streamable HTTP MCP endpoint (for example /mcp). " +
+                    "Use rest only for legacy /tools/list and /tools/call adapters.",
+                style = MaterialTheme.typography.bodySmall
+            )
+
             // Status banners
             AnimatedVisibility(
                 visible = errorMessage != null,

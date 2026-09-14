@@ -5,11 +5,27 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Transaction
 import com.omnidev.workspace.data.db.entities.ScheduledTaskEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ScheduledTaskDao {
+    @Query("SELECT * FROM scheduled_tasks")
+    suspend fun getAll(): List<ScheduledTaskEntity>
+
+    @Query("DELETE FROM scheduled_tasks")
+    suspend fun deleteAll()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(tasks: List<ScheduledTaskEntity>)
+
+    @Transaction
+    suspend fun replaceSnapshot(tasks: List<ScheduledTaskEntity>) {
+        deleteAll()
+        insertAll(tasks)
+    }
+
     @Query("SELECT * FROM scheduled_tasks")
     fun getAllTasks(): Flow<List<ScheduledTaskEntity>>
 

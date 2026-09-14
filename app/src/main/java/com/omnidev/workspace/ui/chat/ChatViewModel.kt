@@ -26,6 +26,7 @@ import com.omnidev.workspace.domain.engine.IntentClassifier
 import com.omnidev.workspace.domain.engine.OmniMode
 import com.omnidev.workspace.domain.engine.SwarmEvent
 import com.omnidev.workspace.domain.engine.SwarmOrchestrator
+import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +36,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * A file the user has selected but not yet sent.
@@ -81,7 +83,7 @@ data class ChatUiState(
     /** Partial text from the current streaming response (null = not streaming). */
     val streamingContent: String? = null,
     /** The currently active execution mode (Chat / Agent / Swarm). AUTO is used by the floating overlay only. */
-    val activeMode: OmniMode = OmniMode.AGENT,
+    val activeMode: OmniMode = OmniMode.CHAT,
     /** A privileged action awaiting user approval via [ConfirmationGateDialog]. */
     val pendingConfirmation: PendingConfirmation? = null,
     /** Whether God Mode is enabled — hides scope selection when true. */
@@ -146,6 +148,8 @@ class ChatViewModel(
     }
 
     private val _uiState = MutableStateFlow(ChatUiState())
+    /** Monotonically increasing identity for the active run; drops late events from cancelled runs. */
+    private val activeRunId = AtomicLong(0L)
     val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
     /** Tracks the currently running agent/chat/swarm coroutine Job so it can be cancelled. */
@@ -301,9 +305,14 @@ class ChatViewModel(
     /**
      * Loads a past session's messages and switches the active context to it.
      */
+    private var sessionObservation: kotlinx.coroutines.Job? = null
+
     fun loadSession(sessionId: Long) {
-        viewModelScope.launch {
-            val (messages, consoleMap) = chatRepository?.loadMessages(sessionId) ?: return@launch
+        sessionObservation?.cancel()
+        sessionObservation = viewModelScope.launch {
+            chatRepository?.observeMessages(sessionId)?.collect {
+                if (_uiState.value.isProcessing) return@collect
+            val (messages, consoleMap) = chatRepository?.loadMessages(sessionId) ?: return@collect
             compositeToolManager?.currentSessionId = sessionId
             _uiState.update {
                 it.copy(
@@ -315,6 +324,7 @@ class ChatViewModel(
                     consoleEntries = emptyList()
                 )
             }
+        }
         }
     }
 
@@ -506,6 +516,10 @@ class ChatViewModel(
         val input = _uiState.value.inputText.trim()
         if (input.isEmpty()) return
 
+        // A late network callback from a prior run must never publish into this turn.
+        val runId = activeRunId.incrementAndGet()
+        currentAgentJob?.cancel()
+
         val mode = _uiState.value.activeMode
 
         // CHAT and AUTO modes do not require a Target Context scope (AUTO may route to CHAT)
@@ -577,33 +591,33 @@ class ChatViewModel(
                         it.copy(agentStatus = "🧠 Auto-routed → ${resolved.label}")
                     }
                     when (resolved) {
-                        OmniMode.CHAT -> executeChatMode(input, imageAttachments, sessionId)
+                        OmniMode.CHAT -> executeChatMode(input, imageAttachments, sessionId, runId)
                         OmniMode.AGENT -> {
                             val scope = scopePath ?: run {
                                 // No scope set — fall back to Chat for conversational auto requests
-                                executeChatMode(input, imageAttachments, sessionId)
+                                executeChatMode(input, imageAttachments, sessionId, runId)
                                 return@launch
                             }
-                            executeAgentMode(input, imageAttachments, sessionId, scope)
+                            executeAgentMode(input, imageAttachments, sessionId, scope, runId = runId)
                         }
                         OmniMode.SWARM -> {
                             val scope = scopePath ?: run {
-                                executeAgentMode(input, imageAttachments, sessionId, "")
+                                executeAgentMode(input, imageAttachments, sessionId, "", runId = runId)
                                 return@launch
                             }
-                            executeSwarmMode(input, sessionId, scope)
+                            executeSwarmMode(input, sessionId, scope, runId)
                         }
-                        OmniMode.AUTO -> executeChatMode(input, imageAttachments, sessionId)
+                        OmniMode.AUTO -> executeChatMode(input, imageAttachments, sessionId, runId)
                     }
                 }
-                OmniMode.CHAT -> executeChatMode(input, imageAttachments, sessionId)
+                OmniMode.CHAT -> executeChatMode(input, imageAttachments, sessionId, runId)
                 OmniMode.AGENT -> {
                     val scope = scopePath ?: return@launch
-                    executeAgentMode(input, imageAttachments, sessionId, scope)
+                    executeAgentMode(input, imageAttachments, sessionId, scope, runId = runId)
                 }
                 OmniMode.SWARM -> {
                     val scope = scopePath ?: return@launch
-                    executeSwarmMode(input, sessionId, scope)
+                    executeSwarmMode(input, sessionId, scope, runId)
                 }
             }
         }
@@ -627,6 +641,7 @@ class ChatViewModel(
         val currentConsole = _uiState.value.consoleEntries
         val persistableSessionId = sessionId.takeIf { isPersistableSessionId(it) }
 
+        activeRunId.incrementAndGet()
         currentAgentJob?.cancel()
         currentAgentJob = null
 
@@ -677,78 +692,60 @@ class ChatViewModel(
     private suspend fun executeChatMode(
         input: String,
         imageAttachments: List<AttachmentMeta>,
-        sessionId: Long
+        sessionId: Long,
+        runId: Long
     ) {
         val modelId = settingsRepository
             .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.CHAT)
             .first()
-
-        val effectiveSystemPrompt = CHAT_SYSTEM_PROMPT
-
-        val history = _uiState.value.messages.dropLast(1)
-
+        val model = ModelRegistry.findModelById(modelId) ?: ModelRegistry.getModelById(modelId)
+        val messages = _uiState.value.messages.let { history ->
+            if (history.isEmpty()) history else history.dropLast(1) + history.last().copy(attachments = imageAttachments)
+        }
         val request = CompletionRequest(
             modelId = modelId,
-            messages = history + ChatMessage(
-                role = MessageRole.USER,
-                content = input,
-                attachments = imageAttachments
-            ),
-            systemPrompt = effectiveSystemPrompt,
-            maxTokens = 4096,
-            temperature = 0.7
+            messages = messages,
+            systemPrompt = CHAT_SYSTEM_PROMPT,
+            maxTokens = model.maxOutputTokens,
+            enableThinking = settingsRepository.observeDeepThinking().first() && model.supportsThinking,
+            apiKey = apiKeyRepository?.getApiKey(model.provider),
+            onReasoning = { if (runId == activeRunId.get()) {
+                _uiState.update { it.copy(agentStatus = "Deep thinking...") }
+            } }
         )
 
-        // Inject API key
-        val model = com.omnidev.workspace.registry.ModelRegistry.findModelById(modelId)
-        val apiKey = model?.let { apiKeyRepository?.getApiKey(it.provider) }
-        val requestWithKey = request.copy(apiKey = apiKey)
-
-        val response: CompletionResponse
-        try {
-            response = if (streamingCompletionProvider != null) {
-                streamingCompletionProvider.invoke(requestWithKey) { delta ->
-                    _uiState.update {
-                        it.copy(streamingContent = (it.streamingContent ?: "") + delta)
+        _uiState.update { it.copy(agentStatus = "Thinking...") }
+        val response = try {
+            val streaming = streamingCompletionProvider
+            if (streaming != null) {
+                streaming(request) { delta ->
+                    if (runId == activeRunId.get()) {
+                        _uiState.update { it.copy(streamingContent = (it.streamingContent ?: "") + delta) }
                     }
                 }
-            } else if (completionProvider != null) {
-                completionProvider.invoke(requestWithKey)
             } else {
-                _uiState.update {
-                    it.copy(
-                        isProcessing = false,
-                        errorMessage = "Chat mode is not available — no completion provider configured."
-                    )
-                }
-                return
+                completionProvider?.invoke(request)
+                    ?: throw IllegalStateException("Chat completion service is unavailable.")
             }
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            _uiState.update {
-                it.copy(
-                    isProcessing = false,
-                    agentStatus = null,
-                    streamingContent = null,
-                    errorMessage = e.message ?: "Chat request failed."
-                )
-            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            if (runId == activeRunId.get()) handleAgentEvent(AgentEvent.Error(error.message ?: "Chat request failed."), sessionId, runId)
             return
         }
-
-        val assistantMessage = ChatMessage(
-            role = MessageRole.ASSISTANT,
-            content = response.content
-        )
-        chatRepository?.saveMessage(sessionId, assistantMessage)
-        chatRepository?.updateSessionRunStatus(sessionId, STATUS_COMPLETED)
-        _uiState.update {
-            it.copy(
-                messages = it.messages + assistantMessage,
-                isProcessing = false,
-                agentStatus = null,
-                streamingContent = null
+        if (runId == activeRunId.get()) {
+            handleAgentEvent(
+                AgentEvent.FinalAnswer(
+                    content = response.content,
+                    totalIterations = 1,
+                    totalTokensUsed = response.tokensUsed?.totalTokens ?: 0,
+                    conversationHistory = messages + ChatMessage(
+                        role = MessageRole.ASSISTANT,
+                        content = response.content
+                    )
+                ),
+                sessionId,
+                runId
             )
         }
     }
@@ -765,17 +762,18 @@ class ChatViewModel(
         input: String,
         imageAttachments: List<AttachmentMeta>,
         sessionId: Long,
-        scopePath: String
+        scopePath: String,
+        modelRole: com.omnidev.workspace.data.model.ModelRole = com.omnidev.workspace.data.model.ModelRole.AGENT,
+        runId: Long
     ) {
         val modelId = settingsRepository
-            .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.AGENT)
+            .observeModelIdForRole(modelRole)
             .first()
 
         val deepThinking = settingsRepository.observeDeepThinking().first()
         val userPersona = settingsRepository.observeUserPersona().first()
         val chatSettings = _uiState.value.chatSettings
 
-        analyticsRepository?.recordAgentRun(isSwarm = false)
 
         agentPipeline.execute(
             userMessage = input,
@@ -789,7 +787,7 @@ class ChatViewModel(
             disabledToolNames = chatSettings.disabledToolNames(),
             toolAccessMode = chatSettings.toolAccessMode.name
         ).collect { event ->
-            handleAgentEvent(event, sessionId)
+            handleAgentEvent(event, sessionId, runId)
         }
     }
 
@@ -805,7 +803,8 @@ class ChatViewModel(
     private suspend fun executeSwarmMode(
         input: String,
         sessionId: Long,
-        scopePath: String
+        scopePath: String,
+        runId: Long
     ) {
         val orchestrator = swarmOrchestrator
         if (orchestrator == null) {
@@ -837,7 +836,7 @@ class ChatViewModel(
             enableDeepThinking = deepThinking,
             godModeEnabled = godMode
         ).collect { event ->
-            handleSwarmEvent(event, sessionId)
+            handleSwarmEvent(event, sessionId, runId)
         }
     }
 
@@ -846,7 +845,8 @@ class ChatViewModel(
     // ──────────────────────────────────────────────
 
     /** Maps [AgentEvent]s to UI state updates and console entries. */
-    private fun handleAgentEvent(event: AgentEvent, sessionId: Long) {
+    private fun handleAgentEvent(event: AgentEvent, sessionId: Long, runId: Long) {
+        if (runId != activeRunId.get()) return
         when (event) {
             is AgentEvent.Started ->
                 _uiState.update { it.copy(agentStatus = "Agent started...") }
@@ -864,8 +864,12 @@ class ChatViewModel(
                 _uiState.update {
                     it.copy(
                         agentStatus = "Deep thinking...",
-                        consoleEntries = it.consoleEntries +
-                            AgentConsoleEntry.DeepThinkingEntry(event.content)
+                        consoleEntries = it.consoleEntries.let { entries ->
+                            val last = entries.lastOrNull()
+                            if (last is AgentConsoleEntry.DeepThinkingEntry) {
+                                entries.dropLast(1) + last.copy(snippet = last.snippet + event.content)
+                            } else entries + AgentConsoleEntry.DeepThinkingEntry(event.content)
+                        }
                     )
                 }
 
@@ -897,7 +901,6 @@ class ChatViewModel(
                             AgentConsoleEntry.ResultEntry(event.toolName, snippet, event.isError, event.output, durationMs)
                     )
                 }
-                viewModelScope.launch { analyticsRepository?.recordToolUsage(event.toolName, success = !event.isError, durationMs = durationMs) }
             }
 
             is AgentEvent.TokenUsageUpdate ->
@@ -1086,7 +1089,8 @@ class ChatViewModel(
     }
 
     /** Maps [SwarmEvent]s to UI state updates and console entries. */
-    private fun handleSwarmEvent(event: SwarmEvent, sessionId: Long) {
+    private fun handleSwarmEvent(event: SwarmEvent, sessionId: Long, runId: Long) {
+        if (runId != activeRunId.get()) return
         when (event) {
             is SwarmEvent.PlanningStarted ->
                 _uiState.update {
@@ -1304,6 +1308,9 @@ class ChatViewModel(
             return
         }
 
+        val runId = activeRunId.incrementAndGet()
+        currentAgentJob?.cancel()
+
         _uiState.update {
             it.copy(
                 isProcessing = true,
@@ -1313,7 +1320,7 @@ class ChatViewModel(
             )
         }
 
-        viewModelScope.launch {
+        currentAgentJob = viewModelScope.launch {
             val useCase = autoHealBuildUseCase
             if (useCase == null) {
                 _uiState.update {
@@ -1330,6 +1337,7 @@ class ChatViewModel(
                 buildCommand = buildCommand,
                 maxRetries = maxRetries
             ).collect { event ->
+                if (runId != activeRunId.get()) return@collect
                 when (event) {
                     is com.omnidev.workspace.domain.engine.AutoHealBuildUseCase.BuildEvent.BuildAttempt ->
                         _uiState.update {
@@ -1412,7 +1420,7 @@ class ChatViewModel(
                     }
 
                     is com.omnidev.workspace.domain.engine.AutoHealBuildUseCase.BuildEvent.AgentProgress ->
-                        handleAgentEvent(event.event, _uiState.value.currentSessionId ?: -1L)
+                        handleAgentEvent(event.event, _uiState.value.currentSessionId ?: -1L, runId)
                 }
             }
         }
