@@ -2,6 +2,7 @@ package com.omnidev.workspace.data.db.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.Transaction
 import androidx.room.Query
 import com.omnidev.workspace.data.db.entities.ChatMessageEntity
 import kotlinx.coroutines.flow.Flow
@@ -13,7 +14,21 @@ interface ChatMessageDao {
     suspend fun updateProgress(id: Long, content: String, console: String)
 
     @Insert
-    suspend fun insert(message: ChatMessageEntity): Long
+    suspend fun insertRow(message: ChatMessageEntity): Long
+
+    @Query("SELECT EXISTS(SELECT 1 FROM chat_sessions WHERE id = :sessionId)")
+    suspend fun sessionExists(sessionId: Long): Boolean
+
+    /**
+     * Late responses may arrive after a session was deleted. Check and insert in
+     * one transaction so deletion cannot race the foreign-key check. -1 means
+     * the parent no longer exists; never recreate a user-deleted conversation.
+     */
+    @Transaction
+    suspend fun insert(message: ChatMessageEntity): Long {
+        if (!sessionExists(message.sessionId)) return -1L
+        return insertRow(message)
+    }
 
     @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     fun observeBySession(sessionId: Long): Flow<List<ChatMessageEntity>>
