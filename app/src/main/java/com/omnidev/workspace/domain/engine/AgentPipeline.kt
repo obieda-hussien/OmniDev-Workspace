@@ -748,7 +748,7 @@ Rules:
 
         // Loop-detection: tracks how many times each identical tool call has appeared.
         // Key = "toolName:sortedArgs" fingerprint; value = occurrence count.
-        val toolCallCounts = mutableMapOf<String, Int>()
+        val toolRepetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
 
         // No-progress detection: counts consecutive iterations where the agent only called
         // read-only / observation tools (e.g. dump_tree, read_file, search) without taking
@@ -964,22 +964,16 @@ Rules:
 
             // ── Loop detection — check all fingerprints upfront (before any I/O) ──
             for (toolCall in response.toolCalls) {
-                val fingerprint = buildString {
-                    append(toolCall.name)
-                    append(':')
-                    toolCall.arguments.entries.sortedBy { it.key }.forEach { (k, v) ->
-                        append(k).append('=').append(v.toString()).append(',')
-                    }
-                }
-                val callCount = (toolCallCounts[fingerprint] ?: 0) + 1
-                toolCallCounts[fingerprint] = callCount
-                if (callCount > config.maxRepeatedToolCalls) {
-                    send(AgentEvent.ThinkingBlock("System Intercept: Agent, you are looping. Cease current approach. Switch to Termux bootstrap or request a pre-dexed binary."))
-                    messages.add(ChatMessage(
-                        role = MessageRole.USER,
-                        content = "System Intercept: Agent, you are looping. You have spent iterations analyzing this. Cease current approach. Switch to Termux bootstrap or request a pre-dexed binary."
+                if (!toolRepetitionGuard.allow(toolCall.name, toolCall.arguments)) {
+                    smartLearningBridge?.onTaskEnd(
+                        outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.ABANDONED,
+                        finalSummary = "Repeated identical tool call limit reached: ${toolCall.name}"
+                    )
+                    send(AgentEvent.Error(
+                        "Stopped: ${toolCall.name} repeated with identical arguments more than " +
+                            "${config.maxRepeatedToolCalls} times. No tools from this batch were executed."
                     ))
-                    continue
+                    return@channelFlow
                 }
             }
 
