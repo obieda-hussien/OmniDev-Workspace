@@ -31,7 +31,8 @@ class McpRegistry(
 
         for ((serverName, config) in servers) {
             val connection: McpConnection = when (config.type.lowercase()) {
-                "http" -> RemoteMcpConnection(config, httpClient)
+                "http", "streamable_http" -> StreamableMcpConnection(config)
+                "rest" -> RemoteMcpConnection(config, httpClient)
                 "native" -> NativeLocalMcpConnection()
                 "git", "hybrid_git" -> HybridGitMcpConnection()
                 else -> {

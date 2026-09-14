@@ -42,6 +42,7 @@ import com.omnidev.workspace.ui.providers.ProvidersViewModel
 import com.omnidev.workspace.ui.settings.AISettingsViewModel
 import com.omnidev.workspace.ui.theme.OmniDevTheme
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import java.util.concurrent.atomic.AtomicInteger
 

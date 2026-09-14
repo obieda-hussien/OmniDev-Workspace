@@ -1008,8 +1008,8 @@ Rules:
                                     baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs
                                 ) {
                                     if (toolCall.name.startsWith("mcp_")) {
-                                        val output = mcpRegistry?.executeMcpTool(toolCall.name, toolCall.arguments) ?: "MCP Registry not configured"
-                                        com.omnidev.workspace.data.tools.ToolExecutionResult(output = output)
+                                        val output = mcpRegistry?.executeMcpTool(toolCall.name, toolCall.arguments) ?: "Error: MCP Registry not configured"
+                                        com.omnidev.workspace.data.tools.ToolExecutionResult(output = output, isError = output.startsWith("Error", ignoreCase = true))
                                     } else {
                                         toolManager.executeTool(
                                             name = toolCall.name,
@@ -1040,8 +1040,8 @@ Rules:
                             baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs
                         ) {
                             if (toolCall.name.startsWith("mcp_")) {
-                                val output = mcpRegistry?.executeMcpTool(toolCall.name, toolCall.arguments) ?: "MCP Registry not configured"
-                                com.omnidev.workspace.data.tools.ToolExecutionResult(output = output)
+                                val output = mcpRegistry?.executeMcpTool(toolCall.name, toolCall.arguments) ?: "Error: MCP Registry not configured"
+                                com.omnidev.workspace.data.tools.ToolExecutionResult(output = output, isError = output.startsWith("Error", ignoreCase = true))
                             } else {
                                 toolManager.executeTool(
                                     name = toolCall.name,
@@ -1294,7 +1294,44 @@ Rules:
         }
     }
 
+    /**
+     * Best-effort analytics recorder.
+     *
+     * Resolves the model's provider + pricing via [ModelRegistry] so the repository
+     * can store the precise USD cost and keep per-provider roll-ups accurate.
+     * Never throws — analytics must never break an agent run.
+     */
+    private suspend fun recordAnalytics(
+        request: CompletionRequest,
+        response: CompletionResponse?,
+        callStartMs: Long,
+        isError: Boolean
+    ) {
+        val repo = analyticsRepository ?: return
+        try {
+            val latencyMs = (System.currentTimeMillis() - callStartMs).coerceAtLeast(0L)
+            val model = ModelRegistry.findModelById(request.modelId)
+            val usage = response?.tokensUsed
 
+            val inputTokens = usage?.promptTokens ?: 0
+            val outputTokens = usage?.completionTokens ?: 0
+
+            val cost = com.omnidev.workspace.data.repository.DynamicPricingManager().calculateCost(request.modelId, inputTokens, outputTokens)
+
+            repo.recordTokenUsage(
+
+                modelId = request.modelId,
+                provider = model?.provider,
+                inputTokens = inputTokens,
+                outputTokens = outputTokens,
+                costUsd = cost,
+                latencyMs = latencyMs,
+                isError = isError
+            )
+        } catch (_: Exception) {
+            // Swallow — analytics is best-effort.
+        }
+    }
 }
 
 /**

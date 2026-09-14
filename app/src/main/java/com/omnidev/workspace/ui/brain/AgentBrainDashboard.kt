@@ -65,7 +65,7 @@ fun AgentBrainDashboard(
                                 fontSize = 18.sp
                             )
                             Text(
-                                text = "   ",
+                                text = "Tool activity, learned knowledge and environment status",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )

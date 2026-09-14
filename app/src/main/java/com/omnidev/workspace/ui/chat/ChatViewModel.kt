@@ -308,7 +308,7 @@ class ChatViewModel(
         sessionObservation = viewModelScope.launch {
             chatRepository?.observeMessages(sessionId)?.collect {
                 if (_uiState.value.isProcessing) return@collect
-            val (messages, consoleMap) = chatRepository?.loadMessages(sessionId) ?: return@launch
+            val (messages, consoleMap) = chatRepository?.loadMessages(sessionId) ?: return@collect
             compositeToolManager?.currentSessionId = sessionId
             _uiState.update {
                 it.copy(
@@ -802,8 +802,12 @@ class ChatViewModel(
                 _uiState.update {
                     it.copy(
                         agentStatus = "Deep thinking...",
-                        consoleEntries = it.consoleEntries +
-                            AgentConsoleEntry.DeepThinkingEntry(event.content)
+                        consoleEntries = it.consoleEntries.let { entries ->
+                            val last = entries.lastOrNull()
+                            if (last is AgentConsoleEntry.DeepThinkingEntry) {
+                                entries.dropLast(1) + last.copy(snippet = last.snippet + event.content)
+                            } else entries + AgentConsoleEntry.DeepThinkingEntry(event.content)
+                        }
                     )
                 }
 

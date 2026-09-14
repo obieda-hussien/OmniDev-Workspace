@@ -449,22 +449,24 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
     }
 
     @Synchronized
-    fun markRunning(taskId: String, executionDetails: String? = null) {
+    fun markRunning(taskId: String, executionDetails: String? = null): Boolean {
         val idx = tasks.indexOfFirst { it.id == taskId }
-        if (idx != -1) {
+        if (idx != -1 && tasks[idx].status == TaskStatus.PENDING) {
             tasks[idx] = tasks[idx].copy(
                 status = TaskStatus.RUNNING,
                 startedAtMillis = System.currentTimeMillis(),
                 lastResult = executionDetails ?: tasks[idx].lastResult
             )
             notifyChanged()
+            return true
         }
+        return false
     }
 
     @Synchronized
     fun markCompleted(taskId: String, result: String, summary: ExecutionSummary? = null) {
         val idx = tasks.indexOfFirst { it.id == taskId }
-        if (idx != -1) {
+        if (idx != -1 && tasks[idx].status == TaskStatus.RUNNING) {
             val t = tasks[idx]
             val summaries = if (summary != null) {
                 (listOf(summary) + t.executionSummaries).take(10)
@@ -491,6 +493,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
     fun markFailed(taskId: String, error: String, summary: ExecutionSummary? = null) {
         val idx = tasks.indexOfFirst { it.id == taskId }
         if (idx == -1) return
+        if (tasks[idx].status == TaskStatus.CANCELLED) return
         val t = tasks[idx]
         val summaries = if (summary != null) {
             (listOf(summary) + t.executionSummaries).take(10)
@@ -835,9 +838,9 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
     @Synchronized
     fun pauseTaskById(taskId: String) { val i = tasks.indexOfFirst { it.id == taskId }; if(i != -1 && tasks[i].status in setOf(TaskStatus.PENDING, TaskStatus.WAITING_DEPENDENCY)){tasks[i] = tasks[i].copy(status = TaskStatus.PAUSED); notifyChanged()} }
     @Synchronized
-    fun resumeTaskById(taskId: String) { val i = tasks.indexOfFirst { it.id == taskId }; if(i != -1 && tasks[i].status == TaskStatus.PAUSED){val t = tasks[i]; val cids = tasks.filter{it.status==TaskStatus.COMPLETED}.map{it.id}.toSet(); tasks[i] = t.copy(status = if(t.dependsOn.isNotEmpty()&&t.dependsOn.any{it !in cids}) TaskStatus.WAITING_DEPENDENCY else TaskStatus.PENDING); notifyChanged()} }
+    fun resumeTaskById(taskId: String) { val i = tasks.indexOfFirst { it.id == taskId }; if(i != -1 && tasks[i].status == TaskStatus.PAUSED){val t = tasks[i]; val cids = tasks.filter{it.status==TaskStatus.COMPLETED || it.runCount > 0}.map{it.id}.toSet(); tasks[i] = t.copy(status = if(t.dependsOn.isNotEmpty()&&t.dependsOn.any{it !in cids}) TaskStatus.WAITING_DEPENDENCY else TaskStatus.PENDING); notifyChanged()} }
     @Synchronized
-    fun runNowById(taskId: String) { val i = tasks.indexOfFirst { it.id == taskId }; if(i != -1){tasks[i] = tasks[i].copy(scheduledTimeMillis = System.currentTimeMillis(), status = TaskStatus.PENDING); notifyChanged()} }
+    fun runNowById(taskId: String) { val i = tasks.indexOfFirst { it.id == taskId }; if(i != -1 && tasks[i].status != TaskStatus.RUNNING){tasks[i] = tasks[i].copy(scheduledTimeMillis = System.currentTimeMillis(), status = TaskStatus.PENDING); notifyChanged()} }
     @Synchronized
     fun getTaskById(id: String): ScheduledTask? = tasks.find { it.id == id }
 
