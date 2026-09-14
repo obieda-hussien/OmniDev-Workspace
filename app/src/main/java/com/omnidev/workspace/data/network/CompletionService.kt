@@ -195,7 +195,8 @@ private data class OpenAiFunction(
 private data class OpenAiToolCall(
     val id: String,
     @EncodeDefault(EncodeDefault.Mode.ALWAYS) val type: String = "function",
-    val function: OpenAiToolCallFunction
+    val function: OpenAiToolCallFunction,
+    @SerialName("extra_content") val extraContent: JsonObject? = null
 )
 
 @Serializable
@@ -231,7 +232,8 @@ private data class OpenAiStreamToolCallDelta(
     val index: Int = 0,
     val id: String? = null,
     val type: String? = null,
-    val function: OpenAiStreamToolCallFunctionDelta? = null
+    val function: OpenAiStreamToolCallFunctionDelta? = null,
+    @SerialName("extra_content") val extraContent: JsonObject? = null
 )
 
 @Serializable
@@ -555,7 +557,7 @@ class CompletionService(
                     OpenAiToolCall(call.id, function = OpenAiToolCallFunction(call.name,
                         buildJsonObject { call.arguments.forEach { (key, value) ->
                             put(key, JsonPrimitive(value))
-                        } }.toString()))
+                        } }.toString()), extraContent = call.extraContent)
                 }
                 add(OpenAiMessage(msg.role.name.lowercase(java.util.Locale.ROOT), content, toolCalls = calls))
             }
@@ -571,7 +573,7 @@ class CompletionService(
 
         val messages = openAiMessages(request)
 
-        val openAiTools = request.tools?.map { it.toOpenAiToolDef() }
+        val openAiTools = request.tools?.takeIf { it.isNotEmpty() }?.map { it.toOpenAiToolDef() }
 
         // GitHub Models uses a "github/" prefix in registry IDs for uniqueness;
         // strip it before sending to the Azure inference endpoint.
@@ -621,7 +623,8 @@ class CompletionService(
             ToolCall(
                 id = tc.id,
                 name = tc.function.name,
-                arguments = parseJsonStringToStringMap(tc.function.arguments)
+                arguments = parseJsonStringToStringMap(tc.function.arguments),
+                extraContent = tc.extraContent
             )
         } ?: emptyList()
 
@@ -700,7 +703,7 @@ class CompletionService(
             else                         -> rawModelId
         }
 
-        val openAiToolsStream = request.tools?.map { it.toOpenAiToolDef() }
+        val openAiToolsStream = request.tools?.takeIf { it.isNotEmpty() }?.map { it.toOpenAiToolDef() }
 
         val body = json.encodeToString(
             OpenAiRequest.serializer(),
@@ -768,6 +771,7 @@ class CompletionService(
         val tcIds   = mutableMapOf<Int, String>()
         val tcNames = mutableMapOf<Int, String>()
         val tcArgs  = mutableMapOf<Int, StringBuilder>()
+        val tcExtra = mutableMapOf<Int, JsonObject>()
 
         conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
             var line: String?
@@ -798,6 +802,7 @@ class CompletionService(
                     // Accumulate tool call deltas
                     choice.delta.toolCalls?.forEach { tcDelta ->
                         val idx = tcDelta.index
+                        tcDelta.extraContent?.let { tcExtra[idx] = it }
                         tcDelta.id?.let { if (it.isNotEmpty()) tcIds[idx] = it }
                         tcDelta.function?.name?.let { name ->
                             tcNames[idx] = mergeToolName(tcNames[idx].orEmpty(), name)
@@ -816,7 +821,8 @@ class CompletionService(
             ToolCall(
                 id        = tcIds[idx]   ?: "tool_$idx",
                 name      = tcNames[idx]?.toString() ?: "",
-                arguments = parseJsonStringToStringMap(tcArgs[idx]?.toString() ?: "{}")
+                arguments = parseJsonStringToStringMap(tcArgs[idx]?.toString() ?: "{}"),
+                extraContent = tcExtra[idx]
             )
         }
 
