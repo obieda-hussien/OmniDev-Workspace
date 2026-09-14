@@ -766,7 +766,7 @@ class CompletionService(
         var totalTokens: OpenAiUsage? = null
         // Tool call accumulation: indexed by tool call index
         val tcIds   = mutableMapOf<Int, String>()
-        val tcNames = mutableMapOf<Int, StringBuilder>()
+        val tcNames = mutableMapOf<Int, String>()
         val tcArgs  = mutableMapOf<Int, StringBuilder>()
 
         conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
@@ -800,7 +800,7 @@ class CompletionService(
                         val idx = tcDelta.index
                         tcDelta.id?.let { if (it.isNotEmpty()) tcIds[idx] = it }
                         tcDelta.function?.name?.let { name ->
-                            if (name.isNotEmpty()) tcNames.getOrPut(idx) { StringBuilder() }.append(name)
+                            tcNames[idx] = mergeToolName(tcNames[idx].orEmpty(), name)
                         }
                         tcDelta.function?.arguments?.let { args ->
                             tcArgs.getOrPut(idx) { StringBuilder() }.append(args)
@@ -1095,4 +1095,3 @@ class CompletionService(
         }
     }
 }
-

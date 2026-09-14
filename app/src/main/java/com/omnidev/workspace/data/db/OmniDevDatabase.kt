@@ -68,7 +68,7 @@ import com.omnidev.workspace.data.db.entities.ScheduledTaskEntity
         // ── Build Doctor Pro (v10) ────────────────────────
         BuildDiagnosticEntry::class
     , ScheduledTaskEntity::class],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -572,6 +572,28 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Keep old observations recoverable, but only the latest snapshot active.
+                // Distinct learned patterns/dependencies retain their separate contents.
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_knowledge_lookup ON system_knowledge(subject, knowledgeType, source)")
+                db.execSQL("""
+                    UPDATE system_knowledge SET isValid = 0
+                    WHERE isValid = 1 AND EXISTS (
+                        SELECT 1 FROM system_knowledge AS newer
+                        WHERE newer.isValid = 1
+                            AND newer.subject = system_knowledge.subject
+                            AND newer.knowledgeType = system_knowledge.knowledgeType
+                            AND newer.source = system_knowledge.source
+                            AND (system_knowledge.knowledgeType NOT IN ('PATTERN', 'TOOL_DEPENDENCY')
+                                OR newer.content = system_knowledge.content)
+                            AND (newer.updatedAt > system_knowledge.updatedAt
+                                OR (newer.updatedAt = system_knowledge.updatedAt AND newer.id > system_knowledge.id))
+                    )
+                """.trimIndent())
+            }
+        }
+
         fun getInstance(context: Context): OmniDevDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -590,7 +612,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         MIGRATION_8_9,
                         MIGRATION_9_10,
                         MIGRATION_10_11,
-                        MIGRATION_11_12, MIGRATION_12_13
+                        MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14
                     )
                     .build().also { INSTANCE = it }
             }

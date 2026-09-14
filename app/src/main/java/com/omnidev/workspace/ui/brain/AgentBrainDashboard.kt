@@ -47,6 +47,14 @@ fun AgentBrainDashboard(
     viewModel: AgentBrainViewModel,
     onNavigateBack: () -> Unit
 ) {
+    CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr
+    ) { AgentBrainDashboardContent(viewModel, onNavigateBack) }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AgentBrainDashboardContent(viewModel: AgentBrainViewModel, onNavigateBack: () -> Unit) {
     val uiState by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
 
@@ -191,8 +199,8 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
         item {
             MiniStatCard(
                 icon = "🔧",
-                value = state.sessionToolCount.toString(),
-                label = "Tools this session",
+                value = state.recentExecutions.size.toString(),
+                label = "Recent events shown",
                 color = Color(0xFF00BCD4)
             )
         }
@@ -340,6 +348,12 @@ private fun ExecutionEntryCard(
                     fontSize = 13.sp,
                     fontFamily = FontFamily.Monospace
                 )
+                Text(
+                    text = entry.parametersJson.take(180),
+                    fontSize = 10.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
                 if (entry.errorMessage.isNotBlank()) {
                     Text(
                         text = entry.errorMessage,
@@ -399,7 +413,7 @@ private fun KnowledgeTab(
     onUpdateEntry: (Long, String, String, Float) -> Unit
 ) {
     if (entries.isEmpty()) {
-        EmptyState(message = "   Agent  ")
+        EmptyState(message = "No active knowledge recorded yet.")
         return
     }
 
@@ -414,6 +428,8 @@ private fun KnowledgeTab(
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         item {
+            Text("Showing the latest ${entries.size} active entries. Category counts below refer to this view.",
+                style = MaterialTheme.typography.labelSmall)
             KnowledgeTypeFilters(
                 selectedType = selectedType,
                 entries = entries,

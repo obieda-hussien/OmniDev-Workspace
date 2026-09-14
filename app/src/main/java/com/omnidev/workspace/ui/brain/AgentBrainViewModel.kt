@@ -26,16 +26,17 @@ class AgentBrainViewModel(
     private val _uiState = MutableStateFlow(AgentBrainUiState())
     val uiState: StateFlow<AgentBrainUiState> = _uiState.asStateFlow()
 
+    private var loadJob: kotlinx.coroutines.Job? = null
+
     init {
         loadData()
         observeRealtimeData()
     }
 
-    private var loadJob: kotlinx.coroutines.Job? = null
-
-    private fun loadData() {
+    private fun loadData(debounce: Boolean = false) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
+            if (debounce) kotlinx.coroutines.delay(250)
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
                 val report = bridge.generatePerformanceReport()
@@ -70,7 +71,7 @@ class AgentBrainViewModel(
                 _uiState.update { state ->
                     state.copy(recentExecutions = entries)
                 }
-                loadData()
+                loadData(debounce = true)
             }
         }
 
@@ -79,7 +80,7 @@ class AgentBrainViewModel(
                 _uiState.update { state ->
                     state.copy(recentKnowledge = entries)
                 }
-                loadData()
+                loadData(debounce = true)
             }
         }
     }

@@ -109,6 +109,16 @@ fun AnalyticsDashboardScreen(
     viewModel: AnalyticsDashboardViewModel,
     onNavigateBack: () -> Unit
 ) {
+    // This screen is English. Keep chart coordinates, dates and mixed identifiers
+    // in the same direction on Arabic devices until a localized layout is supplied.
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr
+    ) { AnalyticsDashboardContent(viewModel, onNavigateBack) }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AnalyticsDashboardContent(viewModel: AnalyticsDashboardViewModel, onNavigateBack: () -> Unit) {
     val stats by viewModel.stats.collectAsState()
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     var showClearDialog by remember { mutableStateOf(false) }
@@ -172,10 +182,15 @@ fun AnalyticsDashboardScreen(
                 // ── 1. Overview (global metrics) ─────────────────────────────
                 SectionTitle("Overview")
                 OverviewSection(currentStats)
+                Text(
+                    "Tokens are provider-reported; missing usage is not proof of zero consumption. Costs are estimates when pricing is available, not invoices. Older releases may have lost tool counters.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
 
                 // ── 2. Provider Distribution (pie + legend) ──────────────────
                 if (currentStats.providerBreakdown.isNotEmpty()) {
-                    SectionTitle("Provider Distribution")
+                    SectionTitle("Provider share of reported tokens")
                     ProviderDistributionSection(currentStats.providerBreakdown)
                 }
 
@@ -199,7 +214,7 @@ fun AnalyticsDashboardScreen(
 
                 // ── 6. Daily Usage Timeline ──────────────────────────────────
                 if (currentStats.dailyTimeline.size >= 2) {
-                    SectionTitle("Daily Usage (last ${currentStats.dailyTimeline.size} days)")
+                    SectionTitle("Daily usage (${currentStats.dailyTimeline.size} recorded days, UTC)")
                     DailyTimelineSection(currentStats.dailyTimeline)
                 }
 
@@ -1097,6 +1112,7 @@ private fun DailyTimelineSection(days: List<DailyUsage>) {
 @Composable
 private fun TopToolsSection(stats: AnalyticsStats) {
     val sorted = stats.toolUsageCount.entries
+        .filter { it.value.executionCount > 0 }
         .sortedByDescending { it.value.executionCount }
         .take(10)
 
@@ -1114,10 +1130,14 @@ private fun TopToolsSection(stats: AnalyticsStats) {
         ) {
             Text(
                 text = "${formatLargeNumber(totalToolCalls.toLong())} total tool invocations across " +
-                    "${stats.toolUsageCount.size} tools",
+                    "${stats.toolUsageCount.values.count { it.executionCount > 0 }} tools with recorded counts",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (stats.toolUsageCount.values.any { it.executionCount == 0L }) {
+                Text("Some historical tool entries have no recoverable count and are excluded from this ranking.",
+                    style = MaterialTheme.typography.bodySmall)
+            }
             sorted.forEachIndexed { index, (toolName, count) ->
                 val fraction = count.executionCount.toFloat() / maxCount.toFloat()
                 val share = if (totalToolCalls > 0) count.executionCount.toDouble() / totalToolCalls.toDouble() else 0.0
@@ -1138,7 +1158,9 @@ private fun TopToolsSection(stats: AnalyticsStats) {
                         text = toolName,
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Medium,
-                        modifier = Modifier.weight(0.4f)
+                        modifier = Modifier.weight(0.4f),
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Column(modifier = Modifier.weight(0.6f)) {

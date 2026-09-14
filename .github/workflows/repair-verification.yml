@@ -21,7 +21,7 @@ jobs:
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
       - name: Compile and run regression tests
-        run: bash ./gradlew :app:compileNormDebugKotlin :app:testNormDebugUnitTest :app:compileAdminDebugKotlin --no-daemon --max-workers=2
+        run: bash ./gradlew :app:compileNormDebugKotlin :app:testNormDebugUnitTest :app:compileAdminDebugKotlin :app:compileNormDebugAndroidTestKotlin --no-daemon --max-workers=2
       - uses: actions/upload-artifact@v6
         if: always()
         with:

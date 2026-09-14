@@ -471,13 +471,7 @@ class AnalyticsRepository(private val context: Context) {
                     totalDurationMs = tObj.optLong("totalDurationMs", 0L)
                 )
             } else {
-                // Backwards compat for old flat count format
-                toolUsage[toolName] = ToolStats(
-                    toolName = toolName,
-                    executionCount = toolObj.optLong(toolName, 0L),
-                    successCount = toolObj.optLong(toolName, 0L),
-                    totalDurationMs = 0L
-                )
+                toolUsage[toolName] = parseLegacyToolStats(toolName, toolObj.opt(toolName))
             }
         }
 

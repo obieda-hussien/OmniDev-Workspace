@@ -12,6 +12,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 /**
@@ -57,14 +59,15 @@ class ToolAwarenessEngine(
 
     private val runtimeEnvironmentCache = mutableMapOf<String, String>()
     private var isInitialized = false
+    private val initializationMutex = Mutex()
 
     // ───   ───────────────────────────────────────────────
 
     /**
      *  :
      */
-    suspend fun initialize(availableTools: List<ToolDefinition> = emptyList()) = withContext(Dispatchers.IO) {
-        if (isInitialized) return@withContext
+    suspend fun initialize(availableTools: List<ToolDefinition> = emptyList()) = withContext(Dispatchers.IO) { initializationMutex.withLock {
+        if (isInitialized) return@withLock
         
         Log.d(TAG, "🔍    ...")
 
@@ -87,7 +90,7 @@ class ToolAwarenessEngine(
 
         isInitialized = true
         Log.d(TAG, "✅    - ${systemKnowledgeDao.getCount()}  ")
-    }
+    } }
 
     // ───   ───────────────────────────────────────────────
 
@@ -134,13 +137,13 @@ class ToolAwarenessEngine(
         //
         val hasCamera = pm.hasSystemFeature("android.hardware.camera")
         if (hasCamera) {
-            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "camera", "  ", priority = 8)
+            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "camera", "Camera hardware detected; permission must be checked before use.", priority = 8)
         }
 
         //
         val hasBluetooth = pm.hasSystemFeature("android.hardware.bluetooth")
         if (hasBluetooth) {
-            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "bluetooth", "  ", priority = 8)
+            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "bluetooth", "Bluetooth hardware detected; permission and adapter state must be checked before use.", priority = 8)
         }
 
         //
@@ -195,7 +198,7 @@ class ToolAwarenessEngine(
         if (shizukuInstalled) {
             saveKnowledge(
                 TYPE_ENVIRONMENT, "shizuku",
-                "Shizuku :    ADB-level  root  shizuku_command",
+                "Shizuku package detected. Check service and permission before shizuku_command; this does not imply root access.",
                 confidence = 0.8f,
                 priority = 2,
                 tags = "shizuku,adb,privileged,root"
@@ -243,7 +246,7 @@ class ToolAwarenessEngine(
                 append(" | : ${tool.description.take(200)}")
                 if (tool.parameters.isNotEmpty()) {
                     append(" | : ${tool.parameters.joinToString(", ") { p ->
-                        "${p.name}(${if (p.required) "English Text" else "English Text"})"
+                        "${p.name}(${if (p.required) "required" else "optional"})"
                     }}")
                 }
             }
@@ -405,12 +408,12 @@ class ToolAwarenessEngine(
      *     Agent "English Text"
      */
     suspend fun buildSystemPromptContext(): String = withContext(Dispatchers.IO) {
-        val systemInfo = systemKnowledgeDao.getByType(TYPE_SYSTEM_INFO)
-        val capabilities = systemKnowledgeDao.getByType(TYPE_SYSTEM_CAPABILITY)
-        val environments = systemKnowledgeDao.getByType(TYPE_ENVIRONMENT)
-        val limitations = systemKnowledgeDao.getByType(TYPE_TOOL_LIMITATION)
-        val bestPractices = systemKnowledgeDao.getByType(TYPE_BEST_PRACTICE)
-        val warnings = systemKnowledgeDao.getByType(TYPE_WARNING)
+        val systemInfo = systemKnowledgeDao.getPromptByType(TYPE_SYSTEM_INFO)
+        val capabilities = systemKnowledgeDao.getPromptByType(TYPE_SYSTEM_CAPABILITY)
+        val environments = systemKnowledgeDao.getPromptByType(TYPE_ENVIRONMENT)
+        val limitations = systemKnowledgeDao.getPromptByType(TYPE_TOOL_LIMITATION)
+        val bestPractices = systemKnowledgeDao.getPromptByType(TYPE_BEST_PRACTICE)
+        val warnings = systemKnowledgeDao.getPromptByType(TYPE_WARNING)
 
         buildString {
             appendLine("\n╔══════════════════════════════════════════════╗")
@@ -444,7 +447,7 @@ class ToolAwarenessEngine(
 
             //
             if (capabilities.isNotEmpty()) {
-                appendLine("\n⚡  : ${capabilities.joinToString(", ") { it.subject }}")
+                appendLine("\nDetected hardware (not permission grants): ${capabilities.distinctBy { it.subject }.joinToString(", ") { it.subject.take(60) }}")
             }
 
             appendLine("══════════════════════════════════════════════")
@@ -461,11 +464,11 @@ class ToolAwarenessEngine(
         buildString {
             entries.forEach { k ->
                 when (k.knowledgeType) {
-                    TYPE_TOOL_LIMITATION -> appendLine("⚠️ ${k.content}")
-                    TYPE_TOOL_REQUIREMENT -> appendLine("📋 ${k.content}")
-                    TYPE_BEST_PRACTICE -> appendLine("💡 ${k.content}")
-                    TYPE_WARNING -> appendLine("🚨 ${k.content}")
-                    else -> appendLine("ℹ️ ${k.content}")
+                    TYPE_TOOL_LIMITATION -> appendLine("⚠️ ${k.content.take(300)}")
+                    TYPE_TOOL_REQUIREMENT -> appendLine("📋 ${k.content.take(300)}")
+                    TYPE_BEST_PRACTICE -> appendLine("💡 ${k.content.take(300)}")
+                    TYPE_WARNING -> appendLine("🚨 ${k.content.take(300)}")
+                    else -> appendLine("ℹ️ ${k.content.take(300)}")
                 }
             }
         }.takeIf { it.isNotBlank() }
@@ -490,7 +493,7 @@ class ToolAwarenessEngine(
         source: String = "auto_discovery"
     ) {
         try {
-            systemKnowledgeDao.insert(
+            systemKnowledgeDao.merge(
                 SystemKnowledgeEntry(
                     knowledgeType = type,
                     subject = subject,
@@ -501,6 +504,8 @@ class ToolAwarenessEngine(
                     source = source
                 )
             )
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "   : $subject - ${e.message}")
         }
@@ -515,19 +520,7 @@ class ToolAwarenessEngine(
         tags: String = "",
         source: String = "auto_discovery"
     ) {
-        val existing = systemKnowledgeDao.getBySubject(subject).firstOrNull { it.knowledgeType == type }
-        if (existing != null) {
-            systemKnowledgeDao.update(
-                existing.copy(
-                    content = content,
-                    confidence = confidence,
-                    verificationCount = existing.verificationCount + 1,
-                    updatedAt = System.currentTimeMillis()
-                )
-            )
-        } else {
-            saveKnowledge(type, subject, content, confidence, priority, tags, source)
-        }
+        saveKnowledge(type, subject, content, confidence, priority, tags, source)
     }
 
     private fun isPackageInstalled(packageName: String): Boolean {
@@ -571,15 +564,8 @@ class ToolAwarenessEngine(
     // ───  ────────────────────────────────────────────────────
 
     suspend fun getStats(): AwarenessStats = withContext(Dispatchers.IO) {
-        val total = systemKnowledgeDao.getCount()
-        val byType = mutableMapOf<String, Int>()
-
-        listOf(
-            TYPE_TOOL_CAPABILITY, TYPE_TOOL_LIMITATION, TYPE_SYSTEM_INFO,
-            TYPE_ENVIRONMENT, TYPE_BEST_PRACTICE, TYPE_WARNING, TYPE_PATTERN
-        ).forEach { type ->
-            byType[type] = systemKnowledgeDao.getByType(type).size
-        }
+        val byType = systemKnowledgeDao.countsByType().associate { it.knowledgeType to it.count }
+        val total = byType.values.sum()
 
         AwarenessStats(
             totalKnowledge = total,
