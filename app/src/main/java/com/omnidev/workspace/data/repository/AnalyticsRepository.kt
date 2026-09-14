@@ -489,18 +489,35 @@ class AnalyticsRepository(private val context: Context) {
             )
         }
 
+        // Older installs recorded Gemini/OpenRouter token counts before a price
+        // was available. Reconstruct only missing per-model costs from their stored
+        // token totals so the dashboard becomes useful without deleting history.
+        val pricing = DynamicPricingManager()
+        val repairedModels = byModel.mapValues { (modelId, stats) ->
+            if (stats.costUsd == 0.0 && stats.totalTokens > 0L) {
+                stats.copy(costUsd = pricing.calculateCost(
+                    modelId = modelId,
+                    promptTokens = stats.inputTokens.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                    completionTokens = stats.outputTokens.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                ))
+            } else stats
+        }
+        val storedCost = root.optDouble("total_cost_usd")
+        val reconstructedCost = repairedModels.values.sumOf { it.costUsd }
+        val totalCost = maxOf(storedCost, reconstructedCost)
+
         return AnalyticsStats(
             totalInputTokens = root.optLong("total_input_tokens"),
             totalOutputTokens = root.optLong("total_output_tokens"),
-            totalCostUsd = root.optDouble("total_cost_usd"),
-            totalCostEgp = root.optDouble("total_cost_egp"),
+            totalCostUsd = totalCost,
+            totalCostEgp = maxOf(root.optDouble("total_cost_egp"), totalCost * 50.0),
             totalRequests = root.optLong("total_requests"),
             totalErrors = root.optLong("total_errors"),
             totalAgentRuns = root.optInt("total_agent_runs"),
             totalSwarmRuns = root.optInt("total_swarm_runs"),
             firstRecordedAt = root.optLong("first_recorded_at"),
             lastRecordedAt = root.optLong("last_recorded_at"),
-            tokensByModel = byModel,
+            tokensByModel = repairedModels,
             toolUsageCount = toolUsage,
             dailyUsage = daily
         )
