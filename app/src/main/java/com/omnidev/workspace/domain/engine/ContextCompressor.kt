@@ -33,8 +33,11 @@ object ContextCompressor {
         val grouped = groups(messages)
         // Preserve the original turn and at least the latest complete tool exchange.
         if (grouped.size <= 2) return
-        val recent = grouped.takeLast(minOf(4, grouped.size - 2))
-        val old = grouped.drop(1).dropLast(recent.size).flatten()
+        val recentCount = minOf(4, grouped.size - 2)
+        val latestUser = grouped.indexOfLast { group -> group.any { it.role == MessageRole.USER } }
+        val preserved = (grouped.size - recentCount until grouped.size).toSet() + setOf(0, latestUser)
+        val recent = grouped.filterIndexed { index, _ -> index != 0 && index in preserved }
+        val old = grouped.filterIndexed { index, _ -> index !in preserved }.flatten()
         if (old.isEmpty()) return
         val source = old.joinToString("\n") { message ->
             "[${message.role}] ${message.content}\n" +
@@ -71,7 +74,9 @@ object ContextCompressor {
     internal fun trim(messages: List<ChatMessage>, maxTokens: Int): List<ChatMessage> {
         val grouped = groups(messages).toMutableList()
         while (grouped.size > 2 && grouped.flatten().sumOf(::estimatedTokens) > maxTokens) {
-            grouped.removeAt(1)
+            val latestUser = grouped.indexOfLast { group -> group.any { it.role == MessageRole.USER } }
+            val removable = (1 until grouped.lastIndex).firstOrNull { it != latestUser } ?: break
+            grouped.removeAt(removable)
         }
         val retained = grouped.flatten()
         if (retained.sumOf(::estimatedTokens) <= maxTokens) return retained

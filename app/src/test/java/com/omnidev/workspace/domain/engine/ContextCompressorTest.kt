@@ -7,6 +7,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ContextCompressorTest {
+    @Test fun latestUserGoalSurvivesOldConversationAndToolTrimming() {
+        val latestGoal = ChatMessage(MessageRole.USER, "New task: do not modify files")
+        val call = ChatMessage(MessageRole.ASSISTANT, "", toolCalls = listOf(ToolCall("c", "read", emptyMap())))
+        val reply = ChatMessage(MessageRole.TOOL, "x".repeat(10_000))
+        val messages = listOf(ChatMessage(MessageRole.USER, "old goal"), latestGoal, call, reply)
+        val trimmed = ContextCompressor.trim(messages, 500)
+        assertTrue(trimmed.contains(latestGoal))
+        assertEquals(call, trimmed[trimmed.lastIndex - 1])
+        assertTrue(trimmed.sumOf(ContextCompressor::estimatedTokens) <= 500)
+    }
+
     @Test fun oversizedLatestToolResultFitsWithoutChangingCallOrGoal() {
         val goal = ChatMessage(MessageRole.USER, "Keep my exact instructions")
         val call = ChatMessage(MessageRole.ASSISTANT, "", toolCalls = listOf(ToolCall("c1", "read", emptyMap())))
