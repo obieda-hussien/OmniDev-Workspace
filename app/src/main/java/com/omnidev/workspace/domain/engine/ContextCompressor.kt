@@ -73,6 +73,31 @@ object ContextCompressor {
         while (grouped.size > 2 && grouped.flatten().sumOf(::estimatedTokens) > maxTokens) {
             grouped.removeAt(1)
         }
-        return grouped.flatten()
+        val retained = grouped.flatten()
+        if (retained.sumOf(::estimatedTokens) <= maxTokens) return retained
+        // Only shorten tool output. Keep user instructions, call IDs, arguments and
+        // provider metadata intact so the next request remains a valid exchange.
+        fun bounded(limit: Int) = retained.map { message ->
+            fun shorten(text: String): String {
+                val marker = "\n[Tool output truncated to fit context; request a smaller range.]\n"
+                if (text.length <= limit) return text
+                val available = (limit - marker.length).coerceAtLeast(0)
+                return text.take(available / 2) + marker + text.takeLast(available - available / 2)
+            }
+            message.copy(
+                content = if (message.role == MessageRole.TOOL) shorten(message.content) else message.content,
+                toolResults = message.toolResults.map { it.copy(output = shorten(it.output)) }
+            )
+        }
+        var limit = retained.maxOfOrNull { message ->
+            maxOf(if (message.role == MessageRole.TOOL) message.content.length else 0,
+                message.toolResults.maxOfOrNull { it.output.length } ?: 0)
+        } ?: 0
+        var result = retained
+        while (limit > 128 && result.sumOf(::estimatedTokens) > maxTokens) {
+            limit = (limit / 2).coerceAtLeast(128)
+            result = bounded(limit)
+        }
+        return result
     }
 }

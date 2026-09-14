@@ -1165,7 +1165,8 @@ class FileToolManager(
 
         return try {
             withContext(Dispatchers.IO) {
-                val process = ProcessBuilder("/bin/sh", "-c", command)
+                val shell = if (java.io.File("/system/bin/sh").canExecute()) "/system/bin/sh" else "sh"
+                val process = ProcessBuilder(shell, "-c", command)
                     .directory(workDir)
                     .start() 
 
