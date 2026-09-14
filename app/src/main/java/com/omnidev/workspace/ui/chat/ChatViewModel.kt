@@ -727,12 +727,26 @@ class ChatViewModel(
                 completionProvider?.invoke(request)
                     ?: throw IllegalStateException("Chat completion service is unavailable.")
             }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
         } catch (error: Exception) {
             if (runId == activeRunId.get()) handleAgentEvent(AgentEvent.Error(error.message ?: "Chat request failed."), sessionId, runId)
             return
         }
         if (runId == activeRunId.get()) {
-            handleAgentEvent(AgentEvent.FinalAnswer(response.content), sessionId, runId)
+            handleAgentEvent(
+                AgentEvent.FinalAnswer(
+                    content = response.content,
+                    totalIterations = 1,
+                    totalTokensUsed = response.tokensUsed?.totalTokens ?: 0,
+                    conversationHistory = messages + ChatMessage(
+                        role = MessageRole.ASSISTANT,
+                        content = response.content
+                    )
+                ),
+                sessionId,
+                runId
+            )
         }
     }
 
@@ -1294,6 +1308,9 @@ class ChatViewModel(
             return
         }
 
+        val runId = activeRunId.incrementAndGet()
+        currentAgentJob?.cancel()
+
         _uiState.update {
             it.copy(
                 isProcessing = true,
@@ -1303,7 +1320,7 @@ class ChatViewModel(
             )
         }
 
-        viewModelScope.launch {
+        currentAgentJob = viewModelScope.launch {
             val useCase = autoHealBuildUseCase
             if (useCase == null) {
                 _uiState.update {
@@ -1320,6 +1337,7 @@ class ChatViewModel(
                 buildCommand = buildCommand,
                 maxRetries = maxRetries
             ).collect { event ->
+                if (runId != activeRunId.get()) return@collect
                 when (event) {
                     is com.omnidev.workspace.domain.engine.AutoHealBuildUseCase.BuildEvent.BuildAttempt ->
                         _uiState.update {
@@ -1402,7 +1420,7 @@ class ChatViewModel(
                     }
 
                     is com.omnidev.workspace.domain.engine.AutoHealBuildUseCase.BuildEvent.AgentProgress ->
-                        handleAgentEvent(event.event, _uiState.value.currentSessionId ?: -1L)
+                        handleAgentEvent(event.event, _uiState.value.currentSessionId ?: -1L, runId)
                 }
             }
         }
