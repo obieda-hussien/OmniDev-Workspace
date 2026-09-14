@@ -50,7 +50,7 @@ class LauncherCommandRouter(
     private val apiKeyRepository = ApiKeyRepository(appContext)
     private val database = OmniDevDatabase.getInstance(appContext)
     private val memoryManager = MemoryManager(database.knowledgeDao())
-    private val completionService = CompletionService()
+    private val completionService = CompletionService(settingsRepository)
     private val fileToolManager = FileToolManager()
     // ── Agent Brain 2.0: مراجع المحركات المُهيَّأة في OmniDevApp ──
     private val omniApp = com.omnidev.workspace.OmniDevApp.instance

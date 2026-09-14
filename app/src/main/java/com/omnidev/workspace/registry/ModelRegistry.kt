@@ -134,7 +134,8 @@ object ModelRegistry {
      */
     fun addDynamicCopilotModels(models: List<AIModel>) {
         val newModels = models.filter { it.id !in staticCopilotModelIds }
-        _dynamicCopilotModels.addAll(newModels)
+        _dynamicCopilotModels.clear()
+        _dynamicCopilotModels.addAll(newModels.distinctBy { it.id })
     }
 
     /** Clears all dynamically added Copilot models (e.g. after logout). */
@@ -142,7 +143,13 @@ object ModelRegistry {
         _dynamicCopilotModels.clear()
     }
 
+    private val dynamicProviderModels = java.util.concurrent.ConcurrentHashMap<ModelProvider, List<AIModel>>()
+    fun setProviderModels(provider: ModelProvider, models: List<AIModel>) {
+        dynamicProviderModels[provider] = models.distinctBy { it.id }
+    }
+
     val allModels: List<AIModel> get() = buildList {
+        addAll(dynamicProviderModels.values.flatten())
         addAll(_dynamicCopilotModels)   // ← dynamically fetched Copilot models
         add(
             AIModel(

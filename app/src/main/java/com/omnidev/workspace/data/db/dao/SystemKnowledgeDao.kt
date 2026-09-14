@@ -10,6 +10,28 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface SystemKnowledgeDao {
 
+    // Serialize read/merge/write across all engine instances, not just one coroutine.
+    @Transaction
+    suspend fun merge(entry: SystemKnowledgeEntry): Long {
+        val existing = getBySubject(entry.subject).firstOrNull {
+            it.knowledgeType == entry.knowledgeType && it.source == entry.source &&
+                (entry.knowledgeType !in listOf("PATTERN", "TOOL_DEPENDENCY") || it.content == entry.content)
+        }
+        if (existing == null) return insert(entry)
+        if (existing.content != entry.content || existing.confidence != entry.confidence ||
+            existing.injectionPriority != entry.injectionPriority || existing.searchTags != entry.searchTags) {
+            update(entry.copy(id = existing.id, createdAt = existing.createdAt,
+                verificationCount = existing.verificationCount))
+        }
+        return existing.id
+    }
+
+    @Query("SELECT knowledgeType, COUNT(*) AS count FROM system_knowledge WHERE isValid = 1 GROUP BY knowledgeType")
+    suspend fun countsByType(): List<KnowledgeTypeCount>
+
+    @Query("SELECT * FROM system_knowledge WHERE knowledgeType = :type AND isValid = 1 ORDER BY injectionPriority, confidence DESC, updatedAt DESC LIMIT :limit")
+    suspend fun getPromptByType(type: String, limit: Int = 8): List<SystemKnowledgeEntry>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entry: SystemKnowledgeEntry): Long
 
@@ -72,3 +94,5 @@ interface SystemKnowledgeDao {
     @Query("DELETE FROM system_knowledge WHERE isValid = 0 AND updatedAt < :before")
     suspend fun cleanupInvalid(before: Long)
 }
+
+data class KnowledgeTypeCount(val knowledgeType: String, val count: Int)

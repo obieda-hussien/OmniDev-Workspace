@@ -74,6 +74,11 @@ class SmartLearningBridge(
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 ) {
 
+    /** Run-local intent, timing and tool history; learned knowledge remains shared. */
+    fun forkForRun() = SmartLearningBridge(context, journal.forkForRun(), awarenessEngine,
+        intelligenceEngine, mlEngine, monitoringSystem, reflexionEngine, episodicMemoryStore,
+        progressiveTrustEngine, causalChainPlannerTool, scope)
+
     companion object {
         private const val TAG = "SmartLearning"
 
@@ -127,6 +132,7 @@ class SmartLearningBridge(
      *   user intent  episodes  +   episode .
      */
     fun onTaskStart(userIntent: String) {
+        synchronized(sessionToolHistory) { sessionToolHistory.clear() }
         currentUserIntent = userIntent.take(200)
         currentTaskStartMs = System.currentTimeMillis()
         currentTaskIterations = 0

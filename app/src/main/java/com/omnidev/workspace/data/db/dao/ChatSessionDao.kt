@@ -4,11 +4,19 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
+import androidx.room.Transaction
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ChatSessionDao {
+
+    @Query("SELECT * FROM chat_sessions WHERE backgroundKey = :key LIMIT 1")
+    suspend fun getByBackgroundKey(key: String): ChatSessionEntity?
+
+    @Transaction
+    suspend fun sessionForBackgroundRun(key: String, title: String): Long =
+        getByBackgroundKey(key)?.id ?: insert(ChatSessionEntity(title = title, source = "background", backgroundKey = key))
 
     @Insert
     suspend fun insert(session: ChatSessionEntity): Long

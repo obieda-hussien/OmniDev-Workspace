@@ -146,6 +146,7 @@ fun AgentLiveConsole(
                 is AgentConsoleEntry.PhaseEntry        -> appendLine("${prefix}PHASE  ${entry.phase}${entry.detail?.let { " — $it" } ?: ""}")
                 is AgentConsoleEntry.ReplyEntry        -> appendLine("${prefix}REPLY  Generating final response...")
                 is AgentConsoleEntry.ErrorEntry        -> appendLine("${prefix}ERROR  ${entry.message}")
+                is AgentConsoleEntry.ContextSummaryEntry -> appendLine("${prefix}COMPR  Context compressed")
             }
         }
     }
@@ -339,6 +340,12 @@ private fun ConsoleLogLine(
         is AgentConsoleEntry.ReplyEntry ->
             ConsoleRowData("💬", "REPLY", TerminalCyan,
                 "Generating final response...", "Generating final response...", null)
+
+
+        is AgentConsoleEntry.ContextSummaryEntry ->
+            ConsoleRowData("🗜", "COMPR", TerminalGray,
+                "Context compressed (${entry.summary.take(40)}...)",
+                "Context compressed", entry.summary)
 
         is AgentConsoleEntry.ErrorEntry ->
             ConsoleRowData("✗", " ERR ", TerminalRed,

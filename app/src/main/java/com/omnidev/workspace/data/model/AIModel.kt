@@ -86,6 +86,9 @@ enum class ModelProvider(val displayName: String) {
     GITHUB_COPILOT("GitHub Copilot"),
     GITHUB_MODELS("GitHub Models"),
     OPEN_ROUTER("OpenRouter"),
+    ZENMUX("ZenMux"),
+    Z_AI("Z.ai"),
+    CUSTOM_OPENAI("Custom OpenAI-compatible"),
     LOCAL_EDGE("Local Edge Model")
 }
 

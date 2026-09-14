@@ -2,11 +2,12 @@ name: Android CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, codex/repair-agent-runtime ]
     tags:
       - "v*.*.*"
+  # Run validation for every PR, including stacked PRs whose base is another
+  # feature branch rather than main/develop.
   pull_request:
-    branches: [ main, develop ]
   workflow_dispatch:
     inputs:
       build_release:

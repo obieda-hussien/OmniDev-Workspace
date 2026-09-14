@@ -11,11 +11,42 @@ import org.json.JSONObject
  */
 object AgentConsoleSerializer {
 
+    /**
+     * Keeps persisted/live console data bounded and removes repeated progress noise.
+     * Token updates replace their predecessor; identical adjacent events are ignored.
+     */
+    fun compact(entries: List<AgentConsoleEntry>, maxEntries: Int = 120): List<AgentConsoleEntry> {
+        if (entries.isEmpty()) return emptyList()
+        val result = ArrayList<AgentConsoleEntry>(minOf(entries.size, maxEntries))
+        entries.forEach { entry ->
+            val previous = result.lastOrNull()
+            when {
+                previous is AgentConsoleEntry.TokenEntry && entry is AgentConsoleEntry.TokenEntry ->
+                    result[result.lastIndex] = entry
+                previous != null && isDuplicate(previous, entry) -> Unit
+                else -> result += entry
+            }
+        }
+        return result.takeLast(maxEntries)
+    }
+
+    private fun isDuplicate(a: AgentConsoleEntry, b: AgentConsoleEntry): Boolean = when {
+        a is AgentConsoleEntry.ThinkingEntry && b is AgentConsoleEntry.ThinkingEntry -> a.iteration == b.iteration
+        a is AgentConsoleEntry.DeepThinkingEntry && b is AgentConsoleEntry.DeepThinkingEntry -> a.snippet == b.snippet
+        a is AgentConsoleEntry.ToolEntry && b is AgentConsoleEntry.ToolEntry -> a.toolName == b.toolName && a.params == b.params && a.iteration == b.iteration
+        a is AgentConsoleEntry.ResultEntry && b is AgentConsoleEntry.ResultEntry -> a.toolName == b.toolName && a.snippet == b.snippet && a.isError == b.isError
+        a is AgentConsoleEntry.PhaseEntry && b is AgentConsoleEntry.PhaseEntry -> a.phase == b.phase && a.detail == b.detail
+        a is AgentConsoleEntry.ContextSummaryEntry && b is AgentConsoleEntry.ContextSummaryEntry -> a.summary == b.summary
+        a is AgentConsoleEntry.ErrorEntry && b is AgentConsoleEntry.ErrorEntry -> a.message == b.message
+        else -> false
+    }
+
     /** Serializes a list of [AgentConsoleEntry] to a JSON string (empty string if empty). */
     fun serialize(entries: List<AgentConsoleEntry>): String {
-        if (entries.isEmpty()) return ""
+        val compactEntries = compact(entries)
+        if (compactEntries.isEmpty()) return ""
         val array = JSONArray()
-        entries.forEach { entry ->
+        compactEntries.forEach { entry ->
             val obj = JSONObject()
             obj.put("ts", entry.timestamp)
             obj.put("id", entry.id)
@@ -55,6 +86,10 @@ object AgentConsoleSerializer {
                 }
                 is AgentConsoleEntry.ReplyEntry -> {
                     obj.put("type", "reply")
+                }
+                                is AgentConsoleEntry.ContextSummaryEntry -> {
+                    obj.put("type", "context_summary")
+                    obj.put("summary", entry.summary)
                 }
                 is AgentConsoleEntry.ErrorEntry -> {
                     obj.put("type", "error")
@@ -116,7 +151,12 @@ object AgentConsoleSerializer {
                         id = id
                     )
                     "reply" -> AgentConsoleEntry.ReplyEntry(timestamp = ts, id = id)
-                    "error" -> AgentConsoleEntry.ErrorEntry(
+                                    "context_summary" -> AgentConsoleEntry.ContextSummaryEntry(
+                    summary = obj.optString("summary"),
+                    timestamp = ts,
+                    id = id
+                )
+                "error" -> AgentConsoleEntry.ErrorEntry(
                         message = obj.getString("message"),
                         timestamp = ts,
                         id = id
