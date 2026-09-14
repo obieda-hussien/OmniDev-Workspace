@@ -148,6 +148,11 @@ object ModelRegistry {
         dynamicProviderModels[provider] = models.distinctBy { it.id }
     }
 
+    /** Cached metadata must never replace a catalogue refreshed in this process. */
+    fun restoreProviderModels(provider: ModelProvider, models: List<AIModel>) {
+        if (models.isNotEmpty()) dynamicProviderModels.putIfAbsent(provider, models.distinctBy { it.id })
+    }
+
     val allModels: List<AIModel> get() = buildList {
         addAll(dynamicProviderModels.values.flatten())
         addAll(_dynamicCopilotModels)   // ← dynamically fetched Copilot models

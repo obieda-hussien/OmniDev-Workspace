@@ -237,11 +237,22 @@ class ProvidersViewModel(
         viewModelScope.launch {
             val apiKey = apiKeyRepository.getApiKey(provider)
             val result = modelFetcher.fetchModels(provider, apiKey)
+            result.getOrNull()?.takeIf { provider != ModelProvider.CUSTOM_OPENAI }?.let { models ->
+                val normalized = models.map {
+                    it.copy(id = if ("::" in it.id) it.id else "${provider.name}::${it.id}")
+                }
+                ModelRegistry.setProviderModels(provider, normalized)
+                try {
+                    settingsRepository.saveModelCatalog(provider, normalized)
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // A disk failure must not discard a successfully fetched live catalogue.
+                }
+            }
             _uiState.update { state ->
                 val entry = result.fold(
                     onSuccess = { models ->
-                        if (provider != ModelProvider.CUSTOM_OPENAI) ModelRegistry.setProviderModels(provider,
-                            models.map { it.copy(id = if ("::" in it.id) it.id else "${provider.name}::${it.id}") })
                         ProviderModelCatalog(
                             isFetching = false,
                             models = models.sortedBy { it.id },

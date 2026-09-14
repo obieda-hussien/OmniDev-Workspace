@@ -1,7 +1,7 @@
 name: Agent runtime repair verification
 on:
   push:
-    branches: [codex/repair-agent-runtime]
+    branches: [codex/repair-agent-runtime, codex/fix-context-and-terminal]
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,6 +19,8 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
       - uses: gradle/actions/setup-gradle@v4
       - name: Compile and run regression tests
         run: bash ./gradlew :app:compileNormDebugKotlin :app:testNormDebugUnitTest :app:compileAdminDebugKotlin :app:compileNormDebugAndroidTestKotlin --no-daemon --max-workers=2
