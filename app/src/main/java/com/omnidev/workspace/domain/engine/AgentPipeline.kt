@@ -1248,7 +1248,15 @@ Rules:
                 }
 
                 // Normal error path: consume normal retry budget with exponential backoff
-                val isLastNormalAttempt = normalAttempt >= normalMaxAttempts - 1
+                // Exhausted 429 retries must not fall through into a second retry budget.
+                // Invalid payload/auth/model errors also cannot improve by resending.
+                val permanentRequestError = e.message?.let { message ->
+                    listOf("API error 400", "API key is invalid", "No API key",
+                        "Access forbidden", "Model not found", "Invalid request format",
+                        "Insufficient quota").any { message.contains(it, ignoreCase = true) }
+                } == true
+                val isLastNormalAttempt = isRateLimit || permanentRequestError ||
+                    normalAttempt >= normalMaxAttempts - 1
                 if (isLastNormalAttempt) {
                     if (isRateLimit) {
                         // Rate limits are expected — log as warning, not error, since they
