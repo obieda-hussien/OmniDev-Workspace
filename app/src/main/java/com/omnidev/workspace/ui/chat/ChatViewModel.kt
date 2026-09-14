@@ -595,7 +595,7 @@ class ChatViewModel(
                         OmniMode.AGENT -> {
                             val scope = scopePath ?: run {
                                 // No scope set — fall back to Chat for conversational auto requests
-                                executeChatMode(input, imageAttachments, sessionId)
+                                executeChatMode(input, imageAttachments, sessionId, runId)
                                 return@launch
                             }
                             executeAgentMode(input, imageAttachments, sessionId, scope, runId = runId)
@@ -607,17 +607,17 @@ class ChatViewModel(
                             }
                             executeSwarmMode(input, sessionId, scope, runId)
                         }
-                        OmniMode.AUTO -> executeChatMode(input, imageAttachments, sessionId)
+                        OmniMode.AUTO -> executeChatMode(input, imageAttachments, sessionId, runId)
                     }
                 }
-                OmniMode.CHAT -> executeChatMode(input, imageAttachments, sessionId)
+                OmniMode.CHAT -> executeChatMode(input, imageAttachments, sessionId, runId)
                 OmniMode.AGENT -> {
                     val scope = scopePath ?: return@launch
-                    executeAgentMode(input, imageAttachments, sessionId, scope)
+                    executeAgentMode(input, imageAttachments, sessionId, scope, runId = runId)
                 }
                 OmniMode.SWARM -> {
                     val scope = scopePath ?: return@launch
-                    executeSwarmMode(input, sessionId, scope)
+                    executeSwarmMode(input, sessionId, scope, runId)
                 }
             }
         }
