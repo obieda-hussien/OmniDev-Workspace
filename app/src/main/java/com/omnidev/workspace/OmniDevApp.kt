@@ -162,6 +162,9 @@ class OmniDevApp : Application() {
         // ═══════════════════════════════════════════════════════════════
         initializeAgentBrainSystem()
 
+        com.omnidev.workspace.data.tools.TaskSchedulerTool.initialize(
+            OmniDevDatabase.getInstance(applicationContext).scheduledTaskDao())
+
         // Restore dynamic Copilot models from the persisted cache
         restoreCopilotModelsAsync()
     }

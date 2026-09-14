@@ -31,9 +31,12 @@ class AgentBrainViewModel(
         observeRealtimeData()
     }
 
+    private var loadJob: kotlinx.coroutines.Job? = null
+
     private fun loadData() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
             try {
                 val report = bridge.generatePerformanceReport()
                 val awarenessStats = awarenessEngine.getStats()
@@ -53,6 +56,8 @@ class AgentBrainViewModel(
                         awarenessStats = awarenessStats
                     )
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
             }
@@ -65,6 +70,7 @@ class AgentBrainViewModel(
                 _uiState.update { state ->
                     state.copy(recentExecutions = entries)
                 }
+                loadData()
             }
         }
 
@@ -73,6 +79,7 @@ class AgentBrainViewModel(
                 _uiState.update { state ->
                     state.copy(recentKnowledge = entries)
                 }
+                loadData()
             }
         }
     }

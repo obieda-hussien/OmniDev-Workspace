@@ -168,6 +168,9 @@ fun ProvidersScreen(
             onDismiss = { viewModel.dismissAddDialog() },
             onProviderSelected = { viewModel.onDialogProviderSelected(it) },
             onApiKeyChanged = { viewModel.onDialogApiKeyChanged(it) },
+            onCustomBaseUrlChanged = viewModel::onCustomBaseUrlChanged,
+            onCustomModelIdChanged = viewModel::onCustomModelIdChanged,
+            onCustomDisplayNameChanged = viewModel::onCustomDisplayNameChanged,
             onToggleVisibility = { viewModel.toggleKeyVisibility() },
             onConfirm = { viewModel.saveApiKey() }
         )
@@ -247,6 +250,9 @@ private fun AddProviderDialog(
     onDismiss: () -> Unit,
     onProviderSelected: (ModelProvider) -> Unit,
     onApiKeyChanged: (String) -> Unit,
+    onCustomBaseUrlChanged: (String) -> Unit,
+    onCustomModelIdChanged: (String) -> Unit,
+    onCustomDisplayNameChanged: (String) -> Unit,
     onToggleVisibility: () -> Unit,
     onConfirm: () -> Unit
 ) {
@@ -299,6 +305,15 @@ private fun AddProviderDialog(
                             }
                         }
                     }
+                }
+
+                if (uiState.dialogProvider == ModelProvider.CUSTOM_OPENAI) {
+                    OutlinedTextField(value = uiState.customDisplayName, onValueChange = onCustomDisplayNameChanged,
+                        label = { Text("Display name") }, singleLine = true)
+                    OutlinedTextField(value = uiState.customBaseUrl, onValueChange = onCustomBaseUrlChanged,
+                        label = { Text("Base URL") }, placeholder = { Text("https://example.com/v1") }, singleLine = true)
+                    OutlinedTextField(value = uiState.customModelId, onValueChange = onCustomModelIdChanged,
+                        label = { Text("Model ID") }, singleLine = true)
                 }
 
                 // API key input

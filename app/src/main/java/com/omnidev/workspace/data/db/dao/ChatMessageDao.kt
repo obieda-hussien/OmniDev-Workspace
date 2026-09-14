@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ChatMessageDao {
 
+    @Query("UPDATE chat_messages SET content = :content, consoleEntriesJson = :console WHERE id = :id")
+    suspend fun updateProgress(id: Long, content: String, console: String)
+
     @Insert
     suspend fun insert(message: ChatMessageEntity): Long
 

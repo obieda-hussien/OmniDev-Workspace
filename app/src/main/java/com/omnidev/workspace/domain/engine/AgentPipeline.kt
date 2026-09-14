@@ -595,6 +595,7 @@ Rules:
          */
         toolAccessMode: String = "AUTO"
     ): Flow<AgentEvent> = channelFlow {
+        val smartLearningBridge = this@AgentPipeline.smartLearningBridge?.forkForRun()
         send(AgentEvent.Started)
         var activePhase: AgentExecutionPhase? = null
         suspend fun transitionPhase(phase: AgentExecutionPhase, detail: String? = null) {
@@ -732,8 +733,6 @@ Rules:
                 attachments = userAttachments
             ))
         }
-        var sessionDigest = ""
-        var lastDigestMessageCount = 0
 
         // Resolve the API key for this model's provider (injected into every request)
         val resolvedApiKey: String? = apiKeyRepository?.getApiKey(model.provider)
@@ -792,50 +791,21 @@ Rules:
                 return@channelFlow
             }
 
-            val immediateWindow = config.recentMessagesWindow.coerceAtLeast(2)
-            if (messages.size - lastDigestMessageCount >= config.sessionDigestUpdateEveryNMessages) {
-                val olderHistory = if (messages.size > immediateWindow) {
-                    messages.dropLast(immediateWindow)
-                } else {
-                    emptyList()
-                }
-                sessionDigest = buildSessionDigest(
-                    messages = olderHistory,
-                    maxChars = config.sessionDigestMaxChars,
-                    maxMessages = config.sessionDigestMaxMessages
-                )
-                lastDigestMessageCount = messages.size
+            val effectiveSystemPrompt = systemPrompt
+            val inputBudget = (model.contextWindow - model.maxOutputTokens -
+                config.contextWindowBuffer - systemPrompt.length / 2 -
+                toolDefs.sumOf { it.toString().length } / 2).coerceAtLeast(256)
+            if (config.enableMemoryTrimming) {
+                ContextCompressor.checkAndCompact(messages, inputBudget, modelId,
+                    completionProvider, resolvedApiKey) { send(it) }
             }
-
-            val hierarchicalMessages = if (messages.size > immediateWindow) {
-                messages.takeLast(immediateWindow)
-            } else {
-                messages.toList()
-            }
-
-            // Context window trimming — drop oldest non-system messages when approaching limit
             val trimmedMessages = if (config.enableMemoryTrimming) {
-
-            val budget = config.tokenBudget ?: 128_000
-            val mutableContext = hierarchicalMessages.toMutableList()
-            ContextCompressor.checkAndCompact(mutableContext, budget, modelId, completionProvider) { event ->
-                send(event)
-            }
-                trimMessagesForContextWindow(mutableContext, model.contextWindow - config.contextWindowBuffer)
-            } else {
-                hierarchicalMessages
-            }
-
-            val effectiveSystemPrompt = if (sessionDigest.isBlank()) {
-                systemPrompt
-            } else {
-                buildString {
-                    append(systemPrompt)
-                    appendLine()
-                    appendLine()
-                    appendLine("## Session Digest (hierarchical context)")
-                    append(sessionDigest)
-                }
+                ContextCompressor.trim(messages, inputBudget)
+            } else messages.toList()
+            if (trimmedMessages.sumOf(ContextCompressor::estimatedTokens) > inputBudget) {
+                send(AgentEvent.Error("The latest message or tool result exceeds this model's context window. " +
+                    "Use a larger-context model or a smaller input."))
+                return@channelFlow
             }
 
             if (toolDefs.size > MAX_TOOLS_PER_REQUEST) {
@@ -850,7 +820,8 @@ Rules:
                 enableThinking = enableDeepThinking && model.supportsThinking,
                 targetContext = scopePath,
                 apiKey = resolvedApiKey,
-                tools = toolDefs.take(MAX_TOOLS_PER_REQUEST)
+                tools = toolDefs.take(MAX_TOOLS_PER_REQUEST),
+                onReasoning = { send(AgentEvent.ThinkingBlock(it)) }
             )
 
             // ── API call with retry/backoff ──
@@ -875,7 +846,7 @@ Rules:
             }
 
             // ── Emit thinking content if present ──
-            response.thinkingContent?.let { thinking ->
+            response.thinkingContent?.takeIf { streamingCompletionProvider == null }?.let { thinking ->
                 send(AgentEvent.ThinkingBlock(thinking))
             }
 
@@ -1233,19 +1204,22 @@ Rules:
         var normalAttempt = 0
         val callStartMs = System.currentTimeMillis()
 
+        var emitted = false
+        val chunkHandler: suspend (String) -> Unit = { emitted = true; onStreamChunk(it) }
+        val streamRequest = request.copy(onReasoning = { emitted = true; request.onReasoning?.invoke(it) })
         while (true) {
             try {
                 val response = if (config.maxIterationTimeMs != null) {
                     withTimeout(config.maxIterationTimeMs) {
                         if (streamingCompletionProvider != null) {
-                            streamingCompletionProvider.invoke(request, onStreamChunk)
+                            streamingCompletionProvider.invoke(streamRequest, chunkHandler)
                         } else {
                             completionProvider(request)
                         }
                     }
                 } else {
                     if (streamingCompletionProvider != null) {
-                        streamingCompletionProvider.invoke(request, onStreamChunk)
+                        streamingCompletionProvider.invoke(streamRequest, chunkHandler)
                     } else {
                         completionProvider(request)
                     }
@@ -1264,6 +1238,12 @@ Rules:
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                if (emitted) {
+                    recordAnalytics(request, null, callStartMs, isError = true)
+                    onFatalError("Response interrupted after partial output: ${e.message}")
+                    return null
+                }
+
                 val isRateLimit = e.message?.contains("Rate limit exceeded", ignoreCase = true) == true
 
                 if (isRateLimit && rateLimitAttemptsRemaining > 0) {
@@ -1314,137 +1294,7 @@ Rules:
         }
     }
 
-    /**
-     * Trims the conversation message list to fit within [maxTokens] by removing
-     * the oldest non-system messages first. Always preserves the first (user) message
-     * to maintain task continuity.
-     *
-     * **Important:** In a ReAct loop an ASSISTANT message that contains tool calls MUST be
-     * immediately followed by one or more TOOL messages. Removing the ASSISTANT message
-     * while leaving its TOOL reply(ies) behind produces an orphaned tool result which
-     * causes `400 Bad Request` errors from OpenAI and Anthropic APIs.
-     * This function therefore removes ASSISTANT+TOOL groups atomically: when an ASSISTANT
-     * message with tool calls is evicted, all immediately-following TOOL messages are also
-     * removed in the same pass before checking the budget again.
-     *
-     * Note: Character counts are used as a heuristic proxy for token counts (≈ 4 chars/token).
-     * A production implementation would use the provider's tokenizer for exact counts.
-     */
-    private fun trimMessagesForContextWindow(
-        messages: List<ChatMessage>,
-        maxTokens: Int
-    ): List<ChatMessage> {
-        // Rough estimate: 4 characters ≈ 1 token
-        val maxChars = maxTokens * 4
-        val totalChars = messages.sumOf { it.content.length }
 
-        if (totalChars <= maxChars) return messages
-
-        // Detach the first message (original user task) — it must always be preserved.
-        val result = messages.toMutableList()
-        val keepFirst = result.removeAt(0)
-
-        // Evict oldest messages until we're within budget, always keeping at least 2 messages
-        // so the last ASSISTANT reply is never stranded without the preceding USER turn.
-        while (result.sumOf { it.content.length } + keepFirst.content.length > maxChars
-            && result.size > 2) {
-
-            val evicted = result.removeAt(0)
-
-            // If the evicted ASSISTANT message had tool calls, evict all immediately-following
-            // TOOL messages too. Leaving orphaned TOOL messages causes 400 Bad Request errors
-            // from OpenAI/Anthropic because the API requires tool results to be preceded by
-            // the exact ASSISTANT turn that issued the tool call.
-            if (evicted.role == MessageRole.ASSISTANT && !evicted.toolCalls.isNullOrEmpty()) {
-                while (result.isNotEmpty() && result[0].role == MessageRole.TOOL) {
-                    result.removeAt(0)
-                }
-            }
-        }
-
-        result.add(0, keepFirst)
-        return result
-    }
-
-    private fun buildSessionDigest(
-        messages: List<ChatMessage>,
-        maxChars: Int,
-        maxMessages: Int
-    ): String {
-        if (messages.isEmpty()) return ""
-        val bounded = messages.takeLast(maxMessages.coerceAtLeast(6))
-
-        val userGoals = bounded
-            .filter { it.role == MessageRole.USER }
-            .takeLast(4)
-            .map { it.content.trim().replace("\n", " ").take(220) }
-            .filter { it.isNotBlank() }
-
-        val toolObservations = bounded
-            .filter { it.role == MessageRole.TOOL }
-            .takeLast(5)
-            .map { it.content.trim().replace("\n", " ").take(220) }
-            .filter { it.isNotBlank() }
-
-        val decisions = bounded
-            .filter { it.role == MessageRole.ASSISTANT }
-            .takeLast(4)
-            .map { it.content.trim().replace("\n", " ").take(220) }
-            .filter { it.isNotBlank() }
-
-        val digest = buildString {
-            appendLine("Goals:")
-            if (userGoals.isEmpty()) appendLine("- (none)")
-            userGoals.forEach { appendLine("- $it") }
-            appendLine("Recent decisions:")
-            if (decisions.isEmpty()) appendLine("- (none)")
-            decisions.forEach { appendLine("- $it") }
-            appendLine("Recent tool observations:")
-            if (toolObservations.isEmpty()) appendLine("- (none)")
-            toolObservations.forEach { appendLine("- $it") }
-        }
-
-        return if (digest.length > maxChars) digest.take(maxChars) + "\n[...digest truncated...]" else digest
-    }
-
-    /**
-     * Best-effort analytics recorder.
-     *
-     * Resolves the model's provider + pricing via [ModelRegistry] so the repository
-     * can store the precise USD cost and keep per-provider roll-ups accurate.
-     * Never throws — analytics must never break an agent run.
-     */
-    private suspend fun recordAnalytics(
-        request: CompletionRequest,
-        response: CompletionResponse?,
-        callStartMs: Long,
-        isError: Boolean
-    ) {
-        val repo = analyticsRepository ?: return
-        try {
-            val latencyMs = (System.currentTimeMillis() - callStartMs).coerceAtLeast(0L)
-            val model = ModelRegistry.findModelById(request.modelId)
-            val usage = response?.tokensUsed
-
-            val inputTokens = usage?.promptTokens ?: 0
-            val outputTokens = usage?.completionTokens ?: 0
-
-            val cost = com.omnidev.workspace.data.repository.DynamicPricingManager().calculateCost(request.modelId, inputTokens, outputTokens)
-
-            repo.recordTokenUsage(
-
-                modelId = request.modelId,
-                provider = model?.provider,
-                inputTokens = inputTokens,
-                outputTokens = outputTokens,
-                costUsd = cost,
-                latencyMs = latencyMs,
-                isError = isError
-            )
-        } catch (_: Exception) {
-            // Swallow — analytics is best-effort.
-        }
-    }
 }
 
 /**

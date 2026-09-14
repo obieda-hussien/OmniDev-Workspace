@@ -94,7 +94,7 @@ fun UserProfileScreen(
                     IconButton(onClick = onNavigateBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "English Text"
+                            contentDescription = "Back"
                         )
                     }
                 },
@@ -134,7 +134,7 @@ fun UserProfileScreen(
 
             // ── Subtitle ──
             Text(
-                text = "         ",
+                text = "Tell the assistant how you prefer to work.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 modifier = Modifier.fillMaxWidth()
@@ -145,8 +145,8 @@ fun UserProfileScreen(
                 value = name,
                 onValueChange = { name = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("English Text") },
-                placeholder = { Text(": ") },
+                label = { Text("Your name") },
+                placeholder = { Text("Name or nickname") },
                 singleLine = true,
                 supportingText = {
                     Text("The assistant will use your name in greetings.")
@@ -168,7 +168,7 @@ fun UserProfileScreen(
                     )
                 },
                 supportingText = {
-                    Text("Automatically added to the System Prompt.")
+                    Text("Used to personalize your conversations.")
                 }
             )
 
@@ -183,7 +183,7 @@ fun UserProfileScreen(
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("English Text")
+                Text("Save profile")
             }
 
             Spacer(Modifier.height(16.dp))

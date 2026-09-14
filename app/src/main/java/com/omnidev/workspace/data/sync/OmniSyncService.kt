@@ -95,6 +95,11 @@ class OmniSyncService : Service() {
             else context.startService(intent)
         }
 
+        fun taskIntent(context: Context, taskId: String): Intent = Intent(context, MainActivity::class.java).apply {
+            data = android.net.Uri.parse("omnidev://task?id=$taskId")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+
         fun stop(context: Context) = context.stopService(Intent(context, OmniSyncService::class.java))
 
         /**
@@ -111,7 +116,7 @@ class OmniSyncService : Service() {
             val nm = NotificationManagerCompat.from(context)
             val intent = PendingIntent.getActivity(
                 context, task.id.hashCode(),
-                Intent(context, MainActivity::class.java),
+                taskIntent(context, task.id),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
             val channelId = if (summary.isSuccess) TASK_COMPLETE_CHANNEL_ID else TASK_EVENTS_CHANNEL_ID
@@ -190,6 +195,8 @@ class OmniSyncService : Service() {
             postCompletionNotification(applicationContext, task, summary)
         }
 
+        TaskSchedulerTool.executionCallback =
+            com.omnidev.workspace.domain.engine.ScheduledTaskExecutor(applicationContext)::execute
         startAdaptiveSyncLoop()
     }
 
@@ -508,7 +515,7 @@ class OmniSyncService : Service() {
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(PendingIntent.getActivity(
-                this, taskId.hashCode(), Intent(this, MainActivity::class.java),
+                this, taskId.hashCode(), taskIntent(this, taskId),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )).build()
         runCatching {

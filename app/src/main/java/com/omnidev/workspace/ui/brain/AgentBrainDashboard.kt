@@ -74,12 +74,12 @@ fun AgentBrainDashboard(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "English Text")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
                     IconButton(onClick = { viewModel.refresh() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "English Text")
+                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -115,22 +115,22 @@ fun AgentBrainDashboard(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("📊 ") }
+                    text = { Text("📊 Overview") }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("📔 ") }
+                    text = { Text("📔 Activity") }
                 )
                 Tab(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    text = { Text("🧠 ") }
+                    text = { Text("🧠 Knowledge") }
                 )
                 Tab(
                     selected = selectedTab == 3,
                     onClick = { selectedTab = 3 },
-                    text = { Text("🌐 ") }
+                    text = { Text("🌐 Environment") }
                 )
             }
 
@@ -168,7 +168,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "⚡",
                 value = state.totalExecutions.toString(),
-                label = "English Text",
+                label = "Tool executions",
                 color = Color(0xFF2196F3)
             )
         }
@@ -176,7 +176,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "✅",
                 value = "${(state.successRate * 100).toInt()}%",
-                label = "English Text",
+                label = "Success rate",
                 color = if (state.successRate > 0.8f) Color(0xFF4CAF50) else Color(0xFFFF9800)
             )
         }
@@ -184,7 +184,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "🧠",
                 value = state.totalKnowledge.toString(),
-                label = "English Text",
+                label = "Knowledge entries",
                 color = Color(0xFF9C27B0)
             )
         }
@@ -192,7 +192,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
             MiniStatCard(
                 icon = "🔧",
                 value = state.sessionToolCount.toString(),
-                label = "/",
+                label = "Tools this session",
                 color = Color(0xFF00BCD4)
             )
         }
@@ -201,7 +201,7 @@ private fun StatsHeaderRow(state: AgentBrainUiState) {
                 MiniStatCard(
                     icon = "⚠️",
                     value = state.problematicTools.size.toString(),
-                    label = "English Text",
+                    label = "Tools with failures",
                     color = Color(0xFFF44336)
                 )
             }
@@ -547,12 +547,12 @@ private fun KnowledgeEntryCard(
                             validationError = "  :      0.0  1.0"
                         }
                     }
-                ) { Text("English Text") }
+                ) { Text("Save changes") }
             },
             dismissButton = {
-                TextButton(onClick = { showEditDialog = false }) { Text("English Text") }
+                TextButton(onClick = { showEditDialog = false }) { Text("Cancel") }
             },
-            title = { Text(" ") },
+            title = { Text("Edit knowledge") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
@@ -760,10 +760,10 @@ private fun LearningProgressCard(totalExecutions: Int, successRate: Float) {
                 Text("🎯 Learning Level", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 Text(
                     text = when {
-                        totalExecutions < 20 -> "English Text"
-                        totalExecutions < 100 -> "English Text"
-                        totalExecutions < 500 -> "English Text"
-                        else -> "English Text"
+                        totalExecutions < 20 -> "Getting started"
+                        totalExecutions < 100 -> "Building experience"
+                        totalExecutions < 500 -> "Experienced"
+                        else -> "Extensive history"
                     },
                     fontWeight = FontWeight.Bold,
                     color = progressColor,
@@ -801,7 +801,7 @@ private fun EnvironmentRow(name: String, available: Boolean) {
             containerColor = if (available) Color(0xFF4CAF50) else Color(0xFF9E9E9E)
         ) {
             Text(
-                if (available) "English Text" else " ",
+                if (available) "Available" else "Unavailable",
                 fontSize = 10.sp,
                 color = Color.White,
                 modifier = Modifier.padding(horizontal = 4.dp)

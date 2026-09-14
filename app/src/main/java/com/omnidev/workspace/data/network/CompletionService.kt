@@ -13,6 +13,7 @@ import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.EncodeDefault
@@ -116,6 +117,7 @@ private data class AnthropicStreamContentBlock(
 private data class AnthropicStreamDelta(
     val type: String = "",
     val text: String? = null,
+    val thinking: String? = null,
     @SerialName("partial_json") val partialJson: String? = null,
     @SerialName("stop_reason") val stopReason: String? = null
 )
@@ -129,12 +131,17 @@ private data class OpenAiRequest(
     @SerialName("max_tokens") val maxTokens: Int? = null,
     val temperature: Double? = null,
     val stream: Boolean = false,
+    @SerialName("stream_options") val streamOptions: Map<String, Boolean>? = null,
     val tools: List<OpenAiToolDef>? = null,
     @SerialName("tool_choice") val toolChoice: String? = null
 )
 
 @Serializable
-private data class OpenAiMessage(val role: String, val content: JsonElement)
+private data class OpenAiMessage(
+    val role: String, val content: JsonElement,
+    @SerialName("tool_calls") val toolCalls: List<OpenAiToolCall>? = null,
+    @SerialName("tool_call_id") val toolCallId: String? = null
+)
 
 @Serializable
 private data class OpenAiResponse(
@@ -152,6 +159,8 @@ private data class OpenAiChoice(
 private data class OpenAiResponseMessage(
     val role: String,
     val content: String? = null,
+    @SerialName("reasoning_content") val reasoningContent: String? = null,
+    val thought: String? = null,
     @SerialName("tool_calls") val toolCalls: List<OpenAiToolCall>? = null
 )
 
@@ -212,6 +221,8 @@ private data class OpenAiStreamChoice(
 @Serializable
 private data class OpenAiStreamDelta(
     val content: String? = null,
+    @SerialName("reasoning_content") val reasoningContent: String? = null,
+    val thought: String? = null,
     @SerialName("tool_calls") val toolCalls: List<OpenAiStreamToolCallDelta>? = null
 )
 
@@ -243,11 +254,20 @@ private data class OpenAiStreamToolCallFunctionDelta(
  * populated, the content is sent as a multi-part content array (images + text)
  * following the provider's specification.
  */
-class CompletionService {
+class CompletionService(
+    private val settingsRepository: com.omnidev.workspace.data.repository.SettingsRepository? = null
+) {
 
     companion object {
         private const val CONNECT_TIMEOUT_MS = 30_000
         private const val READ_TIMEOUT_MS    = 120_000
+    }
+
+    private suspend fun endpointFor(request: CompletionRequest, provider: ModelProvider): String {
+        if (provider != ModelProvider.CUSTOM_OPENAI) return baseUrlFor(provider)
+        val raw = request.customBaseUrl ?: settingsRepository?.observeCustomOpenAiBaseUrl()?.first()
+            ?: throw IOException("Set the custom provider base URL in Providers.")
+        return ProviderEndpoint.normalize(raw)
     }
 
     // ── Retry helper ──────────────────────────────────────────────────────────
@@ -328,6 +348,9 @@ class CompletionService {
         ModelProvider.GITHUB_COPILOT -> "https://api.githubcopilot.com"
         ModelProvider.GITHUB_MODELS  -> "https://models.inference.ai.azure.com"
         ModelProvider.OPEN_ROUTER   -> "https://openrouter.ai/api/v1"
+        ModelProvider.ZENMUX -> "https://zenmux.ai/api/v1"
+        ModelProvider.Z_AI -> "https://api.z.ai/api/paas/v4"
+        ModelProvider.CUSTOM_OPENAI -> error("Custom provider requires a configured base URL")
         ModelProvider.LOCAL_EDGE    -> "http://localhost"
     }
 
@@ -419,6 +442,35 @@ class CompletionService {
 
     // ── Anthropic Messages API ────────────────────────────────────────────────
 
+    private fun anthropicSystem(request: CompletionRequest): String =
+        (listOfNotNull(request.systemPrompt) + request.messages.filter { it.role == MessageRole.SYSTEM }.map { it.content }).joinToString("\n\n")
+
+    private fun anthropicMessages(request: CompletionRequest): List<AnthropicMessage> =
+        request.messages.filter { it.role != MessageRole.SYSTEM }.map { msg ->
+            val blocks = buildJsonArray {
+                if (msg.content.isNotBlank() && msg.role != MessageRole.TOOL) {
+                    add(buildJsonObject { put("type", "text"); put("text", msg.content) })
+                }
+                msg.attachments.filter { it.mediaType == AttachmentMediaType.IMAGE && it.base64Data != null }.forEach { img ->
+                    add(buildJsonObject { put("type", "image"); putJsonObject("source") {
+                        put("type", "base64"); put("media_type", img.mimeType); put("data", img.base64Data!!)
+                    } })
+                }
+                msg.toolCalls.forEach { call -> add(buildJsonObject {
+                    put("type", "tool_use"); put("id", call.id); put("name", call.name)
+                    putJsonObject("input") { call.arguments.forEach { (key, value) ->
+                        put(key, JsonPrimitive(value))
+                    } }
+                }) }
+                msg.toolResults.forEach { result -> add(buildJsonObject {
+                    put("type", "tool_result"); put("tool_use_id", result.toolCallId)
+                    put("content", result.output); put("is_error", result.isError)
+                }) }
+                if (msg.content.isBlank() && msg.attachments.isEmpty() && msg.toolCalls.isEmpty() && msg.toolResults.isEmpty()) add(buildJsonObject { put("type", "text"); put("text", msg.content.ifBlank { "(empty message)" }) })
+            }
+            AnthropicMessage(if (msg.role == MessageRole.ASSISTANT) "assistant" else "user", blocks)
+        }
+
     private suspend fun callAnthropic(
         request: CompletionRequest,
         provider: ModelProvider,
@@ -426,49 +478,7 @@ class CompletionService {
     ): CompletionResponse {
         val url = URL("${baseUrlFor(provider)}/v1/messages")
 
-        val messages = run {
-            val ephemeral = buildJsonObject { put("type", "ephemeral") }
-            val raw = request.messages
-                .filter { it.role != MessageRole.SYSTEM }
-                .map { msg ->
-                    val role = when (msg.role) {
-                        MessageRole.USER, MessageRole.TOOL -> "user"
-                        else -> "assistant"
-                    }
-                    // Build multi-part content when the message has inline image attachments
-                    val images = msg.attachments.filter {
-                        it.mediaType == AttachmentMediaType.IMAGE && it.base64Data != null
-                    }
-                    val content: JsonElement = if (images.isEmpty()) {
-                        JsonPrimitive(msg.content)
-                    } else {
-                        buildJsonArray {
-                            images.forEach { img ->
-                                add(buildJsonObject {
-                                    put("type", "image")
-                                    put("source", buildJsonObject {
-                                        put("type", "base64")
-                                        put("media_type", img.mimeType)
-                                        put("data", requireNotNull(img.base64Data) {
-                                            "base64Data must be non-null for images filtered into vision payload"
-                                        })
-                                    })
-                                })
-                            }
-                            add(buildJsonObject {
-                                put("type", "text")
-                                put("text", msg.content)
-                            })
-                        }
-                    }
-                    AnthropicMessage(role = role, content = content)
-                }
-            // Prompt caching: mark the last message as ephemeral so the cache
-            // boundary falls at the end of the current conversation turn.
-            if (raw.isNotEmpty()) {
-                raw.dropLast(1) + raw.last().copy(cacheControl = ephemeral)
-            } else raw
-        }
+        val messages = anthropicMessages(request)
 
         val anthropicTools = request.tools?.map { it.toAnthropicToolDef() }
 
@@ -478,7 +488,7 @@ class CompletionService {
                 model = request.modelId.substringAfter("::"),
                 maxTokens = request.maxTokens,
                 messages = messages,
-                system = request.systemPrompt,
+                system = anthropicSystem(request),
                 tools = anthropicTools
             )
         )
@@ -524,57 +534,49 @@ class CompletionService {
 
     // ── OpenAI-compatible Chat Completions API ────────────────────────────────
 
+    private fun openAiMessages(request: CompletionRequest): List<OpenAiMessage> = buildList {
+        request.systemPrompt?.let { add(OpenAiMessage("system", JsonPrimitive(it))) }
+        request.messages.forEach { msg ->
+            if (msg.role == MessageRole.TOOL) {
+                msg.toolResults.forEach { result ->
+                    add(OpenAiMessage("tool", JsonPrimitive(result.output), toolCallId = result.toolCallId))
+                }
+                if (msg.toolResults.isEmpty()) add(OpenAiMessage("user", JsonPrimitive(msg.content)))
+            } else {
+                val images = msg.attachments.filter { it.mediaType == AttachmentMediaType.IMAGE && it.base64Data != null }
+                val content = if (images.isEmpty()) JsonPrimitive(msg.content) else buildJsonArray {
+                    add(buildJsonObject { put("type", "text"); put("text", msg.content) })
+                    images.forEach { img -> add(buildJsonObject {
+                        put("type", "image_url")
+                        putJsonObject("image_url") { put("url", "data:${img.mimeType};base64,${img.base64Data}") }
+                    }) }
+                }
+                val calls = msg.toolCalls.takeIf { it.isNotEmpty() }?.map { call ->
+                    OpenAiToolCall(call.id, function = OpenAiToolCallFunction(call.name,
+                        buildJsonObject { call.arguments.forEach { (key, value) ->
+                            put(key, JsonPrimitive(value))
+                        } }.toString()))
+                }
+                add(OpenAiMessage(msg.role.name.lowercase(java.util.Locale.ROOT), content, toolCalls = calls))
+            }
+        }
+    }
+
     private suspend fun callOpenAiCompatible(
         request: CompletionRequest,
         provider: ModelProvider,
         apiKey: String
     ): CompletionResponse {
-        val url = URL("${baseUrlFor(provider)}/chat/completions")
+        val url = URL("${endpointFor(request, provider)}/chat/completions")
 
-        val messages = buildList {
-            request.systemPrompt?.let {
-                add(OpenAiMessage("system", JsonPrimitive(it)))
-            }
-            addAll(request.messages.map { msg ->
-                val role = when (msg.role) {
-                    MessageRole.SYSTEM    -> "system"
-                    MessageRole.ASSISTANT -> "assistant"
-                    else                  -> "user"
-                }
-                // Build multi-part content when the message has inline image attachments
-                val images = msg.attachments.filter {
-                    it.mediaType == AttachmentMediaType.IMAGE && it.base64Data != null
-                }
-                val content: JsonElement = if (images.isEmpty()) {
-                    JsonPrimitive(msg.content)
-                } else {
-                    buildJsonArray {
-                        images.forEach { img ->
-                            add(buildJsonObject {
-                                put("type", "image_url")
-                                put("image_url", buildJsonObject {
-                                    put("url", "data:${img.mimeType};base64,${requireNotNull(img.base64Data) {
-                                        "base64Data must be non-null for images filtered into vision payload"
-                                    }}")
-                                })
-                            })
-                        }
-                        add(buildJsonObject {
-                            put("type", "text")
-                            put("text", msg.content)
-                        })
-                    }
-                }
-                OpenAiMessage(role = role, content = content)
-            })
-        }
+        val messages = openAiMessages(request)
 
         val openAiTools = request.tools?.map { it.toOpenAiToolDef() }
 
         // GitHub Models uses a "github/" prefix in registry IDs for uniqueness;
         // strip it before sending to the Azure inference endpoint.
         // GitHub Copilot uses a "copilot/" prefix similarly; strip before sending to api.githubcopilot.com.
-        val rawModelId = request.modelId.substringAfter("::")
+        val rawModelId = request.customModelId ?: request.modelId.substringAfter("::")
         val apiModelId = when (provider) {
             ModelProvider.GITHUB_MODELS  -> rawModelId.removePrefix("github/")
             ModelProvider.GITHUB_COPILOT -> rawModelId.removePrefix("copilot/")
@@ -626,6 +628,7 @@ class CompletionService {
         return CompletionResponse(
             content = choice?.message?.content ?: "",
             toolCalls = toolCalls,
+            thinkingContent = choice?.message?.reasoningContent ?: choice?.message?.thought,
             finishReason = choice?.finishReason,
             tokensUsed = parsed.usage?.let {
                 TokenUsage(
@@ -671,9 +674,9 @@ class CompletionService {
             )
 
         if (model.provider == ModelProvider.ANTHROPIC) {
-            withRetry { streamAnthropic(request, model.provider, apiKey, onChunk) }
+            streamAnthropic(request, model.provider, apiKey, onChunk)
         } else {
-            withRetry { streamOpenAiCompatible(request, model.provider, apiKey, onChunk) }
+            streamOpenAiCompatible(request, model.provider, apiKey, onChunk)
         }
     }
 
@@ -683,42 +686,14 @@ class CompletionService {
         apiKey: String,
         onChunk: suspend (String) -> Unit
     ): CompletionResponse {
-        val url = URL("${baseUrlFor(provider)}/chat/completions")
+        val url = URL("${endpointFor(request, provider)}/chat/completions")
 
-        val messages = buildList {
-            request.systemPrompt?.let { add(OpenAiMessage("system", JsonPrimitive(it))) }
-            addAll(request.messages.map { msg ->
-                val role = when (msg.role) {
-                    MessageRole.SYSTEM    -> "system"
-                    MessageRole.ASSISTANT -> "assistant"
-                    else                  -> "user"
-                }
-                val images = msg.attachments.filter {
-                    it.mediaType == AttachmentMediaType.IMAGE && it.base64Data != null
-                }
-                val content: JsonElement = if (images.isEmpty()) {
-                    JsonPrimitive(msg.content)
-                } else {
-                    buildJsonArray {
-                        images.forEach { img ->
-                            add(buildJsonObject {
-                                put("type", "image_url")
-                                put("image_url", buildJsonObject {
-                                    put("url", "data:${img.mimeType};base64,${img.base64Data!!}")
-                                })
-                            })
-                        }
-                        add(buildJsonObject { put("type", "text"); put("text", msg.content) })
-                    }
-                }
-                OpenAiMessage(role = role, content = content)
-            })
-        }
+        val messages = openAiMessages(request)
 
         // GitHub Models uses a "github/" prefix in registry IDs for uniqueness;
         // strip it before sending to the Azure inference endpoint.
         // GitHub Copilot uses a "copilot/" prefix similarly; strip before sending to api.githubcopilot.com.
-        val rawModelId = request.modelId.substringAfter("::")
+        val rawModelId = request.customModelId ?: request.modelId.substringAfter("::")
         val apiModelIdStream = when (provider) {
             ModelProvider.GITHUB_MODELS  -> rawModelId.removePrefix("github/")
             ModelProvider.GITHUB_COPILOT -> rawModelId.removePrefix("copilot/")
@@ -735,6 +710,7 @@ class CompletionService {
                 maxTokens = request.maxTokens,
                 temperature = request.temperature,
                 stream = true,
+                streamOptions = mapOf("include_usage" to true),
                 tools = openAiToolsStream,
                 toolChoice = if (openAiToolsStream != null) "auto" else null
             )
@@ -783,7 +759,10 @@ class CompletionService {
             throw IOException(friendlyMessage)
         }
 
+        var finished = false
+        var finishReason: String? = null
         val fullContent = StringBuilder()
+        val fullReasoning = StringBuilder()
         var totalTokens: OpenAiUsage? = null
         // Tool call accumulation: indexed by tool call index
         val tcIds   = mutableMapOf<Int, String>()
@@ -796,13 +775,20 @@ class CompletionService {
                 val l = line!!
                 if (!l.startsWith("data: ")) continue
                 val data = l.removePrefix("data: ").trim()
-                if (data == "[DONE]") break
+                if (data == "[DONE]") { finished = true; break }
                 try {
+                    if (json.parseToJsonElement(data).jsonObject["error"] != null) throw IOException("Provider reported a streaming error.")
                     val chunk = json.decodeFromString(OpenAiStreamChunk.serializer(), data)
                     if (chunk.usage != null) {
                         totalTokens = chunk.usage
                     }
                     val choice = chunk.choices.firstOrNull() ?: continue
+                    choice.finishReason?.let { finishReason = it; finished = true }
+                    val reasoning = choice.delta.reasoningContent ?: choice.delta.thought
+                    if (!reasoning.isNullOrEmpty()) {
+                        fullReasoning.append(reasoning)
+                        request.onReasoning?.invoke(reasoning)
+                    }
                     // Accumulate text content
                     val textDelta = choice.delta.content
                     if (!textDelta.isNullOrEmpty()) {
@@ -824,6 +810,7 @@ class CompletionService {
             }
         }
         conn.disconnect()
+        if (!finished) throw IOException("Provider stream ended before a finish event.")
 
         val toolCalls = tcIds.keys.sorted().map { idx ->
             ToolCall(
@@ -835,8 +822,9 @@ class CompletionService {
 
         return CompletionResponse(
             content      = fullContent.toString(),
+            thinkingContent = fullReasoning.toString().ifBlank { null },
             toolCalls    = toolCalls,
-            finishReason = "stop",
+            finishReason = finishReason,
             tokensUsed   = totalTokens?.let { TokenUsage(it.promptTokens, it.completionTokens, it.totalTokens) }
         )
     }
@@ -849,44 +837,7 @@ class CompletionService {
     ): CompletionResponse {
         val url = URL("${baseUrlFor(provider)}/v1/messages")
 
-        val messages = run {
-            val ephemeral = buildJsonObject { put("type", "ephemeral") }
-            val raw = request.messages
-                .filter { it.role != MessageRole.SYSTEM }
-                .map { msg ->
-                    val role = when (msg.role) {
-                        MessageRole.USER, MessageRole.TOOL -> "user"
-                        else -> "assistant"
-                    }
-                    val images = msg.attachments.filter {
-                        it.mediaType == AttachmentMediaType.IMAGE && it.base64Data != null
-                    }
-                    val content: JsonElement = if (images.isEmpty()) {
-                        JsonPrimitive(msg.content)
-                    } else {
-                        buildJsonArray {
-                            images.forEach { img ->
-                                add(buildJsonObject {
-                                    put("type", "image")
-                                    put("source", buildJsonObject {
-                                        put("type", "base64")
-                                        put("media_type", img.mimeType)
-                                        put("data", img.base64Data!!)
-                                    })
-                                })
-                            }
-                            add(buildJsonObject { put("type", "text"); put("text", msg.content) })
-                        }
-                    }
-                    AnthropicMessage(role = role, content = content)
-                }
-            // Prompt caching: mark the last message as ephemeral.
-            if (raw.isNotEmpty()) {
-                raw.dropLast(1) + raw.last().copy(cacheControl = ephemeral)
-            } else {
-                raw
-            }
-        }
+        val messages = anthropicMessages(request)
 
         val anthropicTools = request.tools?.map { it.toAnthropicToolDef() }
 
@@ -896,7 +847,7 @@ class CompletionService {
                 model = request.modelId.substringAfter("::"),
                 maxTokens = request.maxTokens,
                 messages = messages,
-                system = request.systemPrompt,
+                system = anthropicSystem(request),
                 stream = true,
                 tools = anthropicTools
             )
@@ -933,6 +884,8 @@ class CompletionService {
         }
 
         val fullContent = StringBuilder()
+        val fullReasoning = StringBuilder()
+        var finished = false
         // Tool-use accumulation: indexed by content block index
         val toolUseIds   = mutableMapOf<Int, String>()
         val toolUseNames = mutableMapOf<Int, String>()
@@ -955,6 +908,8 @@ class CompletionService {
                         inputTokens += event.usage.inputTokens
                         outputTokens += event.usage.outputTokens
                     }
+                    if (event.type == "message_stop") finished = true
+                    if (event.type == "error") throw IOException("Provider reported an error during streaming.")
                     when (event.type) {
                         "content_block_start" -> {
                             val block = event.contentBlock
@@ -968,6 +923,9 @@ class CompletionService {
                             val idx = event.index ?: 0
                             val delta = event.delta
                             when (delta?.type) {
+                                "thinking_delta" -> {
+                                    delta.thinking?.let { fullReasoning.append(it); request.onReasoning?.invoke(it) }
+                                }
                                 "text_delta" -> {
                                     val text = delta.text
                                     if (!text.isNullOrEmpty()) {
@@ -988,6 +946,7 @@ class CompletionService {
             }
         }
         conn.disconnect()
+        if (!finished) throw IOException("Provider stream ended before message_stop.")
 
         val toolCalls = toolUseIds.keys.sorted().map { idx ->
             ToolCall(
@@ -999,6 +958,7 @@ class CompletionService {
 
         return CompletionResponse(
             content      = fullContent.toString(),
+            thinkingContent = fullReasoning.toString().ifBlank { null },
             toolCalls    = toolCalls,
             finishReason = "end_turn",
             tokensUsed   = if (inputTokens > 0 || outputTokens > 0) TokenUsage(inputTokens, outputTokens, inputTokens + outputTokens) else null

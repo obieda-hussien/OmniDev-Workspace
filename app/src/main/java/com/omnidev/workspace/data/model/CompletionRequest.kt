@@ -94,7 +94,8 @@ data class CompletionRequest(
      */
     val tools: List<ToolDefinition>? = null,
     val customBaseUrl: String? = null,
-    val customModelId: String? = null
+    val customModelId: String? = null,
+    @kotlinx.serialization.Transient val onReasoning: (suspend (String) -> Unit)? = null
 )
 
 /**

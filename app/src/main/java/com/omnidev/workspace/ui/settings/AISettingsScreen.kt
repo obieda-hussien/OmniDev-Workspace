@@ -683,7 +683,7 @@ private fun GodModeCard(
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "God Mode (All Files Access)",
+                    text = "God Mode (Extended File Access)",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = if (enabled) MaterialTheme.colorScheme.error
@@ -691,9 +691,9 @@ private fun GodModeCard(
                 )
                 Text(
                     text = if (enabled)
-                        "⚠️ ACTIVE — AI can read/write anywhere on the filesystem. Every action requires your explicit confirmation."
+                        "Extended file tools are enabled. Android permissions and the connected Shizuku or root backend still determine which paths are accessible."
                     else
-                        "Bypass the Target Context restriction. Requires MANAGE_EXTERNAL_STORAGE. Every privileged action triggers a confirmation gate.",
+                        "Allow file tools outside the selected project. Protected Android paths need a supported privileged backend; this setting does not grant root access.",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (enabled) MaterialTheme.colorScheme.error
                             else MaterialTheme.colorScheme.onSurfaceVariant

@@ -1,5 +1,11 @@
 package com.omnidev.workspace.data.tools
 
+import com.omnidev.workspace.data.db.dao.ScheduledTaskDao
+import com.omnidev.workspace.data.db.entities.ScheduledTaskEntity
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
+import kotlinx.serialization.json.Json
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,14 +39,17 @@ object TaskSchedulerTool {
 
     // ── Enumerations ─────────────────────────────────────────────────────
 
+    @Serializable
     enum class TaskStatus {
         PENDING, RUNNING, COMPLETED, FAILED, CANCELLED, PAUSED, WAITING_DEPENDENCY
     }
 
+    @Serializable
     enum class TaskPriority(val label: String, val order: Int) {
         LOW("Low", 3), NORMAL("Normal", 2), HIGH("High", 1), CRITICAL("Critical", 0)
     }
 
+    @Serializable
     enum class RecurrenceType {
         ONCE, INTERVAL_MINUTES, DAILY, WEEKLY, MONTHLY, CRON
     }
@@ -101,6 +110,7 @@ object TaskSchedulerTool {
 
     // ── Execution Summary ─────────────────────────────────────────────────
 
+    @Serializable
     data class ExecutionSummary(
         val taskId: String,
         val taskName: String = "",
@@ -116,14 +126,15 @@ object TaskSchedulerTool {
         val durationMs: Long get() = endTimeMs - startTimeMs
         val durationSec: Long get() = durationMs / 1000
 
+        @Transient
         private val timeFmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
         fun toNotificationTitle(): String =
-            if (isSuccess) "✅ ${taskName.take(40)}" else "❌ فشلت: ${taskName.take(35)}"
+            if (isSuccess) "✅ ${taskName.take(40)}" else "❌ Failed: ${taskName.take(35)}"
 
         fun toNotificationBody(): String = buildString {
-            appendLine("⏱ بدأ: ${timeFmt.format(Date(startTimeMs))} | انتهى: ${timeFmt.format(Date(endTimeMs))} (${durationSec}s)")
-            appendLine("🛠 أدوات: $toolsUsed | تكرارات: $iterationsUsed")
+            appendLine("⏱ Started: ${timeFmt.format(Date(startTimeMs))} | Finished: ${timeFmt.format(Date(endTimeMs))} (${durationSec}s)")
+            appendLine("🛠 Tools: $toolsUsed | Iterations: $iterationsUsed")
             if (toolNames.isNotEmpty()) {
                 appendLine("📋 ${toolNames.distinct().take(4).joinToString(", ")}${if(toolNames.distinct().size > 4) "..." else ""}")
             }
@@ -165,6 +176,7 @@ object TaskSchedulerTool {
 
     // ── Data Model ───────────────────────────────────────────────────────
 
+    @Serializable
     data class ScheduledTask(
         val id: String,
         val name: String,
@@ -205,7 +217,60 @@ object TaskSchedulerTool {
     private val _tasksFlow = MutableStateFlow<List<ScheduledTask>>(emptyList())
     val tasksFlow: StateFlow<List<ScheduledTask>> = _tasksFlow.asStateFlow()
 
-    private fun notifyChanged() { _tasksFlow.value = tasks.toList() }
+    private val stateCodec = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    private var taskDao: ScheduledTaskDao? = null
+
+    /** Restore once per process, before exposing the scheduler to UI or services. */
+    @Synchronized
+    fun initialize(dao: ScheduledTaskDao) {
+        if (taskDao != null) return
+        val restored = runBlocking(Dispatchers.IO) { dao.getAll() }.map(::fromEntity)
+        tasks.clear()
+        tasks.addAll(restored)
+        taskDao = dao
+        notifyChanged()
+    }
+
+    internal fun fromEntity(entity: ScheduledTaskEntity): ScheduledTask {
+        val task = if (entity.stateJson.isNotBlank()) {
+            stateCodec.decodeFromString(ScheduledTask.serializer(), entity.stateJson)
+        } else {
+            ScheduledTask(
+                id = entity.id, name = entity.prompt.take(60), prompt = entity.prompt,
+                scheduledTimeMillis = entity.nextExecutionTime, createdAtMillis = entity.createdAt,
+                recurrenceType = if (entity.isRecurring) RecurrenceType.INTERVAL_MINUTES else RecurrenceType.ONCE,
+                repeatIntervalMinutes = if (entity.isRecurring) (entity.repeatIntervalMs / 60_000).toInt() else null,
+                status = TaskStatus.valueOf(entity.status), lastResult = entity.lastExecutionResult
+            )
+        }
+        return if (task.status == TaskStatus.RUNNING) task.copy(
+            status = TaskStatus.PAUSED, startedAtMillis = null,
+            lastResult = "Interrupted by app restart. Review the previous run before resuming to avoid repeating actions."
+        ) else task
+    }
+
+    internal fun toEntity(task: ScheduledTask) = ScheduledTaskEntity(
+        id = task.id, prompt = task.prompt, initialDelayMs = 0,
+        repeatIntervalMs = (task.repeatIntervalMinutes?.toLong() ?: 0) * 60_000,
+        isRecurring = task.recurrenceType != RecurrenceType.ONCE,
+        createdAt = task.createdAtMillis, nextExecutionTime = task.scheduledTimeMillis,
+        status = task.status.name, allowWakeLock = true, lastExecutionResult = task.lastResult,
+        stateJson = stateCodec.encodeToString(ScheduledTask.serializer(), task)
+    )
+
+    /** Commit before reporting success; never silently accept a memory-only mutation. */
+    @Synchronized
+    private fun notifyChanged() {
+        val snapshot = tasks.toList()
+        try {
+            taskDao?.let { dao -> runBlocking(Dispatchers.IO) { dao.replaceSnapshot(snapshot.map(::toEntity)) } }
+        } catch (error: Exception) {
+            tasks.clear()
+            tasks.addAll(_tasksFlow.value)
+            throw error
+        }
+        _tasksFlow.value = snapshot
+    }
 
     // ── Tool Schema ───────────────────────────────────────────────────────
 
@@ -368,8 +433,9 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
 
     // ── Lifecycle (Called by OmniSyncService) ─────────────────────────────
 
+    @Synchronized
     fun getReadyTasks(): List<ScheduledTask> {
-        val completedIds = tasks.filter { it.status == TaskStatus.COMPLETED }.map { it.id }.toSet()
+        val completedIds = tasks.filter { (it.status == TaskStatus.COMPLETED || it.runCount > 0) }.map { it.id }.toSet()
         for (i in tasks.indices) {
             val t = tasks[i]
             if (t.status == TaskStatus.WAITING_DEPENDENCY && t.dependsOn.all { it in completedIds }) {
@@ -382,6 +448,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
             .sortedWith(compareBy({ it.priority.order }, { it.scheduledTimeMillis }))
     }
 
+    @Synchronized
     fun markRunning(taskId: String, executionDetails: String? = null) {
         val idx = tasks.indexOfFirst { it.id == taskId }
         if (idx != -1) {
@@ -394,6 +461,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         }
     }
 
+    @Synchronized
     fun markCompleted(taskId: String, result: String, summary: ExecutionSummary? = null) {
         val idx = tasks.indexOfFirst { it.id == taskId }
         if (idx != -1) {
@@ -419,6 +487,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         }
     }
 
+    @Synchronized
     fun markFailed(taskId: String, error: String, summary: ExecutionSummary? = null) {
         val idx = tasks.indexOfFirst { it.id == taskId }
         if (idx == -1) return
@@ -442,36 +511,32 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         // Auto-retry
         if (t.retryCount < t.maxRetries) {
             val backoffMs = (1L shl t.retryCount.coerceAtMost(6)) * 60_000L
-            tasks.add(t.copy(
-                id = UUID.randomUUID().toString(),
+            tasks[idx] = tasks[idx].copy(
                 scheduledTimeMillis = System.currentTimeMillis() + backoffMs,
                 status = TaskStatus.PENDING,
                 retryCount = t.retryCount + 1,
                 lastResult = null,
                 startedAtMillis = null,
                 completedAtMillis = null
-            ))
+            )
             notifyChanged()
         }
     }
 
+    @Synchronized
     fun rescheduleRepeating(taskId: String) {
-        val task = tasks.find { it.id == taskId } ?: return
+        val index = tasks.indexOfFirst { it.id == taskId }
+        if (index < 0) return
+        val task = tasks[index]
+        if (task.status != TaskStatus.COMPLETED) return
         val nextSchedule = computeNextScheduledTime(task) ?: return
         if (task.maxRuns != null && task.runCount >= task.maxRuns) return
-        tasks.add(task.copy(
-            id = UUID.randomUUID().toString(),
-            scheduledTimeMillis = nextSchedule,
-            status = TaskStatus.PENDING,
-            lastResult = null,
-            startedAtMillis = null,
-            completedAtMillis = null,
-            executionSummaries = task.executionSummaries // Carry forward history
-        ))
-        tasks.removeAll { it.id == taskId }
+        tasks[index] = task.copy(scheduledTimeMillis = nextSchedule,
+            status = TaskStatus.PENDING, retryCount = 0, startedAtMillis = null, completedAtMillis = null)
         notifyChanged()
     }
 
+    @Synchronized
     fun getTimeoutDeadlineMillis(taskId: String): Long? {
         val t = tasks.find { it.id == taskId } ?: return null
         val started = t.startedAtMillis ?: return null
@@ -481,6 +546,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
 
     // ── Action Implementations ────────────────────────────────────────────
 
+    @Synchronized
     private fun scheduleTask(
         name: String?, prompt: String?, delayMinutes: Int, priority: TaskPriority,
         tags: List<String>, maxRetries: Int, timeoutMinutes: Int?, maxRuns: Int?,
@@ -488,6 +554,13 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         repeatIntervalMinutes: Int?, recurrenceType: RecurrenceType,
         cronExpression: String?, timeOfDay: String?, dayOfWeek: Int?, dayOfMonth: Int?
     ): ToolExecutionResult {
+        require(delayMinutes >= 0 && maxRetries >= 0) { "Delay and retries must not be negative." }
+        require(timeoutMinutes == null || timeoutMinutes > 0) { "Timeout must be positive." }
+        require(maxRuns == null || maxRuns > 0) { "Maximum runs must be positive." }
+        require(repeatIntervalMinutes == null || repeatIntervalMinutes > 0) { "Repeat interval must be positive." }
+        require(timeOfDay == null || parseTimeOfDay(timeOfDay) != null) { "Time must use HH:mm." }
+        require(dayOfWeek == null || dayOfWeek in 1..7) { "Weekday must be 1 through 7." }
+        require(dayOfMonth == null || dayOfMonth in 1..31) { "Day of month must be 1 through 31." }
         if (name.isNullOrBlank()) return ToolExecutionResult("'name' is required.", isError = true)
         if (prompt.isNullOrBlank()) return ToolExecutionResult("'prompt' is required.", isError = true)
         if (cronExpression != null && !isValidCron(cronExpression))
@@ -541,6 +614,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         }.trimEnd())
     }
 
+    @Synchronized
     private fun listTasks(): ToolExecutionResult {
         if (tasks.isEmpty()) return ToolExecutionResult("No scheduled tasks.")
         val fmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
@@ -555,6 +629,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         }.trimEnd())
     }
 
+    @Synchronized
     private fun cancelTask(taskId: String?): ToolExecutionResult {
         if (taskId.isNullOrBlank()) return ToolExecutionResult("'taskId' required.", isError = true)
         val idx = tasks.indexOfFirst { it.id == taskId }
@@ -564,6 +639,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         return ToolExecutionResult("🚫 Task '${tasks[idx].name}' cancelled.")
     }
 
+    @Synchronized
     private fun taskStatus(taskId: String?): ToolExecutionResult {
         if (taskId.isNullOrBlank()) return ToolExecutionResult("'taskId' required.", isError = true)
         val task = tasks.find { it.id == taskId }
@@ -572,6 +648,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         return ToolExecutionResult(formatTaskSummary(task, fmt, verbose = true))
     }
 
+    @Synchronized
     private fun getExecutionSummary(taskId: String?): ToolExecutionResult {
         if (taskId.isNullOrBlank()) return ToolExecutionResult("'taskId' required.", isError = true)
         val task = tasks.find { it.id == taskId }
@@ -590,6 +667,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         }.trimEnd())
     }
 
+    @Synchronized
     private fun pauseTask(taskId: String?): ToolExecutionResult {
         if (taskId.isNullOrBlank()) return ToolExecutionResult("'taskId' required.", isError = true)
         val idx = tasks.indexOfFirst { it.id == taskId }
@@ -602,13 +680,14 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         return ToolExecutionResult("⏸️ Task '${t.name}' paused.")
     }
 
+    @Synchronized
     private fun resumeTask(taskId: String?): ToolExecutionResult {
         if (taskId.isNullOrBlank()) return ToolExecutionResult("'taskId' required.", isError = true)
         val idx = tasks.indexOfFirst { it.id == taskId }
         if (idx == -1) return ToolExecutionResult("Task not found: $taskId", isError = true)
         val t = tasks[idx]
         if (t.status != TaskStatus.PAUSED) return ToolExecutionResult("Task not paused.", isError = true)
-        val completedIds = tasks.filter { it.status == TaskStatus.COMPLETED }.map { it.id }.toSet()
+        val completedIds = tasks.filter { (it.status == TaskStatus.COMPLETED || it.runCount > 0) }.map { it.id }.toSet()
         val newStatus = if (t.dependsOn.isNotEmpty() && t.dependsOn.any { it !in completedIds })
             TaskStatus.WAITING_DEPENDENCY else TaskStatus.PENDING
         tasks[idx] = t.copy(status = newStatus)
@@ -616,6 +695,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         return ToolExecutionResult("▶️ Task '${t.name}' resumed.")
     }
 
+    @Synchronized
     private fun runNow(taskId: String?): ToolExecutionResult {
         if (taskId.isNullOrBlank()) return ToolExecutionResult("'taskId' required.", isError = true)
         val idx = tasks.indexOfFirst { it.id == taskId }
@@ -627,22 +707,18 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         return ToolExecutionResult("⚡ Task '${tasks[idx].name}' scheduled immediately.")
     }
 
+    @Synchronized
     private fun retryTask(taskId: String?): ToolExecutionResult {
         if (taskId.isNullOrBlank()) return ToolExecutionResult("'taskId' required.", isError = true)
         val t = tasks.find { it.id == taskId }
             ?: return ToolExecutionResult("Task not found: $taskId", isError = true)
         if (t.status !in setOf(TaskStatus.FAILED, TaskStatus.CANCELLED))
             return ToolExecutionResult("Can only retry FAILED or CANCELLED tasks.", isError = true)
-        val retry = t.copy(
-            id = UUID.randomUUID().toString(), scheduledTimeMillis = System.currentTimeMillis(),
-            status = TaskStatus.PENDING, retryCount = t.retryCount + 1,
-            lastResult = null, startedAtMillis = null, completedAtMillis = null
-        )
-        tasks.add(retry)
-        notifyChanged()
-        return ToolExecutionResult("🔁 Retry task created: ${retry.id} (attempt ${retry.retryCount + 1}).")
+        retryTaskById(taskId)
+        return ToolExecutionResult("Retry scheduled for ${t.id} (attempt ${t.retryCount + 2}).")
     }
 
+    @Synchronized
     private fun updateTask(taskId: String?, newName: String?, newPrompt: String?,
                            priority: TaskPriority, tags: List<String>, newTimeout: Int?): ToolExecutionResult {
         if (taskId.isNullOrBlank()) return ToolExecutionResult("'taskId' required.", isError = true)
@@ -661,6 +737,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         return ToolExecutionResult("✏️ Task '${tasks[idx].name}' updated.")
     }
 
+    @Synchronized
     private fun clearCompleted(): ToolExecutionResult {
         val before = tasks.size
         tasks.removeAll { it.status in setOf(TaskStatus.COMPLETED, TaskStatus.CANCELLED) }
@@ -669,6 +746,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         return ToolExecutionResult("🗑️ Removed $removed task(s).")
     }
 
+    @Synchronized
     private fun listByTag(tag: String?): ToolExecutionResult {
         if (tag.isNullOrBlank()) return ToolExecutionResult("'tag' required.", isError = true)
         val filtered = tasks.filter { tag.lowercase() in it.tags.map { t -> t.lowercase() } }
@@ -680,6 +758,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         }.trimEnd())
     }
 
+    @Synchronized
     private fun listByPriority(priority: TaskPriority?): ToolExecutionResult {
         if (priority == null) return ToolExecutionResult("'filterPriority' required.", isError = true)
         val filtered = tasks.filter { it.priority == priority }
@@ -693,6 +772,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         }.trimEnd())
     }
 
+    @Synchronized
     private fun setPriority(taskId: String?, priority: TaskPriority): ToolExecutionResult {
         if (taskId.isNullOrBlank()) return ToolExecutionResult("'taskId' required.", isError = true)
         val idx = tasks.indexOfFirst { it.id == taskId }
@@ -702,6 +782,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         return ToolExecutionResult("🔝 Task '${tasks[idx].name}' priority set to ${priority.label}.")
     }
 
+    @Synchronized
     private fun addTags(taskId: String?, newTags: List<String>): ToolExecutionResult {
         if (taskId.isNullOrBlank()) return ToolExecutionResult("'taskId' required.", isError = true)
         val idx = tasks.indexOfFirst { it.id == taskId }
@@ -712,6 +793,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         return ToolExecutionResult("🏷 Tags: ${merged.joinToString()}")
     }
 
+    @Synchronized
     private fun removeTags(taskId: String?, removedTags: List<String>): ToolExecutionResult {
         if (taskId.isNullOrBlank()) return ToolExecutionResult("'taskId' required.", isError = true)
         val idx = tasks.indexOfFirst { it.id == taskId }
@@ -722,6 +804,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         return ToolExecutionResult("🏷 Remaining tags: ${if(cleaned.isEmpty()) "(none)" else cleaned.joinToString()}")
     }
 
+    @Synchronized
     private fun chainTasks(taskIds: List<String>): ToolExecutionResult {
         if (taskIds.size < 2) return ToolExecutionResult("chain requires ≥2 task IDs.", isError = true)
         val notFound = taskIds.filter { id -> tasks.none { it.id == id } }
@@ -743,16 +826,25 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
 
     // ── Public List Access ────────────────────────────────────────────────
 
+    @Synchronized
     fun getAllTasks(): List<ScheduledTask> = tasks.toList()
+    @Synchronized
     fun cancelTaskById(taskId: String) { val i = tasks.indexOfFirst { it.id == taskId }; if(i != -1){tasks[i] = tasks[i].copy(status = TaskStatus.CANCELLED); notifyChanged()} }
+    @Synchronized
     fun deleteTask(taskId: String) { tasks.removeAll { it.id == taskId }; notifyChanged() }
+    @Synchronized
     fun pauseTaskById(taskId: String) { val i = tasks.indexOfFirst { it.id == taskId }; if(i != -1 && tasks[i].status in setOf(TaskStatus.PENDING, TaskStatus.WAITING_DEPENDENCY)){tasks[i] = tasks[i].copy(status = TaskStatus.PAUSED); notifyChanged()} }
+    @Synchronized
     fun resumeTaskById(taskId: String) { val i = tasks.indexOfFirst { it.id == taskId }; if(i != -1 && tasks[i].status == TaskStatus.PAUSED){val t = tasks[i]; val cids = tasks.filter{it.status==TaskStatus.COMPLETED}.map{it.id}.toSet(); tasks[i] = t.copy(status = if(t.dependsOn.isNotEmpty()&&t.dependsOn.any{it !in cids}) TaskStatus.WAITING_DEPENDENCY else TaskStatus.PENDING); notifyChanged()} }
+    @Synchronized
     fun runNowById(taskId: String) { val i = tasks.indexOfFirst { it.id == taskId }; if(i != -1){tasks[i] = tasks[i].copy(scheduledTimeMillis = System.currentTimeMillis(), status = TaskStatus.PENDING); notifyChanged()} }
+    @Synchronized
     fun getTaskById(id: String): ScheduledTask? = tasks.find { it.id == id }
 
-    fun retryTaskById(taskId: String) { val t = tasks.find { it.id == taskId } ?: return; tasks.add(t.copy(id = UUID.randomUUID().toString(), scheduledTimeMillis = System.currentTimeMillis(), status = TaskStatus.PENDING, retryCount = t.retryCount + 1, lastResult = null, startedAtMillis = null, completedAtMillis = null)); notifyChanged() }
+    @Synchronized
+    fun retryTaskById(taskId: String) { val i = tasks.indexOfFirst { it.id == taskId }; if (i < 0 || tasks[i].status == TaskStatus.RUNNING) return; val t = tasks[i]; tasks[i] = t.copy(scheduledTimeMillis = System.currentTimeMillis(), status = TaskStatus.PENDING, retryCount = t.retryCount + 1, startedAtMillis = null, completedAtMillis = null); notifyChanged() }
 
+    @Synchronized
     fun scheduleTaskDirectly(
         name: String, prompt: String, delayMinutes: Int, repeatIntervalMinutes: Int?,
         priority: TaskPriority = TaskPriority.NORMAL, tags: List<String> = emptyList(),
@@ -761,9 +853,18 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
         timeOfDay: String? = null, dayOfWeek: Int? = null, dayOfMonth: Int? = null,
         dependsOn: List<String> = emptyList(), notifyOnComplete: Boolean = true, notifyOnFail: Boolean = true
     ) {
+        require(delayMinutes >= 0 && maxRetries >= 0) { "Delay and retries must not be negative." }
+        require(timeoutMinutes == null || timeoutMinutes > 0) { "Timeout must be positive." }
+        require(maxRuns == null || maxRuns > 0) { "Maximum runs must be positive." }
+        require(repeatIntervalMinutes == null || repeatIntervalMinutes > 0) { "Repeat interval must be positive." }
+        require(timeOfDay == null || parseTimeOfDay(timeOfDay) != null) { "Time must use HH:mm." }
+        require(dayOfWeek == null || dayOfWeek in 1..7) { "Weekday must be 1 through 7." }
+        require(dayOfMonth == null || dayOfMonth in 1..31) { "Day of month must be 1 through 31." }
+        require(cronExpression == null || isValidCron(cronExpression)) { "Invalid cron expression." }
+        require(dependsOn.all { id -> tasks.any { it.id == id } }) { "Unknown task dependency." }
         val selectedRecurrence = when { cronExpression != null -> RecurrenceType.CRON; repeatIntervalMinutes != null -> RecurrenceType.INTERVAL_MINUTES; else -> recurrenceType }
         val scheduledTime = computeInitialScheduledTime(delayMinutes, selectedRecurrence, cronExpression, timeOfDay, dayOfWeek, dayOfMonth)
-        val completedIds = tasks.filter { it.status == TaskStatus.COMPLETED }.map { it.id }.toSet()
+        val completedIds = tasks.filter { (it.status == TaskStatus.COMPLETED || it.runCount > 0) }.map { it.id }.toSet()
         val initialStatus = if (dependsOn.isNotEmpty() && dependsOn.any { it !in completedIds }) TaskStatus.WAITING_DEPENDENCY else TaskStatus.PENDING
         tasks.add(ScheduledTask(
             id = UUID.randomUUID().toString(), name = name, prompt = prompt,
@@ -781,6 +882,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
 
     // ── Formatting ────────────────────────────────────────────────────────
 
+    @Synchronized
     private fun formatTaskSummary(t: ScheduledTask, fmt: SimpleDateFormat, verbose: Boolean = false): String = buildString {
         appendLine("ID:         ${t.id}")
         appendLine("Name:       ${t.name}")
@@ -815,7 +917,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
 
     private fun isValidCronField(field: String, range: IntRange): Boolean {
         if (field == "*") return true
-        if (field.startsWith("*/")) return field.substring(2).toIntOrNull() != null
+        if (field.startsWith("*/")) return field.substring(2).toIntOrNull()?.let { it > 0 && it <= range.last - range.first + 1 } == true
         return field.split(",").all { part ->
             if ("-" in part && !part.startsWith("-")) {
                 val lr = part.split("-", limit = 2)
@@ -850,7 +952,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
 
     private fun matchCronField(field: String, value: Int, range: IntRange): Boolean {
         if (field == "*") return true
-        if (field.startsWith("*/")) { val step = field.substring(2).toIntOrNull() ?: return false; return (value - range.first) % step == 0 }
+        if (field.startsWith("*/")) { val step = field.substring(2).toIntOrNull() ?: return false; return step > 0 && (value - range.first) % step == 0 }
         return field.split(",").any { part ->
             if ("-" in part && !part.startsWith("-")) { val lr = part.split("-",limit=2); val a = lr[0].toIntOrNull()?:return@any false; val b = lr[1].toIntOrNull()?:return@any false; value in a..b }
             else part.toIntOrNull() == value
@@ -873,7 +975,7 @@ Actions: schedule | list | cancel | status | pause | resume | run_now | retry |
 
     private fun computeNextScheduledTime(task: ScheduledTask): Long? = when (task.recurrenceType) {
         RecurrenceType.ONCE -> null
-        RecurrenceType.INTERVAL_MINUTES -> { val i = task.repeatIntervalMinutes ?: return null; System.currentTimeMillis() + i * 60_000L }
+        RecurrenceType.INTERVAL_MINUTES -> task.repeatIntervalMinutes?.takeIf { it > 0 }?.let { System.currentTimeMillis() + it * 60_000L }
         RecurrenceType.DAILY   -> nextDaily(Calendar.getInstance(), task.timeOfDay).timeInMillis
         RecurrenceType.WEEKLY  -> nextWeekly(Calendar.getInstance(), task.timeOfDay, task.dayOfWeek).timeInMillis
         RecurrenceType.MONTHLY -> nextMonthly(Calendar.getInstance(), task.timeOfDay, task.dayOfMonth).timeInMillis

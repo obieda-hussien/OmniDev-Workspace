@@ -1,8 +1,8 @@
 package com.omnidev.workspace.data.tools.research
 
-import com.omnidev.workspace.data.ipc.OmniCoreAgentTool
 import com.omnidev.workspace.data.tools.ToolExecutionResult
 import com.omnidev.workspace.data.tools.ToolDefinition
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
@@ -31,7 +31,9 @@ object PageFetchTool {
     suspend fun execute(url: String): ToolExecutionResult = withContext(Dispatchers.IO) {
         var connection: HttpURLConnection? = null
         try {
-            connection = URL(url).openConnection() as HttpURLConnection
+            val target = URL(url)
+            require(target.protocol == "http" || target.protocol == "https") { "Only HTTP and HTTPS URLs are supported." }
+            connection = target.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
             connection.connectTimeout = 15000
@@ -47,7 +49,21 @@ object PageFetchTool {
                 return@withContext ToolExecutionResult("Unsupported content type: $contentType. Only text/html and text/plain are supported.", isError = true)
             }
 
-            val html = connection.inputStream.bufferedReader().use { it.readText() }
+            val html = connection.inputStream.bufferedReader().use { reader ->
+                val buffer = CharArray(8192)
+                val body = StringBuilder()
+                while (true) {
+                    kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                    val count = reader.read(buffer)
+                    if (count < 0) break
+                    require(body.length + count <= 1_500_000) { "Page exceeds the 1.5 MB text limit." }
+                    body.append(buffer, 0, count)
+                }
+                body.toString()
+            }
+            if (contentType.contains("text/plain", ignoreCase = true)) {
+                return@withContext ToolExecutionResult(html.take(MAX_CHARS), isError = false)
+            }
 
             val doc = Jsoup.parse(html)
 
@@ -58,6 +74,8 @@ object PageFetchTool {
 
             val truncated = textContent.take(MAX_CHARS)
             ToolExecutionResult(truncated, isError = false)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             ToolExecutionResult("Failed to fetch page: ${e.message}", isError = true)
         } finally {

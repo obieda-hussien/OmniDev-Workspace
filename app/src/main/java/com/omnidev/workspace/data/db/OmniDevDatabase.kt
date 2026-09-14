@@ -68,7 +68,7 @@ import com.omnidev.workspace.data.db.entities.ScheduledTaskEntity
         // ── Build Doctor Pro (v10) ────────────────────────
         BuildDiagnosticEntry::class
     , ScheduledTaskEntity::class],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -564,6 +564,14 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE scheduled_tasks ADD COLUMN stateJson TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE chat_sessions ADD COLUMN backgroundKey TEXT")
+                db.execSQL("CREATE UNIQUE INDEX index_chat_sessions_backgroundKey ON chat_sessions(backgroundKey)")
+            }
+        }
+
         fun getInstance(context: Context): OmniDevDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -582,7 +590,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         MIGRATION_8_9,
                         MIGRATION_9_10,
                         MIGRATION_10_11,
-                        MIGRATION_11_12
+                        MIGRATION_11_12, MIGRATION_12_13
                     )
                     .build().also { INSTANCE = it }
             }

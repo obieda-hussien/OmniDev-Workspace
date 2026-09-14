@@ -97,6 +97,7 @@ private fun ModelProvider.color(): Color = when (this) {
     ModelProvider.MINIMAX -> Color(0xFFFF3366)          // Minimax red
     ModelProvider.VERCEL_AI_GATEWAY -> Color(0xFF000000) // Vercel black
     ModelProvider.HUGGING_FACE -> Color(0xFFFFD21E)     // HF yellow
+    ModelProvider.ZENMUX, ModelProvider.Z_AI, ModelProvider.CUSTOM_OPENAI -> Color(0xFF8E8DE5)
     ModelProvider.LOCAL_EDGE -> Color(0xFF6B7280)       // Gray
 }
 

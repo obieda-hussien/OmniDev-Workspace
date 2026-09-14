@@ -332,7 +332,7 @@ class AnalyticsRepository(private val context: Context) {
             val newStats = stats.copy(
                 executionCount = stats.executionCount + 1,
                 successCount = stats.successCount + if (success) 1L else 0L,
-                totalDurationMs = stats.totalDurationMs + durationMs
+                totalDurationMs = stats.totalDurationMs + durationMs.coerceAtLeast(0)
             )
 
             val updated = current.copy(
@@ -381,7 +381,7 @@ class AnalyticsRepository(private val context: Context) {
         }
     }
 
-    private fun AnalyticsStats.toJson(): String {
+    internal fun AnalyticsStats.toJson(): String {
         val root = JSONObject()
         root.put("total_input_tokens", totalInputTokens)
         root.put("total_output_tokens", totalOutputTokens)
@@ -412,7 +412,11 @@ class AnalyticsRepository(private val context: Context) {
 
         val toolUsage = JSONObject()
         toolUsageCount.forEach { (toolName, count) ->
-            toolUsage.put(toolName, count)
+            toolUsage.put(toolName, JSONObject().apply {
+                put("executionCount", count.executionCount)
+                put("successCount", count.successCount)
+                put("totalDurationMs", count.totalDurationMs)
+            })
         }
         root.put("tool_usage_count", toolUsage)
 
@@ -430,7 +434,7 @@ class AnalyticsRepository(private val context: Context) {
         return root.toString()
     }
 
-    private fun String.toAnalyticsStats(): AnalyticsStats {
+    internal fun String.toAnalyticsStats(): AnalyticsStats {
         val root = JSONObject(this)
 
         val byModel = mutableMapOf<String, ModelStats>()

@@ -301,8 +301,13 @@ class ChatViewModel(
     /**
      * Loads a past session's messages and switches the active context to it.
      */
+    private var sessionObservation: kotlinx.coroutines.Job? = null
+
     fun loadSession(sessionId: Long) {
-        viewModelScope.launch {
+        sessionObservation?.cancel()
+        sessionObservation = viewModelScope.launch {
+            chatRepository?.observeMessages(sessionId)?.collect {
+                if (_uiState.value.isProcessing) return@collect
             val (messages, consoleMap) = chatRepository?.loadMessages(sessionId) ?: return@launch
             compositeToolManager?.currentSessionId = sessionId
             _uiState.update {
@@ -315,6 +320,7 @@ class ChatViewModel(
                     consoleEntries = emptyList()
                 )
             }
+        }
         }
     }
 
@@ -679,78 +685,9 @@ class ChatViewModel(
         imageAttachments: List<AttachmentMeta>,
         sessionId: Long
     ) {
-        val modelId = settingsRepository
-            .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.CHAT)
-            .first()
-
-        val effectiveSystemPrompt = CHAT_SYSTEM_PROMPT
-
-        val history = _uiState.value.messages.dropLast(1)
-
-        val request = CompletionRequest(
-            modelId = modelId,
-            messages = history + ChatMessage(
-                role = MessageRole.USER,
-                content = input,
-                attachments = imageAttachments
-            ),
-            systemPrompt = effectiveSystemPrompt,
-            maxTokens = 4096,
-            temperature = 0.7
-        )
-
-        // Inject API key
-        val model = com.omnidev.workspace.registry.ModelRegistry.findModelById(modelId)
-        val apiKey = model?.let { apiKeyRepository?.getApiKey(it.provider) }
-        val requestWithKey = request.copy(apiKey = apiKey)
-
-        val response: CompletionResponse
-        try {
-            response = if (streamingCompletionProvider != null) {
-                streamingCompletionProvider.invoke(requestWithKey) { delta ->
-                    _uiState.update {
-                        it.copy(streamingContent = (it.streamingContent ?: "") + delta)
-                    }
-                }
-            } else if (completionProvider != null) {
-                completionProvider.invoke(requestWithKey)
-            } else {
-                _uiState.update {
-                    it.copy(
-                        isProcessing = false,
-                        errorMessage = "Chat mode is not available — no completion provider configured."
-                    )
-                }
-                return
-            }
-        } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            _uiState.update {
-                it.copy(
-                    isProcessing = false,
-                    agentStatus = null,
-                    streamingContent = null,
-                    errorMessage = e.message ?: "Chat request failed."
-                )
-            }
-            return
-        }
-
-        val assistantMessage = ChatMessage(
-            role = MessageRole.ASSISTANT,
-            content = response.content
-        )
-        chatRepository?.saveMessage(sessionId, assistantMessage)
-        chatRepository?.updateSessionRunStatus(sessionId, STATUS_COMPLETED)
-        _uiState.update {
-            it.copy(
-                messages = it.messages + assistantMessage,
-                isProcessing = false,
-                agentStatus = null,
-                streamingContent = null
-            )
-        }
+        executeAgentMode(input, imageAttachments, sessionId,
+            settingsRepository.observeTargetContext().first().orEmpty(),
+            com.omnidev.workspace.data.model.ModelRole.CHAT)
     }
 
     // ──────────────────────────────────────────────
@@ -765,10 +702,11 @@ class ChatViewModel(
         input: String,
         imageAttachments: List<AttachmentMeta>,
         sessionId: Long,
-        scopePath: String
+        scopePath: String,
+        modelRole: com.omnidev.workspace.data.model.ModelRole = com.omnidev.workspace.data.model.ModelRole.AGENT
     ) {
         val modelId = settingsRepository
-            .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.AGENT)
+            .observeModelIdForRole(modelRole)
             .first()
 
         val deepThinking = settingsRepository.observeDeepThinking().first()

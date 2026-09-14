@@ -13,6 +13,10 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
+import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.data.network.ProviderEndpoint
+import com.omnidev.workspace.registry.ModelRegistry
 
 /**
  * A configured provider entry shown in the providers list.
@@ -44,6 +48,9 @@ data class ProvidersUiState(
     val showAddDialog: Boolean = false,
     val dialogProvider: ModelProvider = ModelProvider.ANTHROPIC,
     val dialogApiKey: String = "",
+    val customBaseUrl: String = "",
+    val customModelId: String = "",
+    val customDisplayName: String = "",
     val dialogKeyVisible: Boolean = false,
     val isSaving: Boolean = false,
     val snackbarMessage: String? = null,
@@ -63,6 +70,7 @@ data class ProvidersUiState(
  */
 class ProvidersViewModel(
     private val apiKeyRepository: ApiKeyRepository,
+    private val settingsRepository: SettingsRepository,
     private val modelFetcher: ProviderModelFetcher = ProviderModelFetcher()
 ) : ViewModel() {
 
@@ -70,6 +78,13 @@ class ProvidersViewModel(
     val uiState: StateFlow<ProvidersUiState> = _uiState.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            _uiState.update { it.copy(
+                customBaseUrl = settingsRepository.observeCustomOpenAiBaseUrl().first().orEmpty(),
+                customModelId = settingsRepository.observeCustomOpenAiModelId().first().orEmpty(),
+                customDisplayName = settingsRepository.observeCustomOpenAiDisplayName().first().orEmpty()) }
+            registerCustomModel(_uiState.value)
+        }
         // Reactively rebuild the list whenever a key is saved or removed
         apiKeyRepository.observeConfiguredProviders()
             .onEach { providers ->
@@ -105,6 +120,18 @@ class ProvidersViewModel(
         _uiState.update { it.copy(dialogProvider = provider) }
     }
 
+    fun onCustomBaseUrlChanged(value: String) { _uiState.update { it.copy(customBaseUrl = value) } }
+    fun onCustomModelIdChanged(value: String) { _uiState.update { it.copy(customModelId = value) } }
+    fun onCustomDisplayNameChanged(value: String) { _uiState.update { it.copy(customDisplayName = value) } }
+
+    private fun registerCustomModel(state: ProvidersUiState) {
+        if (state.customModelId.isBlank()) return
+        ModelRegistry.setProviderModels(ModelProvider.CUSTOM_OPENAI, listOf(AIModel(
+            id = "CUSTOM_OPENAI::${state.customModelId.trim()}",
+            displayName = state.customDisplayName.ifBlank { state.customModelId },
+            provider = ModelProvider.CUSTOM_OPENAI, contextWindow = 32_768, supportsThinking = true)))
+    }
+
     fun onDialogApiKeyChanged(key: String) {
         _uiState.update { it.copy(dialogApiKey = key) }
     }
@@ -124,8 +151,24 @@ class ProvidersViewModel(
             _uiState.update { it.copy(snackbarMessage = "API key cannot be empty.") }
             return
         }
+        if (state.dialogProvider == ModelProvider.CUSTOM_OPENAI) {
+            val validation = runCatching {
+                ProviderEndpoint.normalize(state.customBaseUrl)
+                require(state.customModelId.isNotBlank()) { "Enter the model ID accepted by your endpoint." }
+            }
+            if (validation.isFailure) {
+                _uiState.update { it.copy(snackbarMessage = validation.exceptionOrNull()?.message) }
+                return
+            }
+        }
         _uiState.update { it.copy(isSaving = true) }
         viewModelScope.launch {
+            if (state.dialogProvider == ModelProvider.CUSTOM_OPENAI) {
+                settingsRepository.setCustomOpenAiBaseUrl(ProviderEndpoint.normalize(state.customBaseUrl))
+                settingsRepository.setCustomOpenAiModelId(state.customModelId.trim())
+                settingsRepository.setCustomOpenAiDisplayName(state.customDisplayName.trim())
+                registerCustomModel(state)
+            }
             apiKeyRepository.setApiKey(state.dialogProvider, key)
             _uiState.update {
                 it.copy(
@@ -197,6 +240,8 @@ class ProvidersViewModel(
             _uiState.update { state ->
                 val entry = result.fold(
                     onSuccess = { models ->
+                        if (provider != ModelProvider.CUSTOM_OPENAI) ModelRegistry.setProviderModels(provider,
+                            models.map { it.copy(id = if ("::" in it.id) it.id else "${provider.name}::${it.id}") })
                         ProviderModelCatalog(
                             isFetching = false,
                             models = models.sortedBy { it.id },

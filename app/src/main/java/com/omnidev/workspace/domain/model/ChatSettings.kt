@@ -24,6 +24,7 @@ data class ChatSettings(
         if (!webSearchEnabled) add("web_search")
         if (!deepResearchEnabled || !webSearchEnabled) add("web_search_deep")
         if (!fetchPageEnabled) {
+            add("fetch_page")
             add("web_scraper")
             add("scrape_multiple")
         }

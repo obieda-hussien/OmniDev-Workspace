@@ -34,6 +34,8 @@ class ChatRepository(
     }
 
     /** Observe all sessions ordered newest-first (for the navigation drawer). */
+    fun observeMessages(sessionId: Long) = messageDao.observeBySession(sessionId)
+
     fun observeSessions(): Flow<List<ChatSessionEntity>> = sessionDao.observeAll()
 
     /**

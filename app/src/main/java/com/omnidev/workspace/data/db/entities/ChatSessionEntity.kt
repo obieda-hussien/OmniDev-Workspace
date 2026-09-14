@@ -1,5 +1,6 @@
 package com.omnidev.workspace.data.db.entities
 
+import androidx.room.Index
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -16,7 +17,7 @@ import androidx.room.PrimaryKey
  * @property discordChannelId Discord channel ID (empty string if source != "discord").
  * @property whatsappJid WhatsApp JID/number (empty string if source != "whatsapp_bridge").
  */
-@Entity(tableName = "chat_sessions")
+@Entity(tableName = "chat_sessions", indices = [Index(value = ["backgroundKey"], unique = true)])
 data class ChatSessionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val title: String,
@@ -26,7 +27,8 @@ data class ChatSessionEntity(
     val source: String = SOURCE_APP,
     val telegramChatId: Long = 0L,
     val discordChannelId: String = "",
-    val whatsappJid: String = ""
+    val whatsappJid: String = "",
+    val backgroundKey: String? = null
 ) {
     companion object {
         const val SOURCE_APP = "app"

@@ -1,6 +1,9 @@
 package com.omnidev.workspace.data.mcp
 
 import com.omnidev.workspace.data.tools.ToolDefinition
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -9,18 +12,22 @@ class McpRegistry(
     private val httpClient: McpHttpClient = McpHttpClient()
 ) {
     // Dynamic mapping of active connections
-    private val activeConnections = mutableMapOf<String, McpConnection>()
+    private data class Route(val server: String, val original: String, val connection: McpConnection)
+    @Volatile private var routes: Map<String, Route> = emptyMap()
+    private val refreshMutex = Mutex()
 
     /**
      * Fetches all available tools from all configured MCP servers.
      * Converts them into native ToolDefinitions with prefixed names.
      */
     suspend fun fetchAllAvailableTools(): List<ToolDefinition> = withContext(Dispatchers.IO) {
+        refreshMutex.withLock {
         val servers = configManager.getServers()
+        val nextRoutes = mutableMapOf<String, Route>()
         val allTools = mutableListOf<ToolDefinition>()
 
         // Clear old connections to keep in sync with config updates
-        activeConnections.clear()
+
 
         for ((serverName, config) in servers) {
             val connection: McpConnection = when (config.type.lowercase()) {
@@ -33,18 +40,29 @@ class McpRegistry(
                 }
             }
 
-            activeConnections[serverName] = connection
+
 
             try {
                 val tools = connection.getSupportedTools(serverName)
-                allTools.addAll(tools)
+                tools.forEach { tool ->
+                    val prefix = "mcp_${serverName}_"
+                    if (tool.name.startsWith(prefix)) {
+                        check(tool.name !in nextRoutes) { "Duplicate MCP tool name: ${tool.name}" }
+                        nextRoutes[tool.name] = Route(serverName, tool.name.removePrefix(prefix), connection)
+                        allTools.add(tool)
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 println("Failed to fetch tools from MCP server '$serverName': ${e.message}")
                 e.printStackTrace()
             }
         }
 
+        routes = nextRoutes.toMap()
         allTools
+        }
     }
 
     /**
@@ -56,23 +74,13 @@ class McpRegistry(
             return@withContext "Error: Not an MCP tool."
         }
 
-        // Example tool name: mcp_github-cloud_search_repos
-        // We split by '_' but limit to 3 to handle originalToolNames that contain '_'
-        val prefixRemoved = toolName.removePrefix("mcp_")
-        val underscoreIndex = prefixRemoved.indexOf('_')
-
-        if (underscoreIndex == -1) {
-            return@withContext "Error: Invalid MCP tool name format."
-        }
-
-        val serverName = prefixRemoved.substring(0, underscoreIndex)
-        val originalToolName = prefixRemoved.substring(underscoreIndex + 1)
-
-        val connection = activeConnections[serverName]
-            ?: return@withContext "Error: MCP Server '$serverName' not configured or not active."
+        val route = routes[toolName]
+            ?: return@withContext "Error: MCP tool is not registered. Refresh the server's tool list."
 
         try {
-            connection.executeTool(serverName, originalToolName, arguments)
+            route.connection.executeTool(route.server, route.original, arguments)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             "Error executing tool via MCP: ${e.message}"
         }

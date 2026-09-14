@@ -69,6 +69,15 @@ fun AppNavigation(
     database: OmniDevDatabase
 ) {
     val navController = rememberNavController()
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.omnidev.workspace.MainActivity.pendingChatSession.collect { sessionId ->
+            if (sessionId != null) {
+                chatViewModel.loadSession(sessionId)
+                navController.navigate(Routes.CHAT) { launchSingleTop = true }
+                com.omnidev.workspace.MainActivity.pendingChatSession.value = null
+            }
+        }
+    }
     val startDestination = remember {
         if (DebugLogManager.consumePendingCrashRedirect()) {
             Routes.DEBUG

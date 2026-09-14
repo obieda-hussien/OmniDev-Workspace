@@ -1,6 +1,7 @@
 package com.omnidev.workspace
 
 import android.content.Intent
+import androidx.lifecycle.lifecycleScope
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -55,21 +56,11 @@ class MainActivity : ComponentActivity() {
     companion object {
         /** Emits the OAuth authorization code received via deep link callback. */
         val pendingOAuthCode: MutableStateFlow<String?> = MutableStateFlow(null)
+        val pendingChatSession = MutableStateFlow<Long?>(null)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
 
-
-        // Handle deep-links for scheduled tasks chat logger
-        intent?.data?.let { uri ->
-            if (uri.scheme == "omnidev" && uri.host == "task") {
-                val taskId = uri.getQueryParameter("id")
-                taskId?.let {
-                    android.util.Log.d("MainActivity", "Deep link to task: $it")
-                    // Navigate to chat or task details
-                }
-            }
-        }
 
 super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -125,7 +116,7 @@ super.onCreate(savedInstanceState)
         )
 
         // Real HTTP completion provider
-        val completionService = CompletionService()
+        val completionService = CompletionService(settingsRepository)
         val completionProvider: suspend (com.omnidev.workspace.data.model.CompletionRequest) -> com.omnidev.workspace.data.model.CompletionResponse =
             completionService::invoke
 
@@ -182,123 +173,7 @@ super.onCreate(savedInstanceState)
             analyticsRepository = analyticsRepository,
             compositeToolManager = toolManager
         )
-        val providersViewModel = ProvidersViewModel(apiKeyRepository)
-
-        // ── Task Execution Bridge ──────────────────────────────────────────────
-        // Connects TaskSchedulerTool to AgentPipeline so scheduled tasks are
-        // ACTUALLY EXECUTED by OmniSyncService (not just marked as "running").
-        //
-        // Without this wiring, OmniSyncService.performSync() would detect ready
-        // tasks but find `executionCallback == null` and mark them as failed
-        // with "Execution bridge not configured". Setting it here closes the
-        // loop: ready task → AgentPipeline.execute() → result written back.
-        TaskSchedulerTool.executionCallback = { task ->
-            val startMs = System.currentTimeMillis()
-            val toolsUsedCount = java.util.concurrent.atomic.AtomicInteger(0)
-            val toolNamesList = mutableListOf<String>()
-            var finalResult = ""
-            var finalIterations = 0
-            var executionError: String? = null
-
-            // Console events buffer for Scheduled Tasks
-            val consoleEntries = mutableListOf<com.omnidev.workspace.ui.chat.AgentConsoleEntry>()
-
-            // ── Background Task Logger ──
-            var sessionId = -1L
-            kotlinx.coroutines.runBlocking {
-                try { sessionId = -1L } catch(e: Exception) {
-                    // Ignore DB error
-                }
-            }
-
-            try {
-                val dependencyContext = task.dependsOn.mapNotNull { depId ->
-                    val depTask = com.omnidev.workspace.data.tools.TaskSchedulerTool.getTaskById(depId)
-                    val result = depTask?.lastResult
-                    if (depTask != null && !result.isNullOrBlank()) {
-                        "### Dependency: ${depTask.name}\n$result"
-                    } else null
-                }.joinToString("\n\n")
-
-                val fullPrompt = if (dependencyContext.isNotBlank()) {
-                    "# Task: ${task.name}\n\n${task.prompt}\n\n## Context from dependencies:\n$dependencyContext"
-                } else {
-                    task.prompt
-                }
-
-                val modelId = settingsRepository.observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.AGENT).first()
-                val scopePath = settingsRepository.observeTargetContext().first().orEmpty()
-
-                agentPipeline.execute(
-                    userMessage = fullPrompt,
-                    modelId = modelId,
-                    scopePath = scopePath,
-                    enableDeepThinking = false
-                ).collect { event ->
-                    // Map to console entry for the logger
-                    val entry = when(event) {
-                        is com.omnidev.workspace.domain.engine.AgentEvent.Thinking -> com.omnidev.workspace.ui.chat.AgentConsoleEntry.ThinkingEntry(iteration = event.iteration)
-                        is com.omnidev.workspace.domain.engine.AgentEvent.ThinkingBlock -> com.omnidev.workspace.ui.chat.AgentConsoleEntry.DeepThinkingEntry(snippet = event.content)
-                        is com.omnidev.workspace.domain.engine.AgentEvent.ToolExecution -> com.omnidev.workspace.ui.chat.AgentConsoleEntry.ToolEntry(toolName = event.toolName, params = event.arguments.toString(), fullParams = event.arguments.toString(), iteration = event.iteration)
-                        is com.omnidev.workspace.domain.engine.AgentEvent.ToolResult -> com.omnidev.workspace.ui.chat.AgentConsoleEntry.ResultEntry(toolName = event.toolName, snippet = event.output.take(500), fullOutput = event.output, isError = event.isError, durationMs = 0L)
-                        is com.omnidev.workspace.domain.engine.AgentEvent.TokenUsageUpdate -> com.omnidev.workspace.ui.chat.AgentConsoleEntry.TokenEntry(totalTokens = event.totalTokens, budget = event.budget)
-                        is com.omnidev.workspace.domain.engine.AgentEvent.PhaseChanged -> com.omnidev.workspace.ui.chat.AgentConsoleEntry.PhaseEntry(phase = event.phase.name, detail = event.detail)
-                        is com.omnidev.workspace.domain.engine.AgentEvent.Error -> com.omnidev.workspace.ui.chat.AgentConsoleEntry.ErrorEntry(message = event.message)
-                        else -> null
-                    }
-                    if (entry != null) {
-                        consoleEntries.add(entry)
-                    }
-
-                    when (event) {
-                        is com.omnidev.workspace.domain.engine.AgentEvent.ToolExecution -> {
-                            toolsUsedCount.incrementAndGet()
-                            toolNamesList.add(event.toolName)
-                        }
-                        is com.omnidev.workspace.domain.engine.AgentEvent.FinalAnswer -> {
-                            finalResult = event.content
-                            finalIterations = event.totalIterations
-                        }
-                        is com.omnidev.workspace.domain.engine.AgentEvent.Error -> {
-                            executionError = event.message
-                        }
-                        else -> Unit
-                    }
-                }
-            } catch (e: Exception) {
-                executionError = e.message ?: "Unknown error"
-                consoleEntries.add(com.omnidev.workspace.ui.chat.AgentConsoleEntry.ErrorEntry(message = executionError ?: ""))
-            }
-
-            kotlinx.coroutines.runBlocking {
-                try {
-
-                } catch(e: Exception) {
-                    // Ignore DB error
-                }
-            }
-
-            val endMs = System.currentTimeMillis()
-            val errorSnapshot = executionError
-            val isSuccess = errorSnapshot == null && finalResult.isNotBlank()
-
-            TaskSchedulerTool.ExecutionSummary(
-                taskId = task.id,
-                taskName = task.name,
-                startTimeMs = startMs,
-                endTimeMs = endMs,
-                toolsUsed = toolsUsedCount.get(),
-                toolNames = toolNamesList.toList(),
-                result = finalResult.ifBlank { errorSnapshot ?: "(no output)" },
-                isSuccess = isSuccess,
-                iterationsUsed = finalIterations,
-                errorMessage = errorSnapshot
-            )
-        }
-        android.util.Log.i(
-            "MainActivity",
-            "✅ TaskSchedulerTool.executionCallback wired — scheduled tasks will now execute via AgentPipeline."
-        )
+        val providersViewModel = ProvidersViewModel(apiKeyRepository, settingsRepository)
 
         setContent {
             OmniDevTheme {
@@ -314,15 +189,27 @@ super.onCreate(savedInstanceState)
 
         // Handle OAuth deep link delivered with the launch intent
         handleOAuthCallback(intent)
+        intent.getLongExtra("deep_link_session_id", -1L).takeIf { it > 0 }?.let { pendingChatSession.value = it }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleOAuthCallback(intent)
+        intent.getLongExtra("deep_link_session_id", -1L).takeIf { it > 0 }?.let { pendingChatSession.value = it }
     }
 
     private fun handleOAuthCallback(intent: Intent) {
         val data: Uri = intent.data ?: return
+        if (data.scheme == "omnidev" && data.host == "task") {
+            data.getQueryParameter("id")?.let { taskId ->
+                lifecycleScope.launch {
+                    val session = OmniDevDatabase.getInstance(applicationContext).chatSessionDao()
+                        .getByBackgroundKey("scheduled_task:$taskId")
+                    session?.let { pendingChatSession.value = it.id }
+                }
+            }
+            return
+        }
         val code = OAuthManager.extractCodeFromCallback(data) ?: return
         pendingOAuthCode.value = code
     }
