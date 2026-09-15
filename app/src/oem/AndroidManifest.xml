@@ -1,40 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  ══════════════════════════════════════════════════════════════════════════════
-  OEM FLAVOR MANIFEST — B2B / Custom ROM / Platform-Signed
-  ══════════════════════════════════════════════════════════════════════════════
-  Target: device-admin-grade OEM partners and Magisk-style custom ROM flashing.
-
-  Key differences vs. Pro:
-    * android:sharedUserId="android.uid.system" — requires APK to be signed with
-      the platform key. OEM partners install this as a pre-loaded system app.
-    * No Shizuku (system uid already grants the needed privileges).
-    * Device Admin receiver REMAINS in the manifest, but the `wipe`/`reset`
-      runtime paths are hard-disabled via OemTierPolicy.allowDeviceAdminWipe=false.
-    * Zero-click execution: OemTierPolicy auto-approves every privileged action.
-  ══════════════════════════════════════════════════════════════════════════════
--->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- OEM uses system uid, not Shizuku -->
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" tools:node="remove" />
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+
+    <queries>
+        <package android:name="com.termux" />
+    </queries>
 
     <application
         android:sharedUserId="android.uid.system"
         tools:ignore="SharedUserId"
         tools:replace="android:sharedUserId">
 
-        <!-- Remove the Shizuku provider — OEM relies on system-signature privilege -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             tools:node="remove" />
 
-        <!--
-          Device Admin receiver is kept but its wipe-data path is blocked at
-          runtime by OemTierPolicy.allowDeviceAdminWipe = false.
-        -->
-
+        <receiver
+            android:name=".data.tools.TermuxResultReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>
