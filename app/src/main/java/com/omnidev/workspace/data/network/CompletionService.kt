@@ -288,7 +288,8 @@ class CompletionService(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: IOException) {
-                if (!isRetryableError(e) || attempt >= maxRetries) throw e
+                // AgentPipeline owns cooldown retries; do not multiply its retry budget.
+                if (e is RateLimitException || !isRetryableError(e) || attempt >= maxRetries) throw e
                 // Exponential backoff: 1s, 2s, 4s (with default maxRetries=3)
                 val backoffMs = minOf(1_000L shl attempt, 30_000L)
                 delay(backoffMs)
@@ -746,6 +747,11 @@ class CompletionService(
         conn.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(body) }
 
         val responseCode = conn.responseCode
+        if (responseCode == 429) {
+            val retryAfterMs = parseRetryAfter(conn.getHeaderField("Retry-After"))
+            conn.disconnect()
+            throw RateLimitException(retryAfterMs)
+        }
         if (responseCode !in 200..299) {
             val errorBody = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
             conn.disconnect()
@@ -874,6 +880,11 @@ class CompletionService(
         conn.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(body) }
 
         val responseCode = conn.responseCode
+        if (responseCode == 429) {
+            val retryAfterMs = parseRetryAfter(conn.getHeaderField("Retry-After"))
+            conn.disconnect()
+            throw RateLimitException(retryAfterMs)
+        }
         if (responseCode !in 200..299) {
             val errorBody = conn.errorStream?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
             conn.disconnect()
@@ -997,6 +1008,11 @@ class CompletionService(
         conn.outputStream.bufferedWriter(Charsets.UTF_8).use { it.write(body) }
 
         val responseCode = conn.responseCode
+        if (responseCode == 429) {
+            val retryAfterMs = parseRetryAfter(conn.getHeaderField("Retry-After"))
+            conn.disconnect()
+            throw RateLimitException(retryAfterMs)
+        }
         if (responseCode in 200..299) {
             val responseBody = conn.inputStream.bufferedReader(Charsets.UTF_8).readText()
             conn.disconnect()

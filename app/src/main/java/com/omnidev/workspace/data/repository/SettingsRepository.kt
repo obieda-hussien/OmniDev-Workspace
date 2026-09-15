@@ -12,6 +12,10 @@ import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import com.omnidev.workspace.data.model.AIModel
+import com.omnidev.workspace.data.model.ModelProvider
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
 
 /** Singleton DataStore instance scoped to the application context. */
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(
@@ -27,6 +31,24 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
  * scope for file operations.
  */
 class SettingsRepository(private val context: Context) {
+    private val catalogJson = Json { ignoreUnknownKeys = true }
+
+    suspend fun saveModelCatalog(provider: ModelProvider, models: List<AIModel>) {
+        val encoded = catalogJson.encodeToString(ListSerializer(AIModel.serializer()), models)
+        context.settingsDataStore.edit { it[stringPreferencesKey("model_catalog_${provider.name}")] = encoded }
+    }
+
+    private fun restoreModelCatalogs(preferences: Preferences) {
+        ModelProvider.entries.forEach { provider ->
+            val encoded = preferences[stringPreferencesKey("model_catalog_${provider.name}")] ?: return@forEach
+            val models = runCatching {
+                catalogJson.decodeFromString(ListSerializer(AIModel.serializer()), encoded)
+            }.getOrNull() ?: return@forEach
+            ModelRegistry.restoreProviderModels(provider, models.filter {
+                it.provider == provider && it.contextWindow > 0 && it.maxOutputTokens > 0
+            })
+        }
+    }
 
     // ──────────────────────────────────────────────
     //  Preference Keys
@@ -122,6 +144,7 @@ class SettingsRepository(private val context: Context) {
         val key = keyForRole(role)
         val defaultId = ModelRegistry.getDefaultModelForRole(role).id
         return context.settingsDataStore.data.map { preferences ->
+            restoreModelCatalogs(preferences)
             preferences[key] ?: defaultId
         }
     }
@@ -131,6 +154,7 @@ class SettingsRepository(private val context: Context) {
      */
     fun observeAllModelAssignments(): Flow<Map<ModelRole, String>> {
         return context.settingsDataStore.data.map { preferences ->
+            restoreModelCatalogs(preferences)
             ModelRole.entries.associateWith { role ->
                 val key = keyForRole(role)
                 preferences[key] ?: ModelRegistry.getDefaultModelForRole(role).id

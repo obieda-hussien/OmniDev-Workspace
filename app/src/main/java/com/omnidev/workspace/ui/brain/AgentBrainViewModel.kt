@@ -37,7 +37,7 @@ class AgentBrainViewModel(
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             if (debounce) kotlinx.coroutines.delay(250)
-            _uiState.update { it.copy(isLoading = true, error = null) }
+            _uiState.update { it.copy(error = null) }
             try {
                 val report = bridge.generatePerformanceReport()
                 val awarenessStats = awarenessEngine.getStats()
@@ -89,6 +89,23 @@ class AgentBrainViewModel(
 
     fun clearError() = _uiState.update { it.copy(error = null) }
 
+    fun clearLog(knowledge: Boolean) {
+        if (_uiState.value.isClearing) return
+        _uiState.update { it.copy(isClearing = true, error = null) }
+        viewModelScope.launch {
+            try {
+                if (knowledge) awarenessEngine.clearKnowledgeLog() else journal.clearExecutionLog()
+                loadData()
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _uiState.update { it.copy(error = error.message ?: "Unable to clear log") }
+            } finally {
+                _uiState.update { it.copy(isClearing = false) }
+            }
+        }
+    }
+
     fun deleteExecution(entryId: Long) {
         viewModelScope.launch {
             journal.deleteExecutionById(entryId)
@@ -131,7 +148,8 @@ class AgentBrainViewModel(
 }
 
 data class AgentBrainUiState(
-    val isLoading: Boolean = false,
+    val isLoading: Boolean = true,
+    val isClearing: Boolean = false,
     val error: String? = null,
     val totalExecutions: Int = 0,
     val successRate: Float = 0f,

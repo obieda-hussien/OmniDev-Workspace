@@ -795,9 +795,15 @@ Rules:
             }
 
             val effectiveSystemPrompt = systemPrompt
-            val inputBudget = (model.contextWindow - model.maxOutputTokens -
+            val outputBudget = minOf(model.maxOutputTokens, 8_192)
+            val inputBudget = (model.contextWindow - outputBudget -
                 config.contextWindowBuffer - systemPrompt.length / 2 -
-                toolDefs.sumOf { it.toString().length } / 2).coerceAtLeast(256)
+                toolDefs.take(MAX_TOOLS_PER_REQUEST).sumOf { it.toString().length } / 2)
+            if (inputBudget <= 0) {
+                send(AgentEvent.Error("System instructions and tool definitions exceed this model's context window. " +
+                    "Disable unused tools or choose a larger-context model."))
+                return@channelFlow
+            }
             if (config.enableMemoryTrimming) {
                 ContextCompressor.checkAndCompact(messages, inputBudget, modelId,
                     completionProvider, resolvedApiKey) { send(it) }
@@ -819,7 +825,7 @@ Rules:
                 modelId = modelId,
                 messages = trimmedMessages,
                 systemPrompt = effectiveSystemPrompt,
-                maxTokens = model.maxOutputTokens,
+                maxTokens = outputBudget,
                 enableThinking = enableDeepThinking && model.supportsThinking,
                 targetContext = scopePath,
                 apiKey = resolvedApiKey,
@@ -1236,13 +1242,24 @@ Rules:
                     return null
                 }
 
-                val isRateLimit = e.message?.contains("Rate limit exceeded", ignoreCase = true) == true
+                val rateLimit = e as? com.omnidev.workspace.data.network.RateLimitException
+                val isRateLimit = rateLimit != null || e.message?.let { message ->
+                    listOf("rate limit", "too many requests", "HTTP 429").any {
+                        message.contains(it, ignoreCase = true)
+                    }
+                } == true
+                if ((rateLimit?.retryAfterMs ?: 0) > RATE_LIMIT_MAX_DELAY_MS) {
+                    recordAnalytics(request, null, callStartMs, isError = true)
+                    onFatalError(rateLimit?.message ?: "Provider cooldown exceeds the automatic retry window.")
+                    return null
+                }
 
                 if (isRateLimit && rateLimitAttemptsRemaining > 0) {
                     // Rate-limit path: long fixed delay then retry (don't consume normal retry budget)
                     rateLimitAttemptsRemaining--
                     val retryNum = RATE_LIMIT_MAX_RETRIES - rateLimitAttemptsRemaining
-                    val delayMs = min(RATE_LIMIT_BASE_DELAY_MS * retryNum, RATE_LIMIT_MAX_DELAY_MS)
+                    val delayMs = maxOf(rateLimit?.retryAfterMs ?: 0,
+                        min(RATE_LIMIT_BASE_DELAY_MS * retryNum, RATE_LIMIT_MAX_DELAY_MS))
                     delay(delayMs)
                     continue
                 }

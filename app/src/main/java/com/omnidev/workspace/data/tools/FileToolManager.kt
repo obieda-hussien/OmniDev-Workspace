@@ -1165,7 +1165,8 @@ class FileToolManager(
 
         return try {
             withContext(Dispatchers.IO) {
-                val process = ProcessBuilder("/bin/sh", "-c", command)
+                val shell = if (java.io.File("/system/bin/sh").canExecute()) "/system/bin/sh" else "sh"
+                val process = ProcessBuilder(shell, "-c", command)
                     .directory(workDir)
                     .start() 
 
@@ -1175,8 +1176,12 @@ class FileToolManager(
                 val stdoutThread = Thread {
                     try {
                         process.inputStream.bufferedReader().use { reader ->
-                            reader.lineSequence().forEach { line ->
-                                if (stdoutBuffer.length < MAX_TERMINAL_OUTPUT_CHARS) stdoutBuffer.appendLine(line)
+                            val chunk = CharArray(4096)
+                            while (true) {
+                                val count = reader.read(chunk)
+                                if (count < 0) break
+                                val remaining = (MAX_TERMINAL_OUTPUT_CHARS - stdoutBuffer.length).coerceAtLeast(0)
+                                if (remaining > 0) stdoutBuffer.append(chunk, 0, minOf(count, remaining))
                             }
                         }
                     } catch (_: Exception) {}
@@ -1184,8 +1189,12 @@ class FileToolManager(
                 val stderrThread = Thread {
                     try {
                         process.errorStream.bufferedReader().use { reader ->
-                            reader.lineSequence().forEach { line ->
-                                if (stderrBuffer.length < MAX_TERMINAL_OUTPUT_CHARS) stderrBuffer.appendLine(line)
+                            val chunk = CharArray(4096)
+                            while (true) {
+                                val count = reader.read(chunk)
+                                if (count < 0) break
+                                val remaining = (MAX_TERMINAL_OUTPUT_CHARS - stderrBuffer.length).coerceAtLeast(0)
+                                if (remaining > 0) stderrBuffer.append(chunk, 0, minOf(count, remaining))
                             }
                         }
                     } catch (_: Exception) {}
@@ -1310,8 +1319,12 @@ class FileToolManager(
                 val stdoutThread = Thread {
                     try {
                         process.inputStream.bufferedReader().use { reader ->
-                            reader.lineSequence().forEach { line ->
-                                if (stdoutBuffer.length < MAX_TERMINAL_OUTPUT_CHARS) stdoutBuffer.appendLine(line)
+                            val chunk = CharArray(4096)
+                            while (true) {
+                                val count = reader.read(chunk)
+                                if (count < 0) break
+                                val remaining = (MAX_TERMINAL_OUTPUT_CHARS - stdoutBuffer.length).coerceAtLeast(0)
+                                if (remaining > 0) stdoutBuffer.append(chunk, 0, minOf(count, remaining))
                             }
                         }
                     } catch (_: Exception) {}
@@ -1319,8 +1332,12 @@ class FileToolManager(
                 val stderrThread = Thread {
                     try {
                         process.errorStream.bufferedReader().use { reader ->
-                            reader.lineSequence().forEach { line ->
-                                if (stderrBuffer.length < MAX_TERMINAL_OUTPUT_CHARS) stderrBuffer.appendLine(line)
+                            val chunk = CharArray(4096)
+                            while (true) {
+                                val count = reader.read(chunk)
+                                if (count < 0) break
+                                val remaining = (MAX_TERMINAL_OUTPUT_CHARS - stderrBuffer.length).coerceAtLeast(0)
+                                if (remaining > 0) stderrBuffer.append(chunk, 0, minOf(count, remaining))
                             }
                         }
                     } catch (_: Exception) {}

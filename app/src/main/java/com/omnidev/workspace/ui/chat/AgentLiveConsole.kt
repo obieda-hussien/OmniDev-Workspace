@@ -181,6 +181,9 @@ fun AgentLiveConsole(
                     // Blinking cursor
                     Text("█", color = TerminalCyan.copy(alpha = cursorAlpha),
                         fontFamily = FontFamily.Monospace, fontSize = 9.sp)
+                } else if (entries.any { it is AgentConsoleEntry.ErrorEntry }) {
+                    Text("FAILED", color = TerminalRed, fontFamily = FontFamily.Monospace,
+                        fontSize = 9.sp, letterSpacing = 1.sp)
                 } else if (entries.isNotEmpty()) {
                     Text("DONE", color = TerminalGreen, fontFamily = FontFamily.Monospace,
                         fontSize = 9.sp, letterSpacing = 1.sp)

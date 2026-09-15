@@ -11,6 +11,20 @@ import org.junit.Test
  * Unit tests for [ModelRegistry] — validates model definitions, lookups, tiers, and defaults.
  */
 class ModelRegistryTest {
+    @Test fun cachedMetadataDoesNotOverwriteFreshProviderLimits() {
+        val provider = ModelProvider.GEMINI
+        val original = ModelRegistry.allModels.filter { it.provider == provider }
+        val live = com.omnidev.workspace.data.model.AIModel(
+            id = "GEMINI::catalog-test", displayName = "Test", provider = provider,
+            contextWindow = 1_000_000, maxOutputTokens = 8192)
+        try {
+            ModelRegistry.setProviderModels(provider, listOf(live))
+            ModelRegistry.restoreProviderModels(provider, listOf(live.copy(contextWindow = 128_000)))
+            assertEquals(1_000_000, ModelRegistry.getModelById(live.id).contextWindow)
+        } finally {
+            ModelRegistry.setProviderModels(provider, original)
+        }
+    }
 
 
 

@@ -536,6 +536,10 @@ class ToolAwarenessEngine(
 
     fun observeKnowledge(): Flow<List<SystemKnowledgeEntry>> = systemKnowledgeDao.observeAllValid()
 
+    suspend fun clearKnowledgeLog() = withContext(Dispatchers.IO) {
+        initializationMutex.withLock { systemKnowledgeDao.clearAll() }
+    }
+
     suspend fun updateKnowledgeEntry(
         id: Long,
         subject: String,

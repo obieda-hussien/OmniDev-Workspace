@@ -57,6 +57,22 @@ fun AgentBrainDashboard(
 private fun AgentBrainDashboardContent(viewModel: AgentBrainViewModel, onNavigateBack: () -> Unit) {
     val uiState by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableStateOf(0) }
+    var clearKnowledge by remember { mutableStateOf<Boolean?>(null) }
+
+    clearKnowledge?.let { knowledge ->
+        AlertDialog(
+            onDismissRequest = { clearKnowledge = null },
+            title = { Text(if (knowledge) "Clear knowledge?" else "Clear activity log?") },
+            text = { Text(if (knowledge)
+                "Remove all stored knowledge entries, including archived entries. The agent can learn new knowledge later."
+                else "Remove all recorded tool activity. Running tasks will continue and can create new entries.") },
+            confirmButton = { TextButton(onClick = {
+                viewModel.clearLog(knowledge)
+                clearKnowledge = null
+            }) { Text("Clear all") } },
+            dismissButton = { TextButton(onClick = { clearKnowledge = null }) { Text("Cancel") } }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -114,6 +130,10 @@ private fun AgentBrainDashboardContent(viewModel: AgentBrainViewModel, onNavigat
             // ───    ─────────────────────────────
             StatsHeaderRow(uiState)
 
+            uiState.error?.let { error ->
+                Text(error, Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.error)
+            }
+
             // ───  ───────────────────────────────────────────────
             ScrollableTabRow(
                 selectedTabIndex = selectedTab,
@@ -143,6 +163,13 @@ private fun AgentBrainDashboardContent(viewModel: AgentBrainViewModel, onNavigat
             }
 
             // ───   ─────────────────────────────────────────
+            if (selectedTab == 1 || selectedTab == 2) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.End) {
+                    TextButton(enabled = !uiState.isClearing, onClick = { clearKnowledge = selectedTab == 2 }) {
+                        Text(if (uiState.isClearing) "Clearing…" else if (selectedTab == 2) "Clear knowledge" else "Clear activity")
+                    }
+                }
+            }
             when (selectedTab) {
                 0 -> PerformanceTab(uiState)
                 1 -> ExecutionLogTab(

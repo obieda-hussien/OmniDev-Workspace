@@ -7,6 +7,40 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ContextCompressorTest {
+    @Test fun latestUserGoalSurvivesOldConversationAndToolTrimming() {
+        val latestGoal = ChatMessage(MessageRole.USER, "New task: do not modify files")
+        val call = ChatMessage(MessageRole.ASSISTANT, "", toolCalls = listOf(ToolCall("c", "read", emptyMap())))
+        val reply = ChatMessage(MessageRole.TOOL, "x".repeat(10_000))
+        val messages = listOf(ChatMessage(MessageRole.USER, "old goal"), latestGoal, call, reply)
+        val trimmed = ContextCompressor.trim(messages, 500)
+        assertTrue(trimmed.contains(latestGoal))
+        assertEquals(call, trimmed[trimmed.lastIndex - 1])
+        assertTrue(trimmed.sumOf(ContextCompressor::estimatedTokens) <= 500)
+    }
+
+    @Test fun oversizedLatestToolResultFitsWithoutChangingCallOrGoal() {
+        val goal = ChatMessage(MessageRole.USER, "Keep my exact instructions")
+        val call = ChatMessage(MessageRole.ASSISTANT, "", toolCalls = listOf(ToolCall("c1", "read", emptyMap())))
+        val reply = ChatMessage(MessageRole.TOOL, "", toolResults = listOf(
+            ToolCallResult("c1", "read", "start" + "x".repeat(100_000) + "end")))
+        val original = listOf(goal, call, reply)
+        val trimmed = ContextCompressor.trim(original, 1000)
+        assertTrue(trimmed.sumOf(ContextCompressor::estimatedTokens) <= 1000)
+        assertEquals(goal, trimmed.first())
+        assertEquals(call, trimmed[1])
+        val result = trimmed.last().toolResults.single()
+        assertEquals("c1", result.toolCallId)
+        assertTrue(result.output.startsWith("start"))
+        assertTrue(result.output.endsWith("end"))
+        assertTrue(result.output.contains("truncated"))
+        assertEquals(100_008, original.last().toolResults.single().output.length)
+    }
+
+    @Test fun oversizedUserInputIsNeverSilentlyTruncated() {
+        val message = ChatMessage(MessageRole.USER, "x".repeat(10_000))
+        assertEquals(listOf(message), ContextCompressor.trim(listOf(message), 100))
+    }
+
     @Test fun compactionUsesCredentialsAndPreservesToolExchange() = runTest {
         val call = ChatMessage(MessageRole.ASSISTANT, "", toolCalls = listOf(ToolCall("c1", "read", emptyMap())))
         val result = ChatMessage(MessageRole.TOOL, "", toolResults = listOf(ToolCallResult("c1", "read", "output")))

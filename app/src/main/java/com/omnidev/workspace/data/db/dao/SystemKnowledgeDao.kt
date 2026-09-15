@@ -85,6 +85,9 @@ interface SystemKnowledgeDao {
     @Query("SELECT COUNT(*) FROM system_knowledge WHERE isValid = 1")
     suspend fun getCount(): Int
 
+    @Query("DELETE FROM system_knowledge")
+    suspend fun clearAll()
+
     @Query("SELECT * FROM system_knowledge ORDER BY updatedAt DESC LIMIT 5")
     fun observeRecent(): Flow<List<SystemKnowledgeEntry>>
 
