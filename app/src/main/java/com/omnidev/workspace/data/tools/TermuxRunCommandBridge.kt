@@ -17,9 +17,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * Executes commands *inside the Termux app process* through Termux's official
  * RunCommandService API.
  *
- * This exists because Shizuku/ADB shell (uid=2000) normally cannot traverse
- * `/data/data/com.termux`, so trying to launch Termux's `pkg`, `apt`, Python or
- * Node binaries from Shizuku is architecturally wrong on a non-rooted device.
+ * Shizuku/ADB shell (uid=2000) normally cannot traverse `/data/data/com.termux`,
+ * therefore Termux package/runtime commands must go through this bridge rather
+ * than through a privileged Android shell.
  */
 object TermuxRunCommandBridge {
 
@@ -47,6 +47,9 @@ object TermuxRunCommandBridge {
     private const val RESULT_ERR = "err"
     private const val RESULT_ERRMSG = "errmsg"
 
+    /** Termux ResultData/Errno success code. */
+    private const val TERMUX_ERRNO_SUCCESS = 0
+
     const val EXTRA_EXECUTION_ID = "com.omnidev.workspace.termux.EXECUTION_ID"
 
     private const val DEFAULT_TIMEOUT_MS = 90_000L
@@ -66,8 +69,11 @@ object TermuxRunCommandBridge {
         val stdoutOriginalLength: Int,
         val stderrOriginalLength: Int
     ) {
+        val transportSucceeded: Boolean
+            get() = internalErrorCode == TERMUX_ERRNO_SUCCESS
+
         val isSuccess: Boolean
-            get() = internalErrorCode == android.app.Activity.RESULT_OK && exitCode == 0
+            get() = transportSucceeded && exitCode == 0
 
         val wasTruncated: Boolean
             get() = stdoutOriginalLength > stdout.length || stderrOriginalLength > stderr.length
@@ -97,15 +103,19 @@ object TermuxRunCommandBridge {
         appContext = context.applicationContext
     }
 
+    fun isInitialized(): Boolean = appContext != null
+
     fun hasRunCommandPermission(context: Context = requireContext()): Boolean =
         context.checkSelfPermission(PERMISSION_RUN_COMMAND) == PackageManager.PERMISSION_GRANTED
 
+    fun isTermuxInstalled(context: Context = requireContext()): Boolean = runCatching {
+        @Suppress("DEPRECATION")
+        context.packageManager.getPackageInfo(TERMUX_PACKAGE, 0)
+        true
+    }.getOrDefault(false)
+
     fun capabilityReport(context: Context = requireContext()): String {
-        val packageVisible = runCatching {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackageInfo(TERMUX_PACKAGE, 0)
-            true
-        }.getOrDefault(false)
+        val packageVisible = isTermuxInstalled(context)
         val permission = hasRunCommandPermission(context)
         return buildString {
             appendLine("Termux package visible: ${if (packageVisible) "YES" else "NO"}")
@@ -142,6 +152,11 @@ object TermuxRunCommandBridge {
         require(executable.isNotBlank()) { "Termux executable is blank" }
         val context = requireContext()
 
+        if (!isTermuxInstalled(context)) {
+            return@withContext setupFailure(
+                "Termux is not installed or is not visible to OmniDev. Install the official Termux app first."
+            )
+        }
         if (!hasRunCommandPermission(context)) {
             return@withContext setupFailure(
                 "OmniDev does not have $PERMISSION_RUN_COMMAND. Grant 'Run commands in Termux environment' " +
@@ -169,7 +184,6 @@ object TermuxRunCommandBridge {
             putExtra(EXTRA_ARGUMENTS, arguments)
             if (stdin != null) putExtra(EXTRA_STDIN, stdin)
             putExtra(EXTRA_WORKDIR, cwd)
-            // Background command = separated stdout/stderr and no terminal UI.
             putExtra(EXTRA_BACKGROUND, true)
             putExtra(EXTRA_COMMAND_LABEL, label.take(120))
             description?.let { putExtra(EXTRA_COMMAND_DESCRIPTION, it.take(500)) }
@@ -185,16 +199,15 @@ object TermuxRunCommandBridge {
                     "Termux RunCommandService could not be started. Ensure the official Termux app is installed."
                 )
             }
-
             withTimeout(effectiveTimeout) { deferred.await() }
         } catch (t: Throwable) {
             pending.remove(executionId)
             callback.cancel()
             setupFailure(
-                when {
-                    t is kotlinx.coroutines.TimeoutCancellationException ->
+                when (t) {
+                    is kotlinx.coroutines.TimeoutCancellationException ->
                         "Timed out waiting for Termux result after ${effectiveTimeout}ms"
-                    t is SecurityException ->
+                    is SecurityException ->
                         "Termux denied RUN_COMMAND: ${t.message}. Grant $PERMISSION_RUN_COMMAND and set allow-external-apps=true."
                     else -> "Termux RunCommandService failure: ${t.javaClass.simpleName}: ${t.message}"
                 }
@@ -213,20 +226,22 @@ object TermuxRunCommandBridge {
             return
         }
 
+        val stdout = bundle.getString(RESULT_STDOUT).orEmpty()
+        val stderr = bundle.getString(RESULT_STDERR).orEmpty()
+        // Termux's ResultSender serializes *_original_length as strings.
+        val stdoutOriginalLength = bundle.getString(RESULT_STDOUT_ORIGINAL_LENGTH)
+            ?.toIntOrNull() ?: stdout.length
+        val stderrOriginalLength = bundle.getString(RESULT_STDERR_ORIGINAL_LENGTH)
+            ?.toIntOrNull() ?: stderr.length
+
         val result = TermuxCommandResult(
             exitCode = bundle.getInt(RESULT_EXIT_CODE, -1),
-            stdout = bundle.getString(RESULT_STDOUT).orEmpty(),
-            stderr = bundle.getString(RESULT_STDERR).orEmpty(),
-            internalErrorCode = bundle.getInt(RESULT_ERR, android.app.Activity.RESULT_CANCELED),
+            stdout = stdout,
+            stderr = stderr,
+            internalErrorCode = bundle.getInt(RESULT_ERR, 1),
             internalError = bundle.getString(RESULT_ERRMSG),
-            stdoutOriginalLength = bundle.getInt(
-                RESULT_STDOUT_ORIGINAL_LENGTH,
-                bundle.getString(RESULT_STDOUT).orEmpty().length
-            ),
-            stderrOriginalLength = bundle.getInt(
-                RESULT_STDERR_ORIGINAL_LENGTH,
-                bundle.getString(RESULT_STDERR).orEmpty().length
-            )
+            stdoutOriginalLength = stdoutOriginalLength,
+            stderrOriginalLength = stderrOriginalLength
         )
         Log.d(TAG, "Termux result id=$id exit=${result.exitCode} internal=${result.internalErrorCode}")
         deferred.complete(result)
@@ -236,7 +251,7 @@ object TermuxRunCommandBridge {
         exitCode = -1,
         stdout = "",
         stderr = "",
-        internalErrorCode = android.app.Activity.RESULT_CANCELED,
+        internalErrorCode = 1,
         internalError = message,
         stdoutOriginalLength = 0,
         stderrOriginalLength = 0
