@@ -49,8 +49,6 @@ class RishShellManager(private val context: Context) {
     private val localRish: File get() = File(appContext.filesDir, RISH_SCRIPT_NAME)
 
     init {
-        // PrivilegedExecutionManager.init(context) constructs this manager at app start,
-        // making it a safe central place to initialise the UserService client as well.
         ShizukuCommandTool.init(appContext)
     }
 
@@ -88,7 +86,7 @@ class RishShellManager(private val context: Context) {
     /**
      * Multi-line scripts are passed directly to rish's remote `sh -c`.
      * Do not write them under this app's cache directory: shell UID cannot read
-     * another app's private sandbox, which was a bug in the old implementation.
+     * another app's private sandbox.
      */
     suspend fun executeScript(scriptContent: String): Result<String> = execute(scriptContent)
 
@@ -102,19 +100,14 @@ class RishShellManager(private val context: Context) {
             return@withContext localDex
         }
 
-        // Directly readable exported dex.
         for (path in SHIZUKU_EXPORT_PATHS) {
             val source = File(path)
             if (!isValidDex(source)) continue
             copyDex(source)?.let { return@withContext it }
         }
 
-        // /data/local/tmp is normally readable by shell even when not by app UID.
         copyDexViaShizuku()?.let { return@withContext it }
-
-        // Most robust fallback: extract the loader shipped inside the installed Shizuku APK.
         extractFromShizukuApk()?.let { return@withContext it }
-
         null
     }
 
@@ -176,10 +169,7 @@ class RishShellManager(private val context: Context) {
             ).apply {
                 redirectErrorStream(false)
                 environment().apply {
-                    // The loader uses this when package-name discovery from UID is ambiguous.
                     this["RISH_APPLICATION_ID"] = appContext.packageName
-                    // adb-backed Shizuku cannot access Termux private paths; preserve only
-                    // the clean Android shell environment here.
                     this["RISH_PRESERVE_ENV"] = "0"
                     this["ANDROID_DATA"] = "/data"
                     this["ANDROID_ROOT"] = "/system"
@@ -349,8 +339,6 @@ class RishShellManager(private val context: Context) {
     }
 
     private fun ensureReadOnlyDex(dex: File) {
-        // Android 14+ app_process rejects writable DEX files. Keeping it read-only
-        // on all versions is harmless and removes an entire class of failures.
         dex.setReadable(true, true)
         dex.setWritable(false, false)
         dex.setExecutable(false, false)
@@ -368,13 +356,13 @@ class RishShellManager(private val context: Context) {
         bytes.size >= 4 && bytes[0] == 'd'.code.toByte() && bytes[1] == 'e'.code.toByte() &&
             bytes[2] == 'x'.code.toByte() && bytes[3] == '\n'.code.toByte()
 
-    private fun buildRishScript(dexPath: String): String = """
-        #!/system/bin/sh
-        DEX=${shellQuote(dexPath)}
-        export RISH_APPLICATION_ID=${shellQuote(appContext.packageName)}
-        export RISH_PRESERVE_ENV=0
-        exec $APP_PROCESS -Djava.class.path="\$DEX" /system/bin --nice-name=rish $SHELL_LOADER "\$@"
-    """.trimIndent() + "\n"
+    private fun buildRishScript(dexPath: String): String = buildString {
+        appendLine("#!/system/bin/sh")
+        appendLine("DEX=${shellQuote(dexPath)}")
+        appendLine("export RISH_APPLICATION_ID=${shellQuote(appContext.packageName)}")
+        appendLine("export RISH_PRESERVE_ENV=0")
+        append("exec $APP_PROCESS -Djava.class.path=\"\$DEX\" /system/bin --nice-name=rish $SHELL_LOADER \"\$@\"\n")
+    }
 
     private fun shellQuote(value: String): String =
         "'" + value.replace("'", "'\\''") + "'"
