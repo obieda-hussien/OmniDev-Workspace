@@ -103,7 +103,7 @@ class BrowserViewerViewModel(
 
     fun newIncognitoSession(label: String = "") = viewModelScope.launch(Dispatchers.IO) {
         val args = buildMap {
-            if (label.isNotBlank()) put("label" to label)
+            if (label.isNotBlank()) put("label", label)
         }
         manager.execute("new_incognito_session", args)
     }
