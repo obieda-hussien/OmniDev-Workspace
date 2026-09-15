@@ -146,10 +146,17 @@ internal object BrowserRuntimeOptimizer {
             )
         }
 
-        if (host == "github.com" && (path.contains("webauthn") || path.contains("passkey"))) {
+        // GitHub currently serves the passkey challenge from the broader
+        // /sessions/two-factor flow, so do not rely only on a literal /webauthn
+        // path. The user can stay embedded and choose TOTP/recovery if desired.
+        if (host == "github.com" && (
+                path.startsWith("/sessions/two-factor") ||
+                path.contains("webauthn") ||
+                path.contains("passkey")
+            )) {
             return AuthCompatibilityIssue(
                 key = "github-third-party-passkey",
-                title = "GitHub Passkey",
+                title = "GitHub 2FA / Passkey",
                 message = "Passkey على GitHub محتاج صلاحيات WebAuthn لمتصفح يتعامل مع مواقع طرف ثالث. OmniDev فعّل WebAuthn الآمن للمواقع المرتبطة بالتطبيق، لكن APK عادي مش مسموح له ينتحل صلاحيات متصفح كامل. افتحها في المتصفح الآمن، أو اختار More options واستخدم TOTP / recovery code داخل الجلسة الحالية."
             )
         }
