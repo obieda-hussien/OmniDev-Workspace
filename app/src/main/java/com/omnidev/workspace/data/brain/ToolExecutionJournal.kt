@@ -391,6 +391,8 @@ class ToolExecutionJournal(
         dao.deleteById(id)
     }
 
+    suspend fun clearExecutionLog() = withContext(Dispatchers.IO) { dao.clearAll() }
+
     // ─── Data Classes ─────────────────────────────────────────────────
 
     data class ToolHistoryReport(

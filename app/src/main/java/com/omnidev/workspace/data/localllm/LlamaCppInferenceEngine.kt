@@ -9,6 +9,7 @@ import android.provider.OpenableColumns
 import android.util.Log
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.*
 import java.io.File
 import java.io.IOException
@@ -411,9 +412,12 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
     /** Rotation matrix bytes passed to native for TurboQuant PolarQuant. */
     @Volatile private var turboRotationMatrix: FloatArray? = null
 
+    // Held for the entire native operation, including cancellation cleanup.
     private val isGenerating = AtomicBoolean(false)
+    private val _modelName = MutableStateFlow<String?>(null)
+    val modelName: StateFlow<String?> = _modelName.asStateFlow()
 
-    private val sessions = mutableMapOf<String, InferenceSession>()
+    private val sessions = java.util.concurrent.ConcurrentHashMap<String, InferenceSession>()
     @Volatile private var _currentSession: InferenceSession? = null
 
     // Stats accumulators
@@ -462,7 +466,12 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 ))
             }
 
+            if (!isGenerating.compareAndSet(false, true)) {
+                return@withContext Result.failure(IllegalStateException("Engine busy. Stop the current response before loading a model."))
+            }
             try {
+                require(userContextSize == null || userContextSize in 512..32768) { "Context must be between 512 and 32768 tokens." }
+                require(userThreads == null || userThreads in 1..minOf(Runtime.getRuntime().availableProcessors(), MAX_INFERENCE_THREADS)) { "Invalid CPU thread count." }
                 safeFreeCurrent()
 
                 val pfd = context.contentResolver.openFileDescriptor(modelUri, "r")
@@ -470,6 +479,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                         IOException("Cannot open model URI: $modelUri")
                     )
 
+                activePfd = pfd
                 val modelName  = resolveDisplayName(context, modelUri)
                 val family     = ModelFamily.detectFrom(modelName)
                 _modelFamily   = family
@@ -482,6 +492,8 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
 
                 // ── Resolve model path ────────────────────────────────────
                 val (modelPath, newTempFile) = resolveModelPath(context, modelUri, pfd)
+                tempModelFile = newTempFile
+                currentCoroutineContext().ensureActive()
 
                 // ── Build TurboQuant rotation matrix ─────────────────────
                 // headDim is not exposed by GGUF metadata without full parse,
@@ -505,7 +517,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                     Log.i(TAG, "Using user-specified context size: $userContextSize tokens")
                     userContextSize
                 } else {
-                    adaptContextSizeForMemory(fileSizeMB, freeRamMB, tqConfig.targetContextSize)
+                    adaptContextSizeForMemory(fileSizeMB, freeRamMB, minOf(tqConfig.targetContextSize, 4096))
                 }
 
                 // ── Resolve thread count ──────────────────────────────────
@@ -533,12 +545,10 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                     rotationMatrixDim = DEFAULT_HEAD_DIM
                 )
 
-                // Close PFD for content URIs (file was copied); keep open for file:// (mmap)
-                if (modelUri.scheme == "content") {
+                // Direct descriptor loads retain the descriptor for mmap lifetime.
+                if (newTempFile != null) {
                     pfd.close()
                     activePfd = null
-                } else {
-                    activePfd = pfd
                 }
 
                 if (ctx == 0L) {
@@ -549,7 +559,9 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
 
                 nativeCtxPtr     = ctx
                 _loadedModelName = modelName
+                _modelName.value = modelName
                 tempModelFile    = newTempFile
+                currentCoroutineContext().ensureActive()
                 modelLoadCount++
                 trackHeapPeak()
 
@@ -559,6 +571,9 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 Log.i(TAG, "Model loaded: $modelName $compressionInfo ctx=0x${ctx.toString(16)}")
                 Result.success(modelName)
 
+            } catch (cancelled: CancellationException) {
+                safeFreeCurrent()
+                throw cancelled
             } catch (oom: OutOfMemoryError) {
                 Log.e(TAG, "OOM while loading model", oom)
                 safeFreeCurrent()
@@ -570,6 +585,8 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 Log.e(TAG, "loadModel failed", e)
                 safeFreeCurrent()
                 Result.failure(e)
+            } finally {
+                isGenerating.set(false)
             }
         }
 
@@ -589,6 +606,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
         val startTimeMs = System.currentTimeMillis()
         var tokenCount  = 0
         var stopSignalled = false
+        val completed = AtomicBoolean(false)
 
         val callback = TokenCallback { token, isDone ->
             if (token.isNotEmpty() && !stopSignalled) {
@@ -599,10 +617,10 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                     close()
                     return@TokenCallback
                 }
-                trySend(token)
+                trySendBlocking(token)
                 tokenCount++
             }
-            if (isDone) {
+            if (isDone && completed.compareAndSet(false, true)) {
                 recordStats(tokenCount, System.currentTimeMillis() - startTimeMs)
                 close()
             }
@@ -631,14 +649,18 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 Log.e(TAG, "Generation failed", e)
                 trySend("[ERROR] ${e.message}")
                 close(e)
-            } finally {
-                isGenerating.set(false)
             }
         }
 
-        awaitClose {
-            try { nativeStopGeneration(ctx) } catch (_: Throwable) {}
-            generationJob.cancel()
+        try {
+            awaitClose {
+                try { nativeStopGeneration(ctx) } catch (_: Throwable) {}
+                generationJob.cancel()
+            }
+        } finally {
+            // JNI may still be executing after coroutine cancellation. Never free
+            // or reuse its pointer until the native call has actually returned.
+            withContext(NonCancellable) { generationJob.join() }
             isGenerating.set(false)
         }
     }.flowOn(Dispatchers.Default)
@@ -668,14 +690,16 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
         val startTimeMs     = System.currentTimeMillis()
         var tokenCount      = 0
         val assistantReply  = StringBuilder()
+        val completed = AtomicBoolean(false)
 
         val callback = TokenCallback { token, isDone ->
             if (token.isNotEmpty()) {
-                trySend(token)
+                trySendBlocking(token)
                 assistantReply.append(token)
                 tokenCount++
             }
-            if (isDone) {
+            if (isDone && completed.compareAndSet(false, true)) {
+                // Native can signal completion on the final token and again on return.
                 // Persist exchange in session history
                 session.messages += SessionMessage("user",      userMessage)
                 session.messages += SessionMessage("assistant", assistantReply.toString())
@@ -691,7 +715,9 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 nativeStartGenerationWithCache(
                     ctx               = ctx,
                     prompt            = formattedPrompt,
-                    kvCacheTokenOffset = session.cachedTokenCount,
+                    // The Kotlin counter contains output tokens, not an exact
+                    // tokenized prompt prefix. Reusing it corrupts session context.
+                    kvCacheTokenOffset = 0,
                     maxNewTokens      = config.maxNewTokens,
                     temperature       = config.temperature,
                     topP              = config.topP,
@@ -706,14 +732,18 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
                 Log.e(TAG, "Session generation failed", e)
                 trySend("[ERROR] ${e.message}")
                 close(e)
-            } finally {
-                isGenerating.set(false)
             }
         }
 
-        awaitClose {
-            try { nativeStopGeneration(ctx) } catch (_: Throwable) {}
-            generationJob.cancel()
+        try {
+            awaitClose {
+                try { nativeStopGeneration(ctx) } catch (_: Throwable) {}
+                generationJob.cancel()
+            }
+        } finally {
+            // JNI may still be executing after coroutine cancellation. Never free
+            // or reuse its pointer until the native call has actually returned.
+            withContext(NonCancellable) { generationJob.join() }
             isGenerating.set(false)
         }
     }.flowOn(Dispatchers.Default)
@@ -729,17 +759,20 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
     }
 
     override fun clearSession(sessionId: String) {
-        sessions.remove(sessionId)
-        if (_currentSession?.sessionId == sessionId) _currentSession = null
-        // Evict KV cache entries for this session in native
-        val ctx = nativeCtxPtr
-        if (ctx != 0L) {
-            try { nativeClearKVCache(ctx) } catch (_: Throwable) {}
-        }
+        check(isGenerating.compareAndSet(false, true)) { "Engine busy. Try clearing the session after generation stops." }
+        try {
+            sessions.remove(sessionId)
+            if (_currentSession?.sessionId == sessionId) _currentSession = null
+            val ctx = nativeCtxPtr
+            if (ctx != 0L) nativeClearKVCache(ctx)
+        } finally { isGenerating.set(false) }
     }
 
     @Synchronized
-    override fun unloadModel() = safeFreeCurrent()
+    override fun unloadModel() {
+        check(isGenerating.compareAndSet(false, true)) { "Engine busy. Stop the current response before unloading." }
+        try { safeFreeCurrent() } finally { isGenerating.set(false) }
+    }
 
     override fun getStats(): InferenceStats = InferenceStats(
         totalTokensGenerated = totalTokensGenerated.get(),
@@ -761,12 +794,13 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
             scope.trySend("[ERROR] Native engine not available. Rebuild with llama.cpp submodule." as T)
             scope.close(); return false
         }
-        if (!isLoaded) {
-            scope.trySend("[ERROR] No model loaded. Load a GGUF model in Settings → Local Edge Model." as T)
+        if (!isGenerating.compareAndSet(false, true)) {
+            scope.trySend("[ERROR] Engine busy — another operation is in progress." as T)
             scope.close(); return false
         }
-        if (!isGenerating.compareAndSet(false, true)) {
-            scope.trySend("[ERROR] Engine busy — another generation is in progress." as T)
+        if (!isLoaded) {
+            isGenerating.set(false)
+            scope.trySend("[ERROR] No model loaded. Load a GGUF model in Settings → Local Edge Model." as T)
             scope.close(); return false
         }
         return true
@@ -781,20 +815,29 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
         modelUri: Uri,
         pfd:      ParcelFileDescriptor
     ): Pair<String, File?> = withContext(Dispatchers.IO) {
-        if (modelUri.scheme == "content") {
-            val dest = File(context.cacheDir, "llm_active_model.gguf")
+        // Most SAF providers expose a seekable file. Use it directly instead of
+        // copying gigabytes on every load. Pipes require a cancellable fallback.
+        val seekable = runCatching {
+            android.system.Os.lseek(pfd.fileDescriptor, 0, android.system.OsConstants.SEEK_SET)
+        }.isSuccess
+        if (seekable) return@withContext "/proc/self/fd/${pfd.fd}" to null
+        val dest = File.createTempFile("llm_model_", ".gguf", context.cacheDir)
+        try {
             context.contentResolver.openInputStream(modelUri)?.use { input ->
-                dest.outputStream().use { output -> input.copyTo(output) }
-            } ?: run {
-                pfd.close()
-                throw IOException("Cannot open input stream for model URI: $modelUri")
-            }
-            pfd.close()
-            Log.i(TAG, "Model cached to ${dest.absolutePath} (${dest.length() / 1_048_576} MB)")
+                dest.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        currentCoroutineContext().ensureActive()
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        output.write(buffer, 0, count)
+                    }
+                }
+            } ?: throw IOException("Cannot read selected model. Choose the file again.")
             dest.absolutePath to dest
-        } else {
-            // file:// — use /proc/self/fd symlink; keep PFD open to prevent mmap SIGBUS
-            "/proc/self/fd/${pfd.fd}" to null
+        } catch (error: Throwable) {
+            dest.delete()
+            throw error
         }
     }
 
@@ -893,7 +936,7 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
         turboRotationMatrix = null
         tempModelFile?.delete()
         tempModelFile = null
-        isGenerating.set(false)
+        _modelName.value = null
         sessions.clear()
         _currentSession = null
     }
@@ -1055,3 +1098,4 @@ class LlamaCppInferenceEngine : LocalInferenceEngine {
         }
     }
 }
+

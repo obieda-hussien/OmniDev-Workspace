@@ -88,6 +88,9 @@ interface ToolExecutionDao {
     @Query("DELETE FROM tool_execution_log WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    @Query("DELETE FROM tool_execution_log")
+    suspend fun clearAll()
+
     // ─── Flow للواجهة ────────────────────────────────────────────────
 
     @Query("SELECT * FROM tool_execution_log ORDER BY timestamp DESC LIMIT 50")
