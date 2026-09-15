@@ -68,7 +68,7 @@ import com.omnidev.workspace.data.db.entities.ScheduledTaskEntity
         // ── Build Doctor Pro (v10) ────────────────────────
         BuildDiagnosticEntry::class
     , ScheduledTaskEntity::class],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -594,6 +594,12 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN metadataJson TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getInstance(context: Context): OmniDevDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -612,7 +618,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         MIGRATION_8_9,
                         MIGRATION_9_10,
                         MIGRATION_10_11,
-                        MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14
+                        MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15
                     )
                     .build().also { INSTANCE = it }
             }

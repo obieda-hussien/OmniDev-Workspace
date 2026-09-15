@@ -43,7 +43,7 @@ object AgentConsoleSerializer {
 
     /** Serializes a list of [AgentConsoleEntry] to a JSON string (empty string if empty). */
     fun serialize(entries: List<AgentConsoleEntry>): String {
-        val compactEntries = compact(entries)
+        val compactEntries = compact(entries.map(ConsoleRedactor::entry))
         if (compactEntries.isEmpty()) return ""
         val array = JSONArray()
         compactEntries.forEach { entry ->

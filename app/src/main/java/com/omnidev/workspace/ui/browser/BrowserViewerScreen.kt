@@ -112,6 +112,19 @@ fun BrowserViewerScreen(
     onNavigateBack: () -> Unit
 ) {
     val sessions by viewModel.sessions.collectAsState()
+    val browserError by viewModel.browserError.collectAsState()
+    var autofillHelp by remember { mutableStateOf(false) }
+    if (browserError != null) {
+        AlertDialog(onDismissRequest = { viewModel.clearBrowserError() },
+            title = { Text("Browser") }, text = { Text(browserError.orEmpty()) },
+            confirmButton = { TextButton(onClick = { viewModel.clearBrowserError() }) { Text("OK") } })
+    }
+    if (autofillHelp) {
+        AlertDialog(onDismissRequest = { autofillHelp = false },
+            title = { Text("كلمات المرور") },
+            text = { Text("فعّل مدير كلمات المرور من إعدادات الملء التلقائي في أندرويد. هيقترح حسابات الموقع ويحفظ تسجيل الدخول بموافقتك. التخفي لا يحفظ أو يقترح كلمات مرور.") },
+            confirmButton = { TextButton(onClick = { autofillHelp = false }) { Text("تمام") } })
+    }
     val activeSession = sessions.firstOrNull { it.isActive } ?: sessions.firstOrNull()
 
     // Pass the Activity context to the manager on every composition so that
@@ -215,6 +228,11 @@ fun BrowserViewerScreen(
                 onReload   = { viewModel.reload() }
             )
 
+            if (activeSession != null && !activeSession.isIncognito) {
+                TextButton(onClick = { if (!viewModel.requestPasswordAutofill()) autofillHelp = true }) {
+                    Text("كلمات المرور والملء التلقائي")
+                }
+            }
             HorizontalDivider(color = BrowserBgLight)
 
             // ── WebView embed OR empty state ──────────────────────────────────

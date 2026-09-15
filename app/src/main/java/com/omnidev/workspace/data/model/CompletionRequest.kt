@@ -21,7 +21,8 @@ data class ChatMessage(
     val attachments: List<AttachmentMeta> = emptyList(),
     val timestamp: Long = System.currentTimeMillis(),
     val messageId: String = java.util.UUID.randomUUID().toString(),
-    val replyToMessageId: String? = null
+    val replyToMessageId: String? = null,
+    val executionRequest: ExecutionModeRequest? = null
 )
 
 @Serializable
@@ -117,4 +118,13 @@ data class TokenUsage(
     val promptTokens: Int = 0,
     val completionTokens: Int = 0,
     val totalTokens: Int = 0
+)
+
+/** Persisted UI action, created only by the structured mode-request tool. */
+@Serializable
+data class ExecutionModeRequest(
+    val mode: String,
+    val reason: String,
+    val originMessageId: String,
+    val status: String = "pending"
 )

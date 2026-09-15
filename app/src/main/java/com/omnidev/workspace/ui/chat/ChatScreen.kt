@@ -54,6 +54,7 @@ import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
@@ -318,30 +319,13 @@ fun ChatScreen(
                     enabled = !uiState.isProcessing
                 )
 
-                // Chat keeps a tiny, status-only activity strip. The detailed terminal is
-                // reserved for explicit Agent and Team Agents runs.
-                if (uiState.activeMode == OmniMode.CHAT) {
-                    ChatActivityStrip(
-                        entries = uiState.consoleEntries,
-                        status = uiState.agentStatus,
+                AnimatedVisibility(visible = uiState.isProcessing && uiState.consoleEntries.isNotEmpty()) {
+                    AgentLiveConsole(
+                        entries = AgentConsoleSerializer.compact(uiState.consoleEntries.map(ConsoleRedactor::entry)),
                         isRunning = uiState.isProcessing,
-                        showExecutionSuggestion = shouldOfferExecutionMode(uiState.messages.lastOrNull()),
-                        onActivateAgent = { viewModel.setMode(OmniMode.AGENT) },
-                        onActivateSwarm = { viewModel.setMode(OmniMode.SWARM) },
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        onOpenBrowser = onOpenBrowser
                     )
-                } else {
-                    AnimatedVisibility(
-                        visible = uiState.consoleEntries.isNotEmpty(),
-                        enter = fadeIn() + slideInVertically()
-                    ) {
-                        AgentLiveConsole(
-                            entries = AgentConsoleSerializer.compact(uiState.consoleEntries),
-                            isRunning = uiState.isProcessing,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            onOpenBrowser = onOpenBrowser
-                        )
-                    }
                 }
 
                 LazyColumn(
@@ -353,7 +337,7 @@ fun ChatScreen(
                     if (uiState.messages.isEmpty()) {
                         item { EmptyStateContent() }
                     }
-                    items(uiState.messages, key = { it.timestamp }) { message ->
+                    items(uiState.messages, key = { it.messageId }) { message ->
                         val replyToMessage = message.replyToMessageId?.let { id ->
                             uiState.messages.find { it.messageId == id }
                         }
@@ -364,6 +348,18 @@ fun ChatScreen(
                             onReply = { viewModel.setReplyingTo(it) },
                             onOpenBrowser = onOpenBrowser
                         )
+                        message.executionRequest?.let { request ->
+                            if (message.role == MessageRole.ASSISTANT) {
+                                OutlinedButton(
+                                    onClick = { viewModel.acceptExecutionMode(message.messageId) },
+                                    enabled = !uiState.isProcessing && request.status == "pending",
+                                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+                                ) {
+                                    Text(if (request.status == "accepted") "تم تفعيل الوضع" else
+                                        if (request.mode == "SWARM") "تفعيل متعدد الوكلاء" else "تفعيل وضع الوكيل")
+                                }
+                            }
+                        }
                     }
                     // Show partial streaming response while the model is still generating
                     val streamingContent = uiState.streamingContent
@@ -467,68 +463,7 @@ private fun ModeSelector(
     }
 }
 
-/**
- * A deliberately cheap Chat-mode activity indicator. It never renders the terminal
- * log or auto-scrolls; it only exposes the latest useful state and an explicit
- * handoff once a reply looks like a plan.
- */
-@Composable
-private fun ChatActivityStrip(
-    entries: List<AgentConsoleEntry>,
-    status: String?,
-    isRunning: Boolean,
-    showExecutionSuggestion: Boolean,
-    onActivateAgent: () -> Unit,
-    onActivateSwarm: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val latest = entries.lastOrNull()
-    val detail = when (latest) {
-        is AgentConsoleEntry.DeepThinkingEntry -> "💭 Deep thinking"
-        is AgentConsoleEntry.ThinkingEntry -> "🧠 Thinking"
-        is AgentConsoleEntry.PhaseEntry -> "🧭 ${latest.phase}"
-        is AgentConsoleEntry.ContextSummaryEntry -> "🗜 Context compacted"
-        is AgentConsoleEntry.ErrorEntry -> "⚠ ${latest.message.take(80)}"
-        else -> status
-    }
-    AnimatedVisibility(visible = isRunning || showExecutionSuggestion || detail != null) {
-        Card(
-            modifier = modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                if (detail != null) {
-                    Text(
-                        text = detail,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (showExecutionSuggestion && !isRunning) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = "الخطة جاهزة — فعّل التنفيذ فقط لو محتاج أدوات أو خطوات متعددة.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        InputChip(selected = false, onClick = onActivateAgent, label = { Text("تفعيل وضع الوكيل") })
-                        InputChip(selected = false, onClick = onActivateSwarm, label = { Text("وضع متعدد الوكلاء") })
-                    }
-                }
-            }
-        }
-    }
-}
 
-private fun shouldOfferExecutionMode(message: ChatMessage?): Boolean {
-    if (message?.role != MessageRole.ASSISTANT) return false
-    val text = message.content.lowercase(Locale.ROOT)
-    return listOf("plan", "steps", "implementation", "خطة", "خطوات", "تنفيذ", "ابدأ").any(text::contains)
-}
 // ──────────────────────────────────────────────
 //  Session Drawer
 // ──────────────────────────────────────────────
@@ -1051,7 +986,7 @@ private fun MessageBubble(
         // Persistent per-message Agent Console — collapsed by default, expandable
         if (!isUser && !consoleEntries.isNullOrEmpty()) {
             AgentLiveConsole(
-                entries = consoleEntries,
+                entries = consoleEntries.map(ConsoleRedactor::entry),
                 isRunning = false,
                 modifier = Modifier.padding(bottom = 4.dp),
                 onOpenBrowser = onOpenBrowser

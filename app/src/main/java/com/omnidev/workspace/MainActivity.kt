@@ -193,6 +193,11 @@ super.onCreate(savedInstanceState)
         intent.getLongExtra("deep_link_session_id", -1L).takeIf { it > 0 }?.let { pendingChatSession.value = it }
     }
 
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations) OmniDevApp.instance.headlessBrowserManager.onAppClosed()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleOAuthCallback(intent)

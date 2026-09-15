@@ -9,6 +9,9 @@ import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.ui.chat.AgentConsoleEntry
 import com.omnidev.workspace.ui.chat.AgentConsoleSerializer
 import kotlinx.coroutines.flow.Flow
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 
 /**
  * Repository that persists chat sessions and their messages to Room.
@@ -28,10 +31,26 @@ class ChatRepository(
          * database growth from very long AI responses; the full text is always visible in
          * the live UI — only the persisted copy is capped.
          */
-        private const val MAX_STORED_MESSAGE_CHARS = 10_000
+        private const val MAX_STORED_MESSAGE_CHARS = 100_000
         private const val SESSION_STATUS_SEPARATOR = " • Status: "
         private const val DEFAULT_SESSION_TITLE = "New conversation"
     }
+
+    private val json = Json { ignoreUnknownKeys = true }
+    private fun metadata(message: ChatMessage): String = json.encodeToString(message.copy(
+        content = "", toolCalls = emptyList(), toolResults = emptyList(), thinkingContent = null,
+        attachments = message.attachments.map { it.copy(base64Data = null) }))
+    private fun decodeMetadata(raw: String): ChatMessage? =
+        runCatching { json.decodeFromString<ChatMessage>(raw) }.getOrNull()
+
+    suspend fun updateRun(rowId: Long, message: ChatMessage, entries: List<AgentConsoleEntry>) {
+        if (rowId < 0) return
+        messageDao.updateChatRun(rowId, message.content.take(MAX_STORED_MESSAGE_CHARS),
+            AgentConsoleSerializer.serialize(entries), metadata(message))
+    }
+
+    suspend fun updateMetadata(sessionId: Long, message: ChatMessage) =
+        messageDao.updateMetadata(sessionId, message.messageId, metadata(message))
 
     /** Observe all sessions ordered newest-first (for the navigation drawer). */
     fun observeMessages(sessionId: Long) = messageDao.observeBySession(sessionId)
@@ -89,7 +108,8 @@ class ChatRepository(
                 timestamp = message.timestamp,
                 consoleEntriesJson = AgentConsoleSerializer.serialize(consoleEntries),
                 messageId = message.messageId,
-                replyToMessageId = message.replyToMessageId
+                replyToMessageId = message.replyToMessageId,
+                metadataJson = metadata(message)
             )
         )
 
@@ -108,7 +128,9 @@ class ChatRepository(
                 content = entity.content,
                 timestamp = entity.timestamp,
                 messageId = entity.messageId.ifBlank { entity.id.toString() },
-                replyToMessageId = entity.replyToMessageId
+                replyToMessageId = entity.replyToMessageId,
+                executionRequest = decodeMetadata(entity.metadataJson)?.executionRequest,
+                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty()
             )
         }
         val consoleMap = entities
@@ -130,7 +152,9 @@ class ChatRepository(
             content = entity.content,
             timestamp = entity.timestamp,
             messageId = entity.messageId.ifBlank { entity.id.toString() },
-            replyToMessageId = entity.replyToMessageId
+            replyToMessageId = entity.replyToMessageId,
+                executionRequest = decodeMetadata(entity.metadataJson)?.executionRequest,
+                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty()
         )
     }
 
@@ -146,7 +170,9 @@ class ChatRepository(
                 content = entity.content,
                 timestamp = entity.timestamp,
                 messageId = entity.messageId.ifBlank { entity.id.toString() },
-                replyToMessageId = entity.replyToMessageId
+                replyToMessageId = entity.replyToMessageId,
+                executionRequest = decodeMetadata(entity.metadataJson)?.executionRequest,
+                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty()
             )
         }
 
@@ -157,7 +183,9 @@ class ChatRepository(
                 content = entity.content,
                 timestamp = entity.timestamp,
                 messageId = entity.messageId.ifBlank { entity.id.toString() },
-                replyToMessageId = entity.replyToMessageId
+                replyToMessageId = entity.replyToMessageId,
+                executionRequest = decodeMetadata(entity.metadataJson)?.executionRequest,
+                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty()
             )
         }
 

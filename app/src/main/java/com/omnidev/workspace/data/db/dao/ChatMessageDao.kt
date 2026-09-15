@@ -13,6 +13,12 @@ interface ChatMessageDao {
     @Query("UPDATE chat_messages SET content = :content, consoleEntriesJson = :console WHERE id = :id")
     suspend fun updateProgress(id: Long, content: String, console: String)
 
+    @Query("UPDATE chat_messages SET content = :content, consoleEntriesJson = :console, metadataJson = :metadata WHERE id = :id")
+    suspend fun updateChatRun(id: Long, content: String, console: String, metadata: String)
+
+    @Query("UPDATE chat_messages SET metadataJson = :metadata WHERE sessionId = :sessionId AND messageId = :messageId")
+    suspend fun updateMetadata(sessionId: Long, messageId: String, metadata: String)
+
     @Insert
     suspend fun insertRow(message: ChatMessageEntity): Long
 

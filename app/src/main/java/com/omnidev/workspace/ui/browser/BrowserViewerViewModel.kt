@@ -31,6 +31,10 @@ class BrowserViewerViewModel(
             emptyList()
         )
 
+    val browserError = manager.browserError
+    fun clearBrowserError() = manager.clearBrowserError()
+    fun requestPasswordAutofill() = manager.requestPasswordAutofill()
+
     // ─── WebView access ───────────────────────────────────────────────────────
 
     /** Returns the live WebView for the given session ID (or active session if null). */
@@ -110,7 +114,7 @@ class BrowserViewerViewModel(
     fun getCookies(): List<Pair<String, String>> {
         val active = sessions.value.firstOrNull { it.isActive } ?: return emptyList()
         val url = active.currentUrl.ifBlank { return emptyList() }
-        val raw = CookieManager.getInstance().getCookie(url) ?: return emptyList()
+        val raw = manager.cookiesForActivePage() ?: return emptyList()
         return raw.split(";")
             .map { it.trim() }
             .filter { it.isNotBlank() }
