@@ -52,9 +52,16 @@ class SkillManager(context: Context) {
 
     fun importSkill(uri: Uri): Result<AgentSkill> = runCatching {
         val bytes = readBounded(uri)
-        val markdown = bytes.toString(Charsets.UTF_8)
-        val parsed = parseDocument(markdown, SkillOrigin.USER, enabled = true).getOrThrow()
+        installSkillMarkdown(bytes.toString(Charsets.UTF_8)).getOrThrow()
+    }
 
+    /**
+     * Validates and installs a complete SKILL.md document supplied by Omni itself
+     * or another trusted in-app flow. The same validation/path protections used by
+     * file import apply here; built-ins cannot be shadowed.
+     */
+    fun installSkillMarkdown(markdown: String): Result<AgentSkill> = runCatching {
+        val parsed = parseDocument(markdown, SkillOrigin.USER, enabled = true).getOrThrow()
         require(parsed.name !in BUILTIN_SKILLS) {
             "A built-in skill named '${parsed.name}' already exists and cannot be overridden."
         }
@@ -63,7 +70,8 @@ class SkillManager(context: Context) {
         require(dir.canonicalPath.startsWith(userRoot.canonicalPath + File.separator)) {
             "Invalid skill path."
         }
-        dir.mkdirs()
+        if (!dir.exists() && !dir.mkdirs()) error("Could not create skill directory.")
+
         val target = File(dir, "SKILL.md")
         val temp = File(dir, "SKILL.md.tmp")
         temp.writeText(markdown)
@@ -84,7 +92,7 @@ class SkillManager(context: Context) {
         }.getOrDefault(false)
         if (!validPath) return false
         val deleted = !dir.exists() || dir.deleteRecursively()
-        if (deleted) setEnabled(name, true) // clears any stale disabled marker
+        if (deleted) setEnabled(name, true)
         return deleted
     }
 
@@ -196,19 +204,18 @@ class SkillManager(context: Context) {
         }
 
         fun creationPrompt(userGoal: String): String = """
-Create a production-quality OmniDev Agent Skill for this goal:
+Create and install a production-quality OmniDev Agent Skill for this goal:
 $userGoal
 
 Requirements:
-- Create the file in the active Target Context at `.omnidev-skills/<skill-name>/SKILL.md` using the file tools; do not only print it in chat.
-- Follow the Agent Skills format: YAML frontmatter with lowercase-hyphen `name` and a precise `description` explaining what the skill does and when it should trigger.
+- Draft one complete standards-compliant SKILL.md document. Use YAML frontmatter with lowercase-hyphen `name` and a precise `description` explaining what the skill does and when it should trigger.
 - Keep the skill focused and operational. Include decision rules, tool-routing guidance, verification/definition-of-done, recovery/circuit-breaker behavior, and important edge cases.
 - Prefer existing OmniDev tools over invented commands. Respect the active tier, target scope, confirmation gates, privacy, and user authorization.
-- Do not request or embed secrets in the skill.
-- Keep SKILL.md concise; if extensive reference material is truly required, place it beside the skill and link it with relative paths.
-- Validate the generated SKILL.md after writing it and report the exact path.
-
-The user will import the resulting SKILL.md from Settings → Tool Arsenal → Agent Skills.
+- Never request or embed secrets.
+- Keep SKILL.md concise. Do not create executable scripts unless the workflow genuinely requires deterministic code.
+- When the document is ready, call `remember_fact` with `category=agent_skill` and put the COMPLETE SKILL.md document in `content`. That category installs the skill into OmniDev's validated user-skill registry instead of normal memory.
+- Verify the tool result says the skill was installed. If validation fails, fix the SKILL.md and retry once with the corrected document.
+- In the final response, report the installed skill name and that it can be enabled/disabled/deleted from Settings → Tool Arsenal → Agent Skills.
         """.trimIndent()
 
         private fun parseFrontMatter(lines: List<String>): Map<String, String> {
