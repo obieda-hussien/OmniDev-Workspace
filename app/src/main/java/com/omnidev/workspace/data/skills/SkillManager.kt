@@ -241,9 +241,11 @@ The user will import the resulting SKILL.md from Settings → Tool Arsenal → A
 
         private fun stripFrontMatter(markdown: String): String {
             val normalized = markdown.replace("\r\n", "\n")
-            if (!normalized.startsWith("---\n")) return normalized
-            val closing = normalized.indexOf("\n---\n", startIndex = 4)
-            return if (closing >= 0) normalized.substring(closing + 5) else normalized
+            val lines = normalized.lines()
+            if (lines.firstOrNull()?.trim() != "---") return normalized
+            val closingOffset = lines.drop(1).indexOfFirst { it.trim() == "---" }
+            if (closingOffset < 0) return normalized
+            return lines.drop(closingOffset + 2).joinToString("\n")
         }
     }
 }
