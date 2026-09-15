@@ -1,25 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  ══════════════════════════════════════════════════════════════════════════════
-  PRO FLAVOR MANIFEST — Elite Hackers / Power Users (God Mode)
-  ══════════════════════════════════════════════════════════════════════════════
-  Pro is the canonical full-feature build. It inherits the entire base manifest
-  (src/main/AndroidManifest.xml) with all permissions, the Shizuku provider,
-  the Accessibility service, Device Admin, IME, VPN, and screen capture.
-
-  This file exists as a scaffolding point: additional pro-only activities
-  (e.g. the deep-security console) can be declared here without touching
-  the shared manifest.
-  ══════════════════════════════════════════════════════════════════════════════
--->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!--
-      The Pro flavor is intentionally a no-op overlay — every declaration from
-      src/main/AndroidManifest.xml is preserved verbatim. TODO: when we land
-      the dedicated PentestingConsoleActivity, declare it here.
-    -->
-    <application tools:ignore="MissingApplicationIcon" />
+    <!-- Official Termux third-party command API. User must still grant this
+         permission and set allow-external-apps=true inside Termux. -->
+    <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+
+    <queries>
+        <package android:name="com.termux" />
+    </queries>
+
+    <application tools:ignore="MissingApplicationIcon">
+        <receiver
+            android:name=".data.tools.TermuxResultReceiver"
+            android:exported="false" />
+    </application>
 
 </manifest>
