@@ -39,7 +39,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Settings surface for bundled + user-imported Agent Skills. */
+/** Settings surface for bundled + user-imported/agent-authored Agent Skills. */
 @Composable
 fun SkillsSettingsPanel(
     onCreateWithOmni: (String) -> Unit = {}
@@ -144,7 +144,7 @@ fun SkillsSettingsPanel(
         }
 
         Text(
-            text = "Built-in skills are read-only. Imported skills can be disabled or deleted. A user skill cannot replace a built-in skill with the same name.",
+            text = "Built-in skills are read-only. Imported or Omni-created skills can be disabled or deleted. A user skill cannot replace a built-in skill with the same name.",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -214,7 +214,7 @@ private fun CreateSkillDialog(
         text = {
             Column {
                 Text(
-                    "Describe the reusable capability or workflow you want. Omni will create a standards-compliant SKILL.md in the active Target Context."
+                    "Describe the reusable capability or workflow you want. Omni will draft, validate, install, and enable the skill through the app's skill registry. Agent Mode still keeps the normal Target Context safety boundary."
                 )
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
