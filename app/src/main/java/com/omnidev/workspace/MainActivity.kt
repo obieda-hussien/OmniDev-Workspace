@@ -41,27 +41,26 @@ import com.omnidev.workspace.ui.theme.OmniDevTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
-/**
- * Main entry point for OmniDev Workspace.
- *
- * Sets up the dependency graph manually (without DI framework) and launches
- * the Compose navigation host.
- */
+/** Main entry point for OmniDev Workspace. */
 class MainActivity : ComponentActivity() {
 
     companion object {
         /** Emits the OAuth authorization code received via deep link callback. */
         val pendingOAuthCode: MutableStateFlow<String?> = MutableStateFlow(null)
         val pendingChatSession = MutableStateFlow<Long?>(null)
+
+        /**
+         * One-shot navigation signal used by the autonomous agent when it reaches
+         * a password/OTP/CAPTCHA/passkey/payment/consent step that needs a human.
+         * AppNavigation consumes it and opens Browser Viewer immediately.
+         */
+        val pendingBrowserHandoff = MutableStateFlow(false)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // The notification tool is used both for captured device notifications
-        // and for agent-to-user handoff/attention notifications. It deliberately
-        // keeps an application context only (never an Activity reference).
         NotificationCaptureTool.initialize(applicationContext)
 
         // ── Manual Dependency Injection ──
@@ -69,18 +68,15 @@ class MainActivity : ComponentActivity() {
         val apiKeyRepository = ApiKeyRepository(applicationContext)
         val analyticsRepository = AnalyticsRepository(applicationContext)
 
-        // Room database — single instance per process
         val database = OmniDevDatabase.getInstance(applicationContext)
         val chatRepository = ChatRepository(database.chatSessionDao(), database.chatMessageDao())
         val memoryManager = MemoryManager(database.knowledgeDao())
 
-        // Composite tool manager: file tools + memory + system assistant + build environment
         val fileToolManager = FileToolManager()
         val environmentSetupManager = EnvironmentSetupManager
         val godEyeProfilerTool = GodEyeProfilerTool(applicationContext, ShizukuCommandTool)
         val notionPublisherTool = com.omnidev.workspace.data.tools.NotionPublisherTool(settingsRepository)
 
-        // ── Agent Brain 2.0 + Action Insurance + Repo Context + Build Doctor Pro ──
         val app = OmniDevApp.instance
         val agentBrainTools = AgentBrainTools(
             reflexion = app.reflexionEngine,
@@ -111,7 +107,6 @@ class MainActivity : ComponentActivity() {
             scriptRunnerTool = ScriptRunnerTool()
         )
 
-        // Real HTTP completion provider
         val completionService = CompletionService(settingsRepository)
         val completionProvider: suspend (com.omnidev.workspace.data.model.CompletionRequest) -> com.omnidev.workspace.data.model.CompletionResponse =
             completionService::invoke
@@ -130,7 +125,6 @@ class MainActivity : ComponentActivity() {
             analyticsRepository = analyticsRepository
         )
 
-        // Swarm orchestrator for Team Agents mode
         val swarmOrchestrator = SwarmOrchestrator(
             toolManager = toolManager,
             completionProvider = completionProvider,
@@ -143,7 +137,6 @@ class MainActivity : ComponentActivity() {
             analyticsRepository = analyticsRepository
         )
 
-        // Auto-Heal Build Loop
         val autoHealBuildUseCase = com.omnidev.workspace.domain.engine.AutoHealBuildUseCase(
             agentPipeline = agentPipeline,
             settingsRepository = settingsRepository,
@@ -183,11 +176,8 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Handle OAuth deep link delivered with the launch intent
         handleOAuthCallback(intent)
-        intent.getLongExtra("deep_link_session_id", -1L)
-            .takeIf { it > 0 }
-            ?.let { pendingChatSession.value = it }
+        handleNavigationIntent(intent)
     }
 
     @Deprecated("WebView FileChooserParams still delivers results through Activity results")
@@ -208,10 +198,21 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         handleOAuthCallback(intent)
+        handleNavigationIntent(intent)
+    }
+
+    private fun handleNavigationIntent(intent: Intent) {
         intent.getLongExtra("deep_link_session_id", -1L)
             .takeIf { it > 0 }
             ?.let { pendingChatSession.value = it }
+
+        if (intent.hasExtra("browser_handoff_notification_id") ||
+            intent.getBooleanExtra("open_browser_handoff", false)
+        ) {
+            pendingBrowserHandoff.value = true
+        }
     }
 
     private fun handleOAuthCallback(intent: Intent) {
