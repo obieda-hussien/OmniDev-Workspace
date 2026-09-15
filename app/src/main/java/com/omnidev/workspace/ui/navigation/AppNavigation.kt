@@ -36,6 +36,7 @@ import com.omnidev.workspace.ui.settings.McpSettingsViewModel
 import com.omnidev.workspace.ui.settings.ScheduledTasksScreen
 import com.omnidev.workspace.ui.settings.ToolRegistryScreen
 import com.omnidev.workspace.ui.settings.UserProfileScreen
+import kotlinx.coroutines.delay
 
 object Routes {
     const val CHAT = "chat"
@@ -74,12 +75,17 @@ fun AppNavigation(
         }
     }
 
-    // Agent -> human browser takeover. This is intentionally separate from chat
-    // navigation so a sensitive login step can surface even while the user is on
-    // another screen or arrives by tapping a high-priority handoff notification.
+    // Agent -> human browser takeover. Give the handoff tool a tiny window to
+    // finish posting its native notification, then stop the active agent run so
+    // it cannot keep clicking/typing behind the user's back while credentials,
+    // OTP, CAPTCHA, passkeys or payment details are being entered.
     LaunchedEffect(Unit) {
         com.omnidev.workspace.MainActivity.pendingBrowserHandoff.collect { pending ->
             if (pending) {
+                delay(120L)
+                if (chatViewModel.uiState.value.isProcessing) {
+                    chatViewModel.cancelCurrentRun()
+                }
                 navController.navigate(Routes.BROWSER_VIEWER) {
                     launchSingleTop = true
                     restoreState = true
