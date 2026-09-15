@@ -21,6 +21,10 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
+import androidx.webkit.WebViewRenderProcess
+import androidx.webkit.WebViewRenderProcessClient
 
 /**
  * Human-facing Chrome client for WebViews shown in Browser Viewer.
@@ -40,6 +44,61 @@ internal class BrowserChromeClient(
     companion object {
         const val REQUEST_WEB_MEDIA_PERMISSIONS = 0x4F50
         const val REQUEST_WEB_LOCATION_PERMISSIONS = 0x4F51
+    }
+
+    private var rendererWatchdogInstalled = false
+    private var rendererDialog: AlertDialog? = null
+
+    override fun onProgressChanged(view: WebView?, newProgress: Int) {
+        super.onProgressChanged(view, newProgress)
+        val webView = view ?: return
+
+        // target=_blank/window.open is enabled only so onCreateWindow can route
+        // explicit user-gesture popups. JavaScript may not spawn windows silently.
+        webView.settings.setSupportMultipleWindows(true)
+        webView.settings.javaScriptCanOpenWindowsAutomatically = false
+        installRendererWatchdog(webView)
+    }
+
+    private fun installRendererWatchdog(webView: WebView) {
+        if (rendererWatchdogInstalled) return
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_VIEW_RENDERER_CLIENT_BASIC_USAGE)) return
+        rendererWatchdogInstalled = true
+
+        runCatching {
+            WebViewCompat.setWebViewRenderProcessClient(
+                webView,
+                object : WebViewRenderProcessClient() {
+                    override fun onRenderProcessUnresponsive(
+                        view: WebView,
+                        renderer: WebViewRenderProcess?
+                    ) {
+                        if (!activity.isUsable() || rendererDialog?.isShowing == true) return
+                        rendererDialog = AlertDialog.Builder(activity)
+                            .setTitle("الصفحة مش بتستجيب")
+                            .setMessage("WebView renderer اتعلق. تقدر تستنى شوية أو تعيد تحميل الصفحة من غير ما نقفل التبويب.")
+                            .setPositiveButton("إعادة تحميل") { _, _ ->
+                                view.stopLoading()
+                                view.reload()
+                            }
+                            .setNegativeButton("استنى", null)
+                            .create()
+                            .also { dialog ->
+                                dialog.setOnDismissListener { rendererDialog = null }
+                                dialog.show()
+                            }
+                    }
+
+                    override fun onRenderProcessResponsive(
+                        view: WebView,
+                        renderer: WebViewRenderProcess?
+                    ) {
+                        rendererDialog?.dismiss()
+                        rendererDialog = null
+                    }
+                }
+            )
+        }
     }
 
     override fun onJsAlert(
@@ -120,8 +179,7 @@ internal class BrowserChromeClient(
     /**
      * Handles target=_blank/window.open without allowing invisible script popups.
      * A user-gesture popup is resolved in a disposable child WebView and then
-     * moved into the current visible tab, preserving the WebView cookie/profile
-     * instead of silently jumping to an unrelated external browser session.
+     * moved into the current visible tab, preserving the WebView cookie/profile.
      */
     override fun onCreateWindow(
         view: WebView?,
@@ -282,8 +340,6 @@ internal class BrowserChromeClient(
     override fun onGeolocationPermissionsHidePrompt() = Unit
 
     override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-        // Keep Chromium's normal console behavior without copying potentially
-        // sensitive website console payloads into agent/application logs.
         return false
     }
 
