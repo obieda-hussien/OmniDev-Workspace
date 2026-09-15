@@ -37,9 +37,20 @@ class BrowserViewerViewModel(
 
     // ─── WebView access ───────────────────────────────────────────────────────
 
-    /** Returns the live WebView for the given session ID (or active session if null). */
-    fun getWebView(sessionId: String? = null): WebView? =
-        manager.getWebViewForSession(sessionId)
+    /**
+     * Returns the live WebView for the requested session and applies the runtime
+     * browser compatibility layer before Compose attaches it. This keeps feature
+     * negotiation (WebAuthn, BFCache, Safe Browsing, SSO cookies) in one place
+     * and detects auth flows that cannot legitimately run inside an embedded
+     * WebView, such as Google embedded sign-in and GitHub third-party passkeys.
+     */
+    fun getWebView(sessionId: String? = null): WebView? {
+        val webView = manager.getWebViewForSession(sessionId) ?: return null
+        val resolvedId = sessionId ?: manager.getActiveSessionId()
+        val isIncognito = sessions.value.firstOrNull { it.id == resolvedId }?.isIncognito == true
+        BrowserRuntimeOptimizer.configureAndCheck(webView, isIncognito)
+        return webView
+    }
 
     /** Returns the currently active session ID. */
     fun getActiveSessionId(): String? = manager.getActiveSessionId()
@@ -92,7 +103,7 @@ class BrowserViewerViewModel(
 
     fun newIncognitoSession(label: String = "") = viewModelScope.launch(Dispatchers.IO) {
         val args = buildMap {
-            if (label.isNotBlank()) put("label", label)
+            if (label.isNotBlank()) put("label" to label)
         }
         manager.execute("new_incognito_session", args)
     }
