@@ -3,7 +3,6 @@ package com.omnidev.workspace.data.tools
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.view.autofill.AutofillManager
 import com.omnidev.workspace.data.accessibility.OmniAccessibilityService
@@ -14,16 +13,17 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
 /**
- * Autofill assistant tool:
- * - Stores user profile fields in app-local DataStore (via [SettingsRepository])
- * - Fills the currently focused field using Accessibility or IME
- * - Can open Android Autofill settings so the user can choose Google/system provider
+ * Autofill + human-takeover assistant.
+ *
+ * Ordinary non-secret profile fields may be filled by the agent. Passwords,
+ * passkeys, OTP/recovery codes, CAPTCHA, biometric prompts and account-consent
+ * challenges are a hard human boundary: the agent should call
+ * request_user_handoff and stop interacting with that sensitive step.
  */
 object AutofillAssistTool {
-    
+
     private const val DEFAULT_BACKEND = "accessibility"
 
-    // Canonical mappings for profile fields so callers can use aliases.
     private val PROFILE_FIELD_ALIASES = mapOf(
         "full_name" to "full_name",
         "name" to "full_name",
@@ -36,68 +36,36 @@ object AutofillAssistTool {
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "autofill_assist",
-            description = "Assist with autofill from multiple sources. " +
-                "Actions: " +
-                "'save_profile' (save user profile fields in app database), " +
-                "'get_profile' (read saved profile fields), " +
-                "'fill_focused' (fill currently focused field from source profile|clipboard|custom), " +
-                "'status' (show available fill backends), " +
-                "'open_autofill_settings' (open Android autofill provider settings).",
+            description = """
+Autofill and secure human-handoff assistant.
+
+Actions:
+- save_profile: save NON-SECRET profile fields only (name/email/phone/address).
+- get_profile: read saved non-secret profile fields.
+- fill_focused: fill a focused NON-SENSITIVE field from profile|clipboard|custom.
+- status: report Accessibility/IME/system Autofill availability.
+- open_autofill_settings: open Android Autofill provider settings.
+- request_user_handoff: notify the user and switch to Browser Viewer for a password, passkey, OTP/recovery code, CAPTCHA, biometric prompt, account consent, payment confirmation, or any other secret/high-trust browser step.
+
+CRITICAL BROWSER RULE: never ask the user to send a password/OTP to the model and never place it in tool arguments, logs, memory, clipboard automation, or notifications. When a sensitive input is encountered, call request_user_handoff, tell the user to enter it directly in Browser Viewer/system UI, then STOP automation until the user confirms completion.
+""".trimIndent(),
             parameters = listOf(
                 ToolParameter(
                     name = "action",
                     type = "string",
-                    description = "One of: save_profile, get_profile, fill_focused, status, open_autofill_settings",
+                    description = "save_profile | get_profile | fill_focused | status | open_autofill_settings | request_user_handoff",
                     required = true
                 ),
-                ToolParameter(
-                    name = "source",
-                    type = "string",
-                    description = "For fill_focused: profile | clipboard | custom (default: profile)",
-                    required = false
-                ),
-                ToolParameter(
-                    name = "field",
-                    type = "string",
-                    description = "For source=profile: full_name (or name) | email | phone (or phone_number) | address",
-                    required = false
-                ),
-                ToolParameter(
-                    name = "text",
-                    type = "string",
-                    description = "For source=custom: text to fill",
-                    required = false
-                ),
-                ToolParameter(
-                    name = "backend",
-                    type = "string",
-                    description = "Fill backend: accessibility | ime (default: accessibility)",
-                    required = false
-                ),
-                ToolParameter(
-                    name = "full_name",
-                    type = "string",
-                    description = "Profile full name for save_profile",
-                    required = false
-                ),
-                ToolParameter(
-                    name = "email",
-                    type = "string",
-                    description = "Profile email for save_profile",
-                    required = false
-                ),
-                ToolParameter(
-                    name = "phone",
-                    type = "string",
-                    description = "Profile phone for save_profile",
-                    required = false
-                ),
-                ToolParameter(
-                    name = "address",
-                    type = "string",
-                    description = "Profile address for save_profile",
-                    required = false
-                )
+                ToolParameter("source", "string", "fill_focused: profile | clipboard | custom", false),
+                ToolParameter("field", "string", "profile field: full_name | email | phone | address", false),
+                ToolParameter("text", "string", "fill_focused custom text. Never use for secrets.", false),
+                ToolParameter("backend", "string", "accessibility | ime", false),
+                ToolParameter("full_name", "string", "save_profile full name", false),
+                ToolParameter("email", "string", "save_profile email", false),
+                ToolParameter("phone", "string", "save_profile phone", false),
+                ToolParameter("address", "string", "save_profile address", false),
+                ToolParameter("reason", "string", "request_user_handoff: safe reason, e.g. password/OTP/CAPTCHA; do not include the secret", false),
+                ToolParameter("url", "string", "request_user_handoff: current page URL for context; do not include tokens/query secrets", false)
             )
         )
     )
@@ -114,12 +82,55 @@ object AutofillAssistTool {
             "fill_focused" -> fillFocused(context, settingsRepository, args)
             "status" -> status(context)
             "open_autofill_settings" -> openAutofillSettings(context)
+            "request_user_handoff" -> requestUserHandoff(context, args)
             else -> ToolExecutionResult(
-                "Unknown autofill_assist action '$action'. " +
-                "Valid actions: save_profile, get_profile, fill_focused, status, open_autofill_settings",
+                "Unknown autofill_assist action '$action'. Valid actions: save_profile, get_profile, " +
+                    "fill_focused, status, open_autofill_settings, request_user_handoff",
                 isError = true
             )
         }
+    }
+
+    private suspend fun requestUserHandoff(context: Context, args: Map<String, String>): ToolExecutionResult {
+        NotificationCaptureTool.initialize(context)
+        val reason = args["reason"]?.trim().orEmpty().ifBlank { "sensitive sign-in step" }
+        val sanitizedUrl = sanitizeUrlForDisplay(args["url"])
+        val body = buildString {
+            append("Omni reached a human-only step ($reason). Open OmniDev and complete it directly in Browser Viewer.")
+            if (sanitizedUrl != null) append("\n$sanitizedUrl")
+            append("\nDo not send the password, OTP, recovery code, or other secret to the agent.")
+        }
+
+        // If the app is already alive, route straight to Browser Viewer. If it is
+        // backgrounded, this state is consumed when navigation becomes active;
+        // the high-priority notification below remains the explicit user signal.
+        com.omnidev.workspace.MainActivity.pendingBrowserHandoff.value = true
+
+        val posted = NotificationCaptureTool.executeTool(
+            "read_notifications",
+            mapOf(
+                "operation" to "post",
+                "category" to "handoff",
+                "title" to "Omni needs your input",
+                "text" to body
+            )
+        )
+
+        val suffix = if (posted.isError) {
+            " Notification could not be posted: ${posted.output}"
+        } else {
+            " ${posted.output}"
+        }
+        return ToolExecutionResult(
+            "USER_ACTION_REQUIRED: $reason. Browser Viewer takeover requested. STOP browser automation until the user confirms the sensitive step is complete.$suffix"
+        )
+    }
+
+    private fun sanitizeUrlForDisplay(raw: String?): String? {
+        val uri = raw?.trim()?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
+            ?.let { runCatching { android.net.Uri.parse(it) }.getOrNull() }
+            ?: return null
+        return uri.buildUpon().clearQuery().fragment(null).build().toString()
     }
 
     private suspend fun saveProfile(
@@ -247,25 +258,23 @@ object AutofillAssistTool {
         val systemAutofillEnabled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = context.getSystemService(AutofillManager::class.java)
             manager?.hasEnabledAutofillServices() == true
-        } else {
-            false
-        }
-        
+        } else false
+
         return ToolExecutionResult(
             buildString {
                 appendLine("Autofill Assist Status:")
                 appendLine("• Accessibility backend: ${if (hasAccessibility) "✅ ready" else "❌ not connected"}")
                 appendLine("• IME backend: ${if (imeActive) "✅ active" else "❌ inactive"}")
-                appendLine("• Profile source: ✅ ready (DataStore)")
+                appendLine("• Profile source: ✅ ready (non-secret DataStore fields)")
                 appendLine("• System/Google provider: ${if (systemAutofillEnabled) "✅ enabled" else "⚠️ not enabled"}")
-                appendLine("  (Use action=open_autofill_settings to configure system provider)")
+                appendLine("• Sensitive credential policy: 👤 HUMAN TAKEOVER REQUIRED")
+                appendLine("  (Use request_user_handoff for passwords/OTP/passkeys/CAPTCHA.)")
             }.trimEnd()
         )
     }
 
     private suspend fun openAutofillSettings(context: Context): ToolExecutionResult =
         withContext(Dispatchers.Main) {
-            // Assuming AndroidIntentTool handles the Intent Result appropriately
             val result = AndroidIntentTool.fire(
                 context = context,
                 action = "android.settings.AUTOFILL_SETTINGS"

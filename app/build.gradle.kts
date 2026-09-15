@@ -9,12 +9,12 @@ plugins {
 
 android {
     namespace = "com.omnidev.workspace"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.omnidev.workspace"
         minSdk = 24 // ممتاز، بيدعم أجهزة كتير، بس الوظائف الخارقة هتشتغل من 11+
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
@@ -283,7 +283,7 @@ android.applicationVariants.configureEach {
 }
 
 dependencies {
-    implementation("androidx.webkit:webkit:1.13.0")
+    implementation("androidx.webkit:webkit:1.17.0")
     implementation("org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r")
 
     // ── Core & Lifecycle ──

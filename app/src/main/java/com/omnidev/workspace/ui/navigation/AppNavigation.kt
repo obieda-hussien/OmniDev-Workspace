@@ -1,7 +1,9 @@
 package com.omnidev.workspace.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -9,8 +11,10 @@ import androidx.navigation.compose.rememberNavController
 import com.omnidev.workspace.OmniDevApp
 import com.omnidev.workspace.data.debug.DebugLogManager
 import com.omnidev.workspace.data.db.OmniDevDatabase
+import com.omnidev.workspace.data.mcp.McpConfigManager
 import com.omnidev.workspace.data.repository.AnalyticsRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.domain.engine.OmniMode
 import com.omnidev.workspace.ui.analytics.AnalyticsDashboardScreen
 import com.omnidev.workspace.ui.analytics.AnalyticsDashboardViewModel
 import com.omnidev.workspace.ui.brain.AgentBrainDashboard
@@ -28,18 +32,13 @@ import com.omnidev.workspace.ui.settings.AISettingsViewModel
 import com.omnidev.workspace.ui.settings.IntegrationsScreen
 import com.omnidev.workspace.ui.settings.LocalModelManagerScreen
 import com.omnidev.workspace.ui.settings.MemoryExplorerScreen
-import com.omnidev.workspace.ui.settings.ScheduledTasksScreen
-import com.omnidev.workspace.ui.settings.ToolRegistryScreen
 import com.omnidev.workspace.ui.settings.McpSettingsScreen
 import com.omnidev.workspace.ui.settings.McpSettingsViewModel
-import com.omnidev.workspace.data.mcp.McpConfigManager
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.viewmodel.compose.viewModel
+import com.omnidev.workspace.ui.settings.ScheduledTasksScreen
+import com.omnidev.workspace.ui.settings.ToolRegistryScreen
 import com.omnidev.workspace.ui.settings.UserProfileScreen
+import kotlinx.coroutines.delay
 
-/**
- * Navigation route constants.
- */
 object Routes {
     const val CHAT = "chat"
     const val SETTINGS = "settings"
@@ -50,16 +49,13 @@ object Routes {
     const val LOCAL_MODELS = "local_models"
     const val SCHEDULED_TASKS = "scheduled_tasks"
     const val TOOL_REGISTRY = "tool_registry"
-        const val MCP_SETTINGS = "mcp_settings"
+    const val MCP_SETTINGS = "mcp_settings"
     const val PROFILE = "profile"
     const val ANALYTICS = "analytics"
-    const val AGENT_BRAIN = "agent_brain"  // شاشة عقل الـ Agent الجديدة
-    const val BROWSER_VIEWER = "browser_viewer"  // شاشة عرض متصفح الوكيل المخفي
+    const val AGENT_BRAIN = "agent_brain"
+    const val BROWSER_VIEWER = "browser_viewer"
 }
 
-/**
- * Top-level navigation host for OmniDev Workspace.
- */
 @Composable
 fun AppNavigation(
     settingsViewModel: AISettingsViewModel,
@@ -69,7 +65,8 @@ fun AppNavigation(
     database: OmniDevDatabase
 ) {
     val navController = rememberNavController()
-    androidx.compose.runtime.LaunchedEffect(Unit) {
+
+    LaunchedEffect(Unit) {
         com.omnidev.workspace.MainActivity.pendingChatSession.collect { sessionId ->
             if (sessionId != null) {
                 chatViewModel.loadSession(sessionId)
@@ -78,12 +75,29 @@ fun AppNavigation(
             }
         }
     }
-    val startDestination = remember {
-        if (DebugLogManager.consumePendingCrashRedirect()) {
-            Routes.DEBUG
-        } else {
-            Routes.CHAT
+
+    // Agent -> human browser takeover. Give the handoff tool a tiny window to
+    // finish posting its native notification, then stop the active agent run so
+    // it cannot keep clicking/typing behind the user's back while credentials,
+    // OTP, CAPTCHA, passkeys or payment details are being entered.
+    LaunchedEffect(Unit) {
+        com.omnidev.workspace.MainActivity.pendingBrowserHandoff.collect { pending ->
+            if (pending) {
+                delay(120L)
+                if (chatViewModel.uiState.value.isProcessing) {
+                    chatViewModel.cancelCurrentRun()
+                }
+                navController.navigate(Routes.BROWSER_VIEWER) {
+                    launchSingleTop = true
+                    restoreState = true
+                }
+                com.omnidev.workspace.MainActivity.pendingBrowserHandoff.value = false
+            }
         }
+    }
+
+    val startDestination = remember {
+        if (DebugLogManager.consumePendingCrashRedirect()) Routes.DEBUG else Routes.CHAT
     }
 
     NavHost(
@@ -93,12 +107,8 @@ fun AppNavigation(
         composable(Routes.CHAT) {
             ChatScreen(
                 viewModel = chatViewModel,
-                onNavigateToSettings = {
-                    navController.navigate(Routes.SETTINGS)
-                },
-                onOpenBrowser = {
-                    navController.navigate(Routes.BROWSER_VIEWER)
-                }
+                onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
+                onOpenBrowser = { navController.navigate(Routes.BROWSER_VIEWER) }
             )
         }
 
@@ -161,11 +171,10 @@ fun AppNavigation(
             ScheduledTasksScreen(onNavigateBack = { navController.popBackStack() })
         }
 
-
         composable(Routes.MCP_SETTINGS) {
             val context = LocalContext.current
             val mcpConfigManager = remember { McpConfigManager(context) }
-            val viewModel: McpSettingsViewModel = viewModel(
+            val mcpViewModel: McpSettingsViewModel = viewModel(
                 factory = object : androidx.lifecycle.ViewModelProvider.Factory {
                     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
                         @Suppress("UNCHECKED_CAST")
@@ -174,13 +183,24 @@ fun AppNavigation(
                 }
             )
             McpSettingsScreen(
-                viewModel = viewModel,
+                viewModel = mcpViewModel,
                 onNavigateBack = { navController.popBackStack() }
             )
         }
 
         composable(Routes.TOOL_REGISTRY) {
-            ToolRegistryScreen(onNavigateBack = { navController.popBackStack() })
+            ToolRegistryScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onCreateSkillWithOmni = { prompt ->
+                    chatViewModel.setMode(OmniMode.AGENT)
+                    chatViewModel.onInputChanged(prompt)
+                    chatViewModel.sendMessage()
+                    navController.navigate(Routes.CHAT) {
+                        popUpTo(Routes.CHAT) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                }
+            )
         }
 
         composable(Routes.PROFILE) {
@@ -200,9 +220,6 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // 🧠 Agent Brain Dashboard — لوحة تحكم عقل الـ Agent
-        // ═══════════════════════════════════════════════════════════════
         composable(Routes.AGENT_BRAIN) {
             val app = OmniDevApp.instance
             val agentBrainViewModel: AgentBrainViewModel = viewModel(
@@ -218,9 +235,6 @@ fun AppNavigation(
             )
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // 👁 Browser Viewer — شاشة عرض و التحكم في متصفح الوكيل المخفي
-        // ═══════════════════════════════════════════════════════════════
         composable(Routes.BROWSER_VIEWER) {
             val app = OmniDevApp.instance
             val browserViewModel: BrowserViewerViewModel = viewModel(

@@ -1,12 +1,12 @@
 package com.omnidev.workspace
 
 import android.content.Intent
-import androidx.lifecycle.lifecycleScope
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.lifecycleScope
 import com.omnidev.workspace.data.auth.OAuthManager
 import com.omnidev.workspace.data.db.OmniDevDatabase
 import com.omnidev.workspace.data.network.CompletionService
@@ -14,28 +14,26 @@ import com.omnidev.workspace.data.repository.AnalyticsRepository
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
-import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.data.tools.AgentBrainTools
 import com.omnidev.workspace.data.tools.BuildDoctorTools
-import com.omnidev.workspace.data.tools.CausalChainPlannerTool
-import com.omnidev.workspace.data.tools.ProgressiveTrustTool
-import com.omnidev.workspace.data.tools.ScriptRunnerTool
 import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.EnvironmentSetupManager
 import com.omnidev.workspace.data.tools.FileToolManager
 import com.omnidev.workspace.data.tools.GodEyeProfilerTool
-import com.omnidev.workspace.data.tools.HeadlessBrowserManager
 import com.omnidev.workspace.data.tools.MemoryManager
+import com.omnidev.workspace.data.tools.NotificationCaptureTool
+import com.omnidev.workspace.data.tools.PermissionRequestBridge
+import com.omnidev.workspace.data.tools.ProgressiveTrustTool
 import com.omnidev.workspace.data.tools.RepoContextTools
 import com.omnidev.workspace.data.tools.RollbackTools
+import com.omnidev.workspace.data.tools.ScriptRunnerTool
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
-import com.omnidev.workspace.data.tools.TaskSchedulerTool
 import com.omnidev.workspace.data.tools.VectorMemoryManager
 import com.omnidev.workspace.domain.attachment.AttachmentProcessor
 import com.omnidev.workspace.domain.engine.AgentConfig
-import com.omnidev.workspace.domain.engine.AgentEvent
 import com.omnidev.workspace.domain.engine.AgentPipeline
 import com.omnidev.workspace.domain.engine.SwarmOrchestrator
+import com.omnidev.workspace.ui.browser.BrowserFileChooserBridge
 import com.omnidev.workspace.ui.chat.ChatViewModel
 import com.omnidev.workspace.ui.navigation.AppNavigation
 import com.omnidev.workspace.ui.providers.ProvidersViewModel
@@ -43,48 +41,44 @@ import com.omnidev.workspace.ui.settings.AISettingsViewModel
 import com.omnidev.workspace.ui.theme.OmniDevTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.first
-import java.util.concurrent.atomic.AtomicInteger
 
-/**
- * Main entry point for OmniDev Workspace.
- *
- * Sets up the dependency graph manually (without DI framework) and launches
- * the Compose navigation host.
- */
+/** Main entry point for OmniDev Workspace. */
 class MainActivity : ComponentActivity() {
 
     companion object {
         /** Emits the OAuth authorization code received via deep link callback. */
         val pendingOAuthCode: MutableStateFlow<String?> = MutableStateFlow(null)
         val pendingChatSession = MutableStateFlow<Long?>(null)
+
+        /**
+         * One-shot navigation signal used by the autonomous agent when it reaches
+         * a password/OTP/CAPTCHA/passkey/payment/consent step that needs a human.
+         * AppNavigation consumes it and opens Browser Viewer immediately.
+         */
+        val pendingBrowserHandoff = MutableStateFlow(false)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-
-
-super.onCreate(savedInstanceState)
+        super.onCreate(savedInstanceState)
+        PermissionRequestBridge.attach(this)
         enableEdgeToEdge()
+
+        NotificationCaptureTool.initialize(applicationContext)
 
         // ── Manual Dependency Injection ──
         val settingsRepository = SettingsRepository(applicationContext)
         val apiKeyRepository = ApiKeyRepository(applicationContext)
         val analyticsRepository = AnalyticsRepository(applicationContext)
 
-        // Room database — single instance per process
         val database = OmniDevDatabase.getInstance(applicationContext)
         val chatRepository = ChatRepository(database.chatSessionDao(), database.chatMessageDao())
         val memoryManager = MemoryManager(database.knowledgeDao())
 
-        // Composite tool manager: file tools + memory + system assistant + build environment
         val fileToolManager = FileToolManager()
         val environmentSetupManager = EnvironmentSetupManager
         val godEyeProfilerTool = GodEyeProfilerTool(applicationContext, ShizukuCommandTool)
         val notionPublisherTool = com.omnidev.workspace.data.tools.NotionPublisherTool(settingsRepository)
 
-        // ── Agent Brain 2.0 + Action Insurance + Repo Context + Build Doctor Pro ──
-        // المحركات تُهيَّأ في OmniDevApp.onCreate() — هنا فقط نلتقط مراجعها ونغلّفها
-        // كأدوات يستدعيها الـ Agent عبر الـ ReAct loop.
         val app = OmniDevApp.instance
         val agentBrainTools = AgentBrainTools(
             reflexion = app.reflexionEngine,
@@ -101,11 +95,10 @@ super.onCreate(savedInstanceState)
             environmentSetupManager = environmentSetupManager,
             settingsRepository = settingsRepository,
             godEyeProfilerTool = godEyeProfilerTool,
-
             notionPublisherTool = notionPublisherTool,
             vectorMemoryManager = VectorMemoryManager(database.knowledgeDao()),
             apiKeyRepository = apiKeyRepository,
-            headlessBrowserManager = OmniDevApp.instance.headlessBrowserManager,
+            headlessBrowserManager = app.headlessBrowserManager,
             chatRepository = chatRepository,
             agentBrainTools = agentBrainTools,
             rollbackTools = rollbackTools,
@@ -116,14 +109,13 @@ super.onCreate(savedInstanceState)
             scriptRunnerTool = ScriptRunnerTool()
         )
 
-        // Real HTTP completion provider
         val completionService = CompletionService(settingsRepository)
         val completionProvider: suspend (com.omnidev.workspace.data.model.CompletionRequest) -> com.omnidev.workspace.data.model.CompletionResponse =
             completionService::invoke
 
         val agentPipeline = AgentPipeline(
             toolManager = toolManager,
-            mcpRegistry = com.omnidev.workspace.OmniDevApp.instance.mcpRegistry,
+            mcpRegistry = app.mcpRegistry,
             completionProvider = completionProvider,
             streamingCompletionProvider = { request, onChunk ->
                 completionService.stream(request, onChunk)
@@ -135,7 +127,6 @@ super.onCreate(savedInstanceState)
             analyticsRepository = analyticsRepository
         )
 
-        // Swarm orchestrator for Team Agents mode
         val swarmOrchestrator = SwarmOrchestrator(
             toolManager = toolManager,
             completionProvider = completionProvider,
@@ -148,7 +139,6 @@ super.onCreate(savedInstanceState)
             analyticsRepository = analyticsRepository
         )
 
-        // Auto-Heal Build Loop
         val autoHealBuildUseCase = com.omnidev.workspace.domain.engine.AutoHealBuildUseCase(
             agentPipeline = agentPipeline,
             settingsRepository = settingsRepository,
@@ -188,9 +178,19 @@ super.onCreate(savedInstanceState)
             }
         }
 
-        // Handle OAuth deep link delivered with the launch intent
         handleOAuthCallback(intent)
-        intent.getLongExtra("deep_link_session_id", -1L).takeIf { it > 0 }?.let { pendingChatSession.value = it }
+        handleNavigationIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        PermissionRequestBridge.attach(this)
+    }
+
+    @Deprecated("WebView FileChooserParams still delivers results through Activity results")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (BrowserFileChooserBridge.handleActivityResult(requestCode, resultCode, data)) return
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onStop() {
@@ -198,10 +198,29 @@ super.onCreate(savedInstanceState)
         if (!isChangingConfigurations) OmniDevApp.instance.headlessBrowserManager.onAppClosed()
     }
 
+    override fun onDestroy() {
+        PermissionRequestBridge.detach(this)
+        if (isFinishing) BrowserFileChooserBridge.cancelPending()
+        super.onDestroy()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
         handleOAuthCallback(intent)
-        intent.getLongExtra("deep_link_session_id", -1L).takeIf { it > 0 }?.let { pendingChatSession.value = it }
+        handleNavigationIntent(intent)
+    }
+
+    private fun handleNavigationIntent(intent: Intent) {
+        intent.getLongExtra("deep_link_session_id", -1L)
+            .takeIf { it > 0 }
+            ?.let { pendingChatSession.value = it }
+
+        if (intent.hasExtra("browser_handoff_notification_id") ||
+            intent.getBooleanExtra("open_browser_handoff", false)
+        ) {
+            pendingBrowserHandoff.value = true
+        }
     }
 
     private fun handleOAuthCallback(intent: Intent) {

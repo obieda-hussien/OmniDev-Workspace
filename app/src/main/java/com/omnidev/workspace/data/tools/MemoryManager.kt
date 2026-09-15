@@ -1,93 +1,86 @@
 package com.omnidev.workspace.data.tools
 
+import com.omnidev.workspace.OmniDevApp
 import com.omnidev.workspace.data.db.dao.KnowledgeDao
 import com.omnidev.workspace.data.db.entities.KnowledgeSnippet
+import com.omnidev.workspace.data.skills.SkillManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
  * Provides long-term memory tools for the AI agent.
  *
- * * HACKER UPGRADES:
- * 1. Token Protection: `buildKnowledgeContext` now strictly limits the number of injected 
- * facts to prevent System Prompt token explosion over time.
- * 2. Search Optimization: Bounded search results to prevent context flooding.
- * 3. Prompt Engineering: Forced the LLM to use keywords instead of natural language 
- * for SQL-friendly searching.
+ * In addition to ordinary memories, `remember_fact(category=agent_skill)` is a
+ * deliberately narrow installation bridge for agent-authored SKILL.md documents.
+ * The document is validated by [SkillManager] and stored in the user-skill registry;
+ * it is NOT inserted into the knowledge table.
  */
 class MemoryManager(private val knowledgeDao: KnowledgeDao) {
 
     companion object {
-        // Strict limits to prevent the LLM context window from overflowing
         private const val MAX_INJECTED_RULES = 10
         private const val MAX_INJECTED_PREFS = 10
         private const val MAX_SEARCH_RESULTS = 15
+        private const val SKILL_CATEGORY = "agent_skill"
     }
-
-    // ──────────────────────────────────────────────
-    //  Tool Definitions (exposed to AgentPipeline)
-    // ──────────────────────────────────────────────
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "remember_fact",
             description = "Store a new fact, preference, or rule in long-term memory. " +
-                "Use this proactively to persist important user preferences, project architecture decisions, " +
-                "coding style rules, or frequently referenced information across sessions. " +
-                "Keep the 'content' concise and factual.",
+                "Use this proactively for durable user/project knowledge. Special case: when the user explicitly asks " +
+                "to create/install an OmniDev Agent Skill, set category='agent_skill' and put the COMPLETE SKILL.md " +
+                "document in content; OmniDev validates and installs it as a user skill instead of storing it as memory.",
             parameters = listOf(
-                ToolParameter("content", "string", "The fact or rule to remember (Keep it concise).", required = true),
+                ToolParameter(
+                    "content",
+                    "string",
+                    "Ordinary fact text, or the complete SKILL.md document when category=agent_skill.",
+                    required = true
+                ),
                 ToolParameter(
                     "category", "string",
-                    "Broad category: 'user_preference', 'project_rule', 'architecture', 'api_key_hint', or 'general'.",
+                    "Category: user_preference, project_rule, architecture, api_key_hint, general, or agent_skill. " +
+                        "Use agent_skill only for an explicitly requested reusable Agent Skill.",
                     required = false
                 ),
                 ToolParameter(
                     "tags", "string",
-                    "Comma-separated keywords for easier retrieval (e.g., 'kotlin,coroutines,ui').",
+                    "Comma-separated keywords for ordinary memory retrieval. Ignored for agent_skill.",
                     required = false
                 )
             )
         ),
         ToolDefinition(
             name = "search_knowledge",
-            description = "Search your long-term memory for stored facts, preferences, and rules. " +
-                "CRITICAL: The underlying database uses exact keyword matching. You MUST pass 1 or 2 distinct KEYWORDS " +
-                "(e.g., 'architecture' or 'api key'), NOT natural language questions. " +
-                "Always use this at the START of a task to retrieve relevant context.",
+            description = "Search long-term memory for stored facts, preferences, and rules. " +
+                "The database uses keyword matching, so pass 1-2 distinct keywords instead of a full question.",
             parameters = listOf(
                 ToolParameter(
                     "query", "string",
-                    "A single keyword or short phrase to search for (DO NOT use full sentences).",
+                    "A keyword or short phrase to search for.",
                     required = true
                 )
             )
         ),
         ToolDefinition(
             name = "update_memory",
-            description = "Update the content of an existing memory entry by its ID. " +
-                "Use this when a previously stored fact becomes outdated or needs correction. " +
-                "First use search_knowledge to find the ID.",
+            description = "Update an existing ordinary memory entry by ID. First search_knowledge to find the ID.",
             parameters = listOf(
-                ToolParameter("id", "string", "The numeric ID of the memory entry to update.", required = true),
-                ToolParameter("content", "string", "The new content to replace the old fact.", required = true),
+                ToolParameter("id", "string", "Numeric memory ID.", required = true),
+                ToolParameter("content", "string", "Replacement content.", required = true),
                 ToolParameter("category", "string", "Updated category (optional).", required = false),
                 ToolParameter("tags", "string", "Updated comma-separated tags (optional).", required = false)
             )
         ),
         ToolDefinition(
             name = "delete_memory",
-            description = "Permanently delete a memory entry by its ID. " +
-                "Use this to remove outdated or incorrect facts from long-term memory.",
+            description = "Permanently delete an ordinary memory entry by ID.",
             parameters = listOf(
-                ToolParameter("id", "string", "The numeric ID of the memory entry to delete.", required = true)
+                ToolParameter("id", "string", "Numeric memory ID.", required = true)
             )
         )
     )
-
-    // ──────────────────────────────────────────────
-    //  Tool Execution
-    // ──────────────────────────────────────────────
 
     suspend fun executeTool(
         name: String,
@@ -103,11 +96,37 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
     }
 
     private suspend fun rememberFact(args: Map<String, String>): ToolExecutionResult {
-        val content = args["content"]?.trim()
+        val rawContent = args["content"]
             ?: return ToolExecutionResult("Missing required argument: content", isError = true)
         val category = args["category"]?.takeIf { it.isNotBlank() }?.lowercase()?.trim() ?: "general"
+
+        if (category == SKILL_CATEGORY) {
+            // Do not trim the markdown before writing; preserve formatting after validation.
+            val manager = runCatching { SkillManager(OmniDevApp.instance.applicationContext) }
+                .getOrElse {
+                    return ToolExecutionResult("Skill runtime is unavailable: ${it.message}", isError = true)
+                }
+            return manager.installSkillMarkdown(rawContent).fold(
+                onSuccess = { skill ->
+                    ToolExecutionResult(
+                        "✅ Agent Skill '${skill.name}' installed and enabled. " +
+                            "Manage it in Settings → Tool Arsenal → Agent Skills."
+                    )
+                },
+                onFailure = { error ->
+                    ToolExecutionResult(
+                        "SKILL_VALIDATION_FAILED: ${error.message ?: "invalid SKILL.md"}",
+                        isError = true
+                    )
+                }
+            )
+        }
+
+        val content = rawContent.trim()
+        if (content.isBlank()) {
+            return ToolExecutionResult("Memory content cannot be blank.", isError = true)
+        }
         val tags = args["tags"]?.lowercase()?.trim() ?: ""
-        
         val id = knowledgeDao.insert(KnowledgeSnippet(category = category, content = content, tags = tags))
         return ToolExecutionResult("✅ Fact stored successfully in long-term memory (id=$id).")
     }
@@ -115,19 +134,16 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
     private suspend fun searchKnowledge(args: Map<String, String>): ToolExecutionResult {
         val query = args["query"]?.trim()
             ?: return ToolExecutionResult("Missing required argument: query", isError = true)
-            
-        // Limit results to prevent flooding the LLM Context window
         val results = knowledgeDao.search(query).take(MAX_SEARCH_RESULTS)
-        
+
         if (results.isEmpty()) {
             return ToolExecutionResult("No matching knowledge found for keyword: \"$query\". Try a different keyword.")
         }
-        
+
         val formatted = results.joinToString("\n\n") { snippet ->
             "[ID: ${snippet.id}] (${snippet.category}) ${snippet.content}" +
                 if (snippet.tags.isNotBlank()) "\n  Tags: ${snippet.tags}" else ""
         }
-        
         return ToolExecutionResult("🧠 Found ${results.size} memory result(s):\n\n$formatted")
     }
 
@@ -145,7 +161,6 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
             category = args["category"]?.takeIf { it.isNotBlank() }?.lowercase()?.trim() ?: existing.category,
             tags = args["tags"]?.lowercase()?.trim() ?: existing.tags
         )
-        
         knowledgeDao.update(updated)
         return ToolExecutionResult("✅ Memory entry id=$id updated successfully.")
     }
@@ -153,50 +168,51 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
     private suspend fun deleteMemory(args: Map<String, String>): ToolExecutionResult {
         val id = args["id"]?.toLongOrNull()
             ?: return ToolExecutionResult("Missing or invalid argument: id (must be a number)", isError = true)
-            
+
         val existing = knowledgeDao.findById(id)
         if (existing == null) {
             return ToolExecutionResult("No memory entry found with id=$id.", isError = true)
         }
-        
         knowledgeDao.deleteById(id)
         return ToolExecutionResult("🗑️ Memory entry id=$id deleted permanently.")
     }
 
-    // ──────────────────────────────────────────────
-    //  Context Hydration
-    // ──────────────────────────────────────────────
-
     /**
-     * Builds a knowledge injection block from stored rules and preferences.
-     * * FIX: Uses strict `.take()` limits to ensure the system prompt never grows
-     * infinitely large as the agent memorizes more facts over months of usage.
+     * Builds a bounded context block from enabled Agent Skills plus stored rules/preferences.
+     * Imported skill instructions remain subordinate to system/tier/authorization policy.
      */
     suspend fun buildKnowledgeContext(): String? = withContext(Dispatchers.IO) {
-        // Fetch and limit entries to protect Token Quota
         val projectRules = knowledgeDao.findByCategory("project_rule").take(MAX_INJECTED_RULES)
         val userPrefs = knowledgeDao.findByCategory("user_preference").take(MAX_INJECTED_PREFS)
         val archNotes = knowledgeDao.findByCategory("architecture").take(5)
-
         val all = projectRules + userPrefs + archNotes
-        if (all.isEmpty()) return@withContext null
+
+        val skillContext = runCatching {
+            SkillManager(OmniDevApp.instance.applicationContext).buildEnabledPromptContext()
+        }.getOrDefault("")
+
+        if (all.isEmpty() && skillContext.isBlank()) return@withContext null
 
         buildString {
-            appendLine("\n--- 🧠 LONG-TERM MEMORY (Auto-Injected) ---")
-            if (projectRules.isNotEmpty()) {
-                appendLine("\nProject Rules:")
-                projectRules.forEach { appendLine("• [${it.id}] ${it.content}") }
+            if (skillContext.isNotBlank()) append(skillContext)
+
+            if (all.isNotEmpty()) {
+                appendLine("\n--- 🧠 LONG-TERM MEMORY (Auto-Injected) ---")
+                if (projectRules.isNotEmpty()) {
+                    appendLine("\nProject Rules:")
+                    projectRules.forEach { appendLine("• [${it.id}] ${it.content}") }
+                }
+                if (userPrefs.isNotEmpty()) {
+                    appendLine("\nUser Preferences:")
+                    userPrefs.forEach { appendLine("• [${it.id}] ${it.content}") }
+                }
+                if (archNotes.isNotEmpty()) {
+                    appendLine("\nArchitecture Notes:")
+                    archNotes.forEach { appendLine("• [${it.id}] ${it.content}") }
+                }
+                appendLine("\n(Use 'search_knowledge' to retrieve older or specific facts)")
+                appendLine("--- END MEMORY ---")
             }
-            if (userPrefs.isNotEmpty()) {
-                appendLine("\nUser Preferences:")
-                userPrefs.forEach { appendLine("• [${it.id}] ${it.content}") }
-            }
-            if (archNotes.isNotEmpty()) {
-                appendLine("\nArchitecture Notes:")
-                archNotes.forEach { appendLine("• [${it.id}] ${it.content}") }
-            }
-            appendLine("\n(Use 'search_knowledge' to retrieve older or specific facts)")
-            appendLine("--- END MEMORY ---")
         }
     }
 }

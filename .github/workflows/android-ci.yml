@@ -2,21 +2,19 @@ name: Android CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop, codex/repair-agent-runtime ]
+    branches: [ main, develop ]
     tags:
       - "v*.*.*"
-  # Run validation for every PR, including stacked PRs whose base is another
-  # feature branch rather than main/develop.
   pull_request:
   workflow_dispatch:
     inputs:
       build_release:
-        description: "Build signed release APK"
+        description: "Build release APKs"
         required: false
         default: true
         type: boolean
       enable_extended_checks:
-        description: "Enable additional compile checks"
+        description: "Enable release compile/unit checks"
         required: false
         default: false
         type: boolean
@@ -30,16 +28,16 @@ permissions:
 
 env:
   JAVA_VERSION: "17"
+  ANDROID_API_LEVEL: "36"
+  ANDROID_BUILD_TOOLS: "35.0.0"
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dkotlin.incremental=false"
-  GRADLE_BUILD_ACTION_CACHE_DEBUG_ENABLED: false
-  # Increased size limit to 150MB to accommodate Pro/OEM flavors containing native llama.cpp libraries
-  MAX_DEBUG_APK_SIZE_KB: 153600
+  MAX_DEBUG_APK_SIZE_KB: "153600"
 
 jobs:
   code-quality:
     name: Code Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
       checks: write
@@ -58,25 +56,29 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Set up Android SDK 36
+        uses: android-actions/setup-android@v4
         with:
-          packages: 'platform-tools'
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
 
-      - name: Cache Gradle + native build dirs
+      - name: Cache native build directories
         uses: actions/cache@v5
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
             app/.cxx
             ~/.cmake
-          key: quality-${{ runner.os }}-${{ hashFiles('settings.gradle.kts', 'build.gradle.kts', 'app/build.gradle.kts', 'gradle/libs.versions.toml', 'gradle/wrapper/gradle-wrapper.properties') }}
+          key: native-${{ runner.os }}-${{ hashFiles('app/src/main/cpp/**', 'app/build.gradle.kts', 'gradle/libs.versions.toml') }}
           restore-keys: |
-            quality-${{ runner.os }}-
+            native-${{ runner.os }}-
 
       - name: Grant gradlew permission
         run: chmod +x gradlew
+
+      - name: Print toolchain
+        run: |
+          java -version
+          ./gradlew --version
+          sdkmanager --list_installed | grep -E 'platforms;android-36|build-tools;35.0.0|platform-tools' || true
 
       - name: Run lint checks for all flavors
         env:
@@ -90,7 +92,7 @@ jobs:
             :app:lintAdminDebug \
             --continue
 
-      - name: Optional static-analysis tasks (if present)
+      - name: Optional static analysis
         continue-on-error: true
         run: |
           TASKS="$(./gradlew tasks --all --no-daemon --console=plain)"
@@ -119,24 +121,27 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Zip quality reports
-        if: always()
-        continue-on-error: true
-        run: |
-          zip -r quality-reports.zip app/build/reports/lint-results*.html app/build/reports/lint-results*.xml app/build/reports/ktlint/ app/build/reports/detekt/ || true
-
       - name: Send quality reports to Telegram
         if: always()
         continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          FILE="quality-reports.zip"
-          if [ -f "$FILE" ]; then
-            curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$FILE" || true
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets are not configured; skipping upload."
+            exit 0
+          fi
+          zip -r quality-reports.zip app/build/reports/lint-results*.html app/build/reports/lint-results*.xml app/build/reports/ktlint/ app/build/reports/detekt/ 2>/dev/null || true
+          if [ -f quality-reports.zip ]; then
+            curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+              -F chat_id="$TELEGRAM_CHAT_ID" -F document=@quality-reports.zip || true
           fi
 
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     needs: code-quality
     permissions:
       contents: read
@@ -146,6 +151,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          submodules: recursive
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v5
@@ -154,22 +161,32 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Set up Android SDK 36
+        uses: android-actions/setup-android@v4
         with:
-          packages: 'platform-tools'
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
 
       - name: Grant gradlew permission
         run: chmod +x gradlew
 
-      - name: Run compile + unit tests for all flavors
+      - name: Compile and run unit tests for all flavors
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.caching=true -Dkotlin.incremental=false -Dorg.gradle.jvmargs=-Xmx4g"
         run: |
-          ./gradlew --no-daemon \
+          ./gradlew --no-daemon --max-workers 1 \
             :app:compileLiteDebugKotlin :app:testLiteDebugUnitTest \
             :app:compileNormDebugKotlin :app:testNormDebugUnitTest \
             :app:compileProDebugKotlin :app:testProDebugUnitTest \
             :app:compileOemDebugKotlin :app:testOemDebugUnitTest \
             :app:compileAdminDebugKotlin :app:testAdminDebugUnitTest \
+            --continue
+
+      - name: Optional extended checks
+        if: github.event_name == 'workflow_dispatch' && inputs.enable_extended_checks == true
+        run: |
+          ./gradlew --no-daemon --max-workers 1 \
+            :app:compileLiteReleaseKotlin :app:testLiteReleaseUnitTest \
+            :app:compileProReleaseKotlin :app:testProReleaseUnitTest \
             --continue
 
       - name: Upload test reports
@@ -181,34 +198,30 @@ jobs:
           path: |
             app/build/reports/tests/
             app/build/test-results/
+          if-no-files-found: ignore
           retention-days: 14
-
-      - name: Zip test reports
-        if: always()
-        continue-on-error: true
-        run: |
-          zip -r test-reports.zip app/build/reports/tests/ app/build/test-results/ || true
 
       - name: Send test reports to Telegram
         if: always()
         continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          FILE="test-reports.zip"
-          if [ -f "$FILE" ]; then
-            curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$FILE" || true
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets are not configured; skipping upload."
+            exit 0
           fi
-
-      - name: Optional extended checks
-        if: github.event_name == 'workflow_dispatch' && inputs.enable_extended_checks == true
-        run: |
-          ./gradlew --no-daemon \
-            :app:compileLiteReleaseKotlin :app:testLiteReleaseUnitTest \
-            :app:compileProReleaseKotlin :app:testProReleaseUnitTest \
-            --continue
+          zip -r test-reports.zip app/build/reports/tests/ app/build/test-results/ 2>/dev/null || true
+          if [ -f test-reports.zip ]; then
+            curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+              -F chat_id="$TELEGRAM_CHAT_ID" -F document=@test-reports.zip || true
+          fi
 
   security-scan:
     name: Dependency Security Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     needs: code-quality
     permissions:
       contents: read
@@ -225,6 +238,11 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
+      - name: Set up Android SDK 36
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
+
       - name: Grant gradlew permission
         run: chmod +x gradlew
 
@@ -235,7 +253,6 @@ jobs:
             echo "available=true" >> "$GITHUB_OUTPUT"
           else
             echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "dependencyCheckAnalyze task not found; skipping OWASP scan."
           fi
 
       - name: Run OWASP Dependency Check
@@ -245,27 +262,13 @@ jobs:
 
       - name: Upload OWASP report
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: dependency-check-report-${{ github.run_number }}
           path: '**/build/reports/dependency-check-report.*'
           if-no-files-found: ignore
           retention-days: 14
-
-      - name: Zip OWASP report
-        if: always()
-        continue-on-error: true
-        run: |
-          find . -name "dependency-check-report.*" | xargs zip -r owasp-report.zip || true
-
-      - name: Send OWASP report to Telegram
-        if: always()
-        continue-on-error: true
-        run: |
-          FILE="owasp-report.zip"
-          if [ -f "$FILE" ]; then
-            curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$FILE" || true
-          fi
 
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@master
@@ -276,28 +279,21 @@ jobs:
           output: trivy-results.sarif
           severity: CRITICAL,HIGH
 
-      - name: Upload Trivy Results Artifact
+      - name: Upload Trivy results
+        if: always()
         continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: trivy-results-${{ github.run_number }}
           path: trivy-results.sarif
+          if-no-files-found: ignore
           retention-days: 14
-
-      - name: Send Trivy Results to Telegram
-        if: always()
-        continue-on-error: true
-        run: |
-          FILE="trivy-results.sarif"
-          if [ -f "$FILE" ]; then
-            curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$FILE" || true
-          fi
 
   android-debug:
     name: Android Debug Build
     runs-on: ubuntu-latest
-    needs: [ test, security-scan ]
     timeout-minutes: 90
+    needs: [ test, security-scan ]
     permissions:
       contents: read
 
@@ -314,10 +310,10 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Set up Android SDK 36
+        uses: android-actions/setup-android@v4
         with:
-          packages: 'platform-tools'
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
 
       - name: Grant gradlew permission
         run: chmod +x gradlew
@@ -335,20 +331,17 @@ jobs:
 
       - name: APK size gate per flavor
         run: |
-          MAX_KB="${{ env.MAX_DEBUG_APK_SIZE_KB }}"
-          APK_PATHS=$(find app/build/outputs/apk -name '*.apk' | grep debug)
-          
-          if [ -z "$APK_PATHS" ]; then
-            echo "No APKs found!"
+          set -euo pipefail
+          mapfile -t APKS < <(find app/build/outputs/apk -name '*.apk' | grep '/debug/' || true)
+          if [ "${#APKS[@]}" -eq 0 ]; then
+            echo "No debug APKs found."
             exit 1
           fi
-
-          echo "Checking APK sizes (Max: ${MAX_KB}KB)..."
-          for APK_PATH in $APK_PATHS; do
+          for APK_PATH in "${APKS[@]}"; do
             SIZE_KB="$(du -k "$APK_PATH" | cut -f1)"
             echo "- $APK_PATH: ${SIZE_KB}KB"
-            if [ "$SIZE_KB" -gt "$MAX_KB" ]; then
-              echo "::error::APK size ${SIZE_KB}KB exceeds maximum ${MAX_KB}KB for $APK_PATH"
+            if [ "$SIZE_KB" -gt "$MAX_DEBUG_APK_SIZE_KB" ]; then
+              echo "::error::APK size ${SIZE_KB}KB exceeds ${MAX_DEBUG_APK_SIZE_KB}KB: $APK_PATH"
               exit 1
             fi
           done
@@ -358,52 +351,43 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: app-debug-flavors-${{ github.run_number }}
-          # Updated path to capture all flavor folders
           path: app/build/outputs/apk/*/debug/*.apk
+          if-no-files-found: error
           retention-days: 14
 
       - name: Send debug APKs to Telegram
         if: always()
         continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets are not configured; skipping upload."
+            exit 0
+          fi
           for FILE in app/build/outputs/apk/*/debug/*.apk; do
-            if [ -f "$FILE" ]; then
-              SIZE=$(stat -c%s "$FILE")
-              if [ $SIZE -gt 48000000 ]; then
-                split -b 45m "$FILE" "$FILE.part_"
-                for part in "$FILE".part_*; do
-                  curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$part" || true
-                done
-                rm "$FILE".part_*
-              else
-                curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$FILE" || true
-              fi
+            [ -f "$FILE" ] || continue
+            SIZE=$(stat -c%s "$FILE")
+            if [ "$SIZE" -gt 48000000 ]; then
+              split -b 45m "$FILE" "$FILE.part_"
+              for PART in "$FILE".part_*; do
+                curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+                  -F chat_id="$TELEGRAM_CHAT_ID" -F document=@"$PART" || true
+              done
+              rm -f "$FILE".part_*
+            else
+              curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+                -F chat_id="$TELEGRAM_CHAT_ID" -F document=@"$FILE" || true
             fi
           done
 
-      - name: Debug build summary
-        run: |
-          {
-            echo "## Android Debug Builds (All Flavors)"
-            echo ""
-            echo "| Flavor | APK File | Size |"
-            echo "|--------|----------|------|"
-            
-            find app/build/outputs/apk -name '*.apk' | grep debug | while read APK_PATH; do
-              FLAVOR_NAME=$(basename $(dirname $(dirname "$APK_PATH")))
-              APK_SIZE="$(du -sh "$APK_PATH" | cut -f1)"
-              echo "| **$FLAVOR_NAME** | \`$(basename "$APK_PATH")\` | $APK_SIZE |"
-            done
-            
-            echo ""
-            echo "- Run: #${{ github.run_number }}"
-          } >> "$GITHUB_STEP_SUMMARY"
-
   android-release:
     name: Android Release Build
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_release == true }}
     runs-on: ubuntu-latest
-    needs: [ test, security-scan ]
     timeout-minutes: 90
+    needs: [ test, security-scan ]
     permissions:
       contents: write
 
@@ -420,10 +404,10 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Set up Android SDK 36
+        uses: android-actions/setup-android@v4
         with:
-          packages: 'platform-tools'
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
 
       - name: Grant gradlew permission
         run: chmod +x gradlew
@@ -439,48 +423,26 @@ jobs:
         run: |
           set -euo pipefail
           READY=false
-          REASON=""
-
-          if [ -n "${KEYSTORE_BASE64}" ] && \
-             [ -n "${KEYSTORE_PASSWORD}" ] && \
-             [ -n "${KEY_ALIAS}" ] && \
-             [ -n "${KEY_PASSWORD}" ]; then
-            if echo "${KEYSTORE_BASE64}" | base64 --decode > "$RUNNER_TEMP/release.keystore" 2>/dev/null; then
-              chmod 600 "$RUNNER_TEMP/release.keystore"
-              if [ -s "$RUNNER_TEMP/release.keystore" ]; then
-                if keytool -list \
-                  -keystore "$RUNNER_TEMP/release.keystore" \
-                  -storepass:env KEYSTORE_PASSWORD >/dev/null 2>&1; then
-                  if keytool -list \
-                    -keystore "$RUNNER_TEMP/release.keystore" \
-                    -storepass:env KEYSTORE_PASSWORD \
-                    -alias "${KEY_ALIAS}" >/dev/null 2>&1; then
-                    READY=true
-                    echo "KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
-                  else
-                    REASON="Keystore loaded, but alias '${KEY_ALIAS}' does not exist."
-                  fi
-                else
-                  REASON="Decoded keystore is invalid or KEYSTORE_PASSWORD is incorrect."
-                fi
+          REASON="Signing secrets are missing."
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ] && [ -n "$KEY_PASSWORD" ]; then
+            if echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.keystore" 2>/dev/null && [ -s "$RUNNER_TEMP/release.keystore" ]; then
+              if keytool -list -keystore "$RUNNER_TEMP/release.keystore" -storepass:env KEYSTORE_PASSWORD -alias "$KEY_ALIAS" >/dev/null 2>&1; then
+                READY=true
+                echo "KEYSTORE_PATH=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
               else
-                REASON="Decoded keystore file is empty."
+                REASON="Keystore/password/alias validation failed."
               fi
             else
-              REASON="KEYSTORE_BASE64 secret is not valid base64 data."
+              REASON="KEYSTORE_BASE64 is invalid or empty."
             fi
-          else
-            REASON="Signing secrets are missing."
           fi
-
           echo "ready=$READY" >> "$GITHUB_OUTPUT"
-          if [ "$READY" != "true" ]; then
-            echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+          if [ "$READY" != true ]; then
+            echo "::warning::$REASON"
             rm -f "$RUNNER_TEMP/release.keystore"
-            echo "::warning::${REASON}"
           fi
 
-      - name: Build signed release APKs (All Flavors)
+      - name: Build signed release APKs
         if: steps.signing.outputs.ready == 'true'
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.caching=true -Dkotlin.incremental=false -Dorg.gradle.jvmargs=-Xmx4g"
@@ -489,17 +451,13 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           ./gradlew --no-daemon --max-workers 1 \
-            :app:assembleLiteRelease \
-            :app:assembleNormRelease \
-            :app:assembleProRelease \
-            :app:assembleOemRelease \
-            :app:assembleAdminRelease \
+            :app:assembleLiteRelease :app:assembleNormRelease :app:assembleProRelease :app:assembleOemRelease :app:assembleAdminRelease \
             -Pandroid.injected.signing.store.file="${{ env.KEYSTORE_PATH }}" \
-            -Pandroid.injected.signing.store.password="${KEYSTORE_PASSWORD}" \
-            -Pandroid.injected.signing.key.alias="${KEY_ALIAS}" \
-            -Pandroid.injected.signing.key.password="${KEY_PASSWORD}"
+            -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+            -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+            -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
 
-      - name: Build unsigned release APKs (fallback)
+      - name: Build unsigned release APKs
         if: steps.signing.outputs.ready != 'true'
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=false -Dorg.gradle.caching=true -Dkotlin.incremental=false -Dorg.gradle.jvmargs=-Xmx4g"
@@ -517,32 +475,41 @@ jobs:
         with:
           name: app-release-flavors-${{ github.run_number }}
           path: app/build/outputs/apk/*/release/*.apk
+          if-no-files-found: error
           retention-days: 30
 
       - name: Send release APKs to Telegram
         if: always()
         continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets are not configured; skipping upload."
+            exit 0
+          fi
           for FILE in app/build/outputs/apk/*/release/*.apk; do
-            if [ -f "$FILE" ]; then
-              SIZE=$(stat -c%s "$FILE")
-              if [ $SIZE -gt 48000000 ]; then
-                split -b 45m "$FILE" "$FILE.part_"
-                for part in "$FILE".part_*; do
-                  curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$part" || true
-                done
-                rm "$FILE".part_*
-              else
-                curl -s -X POST "https://api.telegram.org/bot8952883702:AAHVXfCLBkTCrzEkGReYVIWwx_aIzkc92TM/sendDocument" -F chat_id="1100444932" -F document=@"$FILE" || true
-              fi
+            [ -f "$FILE" ] || continue
+            SIZE=$(stat -c%s "$FILE")
+            if [ "$SIZE" -gt 48000000 ]; then
+              split -b 45m "$FILE" "$FILE.part_"
+              for PART in "$FILE".part_*; do
+                curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+                  -F chat_id="$TELEGRAM_CHAT_ID" -F document=@"$PART" || true
+              done
+              rm -f "$FILE".part_*
+            else
+              curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+                -F chat_id="$TELEGRAM_CHAT_ID" -F document=@"$FILE" || true
             fi
           done
 
-      - name: Cleanup keystore file
-        if: always() && steps.signing.outputs.ready == 'true'
-        run: rm -f "${{ env.KEYSTORE_PATH }}"
+      - name: Cleanup keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.keystore"
 
-      - name: Create GitHub Release (tag builds)
+      - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
@@ -573,4 +540,3 @@ jobs:
             echo "| Android Debug | ${{ needs.android-debug.result }} |"
             echo "| Android Release | ${{ needs.android-release.result }} |"
           } >> "$GITHUB_STEP_SUMMARY"
-
