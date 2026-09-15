@@ -32,10 +32,10 @@ import java.util.WeakHashMap
 /**
  * Runtime compatibility + human-handoff layer for Browser Viewer.
  *
- * The headless engine remains autonomous for ordinary navigation and forms, but
- * the visible browser becomes a real human-controlled browser surface whenever a
- * site reaches a credential/high-trust step. Password/OTP/payment values are not
- * collected by this layer and are never passed back to the agent.
+ * The headless engine stays autonomous for ordinary navigation and forms. Once a
+ * session is visible, this layer upgrades it with browser-grade capabilities,
+ * privacy-preserving semantic instrumentation, file uploads, and explicit human
+ * takeover for credentials/high-trust steps.
  */
 internal object BrowserRuntimeOptimizer {
 
@@ -56,10 +56,118 @@ internal object BrowserRuntimeOptimizer {
     private val sensitivePrompts = Collections.synchronizedMap(WeakHashMap<WebView, MutableSet<String>>())
 
     /**
-     * Safe to call repeatedly. Capability setup runs once per WebView; auth and
-     * human-takeover detection runs on every call because the URL/DOM can change
-     * without the WebView instance changing.
+     * This script is injected before page JavaScript whenever the WebView provider
+     * supports DOCUMENT_START_SCRIPT. It exposes a lightweight semantic DOM index
+     * that the agent can query with execute_js without scraping input values.
+     *
+     * It intentionally NEVER returns .value, textContent from password/OTP/payment
+     * fields, cookies, localStorage, query strings, or fragments.
      */
+    private val semanticBootstrap = """
+(function(){
+  if (window.__OMNI_DEV_SEMANTICS__) return;
+
+  function visible(el){
+    if(!el || !(el instanceof Element)) return false;
+    var r=el.getBoundingClientRect(), s=getComputedStyle(el);
+    return r.width>0 && r.height>0 && s.display!=='none' && s.visibility!=='hidden';
+  }
+  function clean(v,n){
+    return String(v||'').replace(/\s+/g,' ').trim().slice(0,n||180);
+  }
+  function safeHref(el){
+    try {
+      if(!el.href) return '';
+      var u=new URL(el.href, location.href);
+      return u.origin+u.pathname;
+    } catch(e){ return ''; }
+  }
+  function labelFor(el){
+    var aria=el.getAttribute('aria-label');
+    if(aria) return clean(aria);
+    if(el.id){
+      try { var l=document.querySelector('label[for="'+CSS.escape(el.id)+'"]'); if(l) return clean(l.innerText); } catch(e){}
+    }
+    var parent=el.closest('label');
+    if(parent) return clean(parent.innerText);
+    return clean(el.placeholder || el.title || '');
+  }
+  function kindOf(el){
+    var tag=(el.tagName||'').toLowerCase();
+    var type=(el.getAttribute('type')||'').toLowerCase();
+    var ac=(el.getAttribute('autocomplete')||'').toLowerCase();
+    if(type==='password') return 'password';
+    if(ac==='one-time-code') return 'otp';
+    if(ac==='cc-number'||ac==='cc-csc'||ac==='cc-exp') return 'payment';
+    if(tag==='input'||tag==='textarea'||el.isContentEditable) return 'input';
+    if(tag==='button'||el.getAttribute('role')==='button') return 'button';
+    if(tag==='a') return 'link';
+    if(tag==='select') return 'select';
+    return tag || 'element';
+  }
+  function describe(el,index){
+    var kind=kindOf(el);
+    var sensitive=kind==='password'||kind==='otp'||kind==='payment';
+    return {
+      index:index,
+      kind:kind,
+      tag:(el.tagName||'').toLowerCase(),
+      type:clean(el.getAttribute('type'),40),
+      role:clean(el.getAttribute('role'),60),
+      name:clean(el.getAttribute('name'),100),
+      id:clean(el.id,100),
+      label:labelFor(el),
+      placeholder:sensitive?'':clean(el.getAttribute('placeholder'),140),
+      autocomplete:clean(el.getAttribute('autocomplete'),80),
+      text:sensitive?'':clean(el.innerText,180),
+      href:kind==='link'?safeHref(el):'',
+      disabled:!!el.disabled,
+      checked:typeof el.checked==='boolean'?!!el.checked:undefined
+    };
+  }
+  function candidates(){
+    var selector='a[href],button,input,textarea,select,[role=button],[role=link],[contenteditable=true],[tabindex]';
+    return Array.from(document.querySelectorAll(selector)).filter(visible);
+  }
+  function snapshot(limit){
+    var max=Math.max(1,Math.min(Number(limit)||120,300));
+    return candidates().slice(0,max).map(describe);
+  }
+  function find(query,limit){
+    var q=clean(query,120).toLowerCase();
+    var max=Math.max(1,Math.min(Number(limit)||30,100));
+    if(!q) return snapshot(max);
+    return candidates().map(function(el,i){
+      var d=describe(el,i);
+      var hay=[d.label,d.text,d.name,d.id,d.placeholder,d.role,d.type].join(' ').toLowerCase();
+      var score=0;
+      if(hay===q) score+=100;
+      if(hay.indexOf(q)>=0) score+=50;
+      q.split(/\s+/).forEach(function(t){if(t && hay.indexOf(t)>=0) score+=8;});
+      return {score:score,item:d};
+    }).filter(function(x){return x.score>0;})
+      .sort(function(a,b){return b.score-a.score;})
+      .slice(0,max).map(function(x){return x.item;});
+  }
+  function sensitiveKind(){
+    var all=candidates();
+    for(var i=0;i<all.length;i++){
+      var k=kindOf(all[i]);
+      if(k==='password'||k==='otp'||k==='payment') return k;
+    }
+    if(document.querySelector('iframe[src*="recaptcha" i],iframe[src*="hcaptcha" i],.g-recaptcha,.h-captcha,[data-sitekey]')) return 'captcha';
+    return '';
+  }
+
+  Object.defineProperty(window,'__OMNI_DEV_SEMANTICS__',{
+    configurable:false,
+    enumerable:false,
+    writable:false,
+    value:Object.freeze({version:2,snapshot:snapshot,find:find,sensitiveKind:sensitiveKind})
+  });
+})();
+""".trimIndent()
+
     fun configureAndCheck(webView: WebView, isIncognito: Boolean) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             webView.post { configureAndCheck(webView, isIncognito) }
@@ -72,8 +180,6 @@ internal object BrowserRuntimeOptimizer {
 
         webView.post {
             maybeShowAuthCompatibilityDialog(webView)
-            // SPA login forms often appear after hydration. Probe once now and
-            // once shortly afterwards so React/Vue/Next transitions are caught.
             maybeShowSensitiveStepHandoff(webView)
             webView.postDelayed({ maybeShowSensitiveStepHandoff(webView) }, 700L)
         }
@@ -111,12 +217,12 @@ internal object BrowserRuntimeOptimizer {
             runCatching { WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, true) }
         }
 
+        installSemanticInstrumentation(webView)
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             settings.safeBrowsingEnabled = true
         }
 
-        // Browser-grade visible-mode features. Keep file:// disabled while
-        // content:// remains available for SAF file/image uploads.
         settings.setSupportZoom(true)
         settings.builtInZoomControls = true
         settings.displayZoomControls = false
@@ -144,6 +250,21 @@ internal object BrowserRuntimeOptimizer {
         if (BuildConfig.DEBUG) {
             WebView.setWebContentsDebuggingEnabled(true)
         }
+    }
+
+    private fun installSemanticInstrumentation(webView: WebView) {
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            runCatching {
+                WebViewCompat.addDocumentStartJavaScript(
+                    webView,
+                    semanticBootstrap,
+                    setOf("*")
+                )
+            }
+        }
+        // Also install into the document that may already be loaded when a
+        // headless session first becomes visible.
+        runCatching { webView.evaluateJavascript(semanticBootstrap, null) }
     }
 
     private fun cookieManagerFor(webView: WebView, isIncognito: Boolean): CookieManager {
@@ -212,10 +333,7 @@ internal object BrowserRuntimeOptimizer {
         }
     }
 
-    /**
-     * Detects sensitive inputs without reading their values. The JS only returns
-     * a classification string; no password/OTP/card contents cross the bridge.
-     */
+    /** Detect sensitive inputs without reading their values. */
     private fun maybeShowSensitiveStepHandoff(webView: WebView) {
         if (!webView.isAttachedToWindow) return
         val currentUrl = webView.url.orEmpty()
@@ -223,6 +341,9 @@ internal object BrowserRuntimeOptimizer {
 
         val probe = """
 (function(){
+  try {
+    if(window.__OMNI_DEV_SEMANTICS__) return window.__OMNI_DEV_SEMANTICS__.sensitiveKind();
+  } catch(e){}
   function visible(el){
     if(!el) return false;
     var r=el.getBoundingClientRect(), s=getComputedStyle(el);
