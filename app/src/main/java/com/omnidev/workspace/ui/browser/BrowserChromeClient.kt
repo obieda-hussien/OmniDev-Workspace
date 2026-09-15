@@ -4,8 +4,9 @@ import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.Uri
-import android.os.Build
+import android.os.Message
 import android.webkit.ConsoleMessage
 import android.webkit.GeolocationPermissions
 import android.webkit.JsPromptResult
@@ -13,7 +14,9 @@ import android.webkit.JsResult
 import android.webkit.PermissionRequest
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.EditText
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
@@ -24,11 +27,11 @@ import androidx.core.content.ContextCompat
  *
  * Headless sessions are deliberately non-interactive. Once a session is attached
  * to Browser Viewer this client enables the browser features that require a
- * human boundary: file/image upload, JS dialogs, camera/microphone, location and
- * protected-media permission decisions.
+ * human boundary: file/image upload, JS dialogs, user-gesture popups,
+ * camera/microphone, location and protected-media permission decisions.
  *
- * Important: site permissions are never silently granted. The Android runtime
- * permission must exist first, then the user still gets an origin-level prompt.
+ * Site permissions are never silently granted. The Android runtime permission
+ * must exist first, then the user still gets an origin-level prompt.
  */
 internal class BrowserChromeClient(
     private val activity: Activity
@@ -96,11 +99,7 @@ internal class BrowserChromeClient(
         return true
     }
 
-    /**
-     * Enables <input type=file> / image attachment flows. The picker is SAF based,
-     * so the website receives only the URI(s) the user explicitly selects and the
-     * app does not need broad storage permission.
-     */
+    /** Enables <input type=file> / image attachment flows through Android SAF. */
     override fun onShowFileChooser(
         webView: WebView?,
         filePathCallback: ValueCallback<Array<Uri>>?,
@@ -116,6 +115,67 @@ internal class BrowserChromeClient(
             Toast.makeText(activity, "Could not open the Android file picker", Toast.LENGTH_LONG).show()
         }
         return true
+    }
+
+    /**
+     * Handles target=_blank/window.open without allowing invisible script popups.
+     * A user-gesture popup is resolved in a disposable child WebView and then
+     * moved into the current visible tab, preserving the WebView cookie/profile
+     * instead of silently jumping to an unrelated external browser session.
+     */
+    override fun onCreateWindow(
+        view: WebView?,
+        isDialog: Boolean,
+        isUserGesture: Boolean,
+        resultMsg: Message?
+    ): Boolean {
+        val parent = view ?: return false
+        val message = resultMsg ?: return false
+        if (!isUserGesture || !activity.isUsable()) return false
+
+        val transport = message.obj as? WebView.WebViewTransport ?: return false
+        val popup = WebView(activity)
+        var transferred = false
+
+        fun transfer(url: String?): Boolean {
+            val target = url?.takeIf {
+                it.startsWith("http://") || it.startsWith("https://")
+            } ?: return false
+            if (transferred) return true
+            transferred = true
+            parent.loadUrl(target)
+            popup.stopLoading()
+            popup.destroy()
+            return true
+        }
+
+        popup.settings.javaScriptEnabled = false
+        popup.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(v: WebView?, request: WebResourceRequest?): Boolean {
+                return transfer(request?.url?.toString())
+            }
+
+            @Deprecated("Deprecated in WebViewClient")
+            override fun shouldOverrideUrlLoading(v: WebView?, url: String?): Boolean {
+                return transfer(url)
+            }
+
+            override fun onPageStarted(v: WebView?, url: String?, favicon: Bitmap?) {
+                if (url != null && url != "about:blank") transfer(url)
+            }
+        }
+        transport.webView = popup
+        message.sendToTarget()
+        return true
+    }
+
+    override fun onCloseWindow(window: WebView?) {
+        window?.let { candidate ->
+            runCatching {
+                candidate.stopLoading()
+                candidate.destroy()
+            }
+        }
     }
 
     override fun onPermissionRequest(request: PermissionRequest?) {
@@ -136,8 +196,6 @@ internal class BrowserChromeClient(
                 }
             }
 
-            // Runtime Android permission is the outer boundary. Ask for it first,
-            // deny this website request, and let the site retry once Android grants.
             if (androidPermissions.isNotEmpty()) {
                 request.deny()
                 ActivityCompat.requestPermissions(
@@ -157,8 +215,6 @@ internal class BrowserChromeClient(
                 when (resource) {
                     PermissionRequest.RESOURCE_VIDEO_CAPTURE -> hasPermission(Manifest.permission.CAMERA)
                     PermissionRequest.RESOURCE_AUDIO_CAPTURE -> hasPermission(Manifest.permission.RECORD_AUDIO)
-                    // DRM/protected media has no dangerous Android runtime permission;
-                    // it is still protected by the explicit per-site dialog below.
                     PermissionRequest.RESOURCE_PROTECTED_MEDIA_ID -> true
                     else -> false
                 }
@@ -191,10 +247,7 @@ internal class BrowserChromeClient(
         }
     }
 
-    override fun onPermissionRequestCanceled(request: PermissionRequest?) {
-        // No retained PermissionRequest references: avoiding a stale grant after
-        // navigation is more important than trying to resume an obsolete request.
-    }
+    override fun onPermissionRequestCanceled(request: PermissionRequest?) = Unit
 
     override fun onGeolocationPermissionsShowPrompt(
         origin: String?,
@@ -229,8 +282,8 @@ internal class BrowserChromeClient(
     override fun onGeolocationPermissionsHidePrompt() = Unit
 
     override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-        // Keep Chromium's normal console behavior. Returning false lets WebView
-        // handle it while avoiding accidental credential/content logging here.
+        // Keep Chromium's normal console behavior without copying potentially
+        // sensitive website console payloads into agent/application logs.
         return false
     }
 
