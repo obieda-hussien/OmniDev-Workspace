@@ -2,54 +2,27 @@ package com.omnidev.workspace.data.ipc
 
 import android.content.Context
 import android.os.Build
+import android.util.Base64
 import android.util.Log
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.data.tools.ShizukuResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import rikka.shizuku.Shizuku
 import java.io.File
-import java.io.FileOutputStream
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
+import kotlin.math.min
 
 /**
- * RishShellManager — The Radically Fixed Version.
+ * Real rish integration for OmniDev.
  *
- * ### The Core Fix
+ * rish is NOT Shizuku.newProcess(). The official rish launcher starts app_process
+ * locally with rish_shizuku.dex and ShizukuShellLoader; that loader connects to
+ * Shizuku and asks the remote shell implementation to execute the command.
  *
- * **The Primary Bug — runCommand() was using Runtime.getRuntime().exec()**
- * ```kotlin
- * // BEFORE ❌ — Runs with App UID → No privileges
- * val proc = Runtime.getRuntime().exec(
- * arrayOf(APP_PROCESS, "/system/bin", SHELL_CLASS, "--sh", "-c", command), env
- * )
- * ```
- *
- * `Runtime.exec()` executes the command using the App's UID (`u0_a###`).
- * However, `app_process` with the rish DEX requires UID=`shell` or equivalent.
- * **Shizuku is the ONLY entity that can grant this UID.**
- *
- * ```kotlin
- * // AFTER ✅ — Runs with shell UID via Shizuku API
- * val proc: Process = Shizuku.newProcess(
- * arrayOf("sh", "-c", "CLASSPATH=<dex> $APP_PROCESS /system/bin $SHELL_CLASS --sh -c <cmd>"),
- * null, null
- * )
- * ```
- *
- * ### Fallback
- * If Shizuku.newProcess is unavailable or fails, it falls back to ShizukuCommandTool.execute()
- * (which builds the rish command as a standard Shizuku shell command).
- *
- * ### DEX Discovery
- * 1. Local files dir: `<filesDir>/rish_shizuku.dex`
- * 2. Shizuku export paths: `/data/local/tmp/`, user_de dir
- * 3. Extraction from Shizuku APK assets
- * 4. Copy via Shizuku shell (if the dex is in a protected location)
- *
- * ### Android 14+ Compatibility
- * `app_process` on Android 14+ refuses to load a writable DEX file.
- * [ensureReadOnlyOnApi34] applies `chmod 400` automatically.
+ * Keeping these two mechanisms separate is critical:
+ *  - ShizukuCommandTool -> UserService for programmatic privileged commands.
+ *  - RishShellManager   -> official rish protocol for ADB-equivalent shell.
  */
 class RishShellManager(private val context: Context) {
 
@@ -59,400 +32,350 @@ class RishShellManager(private val context: Context) {
         private const val RISH_SCRIPT_NAME = "rish"
         private const val SHIZUKU_PKG = "moe.shizuku.privileged.api"
         private const val APP_PROCESS = "/system/bin/app_process"
-        private const val SHELL_CLASS = "rikka.shizuku.Shell"
+        private const val SHELL_LOADER = "rikka.shizuku.shell.ShizukuShellLoader"
+        private const val TIMEOUT_MS = 45_000L
+        private const val MAX_STDOUT = 64_000
+        private const val MAX_STDERR = 16_000
 
-        private const val TIMEOUT_MS = 30_000L
-        private const val MAX_OUTPUT = 8_000
-
-        /** Paths where Shizuku exports the dex after enabling "Use in terminal apps" */
         private val SHIZUKU_EXPORT_PATHS = listOf(
             "/data/local/tmp/rish_shizuku.dex",
             "/data/user_de/0/moe.shizuku.privileged.api/files/rish_shizuku.dex",
             "/data/user/0/moe.shizuku.privileged.api/files/rish_shizuku.dex"
         )
-
-        /**
-         * Environment variables injected into every rish session to mimic an `adb shell` environment.
-         * CLASSPATH is replaced dynamically in each invocation.
-         */
-        private val RISH_ENV = arrayOf(
-            "ANDROID_DATA=/data",
-            "ANDROID_ROOT=/system",
-            "PATH=/sbin:/system/sbin:/system/bin:/system/xbin:/vendor/bin:/data/local/tmp"
-        )
     }
 
-    private val localDex: File get() = File(context.filesDir, DEX_NAME)
-    private val localRish: File get() = File(context.filesDir, RISH_SCRIPT_NAME)
+    private val appContext = context.applicationContext
+    private val localDex: File get() = File(appContext.filesDir, DEX_NAME)
+    private val localRish: File get() = File(appContext.filesDir, RISH_SCRIPT_NAME)
 
-    // ──────────────────────────────────────────────────────────────
-    // Availability
-    // ──────────────────────────────────────────────────────────────
+    init {
+        // PrivilegedExecutionManager.init(context) constructs this manager at app start,
+        // making it a safe central place to initialise the UserService client as well.
+        ShizukuCommandTool.init(appContext)
+    }
 
     fun isAvailable(): Boolean = runCatching {
-        File(APP_PROCESS).exists() && locateDex() != null
+        File(APP_PROCESS).exists() &&
+            ShizukuCommandTool.isAvailable() &&
+            ShizukuCommandTool.hasPermission() &&
+            (locateDex() != null || canExtractFromShizukuApk())
     }.getOrDefault(false)
 
-    // ──────────────────────────────────────────────────────────────
-    // Command Execution
-    // ──────────────────────────────────────────────────────────────
-
-    /**
-     * Executes [command] via the rish shell (ADB-equivalent UID=shell).
-     *
-     * ### Execution Strategy (By Priority):
-     * 1. **Shizuku.newProcess()** — The correct way (shell UID)
-     * 2. **ShizukuCommandTool fallback** — Builds the rish command as a Shizuku shell command
-     *
-     * @return [Result.success] with trimmed stdout or [Result.failure] with error description.
-     */
+    /** Execute exactly like `rish -c <command>`. */
     suspend fun execute(command: String): Result<String> = withContext(Dispatchers.IO) {
+        if (command.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("rish command is empty"))
+        }
+        if (!ShizukuCommandTool.isAvailable()) {
+            return@withContext Result.failure(IllegalStateException("Shizuku is not running"))
+        }
+        if (!ShizukuCommandTool.hasPermission()) {
+            return@withContext Result.failure(IllegalStateException("Shizuku permission is not granted"))
+        }
+
         val dex = prepareLocalDex()
             ?: return@withContext Result.failure(
                 IllegalStateException(
-                    "rish_shizuku.dex not found.\n" +
-                    "Open Shizuku → ⋮ → 'Use Shizuku in terminal apps' to export the dex,\n" +
-                    "or ensure Shizuku v13+ is installed (auto-exports to /data/local/tmp/)."
+                    "rish_shizuku.dex is unavailable. Open Shizuku and enable 'Use in terminal apps', " +
+                        "or reinstall/update Shizuku so the rish asset can be extracted."
                 )
             )
 
-        ensureReadOnlyOnApi34(dex)
-
-        // Attempt 1: Shizuku.newProcess() directly (Best method)
-        if (ShizukuCommandTool.isAvailable() && ShizukuCommandTool.hasPermission()) {
-            val shizukuResult = runCommandViaShizuku(dex, command)
-            if (shizukuResult.isSuccess) return@withContext shizukuResult
-            Log.w(TAG, "Shizuku.newProcess() rish failed, trying ShizukuCommandTool: ${shizukuResult.exceptionOrNull()?.message}")
-        }
-
-        // Attempt 2: ShizukuCommandTool.execute() with the rish command
-        if (ShizukuCommandTool.isAvailable() && ShizukuCommandTool.hasPermission()) {
-            val rishCmd = buildRishCommand(dex, command)
-            return@withContext when (val r = ShizukuCommandTool.execute(rishCmd)) {
-                is ShizukuResult.Success -> Result.success(r.output)
-                is ShizukuResult.PartialSuccess -> {
-                    if (r.output.isNotBlank() && r.output != "(no output)") {
-                        Result.success(r.output)
-                    } else {
-                        Result.failure(RuntimeException("rish exited with exit=${r.exitCode} without output"))
-                    }
-                }
-                else -> Result.failure(RuntimeException("rish failed: ${r.toDisplayString()}"))
-            }
-        }
-
-        Result.failure(
-            IllegalStateException("Shizuku is unavailable. rish requires Shizuku to run commands with shell UID.")
-        )
+        ensureReadOnlyDex(dex)
+        runRishProcess(dex, command)
     }
 
     /**
-     * Executes a multi-line script via rish.
-     * Writes the script to a temporary file, executes it, then deletes it.
+     * Multi-line scripts are passed directly to rish's remote `sh -c`.
+     * Do not write them under this app's cache directory: shell UID cannot read
+     * another app's private sandbox, which was a bug in the old implementation.
      */
-    suspend fun executeScript(scriptContent: String): Result<String> = withContext(Dispatchers.IO) {
-        val dex = prepareLocalDex()
-            ?: return@withContext Result.failure(
-                IllegalStateException("rish_shizuku.dex is unavailable.")
-            )
-        ensureReadOnlyOnApi34(dex)
-
-        val tmpScript = File(context.cacheDir, "rish_script_${System.currentTimeMillis()}.sh")
-        return@withContext try {
-            tmpScript.writeText("#!/system/bin/sh\n$scriptContent")
-            tmpScript.setExecutable(true, false)
-            execute("sh ${tmpScript.absolutePath}")
-        } finally {
-            tmpScript.delete()
-        }
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // DEX Preparation
-    // ──────────────────────────────────────────────────────────────
+    suspend fun executeScript(scriptContent: String): Result<String> = execute(scriptContent)
 
     /**
-     * Prepares the rish_shizuku.dex file in the app's files dir.
-     * Tries multiple sources in order until successful.
+     * Prepare a private, read-only copy of the official rish loader DEX.
+     * Order: cached copy -> directly readable export -> Shizuku base64 copy -> APK asset.
      */
     suspend fun prepareLocalDex(): File? = withContext(Dispatchers.IO) {
-        // 1. We already have a valid local copy
-        if (localDex.exists() && localDex.length() > 1024) return@withContext localDex
+        if (isValidDex(localDex)) {
+            ensureReadOnlyDex(localDex)
+            return@withContext localDex
+        }
 
-        // 2. Copy from Shizuku export paths (directly via Java File API)
+        // Directly readable exported dex.
         for (path in SHIZUKU_EXPORT_PATHS) {
-            val src = File(path)
-            if (src.exists() && src.length() > 1024) {
-                return@withContext runCatching {
-                    src.copyTo(localDex, overwrite = true)
-                    Log.d(TAG, "DEX copied from $path (${localDex.length() / 1024}KB)")
-                    localDex
-                }.getOrNull()
-            }
+            val source = File(path)
+            if (!isValidDex(source)) continue
+            copyDex(source)?.let { return@withContext it }
         }
 
-        // 3. Copy via Shizuku shell (if the dex is in a protected location)
-        try {
-            val copied = copyDexViaShizukuCommand()
-            if (copied != null) {
-                Log.d(TAG, "DEX copied via Shizuku shell (${copied.length() / 1024}KB)")
-                return@withContext copied
-            }
-        } catch (e: Throwable) {
-            Log.w(TAG, "copyDexViaShizukuCommand failed: ${e.message}")
-        }
+        // /data/local/tmp is normally readable by shell even when not by app UID.
+        copyDexViaShizuku()?.let { return@withContext it }
 
-        // 4. Extract from Shizuku APK
-        val fromApk = extractFromShizukuApk()
-        if (fromApk != null) {
-            Log.d(TAG, "DEX extracted from Shizuku APK (${fromApk.length() / 1024}KB)")
-        }
-        fromApk
-    }
-
-    /**
-     * Writes (or updates) the rish script in the app's files dir.
-     * @return The absolute path to the script.
-     */
-    fun ensureRishScript(): String {
-        val dexPath = localDex.absolutePath
-        localRish.writeText(buildRishScript(dexPath))
-        localRish.setExecutable(true, false)
-        return localRish.absolutePath
-    }
-
-    /**
-     * Rish status report for the `rish_setup` action.
-     */
-    suspend fun statusReport(): String = withContext(Dispatchers.IO) {
-        val appProcessExists = File(APP_PROCESS).exists()
-        val localDexExists = localDex.exists() && localDex.length() > 1024
-        val exportDexPath = SHIZUKU_EXPORT_PATHS.firstOrNull { File(it).exists() && File(it).length() > 1024 }
-        val canExtractFromApk = runCatching {
-            context.packageManager.getApplicationInfo(SHIZUKU_PKG, 0)
-            true
-        }.getOrDefault(false)
-
-        buildString {
-            appendLine("=== rish status ===")
-            appendLine("app_process: ${if (appProcessExists) "✅" else "❌"} $APP_PROCESS")
-            appendLine("local dex (${localDex.absolutePath}): ${if (localDexExists) "✅ (${localDex.length() / 1024}KB)" else "❌ not found or too small"}")
-            appendLine("Shizuku export dex: ${if (exportDexPath != null) "✅ $exportDexPath" else "❌ not found"}")
-            appendLine("Shizuku app installed: ${if (canExtractFromApk) "✅ ($SHIZUKU_PKG)" else "❌"}")
-            appendLine("Android 14+ compatibility: ${if (Build.VERSION.SDK_INT >= 34) "⚠️ SDK ${Build.VERSION.SDK_INT} — dex must be chmod 400" else "✅ (SDK ${Build.VERSION.SDK_INT} < 34)"}")
-            appendLine("rish script: ${if (localRish.exists()) "✅ ${localRish.absolutePath}" else "❌ not generated yet (call rish_setup)"}")
-            appendLine("Execution method: ${if (ShizukuCommandTool.isAvailable()) "✅ Shizuku.newProcess() (shell UID)" else "⚠️ Runtime.exec() (app UID only)"}")
-            appendLine()
-            appendLine("Overall rish availability: ${if (isAvailable()) "✅ READY" else "❌ DEX not found — call action=rish_setup"}")
-        }.trimEnd()
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // Quick DEX Locator
-    // ──────────────────────────────────────────────────────────────
-
-    fun locateDex(): File? {
-        if (localDex.exists() && localDex.length() > 1024) return localDex
-        return SHIZUKU_EXPORT_PATHS
-            .map { File(it) }
-            .firstOrNull { it.exists() && it.length() > 1024 }
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // Private: runCommandViaShizuku — The Radical Fix
-    // ──────────────────────────────────────────────────────────────
-
-    /**
-     * Executes the command via Shizuku.newProcess() with the rish DEX as CLASSPATH.
-     * This executes the command with UID=shell (just like adb shell).
-     */
-        private fun runCommandViaShizuku(dex: File, command: String): Result<String> {
-        return try {
-            val fullCmd = "CLASSPATH=${shellEscape(dex.absolutePath)} $APP_PROCESS /system/bin $SHELL_CLASS --sh -c ${shellEscape(command)}"
-
-            // FIX: Restored Reflection for private Shizuku.newProcess
-            val process: Process = try {
-                val m = Shizuku::class.java.getDeclaredMethod(
-                    "newProcess",
-                    Array<String>::class.java,
-                    Array<String>::class.java,
-                    String::class.java
-                )
-                m.isAccessible = true
-                @Suppress("UNCHECKED_CAST")
-                m.invoke(null, arrayOf("sh", "-c", fullCmd), RISH_ENV, null) as Process
-            } catch (e: Exception) {
-                Runtime.getRuntime().exec(arrayOf("sh", "-c", fullCmd), RISH_ENV, null)
-            }
-
-            readProcessOutputToResult(process, command)
-
-        } catch (e: SecurityException) {
-            Result.failure(SecurityException("Shizuku denied permission: ${e.message}"))
-        } catch (e: Throwable) {
-            val msg = e.cause?.message ?: e.message ?: e.javaClass.name
-            Result.failure(RuntimeException("Shizuku.newProcess() failed: $msg"))
-        }
-    }
-
-    /**
-     * Builds the rish command as a string to be passed to ShizukuCommandTool.execute().
-     * Used as a fallback if Shizuku.newProcess() fails.
-     */
-    private fun buildRishCommand(dex: File, command: String): String =
-        "CLASSPATH=${shellEscape(dex.absolutePath)} $APP_PROCESS /system/bin $SHELL_CLASS --sh -c ${shellEscape(command)}"
-
-    /**
-     * Reads stdout/stderr from the process with a timeout and returns a Result.
-     */
-    private fun readProcessOutputToResult(process: Process, command: String): Result<String> {
-        val stdoutBuf = StringBuffer()
-        val stderrBuf = StringBuffer()
-
-        val stdoutThread = Thread {
-            try {
-                process.inputStream.bufferedReader(Charsets.UTF_8).use { r ->
-                    val buf = CharArray(4096)
-                    var n: Int
-                    while (r.read(buf).also { n = it } != -1) {
-                        if (stdoutBuf.length < MAX_OUTPUT) stdoutBuf.append(buf, 0, n)
-                    }
-                }
-            } catch (_: Exception) {}
-        }.apply { isDaemon = true; start() }
-
-        val stderrThread = Thread {
-            try {
-                process.errorStream.bufferedReader(Charsets.UTF_8).use { r ->
-                    val buf = CharArray(4096)
-                    var n: Int
-                    while (r.read(buf).also { n = it } != -1) {
-                        if (stderrBuf.length < 2_000) stderrBuf.append(buf, 0, n)
-                    }
-                }
-            } catch (_: Exception) {}
-        }.apply { isDaemon = true; start() }
-
-        val waitThread = Thread {
-            try { process.waitFor() } catch (_: InterruptedException) {}
-        }.apply { isDaemon = true; start() }
-
-        waitThread.join(TIMEOUT_MS)
-        if (waitThread.isAlive) {
-            process.destroy()
-            stdoutThread.interrupt()
-            stderrThread.interrupt()
-            return Result.failure(RuntimeException("rish timeout exceeded (${TIMEOUT_MS / 1000}s): ${command.take(80)}"))
-        }
-
-        stdoutThread.join(3_000L)
-        stderrThread.join(3_000L)
-
-        val stdout = stdoutBuf.toString().trim()
-        val stderr = stderrBuf.toString().trim()
-        val exit = runCatching { process.exitValue() }.getOrDefault(-1)
-
-        Log.d(TAG, "rish exit=$exit stdout=${stdout.length}c stderr=${stderr.length}c")
-
-        return when {
-            exit == 0 ->
-                Result.success(stdout.ifBlank { "(no output)" })
-            stdout.isNotBlank() ->
-                Result.success(stdout)   // non-zero exit but has useful output
-            stderr.isNotBlank() ->
-                Result.failure(RuntimeException("rish exit=$exit: $stderr"))
-            else ->
-                Result.failure(RuntimeException("rish exit=$exit without output"))
-        }
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // DEX Private Helpers
-    // ──────────────────────────────────────────────────────────────
-
-    private fun extractFromShizukuApk(): File? = runCatching {
-        val ai = context.packageManager.getApplicationInfo(SHIZUKU_PKG, 0)
-        ZipFile(ai.sourceDir).use { zip ->
-            val entry = zip.getEntry("assets/$DEX_NAME") ?: zip.getEntry(DEX_NAME) ?: return null
-            FileOutputStream(localDex).use { out ->
-                zip.getInputStream(entry).copyTo(out)
-            }
-            if (localDex.length() > 1024) localDex else null
-        }
-    }.getOrNull()
-
-    private suspend fun copyDexViaShizukuCommand(): File? = withContext(Dispatchers.IO) {
-        if (!ShizukuCommandTool.isAvailable() || !ShizukuCommandTool.hasPermission()) {
-            return@withContext null
-        }
-
-        val destPath = localDex.absolutePath
-
-        for (srcPath in SHIZUKU_EXPORT_PATHS) {
-            val cmd = "test -f '$srcPath' && test -s '$srcPath' && " +
-                      "cp '$srcPath' '$destPath' && chmod 400 '$destPath' && echo OK"
-            val result = ShizukuCommandTool.execute(cmd)
-            if ((result is ShizukuResult.Success || result is ShizukuResult.PartialSuccess) &&
-                result.outputOrNull()?.contains("OK") == true &&
-                localDex.exists() && localDex.length() > 1024) {
-                return@withContext localDex
-            }
-        }
+        // Most robust fallback: extract the loader shipped inside the installed Shizuku APK.
+        extractFromShizukuApk()?.let { return@withContext it }
 
         null
     }
 
-    private fun ensureReadOnlyOnApi34(dex: File) {
-        if (Build.VERSION.SDK_INT < 34) return
-        if (!dex.canWrite()) return
-        dex.setWritable(false, false)
-        if (dex.canWrite()) {
-            // Final attempt via Shizuku
-            runCatching {
-                ShizukuCommandTool.isAvailable().let { avail ->
-                    if (avail) {
-                        kotlinx.coroutines.runBlocking {
-                            ShizukuCommandTool.execute("chmod 400 '${dex.absolutePath}'")
-                        }
-                    } else {
-                        // Safe to use Runtime.exec here as it's our own app's files dir
-                        Runtime.getRuntime().exec(arrayOf("chmod", "400", dex.absolutePath)).waitFor()
-                    }
+    fun ensureRishScript(): String {
+        val dex = localDex
+        if (!isValidDex(dex)) {
+            return "rish unavailable: call prepareLocalDex/rish_setup first"
+        }
+        ensureReadOnlyDex(dex)
+        localRish.writeText(buildRishScript(dex.absolutePath))
+        localRish.setExecutable(true, true)
+        return localRish.absolutePath
+    }
+
+    suspend fun statusReport(): String = withContext(Dispatchers.IO) {
+        val prepared = prepareLocalDex()
+        val smoke = if (prepared != null && ShizukuCommandTool.isAvailable() && ShizukuCommandTool.hasPermission()) {
+            execute("id").fold(
+                onSuccess = { "✅ ${it.lineSequence().firstOrNull().orEmpty()}" },
+                onFailure = { "❌ ${it.message}" }
+            )
+        } else {
+            "⚠️ not executed"
+        }
+
+        buildString {
+            appendLine("=== OmniDev rish status ===")
+            appendLine("Shizuku binder : ${if (ShizukuCommandTool.isAvailable()) "✅" else "❌"}")
+            appendLine("Shizuku grant  : ${if (ShizukuCommandTool.hasPermission()) "✅" else "❌"}")
+            appendLine("app_process    : ${if (File(APP_PROCESS).exists()) "✅" else "❌"} $APP_PROCESS")
+            appendLine("loader class   : $SHELL_LOADER")
+            appendLine("rish dex       : ${prepared?.absolutePath ?: "❌ unavailable"}")
+            appendLine("dex read-only  : ${if (prepared != null && !prepared.canWrite()) "✅" else "⚠️"}")
+            appendLine("Android SDK    : ${Build.VERSION.SDK_INT}")
+            appendLine("rish script    : ${if (localRish.exists()) localRish.absolutePath else "not generated"}")
+            appendLine("smoke `id`     : $smoke")
+            appendLine("overall        : ${if (isAvailable() && prepared != null) "✅ READY" else "❌ NOT READY"}")
+        }.trimEnd()
+    }
+
+    fun locateDex(): File? {
+        if (isValidDex(localDex)) return localDex
+        return SHIZUKU_EXPORT_PATHS
+            .asSequence()
+            .map(::File)
+            .firstOrNull(::isValidDex)
+    }
+
+    private fun runRishProcess(dex: File, command: String): Result<String> {
+        return try {
+            val process = ProcessBuilder(
+                APP_PROCESS,
+                "-Djava.class.path=${dex.absolutePath}",
+                "/system/bin",
+                "--nice-name=rish",
+                SHELL_LOADER,
+                "-c",
+                command
+            ).apply {
+                redirectErrorStream(false)
+                environment().apply {
+                    // The loader uses this when package-name discovery from UID is ambiguous.
+                    this["RISH_APPLICATION_ID"] = appContext.packageName
+                    // adb-backed Shizuku cannot access Termux private paths; preserve only
+                    // the clean Android shell environment here.
+                    this["RISH_PRESERVE_ENV"] = "0"
+                    this["ANDROID_DATA"] = "/data"
+                    this["ANDROID_ROOT"] = "/system"
+                    this["PATH"] = "/system/bin:/system/xbin:/vendor/bin:/product/bin:/data/local/tmp"
+                    remove("LD_PRELOAD")
+                    remove("LD_LIBRARY_PATH")
+                    remove("PREFIX")
+                    remove("TMPDIR")
                 }
-            }
+            }.start()
+
+            readProcess(process, command)
+        } catch (t: Throwable) {
+            Result.failure(RuntimeException("rish launch failed: ${t.javaClass.simpleName}: ${t.message}", t))
         }
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // Rish Script Builder
-    // ──────────────────────────────────────────────────────────────
+    private fun readProcess(process: Process, command: String): Result<String> {
+        val stdout = StringBuilder()
+        val stderr = StringBuilder()
 
-    private fun buildRishScript(dexPath: String): String = buildString {
-        appendLine("#!/system/bin/sh")
-        appendLine("# rish — Shizuku Remote Interactive Shell")
-        appendLine("# Generated by OmniDev Workspace — RishShellManager")
-        appendLine("# Execution method: Shizuku.newProcess() → shell UID")
-        appendLine()
-        appendLine("""DEX="$dexPath"""")
-        appendLine()
-        appendLine("""if [ ! -f "${'$'}DEX" ] || [ ! -s "${'$'}DEX" ]; then""")
-        appendLine("""  echo "ERROR: Cannot find ${'$'}DEX"""")
-        appendLine("""  echo "Open Shizuku → Menu → 'Use Shizuku in terminal apps' to export it."""")
-        appendLine("""  exit 1""")
-        appendLine("fi")
-        appendLine()
-        appendLine("""SDK=$(getprop ro.build.version.sdk)""")
-        appendLine("""if [ "${'$'}SDK" -ge 34 ] && [ -w "${'$'}DEX" ]; then""")
-        appendLine("""  echo "Android 14+: removing write permission from ${'$'}DEX ..."""")
-        appendLine("""  chmod 400 "${'$'}DEX" 2>/dev/null || true""")
-        appendLine("fi")
-        appendLine()
-        appendLine("""CLASSPATH="${'$'}DEX" $APP_PROCESS /system/bin $SHELL_CLASS "${'$'}@"""")
+        val outThread = drainThread("rish-stdout", process.inputStream.bufferedReader(), stdout, MAX_STDOUT)
+        val errThread = drainThread("rish-stderr", process.errorStream.bufferedReader(), stderr, MAX_STDERR)
+        outThread.start()
+        errThread.start()
+
+        val waiter = Thread({
+            try {
+                process.waitFor()
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+        }, "rish-waiter").apply {
+            isDaemon = true
+            start()
+        }
+
+        waiter.join(TIMEOUT_MS)
+        if (waiter.isAlive) {
+            runCatching { process.destroy() }
+            waiter.interrupt()
+            outThread.interrupt()
+            errThread.interrupt()
+            return Result.failure(
+                RuntimeException("rish timeout exceeded (${TIMEOUT_MS / 1000}s): ${command.take(100)}")
+            )
+        }
+
+        outThread.join(2_000L)
+        errThread.join(2_000L)
+        val exitCode = runCatching { process.exitValue() }.getOrDefault(-1)
+        val out = stdout.toString().trimEnd()
+        val err = stderr.toString().trimEnd()
+        val merged = when {
+            out.isNotBlank() && err.isNotBlank() -> "$out\n[stderr]\n$err"
+            out.isNotBlank() -> out
+            err.isNotBlank() -> err
+            else -> "(no output)"
+        }
+
+        return if (exitCode == 0) {
+            Result.success(merged)
+        } else {
+            Result.failure(RuntimeException("rish exit=$exitCode: ${merged.take(8_000)}"))
+        }
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // Shell Escape Helper
-    // ──────────────────────────────────────────────────────────────
+    private fun drainThread(
+        name: String,
+        reader: java.io.BufferedReader,
+        target: StringBuilder,
+        maxChars: Int
+    ): Thread = Thread({
+        try {
+            reader.use { input ->
+                val buffer = CharArray(4096)
+                while (!Thread.currentThread().isInterrupted) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    val remaining = maxChars - target.length
+                    if (remaining > 0) target.append(buffer, 0, min(count, remaining))
+                }
+            }
+        } catch (_: Throwable) {
+        }
+    }, name).apply { isDaemon = true }
 
-    private fun shellEscape(s: String): String = "'${s.replace("'", "'\\''")}'"
+    private fun copyDex(source: File): File? = runCatching {
+        prepareDestinationForWrite()
+        source.inputStream().use { input ->
+            localDex.outputStream().use { output -> input.copyTo(output) }
+        }
+        if (!isValidDex(localDex)) error("copied rish dex is invalid")
+        ensureReadOnlyDex(localDex)
+        Log.i(TAG, "Prepared rish dex from ${source.absolutePath} (${localDex.length()} bytes)")
+        localDex
+    }.onFailure {
+        Log.w(TAG, "Cannot copy rish dex from ${source.absolutePath}: ${it.message}")
+    }.getOrNull()
+
+    private suspend fun copyDexViaShizuku(): File? {
+        for (path in SHIZUKU_EXPORT_PATHS) {
+            val result = ShizukuCommandTool.execute(
+                "if [ -r ${shellQuote(path)} ]; then base64 ${shellQuote(path)}; else exit 4; fi",
+                timeoutMs = 20_000L
+            )
+            val encoded = when (result) {
+                is ShizukuResult.Success -> result.output
+                else -> continue
+            }
+            val bytes = runCatching { Base64.decode(encoded, Base64.DEFAULT) }.getOrNull() ?: continue
+            if (bytes.size < 1024 || !hasDexMagic(bytes)) continue
+
+            val written = runCatching {
+                prepareDestinationForWrite()
+                localDex.writeBytes(bytes)
+                ensureReadOnlyDex(localDex)
+                localDex
+            }.getOrNull()
+            if (written != null && isValidDex(written)) return written
+        }
+        return null
+    }
+
+    @Suppress("DEPRECATION")
+    private fun extractFromShizukuApk(): File? = runCatching {
+        val info = appContext.packageManager.getApplicationInfo(SHIZUKU_PKG, 0)
+        ZipFile(info.sourceDir).use { zip ->
+            val entry = findRishDexEntry(zip)
+                ?: error("rish_shizuku.dex asset not found in Shizuku APK")
+            prepareDestinationForWrite()
+            zip.getInputStream(entry).use { input ->
+                localDex.outputStream().use { output -> input.copyTo(output) }
+            }
+        }
+        if (!isValidDex(localDex)) error("extracted rish dex is invalid")
+        ensureReadOnlyDex(localDex)
+        Log.i(TAG, "Extracted official rish dex from installed Shizuku APK")
+        localDex
+    }.onFailure {
+        Log.w(TAG, "Failed to extract rish dex from Shizuku APK: ${it.message}")
+    }.getOrNull()
+
+    @Suppress("DEPRECATION")
+    private fun canExtractFromShizukuApk(): Boolean = runCatching {
+        val info = appContext.packageManager.getApplicationInfo(SHIZUKU_PKG, 0)
+        File(info.sourceDir).exists()
+    }.getOrDefault(false)
+
+    private fun findRishDexEntry(zip: ZipFile): ZipEntry? {
+        zip.getEntry("assets/$DEX_NAME")?.let { return it }
+        zip.getEntry(DEX_NAME)?.let { return it }
+        val entries = zip.entries()
+        while (entries.hasMoreElements()) {
+            val entry = entries.nextElement()
+            if (!entry.isDirectory && entry.name.endsWith("/$DEX_NAME")) return entry
+        }
+        return null
+    }
+
+    private fun prepareDestinationForWrite() {
+        if (localDex.exists()) {
+            localDex.setWritable(true, true)
+            if (!localDex.delete()) error("cannot replace stale rish dex")
+        }
+        localDex.parentFile?.mkdirs()
+    }
+
+    private fun ensureReadOnlyDex(dex: File) {
+        // Android 14+ app_process rejects writable DEX files. Keeping it read-only
+        // on all versions is harmless and removes an entire class of failures.
+        dex.setReadable(true, true)
+        dex.setWritable(false, false)
+        dex.setExecutable(false, false)
+    }
+
+    private fun isValidDex(file: File): Boolean = runCatching {
+        if (!file.isFile || file.length() < 1024) return@runCatching false
+        file.inputStream().use { input ->
+            val magic = ByteArray(4)
+            input.read(magic) == 4 && hasDexMagic(magic)
+        }
+    }.getOrDefault(false)
+
+    private fun hasDexMagic(bytes: ByteArray): Boolean =
+        bytes.size >= 4 && bytes[0] == 'd'.code.toByte() && bytes[1] == 'e'.code.toByte() &&
+            bytes[2] == 'x'.code.toByte() && bytes[3] == '\n'.code.toByte()
+
+    private fun buildRishScript(dexPath: String): String = """
+        #!/system/bin/sh
+        DEX=${shellQuote(dexPath)}
+        export RISH_APPLICATION_ID=${shellQuote(appContext.packageName)}
+        export RISH_PRESERVE_ENV=0
+        exec $APP_PROCESS -Djava.class.path="\$DEX" /system/bin --nice-name=rish $SHELL_LOADER "\$@"
+    """.trimIndent() + "\n"
+
+    private fun shellQuote(value: String): String =
+        "'" + value.replace("'", "'\\''") + "'"
 }
