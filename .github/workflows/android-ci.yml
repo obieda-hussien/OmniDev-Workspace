@@ -384,7 +384,7 @@ jobs:
 
   android-release:
     name: Android Release Build
-    if: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.build_release == true) }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.build_release == true }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     needs: [ test, security-scan ]
