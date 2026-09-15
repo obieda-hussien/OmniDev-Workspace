@@ -1,16 +1,22 @@
 package com.omnidev.workspace.data.tools
 
+import android.app.Activity
 import android.app.PendingIntent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Bundle
 import android.util.Log
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -51,16 +57,32 @@ object TermuxRunCommandBridge {
     private const val RESULT_ERR = "err"
     private const val RESULT_ERRMSG = "errmsg"
 
-    /** Termux ResultData/Errno success code. */
-    private const val TERMUX_ERRNO_SUCCESS = 0
+    /**
+     * Termux uses Activity.RESULT_OK (-1) for "no internal/plugin error".
+     * This is NOT Errno 0. Treating 0 as success caused valid exit=0 commands
+     * to be reported as failures with `[Termux err=-1]`.
+     */
+    private const val TERMUX_RESULT_OK = Activity.RESULT_OK
+    private const val REQUEST_CODE_RUN_COMMAND = 0x544D // "TM"
 
     const val EXTRA_EXECUTION_ID = "com.omnidev.workspace.termux.EXECUTION_ID"
 
     private const val DEFAULT_TIMEOUT_MS = 90_000L
     private const val MAX_TIMEOUT_MS = 20 * 60_000L
+    private const val PERMISSION_WAIT_MS = 15_000L
+    private const val PERMISSION_POLL_MS = 200L
+
+    private const val ENABLE_EXTERNAL_APPS_COMMAND =
+        "mkdir -p ~/.termux; " +
+            "touch ~/.termux/termux.properties; " +
+            "if grep -q '^allow-external-apps=' ~/.termux/termux.properties; then " +
+            "sed -i 's/^allow-external-apps=.*/allow-external-apps=true/' ~/.termux/termux.properties; " +
+            "else printf '\\nallow-external-apps=true\\n' >> ~/.termux/termux.properties; fi; " +
+            "termux-reload-settings"
 
     private val nextId = AtomicInteger(1)
     private val pending = ConcurrentHashMap<Int, CompletableDeferred<TermuxCommandResult>>()
+    private val externalAppsSetupShown = AtomicBoolean(false)
 
     @Volatile private var appContext: Context? = null
 
@@ -74,10 +96,13 @@ object TermuxRunCommandBridge {
         val stderrOriginalLength: Int
     ) {
         val transportSucceeded: Boolean
-            get() = internalErrorCode == TERMUX_ERRNO_SUCCESS
+            get() = internalErrorCode == TERMUX_RESULT_OK
 
         val isSuccess: Boolean
             get() = transportSucceeded && exitCode == 0
+
+        val needsExternalAppsOptIn: Boolean
+            get() = internalError?.contains("allow-external-apps", ignoreCase = true) == true
 
         val wasTruncated: Boolean
             get() = stdoutOriginalLength > stdout.length || stderrOriginalLength > stderr.length
@@ -91,6 +116,10 @@ object TermuxRunCommandBridge {
             if (!internalError.isNullOrBlank()) {
                 if (isNotEmpty()) appendLine()
                 append("[termux] ").append(internalError)
+                if (needsExternalAppsOptIn) {
+                    appendLine()
+                    append("OmniDev copied the one-time setup command to the clipboard. Open Termux, paste it, run it once, then retry.")
+                }
             }
             if (wasTruncated) {
                 if (isNotEmpty()) appendLine()
@@ -123,8 +152,8 @@ object TermuxRunCommandBridge {
         val permission = hasRunCommandPermission(context)
         return buildString {
             appendLine("Termux package visible: ${if (packageVisible) "YES" else "NO"}")
-            appendLine("RUN_COMMAND permission: ${if (permission) "GRANTED" else "MISSING"}")
-            appendLine("Required Termux setting: ~/.termux/termux.properties -> allow-external-apps=true")
+            appendLine("RUN_COMMAND permission: ${if (permission) "GRANTED" else "MISSING (requested automatically when first needed)"}")
+            appendLine("Required one-time Termux opt-in: ~/.termux/termux.properties -> allow-external-apps=true")
             append("Execution transport: official com.termux.RUN_COMMAND / RunCommandService")
         }
     }
@@ -161,11 +190,28 @@ object TermuxRunCommandBridge {
                 "Termux is not installed or is not visible to OmniDev. Install the official Termux app first."
             )
         }
+
         if (!hasRunCommandPermission(context)) {
-            return@withContext setupFailure(
-                "OmniDev does not have $PERMISSION_RUN_COMMAND. Grant 'Run commands in Termux environment' " +
-                    "from Android App Info > Permissions > Additional permissions."
+            val dialogStarted = PermissionRequestBridge.requestRuntimePermissions(
+                arrayOf(PERMISSION_RUN_COMMAND),
+                REQUEST_CODE_RUN_COMMAND
             )
+            if (dialogStarted) {
+                val deadline = System.currentTimeMillis() + PERMISSION_WAIT_MS
+                while (!hasRunCommandPermission(context) && System.currentTimeMillis() < deadline) {
+                    delay(PERMISSION_POLL_MS)
+                }
+            }
+            if (!hasRunCommandPermission(context)) {
+                return@withContext setupFailure(
+                    if (dialogStarted) {
+                        "RUN_COMMAND permission is required. OmniDev requested it at runtime; grant the dialog and retry the command."
+                    } else {
+                        "RUN_COMMAND permission is required, but no foreground Activity is available to show the Android permission dialog. " +
+                            "Open OmniDev and retry, or grant 'Run commands in Termux environment' from App Info > Permissions > Additional permissions."
+                    }
+                )
+            }
         }
 
         val effectiveTimeout = timeoutMs.coerceIn(1_000L, MAX_TIMEOUT_MS)
@@ -200,7 +246,7 @@ object TermuxRunCommandBridge {
                 pending.remove(executionId)
                 callback.cancel()
                 return@withContext setupFailure(
-                    "Termux RunCommandService could not be started. Ensure the official Termux app is installed."
+                    "Android could not resolve/start Termux RunCommandService. Verify that the official Termux app is installed and enabled."
                 )
             }
             withTimeout(effectiveTimeout) { deferred.await() }
@@ -211,8 +257,13 @@ object TermuxRunCommandBridge {
                 when (t) {
                     is kotlinx.coroutines.TimeoutCancellationException ->
                         "Timed out waiting for Termux result after ${effectiveTimeout}ms"
-                    is SecurityException ->
-                        "Termux denied RUN_COMMAND: ${t.message}. Grant $PERMISSION_RUN_COMMAND and set allow-external-apps=true."
+                    is SecurityException -> {
+                        PermissionRequestBridge.requestRuntimePermissions(
+                            arrayOf(PERMISSION_RUN_COMMAND),
+                            REQUEST_CODE_RUN_COMMAND
+                        )
+                        "Termux denied RUN_COMMAND: ${t.message}. OmniDev requested the permission at runtime; grant it and retry."
+                    }
                     else -> "Termux RunCommandService failure: ${t.javaClass.simpleName}: ${t.message}"
                 }
             )
@@ -232,23 +283,57 @@ object TermuxRunCommandBridge {
 
         val stdout = bundle.getString(RESULT_STDOUT).orEmpty()
         val stderr = bundle.getString(RESULT_STDERR).orEmpty()
-        // Termux's ResultSender serializes *_original_length as strings.
-        val stdoutOriginalLength = bundle.getString(RESULT_STDOUT_ORIGINAL_LENGTH)
-            ?.toIntOrNull() ?: stdout.length
-        val stderrOriginalLength = bundle.getString(RESULT_STDERR_ORIGINAL_LENGTH)
-            ?.toIntOrNull() ?: stderr.length
+        val stdoutOriginalLength = readLength(bundle, RESULT_STDOUT_ORIGINAL_LENGTH, stdout.length)
+        val stderrOriginalLength = readLength(bundle, RESULT_STDERR_ORIGINAL_LENGTH, stderr.length)
 
         val result = TermuxCommandResult(
             exitCode = bundle.getInt(RESULT_EXIT_CODE, -1),
             stdout = stdout,
             stderr = stderr,
-            internalErrorCode = bundle.getInt(RESULT_ERR, 1),
+            // Official Termux RUN_COMMAND contract: Activity.RESULT_OK (-1) means
+            // there was no plugin/internal error.
+            internalErrorCode = bundle.getInt(RESULT_ERR, TERMUX_RESULT_OK),
             internalError = bundle.getString(RESULT_ERRMSG),
             stdoutOriginalLength = stdoutOriginalLength,
             stderrOriginalLength = stderrOriginalLength
         )
         Log.d(TAG, "Termux result id=$id exit=${result.exitCode} internal=${result.internalErrorCode}")
+
+        if (result.needsExternalAppsOptIn) {
+            presentExternalAppsSetup()
+        }
         deferred.complete(result)
+    }
+
+    private fun readLength(bundle: Bundle, key: String, fallback: Int): Int {
+        @Suppress("DEPRECATION")
+        return when (val raw = bundle.get(key)) {
+            is Int -> raw
+            is Long -> raw.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
+            is String -> raw.toIntOrNull() ?: fallback
+            else -> fallback
+        }
+    }
+
+    /**
+     * `allow-external-apps=true` is intentionally a Termux-side security opt-in.
+     * OmniDev cannot silently rewrite another app's private files. When Termux
+     * reports that policy failure, make setup as close to one-tap as Android allows:
+     * copy the exact idempotent setup command and open Termux once.
+     */
+    private fun presentExternalAppsSetup() {
+        if (!externalAppsSetupShown.compareAndSet(false, true)) return
+        val activity = PermissionRequestBridge.foregroundActivity() ?: return
+        activity.runOnUiThread {
+            runCatching {
+                val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("Enable OmniDev in Termux", ENABLE_EXTERNAL_APPS_COMMAND))
+                activity.packageManager.getLaunchIntentForPackage(TERMUX_PACKAGE)?.let { launch ->
+                    launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    activity.startActivity(launch)
+                }
+            }.onFailure { Log.w(TAG, "Could not present Termux external-app setup: ${it.message}") }
+        }
     }
 
     private fun setupFailure(message: String) = TermuxCommandResult(
