@@ -22,6 +22,7 @@ import com.omnidev.workspace.data.tools.FileToolManager
 import com.omnidev.workspace.data.tools.GodEyeProfilerTool
 import com.omnidev.workspace.data.tools.MemoryManager
 import com.omnidev.workspace.data.tools.NotificationCaptureTool
+import com.omnidev.workspace.data.tools.PermissionRequestBridge
 import com.omnidev.workspace.data.tools.ProgressiveTrustTool
 import com.omnidev.workspace.data.tools.RepoContextTools
 import com.omnidev.workspace.data.tools.RollbackTools
@@ -59,6 +60,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        PermissionRequestBridge.attach(this)
         enableEdgeToEdge()
 
         NotificationCaptureTool.initialize(applicationContext)
@@ -180,6 +182,11 @@ class MainActivity : ComponentActivity() {
         handleNavigationIntent(intent)
     }
 
+    override fun onResume() {
+        super.onResume()
+        PermissionRequestBridge.attach(this)
+    }
+
     @Deprecated("WebView FileChooserParams still delivers results through Activity results")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (BrowserFileChooserBridge.handleActivityResult(requestCode, resultCode, data)) return
@@ -192,6 +199,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        PermissionRequestBridge.detach(this)
         if (isFinishing) BrowserFileChooserBridge.cancelPending()
         super.onDestroy()
     }
