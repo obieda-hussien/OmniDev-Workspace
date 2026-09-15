@@ -45,7 +45,7 @@ Actions:
 - fill_focused: fill a focused NON-SENSITIVE field from profile|clipboard|custom.
 - status: report Accessibility/IME/system Autofill availability.
 - open_autofill_settings: open Android Autofill provider settings.
-- request_user_handoff: notify the user and return USER_ACTION_REQUIRED for a password, passkey, OTP/recovery code, CAPTCHA, biometric prompt, account consent, payment confirmation, or any other secret/high-trust browser step.
+- request_user_handoff: notify the user and switch to Browser Viewer for a password, passkey, OTP/recovery code, CAPTCHA, biometric prompt, account consent, payment confirmation, or any other secret/high-trust browser step.
 
 CRITICAL BROWSER RULE: never ask the user to send a password/OTP to the model and never place it in tool arguments, logs, memory, clipboard automation, or notifications. When a sensitive input is encountered, call request_user_handoff, tell the user to enter it directly in Browser Viewer/system UI, then STOP automation until the user confirms completion.
 """.trimIndent(),
@@ -101,6 +101,11 @@ CRITICAL BROWSER RULE: never ask the user to send a password/OTP to the model an
             append("\nDo not send the password, OTP, recovery code, or other secret to the agent.")
         }
 
+        // If the app is already alive, route straight to Browser Viewer. If it is
+        // backgrounded, this state is consumed when navigation becomes active;
+        // the high-priority notification below remains the explicit user signal.
+        com.omnidev.workspace.MainActivity.pendingBrowserHandoff.value = true
+
         val posted = NotificationCaptureTool.executeTool(
             "read_notifications",
             mapOf(
@@ -117,7 +122,7 @@ CRITICAL BROWSER RULE: never ask the user to send a password/OTP to the model an
             " ${posted.output}"
         }
         return ToolExecutionResult(
-            "USER_ACTION_REQUIRED: $reason. Give control to the user in Browser Viewer/system UI and STOP browser automation until they confirm the sensitive step is complete.$suffix"
+            "USER_ACTION_REQUIRED: $reason. Browser Viewer takeover requested. STOP browser automation until the user confirms the sensitive step is complete.$suffix"
         )
     }
 
@@ -125,7 +130,6 @@ CRITICAL BROWSER RULE: never ask the user to send a password/OTP to the model an
         val uri = raw?.trim()?.takeIf { it.startsWith("http://") || it.startsWith("https://") }
             ?.let { runCatching { android.net.Uri.parse(it) }.getOrNull() }
             ?: return null
-        // Strip query/fragment because OAuth and recovery URLs frequently contain secrets.
         return uri.buildUpon().clearQuery().fragment(null).build().toString()
     }
 
