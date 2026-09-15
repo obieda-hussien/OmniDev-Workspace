@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.system.Os
 import androidx.annotation.Keep
 import com.omnidev.workspace.ipc.IPrivilegedShellService
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.min
 
 /**
@@ -31,6 +30,11 @@ class PrivilegedShellUserService @JvmOverloads constructor(
 
     override fun getUid(): Int = runCatching { Os.getuid() }.getOrDefault(-1)
 
+    override fun destroy() {
+        // Reserved Shizuku UserService lifecycle transaction.
+        System.exit(0)
+    }
+
     override fun execute(command: String?, timeoutMs: Long): Bundle {
         if (command.isNullOrBlank()) {
             return resultBundle(
@@ -54,22 +58,18 @@ class PrivilegedShellUserService @JvmOverloads constructor(
 
             val stdout = StringBuilder()
             val stderr = StringBuilder()
-            val stdoutDone = AtomicBoolean(false)
-            val stderrDone = AtomicBoolean(false)
 
             val stdoutThread = streamThread(
                 name = "omni-shizuku-stdout",
                 reader = { process.inputStream.bufferedReader(Charsets.UTF_8) },
                 target = stdout,
-                maxChars = MAX_STDOUT_CHARS,
-                done = stdoutDone
+                maxChars = MAX_STDOUT_CHARS
             )
             val stderrThread = streamThread(
                 name = "omni-shizuku-stderr",
                 reader = { process.errorStream.bufferedReader(Charsets.UTF_8) },
                 target = stderr,
-                maxChars = MAX_STDERR_CHARS,
-                done = stderrDone
+                maxChars = MAX_STDERR_CHARS
             )
 
             stdoutThread.start()
@@ -95,15 +95,11 @@ class PrivilegedShellUserService @JvmOverloads constructor(
 
             stdoutThread.join(2_000L)
             stderrThread.join(2_000L)
-
             if (stdoutThread.isAlive) stdoutThread.interrupt()
             if (stderrThread.isAlive) stderrThread.interrupt()
 
-            val exitCode = if (timedOut) {
-                -1
-            } else {
-                runCatching { process.exitValue() }.getOrDefault(-1)
-            }
+            val exitCode = if (timedOut) -1
+            else runCatching { process.exitValue() }.getOrDefault(-1)
 
             resultBundle(
                 exitCode = exitCode,
@@ -127,8 +123,7 @@ class PrivilegedShellUserService @JvmOverloads constructor(
         name: String,
         reader: () -> java.io.BufferedReader,
         target: StringBuilder,
-        maxChars: Int,
-        done: AtomicBoolean
+        maxChars: Int
     ): Thread = Thread({
         try {
             reader().use { input ->
@@ -142,9 +137,7 @@ class PrivilegedShellUserService @JvmOverloads constructor(
                 }
             }
         } catch (_: Throwable) {
-            // The process may close streams while being killed on timeout.
-        } finally {
-            done.set(true)
+            // Expected when a process is destroyed on timeout.
         }
     }, name).apply { isDaemon = true }
 
