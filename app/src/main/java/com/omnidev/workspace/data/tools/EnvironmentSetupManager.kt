@@ -14,7 +14,6 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 
-/** Phase of the unified runtime state machine. */
 enum class SetupPhase { UNINITIALIZED, PROBING, READY, DEGRADED, FAILED }
 
 data class RuntimeStatus(
@@ -106,15 +105,12 @@ private class BinaryCache(private val ttlMs: Long = 120_000L) {
 }
 
 /**
- * Canonical developer-runtime coordinator.
+ * Canonical runtime coordinator.
  *
- * There are deliberately three separate execution domains:
- *  1. Termux RunCommandService -> developer shell, pkg/apt, Python, Node, Git.
- *  2. Shizuku UserService     -> privileged Android/system commands.
- *  3. rish                    -> ADB-equivalent interactive/shell semantics.
- *
- * Never execute Termux private binaries through Shizuku. Linux app sandboxing
- * makes that unreliable even when PATH/LD_LIBRARY_PATH are injected correctly.
+ * Execution domains are intentionally separate:
+ *  - Termux RunCommandService: developer shell, pkg/apt, Python, Node, Git.
+ *  - Shizuku UserService: privileged Android/system commands.
+ *  - rish: ADB-equivalent shell semantics.
  */
 object EnvironmentSetupManager {
 
@@ -123,8 +119,8 @@ object EnvironmentSetupManager {
     private const val MAX_OUTPUT = 24_000
     private const val TERMUX_TIMEOUT_MS = 120_000L
 
-    // Compatibility constants. They describe Termux's canonical paths but must
-    // not be used as proof that this app can directly access another app sandbox.
+    // Canonical Termux paths are compatibility descriptors only. The OmniDev
+    // process must not attempt to execute these cross-sandbox paths directly.
     const val TERMUX_ROOT = "/data/data/com.termux/files"
     const val TERMUX_PREFIX = "$TERMUX_ROOT/usr"
     const val TERMUX_HOME = "$TERMUX_ROOT/home"
@@ -164,10 +160,7 @@ object EnvironmentSetupManager {
             TermuxRunCommandBridge.hasRunCommandPermission(context)
     }
 
-    /**
-     * Legacy compatibility: Termux execution now occurs *inside* Termux, where
-     * its environment is already correct. Injecting PREFIX/LD_PRELOAD is harmful.
-     */
+    /** Legacy compatibility; commands now execute inside the real Termux env. */
     fun buildEnvPrefix(): String = ""
     fun buildInlineEnvPrefix(): String = ""
 
@@ -178,8 +171,8 @@ object EnvironmentSetupManager {
         ) return@withContext currentState
 
         probeMutex.withLock {
-            val nowLocked = System.currentTimeMillis()
-            if (!force && nowLocked - lastProbeMs.get() < MIN_PROBE_INTERVAL_MS &&
+            val lockedNow = System.currentTimeMillis()
+            if (!force && lockedNow - lastProbeMs.get() < MIN_PROBE_INTERVAL_MS &&
                 currentState.phase != SetupPhase.UNINITIALIZED
             ) return@withLock currentState
 
@@ -188,22 +181,19 @@ object EnvironmentSetupManager {
             val privileged = detectPrivilegeBackend()
 
             try {
-                val termuxProbe = probeTermuxRuntimes()
-                val transportReady = termuxProbe.first
-                val runtimes = termuxProbe.second
+                val (transportReady, runtimes) = probeTermuxRuntimes()
                 val phase = when {
                     transportReady -> SetupPhase.READY
                     privileged != "none" -> SetupPhase.DEGRADED
                     else -> SetupPhase.FAILED
                 }
-                val error = if (transportReady) null else termuxSetupHint()
                 val state = SetupState(
                     phase = phase,
                     runtimes = runtimes,
                     privilegeBackend = privileged,
                     termuxPrefix = if (transportReady) TERMUX_PREFIX else null,
                     probeTimeMs = System.currentTimeMillis() - started,
-                    error = error
+                    error = if (transportReady) null else termuxSetupHint()
                 )
                 lastProbeMs.set(System.currentTimeMillis())
                 _stateFlow.value = state
@@ -243,7 +233,11 @@ object EnvironmentSetupManager {
             appendLine("  else printf '${marker}%s\\t-\\t-\\n' \"\$b\"; fi")
             appendLine("done")
         }
-        val result = TermuxRunCommandBridge.executeShell(script, timeoutMs = 30_000L, label = "OmniDev runtime probe")
+        val result = TermuxRunCommandBridge.executeShell(
+            script,
+            timeoutMs = 30_000L,
+            label = "OmniDev runtime probe"
+        )
         if (!result.isSuccess) {
             return false to names.associateWith { RuntimeStatus(it, false, source = "termux") }
         }
@@ -280,7 +274,6 @@ object EnvironmentSetupManager {
         cache.get(name)?.let { return@withContext it }
         if (cache.isCachedMiss(name)) return@withContext null
 
-        // Developer runtimes are resolved in Termux's own namespace.
         if (isTermuxUsable()) {
             val result = TermuxRunCommandBridge.executeShell(
                 "command -v ${shellQuote(name)} 2>/dev/null || true",
@@ -294,8 +287,6 @@ object EnvironmentSetupManager {
             }
         }
 
-        // OmniDev-downloaded tools often live in /data/local/tmp and are visible
-        // to the privileged Android shell rather than the Termux sandbox.
         val omniPath = "${ToolDownloaderEngine.INSTALL_DIR}/$name"
         val omni = PrivilegedExecutionManager.executeCommand(
             "test -x ${shellQuote(omniPath)} && printf '%s' ${shellQuote(omniPath)}"
@@ -349,20 +340,20 @@ object EnvironmentSetupManager {
         venvPath: String? = null
     ): ToolExecutionResult = withContext(Dispatchers.IO) {
         if (code.isBlank()) return@withContext err("Python code is empty.")
-        val pythonSelector = if (!venvPath.isNullOrBlank()) {
+        val selector = if (!venvPath.isNullOrBlank()) {
             "${shellQuote(venvPath.trimEnd('/'))}/bin/python"
         } else {
             "\$(command -v python3 2>/dev/null || command -v python 2>/dev/null)"
         }
         val args = extraArgs?.takeIf { it.isNotBlank() }?.let { " $it" }.orEmpty()
-        val script = """
-            py=$pythonSelector
-            if [ -z "\$py" ] || [ ! -x "\$py" ]; then
-              echo 'Python is not installed in Termux. Use pkg_install packages=python.' >&2
-              exit 127
-            fi
-            "\$py" -c ${shellQuote(code)}$args
-        """.trimIndent()
+        val script = buildString {
+            appendLine("py=$selector")
+            appendLine("if [ -z \"\$py\" ] || [ ! -x \"\$py\" ]; then")
+            appendLine("  echo 'Python is not installed in Termux. Use pkg_install packages=python.' >&2")
+            appendLine("  exit 127")
+            appendLine("fi")
+            appendLine("\"\$py\" -c ${shellQuote(code)}$args")
+        }
         executeShell(script, cwd)
     }
 
@@ -377,12 +368,12 @@ object EnvironmentSetupManager {
             )
 
             if (!result.isSuccess && looksRecoverablePackageFailure(result.mergedOutput())) {
-                val recovery = """
-                    export DEBIAN_FRONTEND=noninteractive
-                    dpkg --configure -a || true
-                    apt-get -f install -y || true
-                    pkg update -y || apt-get update || true
-                """.trimIndent()
+                val recovery = listOf(
+                    "export DEBIAN_FRONTEND=noninteractive",
+                    "dpkg --configure -a || true",
+                    "apt-get -f install -y || true",
+                    "pkg update -y || apt-get update || true"
+                ).joinToString("\n")
                 TermuxRunCommandBridge.executeShell(
                     recovery,
                     timeoutMs = 5 * 60_000L,
@@ -406,20 +397,20 @@ object EnvironmentSetupManager {
         venvPath: String? = null
     ): ToolExecutionResult = withContext(Dispatchers.IO) {
         val args = packageArgs(packages) ?: return@withContext err("Invalid or empty pip package list.")
-        val py = if (!venvPath.isNullOrBlank()) {
+        val selector = if (!venvPath.isNullOrBlank()) {
             "${shellQuote(venvPath.trimEnd('/'))}/bin/python"
         } else {
             "\$(command -v python3 2>/dev/null || command -v python 2>/dev/null)"
         }
         val upgradeFlag = if (upgrade) " --upgrade" else ""
-        val script = """
-            py=$py
-            if [ -z "\$py" ] || [ ! -x "\$py" ]; then
-              echo 'Python is not installed.' >&2
-              exit 127
-            fi
-            "\$py" -m pip install$upgradeFlag $args
-        """.trimIndent()
+        val script = buildString {
+            appendLine("py=$selector")
+            appendLine("if [ -z \"\$py\" ] || [ ! -x \"\$py\" ]; then")
+            appendLine("  echo 'Python is not installed.' >&2")
+            appendLine("  exit 127")
+            appendLine("fi")
+            appendLine("\"\$py\" -m pip install$upgradeFlag $args")
+        }
         executeShell(script)
     }
 
@@ -436,9 +427,7 @@ object EnvironmentSetupManager {
     suspend fun findBinary(name: String): String? = resolveBinary(name)
 
     internal suspend fun resolveInterpreterAndEnv(venvPath: String? = null): Pair<String, String>? {
-        if (!venvPath.isNullOrBlank()) {
-            return "${venvPath.trimEnd('/')}/bin/python" to ""
-        }
+        if (!venvPath.isNullOrBlank()) return "${venvPath.trimEnd('/')}/bin/python" to ""
         val path = resolveBinary("python3") ?: resolveBinary("python") ?: return null
         return path to ""
     }
@@ -581,12 +570,7 @@ object EnvironmentSetupManager {
         }.trimEnd())
     }
 
-    /**
-     * The public agent surface is intentionally owned by AgentRuntimeTool.
-     * This coordinator remains executable by its legacy aliases but publishes
-     * no duplicate tool definitions, preventing the model from choosing between
-     * multiple tools that all claim to be "the terminal".
-     */
+    /** AgentRuntimeTool owns the visible terminal surface; keep legacy aliases hidden. */
     fun getToolDefinitions(): List<ToolDefinition> = emptyList()
 
     suspend fun executeTool(
@@ -648,7 +632,9 @@ object EnvironmentSetupManager {
         val tool = raw?.let(::sanitizeName).orEmpty()
         if (tool.isBlank()) return@withContext err("Missing tool name.")
 
-        resolveBinary(tool)?.let { return@withContext ToolExecutionResult("✅ '$tool' is already available at $it") }
+        resolveBinary(tool)?.let {
+            return@withContext ToolExecutionResult("✅ '$tool' is already available at $it")
+        }
 
         val explicitPkg = arguments["termux_package"]?.takeIf { it.isNotBlank() }
         val pkg = explicitPkg ?: defaultTermuxPackageFor(tool, arguments["language"])
@@ -657,7 +643,9 @@ object EnvironmentSetupManager {
             if (!installed.isError) {
                 cache.invalidate(tool)
                 resolveBinary(tool)?.let {
-                    return@withContext ToolExecutionResult("✅ '$tool' installed via Termux: $it\n${installed.output.take(1000)}")
+                    return@withContext ToolExecutionResult(
+                        "✅ '$tool' installed via Termux: $it\n${installed.output.take(1000)}"
+                    )
                 }
             }
         }
@@ -666,7 +654,9 @@ object EnvironmentSetupManager {
             val pip = pipInstall(pipPkg)
             if (!pip.isError) {
                 cache.invalidate(tool)
-                resolveBinary(tool)?.let { return@withContext ToolExecutionResult("✅ '$tool' installed via pip: $it") }
+                resolveBinary(tool)?.let {
+                    return@withContext ToolExecutionResult("✅ '$tool' installed via pip: $it")
+                }
             }
         }
 
@@ -674,7 +664,9 @@ object EnvironmentSetupManager {
             val npm = npmCommand("install -g ${shellQuote(npmPkg)}")
             if (!npm.isError) {
                 cache.invalidate(tool)
-                resolveBinary(tool)?.let { return@withContext ToolExecutionResult("✅ '$tool' installed via npm: $it") }
+                resolveBinary(tool)?.let {
+                    return@withContext ToolExecutionResult("✅ '$tool' installed via npm: $it")
+                }
             }
         }
 
@@ -779,32 +771,35 @@ object EnvironmentSetupManager {
     private fun packageArgs(packages: String): String? {
         val tokens = packages.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
         if (tokens.isEmpty() || tokens.size > 64) return null
-        if (tokens.any { token -> token.length > 512 || token.any { it.code < 32 || it == '\u007f' } }) return null
+        if (tokens.any { token ->
+                token.length > 512 || token.any { it.code < 32 || it == '\u007f' }
+            }
+        ) return null
         return tokens.joinToString(" ") { shellQuote(it) }
     }
 
-    private fun defaultTermuxPackageFor(tool: String, language: String?): String? = when (tool.lowercase()) {
-        "python", "python3", "pip", "pip3" -> "python"
-        "node", "nodejs", "npm", "npx" -> "nodejs"
-        "git" -> "git"
-        "curl" -> "curl"
-        "wget" -> "wget"
-        "ruby" -> "ruby"
-        "perl" -> "perl"
-        "clang", "cc", "gcc", "g++" -> "clang"
-        "cmake" -> "cmake"
-        "make" -> "make"
-        "ninja" -> "ninja"
-        "jq" -> "jq"
-        "zip", "unzip" -> "zip unzip"
-        "openssh", "ssh", "scp", "sftp" -> "openssh"
-        "pkg-config", "pkgconf" -> "pkg-config"
-        else -> when (language?.lowercase()) {
-            "python" -> null
-            "node", "javascript", "typescript" -> null
-            else -> null
+    private fun defaultTermuxPackageFor(tool: String, language: String?): String? =
+        when (tool.lowercase()) {
+            "python", "python3", "pip", "pip3" -> "python"
+            "node", "nodejs", "npm", "npx" -> "nodejs"
+            "git" -> "git"
+            "curl" -> "curl"
+            "wget" -> "wget"
+            "ruby" -> "ruby"
+            "perl" -> "perl"
+            "clang", "cc", "gcc", "g++" -> "clang"
+            "cmake" -> "cmake"
+            "make" -> "make"
+            "ninja" -> "ninja"
+            "jq" -> "jq"
+            "zip", "unzip" -> "zip unzip"
+            "openssh", "ssh", "scp", "sftp" -> "openssh"
+            "pkg-config", "pkgconf" -> "pkg-config"
+            else -> when (language?.lowercase()) {
+                "python", "node", "javascript", "typescript" -> null
+                else -> null
+            }
         }
-    }
 
     private fun isValidBinaryPath(path: String?): Boolean =
         !path.isNullOrBlank() && path.startsWith('/') && path.length <= 1024 &&
