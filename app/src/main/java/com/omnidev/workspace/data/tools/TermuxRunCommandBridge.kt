@@ -27,6 +27,10 @@ object TermuxRunCommandBridge {
     const val TERMUX_PACKAGE = "com.termux"
     const val PERMISSION_RUN_COMMAND = "com.termux.permission.RUN_COMMAND"
 
+    private const val TERMUX_PREFIX = "/data/data/com.termux/files/usr"
+    private const val TERMUX_HOME = "/data/data/com.termux/files/home"
+    private const val TERMUX_BASH = "$TERMUX_PREFIX/bin/bash"
+
     private const val RUN_COMMAND_SERVICE = "com.termux.app.RunCommandService"
     private const val ACTION_RUN_COMMAND = "com.termux.RUN_COMMAND"
     private const val EXTRA_COMMAND_PATH = "com.termux.RUN_COMMAND_PATH"
@@ -125,16 +129,16 @@ object TermuxRunCommandBridge {
         }
     }
 
-    /** Execute a shell script through `$PREFIX/bin/bash -lc` inside Termux. */
+    /** Execute a shell script through Termux's own bash process. */
     suspend fun executeShell(
         script: String,
         cwd: String? = null,
         timeoutMs: Long = DEFAULT_TIMEOUT_MS,
         label: String = "OmniDev terminal"
     ): TermuxCommandResult = execute(
-        executable = "\$PREFIX/bin/bash",
+        executable = TERMUX_BASH,
         arguments = arrayOf("-lc", script),
-        cwd = cwd ?: "~/",
+        cwd = cwd ?: TERMUX_HOME,
         timeoutMs = timeoutMs,
         label = label,
         description = "Command requested by OmniDev agent"
@@ -144,7 +148,7 @@ object TermuxRunCommandBridge {
         executable: String,
         arguments: Array<String> = emptyArray(),
         stdin: String? = null,
-        cwd: String = "~/",
+        cwd: String = TERMUX_HOME,
         timeoutMs: Long = DEFAULT_TIMEOUT_MS,
         label: String = "OmniDev command",
         description: String? = null
