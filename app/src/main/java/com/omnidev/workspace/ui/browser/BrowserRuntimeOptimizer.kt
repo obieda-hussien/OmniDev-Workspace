@@ -52,7 +52,11 @@ internal object BrowserRuntimeOptimizer {
         if (configuredViews.put(webView, true) != true) {
             configureCapabilities(webView, isIncognito)
         }
-        maybeShowAuthCompatibilityDialog(webView)
+
+        // getWebView() is called from Compose composition. Defer UI work until
+        // after the current frame instead of showing a platform dialog as a
+        // synchronous composition side-effect.
+        webView.post { maybeShowAuthCompatibilityDialog(webView) }
     }
 
     private fun configureCapabilities(webView: WebView, isIncognito: Boolean) {
