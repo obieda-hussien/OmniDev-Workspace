@@ -283,7 +283,7 @@ android.applicationVariants.configureEach {
 }
 
 dependencies {
-    implementation("androidx.webkit:webkit:1.13.0")
+    implementation("androidx.webkit:webkit:1.17.0")
     implementation("org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r")
 
     // ── Core & Lifecycle ──
