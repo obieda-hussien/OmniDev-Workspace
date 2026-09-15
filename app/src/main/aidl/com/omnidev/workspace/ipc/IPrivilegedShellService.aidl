@@ -14,4 +14,8 @@ interface IPrivilegedShellService {
     Bundle execute(String command, long timeoutMs);
     int getUid();
     String ping();
+
+    // Reserved Shizuku UserService destroy transaction. Shizuku invokes this
+    // when a tagged service is replaced/removed so stale privileged processes die.
+    void destroy() = 16777114;
 }
