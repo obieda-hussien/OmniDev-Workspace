@@ -2,17 +2,23 @@ package com.omnidev.workspace.ui.browser
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.DownloadManager
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.Looper
 import android.webkit.CookieManager
+import android.webkit.URLUtil
+import android.webkit.WebSettings
 import android.webkit.WebView
+import android.widget.Toast
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.omnidev.workspace.BuildConfig
 import java.util.Collections
@@ -62,6 +68,16 @@ internal object BrowserRuntimeOptimizer {
     private fun configureCapabilities(webView: WebView, isIncognito: Boolean) {
         val settings = webView.settings
 
+        // HeadlessBrowserManager historically used a frozen desktop Chrome 124
+        // UA for every tab. That quickly becomes suspicious to identity providers
+        // and makes feature detection inaccurate. Only replace that exact legacy
+        // default; explicit agent/user custom UAs remain untouched.
+        val legacyDesktopUa = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        if (settings.userAgentString == legacyDesktopUa) {
+            settings.userAgentString = WebSettings.getDefaultUserAgent(webView.context)
+        }
+
         // WebAuthn is disabled by default. FOR_APP is safe for normal apps and
         // works for sites associated to OmniDev with Digital Asset Links.
         // A genuine privileged/system browser build can request browser-wide
@@ -89,6 +105,10 @@ internal object BrowserRuntimeOptimizer {
             runCatching { WebSettingsCompat.setBackForwardCacheEnabled(settings, true) }
         }
 
+        if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+            runCatching { WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, true) }
+        }
+
         // Keep platform protections enabled explicitly. This does not bypass TLS
         // or provider security checks.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -100,12 +120,90 @@ internal object BrowserRuntimeOptimizer {
         settings.builtInZoomControls = true
         settings.displayZoomControls = false
         settings.loadsImagesAutomatically = true
+        settings.textZoom = 100
 
+        val cookieManager = cookieManagerFor(webView, isIncognito)
+        cookieManager.setAcceptCookie(true)
         // Normal browsing needs third-party cookies for a number of legitimate
         // federated-login flows. Private sessions keep the stricter policy.
-        if (!isIncognito) {
-            runCatching {
-                CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
+        runCatching {
+            cookieManager.setAcceptThirdPartyCookies(webView, !isIncognito)
+        }
+
+        webView.context.findActivity()?.let { activity ->
+            // Replace the headless client's auto-confirming ChromeClient only
+            // while the WebView is visible to a human.
+            webView.webChromeClient = BrowserChromeClient(activity)
+            installDownloadHandler(webView, activity, cookieManager, isIncognito)
+        }
+
+        if (BuildConfig.DEBUG) {
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
+    }
+
+    private fun cookieManagerFor(webView: WebView, isIncognito: Boolean): CookieManager {
+        if (isIncognito && WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+            return runCatching { WebViewCompat.getProfile(webView).cookieManager }
+                .getOrElse { CookieManager.getInstance() }
+        }
+        return CookieManager.getInstance()
+    }
+
+    private fun installDownloadHandler(
+        webView: WebView,
+        activity: Activity,
+        cookieManager: CookieManager,
+        isIncognito: Boolean
+    ) {
+        webView.setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
+            if (url.isNullOrBlank()) return@setDownloadListener
+            val uri = runCatching { Uri.parse(url) }.getOrNull() ?: return@setDownloadListener
+            if (uri.scheme !in setOf("http", "https")) {
+                Toast.makeText(activity, "Blocked unsupported download scheme", Toast.LENGTH_SHORT).show()
+                return@setDownloadListener
+            }
+
+            val startDownload = {
+                runCatching {
+                    val request = DownloadManager.Request(uri)
+                        .setTitle(URLUtil.guessFileName(url, contentDisposition, mimeType))
+                        .setDescription(uri.host.orEmpty())
+                        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                        .setAllowedOverMetered(true)
+                        .setAllowedOverRoaming(false)
+
+                    if (!mimeType.isNullOrBlank()) request.setMimeType(mimeType)
+                    if (!userAgent.isNullOrBlank()) request.addRequestHeader("User-Agent", userAgent)
+                    cookieManager.getCookie(url)?.takeIf { it.isNotBlank() }?.let {
+                        request.addRequestHeader("Cookie", it)
+                    }
+
+                    val fileName = URLUtil.guessFileName(url, contentDisposition, mimeType)
+                        .replace(Regex("[\\\\/:*?\"<>|]"), "_")
+                    request.setDestinationInExternalFilesDir(
+                        activity,
+                        Environment.DIRECTORY_DOWNLOADS,
+                        fileName
+                    )
+
+                    val manager = activity.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                    manager.enqueue(request)
+                    Toast.makeText(activity, "Download started", Toast.LENGTH_SHORT).show()
+                }.onFailure {
+                    Toast.makeText(activity, "Download failed: ${it.message}", Toast.LENGTH_LONG).show()
+                }
+            }
+
+            if (isIncognito) {
+                AlertDialog.Builder(activity)
+                    .setTitle("Private download")
+                    .setMessage("The downloaded file will remain on this device after the private tab is closed.")
+                    .setPositiveButton("Download") { _, _ -> startDownload() }
+                    .setNegativeButton("Cancel", null)
+                    .show()
+            } else {
+                startDownload()
             }
         }
     }
