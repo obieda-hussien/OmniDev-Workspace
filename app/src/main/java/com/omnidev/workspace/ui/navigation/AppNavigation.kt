@@ -14,6 +14,7 @@ import com.omnidev.workspace.data.db.OmniDevDatabase
 import com.omnidev.workspace.data.mcp.McpConfigManager
 import com.omnidev.workspace.data.repository.AnalyticsRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.domain.engine.OmniMode
 import com.omnidev.workspace.ui.analytics.AnalyticsDashboardScreen
 import com.omnidev.workspace.ui.analytics.AnalyticsDashboardViewModel
 import com.omnidev.workspace.ui.brain.AgentBrainDashboard
@@ -188,7 +189,18 @@ fun AppNavigation(
         }
 
         composable(Routes.TOOL_REGISTRY) {
-            ToolRegistryScreen(onNavigateBack = { navController.popBackStack() })
+            ToolRegistryScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onCreateSkillWithOmni = { prompt ->
+                    chatViewModel.setMode(OmniMode.AGENT)
+                    chatViewModel.onInputChanged(prompt)
+                    chatViewModel.sendMessage()
+                    navController.navigate(Routes.CHAT) {
+                        popUpTo(Routes.CHAT) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                }
+            )
         }
 
         composable(Routes.PROFILE) {
