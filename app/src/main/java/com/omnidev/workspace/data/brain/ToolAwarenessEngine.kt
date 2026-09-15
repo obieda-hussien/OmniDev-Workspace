@@ -5,44 +5,37 @@ import android.os.Build
 import android.util.Log
 import com.omnidev.workspace.data.db.dao.SystemKnowledgeDao
 import com.omnidev.workspace.data.db.entities.SystemKnowledgeEntry
+import com.omnidev.workspace.data.tools.EnvironmentSetupManager
+import com.omnidev.workspace.data.tools.ShizukuCommandTool
+import com.omnidev.workspace.data.tools.TermuxRunCommandBridge
 import com.omnidev.workspace.data.tools.ToolDefinition
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.io.File
+import kotlinx.coroutines.withContext
 
 /**
- * ══════════════════════════════════════════════════════════════════════════════
- * ToolAwarenessEngine —
- * ══════════════════════════════════════════════════════════════════════════════
+ * Learns the execution environment that the agent can actually use.
  *
- *     :
- * 1.
- * 2.    (Android, Termux, Shizuku, etc.)
- * 3.
- * 4.
- * 5.
- *
- *    Claude Code :
- * -
- * -
- * -  context enrichment
+ * Runtime discovery must go through the same execution layer as the agent. In
+ * particular, checking `/data/data/com.termux/...` with java.io.File from the
+ * OmniDev process is invalid on modern Android because Termux is a different app
+ * sandbox. The previous implementation therefore taught the model false runtime
+ * availability and stale tool names such as `termux_bridge`.
  */
 class ToolAwarenessEngine(
     private val context: Context,
     private val systemKnowledgeDao: SystemKnowledgeDao,
+    @Suppress("UNUSED_PARAMETER")
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 ) {
 
     companion object {
         private const val TAG = "ToolAwareness"
 
-        //
         const val TYPE_TOOL_CAPABILITY = "TOOL_CAPABILITY"
         const val TYPE_TOOL_REQUIREMENT = "TOOL_REQUIREMENT"
         const val TYPE_TOOL_LIMITATION = "TOOL_LIMITATION"
@@ -55,184 +48,204 @@ class ToolAwarenessEngine(
         const val TYPE_ENVIRONMENT = "ENVIRONMENT"
     }
 
-    // ───   ───────────────────────────────────────────────
-
     private val runtimeEnvironmentCache = mutableMapOf<String, String>()
     private var isInitialized = false
     private val initializationMutex = Mutex()
 
-    // ───   ───────────────────────────────────────────────
+    suspend fun initialize(availableTools: List<ToolDefinition> = emptyList()) =
+        withContext(Dispatchers.IO) {
+            initializationMutex.withLock {
+                if (isInitialized) return@withLock
 
-    /**
-     *  :
-     */
-    suspend fun initialize(availableTools: List<ToolDefinition> = emptyList()) = withContext(Dispatchers.IO) { initializationMutex.withLock {
-        if (isInitialized) return@withLock
-        
-        Log.d(TAG, "🔍    ...")
+                discoverSystemEnvironment()
+                if (availableTools.isNotEmpty()) registerToolCapabilities(availableTools)
+                discoverDeviceCapabilities()
+                discoverRuntimeEnvironments()
+                registerInitialBestPractices()
 
-        // 1.
-        discoverSystemEnvironment()
-
-        // 2.
-        if (availableTools.isNotEmpty()) {
-            registerToolCapabilities(availableTools)
+                isInitialized = true
+                Log.d(TAG, "Tool awareness initialized: ${systemKnowledgeDao.getCount()} entries")
+            }
         }
-
-        // 3.
-        discoverDeviceCapabilities()
-
-        // 4.
-        discoverRuntimeEnvironments()
-
-        // 5.
-        registerInitialBestPractices()
-
-        isInitialized = true
-        Log.d(TAG, "✅    - ${systemKnowledgeDao.getCount()}  ")
-    } }
-
-    // ───   ───────────────────────────────────────────────
 
     private suspend fun discoverSystemEnvironment() {
         val deviceInfo = buildString {
             appendLine("Android SDK: ${Build.VERSION.SDK_INT}")
-            appendLine("Model: ${Build.MODEL}")
-            appendLine("Manufacturer: ${Build.MANUFACTURER}")
+            appendLine("Android: ${Build.VERSION.RELEASE}")
+            appendLine("Model: ${Build.MANUFACTURER} ${Build.MODEL}")
             appendLine("CPU ABI: ${Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"}")
         }
-
         saveOrUpdateKnowledge(
-            type = TYPE_SYSTEM_INFO,
-            subject = "device_info",
-            content = deviceInfo,
+            TYPE_SYSTEM_INFO,
+            "device_info",
+            deviceInfo,
             priority = 5,
             tags = "android,device,sdk,system"
         )
 
-        //  Android API
-        val apiLevel = Build.VERSION.SDK_INT
-        when {
-            apiLevel >= 33 -> saveOrUpdateKnowledge(
-                type = TYPE_SYSTEM_INFO, subject = "android_api",
-                content = "Android 13+ (API $apiLevel):  . MediaStore  Scoped Storage .",
-                priority = 2
-            )
-            apiLevel >= 30 -> saveOrUpdateKnowledge(
-                type = TYPE_SYSTEM_INFO, subject = "android_api",
-                content = "Android 11+ (API $apiLevel): Scoped Storage.     MANAGE_EXTERNAL_STORAGE.",
-                priority = 2
-            )
-            apiLevel >= 26 -> saveOrUpdateKnowledge(
-                type = TYPE_SYSTEM_INFO, subject = "android_api",
-                content = "Android 8+ (API $apiLevel): JobScheduler . Background Limits .",
-                priority = 3
-            )
+        val scopedStorageNote = when {
+            Build.VERSION.SDK_INT >= 33 ->
+                "Android 13+ (API ${Build.VERSION.SDK_INT}); scoped storage and runtime media/notification permissions apply."
+            Build.VERSION.SDK_INT >= 30 ->
+                "Android 11+ (API ${Build.VERSION.SDK_INT}); scoped storage applies."
+            else -> "Android API ${Build.VERSION.SDK_INT}."
         }
+        saveOrUpdateKnowledge(
+            TYPE_SYSTEM_INFO,
+            "android_api",
+            scopedStorageNote,
+            priority = 3,
+            tags = "android,api,storage"
+        )
     }
 
     private suspend fun discoverDeviceCapabilities() {
         val pm = context.packageManager
-
-        //
-        val hasCamera = pm.hasSystemFeature("android.hardware.camera")
-        if (hasCamera) {
-            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "camera", "Camera hardware detected; permission must be checked before use.", priority = 8)
+        if (pm.hasSystemFeature("android.hardware.camera")) {
+            saveOrUpdateKnowledge(
+                TYPE_SYSTEM_CAPABILITY,
+                "camera",
+                "Camera hardware detected; permission must be checked before use.",
+                priority = 8
+            )
+        }
+        if (pm.hasSystemFeature("android.hardware.bluetooth")) {
+            saveOrUpdateKnowledge(
+                TYPE_SYSTEM_CAPABILITY,
+                "bluetooth",
+                "Bluetooth hardware detected; permission and adapter state must be checked before use.",
+                priority = 8
+            )
         }
 
-        //
-        val hasBluetooth = pm.hasSystemFeature("android.hardware.bluetooth")
-        if (hasBluetooth) {
-            saveKnowledge(TYPE_SYSTEM_CAPABILITY, "bluetooth", "Bluetooth hardware detected; permission and adapter state must be checked before use.", priority = 8)
-        }
-
-        //
         val runtime = Runtime.getRuntime()
-        val maxMemMB = runtime.maxMemory() / (1024 * 1024)
-        saveKnowledge(
-            TYPE_SYSTEM_INFO, "memory",
-            " JVM : ${maxMemMB}MB -   streaming  ",
+        saveOrUpdateKnowledge(
+            TYPE_SYSTEM_INFO,
+            "memory",
+            "App JVM max heap: ${runtime.maxMemory() / (1024 * 1024)} MB. Prefer streaming for large output/files.",
             priority = 4,
             tags = "memory,performance,heap"
         )
 
-        //
-        try {
+        runCatching {
             val dataDir = context.filesDir
-            val free = dataDir.freeSpace / (1024 * 1024)
-            val total = dataDir.totalSpace / (1024 * 1024)
-            saveKnowledge(
-                TYPE_SYSTEM_INFO, "storage",
-                ": ${free}MB    ${total}MB",
+            saveOrUpdateKnowledge(
+                TYPE_SYSTEM_INFO,
+                "storage",
+                "App data filesystem: ${dataDir.freeSpace / (1024 * 1024)} MB free of ${dataDir.totalSpace / (1024 * 1024)} MB.",
                 priority = 5,
                 tags = "storage,disk,space"
             )
-        } catch (_: Exception) {}
+        }
     }
 
     private suspend fun discoverRuntimeEnvironments() {
-        //  Termux
-        val termuxInstalled = isPackageInstalled("com.termux")
-        runtimeEnvironmentCache["termux"] = termuxInstalled.toString()
-        if (termuxInstalled) {
-            saveKnowledge(
-                TYPE_ENVIRONMENT, "termux",
-                "Termux :   Python, Node.js, bash, gcc, git  termux_bridge",
-                confidence = 0.9f,
+        EnvironmentSetupManager.init(context.applicationContext)
+        TermuxRunCommandBridge.init(context.applicationContext)
+
+        val state = runCatching { EnvironmentSetupManager.probe(force = true) }.getOrNull()
+        val termuxInstalled = TermuxRunCommandBridge.isTermuxInstalled(context)
+        val termuxPermission = TermuxRunCommandBridge.hasRunCommandPermission(context)
+        val termuxReady = state?.termuxPrefix != null
+
+        runtimeEnvironmentCache["termux_installed"] = termuxInstalled.toString()
+        runtimeEnvironmentCache["termux_permission"] = termuxPermission.toString()
+        runtimeEnvironmentCache["termux_ready"] = termuxReady.toString()
+
+        when {
+            termuxReady -> saveOrUpdateKnowledge(
+                TYPE_ENVIRONMENT,
+                "termux",
+                "Termux RunCommandService is ready. Use agent_runtime for shell, pkg/apt, Python, Node.js, npm, pip and CLI work. Do not use legacy termux_bridge/direct_terminal aliases.",
+                confidence = 1.0f,
                 priority = 2,
-                tags = "termux,python,nodejs,bash,linux"
+                tags = "termux,agent_runtime,python,nodejs,bash,linux"
             )
-        } else {
-            saveKnowledge(
-                TYPE_WARNING, "termux",
-                "Termux  :  AgentRuntimeTool   agent_sandbox",
+            termuxInstalled && !termuxPermission -> saveOrUpdateKnowledge(
+                TYPE_WARNING,
+                "termux",
+                "Termux is installed but OmniDev lacks com.termux.permission.RUN_COMMAND. Grant the additional permission and set allow-external-apps=true in ~/.termux/termux.properties.",
+                confidence = 1.0f,
+                priority = 2,
+                tags = "termux,permission,run_command,warning"
+            )
+            termuxInstalled -> saveOrUpdateKnowledge(
+                TYPE_WARNING,
+                "termux",
+                "Termux is installed but its RunCommand transport is not healthy. Use agent_runtime action=env_check for exact diagnostics.",
+                confidence = 1.0f,
+                priority = 2,
+                tags = "termux,runtime,warning"
+            )
+            else -> saveOrUpdateKnowledge(
+                TYPE_WARNING,
+                "termux",
+                "Termux is not installed. Developer package/runtime commands are unavailable until official Termux + RUN_COMMAND are configured.",
                 confidence = 1.0f,
                 priority = 3,
                 tags = "termux,warning"
             )
         }
 
-        //  Shizuku
-        val shizukuInstalled = isPackageInstalled("moe.shizuku.privileged.api")
-        runtimeEnvironmentCache["shizuku"] = shizukuInstalled.toString()
-        if (shizukuInstalled) {
-            saveKnowledge(
-                TYPE_ENVIRONMENT, "shizuku",
-                "Shizuku package detected. Check service and permission before shizuku_command; this does not imply root access.",
-                confidence = 0.8f,
+        val shizukuBinder = ShizukuCommandTool.isAvailable()
+        val shizukuGranted = shizukuBinder && ShizukuCommandTool.hasPermission()
+        val shizukuUid = if (shizukuGranted) ShizukuCommandTool.privilegedUidOrNull() else null
+        runtimeEnvironmentCache["shizuku"] = shizukuGranted.toString()
+
+        if (shizukuGranted) {
+            saveOrUpdateKnowledge(
+                TYPE_ENVIRONMENT,
+                "shizuku",
+                "Shizuku UserService is ready${shizukuUid?.let { " (uid=$it)" }.orEmpty()}. Use shizuku_command only for Android/system privileged commands; use agent_runtime for developer packages and Termux tools.",
+                confidence = 1.0f,
                 priority = 2,
-                tags = "shizuku,adb,privileged,root"
+                tags = "shizuku,user_service,adb,privileged"
             )
         } else {
-            saveKnowledge(
-                TYPE_WARNING, "shizuku",
-                "Shizuku  :      ",
+            saveOrUpdateKnowledge(
+                TYPE_WARNING,
+                "shizuku",
+                if (shizukuBinder) {
+                    "Shizuku is running but permission is not granted to OmniDev."
+                } else {
+                    "Shizuku binder is not available."
+                },
                 confidence = 1.0f,
                 priority = 3,
                 tags = "shizuku,warning"
             )
         }
 
-        //  Python
-        val pythonExists = File("/data/data/com.termux/files/usr/bin/python3").exists() ||
-                           File("/data/data/com.termux/files/usr/bin/python").exists()
-        if (pythonExists) {
-            saveKnowledge(
-                TYPE_ENVIRONMENT, "python",
-                "Python   Termux:  agent_runtime/python_run  ",
-                confidence = 0.95f,
+        val runtimes = state?.runtimes.orEmpty()
+        runtimes["python3"]?.takeIf { it.available }
+            ?: runtimes["python"]?.takeIf { it.available }
+        if (runtimes["python3"]?.available == true || runtimes["python"]?.available == true) {
+            val runtime = runtimes["python3"]?.takeIf { it.available } ?: runtimes["python"]
+            saveOrUpdateKnowledge(
+                TYPE_ENVIRONMENT,
+                "python",
+                "Python is available through Termux at ${runtime?.path}. Run it with agent_runtime action=python_run; install libraries with agent_runtime action=pip_install.",
+                confidence = 1.0f,
                 priority = 2,
-                tags = "python,termux,runtime,code"
+                tags = "python,termux,agent_runtime"
             )
         }
-
-        //  Git
-        val gitExists = File("/data/data/com.termux/files/usr/bin/git").exists()
-        if (gitExists) {
-            saveKnowledge(
-                TYPE_ENVIRONMENT, "git",
-                "Git   Termux:  git_manager  terminal  Git",
-                confidence = 0.95f,
+        runtimes["node"]?.takeIf { it.available }?.let { runtime ->
+            saveOrUpdateKnowledge(
+                TYPE_ENVIRONMENT,
+                "node",
+                "Node.js is available through Termux at ${runtime.path}. Use agent_runtime for node/npm commands.",
+                confidence = 1.0f,
+                priority = 3,
+                tags = "nodejs,npm,termux,agent_runtime"
+            )
+        }
+        runtimes["git"]?.takeIf { it.available }?.let { runtime ->
+            saveOrUpdateKnowledge(
+                TYPE_ENVIRONMENT,
+                "git",
+                "Git is available through Termux at ${runtime.path}. Prefer git_manager for structured repository operations and agent_runtime for raw git CLI work.",
+                confidence = 1.0f,
                 priority = 3,
                 tags = "git,termux,vcs"
             )
@@ -240,73 +253,59 @@ class ToolAwarenessEngine(
     }
 
     private suspend fun registerToolCapabilities(tools: List<ToolDefinition>) {
-        tools.forEach { tool ->
-            val capability = buildString {
-                append(": ${tool.name}")
-                append(" | : ${tool.description.take(200)}")
-                if (tool.parameters.isNotEmpty()) {
-                    append(" | : ${tool.parameters.joinToString(", ") { p ->
-                        "${p.name}(${if (p.required) "required" else "optional"})"
-                    }}")
-                }
+        tools.distinctBy { it.name }.forEach { tool ->
+            val parameters = tool.parameters.joinToString(", ") { p ->
+                "${p.name}(${if (p.required) "required" else "optional"})"
             }
-
-            saveKnowledge(
-                type = TYPE_TOOL_CAPABILITY,
-                subject = tool.name,
-                content = capability,
+            saveOrUpdateKnowledge(
+                TYPE_TOOL_CAPABILITY,
+                tool.name,
+                buildString {
+                    append("Tool: ${tool.name} | ${tool.description.take(240)}")
+                    if (parameters.isNotBlank()) append(" | parameters: $parameters")
+                },
                 priority = 6,
                 tags = "tool,${tool.name},capability",
                 source = "tool_registry"
             )
         }
-        Log.d(TAG, "📋  ${tools.size}    ")
+        Log.d(TAG, "Registered ${tools.distinctBy { it.name }.size} visible tool capabilities")
     }
 
     private suspend fun registerInitialBestPractices() {
         val practices = listOf(
             Triple(
+                "terminal_runtime_routing",
+                "Use agent_runtime for developer shell/package/runtime work; shizuku_command for privileged Android commands; rish is the ADB-equivalent privileged shell backend. Never execute Termux private binaries through Shizuku PATH/LD_PRELOAD hacks.",
+                "terminal,termux,shizuku,rish,routing"
+            ),
+            Triple(
+                "package_installation",
+                "Install Termux packages with agent_runtime action=pkg_install. Package installation is serialized and automatically attempts dpkg/dependency recovery before one retry.",
+                "termux,packages,pkg,apt,recovery"
+            ),
+            Triple(
                 "file_operations",
-                "  :  read_file_lines  .   (+1MB)  find_files  grep_search    .",
-                "file,read,performance"
+                "Prefer structured file tools for app/repository files and agent_runtime only when shell semantics are actually needed.",
+                "file,terminal,performance"
             ),
             Triple(
                 "memory_usage",
-                "    search_knowledge     .     remember_fact.      .",
+                "Search existing knowledge before storing duplicates; store durable discoveries after successful verification.",
                 "memory,context,efficiency"
             ),
             Triple(
-                "terminal_safety",
-                "   terminal :  dry-run  echo .  rm -rf.  paths  .",
-                "terminal,safety,commands"
-            ),
-            Triple(
-                "web_search_strategy",
-                ":   web_search ().  web_scraper  .  headless_browser     JavaScript.",
-                "web,search,strategy"
-            ),
-            Triple(
                 "git_workflow",
-                "  Git:     →     → commit  →     main",
+                "Prefer git_manager for structured Git operations; use raw git CLI only when the structured tool lacks the required operation.",
                 "git,workflow,best_practice"
-            ),
-            Triple(
-                "error_handling",
-                " :     →    →    →    remember_fact",
-                "error,debugging,recovery"
-            ),
-            Triple(
-                "tool_selection",
-                "   . :     grep_search ()  read_file.   get_device_info  shizuku_command.",
-                "tool_selection,efficiency,performance"
             )
         )
 
         practices.forEach { (subject, content, tags) ->
             saveOrUpdateKnowledge(
-                type = TYPE_BEST_PRACTICE,
-                subject = subject,
-                content = content,
+                TYPE_BEST_PRACTICE,
+                subject,
+                content,
                 priority = 2,
                 tags = "best_practice,$tags",
                 source = "built_in"
@@ -314,99 +313,77 @@ class ToolAwarenessEngine(
         }
     }
 
-    // ───   ───────────────────────────────────────────
-
-    /**
-     *
-     */
     suspend fun learnFromExecution(
         toolName: String,
         success: Boolean,
         errorMessage: String = "",
         executionTimeMs: Long = 0,
-        params: Map<String, Any?> = emptyMap()
+        @Suppress("UNUSED_PARAMETER") params: Map<String, Any?> = emptyMap()
     ) = withContext(Dispatchers.IO) {
         when {
-            !success && errorMessage.contains("permission", ignoreCase = true) -> {
+            !success && errorMessage.contains("permission", ignoreCase = true) ->
                 saveOrUpdateKnowledge(
-                    type = TYPE_TOOL_REQUIREMENT,
-                    subject = toolName,
-                    content = "⚠️ $toolName   . : ${errorMessage.take(150)}",
+                    TYPE_TOOL_REQUIREMENT,
+                    toolName,
+                    "$toolName requires an unavailable permission: ${errorMessage.take(200)}",
                     confidence = 0.9f,
                     priority = 2,
                     tags = "permission,requirement,$toolName"
                 )
-            }
 
-            !success && errorMessage.contains("not available", ignoreCase = true) -> {
-                saveOrUpdateKnowledge(
-                    type = TYPE_TOOL_LIMITATION,
-                    subject = toolName,
-                    content = "🚫 $toolName     : ${errorMessage.take(150)}",
+            !success && (
+                errorMessage.contains("not available", ignoreCase = true) ||
+                    errorMessage.contains("not installed", ignoreCase = true)
+                ) -> saveOrUpdateKnowledge(
+                    TYPE_TOOL_LIMITATION,
+                    toolName,
+                    "$toolName unavailable: ${errorMessage.take(200)}",
                     confidence = 0.95f,
-                    priority = 1,
+                    priority = 2,
                     tags = "unavailable,limitation,$toolName"
                 )
-            }
 
-            !success && executionTimeMs > 30_000 -> {
-                saveOrUpdateKnowledge(
-                    type = TYPE_TOOL_LIMITATION,
-                    subject = "${toolName}_timeout",
-                    content = "⏱️ $toolName      (${executionTimeMs}ms).   .",
-                    confidence = 0.8f,
-                    priority = 2,
-                    tags = "timeout,performance,$toolName"
-                )
-            }
+            !success && executionTimeMs > 30_000 -> saveOrUpdateKnowledge(
+                TYPE_TOOL_LIMITATION,
+                "${toolName}_timeout",
+                "$toolName timed out after ${executionTimeMs}ms; reduce scope or split the operation.",
+                confidence = 0.8f,
+                priority = 3,
+                tags = "timeout,performance,$toolName"
+            )
 
-            success && executionTimeMs < 200 -> {
-                //    -
-                saveOrUpdateKnowledge(
-                    type = TYPE_TOOL_CAPABILITY,
-                    subject = "${toolName}_performance",
-                    content = "⚡ $toolName   (avg ~${executionTimeMs}ms) -   ",
-                    confidence = 0.7f,
-                    priority = 7,
-                    tags = "fast,performance,$toolName"
-                )
-            }
+            success && executionTimeMs in 1..199 -> saveOrUpdateKnowledge(
+                TYPE_TOOL_CAPABILITY,
+                "${toolName}_performance",
+                "$toolName completed successfully in ${executionTimeMs}ms.",
+                confidence = 0.7f,
+                priority = 7,
+                tags = "fast,performance,$toolName"
+            )
         }
     }
 
-    /**
-     *
-     */
     suspend fun recordToolDependency(toolA: String, toolB: String, description: String) {
-        saveKnowledge(
-            type = TYPE_TOOL_DEPENDENCY,
-            subject = "$toolA→$toolB",
-            content = description,
+        saveOrUpdateKnowledge(
+            TYPE_TOOL_DEPENDENCY,
+            "$toolA→$toolB",
+            description,
             priority = 3,
             tags = "dependency,$toolA,$toolB"
         )
     }
 
-    /**
-     *     Agent
-     */
     suspend fun recordPattern(patternName: String, description: String, confidence: Float = 0.8f) {
-        saveKnowledge(
-            type = TYPE_PATTERN,
-            subject = patternName,
-            content = description,
+        saveOrUpdateKnowledge(
+            TYPE_PATTERN,
+            patternName,
+            description,
             confidence = confidence,
             priority = 4,
             tags = "pattern,learned"
         )
     }
 
-    // ───  System Prompt Context ───────────────────────────────────
-
-    /**
-     *     System Prompt
-     *     Agent "English Text"
-     */
     suspend fun buildSystemPromptContext(): String = withContext(Dispatchers.IO) {
         val systemInfo = systemKnowledgeDao.getPromptByType(TYPE_SYSTEM_INFO)
         val capabilities = systemKnowledgeDao.getPromptByType(TYPE_SYSTEM_CAPABILITY)
@@ -420,68 +397,60 @@ class ToolAwarenessEngine(
             appendLine("║  🧠 SYSTEM & TOOL AWARENESS CONTEXT         ║")
             appendLine("╚══════════════════════════════════════════════╝")
 
-            //
             if (environments.isNotEmpty() || systemInfo.isNotEmpty()) {
-                appendLine("\n📱  :")
-                (environments + systemInfo.filter { it.subject.contains("android") || it.subject == "memory" })
-                    .take(6).forEach { k ->
-                        appendLine("  • ${k.content.take(120)}")
-                    }
+                appendLine("\nRuntime environment:")
+                (environments + systemInfo)
+                    .distinctBy { it.knowledgeType to it.subject }
+                    .take(8)
+                    .forEach { appendLine("  • ${it.content.take(220)}") }
             }
 
-            //   ( !)
             if (limitations.isNotEmpty() || warnings.isNotEmpty()) {
-                appendLine("\n⚠️   (  ):")
-                (limitations + warnings).take(5).forEach { k ->
-                    appendLine("  ✗ ${k.content.take(120)}")
-                }
+                appendLine("\nCurrent limitations / setup requirements:")
+                (limitations + warnings)
+                    .distinctBy { it.knowledgeType to it.subject }
+                    .take(6)
+                    .forEach { appendLine("  • ${it.content.take(220)}") }
             }
 
-            //
             if (bestPractices.isNotEmpty()) {
-                appendLine("\n💡 Best Practices:")
-                bestPractices.take(5).forEach { k ->
-                    appendLine("  ✓ [${k.subject}] ${k.content.take(150)}")
+                appendLine("\nRuntime/tool routing rules:")
+                bestPractices.take(6).forEach {
+                    appendLine("  • [${it.subject}] ${it.content.take(260)}")
                 }
             }
 
-            //
             if (capabilities.isNotEmpty()) {
-                appendLine("\nDetected hardware (not permission grants): ${capabilities.distinctBy { it.subject }.joinToString(", ") { it.subject.take(60) }}")
+                appendLine(
+                    "\nDetected hardware: " +
+                        capabilities.distinctBy { it.subject }.joinToString(", ") { it.subject.take(60) }
+                )
             }
-
             appendLine("══════════════════════════════════════════════")
         }
     }
 
-    /**
-     *
-     */
     suspend fun getToolKnowledge(toolName: String): String? = withContext(Dispatchers.IO) {
         val entries = systemKnowledgeDao.search(toolName, limit = 8)
         if (entries.isEmpty()) return@withContext null
 
         buildString {
             entries.forEach { k ->
-                when (k.knowledgeType) {
-                    TYPE_TOOL_LIMITATION -> appendLine("⚠️ ${k.content.take(300)}")
-                    TYPE_TOOL_REQUIREMENT -> appendLine("📋 ${k.content.take(300)}")
-                    TYPE_BEST_PRACTICE -> appendLine("💡 ${k.content.take(300)}")
-                    TYPE_WARNING -> appendLine("🚨 ${k.content.take(300)}")
-                    else -> appendLine("ℹ️ ${k.content.take(300)}")
+                val prefix = when (k.knowledgeType) {
+                    TYPE_TOOL_LIMITATION -> "⚠️"
+                    TYPE_TOOL_REQUIREMENT -> "📋"
+                    TYPE_BEST_PRACTICE -> "💡"
+                    TYPE_WARNING -> "🚨"
+                    else -> "ℹ️"
                 }
+                appendLine("$prefix ${k.content.take(300)}")
             }
         }.takeIf { it.isNotBlank() }
     }
 
-    /**
-     *         System Prompt
-     */
     suspend fun getCriticalKnowledge(): List<SystemKnowledgeEntry> = withContext(Dispatchers.IO) {
         systemKnowledgeDao.getForSystemPrompt(maxPriority = 3, limit = 10)
     }
-
-    // ───   ─────────────────────────────────────────────
 
     private suspend fun saveKnowledge(
         type: String,
@@ -507,7 +476,7 @@ class ToolAwarenessEngine(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Log.w(TAG, "   : $subject - ${e.message}")
+            Log.w(TAG, "Failed to store tool knowledge '$subject': ${e.message}")
         }
     }
 
@@ -519,25 +488,16 @@ class ToolAwarenessEngine(
         priority: Int = 5,
         tags: String = "",
         source: String = "auto_discovery"
-    ) {
-        saveKnowledge(type, subject, content, confidence, priority, tags, source)
-    }
-
-    private fun isPackageInstalled(packageName: String): Boolean {
-        return try {
-            context.packageManager.getPackageInfo(packageName, 0)
-            true
-        } catch (_: Exception) {
-            false
-        }
-    }
-
-    // ─── Flow  ─────────────────────────────────────────────────
+    ) = saveKnowledge(type, subject, content, confidence, priority, tags, source)
 
     fun observeKnowledge(): Flow<List<SystemKnowledgeEntry>> = systemKnowledgeDao.observeAllValid()
 
     suspend fun clearKnowledgeLog() = withContext(Dispatchers.IO) {
-        initializationMutex.withLock { systemKnowledgeDao.clearAll() }
+        initializationMutex.withLock {
+            systemKnowledgeDao.clearAll()
+            runtimeEnvironmentCache.clear()
+            isInitialized = false
+        }
     }
 
     suspend fun updateKnowledgeEntry(
@@ -548,7 +508,7 @@ class ToolAwarenessEngine(
     ) = withContext(Dispatchers.IO) {
         val existing = systemKnowledgeDao.getById(id)
         if (existing == null) {
-            Log.w(TAG, "⚠️ updateKnowledgeEntry: entry not found (id=$id)")
+            Log.w(TAG, "updateKnowledgeEntry: entry not found (id=$id)")
             return@withContext
         }
         systemKnowledgeDao.update(
@@ -565,14 +525,10 @@ class ToolAwarenessEngine(
         systemKnowledgeDao.invalidateById(id)
     }
 
-    // ───  ────────────────────────────────────────────────────
-
     suspend fun getStats(): AwarenessStats = withContext(Dispatchers.IO) {
         val byType = systemKnowledgeDao.countsByType().associate { it.knowledgeType to it.count }
-        val total = byType.values.sum()
-
         AwarenessStats(
-            totalKnowledge = total,
+            totalKnowledge = byType.values.sum(),
             byType = byType,
             isInitialized = isInitialized,
             environmentCache = runtimeEnvironmentCache.toMap()
