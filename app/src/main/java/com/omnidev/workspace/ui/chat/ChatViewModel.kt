@@ -308,6 +308,9 @@ class ChatViewModel(
     private var sessionObservation: kotlinx.coroutines.Job? = null
 
     fun loadSession(sessionId: Long) {
+        activeRunId.incrementAndGet()
+        currentAgentJob?.cancel()
+        _uiState.update { it.copy(isProcessing = false, streamingContent = null) }
         sessionObservation?.cancel()
         sessionObservation = viewModelScope.launch {
             chatRepository?.observeMessages(sessionId)?.collect {
@@ -330,9 +333,13 @@ class ChatViewModel(
 
     /** Clears the current conversation and starts a brand-new (unsaved) session. */
     fun newSession() {
+        sessionObservation?.cancel()
+        activeRunId.incrementAndGet()
+        currentAgentJob?.cancel()
         _uiState.update {
             it.copy(
                 currentSessionId = null,
+                isProcessing = false,
                 messages = emptyList(),
                 inputText = "",
                 pendingAttachments = emptyList(),
@@ -514,7 +521,7 @@ class ChatViewModel(
      */
     fun sendMessage() {
         val input = _uiState.value.inputText.trim()
-        if (input.isEmpty()) return
+        if (input.isEmpty() || _uiState.value.isProcessing) return
 
         // A late network callback from a prior run must never publish into this turn.
         val runId = activeRunId.incrementAndGet()
@@ -696,57 +703,127 @@ class ChatViewModel(
         runId: Long
     ) {
         val modelId = settingsRepository
-            .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.CHAT)
-            .first()
+            .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.CHAT).first()
         val model = ModelRegistry.findModelById(modelId) ?: ModelRegistry.getModelById(modelId)
-        val messages = _uiState.value.messages.let { history ->
-            if (history.isEmpty()) history else history.dropLast(1) + history.last().copy(attachments = imageAttachments)
+        val original = _uiState.value.messages.last()
+        val withAttachments = original.copy(attachments = imageAttachments)
+        _uiState.update { state -> state.copy(messages = state.messages.map {
+            if (it.messageId == original.messageId) withAttachments else it
+        }) }
+        chatRepository?.updateMetadata(sessionId, withAttachments)
+        // A stable database row is updated throughout the run, including cancellation.
+        var savedMessage = ChatMessage(role = MessageRole.ASSISTANT,
+            content = "Run interrupted before completion. Saved activity is available below.")
+        val rowId = chatRepository?.saveMessage(sessionId, savedMessage) ?: -1L
+        var lastCheckpoint = 0L
+        var runEntries = emptyList<AgentConsoleEntry>()
+        var runPartial: String? = null
+        suspend fun checkpoint(force: Boolean = false) {
+            val now = System.currentTimeMillis()
+            if (!force && now - lastCheckpoint < 750) return
+            lastCheckpoint = now
+            chatRepository?.updateRun(rowId, savedMessage.copy(content =
+                runPartial?.takeIf { it.isNotBlank() } ?: savedMessage.content),
+                runEntries)
         }
         val request = CompletionRequest(
             modelId = modelId,
-            messages = messages,
-            systemPrompt = CHAT_SYSTEM_PROMPT,
-            maxTokens = model.maxOutputTokens,
+            messages = _uiState.value.messages.takeLast(20),
+            systemPrompt = CHAT_SYSTEM_PROMPT + "\nChat can search the web, perform deep research, and fetch pages with the supplied tools. Use them directly when needed. Only request execution mode for unavailable execution capabilities. SWARM is for independent parallel tasks, not merely a long answer or deep research. Never claim a mode was enabled before user approval.",
+            maxTokens = minOf(model.maxOutputTokens, 4096),
             enableThinking = settingsRepository.observeDeepThinking().first() && model.supportsThinking,
             apiKey = apiKeyRepository?.getApiKey(model.provider),
-            onReasoning = { if (runId == activeRunId.get()) {
-                _uiState.update { it.copy(agentStatus = "Deep thinking...") }
+            onReasoning = { delta -> if (runId == activeRunId.get()) {
+                handleAgentEvent(AgentEvent.ThinkingBlock(delta), sessionId, runId)
+                runEntries = _uiState.value.consoleEntries.toList()
+                checkpoint()
             } }
         )
-
-        _uiState.update { it.copy(agentStatus = "Thinking...") }
-        val response = try {
-            val streaming = streamingCompletionProvider
-            if (streaming != null) {
-                streaming(request) { delta ->
-                    if (runId == activeRunId.get()) {
-                        _uiState.update { it.copy(streamingContent = (it.streamingContent ?: "") + delta) }
-                    }
+        try {
+            val result = com.omnidev.workspace.domain.engine.ChatToolLoop(compositeToolManager).run(
+                base = request,
+                disabled = _uiState.value.chatSettings.disabledToolNames(),
+                originMessageId = original.messageId,
+                complete = { next ->
+                    if (runId != activeRunId.get()) throw kotlinx.coroutines.CancellationException("Run superseded")
+                    runPartial = null
+                    _uiState.update { it.copy(streamingContent = null) }
+                    val streaming = streamingCompletionProvider
+                    if (streaming != null) streaming(next) { delta ->
+                        if (runId == activeRunId.get()) {
+                            _uiState.update { it.copy(streamingContent = (it.streamingContent ?: "") + delta) }
+                            runPartial = _uiState.value.streamingContent
+                            checkpoint()
+                        }
+                    } else completionProvider?.invoke(next)
+                        ?: throw IllegalStateException("Chat completion service is unavailable.")
+                },
+                event = { event ->
+                    if (runId != activeRunId.get()) throw kotlinx.coroutines.CancellationException("Run superseded")
+                    handleAgentEvent(event, sessionId, runId)
+                    runEntries = _uiState.value.consoleEntries.toList()
+                    checkpoint(force = event is AgentEvent.ToolResult || event is AgentEvent.ToolExecution)
                 }
-            } else {
-                completionProvider?.invoke(request)
-                    ?: throw IllegalStateException("Chat completion service is unavailable.")
+            )
+            savedMessage = savedMessage.copy(content = result.content, executionRequest = result.request)
+            if (runId == activeRunId.get()) {
+                runEntries = runEntries + AgentConsoleEntry.ReplyEntry()
+                _uiState.update { it.copy(consoleEntries = runEntries) }
             }
+            chatRepository?.updateRun(rowId, savedMessage, runEntries)
+            chatRepository?.updateSessionRunStatus(sessionId, STATUS_COMPLETED)
         } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            val entries = runEntries
+            val partial = runPartial.orEmpty()
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                chatRepository?.updateRun(rowId, savedMessage.copy(content = partial.ifBlank { USER_STOPPED_MESSAGE }), entries)
+            }
             throw cancelled
         } catch (error: Exception) {
-            if (runId == activeRunId.get()) handleAgentEvent(AgentEvent.Error(error.message ?: "Chat request failed."), sessionId, runId)
-            return
+            savedMessage = savedMessage.copy(content = "Chat failed: ${error.message ?: "Unknown error"}")
+            runEntries = runEntries + AgentConsoleEntry.ErrorEntry(savedMessage.content)
+            if (runId == activeRunId.get()) _uiState.update { it.copy(consoleEntries = runEntries) }
+            chatRepository?.updateRun(rowId, savedMessage, runEntries)
+            chatRepository?.updateSessionRunStatus(sessionId, STATUS_INTERRUPTED)
         }
         if (runId == activeRunId.get()) {
-            handleAgentEvent(
-                AgentEvent.FinalAnswer(
-                    content = response.content,
-                    totalIterations = 1,
-                    totalTokensUsed = response.tokensUsed?.totalTokens ?: 0,
-                    conversationHistory = messages + ChatMessage(
-                        role = MessageRole.ASSISTANT,
-                        content = response.content
-                    )
-                ),
-                sessionId,
-                runId
-            )
+            _uiState.update { it.copy(messages = it.messages + savedMessage,
+                messageConsoleEntries = it.messageConsoleEntries + (savedMessage.timestamp to it.consoleEntries),
+                isProcessing = false, streamingContent = null, agentStatus = null) }
+        }
+    }
+
+    /** One-shot UI action; the model cannot approve its own proposal. */
+    fun acceptExecutionMode(messageId: String) {
+        val state = _uiState.value
+        if (state.isProcessing) return
+        val proposal = state.messages.find { it.messageId == messageId } ?: return
+        val request = proposal.executionRequest?.takeIf { it.status == "pending" } ?: return
+        val mode = when (request.mode) { "AGENT" -> OmniMode.AGENT; "SWARM" -> OmniMode.SWARM; else -> return }
+        val original = state.messages.find { it.messageId == request.originMessageId } ?: return
+        val sessionId = state.currentSessionId ?: return
+        val scope = state.targetContext ?: if (state.isGodModeEnabled) "/" else {
+            _uiState.update { it.copy(errorMessage = "اختار مجلد المشروع أولًا، وبعدها اضغط تفعيل الوضع.") }
+            return
+        }
+        val accepted = proposal.copy(executionRequest = request.copy(status = "accepted"))
+        val runId = activeRunId.incrementAndGet()
+        _uiState.update { it.copy(activeMode = mode, isProcessing = true, consoleEntries = emptyList(),
+            streamingContent = null, errorMessage = null,
+            messages = it.messages.map { message -> if (message.messageId == messageId) accepted else message }) }
+        currentAgentJob = viewModelScope.launch {
+            try {
+                // Persist consumption before execution to prevent replay after restart.
+                chatRepository?.updateMetadata(sessionId, accepted)
+                val attachments = original.attachments.map { attachment ->
+                    if (attachment.base64Data != null) attachment else attachment.copy(
+                        base64Data = attachmentProcessor?.readImageAsBase64(Uri.parse(attachment.uri)))
+                }
+                if (mode == OmniMode.AGENT) executeAgentMode(original.content, attachments, sessionId, scope, runId = runId)
+                else executeSwarmMode(original.content + "\n\nConversation context:\n" +
+                    state.messages.takeLast(12).joinToString("\n") { "${it.role}: ${it.content}" }, sessionId, scope, runId)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (error: Exception) { handleAgentEvent(AgentEvent.Error(error.message ?: "Execution failed"), sessionId, runId) }
         }
     }
 

@@ -5,6 +5,16 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.graphics.Bitmap
+import android.os.Bundle
+import android.view.View
+import android.content.MutableContextWrapper
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
+import androidx.webkit.ProfileStore
+import androidx.webkit.WebStorageCompat
+import kotlinx.coroutines.channels.Channel
+import android.util.AtomicFile
+import java.io.File
 import android.os.Handler
 import android.os.Looper
 import android.webkit.*
@@ -95,6 +105,139 @@ class HeadlessBrowserManager(context: Context) {
     /** Emits the current snapshot of all open sessions whenever state changes. */
     val sessionsFlow: StateFlow<List<BrowserSessionInfo>> = _sessionsFlow.asStateFlow()
 
+    private val browserScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val restoreMutex = Mutex()
+    private var restored = false
+    private val snapshots = Channel<String>(Channel.CONFLATED)
+    private val sessionFile = AtomicFile(File(appContext.noBackupFilesDir, "browser-tabs-v1.json"))
+    private val _browserError = MutableStateFlow<String?>(null)
+    val browserError: StateFlow<String?> = _browserError.asStateFlow()
+    fun clearBrowserError() { _browserError.value = null }
+
+    init {
+        browserScope.launch(Dispatchers.IO) {
+            for (snapshot in snapshots) {
+                var output: java.io.FileOutputStream? = null
+                try {
+                    output = sessionFile.startWrite()
+                    output.write(snapshot.toByteArray(Charsets.UTF_8))
+                    sessionFile.finishWrite(output)
+                } catch (error: Exception) {
+                    sessionFile.failWrite(output)
+                    _browserError.value = "Could not save browser tabs: ${error.message}"
+                }
+            }
+        }
+    }
+
+    private suspend fun restoreSessions() = restoreMutex.withLock {
+        if (restored) return@withLock
+        // Never reuse an incognito profile from a previous process, including after a crash.
+        withContext(Dispatchers.Main) {
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
+                val store = ProfileStore.getInstance()
+                store.allProfileNames.filter { it.startsWith("omnidev_private_") }.forEach {
+                    runCatching { store.deleteProfile(it) }.onFailure {
+                        _browserError.value = "Could not clear an old private browser profile."
+                    }
+                }
+            }
+        }
+        val raw = withContext(Dispatchers.IO) {
+            try { sessionFile.openRead().bufferedReader().use { it.readText() } }
+            catch (_: java.io.FileNotFoundException) { null }
+        }
+        if (raw != null) {
+            try {
+                val root = JSONObject(raw)
+                val tabs = root.optJSONArray("tabs") ?: JSONArray()
+                for (i in 0 until minOf(tabs.length(), MAX_SESSIONS)) {
+                    val tab = tabs.getJSONObject(i)
+                    val id = tab.getString("id")
+                    sessions[id] = BrowserSession(id, tab.optString("label", "Tab"), null,
+                        currentUrl = tab.optString("url"), title = tab.optString("title"),
+                        createdAt = tab.optLong("createdAt", System.currentTimeMillis()),
+                        userAgent = tab.optString("userAgent").takeIf { it.isNotBlank() })
+                }
+                activeSessionId = root.optString("active").takeIf { sessions.containsKey(it) }
+                    ?: sessions.values.minByOrNull { it.createdAt }?.id
+                sessionCounter.set(sessions.size)
+            } catch (error: Exception) { _browserError.value = "Could not restore browser tabs: ${error.message}" }
+        }
+        restored = true
+        emitSessionsUpdate()
+    }
+
+    private fun persistSessionSnapshot() {
+        if (!restored) return
+        val tabs = JSONArray()
+        sessions.values.filterNot { it.isIncognito }.sortedBy { it.createdAt }.forEach { tab ->
+            tabs.put(JSONObject().put("id", tab.id).put("label", tab.label)
+                .put("url", tab.currentUrl).put("title", tab.title)
+                .put("createdAt", tab.createdAt).put("userAgent", tab.userAgent.orEmpty()))
+        }
+        val active = activeSessionId?.takeIf { sessions[it]?.isIncognito == false }
+        snapshots.trySend(JSONObject().put("tabs", tabs).put("active", active.orEmpty()).toString())
+    }
+
+    private suspend fun ensureWebView(session: BrowserSession) = withContext(Dispatchers.Main) {
+        if (session.webView != null) return@withContext
+        // Suspend inactive renderers without closing their tabs or losing their in-process history.
+        val live = sessions.values.filter { it.webView != null && it.id != activeSessionId && !it.isPageLoading && it.pendingJs.isEmpty() }
+        if (sessions.values.count { it.webView != null } >= 3) {
+            live.minByOrNull { it.lastActivity }?.let { old ->
+                old.memoryState = Bundle().also { old.webView?.saveState(it) }
+                (old.webView?.parent as? android.view.ViewGroup)?.removeView(old.webView)
+                old.webView?.destroy()
+                old.webView = null
+            }
+        }
+        val wv = buildWebView(bestContext(), session.isIncognito, session.profileName)
+        session.webView = wv
+        if (session.isIncognito) {
+            val profile = WebViewCompat.getProfile(wv)
+            session.cookieManager = profile.cookieManager
+            session.privateStorage = profile.webStorage
+        } else session.cookieManager = CookieManager.getInstance()
+        wv.addJavascriptInterface(JsBridge(session), "OmniDevBridge")
+        wv.webViewClient = buildSmartWebViewClient(session, CompletableDeferred())
+        session.userAgent?.let { wv.settings.userAgentString = it }
+        val history = session.memoryState?.let { wv.restoreState(it) }
+        session.memoryState = null
+        if (history == null && (session.currentUrl.startsWith("https://") || session.currentUrl.startsWith("http://"))) {
+            wv.loadUrl(session.currentUrl)
+        }
+    }
+
+    /** Closing the app ends private tabs; ordinary tabs and login cookies survive. */
+    fun onAppClosed() {
+        browserScope.launch {
+            restoreSessions()
+            sessionMutex.withLock {
+                sessions.values.filter { it.isIncognito }.map { it.id }.forEach { destroySession(it) }
+                if (activeSessionId == null || !sessions.containsKey(activeSessionId!!)) activeSessionId = sessions.values.minByOrNull { it.createdAt }?.id
+                withContext(Dispatchers.IO) { CookieManager.getInstance().flush() }
+                withContext(Dispatchers.Main) {
+                    sessions.values.forEach { session ->
+                        (session.webView?.context as? MutableContextWrapper)?.baseContext = appContext
+                    }
+                    activityContextRef = null
+                }
+                emitSessionsUpdate()
+            }
+        }
+    }
+
+    fun requestPasswordAutofill(): Boolean {
+        val session = activeSessionId?.let { sessions[it] } ?: return false
+        if (session.isIncognito || android.os.Build.VERSION.SDK_INT < 26) return false
+        val view = session.webView ?: return false
+        val manager = view.context.getSystemService(android.view.autofill.AutofillManager::class.java) ?: return false
+        if (!manager.isEnabled) return false
+        manager.requestAutofill(view)
+        return true
+    }
+
     // ─── Network Interception Log ────────────────────────────────────────────
     private val networkLog = ArrayDeque<NetworkLogEntry>(MAX_NETWORK_LOG)
     private val networkLogLock = Any()
@@ -106,7 +249,7 @@ class HeadlessBrowserManager(context: Context) {
         private const val WAIT_ELEMENT_MAX_MS        = 25_000L
         private const val MAX_JS_OUTPUT              = 14_000
         private const val MAX_SCREENSHOT_B64         = 600_000
-        private const val MAX_SESSIONS               = 6
+        private const val MAX_SESSIONS               = 100
         private const val MAX_NETWORK_LOG            = 300
 
         // ── Readiness detection tuning ──────────────────────────────────────
@@ -315,7 +458,9 @@ class HeadlessBrowserManager(context: Context) {
         var currentUrl: String = "",
         var title: String = "",
         val history: ArrayDeque<String> = ArrayDeque(),
-        val cookieManager: CookieManager = CookieManager.getInstance(),
+        var cookieManager: CookieManager = CookieManager.getInstance(),
+        var memoryState: Bundle? = null,
+        var privateStorage: WebStorage? = null,
         val pendingJs: ConcurrentHashMap<String, CompletableDeferred<String>> = ConcurrentHashMap(),
         val createdAt: Long = System.currentTimeMillis(),
         var lastActivity: Long = System.currentTimeMillis(),
@@ -326,7 +471,8 @@ class HeadlessBrowserManager(context: Context) {
         @Volatile var isPageLoading: Boolean = false,
         var inFlightRequests: AtomicInteger = AtomicInteger(0),
         var lastRequestTimeMs: AtomicLong = AtomicLong(0L),
-        val isIncognito: Boolean = false
+        val isIncognito: Boolean = false,
+        val profileName: String? = null
     )
 
     data class NetworkLogEntry(
@@ -375,38 +521,14 @@ class HeadlessBrowserManager(context: Context) {
      * immediately.  Sessions that are still loading are skipped.
      */
     suspend fun refreshWebViewsForDisplay() {
-        val actCtx = activityContextRef?.get() ?: return  // nothing to do without Activity ctx
-        sessions.values.toList().forEach { session ->
-            // Skip only when the WebView context chain is Activity-backed.
-            // Some contexts are wrappers, so reference comparison against appContext
-            // is not reliable enough here.
-            val wvCtx = session.webView?.context
-            if (wvCtx != null && hasActivityInContextChain(wvCtx)) return@forEach
-            if (session.isPageLoading) return@forEach
-
-            val oldWv = session.webView
-            val oldUrl = normalizeLeadingSlashHttpUrl(session.currentUrl)
-            val oldIncognito = session.isIncognito
-
-            // Build the new WebView and register the JS bridge BEFORE destroying the
-            // old one, so the session is never left without a functional WebView if an
-            // exception occurs during construction.
-            val newWv = withContext(Dispatchers.Main) {
-                buildWebView(actCtx, oldIncognito).also { wv ->
-                    wv.addJavascriptInterface(JsBridge(session), "OmniDevBridge")
+        restoreSessions()
+        sessionMutex.withLock {
+            withContext(Dispatchers.Main) {
+                sessions.values.forEach { session ->
+                    (session.webView?.context as? MutableContextWrapper)?.baseContext = bestContext()
                 }
             }
-            session.webView = newWv
-
-            // Now it is safe to tear down the old WebView.
-            withContext(Dispatchers.Main) { oldWv?.destroy() }
-
-            // Re-navigate if there was a URL; otherwise leave blank
-            if (oldUrl.startsWith("http://") || oldUrl.startsWith("https://")) {
-                withContext(Dispatchers.Main) {
-                    newWv.loadUrl(oldUrl)
-                }
-            }
+            activeSessionId?.let { sessions[it] }?.let { ensureWebView(it) }
             emitSessionsUpdate()
         }
     }
@@ -414,6 +536,7 @@ class HeadlessBrowserManager(context: Context) {
     // ─── Internal helpers ─────────────────────────────────────────────────────
 
     private fun emitSessionsUpdate() {
+        persistSessionSnapshot()
         _sessionsFlow.value = sessions.values
             .sortedBy { it.createdAt }
             .map { s ->
@@ -515,16 +638,21 @@ ACTIONS:
     private var blockedDomains: Set<String> = DEFAULT_BLOCKED_DOMAINS
 
     suspend fun execute(action: String, args: Map<String, String>): ToolExecutionResult {
+        restoreSessions()
+        val normalizedAction = action.lowercase().trim()
         val sessionId = args["session_id"] ?: activeSessionId
+        if (normalizedAction !in setOf("new_session", "new_incognito_session", "list_sessions", "close_session", "destroy_all", "destroy")) {
+            sessionMutex.withLock { sessionId?.let { sessions[it] }?.let { ensureWebView(it) } }
+        }
         val waitIdle = args["wait_network_idle"]?.lowercase() != "false"
 
         return when (action.lowercase().trim()) {
-            "new_session"    -> newSession(args["label"])
-            "new_incognito_session" -> newSession(args["label"], incognito = true)
+            "new_session"    -> sessionMutex.withLock { newSession(args["label"]) }
+            "new_incognito_session" -> sessionMutex.withLock { newSession(args["label"], incognito = true) }
             "list_sessions"  -> listSessions()
             "switch_session" -> switchSession(args["session_id"] ?: return missingArg("session_id"))
-            "close_session"  -> closeSession(args["session_id"] ?: return missingArg("session_id"))
-            "destroy_all", "destroy" -> destroyAll()
+            "close_session"  -> sessionMutex.withLock { closeSession(args["session_id"] ?: return missingArg("session_id")) }
+            "destroy_all", "destroy" -> sessionMutex.withLock { destroyAll() }
 
             "navigate" -> navigate(args["url"] ?: return missingArg("url"), sessionId)
             "back"     -> browserBack(sessionId)
@@ -609,7 +737,7 @@ ACTIONS:
             "get_cookies"     -> getCookies(sessionId)
             "set_cookie"      -> setCookie(args["cookie_name"] ?: return missingArg("cookie_name"),
                 args["cookie_value"] ?: return missingArg("cookie_value"), sessionId)
-            "clear_cookies"   -> clearCookies()
+            "clear_cookies"   -> clearCookies(sessionId)
             "get_local_storage" -> getLocalStorage(args["storage_key"] ?: return missingArg("storage_key"), sessionId)
             "set_local_storage" -> setLocalStorage(
                 args["storage_key"] ?: return missingArg("storage_key"),
@@ -769,24 +897,23 @@ ACTIONS:
     // ════════════════════════════════════════════════════════════════════════
 
     private suspend fun newSession(label: String? = null, incognito: Boolean = false): ToolExecutionResult {
-        if (sessions.size >= MAX_SESSIONS) {
-            val oldest = sessions.values.minByOrNull { it.lastActivity }
-            if (oldest != null) destroySession(oldest.id)
-            else return ToolExecutionResult("Maximum $MAX_SESSIONS sessions open.", isError = true)
+        if (sessions.size >= MAX_SESSIONS) return ToolExecutionResult(
+            "Maximum $MAX_SESSIONS tabs reached. Close a tab explicitly before opening another.", true)
+        if (incognito && !withContext(Dispatchers.Main) { WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE) && WebViewFeature.isFeatureSupported(WebViewFeature.DELETE_BROWSING_DATA) }) {
+            val error = "حدّث Android System WebView لاستخدام التخفي المعزول على الجهاز ده."
+            _browserError.value = error
+            return ToolExecutionResult(error, true)
         }
         val id = "session_${sessionCounter.incrementAndGet()}_${System.currentTimeMillis()}"
-        val sessionLabel = label ?: "Tab ${sessionCounter.get()}"
-        val wv = createWebView(incognito)
-        val session = BrowserSession(id = id, label = sessionLabel, webView = wv, isIncognito = incognito)
+        val sessionLabel = label?.takeIf { it.isNotBlank() } ?: "Tab ${sessionCounter.get()}"
+        val session = BrowserSession(id = id, label = sessionLabel, webView = null, isIncognito = incognito,
+            profileName = if (incognito) "omnidev_private_${UUID.randomUUID()}" else null)
         sessions[id] = session
-        activeSessionId = id
-        // Register the JS bridge on the Main thread BEFORE any page loads so that
-        // OmniDevBridge is available as soon as the first page is loaded.
-        // Per Android docs, injected interfaces only take effect on the *next* page load,
-        // so this must happen before loadUrl() is ever called for this session.
-        withContext(Dispatchers.Main) {
-            wv.addJavascriptInterface(JsBridge(session), "OmniDevBridge")
+        try { ensureWebView(session) } catch (error: Exception) {
+            sessions.remove(id)
+            throw error
         }
+        activeSessionId = id
         emitSessionsUpdate()
         return ToolExecutionResult(
             "✅ New ${if (incognito) "incognito " else ""}session created.\n" +
@@ -840,23 +967,29 @@ ACTIONS:
                 if (!d.isCompleted) d.completeExceptionally(IllegalStateException("Session '$id' was destroyed."))
             }
             session.pendingJs.clear()
+            (session.webView?.parent as? android.view.ViewGroup)?.removeView(session.webView)
             session.webView?.destroy()
         }
-        // Only wipe the global cookie/storage state when the incognito session is the
-        // last one and no non-incognito sessions are open.
-        // The sessionMutex ensures the check-and-wipe is atomic so a concurrently
-        // created normal session is never affected.
         if (wasIncognito) {
-            sessionMutex.withLock {
-                val hasNonIncognitoSession = sessions.values.any { !it.isIncognito }
-                if (!hasNonIncognitoSession) {
-                    withContext(Dispatchers.Main) {
-                        CookieManager.getInstance().removeAllCookies(null)
-                        CookieManager.getInstance().flush()
-                        WebStorage.getInstance().deleteAllData()
+            withContext(Dispatchers.Main) {
+                session.privateStorage?.let { storage ->
+                    withTimeoutOrNull(10_000) {
+                        suspendCancellableCoroutine<Unit> { continuation ->
+                            WebStorageCompat.deleteBrowsingData(storage) {
+                                if (continuation.isActive) continuation.resume(Unit)
+                            }
+                        }
+                    }
+                }
+                session.cookieManager.removeAllCookies(null)
+                session.profileName?.let { name ->
+                    runCatching { ProfileStore.getInstance().deleteProfile(name) }.onFailure {
+                        // The next process removes any unloaded profile before restoring normal tabs.
+                        // Browsing data was already cleared above; remove the empty profile next launch.
                     }
                 }
             }
+            synchronized(networkLogLock) { networkLog.removeAll { it.sessionId == id } }
         }
     }
 
@@ -873,8 +1006,12 @@ ACTIONS:
      * draw pixels to the screen, resulting in a solid black display.
      */
     @SuppressLint("SetJavaScriptEnabled")
-    private fun buildWebView(ctx: Context, incognito: Boolean): WebView {
-        return WebView(ctx).apply {
+    private fun buildWebView(ctx: Context, incognito: Boolean, profileName: String? = null): WebView {
+        return WebView(MutableContextWrapper(ctx)).apply {
+            if (incognito) WebViewCompat.setProfile(this, requireNotNull(profileName))
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                importantForAutofill = if (incognito) View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS else View.IMPORTANT_FOR_AUTOFILL_YES
+            }
             // Compose-hosted WebViews can surface as a black rectangle when the
             // view has no explicit opaque background. Give the surface a stable
             // background color so the embedded preview always paints.
@@ -883,25 +1020,20 @@ ACTIONS:
             isHorizontalScrollBarEnabled = true
             settings.apply {
                 javaScriptEnabled = true
-                domStorageEnabled = !incognito
-                databaseEnabled   = !incognito
+                domStorageEnabled = true
+                databaseEnabled   = true
                 loadWithOverviewMode = true
                 useWideViewPort = true
                 blockNetworkImage = false // Don't block — needed for readiness detection
                 allowFileAccess = false
                 mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                cacheMode = WebSettings.LOAD_NO_CACHE
+                cacheMode = if (incognito) WebSettings.LOAD_NO_CACHE else WebSettings.LOAD_DEFAULT
                 userAgentString = USER_AGENTS["chrome_desktop"]
                 mediaPlaybackRequiresUserGesture = true
             }
-            // Always allow cookies so pages render correctly; incognito sessions
-            // have their cookies wiped on session destroy (see destroySession).
-            // Globally disabling cookies via setAcceptCookie(false) breaks ALL
-            // WebViews in the process and causes black screens on content-heavy sites.
-            val cm = CookieManager.getInstance()
+            val cm = if (incognito) WebViewCompat.getProfile(this).cookieManager else CookieManager.getInstance()
             cm.setAcceptCookie(true)
-            // Block third-party tracking cookies only for incognito sessions.
-            cm.setAcceptThirdPartyCookies(this, !incognito)
+            cm.setAcceptThirdPartyCookies(this, false)
 
             // Hardware layer is required for WebView to render correctly when
             // embedded inside a Compose AndroidView; without it the view surface
@@ -929,11 +1061,6 @@ ACTIONS:
             }
         }
     }
-
-    /** Coroutine-friendly wrapper: switches to Main, builds and returns a WebView. */
-    @SuppressLint("SetJavaScriptEnabled")
-    private suspend fun createWebView(incognito: Boolean = false): WebView =
-        withContext(Dispatchers.Main) { buildWebView(bestContext(), incognito) }
 
     // ════════════════════════════════════════════════════════════════════════
     // Navigation — SMART (waits for full readiness)
@@ -1007,12 +1134,17 @@ ACTIONS:
         override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
             super.onPageStarted(view, url, favicon)
             session.isPageLoading = true
+            session.currentUrl = normalizeLeadingSlashHttpUrl(url ?: session.currentUrl)
             session.lastReadiness = PageReadinessSignal() // Reset
             emitSessionsUpdate()
         }
 
         override fun onPageFinished(view: WebView?, loadedUrl: String?) {
-            // Don't complete yet — we need readiness signals
+            session.currentUrl = normalizeLeadingSlashHttpUrl(loadedUrl ?: session.currentUrl)
+            session.title = view?.title.orEmpty()
+            session.isPageLoading = false
+            session.lastActivity = System.currentTimeMillis()
+            if (!session.isIncognito) browserScope.launch(Dispatchers.IO) { session.cookieManager.flush() }
             if (!deferred.isCompleted) deferred.complete(loadedUrl ?: session.currentUrl)
             emitSessionsUpdate()
         }
@@ -1026,7 +1158,7 @@ ACTIONS:
         override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
             val reqUrl = request?.url?.toString() ?: return null
             val blocked = blockedDomains.any { domain -> reqUrl.contains(domain) }
-            synchronized(networkLogLock) {
+            if (!session.isIncognito) synchronized(networkLogLock) {
                 if (networkLog.size >= MAX_NETWORK_LOG) networkLog.removeFirst()
                 networkLog.addLast(NetworkLogEntry(
                     timestamp = System.currentTimeMillis(),
@@ -1612,7 +1744,7 @@ ACTIONS:
     private fun getCookies(sessionId: String? = null): ToolExecutionResult {
         val session = resolveSession(sessionId) ?: return noSession()
         val url = session.currentUrl.ifBlank { return ToolExecutionResult("No URL loaded.", isError = true) }
-        val raw = CookieManager.getInstance().getCookie(url) ?: return ToolExecutionResult("No cookies for: $url")
+        val raw = session.cookieManager.getCookie(url) ?: return ToolExecutionResult("No cookies for: $url")
         val pairs = raw.split(";").map { it.trim() }
         return ToolExecutionResult("Cookies for $url (${pairs.size}):\n${pairs.joinToString("\n") { "  $it" }}")
     }
@@ -1620,15 +1752,27 @@ ACTIONS:
     private fun setCookie(name: String, value: String, sessionId: String? = null): ToolExecutionResult {
         val session = resolveSession(sessionId) ?: return noSession()
         val url = session.currentUrl.ifBlank { return ToolExecutionResult("Navigate first.", isError = true) }
-        CookieManager.getInstance().setCookie(url, "$name=$value")
+        session.cookieManager.setCookie(url, "$name=$value")
         CookieManager.getInstance().flush()
-        return ToolExecutionResult("✅ Cookie set: $name=$value on $url")
+        return ToolExecutionResult("✅ Cookie set: $name on $url")
     }
 
-    private fun clearCookies(): ToolExecutionResult {
-        CookieManager.getInstance().removeAllCookies(null)
-        CookieManager.getInstance().flush()
-        return ToolExecutionResult("✅ All cookies cleared.")
+    private suspend fun clearCookies(sessionId: String?): ToolExecutionResult {
+        val session = resolveSession(sessionId) ?: return noSession()
+        withContext(Dispatchers.Main) {
+            suspendCancellableCoroutine<Unit> { continuation ->
+                session.cookieManager.removeAllCookies {
+                    if (continuation.isActive) continuation.resume(Unit)
+                }
+            }
+        }
+        session.cookieManager.flush()
+        return ToolExecutionResult("Cookies cleared for the current browser profile.")
+    }
+
+    fun cookiesForActivePage(): String? {
+        val session = activeSessionId?.let { sessions[it] } ?: return null
+        return session.cookieManager.getCookie(session.currentUrl)
     }
 
     private suspend fun getLocalStorage(key: String, sessionId: String? = null) =

@@ -11,7 +11,7 @@ package com.omnidev.workspace.domain.model
  */
 data class ChatSettings(
     val webSearchEnabled: Boolean = true,
-    val deepResearchEnabled: Boolean = false,
+    val deepResearchEnabled: Boolean = true,
     val fetchPageEnabled: Boolean = true,
     val toolAccessMode: ToolAccessMode = ToolAccessMode.AUTO
 ) {

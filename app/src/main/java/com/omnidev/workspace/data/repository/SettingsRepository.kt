@@ -692,7 +692,7 @@ class SettingsRepository(private val context: Context) {
         context.settingsDataStore.data.map { prefs ->
             com.omnidev.workspace.domain.model.ChatSettings(
                 webSearchEnabled = prefs[Keys.CHAT_WEB_SEARCH_ENABLED] ?: true,
-                deepResearchEnabled = prefs[Keys.CHAT_DEEP_RESEARCH_ENABLED] ?: false,
+                deepResearchEnabled = prefs[Keys.CHAT_DEEP_RESEARCH_ENABLED] ?: true,
                 fetchPageEnabled = prefs[Keys.CHAT_FETCH_PAGE_ENABLED] ?: true,
                 toolAccessMode = com.omnidev.workspace.domain.model.ToolAccessMode.fromKey(
                     prefs[Keys.CHAT_TOOL_ACCESS_MODE] ?: com.omnidev.workspace.domain.model.ToolAccessMode.AUTO.name

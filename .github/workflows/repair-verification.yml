@@ -1,7 +1,7 @@
 name: Agent runtime repair verification
 on:
   push:
-    branches: [codex/repair-agent-runtime, codex/fix-context-and-terminal]
+    branches: [codex/repair-agent-runtime, codex/fix-context-and-terminal, codex/chat-browser-persistence]
   workflow_dispatch:
 permissions:
   contents: read
