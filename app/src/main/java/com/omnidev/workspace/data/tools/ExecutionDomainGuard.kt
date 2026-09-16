@@ -31,7 +31,7 @@ object ExecutionDomainGuard {
         pattern = "(?i)(?:^|[;&|]\\s*|\\$\\(\\s*|`\\s*|\\bthen\\s+|\\bdo\\s+)(?:" +
             "(?:[A-Za-z_][A-Za-z0-9_]*=[^\\s;]+\\s+)*" +
             "(rish|su\\s+-c|settings\\s+(?:get|put|delete|list)|dumpsys|getprop|setprop|" +
-            "pm|am|cmd|wm|svc|input)(?=\\s|$|[;)`])"
+            "pm|am|cmd|wm|svc|input)(?=\\s|$|[;)`]))"
     )
 
     /** Returns null when a script is appropriate for the normal Termux domain. */
