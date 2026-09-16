@@ -1,19 +1,21 @@
 package com.omnidev.workspace.data.background
 
 import android.content.Context
+import com.omnidev.workspace.OmniDevApp
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.domain.engine.IntentClassifier
 import com.omnidev.workspace.domain.engine.OmniMode
 import com.omnidev.workspace.ui.chat.AgentConsoleEntry
 import com.omnidev.workspace.ui.chat.ChatViewModel
+import java.lang.ref.WeakReference
 
 /**
- * Process-wide bridge between the UI-owned ChatViewModel and the durable background runtime.
+ * Optional process-wide bridge between a visible ChatViewModel and the durable runtime.
  *
- * Existing chat execution stays untouched while the Activity/process is healthy. The foreground
- * runtime mirrors its StateFlow into notifications and keeps a strong reference to the ViewModel
- * only while an active run exists. After process death there is no live bridge, so the durable
- * runtime safely takes ownership and resumes from Room.
+ * Room + [BackgroundChatTaskStore] remain the source of truth. A weak UI reference exposes rich
+ * live status while the screen exists, and a temporary strong reference is held only for active
+ * work so a user-initiated run can continue when the Activity is closed. After process death no
+ * UI owner survives and [BackgroundChatRecoveryExecutor] resumes from the durable checkpoint.
  */
 object BackgroundChatCoordinator {
     data class LiveSnapshot(
@@ -27,33 +29,35 @@ object BackgroundChatCoordinator {
     )
 
     @Volatile private var appContext: Context? = null
-    @Volatile private var chatViewModel: ChatViewModel? = null
-    @Volatile private var hostAttached: Boolean = false
+    @Volatile private var weakViewModel: WeakReference<ChatViewModel>? = null
+    @Volatile private var activeStrongViewModel: ChatViewModel? = null
 
     fun attach(context: Context, viewModel: ChatViewModel) {
-        appContext = context.applicationContext
-        chatViewModel = viewModel
-        hostAttached = true
-        BackgroundChatRuntime.ensureStarted(context.applicationContext)
+        val app = context.applicationContext
+        appContext = app
+        weakViewModel = WeakReference(viewModel)
+        BackgroundChatRuntime.ensureStarted(app)
     }
 
-    /**
-     * The manually-created ChatViewModel is intentionally retained while work is still active.
-     * That lets a run continue after the Activity is closed without tying it to a visible screen.
-     */
-    fun onHostDestroyed(isChangingConfigurations: Boolean) {
-        if (isChangingConfigurations) return
-        hostAttached = false
-        releaseViewModelIfIdle()
+    fun attach(viewModel: ChatViewModel) {
+        val context = resolveContext() ?: return
+        attach(context, viewModel)
     }
 
     suspend fun armFromUserMessage(sessionId: Long, message: ChatMessage) {
-        val context = appContext ?: return
-        val state = chatViewModel?.uiState?.value
+        val context = resolveContext() ?: return
+        // Initialize process recovery before creating a fresh UI-owned run. This ensures only stale
+        // pre-existing runs are reclassified as recovery work.
+        BackgroundChatRuntime.ensureStarted(context)
+
+        val vm = currentViewModel()
+        val state = vm?.uiState?.value
         val exactState = state?.takeIf { it.currentSessionId == sessionId }
         val mode = exactState?.activeMode ?: IntentClassifier.classify(message.content)
         val resolvedMode = if (mode == OmniMode.AUTO) IntentClassifier.classify(message.content) else mode
         val scope = exactState?.targetContext.orEmpty()
+        if (exactState != null) activeStrongViewModel = vm
+
         val run = BackgroundChatTaskStore.arm(
             context = context,
             sessionId = sessionId,
@@ -63,7 +67,6 @@ object BackgroundChatCoordinator {
             scopePath = scope,
             ownerUi = exactState != null
         )
-        BackgroundChatRuntime.ensureStarted(context)
         BackgroundChatRuntime.kick(run.token)
     }
 
@@ -72,10 +75,15 @@ object BackgroundChatCoordinator {
         origin: ChatMessage,
         requestedMode: String
     ) {
-        val context = appContext ?: return
-        val state = chatViewModel?.uiState?.value
-        val mode = runCatching { OmniMode.valueOf(requestedMode) }
-            .getOrDefault(OmniMode.AGENT)
+        val context = resolveContext() ?: return
+        BackgroundChatRuntime.ensureStarted(context)
+
+        val vm = currentViewModel()
+        val state = vm?.uiState?.value
+        val mode = runCatching { OmniMode.valueOf(requestedMode) }.getOrDefault(OmniMode.AGENT)
+        val ownsSession = state?.currentSessionId == sessionId
+        if (ownsSession) activeStrongViewModel = vm
+
         val run = BackgroundChatTaskStore.arm(
             context = context,
             sessionId = sessionId,
@@ -83,19 +91,18 @@ object BackgroundChatCoordinator {
             userTimestamp = origin.timestamp,
             mode = mode.name,
             scopePath = state?.targetContext.orEmpty(),
-            ownerUi = state?.currentSessionId == sessionId
+            ownerUi = ownsSession
         )
-        BackgroundChatRuntime.ensureStarted(context)
         BackgroundChatRuntime.kick(run.token)
     }
 
     fun hasLiveOwner(run: BackgroundChatRun): Boolean {
-        val state = chatViewModel?.uiState?.value ?: return false
+        val state = currentViewModel()?.uiState?.value ?: return false
         return state.currentSessionId == run.sessionId && run.ownerUi
     }
 
     fun liveSnapshot(run: BackgroundChatRun): LiveSnapshot? {
-        val state = chatViewModel?.uiState?.value ?: return null
+        val state = currentViewModel()?.uiState?.value ?: return null
         if (state.currentSessionId != run.sessionId || !run.ownerUi) return null
 
         val lastConsole = state.consoleEntries.lastOrNull()
@@ -117,7 +124,7 @@ object BackgroundChatCoordinator {
     }
 
     fun cancelLiveRun(run: BackgroundChatRun): Boolean {
-        val vm = chatViewModel ?: return false
+        val vm = currentViewModel() ?: return false
         val state = vm.uiState.value
         if (state.currentSessionId != run.sessionId || !state.isProcessing) return false
         vm.cancelCurrentRun()
@@ -125,10 +132,16 @@ object BackgroundChatCoordinator {
     }
 
     fun releaseViewModelIfIdle() {
-        val context = appContext
-        val noRuns = context == null || BackgroundChatTaskStore.active(context).isEmpty()
-        if (!hostAttached && noRuns) chatViewModel = null
+        val context = resolveContext()
+        if (context == null || BackgroundChatTaskStore.active(context).isEmpty()) {
+            activeStrongViewModel = null
+        }
     }
+
+    private fun currentViewModel(): ChatViewModel? = activeStrongViewModel ?: weakViewModel?.get()
+
+    private fun resolveContext(): Context? = appContext
+        ?: runCatching { OmniDevApp.instance.applicationContext }.getOrNull()?.also { appContext = it }
 
     private fun consoleStatus(entry: AgentConsoleEntry?): String? = when (entry) {
         is AgentConsoleEntry.ThinkingEntry -> "Thinking • iteration ${entry.iteration}"
