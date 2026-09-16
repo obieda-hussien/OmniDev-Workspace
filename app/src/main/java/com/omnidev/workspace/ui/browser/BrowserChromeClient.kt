@@ -75,13 +75,13 @@ internal class BrowserChromeClient(
                     ) {
                         if (!activity.isUsable() || rendererDialog?.isShowing == true) return
                         rendererDialog = AlertDialog.Builder(activity)
-                            .setTitle("الصفحة مش بتستجيب")
-                            .setMessage("WebView renderer اتعلق. تقدر تستنى شوية أو تعيد تحميل الصفحة من غير ما نقفل التبويب.")
-                            .setPositiveButton("إعادة تحميل") { _, _ ->
+                            .setTitle("Page isn't responding")
+                            .setMessage("The WebView renderer stopped responding. You can wait or reload the page without closing the tab.")
+                            .setPositiveButton("Reload") { _, _ ->
                                 view.stopLoading()
                                 view.reload()
                             }
-                            .setNegativeButton("استنى", null)
+                            .setNegativeButton("Wait", null)
                             .create()
                             .also { dialog ->
                                 dialog.setOnDismissListener { rendererDialog = null }
