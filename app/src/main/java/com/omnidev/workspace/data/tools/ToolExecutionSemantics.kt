@@ -7,11 +7,16 @@ package com.omnidev.workspace.data.tools
  * must never hide a strong failure emitted earlier in stderr. This classifier is
  * intentionally conservative and only upgrades results when the output contains
  * unambiguous failure signatures seen in Android/Termux/Shizuku execution.
+ *
+ * The normalized output begins with a compact machine/human readable telemetry
+ * line so the existing Agent Console can display reliable PASS/FAIL metadata even
+ * before it grows dedicated classification/backend UI fields.
  */
 object ToolExecutionSemantics {
 
     private const val DEFAULT_MODEL_OUTPUT_LIMIT = 4_000
     private const val ERROR_MODEL_OUTPUT_LIMIT = 6_000
+    private const val TELEMETRY_PREFIX = "[omni-outcome]"
 
     private val terminalLikeTools = setOf(
         "agent_runtime",
@@ -34,45 +39,53 @@ object ToolExecutionSemantics {
     )
 
     fun normalize(toolName: String, result: ToolExecutionResult): ToolExecutionResult {
-        if (result.isError) {
-            val match = classifyMatch(result.output)
-            return compact(
+        val normalized = when {
+            result.isError -> {
+                val match = classifyMatch(result.output)
                 result.copy(
                     classification = result.classification ?: match?.classification ?: "TOOL_ERROR",
+                    backend = result.backend ?: inferBackend(toolName, result.output),
                     retryable = result.retryable || match?.retryable == true,
                     persistentFailure = result.persistentFailure || match?.persistent == true
                 )
-            )
+            }
+
+            toolName !in terminalLikeTools -> result
+
+            else -> {
+                val text = result.output
+                val explicitExit = extractExitCode(text)
+                if (explicitExit != null && explicitExit != 0) {
+                    val match = classifyMatch(text) ?: Match("NON_ZERO_EXIT")
+                    result.copy(
+                        isError = true,
+                        classification = match.classification,
+                        exitCode = explicitExit,
+                        backend = result.backend ?: inferBackend(toolName, text),
+                        retryable = match.retryable,
+                        persistentFailure = match.persistent
+                    )
+                } else {
+                    val match = classifyMatch(text)
+                    if (match == null) {
+                        result.copy(
+                            classification = result.classification ?: "SUCCESS",
+                            backend = result.backend ?: inferBackend(toolName, text)
+                        )
+                    } else {
+                        result.copy(
+                            isError = true,
+                            classification = match.classification,
+                            backend = result.backend ?: inferBackend(toolName, text),
+                            retryable = match.retryable,
+                            persistentFailure = match.persistent
+                        )
+                    }
+                }
+            }
         }
-        if (toolName !in terminalLikeTools) return compact(result)
 
-        val text = result.output
-        val explicitExit = extractExitCode(text)
-        if (explicitExit != null && explicitExit != 0) {
-            val match = classifyMatch(text) ?: Match("NON_ZERO_EXIT")
-            return compact(
-                result.copy(
-                    isError = true,
-                    classification = match.classification,
-                    exitCode = explicitExit,
-                    retryable = match.retryable,
-                    persistentFailure = match.persistent
-                )
-            )
-        }
-
-        val match = classifyMatch(text) ?: return compact(
-            result.copy(classification = result.classification ?: "SUCCESS")
-        )
-
-        return compact(
-            result.copy(
-                isError = true,
-                classification = match.classification,
-                retryable = match.retryable,
-                persistentFailure = match.persistent
-            )
-        )
+        return compact(decorate(normalized))
     }
 
     /**
@@ -90,6 +103,36 @@ object ToolExecutionSemantics {
             "WRONG_EXECUTION_DOMAIN",
             "ANDROID_PERMISSION_DENIED"
         )
+
+    private fun decorate(result: ToolExecutionResult): ToolExecutionResult {
+        if (result.output.startsWith(TELEMETRY_PREFIX)) return result
+        val line = buildString {
+            append(TELEMETRY_PREFIX)
+            append(" status=").append(if (result.isError) "FAIL" else "PASS")
+            append(" class=").append(result.classification ?: if (result.isError) "TOOL_ERROR" else "SUCCESS")
+            result.backend?.takeIf { it.isNotBlank() }?.let { append(" backend=").append(it) }
+            result.exitCode?.let { append(" exit=").append(it) }
+            append(" retryable=").append(result.retryable)
+            append(" persistent=").append(result.persistentFailure)
+            result.verification?.takeIf { it.isNotBlank() }?.let {
+                append(" verified=").append(it.replace('\n', ' ').take(240))
+            }
+        }
+        return result.copy(output = "$line\n${result.output}".trimEnd())
+    }
+
+    private fun inferBackend(toolName: String, text: String): String? {
+        val lower = text.lowercase()
+        return when {
+            lower.contains("uid=2000(shell)") && lower.contains("rish") -> "rish"
+            lower.contains("shizuku userservice") || toolName == "shizuku_command" -> "shizuku-user-service"
+            toolName == "privileged_tool" && lower.contains("rish") -> "rish"
+            toolName == "privileged_tool" -> "privileged-router"
+            toolName in setOf("agent_runtime", "direct_terminal", "termux_bridge", "python_runtime", "setup_build_environment") -> "termux"
+            toolName in setOf("root_shell_tool", "advanced_root_shell") -> "root"
+            else -> null
+        }
+    }
 
     private fun classifyMatch(text: String): Match? {
         val lower = text.lowercase()
@@ -155,14 +198,19 @@ object ToolExecutionSemantics {
         val maxChars = if (result.isError) ERROR_MODEL_OUTPUT_LIMIT else DEFAULT_MODEL_OUTPUT_LIMIT
         if (result.output.length <= maxChars) return result
 
-        val head = (maxChars * 2) / 3
-        val tail = maxChars - head
-        val compacted = buildString(maxChars + 180) {
-            append(result.output.take(head))
+        val firstLineEnd = result.output.indexOf('\n').takeIf { it >= 0 } ?: 0
+        val telemetry = if (firstLineEnd > 0) result.output.substring(0, firstLineEnd + 1) else ""
+        val body = if (firstLineEnd > 0) result.output.substring(firstLineEnd + 1) else result.output
+        val available = (maxChars - telemetry.length - 120).coerceAtLeast(600)
+        val head = (available * 2) / 3
+        val tail = available - head
+        val compacted = buildString(maxChars + 80) {
+            append(telemetry)
+            append(body.take(head))
             append("\n\n… [observation compacted: ")
-            append(result.output.length - maxChars)
+            append((body.length - available).coerceAtLeast(0))
             append(" chars omitted] …\n\n")
-            append(result.output.takeLast(tail))
+            append(body.takeLast(tail))
         }
         return result.copy(output = compacted, truncated = true)
     }
