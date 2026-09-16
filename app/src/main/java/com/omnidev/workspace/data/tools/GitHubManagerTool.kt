@@ -18,12 +18,13 @@ import java.util.concurrent.TimeUnit
  *
  * Copilot/Models credentials are NOT used here. The user must explicitly enable
  * "GitHub Agent Access" in Integrations & Linked Accounts and authorize a separate
- * scoped OAuth token. Local policy then applies a second gate on top of GitHub's
- * OAuth scopes: read, write, destructive, and organization-admin capabilities.
+ * account-control token through OAuth Device Flow or a Personal Access Token.
+ * Local policy then applies a second gate on top of GitHub's authorization:
+ * read, write, destructive, and organization-admin capabilities.
  *
  * `api_request` intentionally provides a future-proof relative GitHub API bridge
- * while pinning the host to api.github.com so the OAuth token can never be sent to
- * an arbitrary host. OkHttp is used rather than HttpURLConnection so PATCH and the
+ * while pinning the host to api.github.com so the token can never be sent to an
+ * arbitrary host. OkHttp is used rather than HttpURLConnection so PATCH and the
  * full GitHub REST method set behave consistently on older Android releases.
  */
 object GitHubManagerTool {
@@ -101,8 +102,8 @@ object GitHubManagerTool {
         }
         val token = policy.token?.takeIf { it.isNotBlank() }
             ?: return@withContext ToolExecutionResult(
-                "GITHUB_AGENT_NOT_AUTHORIZED: GitHub Agent Access is enabled but no separate account-control OAuth token is connected. " +
-                    "Authorize it from Settings → Integrations & Linked Accounts.",
+                "GITHUB_AGENT_NOT_AUTHORIZED: GitHub Agent Access is enabled but no separate account-control token is connected. " +
+                    "Connect with GitHub or verify a Personal Access Token from Settings → Integrations & Linked Accounts.",
                 isError = true
             )
 
@@ -285,11 +286,13 @@ object GitHubManagerTool {
     private fun policySummary(policy: GitHubAgentAccessStore.Policy): String = buildString {
         appendLine("GitHub Agent Access policy")
         appendLine("Enabled: ${policy.enabled}")
-        appendLine("Connected account token: ${policy.connected}")
+        appendLine("Connected: ${policy.connected}")
+        appendLine("Connection method: ${policy.authMethod.displayName}")
+        appendLine("Account: ${policy.accountLogin?.let { "@$it" } ?: "(unknown / not connected)"}")
         appendLine("Write operations: ${policy.writeEnabled}")
         appendLine("Destructive DELETE operations: ${policy.destructiveEnabled}")
         appendLine("Advanced account/org administration: ${policy.organizationAdminEnabled}")
-        appendLine("Granted scopes: ${policy.grantedScopes.ifBlank { "(not authorized)" }}")
+        appendLine("Reported/granted scopes: ${policy.grantedScopes.ifBlank { "(GitHub-managed permissions or not authorized)" }}")
         append("Policy can only be changed by the user in Settings → Integrations & Linked Accounts.")
     }.trimEnd()
 }
