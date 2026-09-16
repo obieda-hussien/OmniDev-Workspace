@@ -59,8 +59,7 @@ object BackgroundChatCoordinator {
 
         scope.launch {
             val appContext = context.applicationContext
-            val db = OmniDevDatabase.getInstance(appContext)
-            val repo = ChatRepository(db.chatSessionDao(), db.chatMessageDao())
+            val repo = repository(appContext)
             val sessionId = state.currentSessionId ?: repo.createSession(input.take(50).ifBlank { "New conversation" })
             val attachments = stageAttachmentMetadata(appContext, pending)
             val userMessage = ChatMessage(
@@ -89,6 +88,48 @@ object BackgroundChatCoordinator {
         return true
     }
 
+    /**
+     * Handles the one-shot Chat → Agent/Swarm approval using the same durable service path.
+     * The proposal is marked accepted in Room before enqueue so process recreation cannot replay it.
+     */
+    fun acceptExecutionMode(context: Context, viewModel: ChatViewModel, messageId: String): Boolean {
+        if (BuildConfig.TIER == "LITE") return false
+        val state = viewModel.uiState.value
+        if (state.isProcessing || activeRun(state.currentSessionId) != null) return true
+        val proposal = state.messages.firstOrNull { it.messageId == messageId } ?: return false
+        val request = proposal.executionRequest?.takeIf { it.status == "pending" } ?: return false
+        val mode = when (request.mode) {
+            "AGENT" -> OmniMode.AGENT
+            "SWARM" -> OmniMode.SWARM
+            else -> return false
+        }
+        val original = state.messages.firstOrNull { it.messageId == request.originMessageId } ?: return false
+        val sessionId = state.currentSessionId ?: return false
+        val scopePath = state.targetContext ?: if (state.isGodModeEnabled) "/" else return false
+        val accepted = proposal.copy(executionRequest = request.copy(status = "accepted"))
+
+        scope.launch {
+            val appContext = context.applicationContext
+            val repo = repository(appContext)
+            repo.updateMetadata(sessionId, accepted)
+            repo.updateSessionRunStatus(sessionId, "Running")
+            BackgroundAgentService.enqueue(
+                context = appContext,
+                sessionId = sessionId,
+                userMessageId = original.messageId,
+                mode = mode,
+                scopePath = scopePath,
+                disabledToolNames = state.chatSettings.disabledToolNames(),
+                toolAccessMode = state.chatSettings.toolAccessMode.name
+            )
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                viewModel.setMode(mode)
+                viewModel.loadSession(sessionId)
+            }
+        }
+        return true
+    }
+
     fun cancel(context: Context, sessionId: Long?): Boolean {
         val active = activeRun(sessionId) ?: return false
         BackgroundAgentService.cancel(context.applicationContext, active.runId)
@@ -100,6 +141,11 @@ object BackgroundChatCoordinator {
         return BackgroundAgentRunBus.runs.value.values
             .filter { it.sessionId == sessionId && it.isActive }
             .maxByOrNull { it.updatedAtMs }
+    }
+
+    private fun repository(context: Context): ChatRepository {
+        val db = OmniDevDatabase.getInstance(context)
+        return ChatRepository(db.chatSessionDao(), db.chatMessageDao())
     }
 
     private suspend fun stageAttachmentMetadata(
