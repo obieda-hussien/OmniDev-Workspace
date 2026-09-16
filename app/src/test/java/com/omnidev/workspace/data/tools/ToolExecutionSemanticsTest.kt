@@ -23,6 +23,24 @@ class ToolExecutionSemanticsTest {
         assertTrue(result.isError)
         assertEquals("ANDROID_PERMISSION_DENIED", result.classification)
         assertTrue(result.persistentFailure)
+        assertTrue(result.output.startsWith("[omni-outcome] status=FAIL"))
+    }
+
+    @Test
+    fun `old crash log on stdout is data not current command failure`() {
+        val raw = ToolExecutionResult(
+            output = """
+                2026-09-16 archived.log
+                java.lang.SecurityException: Permission Denial: historical crash only
+                stack trace follows here
+            """.trimIndent()
+        )
+
+        val result = ToolExecutionSemantics.normalize("agent_runtime", raw)
+
+        assertFalse(result.isError)
+        assertEquals("SUCCESS", result.classification)
+        assertTrue(result.output.startsWith("[omni-outcome] status=PASS"))
     }
 
     @Test
@@ -39,9 +57,10 @@ class ToolExecutionSemanticsTest {
     }
 
     @Test
-    fun `rish native loader failure is persistent`() {
+    fun `rish native loader failure is persistent when tool already reports error`() {
         val raw = ToolExecutionResult(
-            output = "java.lang.UnsatisfiedLinkError: couldn't find \"librish.so\""
+            output = "java.lang.UnsatisfiedLinkError: couldn't find \"librish.so\"",
+            isError = true
         )
 
         val result = ToolExecutionSemantics.normalize("privileged_tool", raw)
@@ -63,7 +82,7 @@ class ToolExecutionSemanticsTest {
     }
 
     @Test
-    fun `large observations are compacted`() {
+    fun `large observations are compacted while telemetry survives`() {
         val result = ToolExecutionSemantics.normalize(
             "agent_runtime",
             ToolExecutionResult("x".repeat(20_000))
@@ -71,6 +90,7 @@ class ToolExecutionSemanticsTest {
 
         assertTrue(result.truncated)
         assertTrue(result.output.length < 5_000)
+        assertTrue(result.output.startsWith("[omni-outcome]"))
         assertTrue(result.output.contains("observation compacted"))
     }
 }
