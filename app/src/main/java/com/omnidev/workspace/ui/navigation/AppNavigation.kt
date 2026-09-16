@@ -29,7 +29,7 @@ import com.omnidev.workspace.ui.providers.ProvidersScreen
 import com.omnidev.workspace.ui.providers.ProvidersViewModel
 import com.omnidev.workspace.ui.settings.AISettingsScreen
 import com.omnidev.workspace.ui.settings.AISettingsViewModel
-import com.omnidev.workspace.ui.settings.IntegrationsScreen
+import com.omnidev.workspace.ui.settings.IntegrationsLinkedAccountsScreen
 import com.omnidev.workspace.ui.settings.LocalModelManagerScreen
 import com.omnidev.workspace.ui.settings.MemoryExplorerScreen
 import com.omnidev.workspace.ui.settings.McpSettingsScreen
@@ -76,10 +76,6 @@ fun AppNavigation(
         }
     }
 
-    // Agent -> human browser takeover. Give the handoff tool a tiny window to
-    // finish posting its native notification, then stop the active agent run so
-    // it cannot keep clicking/typing behind the user's back while credentials,
-    // OTP, CAPTCHA, passkeys or payment details are being entered.
     LaunchedEffect(Unit) {
         com.omnidev.workspace.MainActivity.pendingBrowserHandoff.collect { pending ->
             if (pending) {
@@ -154,7 +150,7 @@ fun AppNavigation(
         }
 
         composable(Routes.INTEGRATIONS) {
-            IntegrationsScreen(
+            IntegrationsLinkedAccountsScreen(
                 settingsRepository = settingsRepository,
                 onNavigateBack = { navController.popBackStack() }
             )
