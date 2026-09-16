@@ -3,10 +3,10 @@ package com.omnidev.workspace.ui.chat
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -17,28 +17,24 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -65,7 +61,7 @@ import java.util.Date
 import java.util.Locale
 
 private enum class HistoryFilter(val label: String) {
-    ALL("All"),
+    ALL("All chats"),
     PINNED("Pinned"),
     APP("App"),
     TELEGRAM("Telegram"),
@@ -74,17 +70,17 @@ private enum class HistoryFilter(val label: String) {
 }
 
 private enum class HistorySort(val label: String) {
-    RECENT("Recently updated"),
-    OLDEST("Oldest updated"),
-    TITLE("Title A–Z")
+    RECENT("Recent"),
+    OLDEST("Oldest"),
+    TITLE("A–Z")
 }
 
 /**
- * Rich conversation manager used by the chat navigation drawer.
+ * Chat-history drawer with one continuous scroll surface.
  *
- * The drawer intentionally keeps filtering and selection as ephemeral UI state while all
- * persisted session mutations remain owned by [ChatViewModel]. This avoids creating a second
- * source of truth for chat history while still making large histories easy to navigate.
+ * Only the compact top bar is sticky. Search, filtering and management controls intentionally
+ * live inside the same LazyColumn as the conversations, so they naturally leave the viewport
+ * while browsing a long history and return when the user scrolls back to the top.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -103,7 +99,9 @@ internal fun ChatHistoryDrawer(
     var searchQuery by remember { mutableStateOf("") }
     var activeFilter by remember { mutableStateOf(HistoryFilter.ALL) }
     var activeSort by remember { mutableStateOf(HistorySort.RECENT) }
+    var showFilterMenu by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
+    var showOverflowMenu by remember { mutableStateOf(false) }
 
     var isSelectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(emptySet<Long>()) }
@@ -113,6 +111,8 @@ internal fun ChatHistoryDrawer(
     var deleteTarget by remember { mutableStateOf<ChatSessionEntity?>(null) }
     var showDeleteAllDialog by remember { mutableStateOf(false) }
     var showDeleteSelectedDialog by remember { mutableStateOf(false) }
+
+    val listState = rememberLazyListState()
 
     val searched = sessions.filter { session ->
         searchQuery.isBlank() ||
@@ -136,9 +136,6 @@ internal fun ChatHistoryDrawer(
     }
     val visibleIds = visibleSessions.mapTo(linkedSetOf()) { it.id }
     val allVisibleSelected = visibleIds.isNotEmpty() && selectedIds.containsAll(visibleIds)
-
-    val pinnedCount = sessions.count { it.isPinned }
-    val linkedCount = sessions.count { it.source != ChatSessionEntity.SOURCE_APP }
 
     renameTarget?.let { target ->
         AlertDialog(
@@ -172,9 +169,7 @@ internal fun ChatHistoryDrawer(
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
             title = { Text("Delete conversation?") },
-            text = {
-                Text("\"${target.title}\" and all messages in it will be permanently deleted.")
-            },
+            text = { Text("\"${target.title}\" and its messages will be permanently deleted.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -182,9 +177,7 @@ internal fun ChatHistoryDrawer(
                         selectedIds = selectedIds - target.id
                         deleteTarget = null
                     }
-                ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
+                ) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { deleteTarget = null }) { Text("Cancel") }
@@ -196,12 +189,7 @@ internal fun ChatHistoryDrawer(
         AlertDialog(
             onDismissRequest = { showDeleteAllDialog = false },
             title = { Text("Delete all conversations?") },
-            text = {
-                Text(
-                    "This permanently deletes all ${sessions.size} saved conversations and their messages. " +
-                        "This action cannot be undone."
-                )
-            },
+            text = { Text("This permanently deletes all ${sessions.size} saved conversations and their messages.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -210,9 +198,7 @@ internal fun ChatHistoryDrawer(
                         isSelectionMode = false
                         selectedIds = emptySet()
                     }
-                ) {
-                    Text("Delete all", color = MaterialTheme.colorScheme.error)
-                }
+                ) { Text("Delete all", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteAllDialog = false }) { Text("Cancel") }
@@ -224,9 +210,7 @@ internal fun ChatHistoryDrawer(
         AlertDialog(
             onDismissRequest = { showDeleteSelectedDialog = false },
             title = { Text("Delete selected conversations?") },
-            text = {
-                Text("${selectedIds.size} selected conversation(s) and their messages will be permanently deleted.")
-            },
+            text = { Text("${selectedIds.size} selected conversation(s) will be permanently deleted.") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -235,9 +219,7 @@ internal fun ChatHistoryDrawer(
                         isSelectionMode = false
                         selectedIds = emptySet()
                     }
-                ) {
-                    Text("Delete selected", color = MaterialTheme.colorScheme.error)
-                }
+                ) { Text("Delete selected", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteSelectedDialog = false }) { Text("Cancel") }
@@ -245,191 +227,229 @@ internal fun ChatHistoryDrawer(
         )
     }
 
-    Column(
+    LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxHeight()
-            .background(MaterialTheme.colorScheme.surface)
+            .background(MaterialTheme.colorScheme.surface),
+        contentPadding = PaddingValues(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        HistoryHeader(
-            sessionCount = sessions.size,
-            selectedCount = selectedIds.size,
-            isSelectionMode = isSelectionMode,
-            canDeleteSelected = selectedIds.isNotEmpty(),
-            hasSessions = sessions.isNotEmpty(),
-            onDeleteSelected = { showDeleteSelectedDialog = true },
-            onDeleteAll = { showDeleteAllDialog = true },
-            onCancelSelection = {
-                isSelectionMode = false
-                selectedIds = emptySet()
-            },
-            onCloseDrawer = onCloseDrawer
-        )
-
-        Button(
-            onClick = {
-                onNewSession()
-                onCloseDrawer()
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("New conversation", fontWeight = FontWeight.SemiBold)
+        stickyHeader(key = "history_top_bar") {
+            HistoryTopBar(
+                sessionCount = sessions.size,
+                selectedCount = selectedIds.size,
+                isSelectionMode = isSelectionMode,
+                canDeleteSelected = selectedIds.isNotEmpty(),
+                onNewSession = {
+                    onNewSession()
+                    onCloseDrawer()
+                },
+                onDeleteSelected = { showDeleteSelectedDialog = true },
+                onCancelSelection = {
+                    isSelectionMode = false
+                    selectedIds = emptySet()
+                },
+                onCloseDrawer = onCloseDrawer
+            )
         }
 
-        if (sessions.isNotEmpty()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                HistoryStatCard(
-                    value = sessions.size.toString(),
-                    label = "Total",
-                    modifier = Modifier.weight(1f)
-                )
-                HistoryStatCard(
-                    value = pinnedCount.toString(),
-                    label = "Pinned",
-                    modifier = Modifier.weight(1f)
-                )
-                HistoryStatCard(
-                    value = linkedCount.toString(),
-                    label = "Linked",
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            placeholder = { Text("Search conversations or sources") },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { searchQuery = "" }) {
-                        Icon(Icons.Filled.Close, contentDescription = "Clear search")
-                    }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp)
-        )
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            HistoryFilter.entries.forEach { filter ->
-                InputChip(
-                    selected = activeFilter == filter,
-                    onClick = { activeFilter = filter },
-                    label = { Text(filter.label) }
-                )
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box {
-                TextButton(onClick = { showSortMenu = true }) {
-                    Text("Sort: ${activeSort.label}")
-                }
-                DropdownMenu(
-                    expanded = showSortMenu,
-                    onDismissRequest = { showSortMenu = false }
-                ) {
-                    HistorySort.entries.forEach { sort ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    if (activeSort == sort) "✓ ${sort.label}" else sort.label
-                                )
-                            },
-                            onClick = {
-                                activeSort = sort
-                                showSortMenu = false
+        if (!isSelectionMode) {
+            item(key = "search") {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search chats") },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Filled.Close, contentDescription = "Clear search")
                             }
-                        )
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 4.dp)
+                )
+            }
+
+            item(key = "controls") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box {
+                        TextButton(onClick = { showFilterMenu = true }) {
+                            Text(activeFilter.label)
+                        }
+                        DropdownMenu(
+                            expanded = showFilterMenu,
+                            onDismissRequest = { showFilterMenu = false }
+                        ) {
+                            HistoryFilter.entries.forEach { filter ->
+                                DropdownMenuItem(
+                                    text = { Text(if (activeFilter == filter) "✓ ${filter.label}" else filter.label) },
+                                    onClick = {
+                                        activeFilter = filter
+                                        showFilterMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Box {
+                        TextButton(onClick = { showSortMenu = true }) {
+                            Text(activeSort.label)
+                        }
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false }
+                        ) {
+                            HistorySort.entries.forEach { sort ->
+                                DropdownMenuItem(
+                                    text = { Text(if (activeSort == sort) "✓ ${sort.label}" else sort.label) },
+                                    onClick = {
+                                        activeSort = sort
+                                        showSortMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.weight(1f))
+
+                    if (sessions.isNotEmpty()) {
+                        TextButton(
+                            onClick = {
+                                isSelectionMode = true
+                                selectedIds = emptySet()
+                            }
+                        ) { Text("Select") }
+
+                        Box {
+                            IconButton(onClick = { showOverflowMenu = true }) {
+                                Icon(Icons.Filled.MoreVert, contentDescription = "History options")
+                            }
+                            DropdownMenu(
+                                expanded = showOverflowMenu,
+                                onDismissRequest = { showOverflowMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Delete all", color = MaterialTheme.colorScheme.error) },
+                                    onClick = {
+                                        showOverflowMenu = false
+                                        showDeleteAllDialog = true
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            if (sessions.isNotEmpty()) {
-                TextButton(
-                    onClick = {
-                        if (!isSelectionMode) {
-                            isSelectionMode = true
-                            selectedIds = emptySet()
-                        } else {
+        } else {
+            item(key = "selection_controls") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(
+                        enabled = visibleIds.isNotEmpty(),
+                        onClick = {
                             selectedIds = if (allVisibleSelected) {
                                 selectedIds - visibleIds
                             } else {
                                 selectedIds + visibleIds
                             }
                         }
+                    ) {
+                        Text(if (allVisibleSelected) "Deselect visible" else "Select visible")
                     }
-                ) {
+                    Spacer(Modifier.weight(1f))
                     Text(
-                        when {
-                            !isSelectionMode -> "Select"
-                            allVisibleSelected -> "Deselect visible"
-                            else -> "Select visible"
-                        }
+                        text = "${visibleSessions.size} visible",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
         }
 
-        HorizontalDivider(modifier = Modifier.padding(top = 2.dp))
+        item(key = "history_divider") {
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp))
+        }
 
         if (visibleSessions.isEmpty()) {
-            HistoryEmptyState(
-                hasAnySessions = sessions.isNotEmpty(),
-                searchQuery = searchQuery,
-                activeFilter = activeFilter,
-                onReset = {
-                    searchQuery = ""
-                    activeFilter = HistoryFilter.ALL
-                    activeSort = HistorySort.RECENT
-                }
-            )
+            item(key = "empty") {
+                HistoryEmptyState(
+                    hasAnySessions = sessions.isNotEmpty(),
+                    searchQuery = searchQuery,
+                    activeFilter = activeFilter,
+                    onReset = {
+                        searchQuery = ""
+                        activeFilter = HistoryFilter.ALL
+                        activeSort = HistorySort.RECENT
+                    }
+                )
+            }
         } else {
             val pinned = visibleSessions.filter { it.isPinned }
             val regular = visibleSessions.filterNot { it.isPinned }
 
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                    start = 8.dp,
-                    end = 8.dp,
-                    top = 6.dp,
-                    bottom = 20.dp
-                ),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                if (pinned.isNotEmpty()) {
-                    item(key = "section_pinned") {
-                        HistorySectionHeader("Pinned", pinned.size)
+            if (pinned.isNotEmpty()) {
+                item(key = "section_pinned") {
+                    HistorySectionHeader("Pinned", pinned.size)
+                }
+                items(pinned, key = { "pinned_${it.id}" }) { session ->
+                    HistorySessionItem(
+                        session = session,
+                        isActive = session.id == currentSessionId,
+                        isSelectionMode = isSelectionMode,
+                        isSelected = session.id in selectedIds,
+                        onClick = {
+                            if (isSelectionMode) {
+                                selectedIds = toggleSelection(selectedIds, session.id)
+                            } else {
+                                onSessionClick(session.id)
+                                onCloseDrawer()
+                            }
+                        },
+                        onLongClick = {
+                            if (!isSelectionMode) {
+                                isSelectionMode = true
+                                selectedIds = setOf(session.id)
+                            }
+                        },
+                        onPin = { onTogglePin(session.id) },
+                        onRename = {
+                            renameText = session.title
+                            renameTarget = session
+                        },
+                        onDelete = { deleteTarget = session }
+                    )
+                }
+            }
+
+            val grouped = if (activeSort == HistorySort.RECENT) {
+                groupHistorySessionsByDate(regular)
+            } else {
+                linkedMapOf("Conversations" to regular)
+            }
+
+            grouped.forEach { (label, sessionsInSection) ->
+                if (sessionsInSection.isNotEmpty()) {
+                    item(key = "section_$label") {
+                        HistorySectionHeader(label, sessionsInSection.size)
                     }
-                    items(pinned, key = { "pinned_${it.id}" }) { session ->
+                    items(sessionsInSection, key = { "session_${it.id}" }) { session ->
                         HistorySessionItem(
                             session = session,
                             isActive = session.id == currentSessionId,
@@ -457,53 +477,6 @@ internal fun ChatHistoryDrawer(
                             onDelete = { deleteTarget = session }
                         )
                     }
-                    if (regular.isNotEmpty()) {
-                        item(key = "pinned_divider") {
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
-                        }
-                    }
-                }
-
-                val grouped = if (activeSort == HistorySort.RECENT) {
-                    groupHistorySessionsByDate(regular)
-                } else {
-                    linkedMapOf("Conversations" to regular)
-                }
-
-                grouped.forEach { (label, itemsInSection) ->
-                    if (itemsInSection.isNotEmpty()) {
-                        item(key = "section_$label") {
-                            HistorySectionHeader(label, itemsInSection.size)
-                        }
-                        items(itemsInSection, key = { "session_${it.id}" }) { session ->
-                            HistorySessionItem(
-                                session = session,
-                                isActive = session.id == currentSessionId,
-                                isSelectionMode = isSelectionMode,
-                                isSelected = session.id in selectedIds,
-                                onClick = {
-                                    if (isSelectionMode) {
-                                        selectedIds = toggleSelection(selectedIds, session.id)
-                                    } else {
-                                        onSessionClick(session.id)
-                                        onCloseDrawer()
-                                    }
-                                },
-                                onLongClick = {
-                                    if (!isSelectionMode) {
-                                        isSelectionMode = true
-                                        selectedIds = setOf(session.id)
-                                    }
-                                },
-                                onPin = { onTogglePin(session.id) },
-                                onRename = {
-                                    renameText = session.title
-                                    renameTarget = session
-                                },
-                                onDelete = { deleteTarget = session }
-                            )
-                        }
-                    }
                 }
             }
         }
@@ -511,109 +484,79 @@ internal fun ChatHistoryDrawer(
 }
 
 @Composable
-private fun HistoryHeader(
+private fun HistoryTopBar(
     sessionCount: Int,
     selectedCount: Int,
     isSelectionMode: Boolean,
     canDeleteSelected: Boolean,
-    hasSessions: Boolean,
+    onNewSession: () -> Unit,
     onDeleteSelected: () -> Unit,
-    onDeleteAll: () -> Unit,
     onCancelSelection: () -> Unit,
     onCloseDrawer: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 18.dp, end = 8.dp, top = 16.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        shadowElevation = 2.dp
     ) {
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer,
-            modifier = Modifier.size(40.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    Icons.Filled.History,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(21.dp)
-                )
-            }
-        }
-        Spacer(Modifier.width(10.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = if (isSelectionMode) "$selectedCount selected" else "Chat history",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = if (isSelectionMode) {
-                    "Choose conversations to manage"
-                } else {
-                    "$sessionCount saved conversation${if (sessionCount == 1) "" else "s"}"
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        if (isSelectionMode) {
-            IconButton(onClick = onDeleteSelected, enabled = canDeleteSelected) {
-                Icon(
-                    Icons.Filled.Delete,
-                    contentDescription = "Delete selected conversations",
-                    tint = if (canDeleteSelected) MaterialTheme.colorScheme.error
-                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                )
-            }
-            IconButton(onClick = onCancelSelection) {
-                Icon(Icons.Filled.Close, contentDescription = "Cancel selection")
-            }
-        } else {
-            if (hasSessions) {
-                IconButton(onClick = onDeleteAll) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
                     Icon(
-                        Icons.Filled.DeleteSweep,
-                        contentDescription = "Delete all conversations",
-                        tint = MaterialTheme.colorScheme.error
+                        Icons.Filled.History,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(19.dp)
                     )
                 }
             }
-            IconButton(onClick = onCloseDrawer) {
-                Icon(Icons.Filled.Close, contentDescription = "Close chat history")
-            }
-        }
-    }
-}
 
-@Composable
-private fun HistoryStatCard(value: String, label: String, modifier: Modifier = Modifier) {
-    Card(
-        modifier = modifier,
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 9.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Spacer(Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (isSelectionMode) "$selectedCount selected" else "Chat history",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                if (!isSelectionMode) {
+                    Text(
+                        text = "$sessionCount conversation${if (sessionCount == 1) "" else "s"}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (isSelectionMode) {
+                IconButton(onClick = onDeleteSelected, enabled = canDeleteSelected) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Delete selected conversations",
+                        tint = if (canDeleteSelected) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    )
+                }
+                IconButton(onClick = onCancelSelection) {
+                    Icon(Icons.Filled.Close, contentDescription = "Cancel selection")
+                }
+            } else {
+                IconButton(onClick = onNewSession) {
+                    Icon(Icons.Filled.Add, contentDescription = "New conversation")
+                }
+                IconButton(onClick = onCloseDrawer) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close chat history")
+                }
+            }
         }
     }
 }
@@ -623,7 +566,7 @@ private fun HistorySectionHeader(label: String, count: Int) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 4.dp),
+            .padding(start = 16.dp, end = 14.dp, top = 12.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -636,7 +579,7 @@ private fun HistorySectionHeader(label: String, count: Int) {
         Text(
             text = count.toString(),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
         )
     }
 }
@@ -661,8 +604,8 @@ private fun HistorySessionItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 2.dp)
-                .clip(RoundedCornerShape(16.dp))
+                .padding(horizontal = 8.dp, vertical = 1.dp)
+                .clip(RoundedCornerShape(14.dp))
                 .background(
                     when {
                         isSelected -> MaterialTheme.colorScheme.primaryContainer
@@ -677,7 +620,7 @@ private fun HistorySessionItem(
                         onLongClick()
                     }
                 )
-                .padding(start = 10.dp, end = 4.dp, top = 9.dp, bottom = 9.dp),
+                .padding(start = 8.dp, end = 2.dp, top = 7.dp, bottom = 7.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isSelectionMode) {
@@ -688,17 +631,17 @@ private fun HistorySessionItem(
                 )
             } else {
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.size(38.dp)
+                    modifier = Modifier.size(34.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(sessionSourceIcon(session), fontSize = 17.sp)
+                        Text(sessionSourceIcon(session), fontSize = 15.sp)
                     }
                 }
             }
 
-            Spacer(Modifier.width(10.dp))
+            Spacer(Modifier.width(9.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -707,32 +650,27 @@ private fun HistorySessionItem(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium,
+                        fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
                         modifier = Modifier.weight(1f)
                     )
                     if (isActive) {
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(5.dp))
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(7.dp),
                             color = MaterialTheme.colorScheme.primary
                         ) {
                             Text(
                                 text = "Current",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                             )
                         }
                     }
                 }
-                Spacer(Modifier.height(3.dp))
+                Spacer(Modifier.height(2.dp))
                 Text(
-                    text = buildString {
-                        append(sessionSourceLabel(session))
-                        append(" • ")
-                        append(relativeSessionTime(session.lastUpdated))
-                        if (session.isPinned) append(" • Pinned")
-                    },
+                    text = "${sessionSourceLabel(session)} • ${relativeSessionTime(session.lastUpdated)}",
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.labelSmall,
@@ -743,12 +681,12 @@ private fun HistorySessionItem(
             if (!isSelectionMode) {
                 IconButton(
                     onClick = { showMenu = true },
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(34.dp)
                 ) {
                     Icon(
                         Icons.Filled.MoreVert,
                         contentDescription = "Conversation actions",
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(19.dp)
                     )
                 }
             }
@@ -800,7 +738,7 @@ private fun HistoryEmptyState(
         Surface(
             shape = CircleShape,
             color = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.size(56.dp)
+            modifier = Modifier.size(52.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
@@ -810,26 +748,26 @@ private fun HistoryEmptyState(
                 )
             }
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(12.dp))
         Text(
             text = if (hasAnySessions) "No conversations found" else "No conversations yet",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(5.dp))
         Text(
             text = when {
-                !hasAnySessions -> "Start a new conversation and it will appear here."
-                searchQuery.isNotBlank() -> "Try another search term or clear the current filters."
+                !hasAnySessions -> "Start a conversation and it will appear here."
+                searchQuery.isNotBlank() -> "Try another search term or clear the current filter."
                 activeFilter != HistoryFilter.ALL -> "There are no conversations in this filter yet."
-                else -> "Try changing your history filters."
+                else -> "Try changing the history filter."
             },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         if (hasAnySessions) {
-            Spacer(Modifier.height(10.dp))
-            TextButton(onClick = onReset) { Text("Reset filters") }
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onReset) { Text("Reset") }
         }
     }
 }
