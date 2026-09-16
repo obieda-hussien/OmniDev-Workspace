@@ -44,7 +44,7 @@ rish terminal integration:
 • rish_session — commands: newline-separated commands; stops on persistent infrastructure failure.
 
 RISH GUARDRAILS:
-- rish files belong under Termux `$PREFIX`, never `/data/user/0/com.omnidev.workspace`.
+- rish files belong under Termux `${'$'}PREFIX`, never `/data/user/0/com.omnidev.workspace`.
 - READY requires a real shell/root smoke test; DEX/file/binder presence is not readiness.
 - If output contains `UnsatisfiedLinkError` or `couldn't find "librish.so"`, STOP rish repair retries.
 - NEVER copy/extract librish.so, set LD_LIBRARY_PATH, or add -Djava.library.path.
@@ -301,7 +301,7 @@ RISH GUARDRAILS:
         val out = StringBuilder()
         var failed = false
         for (command in lines) {
-            out.appendLine("$ $command")
+            out.appendLine("\$ $command")
             val result = rish.execute(command)
             result.fold(
                 onSuccess = { out.appendLine(it) },
