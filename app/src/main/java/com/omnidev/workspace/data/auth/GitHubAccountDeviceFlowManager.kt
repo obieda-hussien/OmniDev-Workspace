@@ -37,7 +37,7 @@ object GitHubAccountDeviceFlowManager {
         ) : State()
 
         object Polling : State()
-        data class Success(val grantedScopes: String) : State()
+        data class Success(val grantedScopes: String, val accountLogin: String?) : State()
         data class Error(val message: String) : State()
     }
 
@@ -101,13 +101,21 @@ object GitHubAccountDeviceFlowManager {
                             emit(State.Error("GitHub authorized the device but did not return an access token."))
                             return@flow
                         }
+
                         val granted = json.optString("scope").ifBlank { cleanScopes }
+                        val verified = GitHubTokenValidator.validate(token).getOrElse { e ->
+                            emit(State.Error("GitHub authorized the device, but account verification failed: ${e.message}"))
+                            return@flow
+                        }
+
                         GitHubAgentAccessStore(context).saveAuthorization(
                             token = token,
                             requestedScopes = cleanScopes,
-                            grantedScopes = granted
+                            grantedScopes = granted,
+                            authMethod = GitHubAgentAccessStore.AuthMethod.OAUTH_DEVICE_FLOW,
+                            accountLogin = verified.login
                         )
-                        emit(State.Success(granted))
+                        emit(State.Success(granted, verified.login))
                         return@flow
                     }
                     else -> {
