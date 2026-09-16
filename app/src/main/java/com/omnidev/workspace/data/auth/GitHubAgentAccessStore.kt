@@ -13,7 +13,7 @@ import androidx.security.crypto.MasterKey
  * repositories/account. Agent access is deny-by-default and can only be enabled from
  * Integrations & Linked Accounts.
  *
- * The account-control OAuth token and policy are encrypted at rest with Android
+ * The account-control token and policy are encrypted at rest with Android
  * Keystore-backed EncryptedSharedPreferences. If secure storage cannot be created,
  * initialization fails closed rather than falling back to plaintext token storage.
  */
@@ -21,11 +21,23 @@ class GitHubAgentAccessStore(context: Context) {
     private val appContext = context.applicationContext
     private val prefs: SharedPreferences = securePrefs(appContext)
 
+    enum class AuthMethod(val serializedName: String, val displayName: String) {
+        OAUTH_DEVICE_FLOW("oauth_device_flow", "Connect with GitHub"),
+        PERSONAL_ACCESS_TOKEN("personal_access_token", "Personal Access Token");
+
+        companion object {
+            fun fromSerializedName(value: String?): AuthMethod =
+                entries.firstOrNull { it.serializedName == value } ?: OAUTH_DEVICE_FLOW
+        }
+    }
+
     data class Policy(
         val enabled: Boolean,
         val writeEnabled: Boolean,
         val destructiveEnabled: Boolean,
         val organizationAdminEnabled: Boolean,
+        val authMethod: AuthMethod,
+        val accountLogin: String?,
         val oauthClientId: String,
         val token: String?,
         val requestedScopes: String,
@@ -42,6 +54,8 @@ class GitHubAgentAccessStore(context: Context) {
         val writeEnabled: Boolean,
         val destructiveEnabled: Boolean,
         val organizationAdminEnabled: Boolean,
+        val authMethod: AuthMethod,
+        val accountLogin: String?,
         val connected: Boolean,
         val oauthClientId: String,
         val requestedScopes: String,
@@ -53,19 +67,23 @@ class GitHubAgentAccessStore(context: Context) {
         writeEnabled = prefs.getBoolean(KEY_WRITE, false),
         destructiveEnabled = prefs.getBoolean(KEY_DESTRUCTIVE, false),
         organizationAdminEnabled = prefs.getBoolean(KEY_ORG_ADMIN, false),
+        authMethod = AuthMethod.fromSerializedName(prefs.getString(KEY_AUTH_METHOD, null)),
+        accountLogin = prefs.getString(KEY_ACCOUNT_LOGIN, null),
         oauthClientId = prefs.getString(KEY_CLIENT_ID, "").orEmpty(),
         token = prefs.getString(KEY_TOKEN, null),
         requestedScopes = prefs.getString(KEY_REQUESTED_SCOPES, DEFAULT_BASE_SCOPES).orEmpty(),
         grantedScopes = prefs.getString(KEY_GRANTED_SCOPES, "").orEmpty()
     )
 
-    /** Safe projection for UI/diagnostics — never exposes the OAuth token. */
+    /** Safe projection for UI/diagnostics — never exposes the account token. */
     fun publicPolicy(): PublicPolicy = policy().let { p ->
         PublicPolicy(
             enabled = p.enabled,
             writeEnabled = p.writeEnabled,
             destructiveEnabled = p.destructiveEnabled,
             organizationAdminEnabled = p.organizationAdminEnabled,
+            authMethod = p.authMethod,
+            accountLogin = p.accountLogin,
             connected = p.connected,
             oauthClientId = p.oauthClientId,
             requestedScopes = p.requestedScopes,
@@ -92,23 +110,53 @@ class GitHubAgentAccessStore(context: Context) {
         prefs.edit().putBoolean(KEY_ORG_ADMIN, enabled).apply()
     }
 
+    fun setAuthMethod(method: AuthMethod) {
+        prefs.edit().putString(KEY_AUTH_METHOD, method.serializedName).apply()
+    }
+
     fun setOAuthClientId(clientId: String) {
         prefs.edit().putString(KEY_CLIENT_ID, clientId.trim()).apply()
     }
 
-    fun saveAuthorization(token: String, requestedScopes: String, grantedScopes: String = requestedScopes) {
-        require(token.isNotBlank()) { "GitHub OAuth token is blank." }
+    fun saveAuthorization(
+        token: String,
+        requestedScopes: String,
+        grantedScopes: String = requestedScopes,
+        authMethod: AuthMethod = AuthMethod.OAUTH_DEVICE_FLOW,
+        accountLogin: String? = null
+    ) {
+        require(token.isNotBlank()) { "GitHub account token is blank." }
         prefs.edit()
-            .putString(KEY_TOKEN, token)
+            .putString(KEY_TOKEN, token.trim())
             .putString(KEY_REQUESTED_SCOPES, requestedScopes.trim())
             .putString(KEY_GRANTED_SCOPES, grantedScopes.trim())
+            .putString(KEY_AUTH_METHOD, authMethod.serializedName)
+            .apply {
+                if (accountLogin.isNullOrBlank()) remove(KEY_ACCOUNT_LOGIN)
+                else putString(KEY_ACCOUNT_LOGIN, accountLogin.trim())
+            }
             .apply()
+    }
+
+    fun savePersonalAccessToken(
+        token: String,
+        accountLogin: String,
+        reportedScopes: String = ""
+    ) {
+        saveAuthorization(
+            token = token,
+            requestedScopes = "PAT permissions are managed on GitHub",
+            grantedScopes = reportedScopes,
+            authMethod = AuthMethod.PERSONAL_ACCESS_TOKEN,
+            accountLogin = accountLogin
+        )
     }
 
     fun clearAuthorization() {
         prefs.edit()
             .remove(KEY_TOKEN)
             .remove(KEY_GRANTED_SCOPES)
+            .remove(KEY_ACCOUNT_LOGIN)
             .apply()
     }
 
@@ -120,6 +168,7 @@ class GitHubAgentAccessStore(context: Context) {
             .putBoolean(KEY_ORG_ADMIN, false)
             .remove(KEY_TOKEN)
             .remove(KEY_GRANTED_SCOPES)
+            .remove(KEY_ACCOUNT_LOGIN)
             .apply()
     }
 
@@ -139,6 +188,8 @@ class GitHubAgentAccessStore(context: Context) {
         private const val KEY_WRITE = "write_enabled"
         private const val KEY_DESTRUCTIVE = "destructive_enabled"
         private const val KEY_ORG_ADMIN = "organization_admin_enabled"
+        private const val KEY_AUTH_METHOD = "auth_method"
+        private const val KEY_ACCOUNT_LOGIN = "account_login"
         private const val KEY_CLIENT_ID = "oauth_client_id"
         private const val KEY_TOKEN = "oauth_token"
         private const val KEY_REQUESTED_SCOPES = "requested_scopes"
