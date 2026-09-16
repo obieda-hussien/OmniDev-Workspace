@@ -173,7 +173,7 @@ object BackgroundServiceSupervisor {
     }
 
     private fun scheduleAlarm(context: Context, reason: String, delayMs: Long) {
-        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         val pending = recoveryPendingIntent(context, reason)
         val triggerAt = SystemClock.elapsedRealtime() + delayMs.coerceAtLeast(250L)
 
@@ -202,7 +202,7 @@ object BackgroundServiceSupervisor {
     }
 
     private fun cancelAlarmOnly(context: Context) {
-        val alarmManager = context.getSystemService(AlarmManager::class.java) ?: return
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         runCatching { alarmManager.cancel(recoveryPendingIntent(context, "cancel")) }
     }
 }
