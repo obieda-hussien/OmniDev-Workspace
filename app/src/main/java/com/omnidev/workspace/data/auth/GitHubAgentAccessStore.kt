@@ -90,29 +90,17 @@ class GitHubAgentAccessStore(context: Context) {
     }
 
     /**
-     * Computes the OAuth scopes from explicit user-facing capability toggles.
-     * The application still enforces read/write/delete gates locally even if a
-     * broad OAuth scope technically permits more.
+     * Computes OAuth scopes from the persisted explicit capability switches.
+     * Local policy still applies an independent read/write/delete/admin gate even
+     * when GitHub's OAuth scope is broader (notably `repo`).
      */
     fun scopesForCurrentPolicy(): String {
         val p = policy()
-        val scopes = linkedSetOf("repo", "read:user", "user:email")
-        if (p.writeEnabled) {
-            scopes += listOf("workflow", "gist", "notifications", "project", "write:packages")
-        } else {
-            // OAuth Apps do not provide read-only private source-code scope; `repo`
-            // is required for private repos, therefore local policy enforces no writes.
-            scopes += listOf("notifications", "read:project", "read:packages")
-        }
-        if (p.organizationAdminEnabled) {
-            scopes += listOf("admin:org", "admin:org_hook")
-        } else {
-            scopes += "read:org"
-        }
-        if (p.destructiveEnabled) {
-            scopes += listOf("delete_repo", "delete:packages")
-        }
-        return scopes.joinToString(" ")
+        return buildScopes(
+            writeEnabled = p.writeEnabled,
+            destructiveEnabled = p.destructiveEnabled,
+            organizationAdminEnabled = p.organizationAdminEnabled
+        )
     }
 
     companion object {
@@ -127,5 +115,57 @@ class GitHubAgentAccessStore(context: Context) {
         private const val KEY_GRANTED_SCOPES = "granted_scopes"
 
         const val DEFAULT_BASE_SCOPES = "repo read:user user:email notifications read:org read:project read:packages"
+
+        fun buildScopes(
+            writeEnabled: Boolean,
+            destructiveEnabled: Boolean,
+            organizationAdminEnabled: Boolean
+        ): String {
+            // Private repository source access in OAuth Apps is coarse-grained: GitHub's
+            // `repo` scope itself is read/write. OmniDev's local gate enforces read-only
+            // mode when writeEnabled=false.
+            val scopes = linkedSetOf("repo", "notifications")
+
+            if (writeEnabled) {
+                scopes += listOf(
+                    "user",
+                    "workflow",
+                    "gist",
+                    "project",
+                    "write:packages",
+                    "codespace",
+                    "write:public_key",
+                    "write:gpg_key",
+                    "write:ssh_signing_key"
+                )
+            } else {
+                scopes += listOf(
+                    "read:user",
+                    "user:email",
+                    "read:project",
+                    "read:packages",
+                    "read:public_key",
+                    "read:gpg_key",
+                    "read:ssh_signing_key"
+                )
+            }
+
+            if (organizationAdminEnabled) {
+                scopes += listOf(
+                    "admin:org",
+                    "admin:org_hook",
+                    "admin:public_key",
+                    "admin:gpg_key",
+                    "admin:ssh_signing_key"
+                )
+            } else {
+                scopes += "read:org"
+            }
+
+            if (destructiveEnabled) {
+                scopes += listOf("delete_repo", "delete:packages")
+            }
+            return scopes.joinToString(" ")
+        }
     }
 }
