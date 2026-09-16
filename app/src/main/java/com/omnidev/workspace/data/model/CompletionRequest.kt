@@ -30,9 +30,7 @@ enum class MessageRole {
     USER, ASSISTANT, SYSTEM, TOOL
 }
 
-/**
- * Represents a tool invocation requested by the AI model.
- */
+/** Represents a tool invocation requested by the AI model. */
 @Serializable
 data class ToolCall(
     val id: String,
@@ -42,9 +40,7 @@ data class ToolCall(
     val extraContent: kotlinx.serialization.json.JsonObject? = null
 )
 
-/**
- * Represents the result of executing a tool call.
- */
+/** Represents the result of executing a tool call. */
 @Serializable
 data class ToolCallResult(
     val toolCallId: String,
@@ -53,13 +49,7 @@ data class ToolCallResult(
     val isError: Boolean = false
 )
 
-/**
- * Metadata for an attached file (image, PDF, text, video).
- *
- * @property base64Data Optional Base64-encoded content of the file, populated for
- *           image attachments when the target model supports vision input.
- *           Not persisted to the DB — only used in-memory for the active request.
- */
+/** Metadata for an attached file (image, PDF, text, video). */
 @Serializable
 data class AttachmentMeta(
     val uri: String,
@@ -90,26 +80,32 @@ data class CompletionRequest(
     val temperature: Double = 0.7,
     val enableThinking: Boolean = false,
     val targetContext: String? = null,
-    /** The resolved API key for the target provider. Populated by [AgentPipeline]. */
+    /** The resolved API key for the target provider. */
     val apiKey: String? = null,
     /** Native function-calling definitions. */
     val tools: List<ToolDefinition>? = null,
     val customBaseUrl: String? = null,
     val customModelId: String? = null,
-    @kotlinx.serialization.Transient val onReasoning: (suspend (String) -> Unit)? = null
+    /**
+     * Legacy/provider reasoning callback. Cleared in [init] so private reasoning
+     * is not streamed into the user-visible console. Operational progress still
+     * comes from deterministic AgentEvent phase/tool/result telemetry.
+     */
+    @kotlinx.serialization.Transient
+    var onReasoning: (suspend (String) -> Unit)? = null
 ) {
     init {
         messages = AgentPromptSanitizer.sanitizeMessages(messages)
         systemPrompt = AgentPromptSanitizer.sanitizeSystemPrompt(systemPrompt)
+        onReasoning = null
     }
 }
 
 /**
  * Response from an AI completion endpoint.
  *
- * `thinkingContent` is deliberately cleared at construction time. Providers may
- * still use hidden reasoning internally, but raw chain-of-thought is not stored,
- * replayed into future turns, or rendered in the agent console.
+ * Providers may still use hidden reasoning internally, but raw chain-of-thought
+ * is not stored, replayed into future turns, or rendered in the agent console.
  */
 @Serializable
 data class CompletionResponse(
