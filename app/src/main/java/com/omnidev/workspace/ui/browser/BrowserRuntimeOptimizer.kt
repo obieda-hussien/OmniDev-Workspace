@@ -381,23 +381,23 @@ internal object BrowserRuntimeOptimizer {
     private fun sensitiveStep(kind: String): SensitiveStep? = when (kind) {
         "password" -> SensitiveStep(
             "password",
-            "محتاج تدخلك لتسجيل الدخول",
-            "لقيت خانة كلمة مرور. اكتبها بنفسك داخل الصفحة أو استخدم مدير كلمات المرور في أندرويد. Omni مش محتاج كلمة السر ومش المفروض تبعتها في الشات."
+            "Your input is needed to sign in",
+            "A password field was detected. Enter it directly on the page or use Android Password Manager. Omni does not need your password and you should not send it in chat."
         )
         "otp" -> SensitiveStep(
             "otp",
-            "محتاج رمز التحقق منك",
-            "الصفحة وصلت لخطوة OTP / 2FA. اكتب الكود بنفسك هنا. متبعتش رمز التحقق للوكيل، وبعد ما تخلص يقدر يكمل باقي المهمة."
+            "Your verification code is needed",
+            "This page reached an OTP / 2FA step. Enter the code yourself here. Do not send verification codes to the agent; once you finish, the agent can continue the rest of the task."
         )
         "captcha" -> SensitiveStep(
             "captcha",
-            "محتاجك تحل خطوة التحقق",
-            "الموقع طالب CAPTCHA أو تحقق بشري. استلم التحكم وحلّه بنفسك، وبعدها سيب الوكيل يكمل."
+            "Human verification required",
+            "The site requires a CAPTCHA or another human verification step. Take control and complete it yourself, then let the agent continue."
         )
         "payment" -> SensitiveStep(
             "payment",
-            "خطوة دفع حساسة",
-            "لقيت حقول بيانات دفع. أدخل بياناتك بنفسك داخل الموقع. Omni مش هيطلب رقم البطاقة أو CVV في الشات."
+            "Sensitive payment step",
+            "Payment fields were detected. Enter the payment details yourself on the website. Omni will not ask for a card number or CVV in chat."
         )
         else -> null
     }
@@ -409,10 +409,10 @@ internal object BrowserRuntimeOptimizer {
         AlertDialog.Builder(activity)
             .setTitle(step.title)
             .setMessage(step.message)
-            .setPositiveButton("استلم التحكم") { _, _ ->
+            .setPositiveButton("Take control") { _, _ ->
                 focusSensitiveField(webView, step.kind)
             }
-            .setNegativeButton("لاحقًا", null)
+            .setNegativeButton("Later", null)
             .setCancelable(true)
             .show()
     }
@@ -473,10 +473,10 @@ internal object BrowserRuntimeOptimizer {
         AlertDialog.Builder(activity)
             .setTitle(issue.title)
             .setMessage(issue.message)
-            .setPositiveButton("فتح في المتصفح الآمن") { _, _ ->
+            .setPositiveButton("Open in secure browser") { _, _ ->
                 openInSecureBrowser(activity, currentUrl)
             }
-            .setNegativeButton("متابعة هنا", null)
+            .setNegativeButton("Continue here", null)
             .show()
     }
 
@@ -490,7 +490,7 @@ internal object BrowserRuntimeOptimizer {
             return AuthCompatibilityIssue(
                 key = "google-embedded-signin",
                 title = "Google Sign-in",
-                message = "Google بيرفض تسجيل الدخول من WebView مضمّن لأسباب أمان. افتح خطوة تسجيل الدخول في Custom Tab/المتصفح الآمن، وبعد نجاحها ارجع لـ OmniDev. تغيير User-Agent مش حل آمن للمشكلة دي."
+                message = "Google blocks sign-in from an embedded WebView for security reasons. Open the sign-in step in a Custom Tab or secure browser, then return to OmniDev after it succeeds. Changing the User-Agent is not a safe fix for this restriction."
             )
         }
 
@@ -503,7 +503,7 @@ internal object BrowserRuntimeOptimizer {
             return AuthCompatibilityIssue(
                 key = "github-third-party-passkey",
                 title = "GitHub 2FA / Passkey",
-                message = "Passkey على GitHub محتاج صلاحيات WebAuthn لمتصفح يتعامل مع مواقع طرف ثالث. افتحها في المتصفح الآمن، أو استخدم TOTP / recovery code بنفسك داخل الجلسة. Omni مش هيطلب منك الكود أو كلمة المرور في الشات."
+                message = "GitHub passkeys require WebAuthn capabilities that can operate with third-party websites. Open this step in the secure browser, or enter a TOTP / recovery code yourself in the session. Omni will not ask for the code or your password in chat."
             )
         }
 
