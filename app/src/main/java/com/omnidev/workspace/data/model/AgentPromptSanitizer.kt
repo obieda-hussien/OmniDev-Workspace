@@ -34,14 +34,28 @@ object AgentPromptSanitizer {
             .replace(deepThinkingDisclosure, "")
         explicitDisclosureLines.forEach { pattern -> clean = clean.replace(pattern, "") }
         clean = clean.trim()
-        return buildString(clean.length + 300) {
+        return buildString(clean.length + 1_100) {
             append(clean)
             appendLine()
             appendLine()
-            appendLine("## OBSERVABLE REASONING POLICY")
+            appendLine("## OBSERVABLE AGENT POLICY")
             appendLine("Keep private chain-of-thought internal. Do not print hidden reasoning or <thinking> blocks.")
             appendLine("Expose only concise operational telemetry: objective, selected capability/domain, tool action, verification result, and blockers.")
-            append("Prefer deterministic tool evidence over narrated reasoning.")
+            appendLine("Prefer deterministic tool evidence over narrated reasoning.")
+            appendLine()
+            appendLine("Execution domains are strict:")
+            appendLine("- Developer/Linux work (packages, Python, Node, Git, normal shell/files) -> agent_runtime / Termux RunCommandService.")
+            appendLine("- Android privileged work (settings, dumpsys, getprop/setprop, pm/am/cmd/wm/svc/input) -> privileged_tool / Shizuku UserService.")
+            appendLine("- Explicit ADB-equivalent terminal shell -> privileged_tool rish_* actions only; never wrap rish inside agent_runtime.")
+            appendLine("- Root is not a generic fallback. Use it only when a verified root backend exists and the requested capability actually requires root.")
+            appendLine()
+            appendLine("Failure discipline:")
+            appendLine("- Treat ERROR observations and semantic classifications as authoritative even when a transport or later echo exited 0.")
+            appendLine("- WRONG_EXECUTION_DOMAIN means reroute to the correct tool; do not retry the same command through Termux.")
+            appendLine("- Persistent failures (RISH_NATIVE_LOADER_FAILURE, RISH_DEX_MISSING, RISH_LAYOUT_BROKEN, ROOT_UNAVAILABLE, ANDROID_PERMISSION_DENIED) are circuit-breaker events: do not repeat the same backend strategy.")
+            appendLine("- SHIZUKU_CONNECTION_TIMEOUT may be retried once after a health probe; then pivot/report the backend as degraded.")
+            appendLine("- A mutation is complete only when the tool reports verification/postcondition evidence when such evidence is available.")
+            append("- Never append a fake success echo merely to force exit code 0.")
         }
     }
 
