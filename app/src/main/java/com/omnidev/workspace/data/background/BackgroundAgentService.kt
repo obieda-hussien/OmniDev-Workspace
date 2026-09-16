@@ -1,5 +1,6 @@
 package com.omnidev.workspace.data.background
 
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -20,10 +21,10 @@ import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.domain.engine.AgentEvent
+import com.omnidev.workspace.domain.engine.AgentRuntime
 import com.omnidev.workspace.domain.engine.ChatToolLoop
 import com.omnidev.workspace.domain.engine.OmniMode
 import com.omnidev.workspace.domain.engine.SwarmEvent
-import com.omnidev.workspace.domain.engine.AgentRuntime
 import com.omnidev.workspace.registry.ModelRegistry
 import com.omnidev.workspace.ui.chat.AgentConsoleEntry
 import com.omnidev.workspace.ui.chat.consoleEntry
@@ -48,11 +49,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * event is checkpointed to Room + [BackgroundAgentRunStore], and a persistent notification
  * mirrors the same progress the in-app console sees.
  *
- * The service intentionally serializes runs. Long AI/tool workloads compete heavily for radio,
- * CPU, provider rate limits, terminal state, and project files; bounded serial execution is more
- * reliable than allowing multiple autonomous writers to race. Additional runs remain persisted
- * as QUEUED and are drained automatically.
+ * Runs are intentionally serialized. Autonomous writers sharing project files, terminals,
+ * provider rate limits and Android state are safer and more predictable when queued rather
+ * than racing. Additional requests remain durably QUEUED and drain automatically.
  */
+@SuppressLint("MissingPermission")
 class BackgroundAgentService : Service() {
 
     companion object {
@@ -68,6 +69,10 @@ class BackgroundAgentService : Service() {
         private const val NOTIFICATION_INTERVAL_MS = 700L
         private const val WAKELOCK_RENEW_MS = 20L * 60 * 1000
         private const val MAX_NOTIFICATION_PREVIEW = 220
+        private const val CHAT_BACKGROUND_SYSTEM_PROMPT =
+            "You are Omni, a concise assistant running in OmniDev's durable background chat runtime. " +
+                "You may use the supplied web tools when useful. Complete the user's request autonomously, " +
+                "report tool failures accurately, and never assume a side effect succeeded without verification."
 
         fun enqueue(
             context: Context,
@@ -88,15 +93,15 @@ class BackgroundAgentService : Service() {
                 toolAccessMode = toolAccessMode
             )
             BackgroundAgentRunBus.publish(run)
-            val intent = Intent(context, BackgroundAgentService::class.java).apply {
-                action = ACTION_ENQUEUE
-                putExtra(EXTRA_RUN_ID, run.id)
-            }
-            ContextCompat.startForegroundService(context, intent)
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, BackgroundAgentService::class.java)
+                    .setAction(ACTION_ENQUEUE)
+                    .putExtra(EXTRA_RUN_ID, run.id)
+            )
             return run.id
         }
 
-        /** Restart/recover every non-terminal run from its durable chat checkpoint. */
         fun recover(context: Context) {
             val store = BackgroundAgentRunStore(context)
             if (store.recoverable().isEmpty()) return
@@ -139,6 +144,7 @@ class BackgroundAgentService : Service() {
         store = BackgroundAgentRunStore(applicationContext)
         notifications = NotificationManagerCompat.from(this)
         createChannel()
+        store.pruneTerminal()
         BackgroundAgentRunBus.publishAll(store.all())
         startForegroundCompat(BOOTSTRAP_NOTIFICATION_ID, bootstrapNotification("Preparing background agent…"))
     }
@@ -158,8 +164,6 @@ class BackgroundAgentService : Service() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // Do NOT cancel: removing OmniDev from Recents is explicitly supported.
-        // START_REDELIVER_INTENT + the durable ledger allow Android to recreate us if needed.
         super.onTaskRemoved(rootIntent)
     }
 
@@ -185,9 +189,8 @@ class BackgroundAgentService : Service() {
                 }
             } finally {
                 draining.set(false)
-                if (store.active().isNotEmpty()) {
-                    drain()
-                } else {
+                if (store.active().isNotEmpty()) drain()
+                else {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
                 }
@@ -211,13 +214,12 @@ class BackgroundAgentService : Service() {
         acquireWakeLock(started.id)
         val notificationId = notificationId(started.id)
         startForegroundCompat(notificationId, runningNotification(started))
-        notifications.cancel(BOOTSTRAP_NOTIFICATION_ID)
+        notifyCancel(BOOTSTRAP_NOTIFICATION_ID)
 
         val execution = scope.launch { runPipeline(started, notificationId) }
         activeExecution = execution
-        try {
-            execution.join()
-        } finally {
+        try { execution.join() }
+        finally {
             activeExecution = null
             activeRunId = null
             releaseWakeLock()
@@ -235,28 +237,22 @@ class BackgroundAgentService : Service() {
             return
         }
 
-        val loaded = runtime.chatRepository.loadMessages(runAtStart.sessionId).first
+        val (loaded, consoleMap) = runtime.chatRepository.loadMessages(runAtStart.sessionId)
         val existingRun = store.get(runAtStart.id) ?: runAtStart
         var assistant = ChatMessage(
             role = MessageRole.ASSISTANT,
             content = existingRun.partialOutput.ifBlank { "Background task is running…" },
             messageId = existingRun.assistantMessageId ?: java.util.UUID.randomUUID().toString()
         )
-        val assistantRow = if (existingRun.assistantRowId >= 0L) {
-            existingRun.assistantRowId
-        } else {
-            runtime.chatRepository.saveMessage(runAtStart.sessionId, assistant)
-        }
+        val assistantRow = if (existingRun.assistantRowId >= 0L) existingRun.assistantRowId
+        else runtime.chatRepository.saveMessage(runAtStart.sessionId, assistant)
+
         store.update(runAtStart.id) {
             it.copy(assistantRowId = assistantRow, assistantMessageId = assistant.messageId)
         }?.let(BackgroundAgentRunBus::publish)
 
-        var console = loaded
-            .zip(runtime.chatRepository.loadMessages(runAtStart.sessionId).second.values)
-            .firstOrNull { it.first.messageId == assistant.messageId }
-            ?.second
-            .orEmpty()
-            .toMutableList()
+        val persistedAssistant = loaded.firstOrNull { it.messageId == assistant.messageId }
+        var console = persistedAssistant?.let { consoleMap[it.timestamp] }.orEmpty().toMutableList()
         var partial = existingRun.partialOutput
         var finalAnswer: String? = null
         var fatalError: String? = null
@@ -269,8 +265,6 @@ class BackgroundAgentService : Service() {
             runtime.chatRepository.updateRun(assistantRow, assistant, console)
             store.update(runAtStart.id) {
                 it.copy(
-                    status = if (it.status == BackgroundAgentRunStore.Status.RECOVERING)
-                        BackgroundAgentRunStore.Status.RECOVERING else BackgroundAgentRunStore.Status.RUNNING,
                     progressText = progress,
                     partialOutput = partial.take(100_000),
                     assistantRowId = assistantRow,
@@ -330,6 +324,7 @@ class BackgroundAgentService : Service() {
                         }
                     )
                     finalAnswer = result.content
+                    partial = result.content
                     assistant = assistant.copy(content = result.content, executionRequest = result.request)
                 }
 
@@ -356,10 +351,7 @@ class BackgroundAgentService : Service() {
                                 console += AgentConsoleEntry.ResultEntry(event.toolName, event.output.take(220), event.isError)
                                 checkpoint(if (event.isError) "Tool error: ${event.toolName}" else "Completed ${event.toolName}", true)
                             }
-                            is SwarmEvent.WorkerStreamChunk -> {
-                                partial += event.delta
-                                checkpoint("Worker responding…")
-                            }
+                            is SwarmEvent.WorkerStreamChunk -> { partial += event.delta; checkpoint("Worker responding…") }
                             is SwarmEvent.TaskCompleted -> checkpoint("Stage completed", true)
                             is SwarmEvent.TaskFailed -> checkpoint("Stage failed: ${event.error.take(100)}", true)
                             is SwarmEvent.TaskSkipped -> checkpoint("Stage skipped: ${event.reason.take(100)}", true)
@@ -404,7 +396,6 @@ class BackgroundAgentService : Service() {
                 console += AgentConsoleEntry.ReplyEntry()
                 runtime.chatRepository.updateRun(assistantRow, assistant, console)
                 runtime.chatRepository.updateSessionRunStatus(runAtStart.sessionId, "Completed")
-                runtime.chatRepository.touchSession(runAtStart.sessionId, loaded.firstOrNull()?.content?.take(60).orEmpty().ifBlank { "Conversation" })
                 val finished = store.update(runAtStart.id) {
                     it.copy(
                         status = BackgroundAgentRunStore.Status.COMPLETED,
@@ -427,7 +418,6 @@ class BackgroundAgentService : Service() {
                     runtime.chatRepository.updateRun(assistantRow, assistant, console)
                     runtime.chatRepository.updateSessionRunStatus(runAtStart.sessionId, "Cancelled")
                 } else {
-                    // Service/process cancellation is recoverable, not a task failure.
                     store.markRecovering(runAtStart.id)?.let(BackgroundAgentRunBus::publish)
                     runtime.chatRepository.updateRun(assistantRow, assistant.copy(content = partial.ifBlank { "Recovering background run…" }), console)
                 }
@@ -458,11 +448,10 @@ class BackgroundAgentService : Service() {
             )
         } ?: return
         if (runtime != null && assistant != null && assistantRow >= 0) {
-            val errorEntry = AgentConsoleEntry.ErrorEntry(message.take(500))
             runtime.chatRepository.updateRun(
                 assistantRow,
                 assistant.copy(content = partial.ifBlank { "Background run failed: $message" }),
-                console + errorEntry
+                console + AgentConsoleEntry.ErrorEntry(message.take(500))
             )
             runtime.chatRepository.updateSessionRunStatus(failed.sessionId, "Failed")
         }
@@ -481,7 +470,7 @@ class BackgroundAgentService : Service() {
         }
         cancelled?.let {
             BackgroundAgentRunBus.publish(it)
-            notifications.notify(notificationId(it.id), terminalNotification(it, success = false, cancelled = true))
+            notifySafe(notificationId(it.id), terminalNotification(it, success = false, cancelled = true))
         }
         if (activeRunId == runId) activeExecution?.cancel(CancellationException("User cancelled background run"))
     }
@@ -505,112 +494,65 @@ class BackgroundAgentService : Service() {
         val now = System.currentTimeMillis()
         if (now - lastNotificationAt < NOTIFICATION_INTERVAL_MS) return
         lastNotificationAt = now
-        notifications.notify(id, runningNotification(run))
+        notifySafe(id, runningNotification(run))
     }
 
     private fun runningNotification(run: BackgroundAgentRunStore.Run): android.app.Notification {
-        val open = PendingIntent.getActivity(
-            this,
-            run.sessionId.hashCode(),
-            chatIntent(this, run.sessionId),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
+        val open = PendingIntent.getActivity(this, run.sessionId.hashCode(), chatIntent(this, run.sessionId), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val cancel = PendingIntent.getService(
             this,
             run.id.hashCode(),
-            Intent(this, BackgroundAgentService::class.java)
-                .setAction(ACTION_CANCEL)
-                .putExtra(EXTRA_RUN_ID, run.id),
+            Intent(this, BackgroundAgentService::class.java).setAction(ACTION_CANCEL).putExtra(EXTRA_RUN_ID, run.id),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        val detail = run.partialOutput.lineSequence().lastOrNull { it.isNotBlank() }?.take(MAX_NOTIFICATION_PREVIEW)
-            ?: run.progressText
+        val detail = run.partialOutput.lineSequence().lastOrNull { it.isNotBlank() }?.take(MAX_NOTIFICATION_PREVIEW) ?: run.progressText
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(if (run.status == BackgroundAgentRunStore.Status.RECOVERING) "Omni is recovering your task" else "Omni is working in the background")
             .setContentText(run.progressText)
             .setStyle(NotificationCompat.BigTextStyle().bigText("${run.progressText}\n$detail"))
-            .setOngoing(true)
-            .setOnlyAlertOnce(true)
-            .setSilent(true)
-            .setProgress(0, 0, true)
-            .setContentIntent(open)
-            .addAction(0, "Stop", cancel)
-            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
-            .build()
+            .setOngoing(true).setOnlyAlertOnce(true).setSilent(true).setProgress(0, 0, true)
+            .setContentIntent(open).addAction(0, "Stop", cancel)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS).build()
     }
 
-    private fun terminalNotification(
-        run: BackgroundAgentRunStore.Run,
-        success: Boolean,
-        cancelled: Boolean = false
-    ): android.app.Notification {
-        val open = PendingIntent.getActivity(
-            this,
-            run.sessionId.hashCode(),
-            chatIntent(this, run.sessionId),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-        val title = when {
-            cancelled -> "Omni task cancelled"
-            success -> "Omni finished your task"
-            else -> "Omni task needs attention"
-        }
-        val body = when {
-            cancelled -> run.partialOutput.ifBlank { "The background run was stopped." }
-            success -> run.partialOutput.ifBlank { "Task completed." }
-            else -> run.lastError ?: "Task failed."
-        }.take(MAX_NOTIFICATION_PREVIEW)
+    private fun terminalNotification(run: BackgroundAgentRunStore.Run, success: Boolean, cancelled: Boolean = false): android.app.Notification {
+        val open = PendingIntent.getActivity(this, run.sessionId.hashCode(), chatIntent(this, run.sessionId), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val title = when { cancelled -> "Omni task cancelled"; success -> "Omni finished your task"; else -> "Omni task needs attention" }
+        val body = when { cancelled -> run.partialOutput.ifBlank { "The background run was stopped." }; success -> run.partialOutput.ifBlank { "Task completed." }; else -> run.lastError ?: "Task failed." }.take(MAX_NOTIFICATION_PREVIEW)
         return NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setOngoing(false)
-            .setAutoCancel(true)
-            .setContentIntent(open)
-            .setCategory(NotificationCompat.CATEGORY_STATUS)
-            .build()
+            .setSmallIcon(R.drawable.ic_launcher_foreground).setContentTitle(title).setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body)).setOngoing(false).setAutoCancel(true)
+            .setContentIntent(open).setCategory(NotificationCompat.CATEGORY_STATUS).build()
     }
 
     private fun detachAndPostTerminal(id: Int, run: BackgroundAgentRunStore.Run, success: Boolean) {
         stopForeground(STOP_FOREGROUND_DETACH)
-        notifications.notify(id, terminalNotification(run, success))
+        notifySafe(id, terminalNotification(run, success))
     }
 
-    private fun bootstrapNotification(text: String): android.app.Notification =
-        NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Omni background runtime")
-            .setContentText(text)
-            .setOngoing(true)
-            .setSilent(true)
-            .setProgress(0, 0, true)
-            .build()
+    private fun bootstrapNotification(text: String): android.app.Notification = NotificationCompat.Builder(this, CHANNEL_ID)
+        .setSmallIcon(R.drawable.ic_launcher_foreground).setContentTitle("Omni background runtime")
+        .setContentText(text).setOngoing(true).setSilent(true).setProgress(0, 0, true).build()
 
     private fun createChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Background Agent",
-            NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = "Live progress for user-started Omni chat and agent tasks"
-            setShowBadge(false)
-        }
-        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel(CHANNEL_ID, "Background Agent", NotificationManager.IMPORTANCE_LOW).apply {
+                description = "Live progress for user-started Omni chat and agent tasks"
+                setShowBadge(false)
+            }
+        )
     }
 
     private fun startForegroundCompat(id: Int, notification: android.app.Notification) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-        } else {
-            startForeground(id, notification)
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) startForeground(id, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        else startForeground(id, notification)
     }
 
-    private fun notificationId(runId: String): Int =
-        RUN_NOTIFICATION_BASE + kotlin.math.abs(runId.hashCode() % RUN_NOTIFICATION_RANGE)
+    private fun notifySafe(id: Int, notification: android.app.Notification) { runCatching { notifications.notify(id, notification) } }
+    private fun notifyCancel(id: Int) { runCatching { notifications.cancel(id) } }
+    private fun notificationId(runId: String): Int = RUN_NOTIFICATION_BASE + kotlin.math.abs(runId.hashCode() % RUN_NOTIFICATION_RANGE)
 
     @Suppress("WakelockTimeout")
     private fun acquireWakeLock(runId: String) {
@@ -636,12 +578,5 @@ class BackgroundAgentService : Service() {
     private fun releaseWakeLock() {
         runCatching { wakeLock?.takeIf { it.isHeld }?.release() }
         wakeLock = null
-    }
-
-    private companion object Prompt {
-        const val CHAT_BACKGROUND_SYSTEM_PROMPT =
-            "You are Omni, a concise assistant running in OmniDev's durable background chat runtime. " +
-            "You may use the supplied web tools when useful. Complete the user's request autonomously, " +
-            "report tool failures accurately, and never assume a side effect succeeded without verification."
     }
 }
