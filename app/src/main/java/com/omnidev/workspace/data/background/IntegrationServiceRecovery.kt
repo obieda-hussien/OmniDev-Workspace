@@ -24,23 +24,28 @@ object IntegrationServiceRecovery {
     private const val TAG = "IntegrationRecovery"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    fun recoverEnabled(context: Context, reason: String) {
+    /** Fire-and-forget entry point for non-suspending lifecycle callbacks. */
+    fun kick(context: Context, reason: String) {
         val app = context.applicationContext
-        scope.launch {
-            val settings = SettingsRepository(app)
-            val discordEnabled = runCatching {
-                settings.observeDiscordListenerEnabled().first()
-            }.getOrDefault(false)
-            val whatsAppEnabled = runCatching {
-                settings.observeWhatsAppBridgeEnabled().first()
-            }.getOrDefault(false)
+        scope.launch { recoverEnabledNow(app, reason) }
+    }
 
-            if (discordEnabled) {
-                startServiceSafely(app, DiscordPollingService::class.java, "Discord", reason)
-            }
-            if (whatsAppEnabled) {
-                startServiceSafely(app, WhatsAppBridgeService::class.java, "WhatsApp", reason)
-            }
+    /** Awaitable entry point used by WorkManager so the process stays alive until starts are sent. */
+    suspend fun recoverEnabledNow(context: Context, reason: String) {
+        val app = context.applicationContext
+        val settings = SettingsRepository(app)
+        val discordEnabled = runCatching {
+            settings.observeDiscordListenerEnabled().first()
+        }.getOrDefault(false)
+        val whatsAppEnabled = runCatching {
+            settings.observeWhatsAppBridgeEnabled().first()
+        }.getOrDefault(false)
+
+        if (discordEnabled && !DiscordPollingService.isRunning) {
+            startServiceSafely(app, DiscordPollingService::class.java, "Discord", reason)
+        }
+        if (whatsAppEnabled && !WhatsAppBridgeService.isRunning) {
+            startServiceSafely(app, WhatsAppBridgeService::class.java, "WhatsApp", reason)
         }
     }
 
