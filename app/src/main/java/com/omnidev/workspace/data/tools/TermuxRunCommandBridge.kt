@@ -77,7 +77,7 @@ object TermuxRunCommandBridge {
             "touch ~/.termux/termux.properties; " +
             "if grep -q '^allow-external-apps=' ~/.termux/termux.properties; then " +
             "sed -i 's/^allow-external-apps=.*/allow-external-apps=true/' ~/.termux/termux.properties; " +
-            "else printf '\\nallow-external-apps=true\\n' >> ~/.termux/termux.properties; fi; " +
+            "else printf '\nallow-external-apps=true\n' >> ~/.termux/termux.properties; fi; " +
             "termux-reload-settings"
 
     private val nextId = AtomicInteger(1)
@@ -98,8 +98,28 @@ object TermuxRunCommandBridge {
         val transportSucceeded: Boolean
             get() = internalErrorCode == TERMUX_RESULT_OK
 
+        /**
+         * Detects unambiguous failures hidden by a later successful shell command.
+         * Example: `settings put ...; echo SUCCESS` used to report success even when
+         * settings emitted SecurityException because bash returned echo's exit code.
+         */
+        val semanticFailureClassification: String?
+            get() = ToolExecutionSemantics.classifyText(
+                buildString {
+                    if (stdout.isNotBlank()) append(stdout)
+                    if (stderr.isNotBlank()) {
+                        if (isNotEmpty()) appendLine()
+                        append(stderr)
+                    }
+                    if (!internalError.isNullOrBlank()) {
+                        if (isNotEmpty()) appendLine()
+                        append(internalError)
+                    }
+                }
+            )
+
         val isSuccess: Boolean
-            get() = transportSucceeded && exitCode == 0
+            get() = transportSucceeded && exitCode == 0 && semanticFailureClassification == null
 
         val needsExternalAppsOptIn: Boolean
             get() = internalError?.contains("allow-external-apps", ignoreCase = true) == true
@@ -120,6 +140,10 @@ object TermuxRunCommandBridge {
                     appendLine()
                     append("OmniDev copied the one-time setup command to the clipboard. Open Termux, paste it, run it once, then retry.")
                 }
+            }
+            semanticFailureClassification?.let {
+                if (isNotEmpty()) appendLine()
+                append("[semantic_failure] ").append(it)
             }
             if (wasTruncated) {
                 if (isNotEmpty()) appendLine()
@@ -290,14 +314,15 @@ object TermuxRunCommandBridge {
             exitCode = bundle.getInt(RESULT_EXIT_CODE, -1),
             stdout = stdout,
             stderr = stderr,
-            // Official Termux RUN_COMMAND contract: Activity.RESULT_OK (-1) means
-            // there was no plugin/internal error.
-            internalErrorCode = bundle.getInt(RESULT_ERR, TERMUX_RESULT_OK),
-            internalError = bundle.getString(RESULT_ERRMSG),
             stdoutOriginalLength = stdoutOriginalLength,
-            stderrOriginalLength = stderrOriginalLength
+            stderrOriginalLength = stderrOriginalLength,
+            internalErrorCode = bundle.getInt(RESULT_ERR, TERMUX_RESULT_OK),
+            internalError = bundle.getString(RESULT_ERRMSG)
         )
-        Log.d(TAG, "Termux result id=$id exit=${result.exitCode} internal=${result.internalErrorCode}")
+        Log.d(
+            TAG,
+            "Termux result id=$id exit=${result.exitCode} internal=${result.internalErrorCode} semantic=${result.semanticFailureClassification}"
+        )
 
         if (result.needsExternalAppsOptIn) {
             presentExternalAppsSetup()
