@@ -3,18 +3,20 @@ package com.omnidev.workspace.data.tools.orchestration
 import com.omnidev.workspace.data.tools.ToolExecutionResult
 import com.omnidev.workspace.data.tools.ToolExecutionSemantics
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
 /**
- * ToolOrchestrator - Advanced Tool Coordination System
+ * ToolOrchestrator - Advanced Tool Coordination System.
  *
- * In addition to transport exceptions, ToolExecutionResult values are normalized
- * through [ToolExecutionSemantics]. This prevents a final shell `echo` or transport
- * success from turning SecurityException/permission/command failures into fake OKs.
+ * Transport exceptions and semantic failures deliberately use different circuit
+ * behavior. A transport circuit may block an unhealthy tool backend entirely.
+ * A semantic failure (wrong domain, permission denied, unsupported command, etc.)
+ * must be returned to the model so it can change strategy; it must NOT disable an
+ * otherwise healthy multi-purpose tool such as agent_runtime.
  */
 class ToolOrchestrator {
 
@@ -29,10 +31,14 @@ class ToolOrchestrator {
         )
 
         private const val LONG_RUNNING_TIMEOUT_MS = 12 * 60_000L
+        private const val PERSISTENT_SEMANTIC_REPEAT_THRESHOLD = 2
     }
 
     private val executionCache = ConcurrentHashMap<String, CachedResult>()
+    /** Circuit for transport/execution exceptions only. */
     private val circuitBreakers = ConcurrentHashMap<String, CircuitBreaker>()
+    /** Counts repeated persistent semantic classifications without globally blocking a tool. */
+    private val semanticFailureCounts = ConcurrentHashMap<String, AtomicInteger>()
     private val executionMetrics = ConcurrentHashMap<String, ToolMetrics>()
 
     data class CachedResult(
@@ -107,7 +113,7 @@ class ToolOrchestrator {
         }
     }
 
-    /** Execute a tool with caching, semantic normalization, circuit breaker, and metrics. */
+    /** Execute a tool with caching, semantic normalization, circuit breakers, and metrics. */
     suspend fun <T> executeTool(
         toolName: String,
         cacheKey: String? = null,
@@ -131,7 +137,7 @@ class ToolOrchestrator {
         val breaker = circuitBreakers.getOrPut(toolName) { CircuitBreaker() }
         if (!breaker.canExecute()) {
             return@withContext Result.failure(
-                Exception("Circuit breaker OPEN for tool: $toolName")
+                Exception("Transport circuit breaker OPEN for tool: $toolName")
             )
         }
 
@@ -148,14 +154,13 @@ class ToolOrchestrator {
             result = try {
                 val rawOutput = withTimeout(effectiveTimeoutMs) { execution() }
                 @Suppress("UNCHECKED_CAST")
-                val output: T = if (rawOutput is ToolExecutionResult) {
+                var output: T = if (rawOutput is ToolExecutionResult) {
                     ToolExecutionSemantics.normalize(toolName, rawOutput) as T
                 } else rawOutput
 
-                val toolResult = output as? ToolExecutionResult
+                var toolResult = output as? ToolExecutionResult
                 semanticFailure = toolResult?.isError == true
                 if (semanticFailure) {
-                    breaker.recordFailure()
                     metrics.failureCount++
                     metrics.consecutiveFailures++
                     metrics.lastError = buildString {
@@ -164,16 +169,40 @@ class ToolOrchestrator {
                             append(": ").append(it.take(300))
                         }
                     }
+
+                    if (toolResult != null && ToolExecutionSemantics.isPersistentFailure(toolResult)) {
+                        val key = "$toolName:${toolResult.classification ?: "PERSISTENT"}"
+                        val repeated = semanticFailureCounts
+                            .getOrPut(key) { AtomicInteger(0) }
+                            .incrementAndGet()
+                        if (repeated >= PERSISTENT_SEMANTIC_REPEAT_THRESHOLD) {
+                            val warning =
+                                "[semantic-circuit] repeated=$repeated class=${toolResult.classification} " +
+                                    "— DO NOT retry the same backend strategy; change execution domain/capability or report the blocker."
+                            val decorated = toolResult.copy(
+                                output = insertAfterTelemetry(toolResult.output, warning),
+                                retryable = false,
+                                persistentFailure = true
+                            )
+                            toolResult = decorated
+                            @Suppress("UNCHECKED_CAST")
+                            run { output = decorated as T }
+                        }
+                    }
+                    // Semantic failure proves the transport itself worked, so do not
+                    // poison/open the broad tool transport circuit.
+                    breaker.recordSuccess()
                 } else {
                     breaker.recordSuccess()
                     metrics.successCount++
                     metrics.consecutiveFailures = 0
                     metrics.lastError = null
+                    clearSemanticFailureCounts(toolName)
                 }
-                // Semantic failures are observations, not transport exceptions: return
-                // them to the model once so it can pivot instead of auto-retrying blindly.
+
                 Result.success(output)
             } catch (e: Exception) {
+                // Only real transport/execution exceptions consume the broad retry/circuit budget.
                 breaker.recordFailure()
                 metrics.failureCount++
                 metrics.consecutiveFailures++
@@ -206,6 +235,17 @@ class ToolOrchestrator {
         }
 
         result
+    }
+
+    private fun insertAfterTelemetry(output: String, message: String): String {
+        val newline = output.indexOf('\n')
+        return if (newline < 0) "$output\n$message"
+        else output.substring(0, newline + 1) + message + "\n" + output.substring(newline + 1)
+    }
+
+    private fun clearSemanticFailureCounts(toolName: String) {
+        val prefix = "$toolName:"
+        semanticFailureCounts.keys.removeAll { it.startsWith(prefix) }
     }
 
     suspend fun executeParallel(
@@ -259,5 +299,6 @@ class ToolOrchestrator {
             it.state = CircuitState.CLOSED
             it.failureCount = 0
         }
+        clearSemanticFailureCounts(toolName)
     }
 }
