@@ -71,6 +71,7 @@ object TermuxRunCommandBridge {
     private const val MAX_TIMEOUT_MS = 20 * 60_000L
     private const val PERMISSION_WAIT_MS = 15_000L
     private const val PERMISSION_POLL_MS = 200L
+    private const val AGENT_TERMINAL_LABEL = "OmniDev agent terminal"
 
     private const val ENABLE_EXTERNAL_APPS_COMMAND =
         "mkdir -p ~/.termux; " +
@@ -79,6 +80,21 @@ object TermuxRunCommandBridge {
             "sed -i 's/^allow-external-apps=.*/allow-external-apps=true/' ~/.termux/termux.properties; " +
             "else printf '\nallow-external-apps=true\n' >> ~/.termux/termux.properties; fi; " +
             "termux-reload-settings"
+
+    /**
+     * Commands that belong to Android's privileged shell domain, not Termux's
+     * untrusted app UID. This is only enforced for the general agent terminal;
+     * the dedicated rish manager uses its own label and is intentionally allowed.
+     */
+    private val ANDROID_PRIVILEGED_COMMAND = Regex(
+        pattern = "(?im)(?:^|[;&|]\\s*)(?:" +
+            "rish(?:\\s|$)|" +
+            "su\\s+-c(?:\\s|$)|" +
+            "settings\\s+(?:get|put|delete|list)\\b|" +
+            "dumpsys(?:\\s|$)|getprop(?:\\s|$)|setprop(?:\\s|$)|" +
+            "pm\\s+|am\\s+|cmd\\s+|wm\\s+|svc\\s+|input\\s+" +
+            ")"
+    )
 
     private val nextId = AtomicInteger(1)
     private val pending = ConcurrentHashMap<Int, CompletableDeferred<TermuxCommandResult>>()
@@ -188,14 +204,23 @@ object TermuxRunCommandBridge {
         cwd: String? = null,
         timeoutMs: Long = DEFAULT_TIMEOUT_MS,
         label: String = "OmniDev terminal"
-    ): TermuxCommandResult = execute(
-        executable = TERMUX_BASH,
-        arguments = arrayOf("-lc", script),
-        cwd = cwd ?: TERMUX_HOME,
-        timeoutMs = timeoutMs,
-        label = label,
-        description = "Command requested by OmniDev agent"
-    )
+    ): TermuxCommandResult {
+        if (label == AGENT_TERMINAL_LABEL && ANDROID_PRIVILEGED_COMMAND.containsMatchIn(script)) {
+            return setupFailure(
+                "WRONG_EXECUTION_DOMAIN: Android privileged commands must not run as the Termux app UID. " +
+                    "Use privileged_tool for settings/dumpsys/getprop/setprop/pm/am/cmd/wm/svc/input operations, " +
+                    "or privileged_tool action=rish_exec for an explicit ADB-equivalent rish command."
+            )
+        }
+        return execute(
+            executable = TERMUX_BASH,
+            arguments = arrayOf("-lc", script),
+            cwd = cwd ?: TERMUX_HOME,
+            timeoutMs = timeoutMs,
+            label = label,
+            description = "Command requested by OmniDev agent"
+        )
+    }
 
     suspend fun execute(
         executable: String,
