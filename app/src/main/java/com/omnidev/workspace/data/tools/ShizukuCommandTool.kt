@@ -12,16 +12,9 @@ import rikka.shizuku.Shizuku
 /**
  * Authoritative Shizuku command backend.
  *
- * Shizuku API 13 keeps newProcess() private/deprecated and recommends UserService
- * for privileged code. The previous implementation reflected into newProcess()
- * and silently fell back to Runtime.exec() under the app UID when reflection
- * failed. That produced false privilege success and was the root of many random
- * terminal/system failures.
- *
- * This implementation has one invariant: a command reported as a Shizuku success
- * was actually executed by [ShizukuUserServiceClient] in the Shizuku UserService
- * process (normally UID 2000/shell or UID 0/root), exited with code 0, and did not
- * emit a known fatal Android/shell failure signature.
+ * A command is only reported as success when it ran in the UserService process,
+ * exited 0, emitted no known fatal signature, and (for supported state mutations)
+ * passed a read-back postcondition check.
  */
 object ShizukuCommandTool {
 
@@ -31,6 +24,13 @@ object ShizukuCommandTool {
     private const val PERMISSION_WAIT_MS = 12_000L
     private const val PERMISSION_POLL_MS = 200L
     private const val MAX_OUTPUT_CHARS = 16_000
+
+    private val SETTINGS_PUT = Regex(
+        "(?i)(?:^|[;&]\\s*)settings\\s+put\\s+(system|secure|global)\\s+([A-Za-z0-9_.]+)\\s+([^;&\\n\\r]+)"
+    )
+    private val SETPROP = Regex(
+        "(?i)(?:^|[;&]\\s*)setprop\\s+([A-Za-z0-9._-]+)\\s+([^;&\\n\\r]+)"
+    )
 
     const val SHIZUKU_UNAVAILABLE_ERROR: String =
         "Shizuku is unavailable or unauthorized. Ensure Shizuku is running and permission is granted."
@@ -101,12 +101,29 @@ object ShizukuCommandTool {
                 semanticFailure != null -> ShizukuResult.Failure(
                     "$semanticFailure: ${output.ifBlank { "command emitted a fatal failure signature" }.take(2_000)}"
                 )
-                result.exitCode == 0 -> ShizukuResult.Success(output.ifBlank { "(no output)" })
-                result.exitCode == 127 || output.contains("not found", ignoreCase = true) ->
-                    ShizukuResult.Failure("Command not found (exit=${result.exitCode}): ${output.take(500)}")
-                else -> ShizukuResult.Failure(
-                    "Command failed (exit=${result.exitCode}): ${output.ifBlank { "(no output)" }.take(2_000)}"
-                )
+                result.exitCode != 0 -> {
+                    if (result.exitCode == 127 || output.contains("not found", ignoreCase = true)) {
+                        ShizukuResult.Failure("Command not found (exit=${result.exitCode}): ${output.take(500)}")
+                    } else {
+                        ShizukuResult.Failure(
+                            "Command failed (exit=${result.exitCode}): ${output.ifBlank { "(no output)" }.take(2_000)}"
+                        )
+                    }
+                }
+                else -> {
+                    when (val verification = verifySupportedMutation(command, timeoutMs)) {
+                        null -> ShizukuResult.Success(output.ifBlank { "(no output)" })
+                        is MutationVerification.Verified -> ShizukuResult.Success(
+                            buildString {
+                                if (output.isNotBlank()) append(output).appendLine()
+                                append("[verified] ").append(verification.evidence)
+                            }
+                        )
+                        is MutationVerification.Failed -> ShizukuResult.Failure(
+                            "POSTCONDITION_FAILED: ${verification.reason}"
+                        )
+                    }
+                }
             }
         } catch (e: SecurityException) {
             ShizukuResult.PermissionRequired("Shizuku denied permission: ${e.message}")
@@ -117,6 +134,78 @@ object ShizukuCommandTool {
                 "Shizuku UserService error: ${root.javaClass.simpleName}: ${root.message.orEmpty().take(300)}"
             )
         }
+    }
+
+    /**
+     * Verify state mutations that have a cheap authoritative read-back.
+     * Compound scripts may contain one supported mutation; each detected mutation
+     * is verified independently. Values are restricted by higher-level sanitizers.
+     */
+    private suspend fun verifySupportedMutation(
+        command: String,
+        timeoutMs: Long
+    ): MutationVerification? {
+        SETTINGS_PUT.find(command)?.let { match ->
+            val namespace = match.groupValues[1].lowercase()
+            val key = match.groupValues[2]
+            val expected = shellTokenValue(match.groupValues[3])
+            val probe = ShizukuUserServiceClient.execute(
+                "settings get $namespace $key",
+                timeoutMs.coerceAtMost(10_000L)
+            )
+            if (probe.timedOut || probe.error != null || probe.exitCode != 0) {
+                return MutationVerification.Failed(
+                    "settings put returned exit 0, but read-back failed for $namespace/$key: ${probe.mergedOutput().take(500)}"
+                )
+            }
+            val actual = probe.stdout.trim()
+            return if (actual == expected) {
+                MutationVerification.Verified("settings $namespace/$key=$actual")
+            } else {
+                MutationVerification.Failed(
+                    "settings $namespace/$key expected '$expected' but read-back returned '$actual'"
+                )
+            }
+        }
+
+        SETPROP.find(command)?.let { match ->
+            val key = match.groupValues[1]
+            val expected = shellTokenValue(match.groupValues[2])
+            val probe = ShizukuUserServiceClient.execute(
+                "getprop $key",
+                timeoutMs.coerceAtMost(10_000L)
+            )
+            if (probe.timedOut || probe.error != null || probe.exitCode != 0) {
+                return MutationVerification.Failed(
+                    "setprop returned exit 0, but getprop verification failed for $key: ${probe.mergedOutput().take(500)}"
+                )
+            }
+            val actual = probe.stdout.trim()
+            return if (actual == expected) {
+                MutationVerification.Verified("property $key=$actual")
+            } else {
+                MutationVerification.Failed(
+                    "property $key expected '$expected' but read-back returned '$actual'"
+                )
+            }
+        }
+        return null
+    }
+
+    private fun shellTokenValue(raw: String): String {
+        val trimmed = raw.trim()
+        return when {
+            trimmed.length >= 2 && trimmed.first() == '\'' && trimmed.last() == '\'' ->
+                trimmed.substring(1, trimmed.length - 1).replace("'\\''", "'")
+            trimmed.length >= 2 && trimmed.first() == '"' && trimmed.last() == '"' ->
+                trimmed.substring(1, trimmed.length - 1)
+            else -> trimmed
+        }
+    }
+
+    private sealed class MutationVerification {
+        data class Verified(val evidence: String) : MutationVerification()
+        data class Failed(val reason: String) : MutationVerification()
     }
 
     fun isAvailable(): Boolean = runCatching { Shizuku.pingBinder() }.getOrDefault(false)
