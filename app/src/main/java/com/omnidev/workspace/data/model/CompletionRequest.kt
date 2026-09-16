@@ -5,11 +5,6 @@ import kotlinx.serialization.Serializable
 
 /**
  * Represents a single message in the AI conversation, including tool calls and results.
- *
- * @property messageId Stable UUID string identifying this message. Generated on creation;
- *   restored from the database when loading past messages so references stay consistent.
- * @property replyToMessageId When non-null, this message is a reply to the message with the
- *   given [messageId]. Drives the WhatsApp-style quoted-reply UI and agent context injection.
  */
 @Serializable
 data class ChatMessage(
@@ -30,7 +25,6 @@ enum class MessageRole {
     USER, ASSISTANT, SYSTEM, TOOL
 }
 
-/** Represents a tool invocation requested by the AI model. */
 @Serializable
 data class ToolCall(
     val id: String,
@@ -40,7 +34,6 @@ data class ToolCall(
     val extraContent: kotlinx.serialization.json.JsonObject? = null
 )
 
-/** Represents the result of executing a tool call. */
 @Serializable
 data class ToolCallResult(
     val toolCallId: String,
@@ -49,7 +42,6 @@ data class ToolCallResult(
     val isError: Boolean = false
 )
 
-/** Metadata for an attached file (image, PDF, text, video). */
 @Serializable
 data class AttachmentMeta(
     val uri: String,
@@ -68,8 +60,10 @@ enum class AttachmentMediaType {
 /**
  * Payload sent to an AI completion endpoint.
  *
- * Request-boundary sanitization is intentionally centralized here so every
- * provider and every caller receives the same compact/observable agent policy.
+ * Request-boundary hygiene is centralized here so every provider/caller receives:
+ * - no replayed/private chain-of-thought,
+ * - the observable execution policy,
+ * - bounded/deduplicated native tool schemas.
  */
 @Serializable
 data class CompletionRequest(
@@ -82,8 +76,8 @@ data class CompletionRequest(
     val targetContext: String? = null,
     /** The resolved API key for the target provider. */
     val apiKey: String? = null,
-    /** Native function-calling definitions. */
-    val tools: List<ToolDefinition>? = null,
+    /** Native function-calling definitions, compacted in [init]. */
+    var tools: List<ToolDefinition>? = null,
     val customBaseUrl: String? = null,
     val customModelId: String? = null,
     /**
@@ -97,6 +91,7 @@ data class CompletionRequest(
     init {
         messages = AgentPromptSanitizer.sanitizeMessages(messages)
         systemPrompt = AgentPromptSanitizer.sanitizeSystemPrompt(systemPrompt)
+        tools = ToolSchemaCompactor.compact(tools, messages)
         onReasoning = null
     }
 }
@@ -127,7 +122,6 @@ data class TokenUsage(
     val totalTokens: Int = 0
 )
 
-/** Persisted UI action, created only by the structured mode-request tool. */
 @Serializable
 data class ExecutionModeRequest(
     val mode: String,
