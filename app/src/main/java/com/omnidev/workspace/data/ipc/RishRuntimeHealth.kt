@@ -44,7 +44,7 @@ object RishFailureClassifier {
         val text = output.lowercase()
 
         if (!transportSucceeded) {
-            return if (text.contains("termux") || text.contains("run_command")) {
+            return if (text.contains("termux") || text.contains("run_command") || text.contains("allow-external-apps")) {
                 RishRuntimeHealth.State.TERMUX_UNAVAILABLE
             } else {
                 RishRuntimeHealth.State.EXECUTION_FAILED
@@ -66,20 +66,21 @@ object RishFailureClassifier {
                 text.contains("command not found: rish") ->
                 RishRuntimeHealth.State.COMMAND_NOT_FOUND
 
-            text.contains("cannot find") && text.contains("rish_shizuku.dex") ||
+            (text.contains("cannot find") && text.contains("rish_shizuku.dex")) ||
                 text.contains("rish_shizuku.dex is unavailable") ->
                 RishRuntimeHealth.State.DEX_UNAVAILABLE
 
             text.contains("app_process cannot load writable dex") ||
-                text.contains("cannot remove the write permission") && text.contains("dex") ->
+                (text.contains("cannot remove the write permission") && text.contains("dex")) ->
                 RishRuntimeHealth.State.DEX_PERMISSION_FAILURE
 
-            text.contains("/data/user/0/com.omnidev.workspace") && text.contains("permission denied") ||
-                text.contains("/data/data/com.omnidev.workspace") && text.contains("permission denied") ->
+            (text.contains("/data/user/0/com.omnidev.workspace") && text.contains("permission denied")) ||
+                (text.contains("/data/data/com.omnidev.workspace") && text.contains("permission denied")) ->
                 RishRuntimeHealth.State.CROSS_SANDBOX_PERMISSION_FAILURE
 
-            text.contains("$prefix/bin/rish") && text.contains("is a directory") ||
-                text.contains("rish path is a directory") ->
+            (text.contains("/bin/rish") && text.contains("is a directory")) ||
+                text.contains("rish path is a directory") ||
+                text.contains("omnidev_rish_layout_error") ->
                 RishRuntimeHealth.State.TERMUX_LAYOUT_BROKEN
 
             text.contains("shizuku") && (
@@ -116,7 +117,7 @@ object RishFailureClassifier {
         RishRuntimeHealth.State.DEX_UNAVAILABLE ->
             "Open Shizuku → Use in terminal apps/export rish, or reinstall Shizuku so rish_shizuku.dex is available."
         RishRuntimeHealth.State.TERMUX_LAYOUT_BROKEN ->
-            "Re-run rish_setup. OmniDev will repair $PREFIX/bin/rish into a symlink and place script+dex under $PREFIX/opt/omnidev-rish."
+            "Re-run rish_setup. OmniDev will repair \$PREFIX/bin/rish into a symlink and place script+dex under \$PREFIX/opt/omnidev-rish."
         RishRuntimeHealth.State.COMMAND_NOT_FOUND ->
             "Re-run rish_setup to create the Termux executable/symlink."
         RishRuntimeHealth.State.NATIVE_LIBRARY_LOAD_FAILURE ->
