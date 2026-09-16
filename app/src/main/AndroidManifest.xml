@@ -213,9 +213,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
 
     <permission android:name="com.omnidev.permission.CONTROL_CORE" android:label="OmniDev Core Control" android:description="@string/perm_control_core_description" android:protectionLevel="signature" />
-
     <permission android:name="com.omnidev.permission.CONTROL_LAUNCHER" android:label="OmniDev Launcher Control" android:description="@string/perm_control_launcher_description" android:protectionLevel="normal" />
-
     <uses-permission android:name="com.omnidev.permission.CONTROL_LAUNCHER" />
     <uses-permission android:name="com.omnidev.permission.INTEGRATE_LAUNCHER" />
 
@@ -263,15 +261,16 @@
         </service>
 
         <service android:name=".data.vision.OmniScreenCaptureService" android:exported="false" android:foregroundServiceType="mediaProjection" />
-        <service android:name=".data.integration.TelegramPollingService" android:exported="false" android:directBootAware="true" android:foregroundServiceType="dataSync" />
 
-        <service android:name=".data.integration.DiscordPollingService" android:exported="false" android:directBootAware="true" android:foregroundServiceType="dataSync" />
-
-        <service android:name=".data.integration.WhatsAppBridgeService" android:exported="false" android:directBootAware="true" android:foregroundServiceType="dataSync" />
+        <service android:name=".data.integration.TelegramPollingService" android:exported="false" android:directBootAware="true" android:stopWithTask="false" android:foregroundServiceType="remoteMessaging" />
+        <service android:name=".data.integration.DiscordPollingService" android:exported="false" android:directBootAware="true" android:stopWithTask="false" android:foregroundServiceType="remoteMessaging" />
+        <service android:name=".data.integration.WhatsAppBridgeService" android:exported="false" android:directBootAware="true" android:stopWithTask="false" android:foregroundServiceType="remoteMessaging" />
 
         <service android:name=".data.media.OmniMediaSessionService" android:exported="false" android:foregroundServiceType="mediaPlayback" />
 
-        <service android:name=".data.sync.OmniSyncService" android:exported="false" android:directBootAware="true" android:foregroundServiceType="dataSync" />
+        <service android:name=".data.sync.OmniSyncService" android:exported="false" android:directBootAware="true" android:stopWithTask="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="continuous user-visible agent and scheduled-task orchestration with durable recovery" />
+        </service>
 
         <service android:name=".data.network.OmniDevVpnService" android:exported="false" android:directBootAware="true" android:foregroundServiceType="specialUse" android:permission="android.permission.BIND_VPN_SERVICE">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="vpn_monitor" />
@@ -293,10 +292,13 @@
             <intent-filter>
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.USER_UNLOCKED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
         </receiver>
+
+        <receiver android:name=".data.background.BackgroundRecoveryReceiver" android:exported="false" />
 
         <receiver android:name=".data.communication.OmniSmsReceiver" android:exported="true" android:directBootAware="true">
             <intent-filter android:priority="999">
@@ -306,6 +308,6 @@
 
         <receiver android:name=".data.tools.AlarmReceiver" android:exported="false" />
 
-    <receiver android:name=".data.system.BootCompletedReceiver" android:exported="true"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /><action android:name="android.intent.action.MY_PACKAGE_REPLACED" /></intent-filter></receiver></application>
+    </application>
 
 </manifest>
