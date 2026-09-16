@@ -60,7 +60,7 @@ fun SkillsSettingsPanel(
             scope.launch {
                 val result = withContext(Dispatchers.IO) { manager.importSkill(uri) }
                 status = result.fold(
-                    onSuccess = { "Imported ${it.name}" },
+                    onSuccess = { "Imported ${it.name} — enabled and ready for Omni." },
                     onFailure = { "Import failed: ${it.message ?: "invalid SKILL.md"}" }
                 )
                 refresh()
@@ -75,7 +75,7 @@ fun SkillsSettingsPanel(
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = "Bundled OmniDev operating skills plus your own SKILL.md files. Enabled skills are injected into Agent and Swarm context.",
+            text = "Reusable operating skills for Omni. Enabled skills are advertised to Agent and Swarm runs and loaded on demand when the task matches, so imported skills do not permanently bloat the model context.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -117,6 +117,11 @@ fun SkillsSettingsPanel(
                         skill = skill,
                         onEnabledChanged = { enabled ->
                             manager.setEnabled(skill.name, enabled)
+                            status = if (enabled) {
+                                "Enabled ${skill.name} — Omni can invoke it when relevant."
+                            } else {
+                                "Disabled ${skill.name}."
+                            }
                             refresh()
                         },
                         onDelete = if (skill.origin == SkillOrigin.USER) {
@@ -144,7 +149,7 @@ fun SkillsSettingsPanel(
         }
 
         Text(
-            text = "Built-in skills are read-only. Imported or Omni-created skills can be disabled or deleted. A user skill cannot replace a built-in skill with the same name.",
+            text = "Built-in skills are read-only. Imported or Omni-created skills use the same validated registry and can be enabled, disabled, or deleted here. Omni can list the registry and invoke any enabled skill by exact name during a task.",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -214,7 +219,7 @@ private fun CreateSkillDialog(
         text = {
             Column {
                 Text(
-                    "Describe the reusable capability or workflow you want. Omni will draft, validate, install, and enable the skill through the app's skill registry. Agent Mode still keeps the normal Target Context safety boundary."
+                    "Describe the reusable capability or workflow you want. Omni will draft a complete SKILL.md, validate it, install it into the same registry as imported skills, enable it, and verify that it can be invoked by name."
                 )
                 Spacer(Modifier.height(12.dp))
                 OutlinedTextField(
