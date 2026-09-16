@@ -229,7 +229,7 @@ printf 'rish_link=%s\n' "${'$'}BIN"
 
         val probe = """
 if [ -d "${'$'}PREFIX/bin/rish" ] && [ ! -L "${'$'}PREFIX/bin/rish" ]; then
-  echo 'OMNIDEV_RISH_LAYOUT_ERROR: $PREFIX/bin/rish is a directory'
+  echo 'OMNIDEV_RISH_LAYOUT_ERROR: ${'$'}PREFIX/bin/rish is a directory'
   exit 64
 fi
 if [ ! -x "${'$'}PREFIX/bin/rish" ]; then
