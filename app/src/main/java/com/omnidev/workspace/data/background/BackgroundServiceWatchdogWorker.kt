@@ -22,25 +22,28 @@ class BackgroundServiceWatchdogWorker(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
-        if (!BackgroundServiceSupervisor.hasDurableWork(applicationContext)) return Result.success()
-
         val force = inputData.getBoolean(KEY_FORCE_RECOVERY, false)
         val reason = inputData.getString(KEY_REASON)
             ?: if (force) "one_shot_watchdog" else "periodic_watchdog"
-        val heartbeatStale = BackgroundServiceSupervisor.heartbeatAgeMs(applicationContext) >=
-            BackgroundServiceSupervisor.STALE_HEARTBEAT_MS
-        val hasChatRuns = BackgroundChatTaskStore.active(applicationContext).isNotEmpty()
-
-        if (!force && !heartbeatStale && !hasChatRuns) return Result.success()
 
         return try {
-            val requested = BackgroundServiceSupervisor.recoverNow(applicationContext, reason)
-            if (requested) {
-                Log.i(TAG, "Background recovery requested: $reason")
-                Result.success()
-            } else {
-                Result.success()
+            // Messaging listeners have their own persisted enabled-state and should be repaired
+            // even when the central sync runtime was explicitly disabled by the user.
+            IntegrationServiceRecovery.recoverEnabledNow(applicationContext, reason)
+
+            if (!BackgroundServiceSupervisor.hasDurableWork(applicationContext)) {
+                return Result.success()
             }
+
+            val heartbeatStale = BackgroundServiceSupervisor.heartbeatAgeMs(applicationContext) >=
+                BackgroundServiceSupervisor.STALE_HEARTBEAT_MS
+            val hasChatRuns = BackgroundChatTaskStore.active(applicationContext).isNotEmpty()
+
+            if (!force && !heartbeatStale && !hasChatRuns) return Result.success()
+
+            val requested = BackgroundServiceSupervisor.recoverNow(applicationContext, reason)
+            if (requested) Log.i(TAG, "Background recovery requested: $reason")
+            Result.success()
         } catch (error: Throwable) {
             BackgroundServiceSupervisor.recordFailure(
                 applicationContext,
