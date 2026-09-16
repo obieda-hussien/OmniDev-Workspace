@@ -5,7 +5,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -22,10 +25,9 @@ import androidx.compose.ui.unit.dp
 /**
  * Agent Skills registry/settings screen.
  *
- * The old "Tool Arsenal" exposed a large static catalog of implementation tools
- * that the user could not meaningfully manage. Runtime tools remain internal to
- * the agent/tool router; this screen is intentionally focused on reusable skills
- * the user can import, create, enable, disable, and delete.
+ * Runtime tools remain internal to the router; this surface manages reusable
+ * Agent Skills. The content deliberately owns one vertical scroll container so
+ * a large installed-skill registry remains reachable on phones and small windows.
  *
  * The function name is kept for navigation/source compatibility.
  */
@@ -60,12 +62,14 @@ fun ToolRegistryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Spacer(Modifier.height(4.dp))
             SkillsSettingsPanel(onCreateWithOmni = onCreateSkillWithOmni)
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
