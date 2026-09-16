@@ -113,7 +113,7 @@ object RishFailureClassifier {
         RishRuntimeHealth.State.SHIZUKU_UNAVAILABLE ->
             "Start Shizuku, then retry. Programmatic privileged commands can use the UserService backend once it is healthy."
         RishRuntimeHealth.State.SHIZUKU_PERMISSION_REQUIRED ->
-            "Grant OmniDev permission in Shizuku, then retry."
+            "Grant Shizuku permission to the actual caller: Termux for terminal rish, and OmniDev for the UserService backend."
         RishRuntimeHealth.State.DEX_UNAVAILABLE ->
             "Open Shizuku → Use in terminal apps/export rish, or reinstall Shizuku so rish_shizuku.dex is available."
         RishRuntimeHealth.State.TERMUX_LAYOUT_BROKEN ->
@@ -121,8 +121,9 @@ object RishFailureClassifier {
         RishRuntimeHealth.State.COMMAND_NOT_FOUND ->
             "Re-run rish_setup to create the Termux executable/symlink."
         RishRuntimeHealth.State.NATIVE_LIBRARY_LOAD_FAILURE ->
-            "Known Shizuku/rish native-loader failure: do NOT copy librish.so or patch LD_LIBRARY_PATH/java.library.path. " +
-                "Use Shizuku UserService for OmniDev privileged commands; for terminal rish, re-export from a compatible Shizuku build."
+            "Shizuku/rish native-loader failure: do NOT copy librish.so or patch LD_LIBRARY_PATH/java.library.path. " +
+                "Use Shizuku UserService for OmniDev privileged commands. If the installed Shizuku build has a known rish loader regression, " +
+                "re-export rish after updating to a fixed build or use a known compatible Shizuku build; never mutate Shizuku's APK/native libraries from OmniDev."
         RishRuntimeHealth.State.CROSS_SANDBOX_PERMISSION_FAILURE ->
             "Do not execute OmniDev app-private rish files from Termux. Re-run rish_setup so files are installed inside Termux private storage."
         RishRuntimeHealth.State.DEX_PERMISSION_FAILURE ->
