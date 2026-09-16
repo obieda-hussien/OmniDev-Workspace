@@ -3,14 +3,11 @@ package com.omnidev.workspace.data.tools
 /**
  * Converts raw shell/tool observations into reliable semantic outcomes.
  *
- * The important invariant is: transport success or a final `echo` with exit 0
- * must never hide a strong failure emitted earlier in stderr. This classifier is
- * intentionally conservative and only upgrades results when the output contains
- * unambiguous failure signatures seen in Android/Termux/Shizuku execution.
- *
- * The normalized output begins with a compact machine/human readable telemetry
- * line so the existing Agent Console can display reliable PASS/FAIL metadata even
- * before it grows dedicated classification/backend UI fields.
+ * Transport success or a final `echo` must never hide an earlier shell failure,
+ * but data printed on stdout (for example a log file containing SecurityException)
+ * must not be mistaken for the current command failing. For nominally successful
+ * results, semantic classification is therefore restricted to explicit exit markers,
+ * stderr/internal-error sections and runtime-generated failure envelopes.
  */
 object ToolExecutionSemantics {
 
@@ -41,6 +38,7 @@ object ToolExecutionSemantics {
     fun normalize(toolName: String, result: ToolExecutionResult): ToolExecutionResult {
         val normalized = when {
             result.isError -> {
+                // The tool already declared failure, so its whole diagnostic payload is evidence.
                 val match = classifyMatch(result.output)
                 result.copy(
                     classification = result.classification ?: match?.classification ?: "TOOL_ERROR",
@@ -66,7 +64,10 @@ object ToolExecutionSemantics {
                         persistentFailure = match.persistent
                     )
                 } else {
-                    val match = classifyMatch(text)
+                    // Only inspect authoritative failure channels/envelopes here. Plain stdout
+                    // may intentionally contain old crash logs or source code with error text.
+                    val failureEvidence = failureSignalText(text)
+                    val match = failureEvidence?.let(::classifyMatch)
                     if (match == null) {
                         result.copy(
                             classification = result.classification ?: "SUCCESS",
@@ -88,10 +89,7 @@ object ToolExecutionSemantics {
         return compact(decorate(normalized))
     }
 
-    /**
-     * Strong failure signatures only. Do not classify generic words like "error"
-     * because tools may legitimately inspect logs or source code containing them.
-     */
+    /** Strong failure signatures used when the caller already knows the text is an error channel. */
     fun classifyText(text: String): String? = classifyMatch(text)?.classification
 
     fun isPersistentFailure(result: ToolExecutionResult): Boolean =
@@ -103,6 +101,34 @@ object ToolExecutionSemantics {
             "WRONG_EXECUTION_DOMAIN",
             "ANDROID_PERMISSION_DENIED"
         )
+
+    /**
+     * Extract only runtime-owned failure evidence from a mixed observation.
+     * This prevents `cat crash.log` from failing merely because stdout contains a stack trace.
+     */
+    private fun failureSignalText(text: String): String? {
+        val lower = text.lowercase()
+        val stderrMarker = "\n[stderr]\n"
+        val stderrIndex = lower.indexOf(stderrMarker)
+        if (stderrIndex >= 0) return text.substring(stderrIndex + stderrMarker.length)
+
+        val termuxMarker = "[termux]"
+        val termuxIndex = lower.indexOf(termuxMarker)
+        if (termuxIndex >= 0) return text.substring(termuxIndex)
+
+        val semanticMarker = "[semantic_failure]"
+        val semanticIndex = lower.indexOf(semanticMarker)
+        if (semanticIndex >= 0) return text.substring(semanticIndex)
+
+        val trimmed = text.trimStart()
+        if (trimmed.startsWith("❌") ||
+            trimmed.startsWith("Error:", ignoreCase = true) ||
+            trimmed.startsWith("WRONG_EXECUTION_DOMAIN", ignoreCase = true) ||
+            trimmed.startsWith("GITHUB_", ignoreCase = true)
+        ) return trimmed
+
+        return null
+    }
 
     private fun decorate(result: ToolExecutionResult): ToolExecutionResult {
         if (result.output.startsWith(TELEMETRY_PREFIX)) return result
@@ -149,8 +175,7 @@ object ToolExecutionSemantics {
                 lower.contains("\$prefix/bin/rish is a directory") ->
                 Match("RISH_LAYOUT_BROKEN", persistent = true)
 
-            lower.contains("no su program found") ||
-                lower.contains("su: not found") ->
+            lower.contains("no su program found") || lower.contains("su: not found") ->
                 Match("ROOT_UNAVAILABLE", persistent = true)
 
             lower.contains("securityexception") && lower.contains("permission denial") ->
