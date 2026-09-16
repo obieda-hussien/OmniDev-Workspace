@@ -12,8 +12,9 @@ import kotlinx.coroutines.withContext
  *
  * In addition to ordinary memories, `remember_fact(category=agent_skill)` is a
  * deliberately narrow installation bridge for agent-authored SKILL.md documents.
- * The document is validated by [SkillManager] and stored in the user-skill registry;
- * it is NOT inserted into the knowledge table.
+ * `search_knowledge` also acts as the stable on-demand skill invocation bridge:
+ *   - query="skills" lists installed skills
+ *   - query="skill:<exact-name>" loads that enabled skill into the current turn
  */
 class MemoryManager(private val knowledgeDao: KnowledgeDao) {
 
@@ -22,15 +23,16 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
         private const val MAX_INJECTED_PREFS = 10
         private const val MAX_SEARCH_RESULTS = 15
         private const val SKILL_CATEGORY = "agent_skill"
+        private const val SKILL_LIST_QUERY = "skills"
+        private const val SKILL_QUERY_PREFIX = "skill:"
     }
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "remember_fact",
             description = "Store a new fact, preference, or rule in long-term memory. " +
-                "Use this proactively for durable user/project knowledge. Special case: when the user explicitly asks " +
-                "to create/install an OmniDev Agent Skill, set category='agent_skill' and put the COMPLETE SKILL.md " +
-                "document in content; OmniDev validates and installs it as a user skill instead of storing it as memory.",
+                "Special case: when the user asks to create/install an OmniDev Agent Skill, set category='agent_skill' " +
+                "and put the COMPLETE SKILL.md document in content. OmniDev validates, installs, and enables it in the local skill registry.",
             parameters = listOf(
                 ToolParameter(
                     "content",
@@ -40,8 +42,7 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
                 ),
                 ToolParameter(
                     "category", "string",
-                    "Category: user_preference, project_rule, architecture, api_key_hint, general, or agent_skill. " +
-                        "Use agent_skill only for an explicitly requested reusable Agent Skill.",
+                    "Category: user_preference, project_rule, architecture, api_key_hint, general, or agent_skill.",
                     required = false
                 ),
                 ToolParameter(
@@ -53,12 +54,14 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
         ),
         ToolDefinition(
             name = "search_knowledge",
-            description = "Search long-term memory for stored facts, preferences, and rules. " +
-                "The database uses keyword matching, so pass 1-2 distinct keywords instead of a full question.",
+            description = "Search long-term memory OR use the local Agent Skills registry. " +
+                "Use query='skills' to list installed skills. When a skill matches the current task, invoke it with " +
+                "query='skill:<exact-skill-name>' BEFORE acting; the result returns the full current SKILL.md instructions. " +
+                "For ordinary memory search, pass 1-2 distinct keywords instead of a full question.",
             parameters = listOf(
                 ToolParameter(
                     "query", "string",
-                    "A keyword or short phrase to search for.",
+                    "Memory keyword, 'skills', or 'skill:<exact-skill-name>' for on-demand skill invocation.",
                     required = true
                 )
             )
@@ -101,7 +104,6 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
         val category = args["category"]?.takeIf { it.isNotBlank() }?.lowercase()?.trim() ?: "general"
 
         if (category == SKILL_CATEGORY) {
-            // Do not trim the markdown before writing; preserve formatting after validation.
             val manager = runCatching { SkillManager(OmniDevApp.instance.applicationContext) }
                 .getOrElse {
                     return ToolExecutionResult("Skill runtime is unavailable: ${it.message}", isError = true)
@@ -110,7 +112,8 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
                 onSuccess = { skill ->
                     ToolExecutionResult(
                         "✅ Agent Skill '${skill.name}' installed and enabled. " +
-                            "Manage it in Settings → Tool Arsenal → Agent Skills."
+                            "It is immediately available through search_knowledge(query=\"skill:${skill.name}\"). " +
+                            "Manage it in Settings → Agent Skills."
                     )
                 },
                 onFailure = { error ->
@@ -134,6 +137,49 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
     private suspend fun searchKnowledge(args: Map<String, String>): ToolExecutionResult {
         val query = args["query"]?.trim()
             ?: return ToolExecutionResult("Missing required argument: query", isError = true)
+        if (query.isBlank()) return ToolExecutionResult("Search query cannot be blank.", isError = true)
+
+        val skillManager = runCatching { SkillManager(OmniDevApp.instance.applicationContext) }.getOrNull()
+
+        if (query.equals(SKILL_LIST_QUERY, ignoreCase = true)) {
+            val skills = skillManager?.listSkills().orEmpty()
+            if (skills.isEmpty()) return ToolExecutionResult("No Agent Skills are installed.")
+            return ToolExecutionResult(
+                buildString {
+                    appendLine("🧩 Installed Agent Skills (${skills.size})")
+                    appendLine("Invoke an enabled skill with search_knowledge(query=\"skill:<exact-name>\").")
+                    appendLine()
+                    skills.forEach { skill ->
+                        appendLine(
+                            "- ${skill.name} | ${if (skill.enabled) "ENABLED" else "DISABLED"} | " +
+                                "${skill.origin.name.lowercase()} | ${skill.description}"
+                        )
+                    }
+                }.trimEnd()
+            )
+        }
+
+        if (query.startsWith(SKILL_QUERY_PREFIX, ignoreCase = true)) {
+            val requestedName = query.substringAfter(':').trim().lowercase()
+            if (requestedName.isBlank()) {
+                return ToolExecutionResult(
+                    "Skill invocation requires an exact name, e.g. query='skill:omnidev-android-engineering'.",
+                    isError = true
+                )
+            }
+            val manager = skillManager
+                ?: return ToolExecutionResult("Skill runtime is unavailable.", isError = true)
+            return manager.buildInvocation(requestedName).fold(
+                onSuccess = { ToolExecutionResult(it) },
+                onFailure = { error ->
+                    ToolExecutionResult(
+                        "SKILL_NOT_AVAILABLE: ${error.message}. Call search_knowledge(query='skills') to inspect the registry.",
+                        isError = true
+                    )
+                }
+            )
+        }
+
         val results = knowledgeDao.search(query).take(MAX_SEARCH_RESULTS)
 
         if (results.isEmpty()) {
@@ -178,8 +224,9 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
     }
 
     /**
-     * Builds a bounded context block from enabled Agent Skills plus stored rules/preferences.
-     * Imported skill instructions remain subordinate to system/tier/authorization policy.
+     * Builds a bounded context block from the Agent Skills catalog plus stored
+     * rules/preferences. Full skill bodies are loaded on demand, preventing prompt
+     * bloat while allowing every enabled imported/agent-authored skill to be used.
      */
     suspend fun buildKnowledgeContext(): String? = withContext(Dispatchers.IO) {
         val projectRules = knowledgeDao.findByCategory("project_rule").take(MAX_INJECTED_RULES)
@@ -210,7 +257,7 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
                     appendLine("\nArchitecture Notes:")
                     archNotes.forEach { appendLine("• [${it.id}] ${it.content}") }
                 }
-                appendLine("\n(Use 'search_knowledge' to retrieve older or specific facts)")
+                appendLine("\n(Use 'search_knowledge' to retrieve older/specific facts or invoke Agent Skills.)")
                 appendLine("--- END MEMORY ---")
             }
         }
