@@ -285,8 +285,8 @@ fun AISettingsScreen(
             )
 
             SettingsNavCard(
-                title = "Tool Arsenal",
-                subtitle = "Browse all available agent tools and their descriptions",
+                title = "Agent Skills",
+                subtitle = "Import, create, enable, and manage reusable Agent Skills",
                 onClick = onNavigateToToolRegistry
             )
 

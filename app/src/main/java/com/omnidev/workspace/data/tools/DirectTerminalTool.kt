@@ -1,28 +1,47 @@
 package com.omnidev.workspace.data.tools
 
-import com.omnidev.workspace.data.tools.ToolDefinition
 import org.json.JSONObject
 
+/**
+ * Legacy adapter retained for stored workflows.
+ *
+ * New agent prompts should use `agent_runtime`; TierToolGate hides this duplicate
+ * definition. Execution is delegated to EnvironmentSetupManager so old calls get
+ * the same real Termux RunCommandService backend instead of app-UID ProcessBuilder.
+ */
 object DirectTerminalTool {
+
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "direct_terminal",
-            description = "Executes commands directly in terminal without interpretation."
+            description = "Legacy terminal alias. New calls should use agent_runtime."
         )
     )
 
-    fun execute(params: JSONObject): String {
-        val command = params.optString("command", params.optString("code", ""))
+    suspend fun execute(params: JSONObject): String {
+        val rawCommand = params.opt("command")
+        val command = when (rawCommand) {
+            is Map<*, *> -> rawCommand["command"]?.toString()
+                ?: rawCommand["code"]?.toString()
+                ?: rawCommand["script"]?.toString()
+                ?: ""
+            is JSONObject -> rawCommand.optString(
+                "command",
+                rawCommand.optString("code", rawCommand.optString("script", ""))
+            )
+            null, JSONObject.NULL -> params.optString("code", params.optString("script", ""))
+            else -> rawCommand.toString()
+        }.trim()
 
-        return try {
-            val process = ProcessBuilder("sh", "-c", command)
-                .redirectErrorStream(true)
-                .start()
-            val output = process.inputStream.bufferedReader().readText()
-            process.waitFor()
-            output
-        } catch (e: Exception) {
-            "Error: \${e.message}"
+        if (command.isBlank()) return "Error: terminal command is empty"
+
+        val cwd = when (rawCommand) {
+            is Map<*, *> -> rawCommand["cwd"]?.toString()
+            is JSONObject -> rawCommand.optString("cwd").takeIf { it.isNotBlank() }
+            else -> params.optString("cwd").takeIf { it.isNotBlank() }
         }
+
+        val result = EnvironmentSetupManager.executeShell(command, cwd)
+        return result.output
     }
 }

@@ -1,566 +1,363 @@
 package com.omnidev.workspace.data.tools
 
-import android.util.Log
 import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
+import com.omnidev.workspace.data.ipc.RishFailureClassifier
+import com.omnidev.workspace.data.ipc.RishRuntimeHealth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 
 /**
- * OmniExecutionDiagnostics — تشخيص وإصلاح بيئة التنفيذ تلقائياً.
+ * Diagnostics for OmniDev's independent execution domains.
  *
- * Tool name: "execution_diagnostics"
- *
- * ### الإصلاحات في هذه النسخة
- * 1. **fix_shizuku** — يُشخِّص الخطأ الحقيقي (reflection vs API mismatch) ويختبر
- *    `Shizuku.newProcess()` مباشرة بدل echo test بسيط.
- * 2. **install_termux** — أكشن جديد يُحاول تثبيت Termux عبر Shizuku.
- * 3. **repair_all** — يُضيف خطوة install_termux إذا Termux غير موجود.
- * 4. رسائل تشخيص أوضح في كل أكشن.
+ * No diagnostic is allowed to infer readiness from files/package visibility alone.
+ * Termux, Shizuku UserService, and rish are probed through the same transports used
+ * by real commands.
  */
 object OmniExecutionDiagnostics {
-
-    private const val TAG = "OmniExecDiag"
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "execution_diagnostics",
             description = """
-Automatic diagnosis and repair tool for the execution environment.
-Use it when:
-• "no output" from Shizuku/rish
-• Termux or Python is not found
-• git, pkg install, or npm fails
-• Any command execution issue
+Diagnose and repair OmniDev execution domains without crossing app sandboxes.
 
 Actions:
-• full_check      — Comprehensive check of all components + suggested fixes
-• fix_shizuku     — Fix Shizuku: test Shizuku.newProcess() directly, diagnose reflection errors
-• fix_termux      — Setup/verify Termux environment
-• fix_python      — Find/install Python using the best available method
-• fix_git         — Find/install git
-• install_termux  — Download and install Termux APK via Shizuku (if Termux is missing)
-• test_command    — Test a specific command across all backends and show full diagnostics
-• repair_all      — Attempt to fix everything automatically
+• full_check — functionally probe Termux, Shizuku UserService and rish.
+• fix_shizuku — verify binder, permission, UserService UID and real shell command.
+• fix_rish — install/repair rish inside Termux and require `rish -c id` success.
+• fix_termux — verify official RunCommandService and refresh package state.
+• fix_python — install/repair Python in Termux.
+• fix_git — install/repair Git in Termux.
+• install_termux — explain official Termux setup requirements.
+• test_command — execute a command independently in developer, privileged and rish domains.
+• repair_all — bootstrap Termux runtimes then probe Shizuku/rish.
+
+Never repair rish by copying `librish.so`, changing LD_LIBRARY_PATH, or adding
+-Djava.library.path. A native-loader failure is classified and stops that strategy.
 """.trimIndent(),
             parameters = listOf(
-                ToolParameter("action", "string", "Action: full_check, fix_shizuku, fix_termux, fix_python, fix_git, install_termux, test_command, repair_all", required = true),
-                ToolParameter("command", "string", "Command to test (for test_command)", required = false)
+                ToolParameter(
+                    "action",
+                    "string",
+                    "full_check, fix_shizuku, fix_rish, fix_termux, fix_python, fix_git, install_termux, test_command, repair_all",
+                    required = true
+                ),
+                ToolParameter("command", "string", "Command for test_command", required = false)
             )
         )
     )
 
     suspend fun execute(action: String, args: Map<String, String>): ToolExecutionResult =
         withContext(Dispatchers.IO) {
-            when (action.lowercase().trim()) {
-                "full_check"     -> fullCheck()
-                "fix_shizuku"    -> fixShizuku()
-                "fix_termux"     -> fixTermux()
-                "fix_python"     -> fixPython()
-                "fix_git"        -> fixGit()
-                "install_termux" -> installTermux()
-                "test_command"   -> testCommand(args["command"]
-                    ?: return@withContext ToolExecutionResult("Requires 'command'.", isError = true))
-                "repair_all"     -> repairAll()
-                else             -> ToolExecutionResult("Unknown action: '$action'.", isError = true)
+            when (action.trim().lowercase()) {
+                "full_check" -> fullCheck()
+                "fix_shizuku" -> fixShizuku()
+                "fix_rish" -> fixRish()
+                "fix_termux" -> fixTermux()
+                "fix_python" -> installRuntime("python", listOf("python3", "python"))
+                "fix_git" -> installRuntime("git", listOf("git"))
+                "install_termux" -> installTermuxGuidance()
+                "test_command" -> testCommand(
+                    args["command"]?.takeIf(String::isNotBlank)
+                        ?: return@withContext ToolExecutionResult("Requires 'command'.", isError = true)
+                )
+                "repair_all" -> repairAll()
+                else -> ToolExecutionResult("Unknown action '$action'.", isError = true)
             }
         }
 
-    // ──────────────────────────────────────────────────────────────
-    // full_check
-    // ──────────────────────────────────────────────────────────────
     private suspend fun fullCheck(): ToolExecutionResult {
-        val sb = StringBuilder()
-        sb.appendLine("╔══ Full Environment Diagnostics ═══════════════════════════════╗")
+        val runtime = EnvironmentSetupManager.probe(force = true)
 
-        // 1. Shizuku
-        sb.appendLine("║")
-        sb.appendLine("║ [1] SHIZUKU")
-        val shizukuAvail = ShizukuCommandTool.isAvailable()
-        val shizukuPerm  = if (shizukuAvail) ShizukuCommandTool.hasPermission() else false
-        sb.appendLine("║   pingBinder : ${if (shizukuAvail) "✅ Works" else "❌ Not responding"}")
-        sb.appendLine("║   Permission : ${if (shizukuPerm) "✅ Granted" else "❌ Not granted"}")
-        if (shizukuAvail && shizukuPerm) {
-            // اختبار مباشر عبر Shizuku.newProcess()
-            val testResult = ShizukuCommandTool.execute("echo shizuku_ok")
-            val works = testResult.outputOrNull()?.contains("shizuku_ok") == true
-            sb.appendLine("║   newProcess : ${if (works) "✅ Direct call works" else "❌ Failed (${testResult.toDisplayString().take(80)})"}")
-            if (!works) {
-                sb.appendLine("║   → Fix : Run 'fix_shizuku'")
+        val termuxHealth = if (TermuxRunCommandBridge.isTermuxInstalled()) {
+            EnvironmentSetupManager.executeShell(
+                "printf 'termux_ok\\n'; id; printf 'prefix=%s\\n' \"\$PREFIX\""
+            )
+        } else null
+
+        val shizukuAvailable = ShizukuCommandTool.isAvailable()
+        val shizukuGranted = shizukuAvailable && ShizukuCommandTool.hasPermission()
+        val shizukuHealth = if (shizukuGranted) {
+            ShizukuCommandTool.execute("id; getprop ro.build.version.sdk", timeoutMs = 20_000L)
+        } else null
+        val shizukuUid = if (shizukuGranted) ShizukuCommandTool.privilegedUidOrNull() else null
+
+        val rishManager = PrivilegedExecutionManager.getRishManager()
+        val rishHealth = rishManager?.refreshHealth()
+            ?: RishRuntimeHealth(RishRuntimeHealth.State.UNKNOWN, "RishShellManager is not initialized")
+
+        val problems = buildList {
+            if (termuxHealth == null || termuxHealth.isError) {
+                add("Termux RunCommand transport is not healthy.")
             }
-        } else {
+            if (!runtime.runtime("python3").available && !runtime.runtime("python").available) {
+                add("Python is not installed in Termux.")
+            }
+            if (!runtime.runtime("git").available) add("Git is not installed in Termux.")
+
             when {
-                !shizukuAvail -> sb.appendLine("║   → Install Shizuku from Play Store and start it")
-                else          -> sb.appendLine("║   → Press 'Grant permission' in the Shizuku app")
+                !shizukuAvailable -> add("Shizuku binder is not running.")
+                !shizukuGranted -> add("Shizuku permission is not granted to OmniDev.")
+                shizukuHealth !is ShizukuResult.Success ->
+                    add("Shizuku UserService smoke-test failed: ${shizukuHealth?.toDisplayString()?.take(240)}")
+            }
+
+            if (!rishHealth.ready) {
+                add("rish is ${rishHealth.state}: ${rishHealth.details.ifBlank { rishHealth.summary }}")
             }
         }
 
-        // 2. rish
-        sb.appendLine("║")
-        sb.appendLine("║ [2] RISH")
-        val rishReady = PrivilegedExecutionManager.isRishReady()
-        sb.appendLine("║   Available  : ${if (rishReady) "✅" else "❌"}")
-        if (!rishReady) sb.appendLine("║   → Run 'rish_setup' in privileged_tool")
-
-        // 3. Termux
-        sb.appendLine("║")
-        sb.appendLine("║ [3] TERMUX")
-        val termuxOk = TermuxEnvironmentBridge.isTermuxUsable()
-        sb.appendLine("║   bash       : ${if (termuxOk) "✅ Found" else "❌ Not found"}")
-        val ldExec = File(TermuxEnvironmentBridge.TERMUX_LIB + "/libtermux-exec.so").exists()
-        sb.appendLine("║   libtermux-exec.so : ${if (ldExec) "✅" else "⚠️ Not found (Minor impact)"}")
-        if (!termuxOk) {
-            sb.appendLine("║   → Install via: action=install_termux (auto)")
-            sb.appendLine("║   → Or manually from F-Droid")
-        }
-
-        // 4. Python
-        sb.appendLine("║")
-        sb.appendLine("║ [4] PYTHON")
-        val pyPath = TermuxEnvironmentBridge.findPythonInterpreter()
-        if (pyPath != null) {
-            val envPfx = if (pyPath.startsWith(TermuxEnvironmentBridge.TERMUX_BIN))
-                TermuxEnvironmentBridge.buildEnvPrefix() else ""
-            val version = PrivilegedExecutionManager.executeCommand(
-                "${envPfx}${pyPath} --version 2>&1"
-            ).getOrNull()?.trim() ?: "?"
-            sb.appendLine("║   Path       : ✅ $pyPath")
-            sb.appendLine("║   Version    : $version")
-            val testPy = PrivilegedExecutionManager.executeCommand(
-                "${envPfx}${pyPath} -c \"print('py_ok')\" 2>&1"
-            ).getOrNull()
-            sb.appendLine("║   Test       : ${if (testPy?.contains("py_ok") == true) "✅ Works" else "❌ Failed: $testPy"}")
-        } else {
-            sb.appendLine("║   ❌ Python not found")
-            sb.appendLine("║   → Run action=fix_python")
-        }
-
-        // 5. pip
-        sb.appendLine("║")
-        sb.appendLine("║ [5] PIP")
-        val pipPath = findPip()
-        sb.appendLine("║              : ${if (pipPath != null) "✅ $pipPath" else "❌ Not found"}")
-
-        // 6. git
-        sb.appendLine("║")
-        sb.appendLine("║ [6] GIT")
-        val gitPath = TermuxEnvironmentBridge.findBinary("git")
-        sb.appendLine("║              : ${if (gitPath != null) "✅ $gitPath" else "❌ Not found"}")
-
-        // 7. curl/wget
-        sb.appendLine("║")
-        sb.appendLine("║ [7] NETWORK TOOLS")
-        val curlPath = TermuxEnvironmentBridge.findBinary("curl")
-        val wgetPath = TermuxEnvironmentBridge.findBinary("wget")
-        sb.appendLine("║   curl       : ${if (curlPath != null) "✅ $curlPath" else "❌"}")
-        sb.appendLine("║   wget       : ${if (wgetPath != null) "✅ $wgetPath" else "❌"}")
-
-        // Recommendations
-        sb.appendLine("║")
-        sb.appendLine("║ ─── Repair Recommendations ───────────────────────────────────")
-        val issues = mutableListOf<String>()
-        if (!shizukuAvail) issues.add("• Run Shizuku app, then run 'fix_shizuku'")
-        if (shizukuAvail && !shizukuPerm) issues.add("• Grant Shizuku permission to the app")
-        if (!termuxOk) issues.add("• Run action=install_termux  OR  install Termux from F-Droid")
-        if (pyPath == null) issues.add("• Run action=fix_python")
-        if (gitPath == null && termuxOk) issues.add("• Run: termux_bridge action=pkg_install packages='git'")
-
-        if (issues.isEmpty()) {
-            sb.appendLine("║   ✅ Everything looks good!")
-        } else {
-            issues.forEach { sb.appendLine("║   $it") }
-        }
-
-        sb.appendLine("╚═══════════════════════════════════════════════════════════════╝")
-        return ToolExecutionResult(sb.toString().trimEnd())
+        return ToolExecutionResult(
+            buildString {
+                appendLine("╔══ OmniDev Execution Diagnostics ═══════════════════════════╗")
+                appendLine("║ Runtime phase : ${runtime.phase}")
+                appendLine("║ Privilege     : ${runtime.privilegeBackend}")
+                appendLine("║")
+                appendLine("║ TERMUX / DEVELOPER SHELL")
+                appendLine("║ Installed     : ${yesNo(TermuxRunCommandBridge.isTermuxInstalled())}")
+                appendLine("║ RUN_COMMAND   : ${yesNo(TermuxRunCommandBridge.hasRunCommandPermission())}")
+                appendLine("║ Functional    : ${yesNo(termuxHealth?.isError == false)}")
+                appendLine("║ Python        : ${runtime.runtime("python3").path ?: runtime.runtime("python").path ?: "❌ missing"}")
+                appendLine("║ Node          : ${runtime.runtime("node").path ?: "❌ missing"}")
+                appendLine("║ Git           : ${runtime.runtime("git").path ?: "❌ missing"}")
+                appendLine("║ pkg           : ${runtime.runtime("pkg").path ?: "❌ missing"}")
+                appendLine("║")
+                appendLine("║ SHIZUKU / PROGRAMMATIC PRIVILEGED SHELL")
+                appendLine("║ Binder        : ${yesNo(shizukuAvailable)}")
+                appendLine("║ Permission    : ${yesNo(shizukuGranted)}")
+                appendLine("║ UserService UID: ${shizukuUid ?: "unknown"}")
+                appendLine("║ Smoke test    : ${shizukuHealth?.toDisplayString()?.take(240) ?: "not run"}")
+                appendLine("║")
+                appendLine("║ RISH / TERMUX ADB-EQUIVALENT SHELL")
+                appendLine("║ State         : ${rishHealth.state}")
+                appendLine("║ Ready         : ${yesNo(rishHealth.ready)}")
+                appendLine("║ Smoke test    : ${rishHealth.smokeOutput.take(240).ifBlank { "not run" }}")
+                if (!rishHealth.ready) {
+                    appendLine("║ Remediation   : ${rishHealth.details.ifBlank { RishFailureClassifier.remediation(rishHealth.state) }}")
+                }
+                appendLine("║")
+                if (problems.isEmpty()) {
+                    appendLine("║ ✅ All execution domains passed functional probes.")
+                } else {
+                    appendLine("║ ISSUES")
+                    problems.forEachIndexed { index, issue -> appendLine("║ ${index + 1}. $issue") }
+                }
+                appendLine("╚════════════════════════════════════════════════════════════╝")
+            }.trimEnd(),
+            isError = problems.isNotEmpty()
+        )
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // fix_shizuku — الإصلاح الجذري
-    // ──────────────────────────────────────────────────────────────
     private suspend fun fixShizuku(): ToolExecutionResult {
-        val sb = StringBuilder("🔧 Diagnosing and Fixing Shizuku\n\n")
-
-        // 1. تحقق من التوفر
         if (!ShizukuCommandTool.isAvailable()) {
             return ToolExecutionResult(
-                sb.append(
-                    "❌ Shizuku is NOT connected (pingBinder failed).\n\n" +
-                    "الحل:\n" +
-                    "1. افتح تطبيق Shizuku\n" +
-                    "2. اضغط 'Start' (إذا كان root) أو اتبع تعليمات wireless ADB\n" +
-                    "3. تأكد من أن Shizuku يعرض 'Running'\n" +
-                    "4. أعِد تشغيل هذا الأمر"
-                ).toString(),
+                "❌ Shizuku binder is unavailable. Start Shizuku and retry.",
                 isError = true
             )
         }
-        sb.appendLine("✅ Shizuku pingBinder: OK")
 
-        // 2. تحقق من الإذن وطلبه
-        if (!ShizukuCommandTool.hasPermission()) {
-            sb.appendLine("⏳ Requesting Shizuku permission...")
-            runCatching { rikka.shizuku.Shizuku.requestPermission(1001) }
-            var waited = 0
-            while (!ShizukuCommandTool.hasPermission() && waited < 15_000) {
-                kotlinx.coroutines.delay(500)
-                waited += 500
-            }
-        }
-
-        if (!ShizukuCommandTool.hasPermission()) {
-            return ToolExecutionResult(
-                sb.append(
-                    "❌ Permission not granted after 15s.\n\n" +
-                    "الحل:\n" +
-                    "1. افتح تطبيق Shizuku\n" +
-                    "2. اضغط على قائمة التطبيقات\n" +
-                    "3. ابحث عن OmniDev Workspace واضغط 'منح الإذن'"
-                ).toString(),
-                isError = true
-            )
-        }
-        sb.appendLine("✅ Permission: Granted")
-
-        // 3. اختبار Shizuku.newProcess() مباشرة
-        sb.appendLine("\n📋 Testing Shizuku.newProcess() directly...")
-
-        val tests = listOf(
-            "echo shizuku_works"          to "shizuku_works",
-            "id"                          to "uid=",
-            "getprop ro.build.version.sdk" to ""
+        val command = ShizukuCommandTool.execute(
+            "printf 'user_service_ok\\n'; id; getprop ro.build.version.sdk",
+            timeoutMs = 20_000L
         )
+        val uid = ShizukuCommandTool.privilegedUidOrNull()
 
-        var allPassed = true
-        for ((cmd, expectedKeyword) in tests) {
-            val result = ShizukuCommandTool.execute(cmd)
-            val output = result.outputOrNull()
-            val passed = if (expectedKeyword.isEmpty()) {
-                output != null && output != "(no output)"
-            } else {
-                output?.contains(expectedKeyword, ignoreCase = true) == true
+        return when (command) {
+            is ShizukuResult.Success -> {
+                val rish = PrivilegedExecutionManager.getRishManager()?.refreshHealth()
+                ToolExecutionResult(
+                    buildString {
+                        appendLine("✅ Shizuku UserService is healthy.")
+                        appendLine("Privileged UID: ${uid ?: "unknown"} (expected 2000 for ADB-backed Shizuku or 0 for root-backed Shizuku)")
+                        appendLine(command.output)
+                        if (rish != null && !rish.ready) {
+                            appendLine()
+                            appendLine("ℹ️ Terminal rish is independently degraded: ${rish.state}")
+                            appendLine(rish.details)
+                            appendLine("This does not invalidate the healthy UserService backend.")
+                        }
+                    }.trimEnd()
+                )
             }
-
-            sb.appendLine("  $ $cmd")
-            sb.appendLine("    ${if (passed) "✅" else "❌"} ${output?.take(80) ?: result.toDisplayString().take(80)}")
-            if (!passed) allPassed = false
-        }
-
-        return if (allPassed) {
-            sb.appendLine("\n✅ Shizuku.newProcess() is working correctly!")
-            sb.appendLine("الأوامر التالية يجب أن تعمل الآن:")
-            sb.appendLine("  privileged_tool action=shell command=getprop ro.build.version.release")
-            sb.appendLine("  privileged_tool action=getprop key=ro.build.version.sdk")
-            ToolExecutionResult(sb.toString())
-        } else {
-            sb.appendLine("\n⚠️ بعض الاختبارات فشلت.")
-            sb.appendLine("احتمالات:")
-            sb.appendLine("  1. Shizuku service انقطع — أعِد تشغيله")
-            sb.appendLine("  2. صلاحيات Shizuku نُزِعت — أعِد منحها")
-            sb.appendLine("  3. تعارض مع تطبيق آخر — أعِد تشغيل Shizuku")
-            ToolExecutionResult(sb.toString(), isError = true)
+            is ShizukuResult.PermissionRequired -> ToolExecutionResult(command.toDisplayString(), isError = true)
+            is ShizukuResult.Unavailable -> ToolExecutionResult(command.toDisplayString(), isError = true)
+            is ShizukuResult.Failure -> ToolExecutionResult(command.toDisplayString(), isError = true)
+            is ShizukuResult.PartialSuccess -> ToolExecutionResult(
+                "❌ Shizuku UserService returned exit ${command.exitCode}: ${command.output}",
+                isError = true
+            )
         }
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // fix_termux
-    // ──────────────────────────────────────────────────────────────
+    private suspend fun fixRish(): ToolExecutionResult {
+        val manager = PrivilegedExecutionManager.getRishManager()
+            ?: return ToolExecutionResult("RishShellManager is not initialized.", isError = true)
+        val health = manager.installIntoTermux()
+        val status = manager.statusReport()
+        return ToolExecutionResult(
+            buildString {
+                appendLine(if (health.ready) "✅ rish install + smoke-test passed." else "❌ rish is not functional after setup.")
+                appendLine("State: ${health.state}")
+                if (!health.ready) appendLine("Remediation: ${health.details}")
+                appendLine()
+                append(status)
+            }.trimEnd(),
+            isError = !health.ready
+        )
+    }
+
     private suspend fun fixTermux(): ToolExecutionResult {
-        val sb = StringBuilder("🔧 Fixing Termux Environment\n\n")
-
-        if (!TermuxEnvironmentBridge.isTermuxUsable()) {
+        val status = EnvironmentSetupManager.statusReport()
+        if (!EnvironmentSetupManager.isTermuxUsable()) {
             return ToolExecutionResult(
-                sb.append(
-                    "❌ Termux bash not found: ${TermuxEnvironmentBridge.TERMUX_BASH}\n\n" +
-                    "الخيارات:\n" +
-                    "1. التثبيت التلقائي: action=install_termux\n" +
-                    "2. التثبيت اليدوي: https://f-droid.org/en/packages/com.termux/\n" +
-                    "   بعد التثبيت: pkg update && pkg upgrade -y"
-                ).toString(),
+                buildString {
+                    appendLine(status.output)
+                    appendLine()
+                    appendLine("Required setup:")
+                    appendLine("1. Install/open official Termux.")
+                    appendLine("2. Grant OmniDev com.termux.permission.RUN_COMMAND when requested.")
+                    appendLine("3. In Termux set allow-external-apps=true in ~/.termux/termux.properties.")
+                    appendLine("4. Retry execution_diagnostics action=fix_termux.")
+                }.trimEnd(),
                 isError = true
             )
         }
 
-        // تحقق من /tmp
-        val tmpDir = File(TermuxEnvironmentBridge.TERMUX_PREFIX + "/tmp")
-        if (!tmpDir.exists()) {
-            PrivilegedExecutionManager.executeCommand(
-                "mkdir -p ${tmpDir.absolutePath} && chmod 755 ${tmpDir.absolutePath}"
-            )
-        }
-        sb.appendLine("✅ Termux bash: Found")
-        sb.appendLine("✅ TERMUX_PREFIX: ${TermuxEnvironmentBridge.TERMUX_PREFIX}")
-
-        // اختبار البيئة
-        val envPfx = TermuxEnvironmentBridge.buildEnvPrefix()
-        val envTest = PrivilegedExecutionManager.executeCommand(
-            "${envPfx}${TermuxEnvironmentBridge.TERMUX_BASH} -c \"echo TERMUX_ENV_OK && python3 --version 2>&1 || echo no_python\" 2>&1"
+        val update = EnvironmentSetupManager.executeTool("advanced_terminal", mapOf("action" to "pkg_update"))
+        val health = EnvironmentSetupManager.executeShell(
+            "id; printf 'prefix=%s\\n' \"\$PREFIX\"; command -v pkg bash"
         )
-        val out = envTest.getOrNull() ?: "Failed: ${envTest.exceptionOrNull()?.message}"
-        sb.appendLine("\nTermux environment test:\n$out")
-
-        val ldSo = File(TermuxEnvironmentBridge.TERMUX_LIB + "/libtermux-exec.so")
-        sb.appendLine("\nlibtermux-exec.so: ${if (ldSo.exists()) "✅ Found" else "⚠️ Not found (Not strictly required)"}")
-
-        return if (out.contains("TERMUX_ENV_OK")) {
-            ToolExecutionResult(sb.append("\n✅ Termux environment is working correctly.").toString())
-        } else {
-            ToolExecutionResult(sb.append("\n⚠️ Issue with Termux environment. Try:\npkg update\npkg upgrade -y").toString())
-        }
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // fix_python
-    // ──────────────────────────────────────────────────────────────
-    private suspend fun fixPython(): ToolExecutionResult {
-        val sb = StringBuilder("🔧 Finding/Installing Python\n\n")
-
-        val pyPath = TermuxEnvironmentBridge.findPythonInterpreter()
-        if (pyPath != null) {
-            val envPfx = if (pyPath.startsWith(TermuxEnvironmentBridge.TERMUX_BIN))
-                TermuxEnvironmentBridge.buildEnvPrefix() else ""
-            val ver = PrivilegedExecutionManager.executeCommand(
-                "${envPfx}${pyPath} --version 2>&1"
-            ).getOrNull() ?: "?"
-            val test = PrivilegedExecutionManager.executeCommand(
-                "${envPfx}${pyPath} -c \"import sys; print('py_ok', sys.version)\" 2>&1"
-            ).getOrNull() ?: "?"
-            sb.appendLine("✅ Python found: $pyPath")
-            sb.appendLine("Version: $ver")
-            sb.appendLine("Test: $test")
-            return ToolExecutionResult(sb.toString())
-        }
-
-        sb.appendLine("❌ Python not found. Trying to install...")
-
-        // عبر Termux
-        if (TermuxEnvironmentBridge.isTermuxUsable()) {
-            sb.appendLine("→ pkg install python via Termux...")
-            val installResult = TermuxEnvironmentBridge.pkgInstall("python")
-            sb.appendLine(installResult.output)
-
-            if (!installResult.isError) {
-                val newPath = TermuxEnvironmentBridge.findPythonInterpreter()
-                if (newPath != null) {
-                    sb.appendLine("\n✅ Python installed: $newPath")
-                    return ToolExecutionResult(sb.toString())
-                }
-            }
-        } else {
-            sb.appendLine("⚠️ Termux not available. Trying install_termux first...")
-            val termuxInstall = installTermux()
-            sb.appendLine(termuxInstall.output)
-            if (!termuxInstall.isError) {
-                // إذا نجح تثبيت Termux، جرب تثبيت Python
-                if (TermuxEnvironmentBridge.isTermuxUsable()) {
-                    TermuxEnvironmentBridge.pkgInstall("python")
-                    val newPath = TermuxEnvironmentBridge.findPythonInterpreter()
-                    if (newPath != null) {
-                        sb.appendLine("✅ Python installed: $newPath")
-                        return ToolExecutionResult(sb.toString())
-                    }
-                }
-            }
-        }
-
         return ToolExecutionResult(
-            sb.append(
-                "\n❌ Cannot install Python automatically.\n" +
-                "الخطوات اليدوية:\n" +
-                "1. افتح Termux\n" +
-                "2. pkg install python\n" +
-                "3. أعِد تشغيل الأمر"
-            ).toString(),
-            isError = true
+            buildString {
+                appendLine("Termux transport: ${if (!health.isError) "✅ healthy" else "❌ unhealthy"}")
+                appendLine(health.output.take(3_000))
+                appendLine()
+                appendLine("Package index refresh: ${if (!update.isError) "✅" else "❌"}")
+                append(update.output.take(3_000))
+            }.trimEnd(),
+            isError = health.isError || update.isError
         )
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // fix_git
-    // ──────────────────────────────────────────────────────────────
-    private suspend fun fixGit(): ToolExecutionResult {
-        val sb = StringBuilder("🔧 Finding/Installing git\n\n")
+    private suspend fun installRuntime(packageName: String, binaries: List<String>): ToolExecutionResult {
+        if (!EnvironmentSetupManager.isTermuxUsable()) return fixTermux()
 
-        val gitPath = TermuxEnvironmentBridge.findBinary("git")
-        if (gitPath != null) {
-            val version = PrivilegedExecutionManager.executeCommand("$gitPath --version 2>&1")
-                .getOrNull() ?: "?"
-            return ToolExecutionResult("✅ git found: $gitPath\n$version")
+        val existing = binaries.firstNotNullOfOrNull { binary ->
+            EnvironmentSetupManager.resolveBinary(binary)?.let { binary to it }
+        }
+        if (existing != null) {
+            return ToolExecutionResult("✅ ${existing.first} is already available at ${existing.second}")
         }
 
-        sb.appendLine("❌ git not found. Installing...")
-        if (TermuxEnvironmentBridge.isTermuxUsable()) {
-            val result = TermuxEnvironmentBridge.pkgInstall("git")
-            sb.appendLine(result.output)
-            val newPath = TermuxEnvironmentBridge.findBinary("git")
-            return if (newPath != null) {
-                ToolExecutionResult(sb.append("\n✅ git installed: $newPath").toString())
-            } else {
-                ToolExecutionResult(sb.append("\n❌ Installation failed.").toString(), isError = true)
-            }
+        val install = EnvironmentSetupManager.pkgInstall(packageName)
+        if (install.isError) return install
+
+        val found = binaries.firstNotNullOfOrNull { binary ->
+            EnvironmentSetupManager.resolveBinary(binary)?.let { binary to it }
         }
-
-        return ToolExecutionResult(
-            sb.append(
-                "Termux not available. Run action=install_termux first,\n" +
-                "then: pkg install git"
-            ).toString(),
-            isError = true
-        )
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // install_termux — أكشن جديد
-    // ──────────────────────────────────────────────────────────────
-    private suspend fun installTermux(): ToolExecutionResult {
-        val sb = StringBuilder("📦 Installing Termux via Shizuku\n\n")
-
-        if (TermuxEnvironmentBridge.isTermuxUsable()) {
-            return ToolExecutionResult("✅ Termux is already installed: ${TermuxEnvironmentBridge.TERMUX_BASH}")
-        }
-
-        if (!PrivilegedExecutionManager.isShizukuReady()) {
-            return ToolExecutionResult(
-                sb.append(
-                    "❌ Shizuku غير متاح. لا يمكن تثبيت Termux تلقائياً.\n\n" +
-                    "الخيارات:\n" +
-                    "1. أصلح Shizuku أولاً: action=fix_shizuku\n" +
-                    "2. ثبّت Termux يدوياً من F-Droid:\n" +
-                    "   https://f-droid.org/en/packages/com.termux/"
-                ).toString(),
-                isError = true
-            )
-        }
-
-        sb.appendLine("Shizuku متاح. محاولة تحميل Termux APK...")
-        sb.appendLine(PrivilegedExecutionManager.getTermuxBootstrapHints())
-        sb.appendLine()
-
-        val result = PrivilegedExecutionManager.installTermuxViaShizuku()
-        sb.appendLine(result.getOrElse { "❌ فشل: ${it.message}" })
-
-        return if (result.isSuccess) {
-            ToolExecutionResult(sb.toString())
+        return if (found != null) {
+            ToolExecutionResult("✅ Installed $packageName; ${found.first} → ${found.second}\n${install.output.take(2_000)}")
         } else {
             ToolExecutionResult(
-                sb.append(
-                    "\n\nبديل — شغّل يدوياً في Shizuku shell:\n" +
-                    "  privileged_tool action=shell command=\"wget -O /data/local/tmp/termux.apk https://f-droid.org/repo/com.termux_118.apk && pm install -r -g /data/local/tmp/termux.apk\""
-                ).toString(),
+                "Package manager reported success but expected runtime was not found after install.\n${install.output.take(3_000)}",
                 isError = true
             )
         }
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // test_command
-    // ──────────────────────────────────────────────────────────────
+    private fun installTermuxGuidance(): ToolExecutionResult = ToolExecutionResult(
+        """
+Install the official Termux app, open it once, and allow OmniDev's RUN_COMMAND permission.
+Termux also requires its one-time external-app opt-in:
+
+mkdir -p ~/.termux
+touch ~/.termux/termux.properties
+if grep -q '^allow-external-apps=' ~/.termux/termux.properties; then
+  sed -i 's/^allow-external-apps=.*/allow-external-apps=true/' ~/.termux/termux.properties
+else
+  printf '\nallow-external-apps=true\n' >> ~/.termux/termux.properties
+fi
+termux-reload-settings
+
+After that, agent_runtime executes inside the real Termux process.
+""".trimIndent(),
+        isError = !EnvironmentSetupManager.isTermuxUsable()
+    )
+
     private suspend fun testCommand(command: String): ToolExecutionResult {
-        val sb = StringBuilder("🧪 Testing command: ${command.take(100)}\n\n")
-
-        // 1. Shizuku مباشر
-        sb.appendLine("─── [1] Shizuku.newProcess() مباشر ───")
-        if (ShizukuCommandTool.isAvailable() && ShizukuCommandTool.hasPermission()) {
-            val r = ShizukuCommandTool.execute(command)
-            sb.appendLine("Type: ${r::class.simpleName}")
-            sb.appendLine("Output: ${r.outputOrNull()?.take(300) ?: "(فارغ)"}")
-            if (r is ShizukuResult.PartialSuccess) sb.appendLine("Exit: ${r.exitCode}")
+        val developer = if (EnvironmentSetupManager.isTermuxUsable()) {
+            EnvironmentSetupManager.executeShell(command)
         } else {
-            sb.appendLine("⚠️ Shizuku غير متاح/مُصرَّح")
+            ToolExecutionResult("Termux RunCommand transport is not ready.", isError = true)
         }
 
-        // 2. مع بيئة Termux
-        sb.appendLine("\n─── [2] مع Termux env ───")
-        if (TermuxEnvironmentBridge.isTermuxUsable()) {
-            val envPfx = TermuxEnvironmentBridge.buildEnvPrefix()
-            val r2 = PrivilegedExecutionManager.executeCommand("${envPfx}${command}")
-            sb.appendLine("Result: ${r2.getOrNull()?.take(300) ?: r2.exceptionOrNull()?.message}")
+        val shizuku = if (ShizukuCommandTool.isAvailable()) {
+            ShizukuCommandTool.execute(command, timeoutMs = 30_000L).toDisplayString()
         } else {
-            sb.appendLine("⚠️ Termux غير متاح")
+            "Shizuku binder unavailable"
         }
 
-        // 3. PrivilegedExecutionManager
-        sb.appendLine("\n─── [3] PrivilegedExecutionManager ───")
-        val r3 = PrivilegedExecutionManager.executeCommand(command)
-        sb.appendLine("Result: ${r3.getOrNull()?.take(300) ?: r3.exceptionOrNull()?.message}")
+        val rishManager = PrivilegedExecutionManager.getRishManager()
+        val rish = if (rishManager != null) {
+            rishManager.execute(command).fold(
+                onSuccess = { it },
+                onFailure = { "Error: ${it.message}" }
+            )
+        } else {
+            "rish manager unavailable"
+        }
 
-        return ToolExecutionResult(sb.toString().trimEnd())
+        return ToolExecutionResult(
+            buildString {
+                appendLine("=== Command-domain comparison ===")
+                appendLine("Command: $command")
+                appendLine()
+                appendLine("[Termux / developer shell]")
+                appendLine(developer.output.take(6_000))
+                appendLine()
+                appendLine("[Shizuku UserService / Android privileged shell]")
+                appendLine(shizuku.take(6_000))
+                appendLine()
+                appendLine("[rish / Termux ADB-equivalent shell]")
+                append(rish.take(6_000))
+            }.trimEnd(),
+            isError = developer.isError && !PrivilegedExecutionManager.isShizukuReady() &&
+                (rishManager?.cachedHealth()?.ready != true)
+        )
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // repair_all
-    // ──────────────────────────────────────────────────────────────
     private suspend fun repairAll(): ToolExecutionResult {
-        val sb = StringBuilder("🔧 Automatic Full Repair\n\n")
+        if (!EnvironmentSetupManager.isTermuxUsable()) return fixTermux()
 
-        // 1. Shizuku
-        sb.appendLine("=== [1/5] Shizuku ===")
-        val shizukuFix = fixShizuku()
-        sb.appendLine(shizukuFix.output)
-        sb.appendLine()
+        val steps = EnvironmentSetupManager.runBootstrap(EnvironmentSetupManager.buildStandardBootstrapPlan())
+        val shizuku = fixShizuku()
+        val rish = fixRish()
+        val bootstrapFailed = steps.any { it.second is BootstrapResult.Failed }
 
-        // 2. Termux (إذا لم يكن مثبتاً)
-        if (!TermuxEnvironmentBridge.isTermuxUsable()) {
-            sb.appendLine("=== [2/5] Termux (تثبيت) ===")
-            val termuxInstall = installTermux()
-            sb.appendLine(termuxInstall.output)
-            sb.appendLine()
-        } else {
-            sb.appendLine("=== [2/5] Termux ===")
-            val termuxFix = fixTermux()
-            sb.appendLine(termuxFix.output)
-            sb.appendLine()
-        }
-
-        // 3. rish setup
-        sb.appendLine("=== [3/5] rish ===")
-        if (!PrivilegedExecutionManager.isRishReady()) {
-            sb.appendLine("⚠️ rish غير جاهز — شغّل: privileged_tool action=rish_setup")
-        } else {
-            sb.appendLine("✅ rish جاهز")
-        }
-        sb.appendLine()
-
-        // 4. Python
-        sb.appendLine("=== [4/5] Python ===")
-        val pyFix = fixPython()
-        sb.appendLine(pyFix.output)
-        sb.appendLine()
-
-        // 5. Git
-        sb.appendLine("=== [5/5] Git ===")
-        val gitFix = fixGit()
-        sb.appendLine(gitFix.output)
-        sb.appendLine()
-
-        val hasShizuku = !shizukuFix.isError
-        val hasTermux  = TermuxEnvironmentBridge.isTermuxUsable()
-
-        sb.appendLine(
-            if (hasShizuku) "✅ Shizuku يعمل — جرب الأوامر الآن."
-            else "⚠️ بعض المشاكل تحتاج تدخل يدوي (راجع التفاصيل أعلاه)."
+        return ToolExecutionResult(
+            buildString {
+                appendLine("=== Runtime repair ===")
+                steps.forEach { (id, result) ->
+                    appendLine(
+                        when (result) {
+                            is BootstrapResult.Success -> "✅ $id: ${result.message}"
+                            is BootstrapResult.AlreadyDone -> "✔️ $id: ${result.message}"
+                            is BootstrapResult.Skipped -> "⏭️ $id: ${result.reason}"
+                            is BootstrapResult.Failed ->
+                                "❌ $id: ${result.reason}${result.hint.takeIf(String::isNotBlank)?.let { " — $it" }.orEmpty()}"
+                        }
+                    )
+                }
+                appendLine()
+                appendLine("=== Shizuku UserService ===")
+                appendLine(shizuku.output.take(4_000))
+                appendLine()
+                appendLine("=== rish ===")
+                append(rish.output.take(4_000))
+            }.trimEnd(),
+            isError = bootstrapFailed || shizuku.isError || rish.isError
         )
-
-        if (!hasTermux) {
-            sb.appendLine("⚠️ Termux غير مثبت — الوكيل يستطيع العمل عبر Shizuku shell مباشرة.")
-        }
-
-        return ToolExecutionResult(sb.toString().trimEnd(), isError = !hasShizuku && !hasTermux)
     }
 
-    // ──────────────────────────────────────────────────────────────
-    // Helpers
-    // ──────────────────────────────────────────────────────────────
-    private suspend fun findPip(): String? {
-        val candidates = listOf(
-            "${TermuxEnvironmentBridge.TERMUX_BIN}/pip3",
-            "${TermuxEnvironmentBridge.TERMUX_BIN}/pip",
-            "/usr/bin/pip3",
-            "/usr/bin/pip"
-        )
-        return candidates.firstOrNull { File(it).exists() }
-            ?: PrivilegedExecutionManager.executeCommand(
-                "which pip3 2>/dev/null || which pip 2>/dev/null"
-            ).getOrNull()?.trim()?.takeIf { it.startsWith("/") }
-    }
+    private fun yesNo(value: Boolean): String = if (value) "✅" else "❌"
 }

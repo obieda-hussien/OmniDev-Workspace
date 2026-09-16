@@ -1,62 +1,99 @@
 package com.omnidev.workspace.domain.model
 
 /**
- * Per-conversation settings that control which tools are offered to the agent
- * and how they are made available, mirroring Claude AI's "Add to chat" panel.
+ * Capability policy attached to the active chat.
  *
- * @property webSearchEnabled      Whether the `web_search` tool is active.
- * @property deepResearchEnabled   Whether the `web_search_deep` tool is active.
- * @property fetchPageEnabled      Whether the `web_scraper` / `scrape_multiple` tools are active.
- * @property toolAccessMode        How tools are exposed to the agent (see [ToolAccessMode]).
+ * The UI intentionally separates general tool exposure from Agent Skills: a user
+ * can keep normal tools on-demand while pinning one or more skills into context,
+ * or disable tools/skills independently.
  */
 data class ChatSettings(
     val webSearchEnabled: Boolean = true,
     val deepResearchEnabled: Boolean = true,
     val fetchPageEnabled: Boolean = true,
-    val toolAccessMode: ToolAccessMode = ToolAccessMode.AUTO
+    val headlessBrowserEnabled: Boolean = true,
+    val toolAccessMode: ToolAccessMode = ToolAccessMode.ON_DEMAND,
+    val skillAccessMode: SkillAccessMode = SkillAccessMode.ON_DEMAND,
+    /** true = every globally enabled skill is eligible in this chat. */
+    val useAllEnabledSkills: Boolean = true,
+    /** Used only when [useAllEnabledSkills] is false. Names are canonical skill IDs. */
+    val selectedSkillNames: Set<String> = emptySet()
 ) {
-    /**
-     * Returns the set of tool names that should be hidden from the agent given the
-     * current toggle state.  The names match the `ToolDefinition.name` values in
-     * [WebSearchTool] and [WebScraperTool].
-     */
+    /** Tool names hidden from the model for this chat. */
     fun disabledToolNames(): Set<String> = buildSet {
-        if (!webSearchEnabled) add("web_search")
-        if (!deepResearchEnabled || !webSearchEnabled) add("web_search_deep")
+        if (!webSearchEnabled) {
+            add("web_search")
+            add("web_search_deep")
+        } else if (!deepResearchEnabled) {
+            add("web_search_deep")
+        }
+
         if (!fetchPageEnabled) {
             add("fetch_page")
             add("web_scraper")
             add("scrape_multiple")
         }
+
+        if (!headlessBrowserEnabled) {
+            add("headless_browser")
+            add("browser_navigate")
+            add("browser_execute_js")
+            add("browser_get_dom")
+            add("browser_click")
+            add("browser_type")
+            add("browser_screenshot")
+        }
     }
+
+    fun isSkillAllowed(name: String): Boolean =
+        skillAccessMode != SkillAccessMode.DISABLED &&
+            (useAllEnabledSkills || name.trim().lowercase() in selectedSkillNames)
 }
 
-/**
- * Controls how tool definitions are surfaced to the agent.
- *
- * - [AUTO]             The agent chooses which tools to call (default — current behavior).
- * - [ON_DEMAND]        Tool definitions are registered but NOT described in the system prompt.
- *                      The model must infer or request them.  Produces more messages but uses
- *                      fewer tokens per turn.
- * - [ALWAYS_AVAILABLE] Tools are fully described in the system prompt from the very first turn.
- *                      Fewer messages are required; better accuracy on tool-heavy tasks.
- */
+/** How native tools are exposed to the model for the active chat. */
 enum class ToolAccessMode(val label: String, val subtitle: String) {
+    DISABLED(
+        label = "Off",
+        subtitle = "No tools are exposed in this chat"
+    ),
     AUTO(
-        label = "Auto",
-        subtitle = "Agent chooses for you"
+        label = "Auto (legacy)",
+        subtitle = "Migrates to optimized on-demand mode"
     ),
     ON_DEMAND(
         label = "On demand",
-        subtitle = "Load when needed. More messages, lower accuracy"
+        subtitle = "Recommended · tools are callable without duplicating verbose docs"
     ),
     ALWAYS_AVAILABLE(
         label = "Always available",
-        subtitle = "Ready from start. Fewer messages, better accuracy"
+        subtitle = "Keep detailed tool guidance loaded in every request"
     );
 
     companion object {
-        fun fromKey(key: String): ToolAccessMode =
-            entries.firstOrNull { it.name == key } ?: AUTO
+        fun fromKey(key: String): ToolAccessMode = when (key) {
+            AUTO.name -> ON_DEMAND
+            else -> entries.firstOrNull { it.name == key } ?: ON_DEMAND
+        }
+    }
+}
+
+/** How selected Agent Skills are hydrated into this chat. */
+enum class SkillAccessMode(val label: String, val subtitle: String) {
+    DISABLED(
+        label = "Off",
+        subtitle = "Do not advertise or load Agent Skills in this chat"
+    ),
+    ON_DEMAND(
+        label = "On demand",
+        subtitle = "Advertise selected skills and load a matching SKILL.md only when needed"
+    ),
+    ALWAYS_LOADED(
+        label = "Always loaded",
+        subtitle = "Inject selected skill instructions up front, within a bounded context budget"
+    );
+
+    companion object {
+        fun fromKey(key: String): SkillAccessMode =
+            entries.firstOrNull { it.name == key } ?: ON_DEMAND
     }
 }

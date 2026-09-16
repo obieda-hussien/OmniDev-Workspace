@@ -5,11 +5,6 @@ import kotlinx.serialization.Serializable
 
 /**
  * Represents a single message in the AI conversation, including tool calls and results.
- *
- * @property messageId Stable UUID string identifying this message. Generated on creation;
- *   restored from the database when loading past messages so references stay consistent.
- * @property replyToMessageId When non-null, this message is a reply to the message with the
- *   given [messageId]. Drives the WhatsApp-style quoted-reply UI and agent context injection.
  */
 @Serializable
 data class ChatMessage(
@@ -30,9 +25,6 @@ enum class MessageRole {
     USER, ASSISTANT, SYSTEM, TOOL
 }
 
-/**
- * Represents a tool invocation requested by the AI model.
- */
 @Serializable
 data class ToolCall(
     val id: String,
@@ -42,9 +34,6 @@ data class ToolCall(
     val extraContent: kotlinx.serialization.json.JsonObject? = null
 )
 
-/**
- * Represents the result of executing a tool call.
- */
 @Serializable
 data class ToolCallResult(
     val toolCallId: String,
@@ -53,13 +42,6 @@ data class ToolCallResult(
     val isError: Boolean = false
 )
 
-/**
- * Metadata for an attached file (image, PDF, text, video).
- *
- * @property base64Data Optional Base64-encoded content of the file, populated for
- *           image attachments when the target model supports vision input.
- *           Not persisted to the DB — only used in-memory for the active request.
- */
 @Serializable
 data class AttachmentMeta(
     val uri: String,
@@ -77,41 +59,61 @@ enum class AttachmentMediaType {
 
 /**
  * Payload sent to an AI completion endpoint.
- * Structured to support Anthropic, OpenAI, Gemini, and OpenAI-compatible API formats.
+ *
+ * Request-boundary hygiene is centralized here so every provider/caller receives:
+ * - no replayed/private chain-of-thought,
+ * - the observable execution policy,
+ * - bounded/deduplicated native tool schemas.
  */
 @Serializable
 data class CompletionRequest(
     val modelId: String,
-    val messages: List<ChatMessage>,
-    val systemPrompt: String? = null,
+    var messages: List<ChatMessage>,
+    var systemPrompt: String? = null,
     val maxTokens: Int = 4096,
     val temperature: Double = 0.7,
     val enableThinking: Boolean = false,
     val targetContext: String? = null,
-    /** The resolved API key for the target provider. Populated by [AgentPipeline]. */
+    /** The resolved API key for the target provider. */
     val apiKey: String? = null,
-    /**
-     * Native function-calling tool definitions. When non-null, [CompletionService]
-     * includes them in the API request so the model can invoke tools via the provider's
-     * structured tool-call mechanism instead of raw text output.
-     */
-    val tools: List<ToolDefinition>? = null,
+    /** Native function-calling definitions, compacted in [init]. */
+    var tools: List<ToolDefinition>? = null,
     val customBaseUrl: String? = null,
     val customModelId: String? = null,
-    @kotlinx.serialization.Transient val onReasoning: (suspend (String) -> Unit)? = null
-)
+    /**
+     * Legacy/provider reasoning callback. Cleared in [init] so private reasoning
+     * is not streamed into the user-visible console. Operational progress still
+     * comes from deterministic AgentEvent phase/tool/result telemetry.
+     */
+    @kotlinx.serialization.Transient
+    var onReasoning: (suspend (String) -> Unit)? = null
+) {
+    init {
+        messages = AgentPromptSanitizer.sanitizeMessages(messages)
+        systemPrompt = AgentPromptSanitizer.sanitizeSystemPrompt(systemPrompt)
+        tools = ToolSchemaCompactor.compact(tools, messages)
+        onReasoning = null
+    }
+}
 
 /**
  * Response from an AI completion endpoint.
+ *
+ * Providers may still use hidden reasoning internally, but raw chain-of-thought
+ * is not stored, replayed into future turns, or rendered in the agent console.
  */
 @Serializable
 data class CompletionResponse(
     val content: String,
     val toolCalls: List<ToolCall> = emptyList(),
-    val thinkingContent: String? = null,
+    var thinkingContent: String? = null,
     val finishReason: String? = null,
     val tokensUsed: TokenUsage? = null
-)
+) {
+    init {
+        thinkingContent = null
+    }
+}
 
 @Serializable
 data class TokenUsage(
@@ -120,7 +122,6 @@ data class TokenUsage(
     val totalTokens: Int = 0
 )
 
-/** Persisted UI action, created only by the structured mode-request tool. */
 @Serializable
 data class ExecutionModeRequest(
     val mode: String,

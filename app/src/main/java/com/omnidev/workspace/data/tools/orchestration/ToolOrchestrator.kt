@@ -1,38 +1,55 @@
 package com.omnidev.workspace.data.tools.orchestration
 
+import com.omnidev.workspace.data.tools.ToolExecutionResult
+import com.omnidev.workspace.data.tools.ToolExecutionSemantics
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
 /**
- * ToolOrchestrator - Advanced Tool Coordination System
- * 
- * Features:
- * - Parallel tool execution with dependency resolution
- * - Intelligent caching with TTL
- * - Circuit breaker pattern for failing tools
- * - Tool execution metrics and analytics
- * - Dynamic tool routing based on context
- * - Tool chain optimization
+ * ToolOrchestrator - Advanced Tool Coordination System.
+ *
+ * Transport exceptions and semantic failures deliberately use different circuit
+ * behavior. A transport circuit may block an unhealthy tool backend entirely.
+ * A semantic failure (wrong domain, permission denied, unsupported command, etc.)
+ * must be returned to the model so it can change strategy; it must NOT disable an
+ * otherwise healthy multi-purpose tool such as agent_runtime.
  */
 class ToolOrchestrator {
-    
+
+    companion object {
+        private val LONG_RUNNING_TOOLS = setOf(
+            "agent_runtime",
+            "advanced_terminal",
+            "setup_build_environment",
+            "git_manager",
+            "build_doctor",
+            "auto_heal_build"
+        )
+
+        private const val LONG_RUNNING_TIMEOUT_MS = 12 * 60_000L
+        private const val PERSISTENT_SEMANTIC_REPEAT_THRESHOLD = 2
+    }
+
     private val executionCache = ConcurrentHashMap<String, CachedResult>()
+    /** Circuit for transport/execution exceptions only. */
     private val circuitBreakers = ConcurrentHashMap<String, CircuitBreaker>()
+    /** Counts repeated persistent semantic classifications without globally blocking a tool. */
+    private val semanticFailureCounts = ConcurrentHashMap<String, AtomicInteger>()
     private val executionMetrics = ConcurrentHashMap<String, ToolMetrics>()
-    
+
     data class CachedResult(
         val result: Any,
         val timestamp: Long,
         val ttl: Duration
     ) {
-        fun isValid(): Boolean = 
+        fun isValid(): Boolean =
             System.currentTimeMillis() - timestamp < ttl.inWholeMilliseconds
     }
-    
+
     data class ToolMetrics(
         var totalExecutions: Long = 0,
         var successCount: Long = 0,
@@ -54,9 +71,9 @@ class ToolOrchestrator {
                 return (successRate * 0.8 + speedScore * 0.2).coerceIn(0.0, 1.0)
             }
     }
-    
+
     enum class CircuitState { CLOSED, OPEN, HALF_OPEN }
-    
+
     data class CircuitBreaker(
         var state: CircuitState = CircuitState.CLOSED,
         var failureCount: Int = 0,
@@ -68,15 +85,13 @@ class ToolOrchestrator {
             failureCount = 0
             state = CircuitState.CLOSED
         }
-        
+
         fun recordFailure() {
             failureCount++
             lastFailureTime = System.currentTimeMillis()
-            if (failureCount >= threshold) {
-                state = CircuitState.OPEN
-            }
+            if (failureCount >= threshold) state = CircuitState.OPEN
         }
-        
+
         fun canExecute(): Boolean {
             val now = System.currentTimeMillis()
             val dynamicTimeoutMs = currentTimeoutMs()
@@ -97,10 +112,8 @@ class ToolOrchestrator {
             return timeout.inWholeMilliseconds * multiplier
         }
     }
-    
-    /**
-     * Execute a tool with caching, circuit breaker, and metrics
-     */
+
+    /** Execute a tool with caching, semantic normalization, circuit breakers, and metrics. */
     suspend fun <T> executeTool(
         toolName: String,
         cacheKey: String? = null,
@@ -110,7 +123,6 @@ class ToolOrchestrator {
         baseRetryDelayMs: Long = 500L,
         execution: suspend () -> T
     ): Result<T> = withContext(Dispatchers.IO) {
-        // Check cache
         if (cacheKey != null) {
             executionCache[cacheKey]?.let { cached ->
                 if (cached.isValid()) {
@@ -121,30 +133,76 @@ class ToolOrchestrator {
                 }
             }
         }
-        
-        // Check circuit breaker
+
         val breaker = circuitBreakers.getOrPut(toolName) { CircuitBreaker() }
         if (!breaker.canExecute()) {
             return@withContext Result.failure(
-                Exception("Circuit breaker OPEN for tool: $toolName")
+                Exception("Transport circuit breaker OPEN for tool: $toolName")
             )
         }
-        
-        // Execute with metrics
+
         val metrics = executionMetrics.getOrPut(toolName) { ToolMetrics() }
         val startTime = System.currentTimeMillis()
-        
+        val effectiveTimeoutMs = if (toolName in LONG_RUNNING_TOOLS) {
+            maxOf(timeoutMs, LONG_RUNNING_TIMEOUT_MS)
+        } else timeoutMs
+
         var attempt = 0
         var result: Result<T>
+        var semanticFailure = false
         while (true) {
             result = try {
-                val output = withTimeout(timeoutMs) { execution() }
-                breaker.recordSuccess()
-                metrics.successCount++
-                metrics.consecutiveFailures = 0
-                metrics.lastError = null
+                val rawOutput = withTimeout(effectiveTimeoutMs) { execution() }
+                @Suppress("UNCHECKED_CAST")
+                var output: T = if (rawOutput is ToolExecutionResult) {
+                    ToolExecutionSemantics.normalize(toolName, rawOutput) as T
+                } else rawOutput
+
+                var toolResult = output as? ToolExecutionResult
+                semanticFailure = toolResult?.isError == true
+                if (semanticFailure) {
+                    metrics.failureCount++
+                    metrics.consecutiveFailures++
+                    metrics.lastError = buildString {
+                        append(toolResult?.classification ?: "TOOL_ERROR")
+                        toolResult?.output?.lineSequence()?.firstOrNull()?.takeIf { it.isNotBlank() }?.let {
+                            append(": ").append(it.take(300))
+                        }
+                    }
+
+                    if (toolResult != null && ToolExecutionSemantics.isPersistentFailure(toolResult)) {
+                        val key = "$toolName:${toolResult.classification ?: "PERSISTENT"}"
+                        val repeated = semanticFailureCounts
+                            .getOrPut(key) { AtomicInteger(0) }
+                            .incrementAndGet()
+                        if (repeated >= PERSISTENT_SEMANTIC_REPEAT_THRESHOLD) {
+                            val warning =
+                                "[semantic-circuit] repeated=$repeated class=${toolResult.classification} " +
+                                    "— DO NOT retry the same backend strategy; change execution domain/capability or report the blocker."
+                            val decorated = toolResult.copy(
+                                output = insertAfterTelemetry(toolResult.output, warning),
+                                retryable = false,
+                                persistentFailure = true
+                            )
+                            toolResult = decorated
+                            @Suppress("UNCHECKED_CAST")
+                            run { output = decorated as T }
+                        }
+                    }
+                    // Semantic failure proves the transport itself worked, so do not
+                    // poison/open the broad tool transport circuit.
+                    breaker.recordSuccess()
+                } else {
+                    breaker.recordSuccess()
+                    metrics.successCount++
+                    metrics.consecutiveFailures = 0
+                    metrics.lastError = null
+                    clearSemanticFailureCounts(toolName)
+                }
+
                 Result.success(output)
             } catch (e: Exception) {
+                // Only real transport/execution exceptions consume the broad retry/circuit budget.
                 breaker.recordFailure()
                 metrics.failureCount++
                 metrics.consecutiveFailures++
@@ -160,64 +218,63 @@ class ToolOrchestrator {
             }
             break
         }
-        
-        // Update metrics
+
         val executionTime = System.currentTimeMillis() - startTime
         metrics.totalExecutions++
-        metrics.avgExecutionTime = 
-            (metrics.avgExecutionTime * (metrics.totalExecutions - 1) + executionTime) / 
-            metrics.totalExecutions
+        metrics.avgExecutionTime =
+            (metrics.avgExecutionTime * (metrics.totalExecutions - 1) + executionTime) /
+                metrics.totalExecutions
         metrics.lastExecutionTime = executionTime
-        
-        // Cache successful results
-        if (result.isSuccess && cacheKey != null) {
+
+        if (result.isSuccess && !semanticFailure && cacheKey != null) {
             executionCache[cacheKey] = CachedResult(
                 result = result.getOrThrow() as Any,
                 timestamp = System.currentTimeMillis(),
                 ttl = cacheTTL
             )
         }
-        
+
         result
     }
-    
-    /**
-     * Execute multiple tools in parallel with dependency resolution
-     */
+
+    private fun insertAfterTelemetry(output: String, message: String): String {
+        val newline = output.indexOf('\n')
+        return if (newline < 0) "$output\n$message"
+        else output.substring(0, newline + 1) + message + "\n" + output.substring(newline + 1)
+    }
+
+    private fun clearSemanticFailureCounts(toolName: String) {
+        val prefix = "$toolName:"
+        semanticFailureCounts.keys.removeAll { it.startsWith(prefix) }
+    }
+
     suspend fun executeParallel(
         tasks: List<ToolTask>
     ): Map<String, Result<Any>> = coroutineScope {
         val results = ConcurrentHashMap<String, Result<Any>>()
-        val dependencyGraph = buildDependencyGraph(tasks)
+        buildDependencyGraph(tasks)
         val executed = ConcurrentHashMap.newKeySet<String>()
-        
+
         suspend fun executeTask(task: ToolTask) {
-            // Wait for dependencies
             task.dependencies.forEach { dep ->
-                while (!executed.contains(dep)) {
-                    delay(50)
-                }
+                while (!executed.contains(dep)) delay(50)
             }
-            
+
             val result = executeTool(
                 toolName = task.name,
                 cacheKey = task.cacheKey,
                 cacheTTL = task.cacheTTL,
                 execution = task.execution
             )
-            
+
             results[task.name] = result
             executed.add(task.name)
         }
-        
-        // Launch all tasks
-        tasks.map { task ->
-            async { executeTask(task) }
-        }.awaitAll()
-        
+
+        tasks.map { task -> async { executeTask(task) } }.awaitAll()
         results
     }
-    
+
     data class ToolTask(
         val name: String,
         val dependencies: List<String> = emptyList(),
@@ -225,39 +282,23 @@ class ToolOrchestrator {
         val cacheTTL: Duration = 5.minutes,
         val execution: suspend () -> Any
     )
-    
-    private fun buildDependencyGraph(tasks: List<ToolTask>): Map<String, List<String>> {
-        return tasks.associate { it.name to it.dependencies }
-    }
-    
-    /**
-     * Get metrics for a specific tool
-     */
+
+    private fun buildDependencyGraph(tasks: List<ToolTask>): Map<String, List<String>> =
+        tasks.associate { it.name to it.dependencies }
+
     fun getToolMetrics(toolName: String): ToolMetrics? = executionMetrics[toolName]
-    
-    /**
-     * Get all metrics
-     */
+
     fun getAllMetrics(): Map<String, ToolMetrics> = executionMetrics.toMap()
-    
-    /**
-     * Clear cache for specific key or all
-     */
+
     fun clearCache(key: String? = null) {
-        if (key != null) {
-            executionCache.remove(key)
-        } else {
-            executionCache.clear()
-        }
+        if (key != null) executionCache.remove(key) else executionCache.clear()
     }
-    
-    /**
-     * Reset circuit breaker for a tool
-     */
+
     fun resetCircuitBreaker(toolName: String) {
         circuitBreakers[toolName]?.let {
             it.state = CircuitState.CLOSED
             it.failureCount = 0
         }
+        clearSemanticFailureCounts(toolName)
     }
 }

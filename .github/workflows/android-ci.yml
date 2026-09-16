@@ -30,6 +30,7 @@ env:
   JAVA_VERSION: "17"
   ANDROID_API_LEVEL: "36"
   ANDROID_BUILD_TOOLS: "35.0.0"
+  ANDROID_NDK_VERSION: "27.0.12077973"
   GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dkotlin.incremental=false"
   MAX_DEBUG_APK_SIZE_KB: "153600"
 
@@ -61,14 +62,18 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
 
+      - name: Install and verify Android NDK
+        run: bash .github/scripts/install-android-ndk.sh
+
       - name: Cache native build directories
         uses: actions/cache@v5
         with:
           path: |
             app/.cxx
             ~/.cmake
-          key: native-${{ runner.os }}-${{ hashFiles('app/src/main/cpp/**', 'app/build.gradle.kts', 'gradle/libs.versions.toml') }}
+          key: native-${{ runner.os }}-${{ env.ANDROID_NDK_VERSION }}-${{ hashFiles('app/src/main/cpp/**', 'app/build.gradle.kts', 'gradle/libs.versions.toml') }}
           restore-keys: |
+            native-${{ runner.os }}-${{ env.ANDROID_NDK_VERSION }}-
             native-${{ runner.os }}-
 
       - name: Grant gradlew permission
@@ -78,7 +83,9 @@ jobs:
         run: |
           java -version
           ./gradlew --version
-          sdkmanager --list_installed | grep -E 'platforms;android-36|build-tools;35.0.0|platform-tools' || true
+          sdkmanager --list_installed | grep -E 'platforms;android-36|build-tools;35.0.0|platform-tools|ndk;${{ env.ANDROID_NDK_VERSION }}' || true
+          test -s "$ANDROID_SDK_ROOT/ndk/${ANDROID_NDK_VERSION}/source.properties"
+          cat "$ANDROID_SDK_ROOT/ndk/${ANDROID_NDK_VERSION}/source.properties"
 
       - name: Run lint checks for all flavors
         env:
@@ -166,6 +173,9 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
 
+      - name: Install and verify Android NDK
+        run: bash .github/scripts/install-android-ndk.sh
+
       - name: Grant gradlew permission
         run: chmod +x gradlew
 
@@ -243,6 +253,9 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
 
+      - name: Install and verify Android NDK
+        run: bash .github/scripts/install-android-ndk.sh
+
       - name: Grant gradlew permission
         run: chmod +x gradlew
 
@@ -314,6 +327,9 @@ jobs:
         uses: android-actions/setup-android@v4
         with:
           packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
+
+      - name: Install and verify Android NDK
+        run: bash .github/scripts/install-android-ndk.sh
 
       - name: Grant gradlew permission
         run: chmod +x gradlew
@@ -408,6 +424,9 @@ jobs:
         uses: android-actions/setup-android@v4
         with:
           packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
+
+      - name: Install and verify Android NDK
+        run: bash .github/scripts/install-android-ndk.sh
 
       - name: Grant gradlew permission
         run: chmod +x gradlew

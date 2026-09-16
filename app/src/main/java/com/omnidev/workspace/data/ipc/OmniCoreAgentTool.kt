@@ -7,216 +7,134 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * OmniCoreAgentTool — exposes all [PrivilegedExecutionManager] capabilities as a
- * single agent-callable tool (`privileged_tool`) registered in
- * [com.omnidev.workspace.data.tools.CompositeToolManager].
+ * Agent-facing privileged Android tool.
  *
- * This is the bridge between the AI agent's ReAct loop and the privileged-execution
- * backend (Shizuku / root). The agent selects an `action` and supplies the
- * action-specific parameters; this class validates and routes the call.
- *
- * ### Supported actions
- * | Action           | Description                                        |
- * |------------------|----------------------------------------------------|
- * | `status`         | Check Shizuku / root availability                  |
- * | `shell`          | Run an arbitrary shell command (returns stdout)    |
- * | `dumpsys`        | Dump a system service (battery, wifi, package …)   |
- * | `getprop`        | Read a system property                             |
- * | `setprop`        | Set a system property (root required)              |
- * | `meminfo`        | Full /proc/meminfo report                          |
- * | `cpuinfo`        | CPU info from /proc/cpuinfo                        |
- * | `ps`             | List running processes                             |
- * | `netstat`        | Network connection table                           |
- * | `settings_get`   | Read an Android system/secure/global setting       |
- * | `settings_put`   | Write an Android system/secure/global setting      |
- * | `settings_list`  | List all keys in a settings namespace              |
- * | `pkg_list`       | List installed packages (with optional filter)     |
- * | `pkg_install`    | Install an APK file                                |
- * | `pkg_uninstall`  | Uninstall a package                                |
- * | `pkg_grant`      | Grant a permission to a package                    |
- * | `pkg_revoke`     | Revoke a permission from a package                 |
- * | `pkg_info`       | Detailed package dump (pm dump)                    |
- * | `app_stop`       | Force-stop an application                          |
- * | `app_launch`     | Start an activity / component via am start         |
- * | `app_broadcast`  | Send a broadcast intent via am broadcast           |
- * | `input_tap`      | Tap at screen coordinates                          |
- * | `input_swipe`    | Swipe gesture between two coordinates              |
- * | `input_text`     | Type text via input text                           |
- * | `input_keyevent` | Send a keyevent (keycode integer)                  |
- * | `screencap`      | Capture the screen to a file                       |
- * | `wm`             | Window manager: get/set display size or density    |
- * | `svc`            | Enable / disable a hardware service                |
- * | `termux_hints`   | Get Termux bootstrap installation instructions     |
- * | `termux_install` | Silently install Termux APK via Shizuku            |
+ * Programmatic Android privilege is provided by the Shizuku UserService backend.
+ * rish remains a separate Termux-side terminal integration and is never treated as
+ * healthy unless its functional shell/root smoke-test succeeds.
  */
 object OmniCoreAgentTool {
 
     private const val NETSTAT_CMD =
         "cat /proc/net/tcp /proc/net/tcp6 2>/dev/null || netstat -an 2>/dev/null || ss -an 2>/dev/null"
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Tool definition
-    // ─────────────────────────────────────────────────────────────────────
-
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "privileged_tool",
             description = """
-Execute privileged Android OS operations via Shizuku (preferred), rish full-shell, or root/SU fallback.
-Use this for any action that requires elevated system access beyond standard Android APIs.
+Execute Android privileged operations through the supported Shizuku UserService backend, with root fallback where available.
 
-Actions and their required parameters:
-• status              — Check if Shizuku, rish, or root is available. No extra params.
-• shell               — command: arbitrary shell command, returns full stdout.
-• dumpsys             — service: service name (battery, wifi, package, activity, window, input, notification, power, connectivity).
-• getprop             — key: system property key (e.g. ro.build.version.sdk).
-• setprop             — key, value: set a system property (root usually required).
-• meminfo             — No extra params. Returns /proc/meminfo.
-• cpuinfo             — No extra params. Returns CPU information.
-• ps                  — No extra params. List running processes.
-• netstat             — No extra params. Network connection table.
-• settings_get        — namespace (system/secure/global), key.
-• settings_put        — namespace, key, value.
-• settings_list       — namespace (system/secure/global). Lists all keys.
-• pkg_list            — filter (optional substring). Lists installed packages.
-• pkg_install         — apk_path: full path to the APK file to install.
-• pkg_uninstall       — package: package name to uninstall.
-• pkg_grant           — package, permission: grant a permission to a package.
-• pkg_revoke          — package, permission: revoke a permission from a package.
-• pkg_info            — package: detailed pm dump for a package.
-• app_stop            — package: force-stop an application.
-• app_launch          — component: full component (com.pkg/.Activity) or am-start expression.
-• app_broadcast       — broadcast_action: broadcast intent action string.
-• input_tap           — x, y: screen coordinates (integers).
-• input_swipe         — x1, y1, x2, y2, duration_ms: swipe gesture.
-• input_text          — text: text to type.
-• input_keyevent      — keycode: integer keycode (e.g. 4=BACK, 3=HOME, 26=POWER).
-• screencap           — output_path (default /data/local/tmp/omnidev_cap.png).
-• wm                  — sub_command (size/density/size reset/density reset), value (optional new value).
-• svc                 — service (wifi/data/bluetooth/nfc/power), svc_action (enable/disable).
-• termux_hints        — No extra params. Returns instructions to install Termux without an app store.
-• termux_install      — No extra params. Silently downloads and installs Termux APK via Shizuku.
+Core actions:
+• status — functionally probe Shizuku/rish/root and report independent states.
+• shell — command: privileged Android shell command.
+• dumpsys — service.
+• getprop / setprop — key, optional value.
+• meminfo / cpuinfo / ps / netstat.
+• settings_get / settings_put / settings_list — namespace, key/value as needed.
+• pkg_list / pkg_install / pkg_uninstall / pkg_grant / pkg_revoke / pkg_info.
+• app_stop / app_launch / app_broadcast.
+• input_tap / input_swipe / input_text / input_keyevent.
+• screencap / wm / svc.
+• termux_hints / termux_install.
 
-rish (Remote Interactive Shell via Shizuku) — full ADB-equivalent shell:
-• rish_setup          — Prepare rish: locate/extract rish_shizuku.dex, write rish script. Returns status.
-• rish_exec           — command: run a command through rish full-shell (supports pipes, redirects, env vars).
-• rish_script         — script: multi-line shell script content to execute via rish.
-• rish_session        — commands: newline-separated list of commands to run sequentially via rish.
+rish terminal integration:
+• rish_setup — install/repair official-form rish inside Termux private storage and run `rish -c id`.
+• rish_exec — command: execute through the verified Termux rish launcher.
+• rish_script — script: execute a multi-line shell script through verified rish.
+• rish_session — commands: newline-separated commands; stops on persistent infrastructure failure.
+
+RISH GUARDRAILS:
+- rish files belong under Termux `${'$'}PREFIX`, never `/data/user/0/com.omnidev.workspace`.
+- READY requires a real shell/root smoke test; DEX/file/binder presence is not readiness.
+- If output contains `UnsatisfiedLinkError` or `couldn't find "librish.so"`, STOP rish repair retries.
+- NEVER copy/extract librish.so, set LD_LIBRARY_PATH, or add -Djava.library.path.
+- A broken rish does not mean Shizuku UserService is broken; use `shell` for programmatic privileged work.
 """.trimIndent(),
             parameters = listOf(
-                ToolParameter("action", "string", "The privileged action to perform (see description).", required = true),
-                ToolParameter("command", "string", "Shell command (for action=shell or rish_exec).", required = false),
-                ToolParameter("script", "string", "Multi-line shell script (for rish_script).", required = false),
+                ToolParameter("action", "string", "Privileged action to perform.", required = true),
+                ToolParameter("command", "string", "Shell command for shell/rish_exec.", required = false),
+                ToolParameter("script", "string", "Multi-line content for rish_script.", required = false),
                 ToolParameter("commands", "string", "Newline-separated commands for rish_session.", required = false),
-                ToolParameter("service", "string", "Service name for dumpsys/svc.", required = false),
-                ToolParameter("key", "string", "Property key or settings key.", required = false),
-                ToolParameter("value", "string", "Value to write (setprop/settings_put/wm).", required = false),
-                ToolParameter("namespace", "string", "Settings namespace: system, secure, global.", required = false),
-                ToolParameter("package", "string", "Package name.", required = false),
-                ToolParameter("apk_path", "string", "Path to APK file for pkg_install.", required = false),
-                ToolParameter("permission", "string", "Android permission string for pkg_grant/pkg_revoke.", required = false),
-                ToolParameter("component", "string", "Activity component name for app_launch.", required = false),
-                ToolParameter("broadcast_action", "string", "Intent action for app_broadcast.", required = false),
-                ToolParameter("filter", "string", "Package name filter for pkg_list.", required = false),
-                ToolParameter("x", "string", "X coordinate (input_tap).", required = false),
-                ToolParameter("y", "string", "Y coordinate (input_tap).", required = false),
-                ToolParameter("x1", "string", "Swipe start X (input_swipe).", required = false),
-                ToolParameter("y1", "string", "Swipe start Y (input_swipe).", required = false),
-                ToolParameter("x2", "string", "Swipe end X (input_swipe).", required = false),
-                ToolParameter("y2", "string", "Swipe end Y (input_swipe).", required = false),
-                ToolParameter("duration_ms", "string", "Swipe duration in ms (input_swipe, default 300).", required = false),
-                ToolParameter("text", "string", "Text to type (input_text).", required = false),
-                ToolParameter("keycode", "string", "Integer keycode (input_keyevent).", required = false),
-                ToolParameter("output_path", "string", "Screenshot output path (screencap).", required = false),
-                ToolParameter("sub_command", "string", "wm subcommand: size, density, size reset, density reset.", required = false),
-                ToolParameter("svc_action", "string", "svc action: enable or disable.", required = false)
+                ToolParameter("service", "string", "Service for dumpsys/svc.", required = false),
+                ToolParameter("key", "string", "Property/settings key.", required = false),
+                ToolParameter("value", "string", "Value for write actions.", required = false),
+                ToolParameter("namespace", "string", "system, secure, or global.", required = false),
+                ToolParameter("package", "string", "Android package name.", required = false),
+                ToolParameter("apk_path", "string", "APK path for pkg_install.", required = false),
+                ToolParameter("permission", "string", "Android permission.", required = false),
+                ToolParameter("component", "string", "Activity component.", required = false),
+                ToolParameter("broadcast_action", "string", "Broadcast intent action.", required = false),
+                ToolParameter("filter", "string", "Optional package filter.", required = false),
+                ToolParameter("x", "string", "Tap X.", required = false),
+                ToolParameter("y", "string", "Tap Y.", required = false),
+                ToolParameter("x1", "string", "Swipe start X.", required = false),
+                ToolParameter("y1", "string", "Swipe start Y.", required = false),
+                ToolParameter("x2", "string", "Swipe end X.", required = false),
+                ToolParameter("y2", "string", "Swipe end Y.", required = false),
+                ToolParameter("duration_ms", "string", "Swipe duration.", required = false),
+                ToolParameter("text", "string", "Text for input_text.", required = false),
+                ToolParameter("keycode", "string", "Android keycode.", required = false),
+                ToolParameter("output_path", "string", "Path for screencap.", required = false),
+                ToolParameter("sub_command", "string", "wm subcommand.", required = false),
+                ToolParameter("svc_action", "string", "enable or disable.", required = false)
             )
         )
     )
-
-    // ─────────────────────────────────────────────────────────────────────
-    // Execution router
-    // ─────────────────────────────────────────────────────────────────────
 
     suspend fun execute(
         action: String,
         args: Map<String, String>
     ): ToolExecutionResult = withContext(Dispatchers.IO) {
         when (action.lowercase().trim()) {
-
-            "status" -> {
-                val shizuku = PrivilegedExecutionManager.isShizukuReady()
-                val rish = PrivilegedExecutionManager.isRishReady()
-                val root = PrivilegedExecutionManager.isRootAvailable()
-                val backend = when {
-                    shizuku -> "✅ Shizuku API (active)"
-                    rish    -> "✅ rish full-shell (active)"
-                    root    -> "⚠️ Root/SU only (Shizuku/rish not available)"
-                    else    -> "❌ No privileged backend available"
-                }
-                ToolExecutionResult(
-                    "Privileged backend: $backend\n" +
-                    "Shizuku API: $shizuku | rish: $rish | Root: $root"
-                )
-            }
+            "status" -> status()
 
             "shell" -> {
-                val cmd = args["command"] ?: return@withContext err("shell requires 'command'")
-                PrivilegedExecutionManager.executeCommand(cmd).toToolResult()
+                val command = args["command"] ?: return@withContext err("shell requires 'command'")
+                PrivilegedExecutionManager.executeCommand(command).toToolResult()
             }
 
             "dumpsys" -> {
-                val svc = args["service"] ?: return@withContext err("dumpsys requires 'service'")
-                PrivilegedExecutionManager.dumpSysInfo(svc).toToolResult()
+                val service = args["service"] ?: return@withContext err("dumpsys requires 'service'")
+                PrivilegedExecutionManager.dumpSysInfo(service).toToolResult()
             }
 
             "getprop" -> {
-                val k = args["key"] ?: return@withContext err("getprop requires 'key'")
-                PrivilegedExecutionManager.getSystemProperty(k).toToolResult()
+                val key = args["key"] ?: return@withContext err("getprop requires 'key'")
+                PrivilegedExecutionManager.getSystemProperty(key).toToolResult()
             }
 
             "setprop" -> {
-                val k = args["key"] ?: return@withContext err("setprop requires 'key'")
-                val v = args["value"] ?: return@withContext err("setprop requires 'value'")
-                PrivilegedExecutionManager.setSystemProperty(k, v).toToolResult()
+                val key = args["key"] ?: return@withContext err("setprop requires 'key'")
+                val value = args["value"] ?: return@withContext err("setprop requires 'value'")
+                PrivilegedExecutionManager.setSystemProperty(key, value).toToolResult()
             }
 
-            "meminfo" ->
-                PrivilegedExecutionManager.executeCommand("cat /proc/meminfo").toToolResult()
-
-            "cpuinfo" ->
-                PrivilegedExecutionManager.executeCommand(
-                    "cat /proc/cpuinfo | grep -E 'processor|Hardware|model name|cpu MHz' | head -32"
-                ).toToolResult()
-
-            "ps" ->
-                PrivilegedExecutionManager.listRunningProcesses().toToolResult()
-
-            "netstat" ->
-                PrivilegedExecutionManager.executeCommand(NETSTAT_CMD).toToolResult()
+            "meminfo" -> PrivilegedExecutionManager.executeCommand("cat /proc/meminfo").toToolResult()
+            "cpuinfo" -> PrivilegedExecutionManager.executeCommand(
+                "cat /proc/cpuinfo | grep -E 'processor|Hardware|model name|cpu MHz' | head -32"
+            ).toToolResult()
+            "ps" -> PrivilegedExecutionManager.listRunningProcesses().toToolResult()
+            "netstat" -> PrivilegedExecutionManager.executeCommand(NETSTAT_CMD).toToolResult()
 
             "settings_get" -> {
-                val ns = args["namespace"] ?: return@withContext err("settings_get requires 'namespace'")
-                val k = args["key"] ?: return@withContext err("settings_get requires 'key'")
-                PrivilegedExecutionManager.readSetting(ns, k).toToolResult()
+                val namespace = args["namespace"] ?: return@withContext err("settings_get requires 'namespace'")
+                val key = args["key"] ?: return@withContext err("settings_get requires 'key'")
+                PrivilegedExecutionManager.readSetting(namespace, key).toToolResult()
             }
 
             "settings_put" -> {
-                val ns = args["namespace"] ?: return@withContext err("settings_put requires 'namespace'")
-                val k = args["key"] ?: return@withContext err("settings_put requires 'key'")
-                val v = args["value"] ?: return@withContext err("settings_put requires 'value'")
-                PrivilegedExecutionManager.writeSetting(ns, k, v).toToolResult()
+                val namespace = args["namespace"] ?: return@withContext err("settings_put requires 'namespace'")
+                val key = args["key"] ?: return@withContext err("settings_put requires 'key'")
+                val value = args["value"] ?: return@withContext err("settings_put requires 'value'")
+                PrivilegedExecutionManager.writeSetting(namespace, key, value).toToolResult()
             }
 
             "settings_list" -> {
-                val ns = args["namespace"] ?: return@withContext err("settings_list requires 'namespace'")
-                PrivilegedExecutionManager.listSettings(ns).toToolResult()
+                val namespace = args["namespace"] ?: return@withContext err("settings_list requires 'namespace'")
+                PrivilegedExecutionManager.listSettings(namespace).toToolResult()
             }
 
-            "pkg_list" -> {
-                val filter = args["filter"] ?: ""
-                PrivilegedExecutionManager.queryPackages(filter).toToolResult()
-            }
+            "pkg_list" -> PrivilegedExecutionManager.queryPackages(args["filter"].orEmpty()).toToolResult()
 
             "pkg_install" -> {
                 val path = args["apk_path"] ?: return@withContext err("pkg_install requires 'apk_path'")
@@ -230,14 +148,14 @@ rish (Remote Interactive Shell via Shizuku) — full ADB-equivalent shell:
 
             "pkg_grant" -> {
                 val pkg = args["package"] ?: return@withContext err("pkg_grant requires 'package'")
-                val perm = args["permission"] ?: return@withContext err("pkg_grant requires 'permission'")
-                PrivilegedExecutionManager.grantPermission(pkg, perm).toToolResult()
+                val permission = args["permission"] ?: return@withContext err("pkg_grant requires 'permission'")
+                PrivilegedExecutionManager.grantPermission(pkg, permission).toToolResult()
             }
 
             "pkg_revoke" -> {
                 val pkg = args["package"] ?: return@withContext err("pkg_revoke requires 'package'")
-                val perm = args["permission"] ?: return@withContext err("pkg_revoke requires 'permission'")
-                PrivilegedExecutionManager.revokePermission(pkg, perm).toToolResult()
+                val permission = args["permission"] ?: return@withContext err("pkg_revoke requires 'permission'")
+                PrivilegedExecutionManager.revokePermission(pkg, permission).toToolResult()
             }
 
             "pkg_info" -> {
@@ -251,8 +169,8 @@ rish (Remote Interactive Shell via Shizuku) — full ADB-equivalent shell:
             }
 
             "app_launch" -> {
-                val comp = args["component"] ?: return@withContext err("app_launch requires 'component'")
-                PrivilegedExecutionManager.launchComponent(comp).toToolResult()
+                val component = args["component"] ?: return@withContext err("app_launch requires 'component'")
+                PrivilegedExecutionManager.launchComponent(component).toToolResult()
             }
 
             "app_broadcast" -> {
@@ -268,12 +186,12 @@ rish (Remote Interactive Shell via Shizuku) — full ADB-equivalent shell:
             }
 
             "input_swipe" -> {
-                val x1 = args["x1"]?.toIntOrNull() ?: return@withContext err("input_swipe requires 'x1'")
-                val y1 = args["y1"]?.toIntOrNull() ?: return@withContext err("input_swipe requires 'y1'")
-                val x2 = args["x2"]?.toIntOrNull() ?: return@withContext err("input_swipe requires 'x2'")
-                val y2 = args["y2"]?.toIntOrNull() ?: return@withContext err("input_swipe requires 'y2'")
-                val dur = args["duration_ms"]?.toIntOrNull() ?: 300
-                PrivilegedExecutionManager.injectSwipe(x1, y1, x2, y2, dur).toToolResult()
+                val x1 = args["x1"]?.toIntOrNull() ?: return@withContext err("input_swipe requires integer 'x1'")
+                val y1 = args["y1"]?.toIntOrNull() ?: return@withContext err("input_swipe requires integer 'y1'")
+                val x2 = args["x2"]?.toIntOrNull() ?: return@withContext err("input_swipe requires integer 'x2'")
+                val y2 = args["y2"]?.toIntOrNull() ?: return@withContext err("input_swipe requires integer 'y2'")
+                val duration = args["duration_ms"]?.toIntOrNull() ?: 300
+                PrivilegedExecutionManager.injectSwipe(x1, y1, x2, y2, duration).toToolResult()
             }
 
             "input_text" -> {
@@ -282,91 +200,142 @@ rish (Remote Interactive Shell via Shizuku) — full ADB-equivalent shell:
             }
 
             "input_keyevent" -> {
-                val kc = args["keycode"]?.toIntOrNull()
+                val keycode = args["keycode"]?.toIntOrNull()
                     ?: return@withContext err("input_keyevent requires integer 'keycode'")
-                PrivilegedExecutionManager.injectKeyEvent(kc).toToolResult()
+                PrivilegedExecutionManager.injectKeyEvent(keycode).toToolResult()
             }
 
-            "screencap" -> {
-                val path = args["output_path"] ?: "/data/local/tmp/omnidev_cap.png"
-                PrivilegedExecutionManager.captureScreen(path).toToolResult()
-            }
+            "screencap" -> PrivilegedExecutionManager.captureScreen(
+                args["output_path"] ?: "/data/local/tmp/omnidev_cap.png"
+            ).toToolResult()
 
             "wm" -> {
                 val sub = args["sub_command"] ?: return@withContext err("wm requires 'sub_command'")
-                val v = args["value"] ?: ""
-                PrivilegedExecutionManager.windowManager(sub, v).toToolResult()
+                PrivilegedExecutionManager.windowManager(sub, args["value"].orEmpty()).toToolResult()
             }
 
             "svc" -> {
-                val svc = args["service"] ?: return@withContext err("svc requires 'service'")
-                val act = args["svc_action"]
+                val service = args["service"] ?: return@withContext err("svc requires 'service'")
+                val svcAction = args["svc_action"]
                     ?: return@withContext err("svc requires 'svc_action' (enable or disable)")
-                PrivilegedExecutionManager.controlService(svc, act).toToolResult()
-            }
-            
-            "termux_hints" -> {
-                ToolExecutionResult(PrivilegedExecutionManager.getTermuxBootstrapHints())
-            }
-            
-            "termux_install" -> {
-                PrivilegedExecutionManager.installTermuxViaShizuku().toToolResult()
+                PrivilegedExecutionManager.controlService(service, svcAction).toToolResult()
             }
 
-            // ── rish (Remote Interactive Shell) ──────────────────────────
+            "termux_hints" -> ToolExecutionResult(PrivilegedExecutionManager.getTermuxBootstrapHints())
+            "termux_install" -> PrivilegedExecutionManager.installTermuxViaShizuku().toToolResult()
 
-            "rish_setup" -> {
-                val rish = PrivilegedExecutionManager.getRishManager()
-                    ?: return@withContext err("RishShellManager not initialised (call PrivilegedExecutionManager.init first).")
-                // Attempt to prepare the DEX
-                rish.prepareLocalDex()
-                // Write the rish script
-                val scriptPath = rish.ensureRishScript()
-                // Return full status
-                val status = rish.statusReport()
-                ToolExecutionResult("rish script written to: $scriptPath\n\n$status")
-            }
+            "rish_setup" -> setupRish()
 
             "rish_exec" -> {
-                val cmd = args["command"] ?: return@withContext err("rish_exec requires 'command'")
+                val command = args["command"] ?: return@withContext err("rish_exec requires 'command'")
                 val rish = PrivilegedExecutionManager.getRishManager()
-                    ?: return@withContext err("RishShellManager not initialised.")
-                rish.execute(cmd).toToolResult()
+                    ?: return@withContext err("RishShellManager is not initialized.")
+                rish.execute(command).toToolResult()
             }
 
             "rish_script" -> {
                 val script = args["script"] ?: return@withContext err("rish_script requires 'script'")
                 val rish = PrivilegedExecutionManager.getRishManager()
-                    ?: return@withContext err("RishShellManager not initialised.")
+                    ?: return@withContext err("RishShellManager is not initialized.")
                 rish.executeScript(script).toToolResult()
             }
 
             "rish_session" -> {
-                val rawCmds = args["commands"] ?: return@withContext err("rish_session requires 'commands'")
-                val rish = PrivilegedExecutionManager.getRishManager()
-                    ?: return@withContext err("RishShellManager not initialised.")
-                val results = StringBuilder()
-                rawCmds.lines().filter { it.isNotBlank() }.forEachIndexed { idx, cmd ->
-                    val r = rish.execute(cmd.trim())
-                    results.appendLine("$ ${cmd.trim()}")
-                    results.appendLine(r.getOrElse { "❌ ${it.message}" })
-                }
-                ToolExecutionResult(results.toString().trimEnd())
+                val commands = args["commands"] ?: return@withContext err("rish_session requires 'commands'")
+                runRishSession(commands)
             }
 
             else -> err("Unknown privileged_tool action: '$action'. See tool description for supported actions.")
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Helpers
-    // ─────────────────────────────────────────────────────────────────────
+    private suspend fun status(): ToolExecutionResult {
+        val shizuku = PrivilegedExecutionManager.isShizukuReady()
+        val root = PrivilegedExecutionManager.isRootAvailable()
+        val rishManager = PrivilegedExecutionManager.getRishManager()
+        val rishHealth = rishManager?.refreshHealth()
+            ?: RishRuntimeHealth(RishRuntimeHealth.State.UNKNOWN, "RishShellManager is not initialized")
 
-    private fun err(msg: String) = ToolExecutionResult(msg, isError = true)
+        val activeBackend = when {
+            shizuku -> "✅ Shizuku UserService (active)"
+            rishHealth.ready -> "✅ rish terminal shell (active)"
+            root -> "⚠️ Root/SU only"
+            else -> "❌ No privileged backend available"
+        }
 
-    private fun Result<String>.toToolResult(): ToolExecutionResult =
-        fold(
-            onSuccess = { ToolExecutionResult(it.ifBlank { "(no output)" }) },
-            onFailure = { ToolExecutionResult("❌ ${it.message}", isError = true) }
+        return ToolExecutionResult(
+            buildString {
+                appendLine("Privileged backend: $activeBackend")
+                appendLine("Shizuku UserService: ${if (shizuku) "✅ READY" else "❌ NOT READY"}")
+                appendLine("rish terminal: ${if (rishHealth.ready) "✅ READY" else "❌ ${rishHealth.state}"}")
+                if (!rishHealth.ready) appendLine("rish detail: ${rishHealth.details.ifBlank { rishHealth.summary }}")
+                append("Root/SU: ${if (root) "✅" else "❌"}")
+            }.trimEnd(),
+            isError = !shizuku && !rishHealth.ready && !root
         )
+    }
+
+    private suspend fun setupRish(): ToolExecutionResult {
+        val rish = PrivilegedExecutionManager.getRishManager()
+            ?: return err("RishShellManager is not initialized (call PrivilegedExecutionManager.init first).")
+        val health = rish.installIntoTermux()
+        val status = rish.statusReport()
+        return ToolExecutionResult(
+            buildString {
+                appendLine(if (health.ready) "✅ rish setup verified." else "❌ rish setup did not pass verification.")
+                appendLine("State: ${health.state}")
+                if (health.details.isNotBlank()) appendLine("Action: ${health.details}")
+                appendLine()
+                append(status)
+            }.trimEnd(),
+            isError = !health.ready
+        )
+    }
+
+    private suspend fun runRishSession(commands: String): ToolExecutionResult {
+        val rish = PrivilegedExecutionManager.getRishManager()
+            ?: return err("RishShellManager is not initialized.")
+        val lines = commands.lines().map(String::trim).filter(String::isNotBlank)
+        if (lines.isEmpty()) return err("rish_session has no non-empty commands.")
+
+        val out = StringBuilder()
+        var failed = false
+        for (command in lines) {
+            out.appendLine("\$ $command")
+            val result = rish.execute(command)
+            result.fold(
+                onSuccess = { out.appendLine(it) },
+                onFailure = {
+                    failed = true
+                    out.appendLine("❌ ${it.message}")
+                }
+            )
+
+            val state = rish.cachedHealth().state
+            if (failed && state in PERSISTENT_RISH_FAILURES) {
+                out.appendLine()
+                out.appendLine("Circuit breaker: stopping rish session after persistent infrastructure failure $state.")
+                out.appendLine(RishFailureClassifier.remediation(state))
+                break
+            }
+        }
+        return ToolExecutionResult(out.toString().trimEnd(), isError = failed)
+    }
+
+    private val PERSISTENT_RISH_FAILURES = setOf(
+        RishRuntimeHealth.State.NATIVE_LIBRARY_LOAD_FAILURE,
+        RishRuntimeHealth.State.CROSS_SANDBOX_PERMISSION_FAILURE,
+        RishRuntimeHealth.State.DEX_PERMISSION_FAILURE,
+        RishRuntimeHealth.State.TERMUX_LAYOUT_BROKEN,
+        RishRuntimeHealth.State.TERMUX_UNAVAILABLE,
+        RishRuntimeHealth.State.SHIZUKU_UNAVAILABLE,
+        RishRuntimeHealth.State.SHIZUKU_PERMISSION_REQUIRED
+    )
+
+    private fun err(message: String) = ToolExecutionResult(message, isError = true)
+
+    private fun Result<String>.toToolResult(): ToolExecutionResult = fold(
+        onSuccess = { ToolExecutionResult(it.ifBlank { "(no output)" }) },
+        onFailure = { ToolExecutionResult("❌ ${it.message}", isError = true) }
+    )
 }
