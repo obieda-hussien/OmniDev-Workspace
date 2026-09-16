@@ -12,6 +12,10 @@ import java.io.File
  * User skills are validated then copied to filesDir/agent-skills/<name>/SKILL.md.
  * Enabled state is intentionally stored separately so bundled skills can be disabled
  * without modifying APK assets.
+ *
+ * Skills are advertised to the model as a compact catalog and loaded on demand.
+ * This avoids permanently injecting every SKILL.md body into the prompt while still
+ * allowing user-imported and agent-authored skills to be invoked by exact name.
  */
 class SkillManager(context: Context) {
     private val appContext = context.applicationContext
@@ -42,6 +46,15 @@ class SkillManager(context: Context) {
         return (builtIns + users)
             .distinctBy { it.name }
             .sortedWith(compareBy<AgentSkill>({ it.origin != SkillOrigin.BUILTIN }, { it.name }))
+    }
+
+    /** Resolve an installed skill by exact name. Disabled skills are hidden by default. */
+    fun findSkill(name: String, includeDisabled: Boolean = false): AgentSkill? {
+        val normalized = name.trim().lowercase()
+        if (normalized.isBlank()) return null
+        return listSkills().firstOrNull {
+            it.name == normalized && (includeDisabled || it.enabled)
+        }
     }
 
     fun setEnabled(name: String, enabled: Boolean) {
@@ -97,32 +110,59 @@ class SkillManager(context: Context) {
     }
 
     /**
-     * Returns a bounded prompt block containing enabled skills.
-     * This is injected by MemoryManager into agent/swarm runs. Built-ins are trusted
-     * application guidance; user-imported skills remain subordinate to system, tier,
-     * authorization, privacy, and confirmation policies.
+     * Returns the full current instructions for an enabled skill. This is the
+     * on-demand invocation path used by the agent after it sees the skill catalog.
+     */
+    fun buildInvocation(name: String): Result<String> = runCatching {
+        val skill = findSkill(name)
+            ?: error("Skill '$name' is not installed or is disabled.")
+
+        buildString {
+            appendLine("--- 🧩 INVOKED AGENT SKILL: ${skill.name} ---")
+            appendLine("Origin: ${skill.origin.name.lowercase()}")
+            appendLine("Description: ${skill.description}")
+            appendLine()
+            appendLine(stripFrontMatter(skill.markdown).trim())
+            appendLine()
+            appendLine("--- END INVOKED SKILL ---")
+            appendLine("Apply this skill to the CURRENT user task now. The skill remains subordinate to system policy, tier restrictions, user authorization, confirmations, privacy rules, and the current task.")
+        }.take(MAX_INVOCATION_CHARS)
+    }
+
+    /**
+     * Compact prompt context: inject the core operating skill and advertise every
+     * other enabled skill by name/description. The model then loads a matching skill
+     * on demand through search_knowledge(query="skill:<name>").
      */
     fun buildEnabledPromptContext(maxChars: Int = DEFAULT_PROMPT_BUDGET): String {
         val enabledSkills = listSkills().filter { it.enabled }
         if (enabledSkills.isEmpty()) return ""
 
-        val ordered = enabledSkills.sortedWith(
-            compareBy<AgentSkill>(
-                { it.name != CORE_SKILL },
-                { it.origin != SkillOrigin.BUILTIN },
-                { it.name }
-            )
-        ).take(MAX_ACTIVE_SKILLS)
+        val core = enabledSkills.firstOrNull { it.name == CORE_SKILL }
+        val catalog = enabledSkills
+            .filterNot { it.name == CORE_SKILL }
+            .take(MAX_CATALOG_SKILLS)
 
         val text = buildString {
-            appendLine("\n--- 🧩 OMNIDEV AGENT SKILLS (Auto-Injected) ---")
-            appendLine("Use these skills as reusable operating guidance when relevant.")
+            appendLine("\n--- 🧩 OMNIDEV AGENT SKILLS ---")
+            appendLine("Skills are reusable operating procedures installed locally in OmniDev.")
+            appendLine("When a listed skill clearly matches the current task, load it BEFORE acting by calling:")
+            appendLine("search_knowledge(query=\"skill:<exact-skill-name>\")")
+            appendLine("To inspect the available registry at runtime call search_knowledge(query=\"skills\").")
             appendLine("A skill never overrides system policy, tier restrictions, user authorization, confirmations, privacy rules, or the current task.")
-            ordered.forEach { skill ->
+
+            if (core != null) {
                 appendLine()
-                appendLine("### ${skill.name} [${skill.origin.name.lowercase()}]")
-                appendLine("Trigger: ${skill.description.take(DESCRIPTION_PROMPT_LIMIT)}")
-                appendLine(stripFrontMatter(skill.markdown).trim().take(PER_SKILL_PROMPT_LIMIT))
+                appendLine("### Core operator skill")
+                appendLine(stripFrontMatter(core.markdown).trim().take(CORE_PROMPT_LIMIT))
+            }
+
+            if (catalog.isNotEmpty()) {
+                appendLine()
+                appendLine("### Enabled skill catalog")
+                catalog.forEach { skill ->
+                    appendLine("- ${skill.name} [${skill.origin.name.lowercase()}]: ${skill.description.take(DESCRIPTION_PROMPT_LIMIT)}")
+                }
             }
             appendLine("--- END AGENT SKILLS ---")
         }
@@ -157,9 +197,10 @@ class SkillManager(context: Context) {
         private const val USER_ROOT = "agent-skills"
         private const val MAX_FILE_BYTES = 128 * 1024
         private const val DEFAULT_PROMPT_BUDGET = 7_500
-        private const val PER_SKILL_PROMPT_LIMIT = 1_050
-        private const val DESCRIPTION_PROMPT_LIMIT = 360
-        private const val MAX_ACTIVE_SKILLS = 8
+        private const val CORE_PROMPT_LIMIT = 2_400
+        private const val DESCRIPTION_PROMPT_LIMIT = 320
+        private const val MAX_CATALOG_SKILLS = 64
+        private const val MAX_INVOCATION_CHARS = 64 * 1024
         private val NAME_REGEX = Regex("^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$")
 
         val BUILTIN_SKILLS = listOf(
@@ -214,8 +255,9 @@ Requirements:
 - Never request or embed secrets.
 - Keep SKILL.md concise. Do not create executable scripts unless the workflow genuinely requires deterministic code.
 - When the document is ready, call `remember_fact` with `category=agent_skill` and put the COMPLETE SKILL.md document in `content`. That category installs the skill into OmniDev's validated user-skill registry instead of normal memory.
-- Verify the tool result says the skill was installed. If validation fails, fix the SKILL.md and retry once with the corrected document.
-- In the final response, report the installed skill name and that it can be enabled/disabled/deleted from Settings → Tool Arsenal → Agent Skills.
+- Verify installation by calling `search_knowledge` with `query=skill:<installed-name>` and confirm the invocation returns the new skill.
+- If validation fails, fix the SKILL.md and retry once with the corrected document.
+- In the final response, report the installed skill name and that it can be enabled/disabled/deleted from Settings → Agent Skills.
         """.trimIndent()
 
         private fun parseFrontMatter(lines: List<String>): Map<String, String> {
