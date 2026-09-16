@@ -151,31 +151,30 @@ class RishShellManager(private val context: Context) {
 set -eu
 DEST="$TERMUX_INSTALL_DIR"
 BIN="$TERMUX_RISH"
-mkdir -p "\$PREFIX/opt"
+mkdir -p "${'$'}PREFIX/opt"
 
-# Repair the historically broken layout where \$PREFIX/bin/rish became a directory.
-if [ -d "\$BIN" ] && [ ! -L "\$BIN" ]; then
-  BACKUP="\$PREFIX/opt/omnidev-rish-broken-\$(date +%s)"
-  mv "\$BIN" "\$BACKUP"
-  printf 'Repaired broken rish directory; backup=%s\n' "\$BACKUP"
+# Repair the historically broken layout where ${'$'}PREFIX/bin/rish became a directory.
+if [ -d "${'$'}BIN" ] && [ ! -L "${'$'}BIN" ]; then
+  BACKUP="${'$'}PREFIX/opt/omnidev-rish-broken-${'$'}(date +%s)"
+  mv "${'$'}BIN" "${'$'}BACKUP"
+  printf 'Repaired broken rish directory; backup=%s\n' "${'$'}BACKUP"
 fi
-rm -f "\$BIN"
-mkdir -p "\$DEST"
+rm -f "${'$'}BIN"
+mkdir -p "${'$'}DEST"
 
-printf '%s' '${shellLiteral(dex64)}' | base64 -d > "\$DEST/$DEX_NAME"
-printf '%s' '${shellLiteral(script64)}' | base64 -d > "\$DEST/rish"
-chmod 400 "\$DEST/$DEX_NAME"
-chmod 700 "\$DEST/rish"
-ln -s "\$DEST/rish" "\$BIN"
+printf '%s' '${shellLiteral(dex64)}' | base64 -d > "${'$'}DEST/$DEX_NAME"
+printf '%s' '${shellLiteral(script64)}' | base64 -d > "${'$'}DEST/rish"
+chmod 400 "${'$'}DEST/$DEX_NAME"
+chmod 700 "${'$'}DEST/rish"
+ln -s "${'$'}DEST/rish" "${'$'}BIN"
 
 # Never install/copy librish.so here. Shizuku owns its native loader.
-rm -f "\$PREFIX/lib/librish.so.omnidev" 2>/dev/null || true
 hash -r 2>/dev/null || true
 
-printf 'rish_script=%s\n' "\$DEST/rish"
-printf 'rish_dex=%s\n' "\$DEST/$DEX_NAME"
-printf 'rish_link=%s\n' "\$BIN"
-"\$BIN" -c 'id'
+printf 'rish_script=%s\n' "${'$'}DEST/rish"
+printf 'rish_dex=%s\n' "${'$'}DEST/$DEX_NAME"
+printf 'rish_link=%s\n' "${'$'}BIN"
+"${'$'}BIN" -c 'id'
 """.trimIndent()
 
         val result = TermuxRunCommandBridge.executeShell(
@@ -229,19 +228,19 @@ printf 'rish_link=%s\n' "\$BIN"
         }
 
         val probe = """
-if [ -d "\$PREFIX/bin/rish" ] && [ ! -L "\$PREFIX/bin/rish" ]; then
+if [ -d "${'$'}PREFIX/bin/rish" ] && [ ! -L "${'$'}PREFIX/bin/rish" ]; then
   echo 'OMNIDEV_RISH_LAYOUT_ERROR: $PREFIX/bin/rish is a directory'
   exit 64
 fi
-if [ ! -x "\$PREFIX/bin/rish" ]; then
+if [ ! -x "${'$'}PREFIX/bin/rish" ]; then
   echo 'rish: command not found'
   exit 127
 fi
-if [ ! -r "\$PREFIX/opt/omnidev-rish/$DEX_NAME" ]; then
+if [ ! -r "${'$'}PREFIX/opt/omnidev-rish/$DEX_NAME" ]; then
   echo 'Cannot find rish_shizuku.dex in OmniDev Termux install'
   exit 65
 fi
-"\$PREFIX/bin/rish" -c 'id'
+"${'$'}PREFIX/bin/rish" -c 'id'
 """.trimIndent()
 
         val result = TermuxRunCommandBridge.executeShell(
@@ -333,28 +332,28 @@ fi
 
     private fun buildTermuxRishScript(): String = """
 #!/system/bin/sh
-BASEDIR=\$(dirname "\$0")
-DEX="\$BASEDIR/$DEX_NAME"
+BASEDIR=${'$'}(dirname "${'$'}0")
+DEX="${'$'}BASEDIR/$DEX_NAME"
 
-if [ ! -f "\$DEX" ]; then
-  echo "Cannot find \$DEX; re-run OmniDev rish_setup or export rish again from Shizuku"
+if [ ! -f "${'$'}DEX" ]; then
+  echo "Cannot find ${'$'}DEX; re-run OmniDev rish_setup or export rish again from Shizuku"
   exit 1
 fi
 
-if [ \$(getprop ro.build.version.sdk) -ge 34 ]; then
-  if [ -w "\$DEX" ]; then
-    chmod 400 "\$DEX" 2>/dev/null || true
+if [ ${'$'}(getprop ro.build.version.sdk) -ge 34 ]; then
+  if [ -w "${'$'}DEX" ]; then
+    chmod 400 "${'$'}DEX" 2>/dev/null || true
   fi
-  if [ -w "\$DEX" ]; then
+  if [ -w "${'$'}DEX" ]; then
     echo "On Android 14+, app_process cannot load writable dex."
-    echo "Cannot remove the write permission of \$DEX."
+    echo "Cannot remove the write permission of ${'$'}DEX."
     exit 1
   fi
 fi
 
 export RISH_APPLICATION_ID="com.termux"
 export RISH_PRESERVE_ENV=0
-exec $APP_PROCESS -Djava.class.path="\$DEX" /system/bin --nice-name=rish $SHELL_LOADER "\$@"
+exec $APP_PROCESS -Djava.class.path="${'$'}DEX" /system/bin --nice-name=rish $SHELL_LOADER "${'$'}@"
 """.trimIndent() + "\n"
 
     private fun copyDex(source: File): File? = runCatching {
