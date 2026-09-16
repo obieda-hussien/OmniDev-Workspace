@@ -51,6 +51,15 @@
             android:name=".data.ipc.OmniCoreService"
             tools:node="remove" />
 
+        <service
+            android:name=".data.background.BackgroundAgentService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-initiated long-running AI chat and agent execution with live progress and crash recovery" />
+        </service>
+
         <receiver
             android:name=".data.tools.TermuxResultReceiver"
             android:exported="false" />
