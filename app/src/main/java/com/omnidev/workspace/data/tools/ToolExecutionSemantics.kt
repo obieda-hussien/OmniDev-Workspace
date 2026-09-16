@@ -35,9 +35,12 @@ object ToolExecutionSemantics {
 
     fun normalize(toolName: String, result: ToolExecutionResult): ToolExecutionResult {
         if (result.isError) {
+            val match = classifyMatch(result.output)
             return compact(
                 result.copy(
-                    classification = result.classification ?: classifyText(result.output)?.classification ?: "TOOL_ERROR"
+                    classification = result.classification ?: match?.classification ?: "TOOL_ERROR",
+                    retryable = result.retryable || match?.retryable == true,
+                    persistentFailure = result.persistentFailure || match?.persistent == true
                 )
             )
         }
@@ -46,7 +49,7 @@ object ToolExecutionSemantics {
         val text = result.output
         val explicitExit = extractExitCode(text)
         if (explicitExit != null && explicitExit != 0) {
-            val match = classifyText(text) ?: Match("NON_ZERO_EXIT")
+            val match = classifyMatch(text) ?: Match("NON_ZERO_EXIT")
             return compact(
                 result.copy(
                     isError = true,
@@ -58,7 +61,7 @@ object ToolExecutionSemantics {
             )
         }
 
-        val match = classifyText(text) ?: return compact(
+        val match = classifyMatch(text) ?: return compact(
             result.copy(classification = result.classification ?: "SUCCESS")
         )
 
@@ -88,8 +91,6 @@ object ToolExecutionSemantics {
             "ANDROID_PERMISSION_DENIED"
         )
 
-    private fun classifyTextInternal(text: String): Match? = classifyMatch(text)
-
     private fun classifyMatch(text: String): Match? {
         val lower = text.lowercase()
         return when {
@@ -102,7 +103,7 @@ object ToolExecutionSemantics {
                 Match("RISH_DEX_MISSING", persistent = true)
 
             lower.contains("omnidev_rish_layout_error") ||
-                lower.contains("$prefix/bin/rish is a directory") ->
+                lower.contains("\$prefix/bin/rish is a directory") ->
                 Match("RISH_LAYOUT_BROKEN", persistent = true)
 
             lower.contains("no su program found") ||
