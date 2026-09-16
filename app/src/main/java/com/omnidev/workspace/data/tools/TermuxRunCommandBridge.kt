@@ -81,21 +81,6 @@ object TermuxRunCommandBridge {
             "else printf '\nallow-external-apps=true\n' >> ~/.termux/termux.properties; fi; " +
             "termux-reload-settings"
 
-    /**
-     * Commands that belong to Android's privileged shell domain, not Termux's
-     * untrusted app UID. This is only enforced for the general agent terminal;
-     * the dedicated rish manager uses its own label and is intentionally allowed.
-     */
-    private val ANDROID_PRIVILEGED_COMMAND = Regex(
-        pattern = "(?im)(?:^|[;&|]\\s*)(?:" +
-            "rish(?:\\s|$)|" +
-            "su\\s+-c(?:\\s|$)|" +
-            "settings\\s+(?:get|put|delete|list)\\b|" +
-            "dumpsys(?:\\s|$)|getprop(?:\\s|$)|setprop(?:\\s|$)|" +
-            "pm\\s+|am\\s+|cmd\\s+|wm\\s+|svc\\s+|input\\s+" +
-            ")"
-    )
-
     private val nextId = AtomicInteger(1)
     private val pending = ConcurrentHashMap<Int, CompletableDeferred<TermuxCommandResult>>()
     private val externalAppsSetupShown = AtomicBoolean(false)
@@ -115,24 +100,23 @@ object TermuxRunCommandBridge {
             get() = internalErrorCode == TERMUX_RESULT_OK
 
         /**
-         * Detects unambiguous failures hidden by a later successful shell command.
-         * Example: `settings put ...; echo SUCCESS` used to report success even when
-         * settings emitted SecurityException because bash returned echo's exit code.
+         * Detect unambiguous command failures hidden by a later successful shell
+         * command. Only stderr + Termux internal errors are inspected: stdout is
+         * data and may legitimately contain old crash logs/source code mentioning
+         * SecurityException or other failure signatures.
          */
         val semanticFailureClassification: String?
-            get() = ToolExecutionSemantics.classifyText(
-                buildString {
-                    if (stdout.isNotBlank()) append(stdout)
-                    if (stderr.isNotBlank()) {
-                        if (isNotEmpty()) appendLine()
-                        append(stderr)
-                    }
+            get() {
+                val evidence = buildString {
+                    if (stderr.isNotBlank()) append(stderr)
                     if (!internalError.isNullOrBlank()) {
                         if (isNotEmpty()) appendLine()
                         append(internalError)
                     }
                 }
-            )
+                return evidence.takeIf { it.isNotBlank() }
+                    ?.let(ToolExecutionSemantics::classifyText)
+            }
 
         val isSuccess: Boolean
             get() = transportSucceeded && exitCode == 0 && semanticFailureClassification == null
@@ -205,12 +189,10 @@ object TermuxRunCommandBridge {
         timeoutMs: Long = DEFAULT_TIMEOUT_MS,
         label: String = "OmniDev terminal"
     ): TermuxCommandResult {
-        if (label == AGENT_TERMINAL_LABEL && ANDROID_PRIVILEGED_COMMAND.containsMatchIn(script)) {
-            return setupFailure(
-                "WRONG_EXECUTION_DOMAIN: Android privileged commands must not run as the Termux app UID. " +
-                    "Use privileged_tool for settings/dumpsys/getprop/setprop/pm/am/cmd/wm/svc/input operations, " +
-                    "or privileged_tool action=rish_exec for an explicit ADB-equivalent rish command."
-            )
+        if (label == AGENT_TERMINAL_LABEL) {
+            ExecutionDomainGuard.findViolation(script)?.let { violation ->
+                return setupFailure(violation.message())
+            }
         }
         return execute(
             executable = TERMUX_BASH,
