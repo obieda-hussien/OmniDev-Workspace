@@ -186,10 +186,7 @@ fun ChatSettingsSheet(
                         updatePolicy { current ->
                             current.copy(
                                 useAllEnabledSkills = useAll,
-                                selectedSkillNames = if (useAll) emptySet() else
-                                    current.selectedSkillNames.ifEmpty {
-                                        installedSkills.map { it.name }.toSet()
-                                    }
+                                selectedSkillNames = if (useAll) emptySet() else current.selectedSkillNames
                             )
                         }
                     }
