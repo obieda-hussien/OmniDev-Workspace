@@ -8,10 +8,14 @@ import androidx.security.crypto.MasterKey
 /**
  * Local authorization policy for GitHub account control by the OmniDev agent.
  *
- * This is deliberately separate from GitHub Copilot/Models credentials. A user may
- * use GitHub as an AI provider without granting the agent any authority over their
- * repositories/account. Agent access is deny-by-default and can only be enabled from
- * Integrations & Linked Accounts.
+ * GitHub integration has three intentionally separate paths:
+ * 1. GitHub AI Access (Copilot/Models) — managed elsewhere and never reused here.
+ * 2. Agent OAuth Device Flow — linked-account experience using an OmniDev OAuth Client ID.
+ * 3. Agent Personal Access Token — no Client ID required; fine-grained or classic PAT.
+ *
+ * Both agent-control paths converge on this single policy/token store, so the execution
+ * layer is independent of how the user authenticated. Agent access is deny-by-default
+ * and can only be enabled from Integrations & Linked Accounts.
  *
  * The account-control token and policy are encrypted at rest with Android
  * Keystore-backed EncryptedSharedPreferences. If secure storage cannot be created,
