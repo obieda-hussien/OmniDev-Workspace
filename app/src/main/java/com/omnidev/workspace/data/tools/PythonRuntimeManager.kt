@@ -17,6 +17,8 @@ import kotlinx.coroutines.withContext
  */
 object PythonRuntimeManager {
 
+    private const val MANAGED_VENV_ROOT = "/data/data/com.termux/files/home/.omnidev/venvs"
+
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "python_runtime",
@@ -145,12 +147,9 @@ Termux private binary through Shizuku/root and never injects LD_PRELOAD.
         val filePath = args["file_path"]?.takeIf(String::isNotBlank)
             ?: return err("run_file requires 'file_path'")
         val venv = managedVenvPath(args["venv_name"])
-        val selector = if (venv != null) {
-            "${EnvironmentSetupManager.shellQuote(venv)}/bin/python"
-        } else {
-            "\$(command -v python3 || command -v python || true)"
-        }
-        val extra = args["args"]?.takeIf(String::isNotBlank)?.let { " $it" }.orEmpty()
+        val selector = venv?.let { "${EnvironmentSetupManager.shellQuote(it)}/bin/python" }
+            ?: "\$(command -v python3 || command -v python || true)"
+        val extra = quoteArgs(args["args"])
         return EnvironmentSetupManager.executeShell(
             "py=$selector; [ -x \"\$py\" ] || { echo 'Python missing' >&2; exit 127; }; " +
                 "\"\$py\" ${EnvironmentSetupManager.shellQuote(filePath)}$extra"
@@ -161,12 +160,9 @@ Termux private binary through Shizuku/root and never injects LD_PRELOAD.
         val module = args["module"]?.takeIf { it.matches(Regex("[A-Za-z_][A-Za-z0-9_.]*")) }
             ?: return err("run_module requires a valid module")
         val venv = managedVenvPath(args["venv_name"])
-        val selector = if (venv != null) {
-            "${EnvironmentSetupManager.shellQuote(venv)}/bin/python"
-        } else {
-            "\$(command -v python3 || command -v python || true)"
-        }
-        val extra = args["args"]?.takeIf(String::isNotBlank)?.let { " $it" }.orEmpty()
+        val selector = venv?.let { "${EnvironmentSetupManager.shellQuote(it)}/bin/python" }
+            ?: "\$(command -v python3 || command -v python || true)"
+        val extra = quoteArgs(args["args"])
         return EnvironmentSetupManager.executeShell(
             "py=$selector; [ -x \"\$py\" ] || { echo 'Python missing' >&2; exit 127; }; " +
                 "\"\$py\" -m ${EnvironmentSetupManager.shellQuote(module)}$extra"
@@ -192,11 +188,8 @@ Termux private binary through Shizuku/root and never injects LD_PRELOAD.
 
     private suspend fun pipCommand(command: String, venvName: String?): ToolExecutionResult {
         val venv = managedVenvPath(venvName)
-        val selector = if (venv != null) {
-            "${EnvironmentSetupManager.shellQuote(venv)}/bin/python"
-        } else {
-            "\$(command -v python3 || command -v python || true)"
-        }
+        val selector = venv?.let { "${EnvironmentSetupManager.shellQuote(it)}/bin/python" }
+            ?: "\$(command -v python3 || command -v python || true)"
         return EnvironmentSetupManager.executeShell(
             "py=$selector; [ -x \"\$py\" ] || { echo 'Python missing' >&2; exit 127; }; " +
                 "\"\$py\" -m pip $command"
@@ -209,13 +202,15 @@ Termux private binary through Shizuku/root and never injects LD_PRELOAD.
         return EnvironmentSetupManager.executeShell(
             "py=\$(command -v python3 || command -v python || true); " +
                 "[ -n \"\$py\" ] || { echo 'Python missing' >&2; exit 127; }; " +
-                "mkdir -p \"\$HOME/.omnidev/venvs\"; \"\$py\" -m venv ${EnvironmentSetupManager.shellQuote(path)}; " +
+                "mkdir -p ${EnvironmentSetupManager.shellQuote(MANAGED_VENV_ROOT)}; " +
+                "\"\$py\" -m venv ${EnvironmentSetupManager.shellQuote(path)}; " +
                 "${EnvironmentSetupManager.shellQuote(path)}/bin/python -V"
         )
     }
 
     private suspend fun venvList(): ToolExecutionResult = EnvironmentSetupManager.executeShell(
-        "base=\"\$HOME/.omnidev/venvs\"; [ -d \"\$base\" ] || { echo 'No managed virtual environments.'; exit 0; }; " +
+        "base=${EnvironmentSetupManager.shellQuote(MANAGED_VENV_ROOT)}; " +
+            "[ -d \"\$base\" ] || { echo 'No managed virtual environments.'; exit 0; }; " +
             "find \"\$base\" -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' | sort"
     )
 
@@ -223,8 +218,8 @@ Termux private binary through Shizuku/root and never injects LD_PRELOAD.
         val path = managedVenvPath(args["venv_name"])
             ?: return err("venv_delete requires a safe venv_name")
         return EnvironmentSetupManager.executeShell(
-            "target=${EnvironmentSetupManager.shellQuote(path)}; " +
-                "case \"\$target\" in \"\$HOME/.omnidev/venvs/\"*) rm -rf -- \"\$target\" ;; " +
+            "target=${EnvironmentSetupManager.shellQuote(path)}; base=${EnvironmentSetupManager.shellQuote(MANAGED_VENV_ROOT)}; " +
+                "case \"\$target\" in \"\$base/\"*) rm -rf -- \"\$target\" ;; " +
                 "*) echo 'Refusing unsafe venv path' >&2; exit 2 ;; esac"
         )
     }
@@ -241,14 +236,17 @@ Termux private binary through Shizuku/root and never injects LD_PRELOAD.
         return EnvironmentSetupManager.runPython("import sys; print('OMNIDEV_PYTHON_OK'); print(sys.executable)")
     }
 
-    /**
-     * Managed venvs live inside Termux HOME and therefore are represented with a
-     * shell-expanded `$HOME` path. They are never created in `/data/local/tmp`.
-     */
     private fun managedVenvPath(name: String?): String? {
         val clean = name?.trim()?.takeIf { it.matches(Regex("[A-Za-z0-9._-]{1,64}")) } ?: return null
-        return "\$HOME/.omnidev/venvs/$clean"
+        return "$MANAGED_VENV_ROOT/$clean"
     }
+
+    private fun quoteArgs(raw: String?): String = raw
+        ?.trim()
+        ?.takeIf(String::isNotBlank)
+        ?.split(Regex("\\s+"))
+        ?.joinToString(separator = " ", prefix = " ") { EnvironmentSetupManager.shellQuote(it) }
+        .orEmpty()
 
     private fun sanitizePackage(value: String?): String? = value?.trim()
         ?.takeIf { it.matches(Regex("[A-Za-z0-9_.-]{1,128}")) }
