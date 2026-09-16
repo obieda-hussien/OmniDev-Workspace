@@ -13,8 +13,9 @@ import rikka.shizuku.Shizuku
  * Authoritative Shizuku command backend.
  *
  * A command is only reported as success when it ran in the UserService process,
- * exited 0, emitted no known fatal signature, and (for supported state mutations)
- * passed a read-back postcondition check.
+ * exited 0, emitted no known fatal stderr signature, and (for supported state
+ * mutations) passed a read-back postcondition check. Stdout remains data and is
+ * never reclassified merely because it contains text from an old crash/log.
  */
 object ShizukuCommandTool {
 
@@ -87,7 +88,15 @@ object ShizukuCommandTool {
         return try {
             val result = ShizukuUserServiceClient.execute(command, timeoutMs)
             val output = result.mergedOutput().trim().take(MAX_OUTPUT_CHARS)
-            val semanticFailure = ToolExecutionSemantics.classifyText(output)
+            val failureEvidence = buildString {
+                if (result.stderr.isNotBlank()) append(result.stderr)
+                if (!result.error.isNullOrBlank()) {
+                    if (isNotEmpty()) appendLine()
+                    append(result.error)
+                }
+            }
+            val semanticFailure = failureEvidence.takeIf { it.isNotBlank() }
+                ?.let(ToolExecutionSemantics::classifyText)
             Log.d(
                 TAG,
                 "UserService uid=${result.uid} exit=${result.exitCode} timeout=${result.timedOut} semantic=$semanticFailure output=${output.length}"
@@ -99,7 +108,7 @@ object ShizukuCommandTool {
                 )
                 result.error != null -> ShizukuResult.Failure(result.error)
                 semanticFailure != null -> ShizukuResult.Failure(
-                    "$semanticFailure: ${output.ifBlank { "command emitted a fatal failure signature" }.take(2_000)}"
+                    "$semanticFailure: ${failureEvidence.take(2_000)}"
                 )
                 result.exitCode != 0 -> {
                     if (result.exitCode == 127 || output.contains("not found", ignoreCase = true)) {
@@ -136,11 +145,7 @@ object ShizukuCommandTool {
         }
     }
 
-    /**
-     * Verify state mutations that have a cheap authoritative read-back.
-     * Compound scripts may contain one supported mutation; each detected mutation
-     * is verified independently. Values are restricted by higher-level sanitizers.
-     */
+    /** Verify state mutations that have a cheap authoritative read-back. */
     private suspend fun verifySupportedMutation(
         command: String,
         timeoutMs: Long
@@ -266,8 +271,8 @@ object ShizukuCommandTool {
 }
 
 /**
- * PartialSuccess is retained for binary/source compatibility with older callers,
- * but the authoritative UserService executor no longer emits it for non-zero exits.
+ * PartialSuccess is retained for source compatibility with older callers, but the
+ * authoritative UserService executor no longer emits it for non-zero exits.
  */
 sealed class ShizukuResult {
     data class Success(val output: String) : ShizukuResult()
