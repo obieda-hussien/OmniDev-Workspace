@@ -26,6 +26,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,16 +39,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.omnidev.workspace.data.auth.GitHubAccountDeviceFlowManager
 import com.omnidev.workspace.data.auth.GitHubAgentAccessStore
 import com.omnidev.workspace.data.auth.GitHubDeviceFlowManager
+import com.omnidev.workspace.data.auth.GitHubTokenValidator
 import com.omnidev.workspace.data.repository.SettingsRepository
 import kotlinx.coroutines.launch
 
 /**
- * Adds an explicit GitHub account-control permission surface on top of the existing
- * Integrations & Linked Accounts screen without coupling it to Copilot/Models auth.
+ * GitHub integration is intentionally split into two capability families:
+ *
+ * 1. GitHub AI Access — handled by the existing [IntegrationsScreen] for Copilot/Models.
+ * 2. GitHub Agent Access — account/repository automation, authorized independently by
+ *    OAuth Device Flow or a user-supplied Personal Access Token.
+ *
+ * AI credentials are never reused for repository/account control.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,8 +107,12 @@ private fun GitHubAgentAccessPanel(
     var writeEnabled by remember { mutableStateOf(initial.writeEnabled) }
     var destructiveEnabled by remember { mutableStateOf(initial.destructiveEnabled) }
     var orgAdminEnabled by remember { mutableStateOf(initial.organizationAdminEnabled) }
+
     var connected by remember { mutableStateOf(initial.connected) }
+    var connectedMethod by remember { mutableStateOf(initial.authMethod) }
+    var accountLogin by remember { mutableStateOf(initial.accountLogin) }
     var grantedScopes by remember { mutableStateOf(initial.grantedScopes) }
+    var selectedMethod by remember { mutableStateOf(initial.authMethod) }
 
     val bundledClientId = remember {
         GitHubDeviceFlowManager.MODELS_CLIENT_ID
@@ -110,8 +122,10 @@ private fun GitHubAgentAccessPanel(
     var clientId by remember {
         mutableStateOf(initial.oauthClientId.ifBlank { bundledClientId })
     }
+    var personalAccessToken by remember { mutableStateOf("") }
 
     var authRunning by remember { mutableStateOf(false) }
+    var patValidating by remember { mutableStateOf(false) }
     var authCode by remember { mutableStateOf<String?>(null) }
     var verificationUri by remember { mutableStateOf(GitHubAccountDeviceFlowManager.VERIFICATION_URL) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -145,14 +159,27 @@ private fun GitHubAgentAccessPanel(
             fontWeight = FontWeight.Bold
         )
         Text(
-            "Separate from Copilot and GitHub Models. Omni can only use this GitHub account-control token after you enable it here. The agent cannot enable, expand, or re-authorize these permissions by itself.",
+            "GitHub AI Access (Copilot / Models) stays separate above. This section grants Omni account/repository control only when you explicitly enable it.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
+        if (connected) {
+            Text(
+                buildString {
+                    append("Connected ✓")
+                    accountLogin?.takeIf { it.isNotBlank() }?.let { append(" · @").append(it) }
+                    append(" · ").append(connectedMethod.displayName)
+                },
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
         PermissionSwitchRow(
             title = "Allow agent GitHub access",
-            subtitle = "Lets Omni read GitHub through the authorized account token.",
+            subtitle = "Lets Omni use the separately authorized account token for GitHub API operations.",
             checked = enabled,
             onCheckedChange = {
                 enabled = it
@@ -162,7 +189,7 @@ private fun GitHubAgentAccessPanel(
 
         PermissionSwitchRow(
             title = "Allow write operations",
-            subtitle = "Create/update repositories, files, branches, issues, PRs, workflows, gists, projects, packages, Codespaces and other REST resources allowed by GitHub OAuth.",
+            subtitle = "Create/update repositories, files, branches, issues, PRs, workflows, gists, projects, packages, Codespaces and other resources allowed by the connected token.",
             checked = writeEnabled,
             enabled = enabled,
             onCheckedChange = {
@@ -174,7 +201,7 @@ private fun GitHubAgentAccessPanel(
 
         PermissionSwitchRow(
             title = "Allow destructive operations",
-            subtitle = "Allows HTTP DELETE actions and requests delete_repo/delete:packages scopes. Off by default.",
+            subtitle = "Allows DELETE operations. OAuth also requests delete_repo/delete:packages. PAT permissions remain controlled by GitHub. Off by default.",
             checked = destructiveEnabled,
             enabled = enabled && writeEnabled,
             onCheckedChange = {
@@ -185,7 +212,7 @@ private fun GitHubAgentAccessPanel(
 
         PermissionSwitchRow(
             title = "Allow advanced account & organization admin",
-            subtitle = "Requests organization administration plus account key-management scopes. GitHub still limits actions to rights your account actually has.",
+            subtitle = "Allows organization/account administration only when the connected GitHub token also has those permissions.",
             checked = orgAdminEnabled,
             enabled = enabled,
             onCheckedChange = {
@@ -197,62 +224,238 @@ private fun GitHubAgentAccessPanel(
         HorizontalDivider()
 
         Text(
-            "OAuth Device Flow",
+            "Choose how Agent Access connects",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold
         )
-        Text(
-            "Agent control needs its own Device Flow-enabled GitHub OAuth App Client ID. A Client ID is public metadata, not a client secret. Configure OmniDev's Client ID here once; never paste a client secret into the app.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+
+        AuthMethodRow(
+            title = "Connect with GitHub",
+            subtitle = "OAuth Device Flow. Best for a polished one-tap linked-account experience; requires OmniDev's Device Flow-enabled GitHub OAuth App Client ID.",
+            selected = selectedMethod == GitHubAgentAccessStore.AuthMethod.OAUTH_DEVICE_FLOW,
+            onClick = {
+                selectedMethod = GitHubAgentAccessStore.AuthMethod.OAUTH_DEVICE_FLOW
+                status = null
+                authCode = null
+            }
         )
-        OutlinedTextField(
-            value = clientId,
-            onValueChange = {
-                clientId = it.trim()
-                store.setOAuthClientId(clientId)
-            },
-            label = { Text("GitHub OAuth App Client ID") },
-            placeholder = { Text("Ov23li… or Iv1.…") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
+        AuthMethodRow(
+            title = "Personal Access Token",
+            subtitle = "No Client ID required. Supports fine-grained or classic PATs; fine-grained is preferred. Omni verifies the token before replacing any existing connection.",
+            selected = selectedMethod == GitHubAgentAccessStore.AuthMethod.PERSONAL_ACCESS_TOKEN,
+            onClick = {
+                selectedMethod = GitHubAgentAccessStore.AuthMethod.PERSONAL_ACCESS_TOKEN
+                status = null
+                authCode = null
+            }
         )
 
-        Text(
-            "Requested scopes: $desiredScopes",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        if (connected) {
-            Text(
-                "Connected ✓${if (grantedScopes.isNotBlank()) " · Granted: $grantedScopes" else ""}",
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodySmall
-            )
-            if (grantedScopes.isNotBlank() && grantedScopes.split(' ').toSet() != desiredScopes.split(' ').toSet()) {
+        when (selectedMethod) {
+            GitHubAgentAccessStore.AuthMethod.OAUTH_DEVICE_FLOW -> {
                 Text(
-                    "Permission switches changed. Re-authorize to request the updated GitHub scopes.",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
+                    "OAuth Device Flow",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
                 )
-            }
-        }
+                Text(
+                    "A Client ID is public app metadata, not a client secret. Never put a GitHub client secret in OmniDev.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = clientId,
+                    onValueChange = {
+                        clientId = it.trim()
+                        store.setOAuthClientId(clientId)
+                    },
+                    label = { Text("GitHub OAuth App Client ID") },
+                    placeholder = { Text("Ov23li… or Iv1.…") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
 
-        if (authCode != null) {
-            Text("GitHub code: $authCode", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Button(
-                onClick = {
-                    GitHubAccountDeviceFlowManager.openVerificationPage(context, verificationUri)
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Open GitHub and authorize")
+                Text(
+                    "Requested OAuth scopes: $desiredScopes",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (connected && connectedMethod == GitHubAgentAccessStore.AuthMethod.OAUTH_DEVICE_FLOW &&
+                    grantedScopes.isNotBlank() && grantedScopes.split(' ').toSet() != desiredScopes.split(' ').toSet()
+                ) {
+                    Text(
+                        "Permission switches changed. Re-authorize OAuth to request the updated scopes.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                if (authCode != null) {
+                    Text(
+                        "GitHub code: $authCode",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Button(
+                        onClick = {
+                            GitHubAccountDeviceFlowManager.openVerificationPage(context, verificationUri)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Open GitHub and authorize")
+                    }
+                    Text(
+                        "Enter the code on GitHub. OmniDev is waiting for your approval.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Button(
+                    enabled = enabled && !authRunning && !patValidating && clientId.isNotBlank(),
+                    onClick = {
+                        persistPolicy()
+                        authRunning = true
+                        authCode = null
+                        status = null
+                        val scopesToRequest = desiredScopes
+                        scope.launch {
+                            GitHubAccountDeviceFlowManager.startAndPoll(
+                                context = context,
+                                clientId = clientId,
+                                scopes = scopesToRequest
+                            ).collect { state ->
+                                when (state) {
+                                    is GitHubAccountDeviceFlowManager.State.AwaitingUserCode -> {
+                                        authCode = state.userCode
+                                        verificationUri = state.verificationUri
+                                        GitHubAccountDeviceFlowManager.openVerificationPage(context, state.verificationUri)
+                                    }
+                                    GitHubAccountDeviceFlowManager.State.Polling -> Unit
+                                    is GitHubAccountDeviceFlowManager.State.Success -> {
+                                        connected = true
+                                        connectedMethod = GitHubAgentAccessStore.AuthMethod.OAUTH_DEVICE_FLOW
+                                        accountLogin = state.accountLogin
+                                        grantedScopes = state.grantedScopes
+                                        authRunning = false
+                                        authCode = null
+                                        status = "Authorized with GitHub OAuth. Omni can use GitHub only within your local switches and granted scopes."
+                                    }
+                                    is GitHubAccountDeviceFlowManager.State.Error -> {
+                                        authRunning = false
+                                        status = "Error: ${state.message}"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (authRunning) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(if (connectedMethod == GitHubAgentAccessStore.AuthMethod.OAUTH_DEVICE_FLOW && connected) {
+                        "Re-authorize with GitHub"
+                    } else {
+                        "Connect with GitHub"
+                    })
+                }
             }
-            Text(
-                "Enter the code on GitHub. OmniDev is waiting for your approval.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+
+            GitHubAgentAccessStore.AuthMethod.PERSONAL_ACCESS_TOKEN -> {
+                Text(
+                    "Personal Access Token",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    "Paste a fine-grained or classic PAT. OmniDev sends it only to api.github.com for verification, then stores it encrypted with Android Keystore. Token permissions are chosen on GitHub; OmniDev's switches can further restrict them but never expand them.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedTextField(
+                    value = personalAccessToken,
+                    onValueChange = {
+                        personalAccessToken = it.trim()
+                        status = null
+                    },
+                    label = { Text("GitHub Personal Access Token") },
+                    placeholder = { Text("github_pat_… or ghp_…") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text(
+                    "Fine-grained PAT is recommended. Select only the repositories and GitHub permissions you want OmniDev to be capable of using.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Button(
+                    enabled = enabled && !patValidating && !authRunning && personalAccessToken.isNotBlank(),
+                    onClick = {
+                        persistPolicy()
+                        patValidating = true
+                        status = null
+                        val candidate = personalAccessToken
+                        scope.launch {
+                            GitHubTokenValidator.validate(candidate)
+                                .onSuccess { verified ->
+                                    store.savePersonalAccessToken(
+                                        token = candidate,
+                                        accountLogin = verified.login,
+                                        reportedScopes = verified.scopes
+                                    )
+                                    connected = true
+                                    connectedMethod = GitHubAgentAccessStore.AuthMethod.PERSONAL_ACCESS_TOKEN
+                                    accountLogin = verified.login
+                                    grantedScopes = verified.scopes
+                                    personalAccessToken = ""
+                                    status = buildString {
+                                        append("Verified and connected PAT for @").append(verified.login).append(".")
+                                        if (!verified.tokenExpiration.isNullOrBlank()) {
+                                            append(" Token expiration: ").append(verified.tokenExpiration).append(".")
+                                        }
+                                    }
+                                }
+                                .onFailure { e ->
+                                    status = "Error: ${e.message}"
+                                }
+                            patValidating = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (patValidating) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Text(if (connectedMethod == GitHubAgentAccessStore.AuthMethod.PERSONAL_ACCESS_TOKEN && connected) {
+                        "Verify & replace PAT"
+                    } else {
+                        "Verify & connect PAT"
+                    })
+                }
+
+                if (connected && connectedMethod == GitHubAgentAccessStore.AuthMethod.PERSONAL_ACCESS_TOKEN) {
+                    Text(
+                        if (grantedScopes.isNotBlank()) {
+                            "GitHub reported classic OAuth scopes: $grantedScopes"
+                        } else {
+                            "Connected token uses GitHub-managed permissions (typical for fine-grained PATs)."
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
 
         status?.let {
@@ -263,62 +466,16 @@ private fun GitHubAgentAccessPanel(
             )
         }
 
-        Button(
-            enabled = enabled && !authRunning && clientId.isNotBlank(),
-            onClick = {
-                persistPolicy()
-                authRunning = true
-                authCode = null
-                status = null
-                val scopesToRequest = store.scopesForCurrentPolicy()
-                scope.launch {
-                    GitHubAccountDeviceFlowManager.startAndPoll(
-                        context = context,
-                        clientId = clientId,
-                        scopes = scopesToRequest
-                    ).collect { state ->
-                        when (state) {
-                            is GitHubAccountDeviceFlowManager.State.AwaitingUserCode -> {
-                                authCode = state.userCode
-                                verificationUri = state.verificationUri
-                                GitHubAccountDeviceFlowManager.openVerificationPage(context, state.verificationUri)
-                            }
-                            GitHubAccountDeviceFlowManager.State.Polling -> Unit
-                            is GitHubAccountDeviceFlowManager.State.Success -> {
-                                connected = true
-                                grantedScopes = state.grantedScopes
-                                authRunning = false
-                                authCode = null
-                                status = "Authorized. Omni can now use GitHub within the switches you enabled."
-                            }
-                            is GitHubAccountDeviceFlowManager.State.Error -> {
-                                authRunning = false
-                                status = "Error: ${state.message}"
-                            }
-                        }
-                    }
-                }
-            },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            if (authRunning) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp
-                )
-                Spacer(Modifier.width(8.dp))
-            }
-            Text(if (connected) "Re-authorize GitHub Agent Access" else "Authorize GitHub Agent Access")
-        }
-
         if (connected) {
             OutlinedButton(
                 onClick = {
                     store.clearAuthorization()
                     connected = false
+                    accountLogin = null
                     grantedScopes = ""
                     authCode = null
-                    status = "Local GitHub Agent authorization removed."
+                    personalAccessToken = ""
+                    status = "Local GitHub Agent authorization removed. GitHub AI credentials were not changed."
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -336,6 +493,30 @@ private fun GitHubAgentAccessPanel(
             Text("Done")
         }
         Spacer(Modifier.height(20.dp))
+    }
+}
+
+@Composable
+private fun AuthMethodRow(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
