@@ -27,10 +27,6 @@ import kotlinx.coroutines.launch
 object BackgroundChatCoordinator {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /**
-     * Returns false when this build intentionally has no special-use background runtime (Lite),
-     * allowing the caller to fall back to the existing in-process ChatViewModel execution.
-     */
     fun send(context: Context, viewModel: ChatViewModel): Boolean {
         if (BuildConfig.TIER == "LITE") return false
         val state = viewModel.uiState.value
@@ -44,11 +40,7 @@ object BackgroundChatCoordinator {
             resolvedMode == OmniMode.CHAT -> OmniMode.CHAT
             scopePath != null -> resolvedMode
             requestedMode == OmniMode.AUTO -> OmniMode.CHAT
-            else -> {
-                // Keep the old validation UX for explicit Agent/Swarm requests.
-                viewModel.setTargetContext(state.targetContext)
-                return false
-            }
+            else -> return false
         }
 
         val pending = state.pendingAttachments.toList()
@@ -61,7 +53,6 @@ object BackgroundChatCoordinator {
             "\n\n[Attached files: ${pending.joinToString(", ") { it.displayName }}]"
         } else ""
 
-        // Clear transient composer state immediately; persistence happens on IO below.
         viewModel.onInputChanged("")
         pending.forEach { viewModel.removeAttachment(it.uri) }
         viewModel.clearReplyingTo()
@@ -91,7 +82,6 @@ object BackgroundChatCoordinator {
                 toolAccessMode = state.chatSettings.toolAccessMode.name
             )
 
-            // Rebind the screen to Room so service checkpoints appear live like an open run.
             kotlinx.coroutines.withContext(Dispatchers.Main) {
                 viewModel.loadSession(sessionId)
             }
@@ -99,7 +89,6 @@ object BackgroundChatCoordinator {
         return true
     }
 
-    /** Cancel the currently active durable run for this chat. */
     fun cancel(context: Context, sessionId: Long?): Boolean {
         val active = activeRun(sessionId) ?: return false
         BackgroundAgentService.cancel(context.applicationContext, active.runId)
@@ -131,7 +120,7 @@ object BackgroundChatCoordinator {
                     mime.startsWith("video/") -> AttachmentMediaType.VIDEO
                     mime == "application/pdf" -> AttachmentMediaType.PDF
                     mime.startsWith("text/") || mime in setOf("application/json", "application/xml") -> AttachmentMediaType.TEXT
-                    else -> AttachmentMediaType.OTHER
+                    else -> AttachmentMediaType.UNKNOWN
                 }
             )
         }
