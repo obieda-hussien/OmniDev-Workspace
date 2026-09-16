@@ -18,9 +18,10 @@ import rikka.shizuku.Shizuku
  * failed. That produced false privilege success and was the root of many random
  * terminal/system failures.
  *
- * This implementation has one invariant: a command reported as a Shizuku result
+ * This implementation has one invariant: a command reported as a Shizuku success
  * was actually executed by [ShizukuUserServiceClient] in the Shizuku UserService
- * process (normally UID 2000/shell or UID 0/root). There is no app-UID fallback.
+ * process (normally UID 2000/shell or UID 0/root), exited with code 0, and did not
+ * emit a known fatal Android/shell failure signature.
  */
 object ShizukuCommandTool {
 
@@ -86,9 +87,10 @@ object ShizukuCommandTool {
         return try {
             val result = ShizukuUserServiceClient.execute(command, timeoutMs)
             val output = result.mergedOutput().trim().take(MAX_OUTPUT_CHARS)
+            val semanticFailure = ToolExecutionSemantics.classifyText(output)
             Log.d(
                 TAG,
-                "UserService uid=${result.uid} exit=${result.exitCode} timeout=${result.timedOut} output=${output.length}"
+                "UserService uid=${result.uid} exit=${result.exitCode} timeout=${result.timedOut} semantic=$semanticFailure output=${output.length}"
             )
 
             when {
@@ -96,12 +98,14 @@ object ShizukuCommandTool {
                     result.error ?: "Execution timeout exceeded (${timeoutMs / 1000}s): ${command.take(80)}"
                 )
                 result.error != null -> ShizukuResult.Failure(result.error)
+                semanticFailure != null -> ShizukuResult.Failure(
+                    "$semanticFailure: ${output.ifBlank { "command emitted a fatal failure signature" }.take(2_000)}"
+                )
                 result.exitCode == 0 -> ShizukuResult.Success(output.ifBlank { "(no output)" })
                 result.exitCode == 127 || output.contains("not found", ignoreCase = true) ->
                     ShizukuResult.Failure("Command not found (exit=${result.exitCode}): ${output.take(500)}")
-                else -> ShizukuResult.PartialSuccess(
-                    output = output.ifBlank { "Execution without output (exit=${result.exitCode})" },
-                    exitCode = result.exitCode
+                else -> ShizukuResult.Failure(
+                    "Command failed (exit=${result.exitCode}): ${output.ifBlank { "(no output)" }.take(2_000)}"
                 )
             }
         } catch (e: SecurityException) {
@@ -153,7 +157,8 @@ object ShizukuCommandTool {
             lower.contains("binder") ||
             lower.contains("transaction failed") ||
             lower.contains("service disconnected") ||
-            lower.contains("user service")
+            lower.contains("user service") ||
+            lower.contains("shizuku_connection_timeout")
     }
 
     fun isShizukuServiceException(error: Throwable): Boolean {
@@ -171,6 +176,10 @@ object ShizukuCommandTool {
     }
 }
 
+/**
+ * PartialSuccess is retained for binary/source compatibility with older callers,
+ * but the authoritative UserService executor no longer emits it for non-zero exits.
+ */
 sealed class ShizukuResult {
     data class Success(val output: String) : ShizukuResult()
     data class PartialSuccess(val output: String, val exitCode: Int) : ShizukuResult()
@@ -180,7 +189,7 @@ sealed class ShizukuResult {
 
     fun toDisplayString(): String = when (this) {
         is Success -> output
-        is PartialSuccess -> output
+        is PartialSuccess -> "Error: command exited $exitCode: $output"
         is Failure -> "Error: $reason"
         is PermissionRequired -> "Permission required: $message"
         is Unavailable -> "Unavailable: $message"
