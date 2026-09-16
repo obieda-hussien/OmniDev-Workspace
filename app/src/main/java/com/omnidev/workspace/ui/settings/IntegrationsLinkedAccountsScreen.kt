@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -19,6 +21,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -64,7 +67,7 @@ fun IntegrationsLinkedAccountsScreen(
 
         ExtendedFloatingActionButton(
             onClick = { showGitHubAgentSheet = true },
-            icon = { androidx.compose.material3.Icon(Icons.Filled.AccountTree, contentDescription = null) },
+            icon = { Icon(Icons.Filled.AccountTree, contentDescription = null) },
             text = { Text("GitHub Agent Access") },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -121,14 +124,12 @@ private fun GitHubAgentAccessPanel(
         store.setOAuthClientId(clientId)
     }
 
-    val desiredScopes = remember(enabled, writeEnabled, destructiveEnabled, orgAdminEnabled) {
-        // Persist first through a temporary sequence so the store computes exactly
-        // the scopes represented by the currently visible switches.
-        store.setEnabled(enabled)
-        store.setWriteEnabled(writeEnabled)
-        store.setDestructiveEnabled(destructiveEnabled && writeEnabled)
-        store.setOrganizationAdminEnabled(orgAdminEnabled)
-        store.scopesForCurrentPolicy()
+    val desiredScopes = remember(writeEnabled, destructiveEnabled, orgAdminEnabled) {
+        GitHubAgentAccessStore.buildScopes(
+            writeEnabled = writeEnabled,
+            destructiveEnabled = destructiveEnabled && writeEnabled,
+            organizationAdminEnabled = orgAdminEnabled
+        )
     }
 
     Column(
@@ -161,7 +162,7 @@ private fun GitHubAgentAccessPanel(
 
         PermissionSwitchRow(
             title = "Allow write operations",
-            subtitle = "Create/update repositories, files, branches, issues, PRs, workflows, gists, projects and other REST resources allowed by GitHub OAuth.",
+            subtitle = "Create/update repositories, files, branches, issues, PRs, workflows, gists, projects, packages, Codespaces and other REST resources allowed by GitHub OAuth.",
             checked = writeEnabled,
             enabled = enabled,
             onCheckedChange = {
@@ -173,7 +174,7 @@ private fun GitHubAgentAccessPanel(
 
         PermissionSwitchRow(
             title = "Allow destructive operations",
-            subtitle = "Allows HTTP DELETE actions such as deleting repositories, refs, releases, packages, hooks or other GitHub resources. Off by default.",
+            subtitle = "Allows HTTP DELETE actions and requests delete_repo/delete:packages scopes. Off by default.",
             checked = destructiveEnabled,
             enabled = enabled && writeEnabled,
             onCheckedChange = {
@@ -183,8 +184,8 @@ private fun GitHubAgentAccessPanel(
         )
 
         PermissionSwitchRow(
-            title = "Allow organization administration",
-            subtitle = "Allows organization-level mutations when your GitHub account and OAuth scopes permit them.",
+            title = "Allow advanced account & organization admin",
+            subtitle = "Requests organization administration plus account key-management scopes. GitHub still limits actions to rights your account actually has.",
             checked = orgAdminEnabled,
             enabled = enabled,
             onCheckedChange = {
@@ -301,8 +302,11 @@ private fun GitHubAgentAccessPanel(
             modifier = Modifier.fillMaxWidth()
         ) {
             if (authRunning) {
-                CircularProgressIndicator(strokeWidth = 2.dp)
-                Spacer(Modifier.height(4.dp))
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp
+                )
+                Spacer(Modifier.width(8.dp))
             }
             Text(if (connected) "Re-authorize GitHub Agent Access" else "Authorize GitHub Agent Access")
         }
