@@ -1,6 +1,9 @@
 package com.omnidev.workspace.data.auth
 
 import android.content.Context
+import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 
 /**
  * Local authorization policy for GitHub account control by the OmniDev agent.
@@ -9,9 +12,14 @@ import android.content.Context
  * use GitHub as an AI provider without granting the agent any authority over their
  * repositories/account. Agent access is deny-by-default and can only be enabled from
  * Integrations & Linked Accounts.
+ *
+ * The account-control OAuth token and policy are encrypted at rest with Android
+ * Keystore-backed EncryptedSharedPreferences. If secure storage cannot be created,
+ * initialization fails closed rather than falling back to plaintext token storage.
  */
 class GitHubAgentAccessStore(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val prefs: SharedPreferences = securePrefs(appContext)
 
     data class Policy(
         val enabled: Boolean,
@@ -29,6 +37,17 @@ class GitHubAgentAccessStore(context: Context) {
         val canDelete: Boolean get() = canWrite && destructiveEnabled
     }
 
+    data class PublicPolicy(
+        val enabled: Boolean,
+        val writeEnabled: Boolean,
+        val destructiveEnabled: Boolean,
+        val organizationAdminEnabled: Boolean,
+        val connected: Boolean,
+        val oauthClientId: String,
+        val requestedScopes: String,
+        val grantedScopes: String
+    )
+
     fun policy(): Policy = Policy(
         enabled = prefs.getBoolean(KEY_ENABLED, false),
         writeEnabled = prefs.getBoolean(KEY_WRITE, false),
@@ -39,6 +58,20 @@ class GitHubAgentAccessStore(context: Context) {
         requestedScopes = prefs.getString(KEY_REQUESTED_SCOPES, DEFAULT_BASE_SCOPES).orEmpty(),
         grantedScopes = prefs.getString(KEY_GRANTED_SCOPES, "").orEmpty()
     )
+
+    /** Safe projection for UI/diagnostics — never exposes the OAuth token. */
+    fun publicPolicy(): PublicPolicy = policy().let { p ->
+        PublicPolicy(
+            enabled = p.enabled,
+            writeEnabled = p.writeEnabled,
+            destructiveEnabled = p.destructiveEnabled,
+            organizationAdminEnabled = p.organizationAdminEnabled,
+            connected = p.connected,
+            oauthClientId = p.oauthClientId,
+            requestedScopes = p.requestedScopes,
+            grantedScopes = p.grantedScopes
+        )
+    }
 
     fun setEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_ENABLED, enabled).apply()
@@ -64,6 +97,7 @@ class GitHubAgentAccessStore(context: Context) {
     }
 
     fun saveAuthorization(token: String, requestedScopes: String, grantedScopes: String = requestedScopes) {
+        require(token.isNotBlank()) { "GitHub OAuth token is blank." }
         prefs.edit()
             .putString(KEY_TOKEN, token)
             .putString(KEY_REQUESTED_SCOPES, requestedScopes.trim())
@@ -89,11 +123,6 @@ class GitHubAgentAccessStore(context: Context) {
             .apply()
     }
 
-    /**
-     * Computes OAuth scopes from the persisted explicit capability switches.
-     * Local policy still applies an independent read/write/delete/admin gate even
-     * when GitHub's OAuth scope is broader (notably `repo`).
-     */
     fun scopesForCurrentPolicy(): String {
         val p = policy()
         return buildScopes(
@@ -104,7 +133,8 @@ class GitHubAgentAccessStore(context: Context) {
     }
 
     companion object {
-        private const val PREFS_NAME = "omnidev_github_agent_access"
+        private const val LEGACY_PREFS_NAME = "omnidev_github_agent_access"
+        private const val SECURE_PREFS_NAME = "omnidev_github_agent_access_secure_v1"
         private const val KEY_ENABLED = "enabled"
         private const val KEY_WRITE = "write_enabled"
         private const val KEY_DESTRUCTIVE = "destructive_enabled"
@@ -115,6 +145,64 @@ class GitHubAgentAccessStore(context: Context) {
         private const val KEY_GRANTED_SCOPES = "granted_scopes"
 
         const val DEFAULT_BASE_SCOPES = "repo read:user user:email notifications read:org read:project read:packages"
+
+        @Volatile
+        private var cachedPrefs: SharedPreferences? = null
+
+        private fun securePrefs(context: Context): SharedPreferences = synchronized(this) {
+            cachedPrefs ?: run {
+                val masterKey = MasterKey.Builder(context)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build()
+                val encrypted = EncryptedSharedPreferences.create(
+                    context,
+                    SECURE_PREFS_NAME,
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                )
+                migrateLegacyPrefs(context, encrypted)
+                encrypted.also { cachedPrefs = it }
+            }
+        }
+
+        /**
+         * Migrates any token/policy written by an earlier development build, then
+         * clears the plaintext file only after the encrypted commit succeeds.
+         */
+        private fun migrateLegacyPrefs(context: Context, encrypted: SharedPreferences) {
+            val legacy = context.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)
+            if (legacy.all.isEmpty()) return
+
+            val editor = encrypted.edit()
+            if (!encrypted.contains(KEY_ENABLED) && legacy.contains(KEY_ENABLED)) {
+                editor.putBoolean(KEY_ENABLED, legacy.getBoolean(KEY_ENABLED, false))
+            }
+            if (!encrypted.contains(KEY_WRITE) && legacy.contains(KEY_WRITE)) {
+                editor.putBoolean(KEY_WRITE, legacy.getBoolean(KEY_WRITE, false))
+            }
+            if (!encrypted.contains(KEY_DESTRUCTIVE) && legacy.contains(KEY_DESTRUCTIVE)) {
+                editor.putBoolean(KEY_DESTRUCTIVE, legacy.getBoolean(KEY_DESTRUCTIVE, false))
+            }
+            if (!encrypted.contains(KEY_ORG_ADMIN) && legacy.contains(KEY_ORG_ADMIN)) {
+                editor.putBoolean(KEY_ORG_ADMIN, legacy.getBoolean(KEY_ORG_ADMIN, false))
+            }
+            if (!encrypted.contains(KEY_CLIENT_ID)) {
+                legacy.getString(KEY_CLIENT_ID, null)?.let { editor.putString(KEY_CLIENT_ID, it) }
+            }
+            if (!encrypted.contains(KEY_TOKEN)) {
+                legacy.getString(KEY_TOKEN, null)?.let { editor.putString(KEY_TOKEN, it) }
+            }
+            if (!encrypted.contains(KEY_REQUESTED_SCOPES)) {
+                legacy.getString(KEY_REQUESTED_SCOPES, null)?.let { editor.putString(KEY_REQUESTED_SCOPES, it) }
+            }
+            if (!encrypted.contains(KEY_GRANTED_SCOPES)) {
+                legacy.getString(KEY_GRANTED_SCOPES, null)?.let { editor.putString(KEY_GRANTED_SCOPES, it) }
+            }
+
+            check(editor.commit()) { "Could not migrate GitHub Agent Access into encrypted storage." }
+            check(legacy.edit().clear().commit()) { "Could not clear legacy plaintext GitHub Agent Access storage." }
+        }
 
         fun buildScopes(
             writeEnabled: Boolean,
