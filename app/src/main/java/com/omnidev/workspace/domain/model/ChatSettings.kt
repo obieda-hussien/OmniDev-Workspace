@@ -13,12 +13,11 @@ data class ChatSettings(
     val webSearchEnabled: Boolean = true,
     val deepResearchEnabled: Boolean = true,
     val fetchPageEnabled: Boolean = true,
-    val toolAccessMode: ToolAccessMode = ToolAccessMode.AUTO
+    val toolAccessMode: ToolAccessMode = ToolAccessMode.ON_DEMAND
 ) {
     /**
      * Returns the set of tool names that should be hidden from the agent given the
-     * current toggle state.  The names match the `ToolDefinition.name` values in
-     * [WebSearchTool] and [WebScraperTool].
+     * current toggle state. The names match the ToolDefinition.name values.
      */
     fun disabledToolNames(): Set<String> = buildSet {
         if (!webSearchEnabled) add("web_search")
@@ -34,29 +33,31 @@ data class ChatSettings(
 /**
  * Controls how tool definitions are surfaced to the agent.
  *
- * - [AUTO]             The agent chooses which tools to call (default — current behavior).
- * - [ON_DEMAND]        Tool definitions are registered but NOT described in the system prompt.
- *                      The model must infer or request them.  Produces more messages but uses
- *                      fewer tokens per turn.
- * - [ALWAYS_AVAILABLE] Tools are fully described in the system prompt from the very first turn.
- *                      Fewer messages are required; better accuracy on tool-heavy tasks.
+ * - [ON_DEMAND]        Recommended/default. Function schemas remain available to the
+ *                      model but the huge prose copy of every tool is omitted from the
+ *                      system prompt. This materially reduces repeated input tokens.
+ * - [ALWAYS_AVAILABLE] Duplicates detailed tool prose into the system prompt. Useful only
+ *                      for models that struggle to infer function schemas.
+ * - [AUTO]             Legacy persisted value. It is migrated to [ON_DEMAND] on read.
  */
 enum class ToolAccessMode(val label: String, val subtitle: String) {
     AUTO(
-        label = "Auto",
-        subtitle = "Agent chooses for you"
+        label = "Auto (legacy)",
+        subtitle = "Migrates to optimized on-demand mode"
     ),
     ON_DEMAND(
         label = "On demand",
-        subtitle = "Load when needed. More messages, lower accuracy"
+        subtitle = "Recommended · lower context cost, tools still callable"
     ),
     ALWAYS_AVAILABLE(
         label = "Always available",
-        subtitle = "Ready from start. Fewer messages, better accuracy"
+        subtitle = "Verbose tool descriptions in every model request"
     );
 
     companion object {
-        fun fromKey(key: String): ToolAccessMode =
-            entries.firstOrNull { it.name == key } ?: AUTO
+        fun fromKey(key: String): ToolAccessMode = when (key) {
+            AUTO.name -> ON_DEMAND
+            else -> entries.firstOrNull { it.name == key } ?: ON_DEMAND
+        }
     }
 }
