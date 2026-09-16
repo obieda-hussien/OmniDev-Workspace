@@ -1,10 +1,13 @@
 package com.omnidev.workspace.data.background
 
+import android.app.ActivityManager
 import android.app.AlarmManager
+import android.app.Application
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import androidx.work.BackoffPolicy
@@ -29,6 +32,7 @@ import kotlin.math.min
  *  - WorkManager one-shot rescue with backoff
  *  - Periodic WorkManager heartbeat watchdog
  *  - boot/package-replaced recovery receivers
+ *  - main-process bootstrap when the user explicitly reopens the app
  *
  * If the user explicitly stops the runtime, [setSyncDesired] stores that intent so watchdogs do
  * not resurrect it behind the user's back.
@@ -81,11 +85,12 @@ object BackgroundServiceSupervisor {
         isSyncDesired(context) || BackgroundChatTaskStore.active(context.applicationContext).isNotEmpty()
 
     /**
-     * Called on every normal app process creation. Scheduling work is safe even when Android does
-     * not currently allow an immediate FGS start; WorkManager/AlarmManager will retry later.
+     * Called on every normal app process creation. Secondary app processes must not register their
+     * own watchdog/recovery graph or they can race the main process and duplicate service starts.
      */
     fun bootstrap(context: Context) {
         val app = context.applicationContext
+        if (!isMainProcess(app)) return
         BackgroundServiceWatchdogWorker.schedulePeriodic(app)
         if (hasDurableWork(app)) scheduleRecovery(app, "application_bootstrap", 500L)
     }
@@ -157,14 +162,32 @@ object BackgroundServiceSupervisor {
     }
 
     fun onServiceHealthy(context: Context) {
-        recordHeartbeat(context)
-        cancelAlarmOnly(context)
-        WorkManager.getInstance(context.applicationContext).cancelUniqueWork(RECOVERY_WORK)
+        val app = context.applicationContext
+        recordHeartbeat(app)
+        // Re-register the periodic watchdog every time the service proves it is healthy. KEEP is
+        // idempotent, so this also repairs scheduling state after OEM job cleanup without creating
+        // duplicate watchdogs.
+        BackgroundServiceWatchdogWorker.schedulePeriodic(app)
+        cancelAlarmOnly(app)
+        WorkManager.getInstance(app).cancelUniqueWork(RECOVERY_WORK)
     }
 
     fun recordFailure(context: Context, detail: String) {
         prefs(context).edit().putString(KEY_LAST_FAILURE, detail.take(1_000)).apply()
         Log.w(TAG, detail)
+    }
+
+    fun diagnosticSummary(context: Context): String {
+        val p = prefs(context)
+        val age = heartbeatAgeMs(context)
+        val ageText = if (age == Long.MAX_VALUE) "never" else "${age / 1_000}s"
+        return buildString {
+            append("desired=").append(isSyncDesired(context))
+            append(" heartbeatAge=").append(ageText)
+            append(" restartStreak=").append(p.getInt(KEY_RESTART_STREAK, 0))
+            append(" activeChatRuns=").append(BackgroundChatTaskStore.active(context).size)
+            p.getString(KEY_LAST_FAILURE, null)?.let { append(" lastFailure=").append(it.take(300)) }
+        }
     }
 
     fun cancelPendingRecovery(context: Context) {
@@ -204,5 +227,17 @@ object BackgroundServiceSupervisor {
     private fun cancelAlarmOnly(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         runCatching { alarmManager.cancel(recoveryPendingIntent(context, "cancel")) }
+    }
+
+    private fun isMainProcess(context: Context): Boolean {
+        val processName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            Application.getProcessName()
+        } else {
+            val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+            manager?.runningAppProcesses
+                ?.firstOrNull { it.pid == Process.myPid() }
+                ?.processName
+        }
+        return processName == null || processName == context.packageName
     }
 }
