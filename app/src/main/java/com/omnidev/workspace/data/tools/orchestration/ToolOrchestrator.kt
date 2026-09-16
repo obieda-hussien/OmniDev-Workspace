@@ -1,5 +1,7 @@
 package com.omnidev.workspace.data.tools.orchestration
 
+import com.omnidev.workspace.data.tools.ToolExecutionResult
+import com.omnidev.workspace.data.tools.ToolExecutionSemantics
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import java.util.concurrent.ConcurrentHashMap
@@ -10,24 +12,13 @@ import kotlin.time.Duration.Companion.minutes
 /**
  * ToolOrchestrator - Advanced Tool Coordination System
  *
- * Features:
- * - Parallel tool execution with dependency resolution
- * - Intelligent caching with TTL
- * - Circuit breaker pattern for failing tools
- * - Tool execution metrics and analytics
- * - Dynamic tool routing based on context
- * - Tool chain optimization
+ * In addition to transport exceptions, ToolExecutionResult values are normalized
+ * through [ToolExecutionSemantics]. This prevents a final shell `echo` or transport
+ * success from turning SecurityException/permission/command failures into fake OKs.
  */
 class ToolOrchestrator {
 
     companion object {
-        /**
-         * These tools legitimately perform package installs, dependency resolution,
-         * builds, git/network operations, or full runtime bootstrap. Cutting them off
-         * at the generic 30s tool timeout races the tool's own (correct) timeout and
-         * produces false failures such as `Timed out waiting for 30000 ms` while
-         * Termux is still installing packages.
-         */
         private val LONG_RUNNING_TOOLS = setOf(
             "agent_runtime",
             "advanced_terminal",
@@ -92,9 +83,7 @@ class ToolOrchestrator {
         fun recordFailure() {
             failureCount++
             lastFailureTime = System.currentTimeMillis()
-            if (failureCount >= threshold) {
-                state = CircuitState.OPEN
-            }
+            if (failureCount >= threshold) state = CircuitState.OPEN
         }
 
         fun canExecute(): Boolean {
@@ -118,7 +107,7 @@ class ToolOrchestrator {
         }
     }
 
-    /** Execute a tool with caching, circuit breaker, and metrics. */
+    /** Execute a tool with caching, semantic normalization, circuit breaker, and metrics. */
     suspend fun <T> executeTool(
         toolName: String,
         cacheKey: String? = null,
@@ -150,19 +139,39 @@ class ToolOrchestrator {
         val startTime = System.currentTimeMillis()
         val effectiveTimeoutMs = if (toolName in LONG_RUNNING_TOOLS) {
             maxOf(timeoutMs, LONG_RUNNING_TIMEOUT_MS)
-        } else {
-            timeoutMs
-        }
+        } else timeoutMs
 
         var attempt = 0
         var result: Result<T>
+        var semanticFailure = false
         while (true) {
             result = try {
-                val output = withTimeout(effectiveTimeoutMs) { execution() }
-                breaker.recordSuccess()
-                metrics.successCount++
-                metrics.consecutiveFailures = 0
-                metrics.lastError = null
+                val rawOutput = withTimeout(effectiveTimeoutMs) { execution() }
+                @Suppress("UNCHECKED_CAST")
+                val output: T = if (rawOutput is ToolExecutionResult) {
+                    ToolExecutionSemantics.normalize(toolName, rawOutput) as T
+                } else rawOutput
+
+                val toolResult = output as? ToolExecutionResult
+                semanticFailure = toolResult?.isError == true
+                if (semanticFailure) {
+                    breaker.recordFailure()
+                    metrics.failureCount++
+                    metrics.consecutiveFailures++
+                    metrics.lastError = buildString {
+                        append(toolResult?.classification ?: "TOOL_ERROR")
+                        toolResult?.output?.lineSequence()?.firstOrNull()?.takeIf { it.isNotBlank() }?.let {
+                            append(": ").append(it.take(300))
+                        }
+                    }
+                } else {
+                    breaker.recordSuccess()
+                    metrics.successCount++
+                    metrics.consecutiveFailures = 0
+                    metrics.lastError = null
+                }
+                // Semantic failures are observations, not transport exceptions: return
+                // them to the model once so it can pivot instead of auto-retrying blindly.
                 Result.success(output)
             } catch (e: Exception) {
                 breaker.recordFailure()
@@ -188,7 +197,7 @@ class ToolOrchestrator {
                 metrics.totalExecutions
         metrics.lastExecutionTime = executionTime
 
-        if (result.isSuccess && cacheKey != null) {
+        if (result.isSuccess && !semanticFailure && cacheKey != null) {
             executionCache[cacheKey] = CachedResult(
                 result = result.getOrThrow() as Any,
                 timestamp = System.currentTimeMillis(),
@@ -208,9 +217,7 @@ class ToolOrchestrator {
 
         suspend fun executeTask(task: ToolTask) {
             task.dependencies.forEach { dep ->
-                while (!executed.contains(dep)) {
-                    delay(50)
-                }
+                while (!executed.contains(dep)) delay(50)
             }
 
             val result = executeTool(
@@ -224,10 +231,7 @@ class ToolOrchestrator {
             executed.add(task.name)
         }
 
-        tasks.map { task ->
-            async { executeTask(task) }
-        }.awaitAll()
-
+        tasks.map { task -> async { executeTask(task) } }.awaitAll()
         results
     }
 
@@ -239,20 +243,15 @@ class ToolOrchestrator {
         val execution: suspend () -> Any
     )
 
-    private fun buildDependencyGraph(tasks: List<ToolTask>): Map<String, List<String>> {
-        return tasks.associate { it.name to it.dependencies }
-    }
+    private fun buildDependencyGraph(tasks: List<ToolTask>): Map<String, List<String>> =
+        tasks.associate { it.name to it.dependencies }
 
     fun getToolMetrics(toolName: String): ToolMetrics? = executionMetrics[toolName]
 
     fun getAllMetrics(): Map<String, ToolMetrics> = executionMetrics.toMap()
 
     fun clearCache(key: String? = null) {
-        if (key != null) {
-            executionCache.remove(key)
-        } else {
-            executionCache.clear()
-        }
+        if (key != null) executionCache.remove(key) else executionCache.clear()
     }
 
     fun resetCircuitBreaker(toolName: String) {
