@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,14 +41,11 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
@@ -57,28 +53,20 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DismissibleDrawerSheet
 import androidx.compose.material3.DismissibleNavigationDrawer
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationDrawerItemDefaults
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
@@ -93,7 +81,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -103,20 +90,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import com.omnidev.workspace.data.db.entities.ChatSessionEntity
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.domain.engine.OmniMode
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
  * Omni-Chat Interface — the primary conversational UI.
  *
  * Features:
- * - Navigation drawer with past chat sessions grouped by date
+ * - Rich navigation drawer for searching, filtering, sorting and managing chat history
  * - New session button
  * - Target Context selector with SAF directory picker
  * - Real-time agent status streaming with Glass Brain console
@@ -209,8 +192,8 @@ fun ChatScreen(
     DismissibleNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            DismissibleDrawerSheet(modifier = Modifier.width(280.dp)) {
-                SessionDrawerContent(
+            DismissibleDrawerSheet(modifier = Modifier.width(344.dp)) {
+                ChatHistoryDrawer(
                     sessions = uiState.sessions,
                     currentSessionId = uiState.currentSessionId,
                     onNewSession = { viewModel.newSession() },
@@ -355,8 +338,11 @@ fun ChatScreen(
                                     enabled = !uiState.isProcessing && request.status == "pending",
                                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
                                 ) {
-                                    Text(if (request.status == "accepted") "تم تفعيل الوضع" else
-                                        if (request.mode == "SWARM") "تفعيل متعدد الوكلاء" else "تفعيل وضع الوكيل")
+                                    Text(
+                                        if (request.status == "accepted") "Mode enabled"
+                                        else if (request.mode == "SWARM") "Enable multi-agent mode"
+                                        else "Enable agent mode"
+                                    )
                                 }
                             }
                         }
@@ -459,493 +445,6 @@ private fun ModeSelector(
                     )
                 }
             }
-        }
-    }
-}
-
-
-// ──────────────────────────────────────────────
-//  Session Drawer
-// ──────────────────────────────────────────────
-
-@Composable
-private fun SessionDrawerContent(
-    sessions: List<ChatSessionEntity>,
-    currentSessionId: Long?,
-    onNewSession: () -> Unit,
-    onSessionClick: (Long) -> Unit,
-    onTogglePin: (Long) -> Unit,
-    onRenameSession: (Long, String) -> Unit,
-    onDeleteSession: (Long) -> Unit,
-    onDeleteAllSessions: () -> Unit,
-    onDeleteSelectedSessions: (Set<Long>) -> Unit,
-    onCloseDrawer: () -> Unit
-) {
-    // Rename dialog state
-    var renameTarget by remember { mutableStateOf<ChatSessionEntity?>(null) }
-    var renameText by remember { mutableStateOf("") }
-    // Delete confirmation state
-    var deleteTarget by remember { mutableStateOf<ChatSessionEntity?>(null) }
-    // Search query
-    var searchQuery by remember { mutableStateOf("") }
-    // Selection mode
-    var isSelectionMode by remember { mutableStateOf(false) }
-    var selectedIds by remember { mutableStateOf(emptySet<Long>()) }
-    // Bulk delete confirmation
-    var showDeleteAllDialog by remember { mutableStateOf(false) }
-    var showDeleteSelectedDialog by remember { mutableStateOf(false) }
-
-    // Rename dialog
-    if (renameTarget != null) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { renameTarget = null },
-            title = { Text("Rename session") },
-            text = {
-                androidx.compose.material3.OutlinedTextField(
-                    value = renameText,
-                    onValueChange = { renameText = it },
-                    label = { Text("Title") },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    renameTarget?.let { onRenameSession(it.id, renameText) }
-                    renameTarget = null
-                }) { Text("Rename") }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { renameTarget = null }) { Text("Cancel") }
-            }
-        )
-    }
-
-    // Delete single session confirmation dialog
-    if (deleteTarget != null) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { deleteTarget = null },
-            title = { Text("Delete session?") },
-            text = { Text("\"${deleteTarget?.title}\" and all its messages will be permanently removed.") },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    deleteTarget?.let { onDeleteSession(it.id) }
-                    deleteTarget = null
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { deleteTarget = null }) { Text("Cancel") }
-            }
-        )
-    }
-
-    // Delete all sessions confirmation dialog
-    if (showDeleteAllDialog) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showDeleteAllDialog = false },
-            title = { Text("Delete all chats?") },
-            text = { Text("All ${sessions.size} chat sessions and their messages will be permanently removed. This cannot be undone.") },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    onDeleteAllSessions()
-                    showDeleteAllDialog = false
-                    isSelectionMode = false
-                    selectedIds = emptySet()
-                }) { Text("Delete All", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showDeleteAllDialog = false }) { Text("Cancel") }
-            }
-        )
-    }
-
-    // Delete selected sessions confirmation dialog
-    if (showDeleteSelectedDialog) {
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { showDeleteSelectedDialog = false },
-            title = { Text("Delete selected chats?") },
-            text = { Text("${selectedIds.size} chat session(s) and their messages will be permanently removed.") },
-            confirmButton = {
-                androidx.compose.material3.TextButton(onClick = {
-                    onDeleteSelectedSessions(selectedIds)
-                    showDeleteSelectedDialog = false
-                    isSelectionMode = false
-                    selectedIds = emptySet()
-                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { showDeleteSelectedDialog = false }) { Text("Cancel") }
-            }
-        )
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxHeight()
-            .background(MaterialTheme.colorScheme.surface)
-    ) {
-        // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (isSelectionMode) {
-                Text(
-                    text = "${selectedIds.size} selected",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                // Delete selected button
-                IconButton(
-                    onClick = { if (selectedIds.isNotEmpty()) showDeleteSelectedDialog = true },
-                    enabled = selectedIds.isNotEmpty()
-                ) {
-                    Icon(
-                        Icons.Filled.Delete,
-                        contentDescription = "Delete selected",
-                        tint = if (selectedIds.isNotEmpty()) MaterialTheme.colorScheme.error
-                               else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                    )
-                }
-                // Cancel selection mode
-                IconButton(onClick = {
-                    isSelectionMode = false
-                    selectedIds = emptySet()
-                }) {
-                    Icon(Icons.Filled.Close, contentDescription = "Cancel selection")
-                }
-            } else {
-                Text(
-                    text = "Chat History",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                // Delete all button (only when sessions exist)
-                if (sessions.isNotEmpty()) {
-                    IconButton(onClick = { showDeleteAllDialog = true }) {
-                        Icon(
-                            Icons.Filled.DeleteSweep,
-                            contentDescription = "Delete all chats",
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
-                }
-                IconButton(onClick = onCloseDrawer) {
-                    Icon(Icons.Filled.Close, contentDescription = "Close drawer")
-                }
-            }
-        }
-
-        // Search bar
-        if (sessions.isNotEmpty()) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = { Text("Search chats...") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Clear search")
-                        }
-                    }
-                },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
-            )
-        }
-
-        // New Chat + Select All row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextButton(
-                onClick = onNewSession,
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("New Chat")
-            }
-            if (sessions.isNotEmpty()) {
-                TextButton(onClick = {
-                    if (!isSelectionMode) {
-                        isSelectionMode = true
-                        selectedIds = emptySet()
-                    } else {
-                        // Toggle select-all / deselect-all
-                        selectedIds = if (selectedIds.size == sessions.size) {
-                            emptySet()
-                        } else {
-                            sessions.map { it.id }.toSet()
-                        }
-                    }
-                }) {
-                    Text(
-                        text = when {
-                            !isSelectionMode -> "Select"
-                            selectedIds.size == sessions.size -> "Deselect All"
-                            else -> "Select All"
-                        }
-                    )
-                }
-            }
-        }
-
-        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-
-        // Filtered sessions list
-        val filteredSessions = if (searchQuery.isBlank()) sessions
-                               else sessions.filter { it.title.contains(searchQuery, ignoreCase = true) }
-
-        if (filteredSessions.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (sessions.isEmpty()) "No saved sessions yet"
-                           else "No chats match \"$searchQuery\"",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                )
-            }
-        } else {
-            // Pinned sessions always appear at the top, then the rest grouped by date
-            val pinned = filteredSessions.filter { it.isPinned }
-            val unpinned = filteredSessions.filter { !it.isPinned }
-            val grouped = groupSessionsByDate(unpinned)
-
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                if (pinned.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "📌 Pinned",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
-                        )
-                    }
-                    items(pinned) { session ->
-                        SessionItem(
-                            session = session,
-                            isActive = session.id == currentSessionId,
-                            isSelectionMode = isSelectionMode,
-                            isSelected = session.id in selectedIds,
-                            onClick = {
-                                if (isSelectionMode) {
-                                    selectedIds = if (session.id in selectedIds)
-                                        selectedIds - session.id
-                                    else
-                                        selectedIds + session.id
-                                } else {
-                                    onSessionClick(session.id)
-                                }
-                            },
-                            onLongClick = {
-                                if (!isSelectionMode) {
-                                    isSelectionMode = true
-                                    selectedIds = setOf(session.id)
-                                }
-                            },
-                            onPin = { onTogglePin(session.id) },
-                            onRename = {
-                                renameText = session.title
-                                renameTarget = session
-                            },
-                            onDelete = { deleteTarget = session }
-                        )
-                    }
-                    item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
-                }
-                grouped.forEach { (label, items) ->
-                    item {
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
-                        )
-                    }
-                    items(items) { session ->
-                        SessionItem(
-                            session = session,
-                            isActive = session.id == currentSessionId,
-                            isSelectionMode = isSelectionMode,
-                            isSelected = session.id in selectedIds,
-                            onClick = {
-                                if (isSelectionMode) {
-                                    selectedIds = if (session.id in selectedIds)
-                                        selectedIds - session.id
-                                    else
-                                        selectedIds + session.id
-                                } else {
-                                    onSessionClick(session.id)
-                                }
-                            },
-                            onLongClick = {
-                                if (!isSelectionMode) {
-                                    isSelectionMode = true
-                                    selectedIds = setOf(session.id)
-                                }
-                            },
-                            onPin = { onTogglePin(session.id) },
-                            onRename = {
-                                renameText = session.title
-                                renameTarget = session
-                            },
-                            onDelete = { deleteTarget = session }
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun SessionItem(
-    session: ChatSessionEntity,
-    isActive: Boolean,
-    isSelectionMode: Boolean = false,
-    isSelected: Boolean = false,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit = {},
-    onPin: () -> Unit,
-    onRename: () -> Unit,
-    onDelete: () -> Unit
-) {
-    var showContextMenu by remember { mutableStateOf(false) }
-    val haptics = LocalHapticFeedback.current
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(NavigationDrawerItemDefaults.ItemPadding)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(50))
-                .background(
-                    when {
-                        isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                        isActive -> MaterialTheme.colorScheme.primaryContainer
-                        else -> MaterialTheme.colorScheme.surface
-                    }
-                )
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        if (isSelectionMode) {
-                            showContextMenu = true
-                        } else {
-                            onLongClick()
-                        }
-                    }
-                )
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Checkbox in selection mode
-            if (isSelectionMode) {
-                Checkbox(
-                    checked = isSelected,
-                    onCheckedChange = { onClick() },
-                    modifier = Modifier
-                        .size(20.dp)
-                        .padding(end = 4.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-            } else {
-                if (session.isPinned) {
-                    Text(
-                        text = "📌",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                }
-                if (session.source == ChatSessionEntity.SOURCE_TELEGRAM) {
-                    Text(
-                        text = "✈️",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(end = 4.dp)
-                    )
-                }
-                if (session.source == ChatSessionEntity.SOURCE_DISCORD) {
-                    Text(
-                        text = "🎮",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(end = 4.dp)
-                    )
-                }
-                if (session.source == ChatSessionEntity.SOURCE_WHATSAPP_BRIDGE) {
-                    Text(
-                        text = "📱",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(end = 4.dp)
-                    )
-                }
-            }
-            Text(
-                text = session.title,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
-                        else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        if (!isSelectionMode) {
-            DropdownMenu(
-                expanded = showContextMenu,
-                onDismissRequest = { showContextMenu = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text(if (session.isPinned) "📌 Unpin" else "📌 Pin") },
-                    onClick = { onPin(); showContextMenu = false }
-                )
-                DropdownMenuItem(
-                    text = { Text("✏️ Rename") },
-                    onClick = { onRename(); showContextMenu = false }
-                )
-                DropdownMenuItem(
-                    text = { Text("🗑️ Delete", color = MaterialTheme.colorScheme.error) },
-                    onClick = { onDelete(); showContextMenu = false }
-                )
-            }
-        }
-    }
-}
-
-/** Groups sessions into "Today", "Yesterday", "Previous 7 Days", and "Older". */
-private fun groupSessionsByDate(sessions: List<ChatSessionEntity>): Map<String, List<ChatSessionEntity>> {
-    val now = System.currentTimeMillis()
-    val dayMs = 86_400_000L
-    return linkedMapOf<String, MutableList<ChatSessionEntity>>().apply {
-        sessions.forEach { s ->
-            val diff = now - s.lastUpdated
-            val label = when {
-                diff < dayMs -> "Today"
-                diff < 2 * dayMs -> "Yesterday"
-                diff < 7 * dayMs -> "Previous 7 Days"
-                else -> SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date(s.lastUpdated))
-            }
-            getOrPut(label) { mutableListOf() }.add(s)
         }
     }
 }
