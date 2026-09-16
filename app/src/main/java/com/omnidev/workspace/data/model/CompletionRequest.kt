@@ -77,41 +77,52 @@ enum class AttachmentMediaType {
 
 /**
  * Payload sent to an AI completion endpoint.
- * Structured to support Anthropic, OpenAI, Gemini, and OpenAI-compatible API formats.
+ *
+ * Request-boundary sanitization is intentionally centralized here so every
+ * provider and every caller receives the same compact/observable agent policy.
  */
 @Serializable
 data class CompletionRequest(
     val modelId: String,
-    val messages: List<ChatMessage>,
-    val systemPrompt: String? = null,
+    var messages: List<ChatMessage>,
+    var systemPrompt: String? = null,
     val maxTokens: Int = 4096,
     val temperature: Double = 0.7,
     val enableThinking: Boolean = false,
     val targetContext: String? = null,
     /** The resolved API key for the target provider. Populated by [AgentPipeline]. */
     val apiKey: String? = null,
-    /**
-     * Native function-calling tool definitions. When non-null, [CompletionService]
-     * includes them in the API request so the model can invoke tools via the provider's
-     * structured tool-call mechanism instead of raw text output.
-     */
+    /** Native function-calling definitions. */
     val tools: List<ToolDefinition>? = null,
     val customBaseUrl: String? = null,
     val customModelId: String? = null,
     @kotlinx.serialization.Transient val onReasoning: (suspend (String) -> Unit)? = null
-)
+) {
+    init {
+        messages = AgentPromptSanitizer.sanitizeMessages(messages)
+        systemPrompt = AgentPromptSanitizer.sanitizeSystemPrompt(systemPrompt)
+    }
+}
 
 /**
  * Response from an AI completion endpoint.
+ *
+ * `thinkingContent` is deliberately cleared at construction time. Providers may
+ * still use hidden reasoning internally, but raw chain-of-thought is not stored,
+ * replayed into future turns, or rendered in the agent console.
  */
 @Serializable
 data class CompletionResponse(
     val content: String,
     val toolCalls: List<ToolCall> = emptyList(),
-    val thinkingContent: String? = null,
+    var thinkingContent: String? = null,
     val finishReason: String? = null,
     val tokensUsed: TokenUsage? = null
-)
+) {
+    init {
+        thinkingContent = null
+    }
+}
 
 @Serializable
 data class TokenUsage(
