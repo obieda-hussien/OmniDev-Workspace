@@ -18,6 +18,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  *
  * Chat can research with a tiny read-only web set. Before spending a model call, a deterministic
  * local preflight detects obvious execution-capability gaps and proposes Agent/Team directly.
+ * Completed Chat runs feed local mode-outcome learning so AUTO routing can compare real outcomes
+ * instead of assuming execution modes are always superior.
  */
 class ChatToolLoop(private val tools: ToolManager?) {
     companion object {
@@ -49,6 +51,33 @@ class ChatToolLoop(private val tools: ToolManager?) {
         event: suspend (AgentEvent) -> Unit
     ): Result {
         val userRequest = base.messages.lastOrNull { it.role == MessageRole.USER }?.content.orEmpty()
+        val startedAt = System.currentTimeMillis()
+        var roundsObserved = 0
+        var calls = 0
+        var tokens = 0
+        var hadToolError = false
+
+        fun learnedResult(
+            content: String,
+            outcome: ModeOutcomeLearner.Outcome,
+            request: ExecutionModeRequest? = null,
+            verified: Boolean = false
+        ): Result {
+            try {
+                ModeOutcomeLearner.recordOutcome(
+                    userRequest = userRequest,
+                    mode = OmniMode.CHAT,
+                    outcome = outcome,
+                    iterations = roundsObserved,
+                    durationMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L),
+                    tokens = tokens.takeIf { it > 0 },
+                    verified = verified
+                )
+            } catch (_: Throwable) {
+                // Learning is advisory and must never affect the primary response path.
+            }
+            return Result(content, request)
+        }
 
         // Local preflight: deterministic, zero network/token cost. Only high-confidence capability
         // gaps are short-circuited; ordinary coding questions remain answerable in Chat.
@@ -62,6 +91,8 @@ class ChatToolLoop(private val tools: ToolManager?) {
                 confidence = localSuggestion.confidence,
                 trigger = localSuggestion.trigger.name
             )
+            // Correct capability-gap detection is not a failed Chat attempt. Do not contaminate
+            // the outcome posterior by recording a synthetic failure here.
             return Result(localSuggestion.reason, request)
         }
 
@@ -69,11 +100,10 @@ class ChatToolLoop(private val tools: ToolManager?) {
             .filter { it.name in WEB_TOOLS && it.name !in disabled }
         val allowed = definitions.map { it.name }.toSet()
         val history = base.messages.toMutableList()
-        var calls = 0
-        var tokens = 0
         val seen = mutableSetOf<Pair<String, Map<String, String>>>()
 
         for (round in 1..7) {
+            roundsObserved = round
             val canUseTools = round <= 6 && calls < 8 && tokens < 32_000
             event(AgentEvent.Thinking(round))
             val response = complete(
@@ -92,12 +122,20 @@ class ChatToolLoop(private val tools: ToolManager?) {
                     32_000
                 )
             )
-            if (response.toolCalls.isEmpty()) return Result(response.content)
+            if (response.toolCalls.isEmpty()) {
+                return learnedResult(
+                    content = response.content,
+                    outcome = ModeOutcomeLearner.Outcome.SUCCESS,
+                    verified = calls > 0 && !hadToolError
+                )
+            }
             if (!canUseTools) {
-                return Result(
-                    response.content.ifBlank {
+                return learnedResult(
+                    content = response.content.ifBlank {
                         "Chat tool budget reached. Continue the research in a new message if needed."
-                    }
+                    },
+                    outcome = ModeOutcomeLearner.Outcome.ABANDONED,
+                    verified = false
                 )
             }
 
@@ -122,6 +160,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
                             round
                         )
                     )
+                    // A handoff proposal is correct behavior, not a failed Chat run.
                     return Result(
                         reason,
                         ExecutionModeRequest(
@@ -158,6 +197,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
                         }
                     }
                 }
+                if (result.isError) hadToolError = true
                 val output = result.output.take(12_000)
                 event(AgentEvent.ToolResult(call.name, output, result.isError, round))
                 results += ToolCallResult(
@@ -175,6 +215,10 @@ class ChatToolLoop(private val tools: ToolManager?) {
             )
         }
 
-        return Result("Chat tool budget reached. Continue the research in a new message if needed.")
+        return learnedResult(
+            content = "Chat tool budget reached. Continue the research in a new message if needed.",
+            outcome = ModeOutcomeLearner.Outcome.ABANDONED,
+            verified = false
+        )
     }
 }
