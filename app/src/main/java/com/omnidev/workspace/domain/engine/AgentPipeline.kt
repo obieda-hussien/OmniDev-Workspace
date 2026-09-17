@@ -9,6 +9,7 @@ import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.ModelTier
 import com.omnidev.workspace.data.model.ToolCall
 import com.omnidev.workspace.data.model.ToolCallResult
+import com.omnidev.workspace.data.model.ToolSchemaCompactor
 import com.omnidev.workspace.data.tools.ToolExecutionResult
 import com.omnidev.workspace.data.tools.ToolManager
 import com.omnidev.workspace.data.tools.orchestration.ToolOrchestrator
@@ -76,7 +77,7 @@ class AgentPipeline(
 ) {
 
     companion object {
-        private const val MAX_TOOLS_PER_REQUEST = 128
+        private const val MAX_TOOLS_PER_REQUEST = 80
         private const val RATE_LIMIT_MAX_RETRIES = 4
         private const val RATE_LIMIT_BASE_DELAY_MS = 15_000L
         private const val RATE_LIMIT_MAX_DELAY_MS = 60_000L
@@ -147,7 +148,12 @@ Do not use tools. Do not rewrite merely for style.
 
         val model = ModelRegistry.findModelById(modelId) ?: ModelRegistry.getModelById(modelId)
         val resolvedApiKey = apiKeyRepository?.getApiKey(model.provider)
-        val relevantDomains = IntentClassifier.getRelevantDomains(userMessage)
+
+        // Team worker prompts contain the original broad objective after the assigned atomic task.
+        // Route capabilities from the assigned slice only, otherwise every worker gets the whole
+        // project's tool domains and pays for irrelevant schemas.
+        val routingObjective = extractRoutingObjective(userMessage)
+        val relevantDomains = IntentClassifier.getRelevantDomains(routingObjective)
         val localTools = toolManager.getToolDefinitions()
             .asSequence()
             .filter { it.name !in disabledToolNames }
@@ -158,7 +164,11 @@ Do not use tools. Do not rewrite merely for style.
         } catch (_: Exception) {
             emptyList()
         }
-        val toolDefs = (localTools + mcpTools).distinctBy { it.name }.take(MAX_TOOLS_PER_REQUEST)
+        val rawToolDefs = (localTools + mcpTools).distinctBy { it.name }
+        val toolDefs = ToolSchemaCompactor.compact(
+            tools = rawToolDefs,
+            messages = listOf(ChatMessage(MessageRole.USER, routingObjective))
+        ).orEmpty().take(MAX_TOOLS_PER_REQUEST)
         brain?.registerTools(toolDefs)
 
         val memoryContext = try { memoryManager?.buildKnowledgeContext() } catch (_: Exception) { null }
@@ -218,9 +228,10 @@ Do not use tools. Do not rewrite merely for style.
                 8_192,
                 remainingAtStart?.coerceAtLeast(MIN_COMPLETION_OUTPUT_RESERVE) ?: 8_192
             )
-            val schemaEstimate = toolDefs.sumOf { it.toString().length } / 2
+            // Tool definitions are already compacted to the exact set sent to the provider.
+            val schemaEstimate = (toolDefs.sumOf { it.toString().length } / 3).coerceAtLeast(0)
             val inputBudget = model.contextWindow - desiredOutputBudget - config.contextWindowBuffer -
-                systemPrompt.length / 2 - schemaEstimate
+                systemPrompt.length / 3 - schemaEstimate
             if (inputBudget <= 0) {
                 brain?.onTaskEnd(EpisodeOutcome.FAILURE, "system/tool schema exceeds context window")
                 send(AgentEvent.Error("System instructions and tool definitions exceed this model's context window."))
@@ -254,18 +265,22 @@ Do not use tools. Do not rewrite merely for style.
                 return@channelFlow
             }
 
-            // Reserve both estimated input and a minimum output slice before calling the provider.
-            // This prevents a request from entering when the run has only a few hundred tokens left.
-            val estimatedRequestInput = requestMessages.sumOf(ContextCompressor::estimatedTokens) +
-                systemPrompt.length / 2 + schemaEstimate
+            val requestPrototype = CompletionRequest(
+                modelId = modelId,
+                messages = requestMessages,
+                systemPrompt = systemPrompt,
+                maxTokens = desiredOutputBudget,
+                enableThinking = enableDeepThinking && model.supportsThinking,
+                targetContext = scopePath,
+                apiKey = resolvedApiKey,
+                tools = toolDefs
+            )
+            val estimatedRequestInput = TokenAccounting.estimateInputTokens(requestPrototype)
             val remainingAfterCompaction = config.tokenBudget?.minus(totalTokensUsed)
             if (remainingAfterCompaction != null &&
                 remainingAfterCompaction <= estimatedRequestInput + MIN_COMPLETION_OUTPUT_RESERVE
             ) {
-                brain?.onTaskEnd(
-                    EpisodeOutcome.ABANDONED,
-                    "insufficient remaining token budget for next request"
-                )
+                brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "insufficient remaining token budget for next request")
                 send(
                     AgentEvent.Error(
                         "Token budget is too low for another safe model request after accounting for its input context."
@@ -280,16 +295,8 @@ Do not use tools. Do not rewrite merely for style.
                     (it - estimatedRequestInput).coerceAtLeast(MIN_COMPLETION_OUTPUT_RESERVE)
                 } ?: desiredOutputBudget
             )
-
-            val request = CompletionRequest(
-                modelId = modelId,
-                messages = requestMessages,
-                systemPrompt = systemPrompt,
+            val request = requestPrototype.copy(
                 maxTokens = outputBudget,
-                enableThinking = enableDeepThinking && model.supportsThinking,
-                targetContext = scopePath,
-                apiKey = resolvedApiKey,
-                tools = toolDefs,
                 onReasoning = { send(AgentEvent.ThinkingBlock(it)) }
             )
 
@@ -304,10 +311,10 @@ Do not use tools. Do not rewrite merely for style.
                 }
             ) ?: return@channelFlow
 
-            response.tokensUsed?.let { usage ->
-                totalTokensUsed += usage.totalTokens
-                emitUsage(usage.totalTokens, totalTokensUsed)
-            }
+            // Usage is never allowed to disappear merely because a provider omitted metadata.
+            val responseUsage = TokenAccounting.usage(request, response)
+            totalTokensUsed += responseUsage.totalTokens
+            emitUsage(responseUsage.totalTokens, totalTokensUsed)
 
             response.thinkingContent
                 ?.takeIf { streamingCompletionProvider == null }
@@ -541,7 +548,7 @@ Do not use tools. Do not rewrite merely for style.
             null
         } ?: return draft
 
-        critic.tokensUsed?.totalTokens?.takeIf { it > 0 }?.let { onUsage(it) }
+        onUsage(TokenAccounting.usage(criticRequest, critic).totalTokens)
         val text = critic.content.trim()
         if (!text.contains("VERDICT: NEEDS_IMPROVEMENT", ignoreCase = true)) return draft
         val marker = "IMPROVED_ANSWER:"
@@ -649,9 +656,9 @@ Do not use tools. Do not rewrite merely for style.
         val repository = analyticsRepository ?: return
         try {
             val model = ModelRegistry.findModelById(request.modelId)
-            val usage = response?.tokensUsed
-            val inputTokens = usage?.promptTokens ?: 0
-            val outputTokens = usage?.completionTokens ?: 0
+            val usage = response?.let { TokenAccounting.usage(request, it) }
+            val inputTokens = usage?.inputTokens ?: 0
+            val outputTokens = usage?.outputTokens ?: 0
             repository.recordTokenUsage(
                 modelId = request.modelId,
                 provider = model?.provider,
@@ -667,6 +674,23 @@ Do not use tools. Do not rewrite merely for style.
         } catch (_: Exception) {
             // Analytics is best effort.
         }
+    }
+
+    private fun extractRoutingObjective(userMessage: String): String {
+        val marker = "## Assigned Team Task"
+        val start = userMessage.indexOf(marker, ignoreCase = true)
+        if (start < 0) return userMessage.take(4_000)
+        val afterMarker = userMessage.substring(start + marker.length)
+        val boundaries = listOf(
+            "## Runtime", "## Worker budget", "## Contract", "## Execution contract",
+            "## Dependency evidence", "## Original objective"
+        ).mapNotNull { heading ->
+            afterMarker.indexOf(heading, ignoreCase = true).takeIf { it >= 0 }
+        }
+        val end = boundaries.minOrNull() ?: afterMarker.length
+        return afterMarker.substring(0, end).trim().takeIf(String::isNotBlank)
+            ?.take(4_000)
+            ?: userMessage.take(4_000)
     }
 
     private fun isPermanentRequestError(message: String): Boolean = containsAny(
