@@ -14,9 +14,9 @@ import java.security.MessageDigest
 /**
  * ReflexionEngine — local, mobile-first execution lesson memory.
  *
- * Lessons are persisted through [ReflexionDao], while the list of lessons injected into the
- * current task is intentionally run-local. This is important in Team mode where workers run
- * concurrently: one worker must never reward or penalize lessons that another worker used.
+ * Besides remembering failures/slow calls, it learns recovery transitions: when one tool/strategy
+ * fails and a later alternative succeeds, the successful escape path is stored as a higher-value
+ * positive lesson. Persistent lessons are shared; active attribution is run-local.
  */
 class ReflexionEngine(
     private val dao: ReflexionDao,
@@ -31,15 +31,11 @@ class ReflexionEngine(
         private const val MIN_SIMILARITY = 0.18f
         private const val DB_CANDIDATE_LIMIT = 80
         private const val MAX_LESSON_LENGTH = 280
+        private const val RECOVERY_INITIAL_QUALITY = 0.72f
     }
 
-    /** Lessons used by this single run only. Never share this mutable list across workers. */
     private val activeLessonIds = mutableListOf<Long>()
 
-    /**
-     * Creates a run-scoped view over the same persistent lesson database.
-     * Persistent knowledge is shared; transient feedback attribution is not.
-     */
     fun forkForRun(): ReflexionEngine = ReflexionEngine(
         dao = dao,
         maxLessons = maxLessons,
@@ -70,26 +66,87 @@ class ReflexionEngine(
         executionTimeMs: Long,
         userIntent: String = ""
     ) = withContext(Dispatchers.IO) {
-        val isNotable = when {
-            result.isError -> true
-            executionTimeMs >= NOTABLE_THRESHOLD_MS -> true
-            result.output.length > 4000 -> true
-            else -> false
-        }
+        val isNotable = result.isError ||
+            executionTimeMs >= NOTABLE_THRESHOLD_MS ||
+            result.output.length > 4000
         if (!isNotable) return@withContext
 
         val lesson = synthesizeLesson(toolName, parameters, result, executionTimeMs, userIntent)
             ?: return@withContext
 
-        if (lesson.errorSignature.isNotBlank()) {
-            val existing = dao.getBySignature(lesson.errorSignature, limit = 1).firstOrNull()
-            if (existing != null) {
-                dao.recordUsage(existing.id, System.currentTimeMillis(), qualityDelta = 0.02f)
-                return@withContext
+        upsertBySignature(lesson, duplicateReward = 0.02f)
+        enforceQuota()
+    }
+
+    /**
+     * Learns a positive "escape edge" from a failed strategy to a successful recovery.
+     * Example: advanced_terminal(permission denied) -> shizuku_command succeeded.
+     */
+    fun recordRecoveryAsync(
+        failedTool: String,
+        failedParameters: Map<String, Any?>,
+        failedOutput: String,
+        recoveryTool: String,
+        recoveryParameters: Map<String, Any?>,
+        userIntent: String = ""
+    ) {
+        scope.launch(Dispatchers.IO) {
+            try {
+                recordRecovery(
+                    failedTool = failedTool,
+                    failedParameters = failedParameters,
+                    failedOutput = failedOutput,
+                    recoveryTool = recoveryTool,
+                    recoveryParameters = recoveryParameters,
+                    userIntent = userIntent
+                )
+            } catch (t: Throwable) {
+                Log.w(TAG, "recordRecovery failed: ${t.message}")
             }
         }
+    }
 
-        dao.insert(lesson)
+    suspend fun recordRecovery(
+        failedTool: String,
+        failedParameters: Map<String, Any?>,
+        failedOutput: String,
+        recoveryTool: String,
+        recoveryParameters: Map<String, Any?>,
+        userIntent: String = ""
+    ) = withContext(Dispatchers.IO) {
+        if (failedTool.isBlank() || recoveryTool.isBlank() || failedOutput.isBlank()) {
+            return@withContext
+        }
+
+        val failureSig = signatureOf(failedOutput)
+        if (failureSig.isBlank()) return@withContext
+
+        val failedParams = abbreviateParams(failedParameters)
+        val recoveryParams = abbreviateParams(recoveryParameters)
+        val failureHint = compactFailureHint(failedOutput)
+        val lessonText = buildString {
+            append("Recovery learned: ")
+            append(failedTool).append(failedParams)
+            append(" failed (").append(failureHint).append("). ")
+            append(recoveryTool).append(recoveryParams)
+            append(" succeeded next. Prefer this recovery path when the same failure pattern appears.")
+        }.take(MAX_LESSON_LENGTH)
+
+        val recoverySignature = signatureOf("RECOVERY|$failureSig|$failedTool|$recoveryTool|$recoveryParams")
+        val lesson = ReflexionLessonEntry(
+            toolName = recoveryTool,
+            lesson = lessonText,
+            errorSignature = recoverySignature,
+            embedding = HashEmbedder.toBytes(
+                HashEmbedder.embed("$userIntent $failedTool $failureHint $recoveryTool $lessonText")
+            ),
+            successContext = true,
+            createdAt = System.currentTimeMillis(),
+            lastUsedAt = System.currentTimeMillis(),
+            quality = RECOVERY_INITIAL_QUALITY
+        )
+
+        upsertBySignature(lesson, duplicateReward = 0.06f)
         enforceQuota()
     }
 
@@ -125,7 +182,8 @@ class ReflexionEngine(
             }
             .filter { it.second >= MIN_SIMILARITY }
             .sortedByDescending { pair ->
-                pair.second * 0.7f + pair.first.quality * 0.3f
+                // Positive recovery lessons get their advantage through quality, not hard-coded type.
+                pair.second * 0.68f + pair.first.quality * 0.32f
             }
             .take(topK)
             .map { it.first }
@@ -139,7 +197,7 @@ class ReflexionEngine(
         for (lesson in ranked) {
             try {
                 dao.recordUsage(lesson.id, now, qualityDelta = 0.01f)
-            } catch (_: Throwable) { /* ignore */ }
+            } catch (_: Throwable) { /* best effort */ }
         }
 
         ranked
@@ -154,11 +212,11 @@ class ReflexionEngine(
         if (lessons.isEmpty()) return@withContext ""
 
         buildString {
-            appendLine("\n💡 Learned execution lessons (Reflexion):")
-            for (l in lessons) {
-                val icon = if (l.successContext) "✅" else "⚠️"
-                val toolHint = if (l.toolName.isNotBlank()) "[${l.toolName}] " else ""
-                val line = "$icon $toolHint${l.lesson.take(MAX_LESSON_LENGTH)}"
+            appendLine("\nLearned execution lessons (Reflexion):")
+            for (lesson in lessons) {
+                val icon = if (lesson.successContext) "✅" else "⚠️"
+                val toolHint = if (lesson.toolName.isNotBlank()) "[${lesson.toolName}] " else ""
+                val line = "$icon $toolHint${lesson.lesson.take(MAX_LESSON_LENGTH)}"
                 if (length + line.length + 1 > maxChars) break
                 appendLine(line)
             }
@@ -176,10 +234,28 @@ class ReflexionEngine(
                 } else {
                     dao.penalize(id, penalty = 0.06f)
                 }
-            } catch (_: Throwable) { /* ignore */ }
+            } catch (_: Throwable) { /* best effort */ }
         }
 
         synchronized(activeLessonIds) { activeLessonIds.clear() }
+    }
+
+    private suspend fun upsertBySignature(
+        lesson: ReflexionLessonEntry,
+        duplicateReward: Float
+    ) {
+        if (lesson.errorSignature.isNotBlank()) {
+            val existing = dao.getBySignature(lesson.errorSignature, limit = 1).firstOrNull()
+            if (existing != null) {
+                dao.recordUsage(
+                    existing.id,
+                    System.currentTimeMillis(),
+                    qualityDelta = duplicateReward
+                )
+                return
+            }
+        }
+        dao.insert(lesson)
     }
 
     private fun synthesizeLesson(
@@ -192,8 +268,8 @@ class ReflexionEngine(
         val paramsAbbrev = abbreviateParams(parameters)
         val (lessonText, success) = when {
             result.isError -> {
-                val errSnippet = result.output.take(150).replace('\n', ' ')
-                "$toolName$paramsAbbrev failed: $errSnippet. Avoid repeating the same call; change the strategy or parameters." to false
+                val errSnippet = compactFailureHint(result.output, 150)
+                "$toolName$paramsAbbrev failed: $errSnippet. Avoid repeating the identical call; change strategy or parameters." to false
             }
             executionTimeMs >= NOTABLE_THRESHOLD_MS -> {
                 "$toolName$paramsAbbrev was slow (${executionTimeMs}ms). Prefer batching, caching, narrower scope, or a cheaper probe when equivalent." to true
@@ -220,6 +296,12 @@ class ReflexionEngine(
         )
     }
 
+    private fun compactFailureHint(text: String, maxChars: Int = 90): String = text
+        .replace('\n', ' ')
+        .replace(Regex("\\s+"), " ")
+        .trim()
+        .take(maxChars)
+
     private fun abbreviateParams(params: Map<String, Any?>): String {
         if (params.isEmpty()) return ""
         val pretty = params.entries.take(3).joinToString(", ") { (k, v) ->
@@ -230,8 +312,9 @@ class ReflexionEngine(
     }
 
     private fun signatureOf(text: String): String {
-        val normalized = text.take(200)
+        val normalized = text.take(240)
             .replace(Regex("/[\\w./-]+"), "/PATH")
+            .replace(Regex("\\b[0-9a-f]{8,}\\b", RegexOption.IGNORE_CASE), "HEX")
             .replace(Regex("\\d+"), "N")
             .replace(Regex("\\s+"), " ")
             .trim()
@@ -243,11 +326,11 @@ class ReflexionEngine(
 
     private suspend fun enforceQuota() {
         try {
-            val cnt = dao.count()
-            if (cnt > maxLessons) {
-                val toEvict = (cnt - maxLessons).coerceAtLeast(50)
+            val count = dao.count()
+            if (count > maxLessons) {
+                val toEvict = (count - maxLessons).coerceAtLeast(50)
                 dao.evictLowestQuality(toEvict)
-                Log.d(TAG, "Evicted $toEvict low-quality lessons (cnt=$cnt)")
+                Log.d(TAG, "Evicted $toEvict low-quality lessons (count=$count)")
             }
         } catch (t: Throwable) {
             Log.w(TAG, "enforceQuota failed: ${t.message}")
