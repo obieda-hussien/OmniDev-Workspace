@@ -19,8 +19,9 @@ import kotlinx.coroutines.withContext
  * then selected with Maximal Marginal Relevance (MMR). That prevents the prompt from wasting its
  * tiny memory budget on near-duplicate past runs while still retaining cautionary failures.
  *
- * Completed episodes also feed the local execution-mode outcome learner. That feedback is
- * advisory routing evidence only; it never grants permission to switch modes.
+ * Completed standalone Agent episodes also feed the local execution-mode outcome learner. Team
+ * worker episodes remain useful episodic memory, but Team mode is scored once at the orchestrator
+ * level so a six-worker run does not count as six independent Team successes.
  */
 class EpisodicMemoryStore(
     private val dao: EpisodicMemoryDao,
@@ -101,30 +102,27 @@ class EpisodicMemoryStore(
 
         val id = dao.insert(entry)
 
-        // Feed actual execution outcomes back into adaptive mode routing. Team workers are
-        // recognizable from the worker contract prefix; ordinary Agent runs use AGENT.
-        try {
-            val executionMode = if (userIntent.contains(TEAM_TASK_MARKER, ignoreCase = true)) {
-                OmniMode.SWARM
-            } else {
-                OmniMode.AGENT
+        // Standalone Agent outcomes calibrate Agent routing here. Team workers are intentionally
+        // excluded because SwarmOrchestrator records one aggregate Team outcome for the run.
+        if (!userIntent.contains(TEAM_TASK_MARKER, ignoreCase = true)) {
+            try {
+                val modeOutcome = when (finalOutcome) {
+                    EpisodeOutcome.SUCCESS -> ModeOutcomeLearner.Outcome.SUCCESS
+                    EpisodeOutcome.FAILURE -> ModeOutcomeLearner.Outcome.FAILURE
+                    EpisodeOutcome.ABANDONED -> ModeOutcomeLearner.Outcome.ABANDONED
+                }
+                ModeOutcomeLearner.recordOutcome(
+                    userRequest = userIntent,
+                    mode = OmniMode.AGENT,
+                    outcome = modeOutcome,
+                    iterations = iterationsCount,
+                    durationMs = totalTimeMs,
+                    verified = false
+                )
+            } catch (t: Throwable) {
+                // Outcome learning must never make primary episodic persistence fail.
+                Log.w(TAG, "mode outcome learning failed: ${t.message}")
             }
-            val modeOutcome = when (finalOutcome) {
-                EpisodeOutcome.SUCCESS -> ModeOutcomeLearner.Outcome.SUCCESS
-                EpisodeOutcome.FAILURE -> ModeOutcomeLearner.Outcome.FAILURE
-                EpisodeOutcome.ABANDONED -> ModeOutcomeLearner.Outcome.ABANDONED
-            }
-            ModeOutcomeLearner.recordOutcome(
-                userRequest = userIntent,
-                mode = executionMode,
-                outcome = modeOutcome,
-                iterations = iterationsCount,
-                durationMs = totalTimeMs,
-                verified = false
-            )
-        } catch (t: Throwable) {
-            // Outcome learning must never make primary episodic persistence fail.
-            Log.w(TAG, "mode outcome learning failed: ${t.message}")
         }
 
         enforceQuota()
