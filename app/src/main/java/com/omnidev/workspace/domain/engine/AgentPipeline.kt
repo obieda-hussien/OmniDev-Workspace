@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.withTimeout
 import kotlin.math.min
 
-/** Runtime configuration for one ReAct run. Public fields are kept source-compatible. */
+/** Runtime configuration for one ReAct run. Public fields remain source-compatible. */
 data class AgentConfig(
     val maxIterations: Int = 50,
     val enableRetry: Boolean = true,
@@ -47,12 +47,7 @@ data class AgentConfig(
     val toolExecutionBaseRetryDelayMs: Long = 500L
 ) {
     companion object {
-        val BUDGET = AgentConfig(
-            maxIterations = 10,
-            tokenBudget = 50_000,
-            enableRetry = false
-        )
-
+        val BUDGET = AgentConfig(maxIterations = 10, tokenBudget = 50_000, enableRetry = false)
         val THOROUGH = AgentConfig(
             maxIterations = 100,
             maxRetries = 5,
@@ -60,20 +55,12 @@ data class AgentConfig(
             contextWindowBuffer = 8_192,
             enableSelfReflection = true
         )
-
-        val INLINE = AgentConfig(
-            maxIterations = 1,
-            enableRetry = false,
-            tokenBudget = 8_192
-        )
+        val INLINE = AgentConfig(maxIterations = 1, enableRetry = false, tokenBudget = 8_192)
     }
 }
 
 /**
- * Autonomous ReAct runtime.
- *
- * The pipeline keeps tool execution, memory, retries and verification, while using a compact
- * system prompt and local guards to stop unproductive loops before they consume the full budget.
+ * Autonomous ReAct runtime with strict token accounting, safe tool batching and local loop guards.
  */
 class AgentPipeline(
     private val toolManager: ToolManager,
@@ -93,6 +80,7 @@ class AgentPipeline(
         private const val RATE_LIMIT_MAX_RETRIES = 4
         private const val RATE_LIMIT_BASE_DELAY_MS = 15_000L
         private const val RATE_LIMIT_MAX_DELAY_MS = 60_000L
+        private const val MIN_COMPLETION_OUTPUT_RESERVE = 256
         private const val CRITIC_MIN_REMAINING_BUDGET = 6_000
         private const val CRITIC_MAX_OUTPUT_TOKENS = 2_048
         private const val CRITIC_MAX_DRAFT_CHARS = 24_000
@@ -136,6 +124,16 @@ Do not use tools. Do not rewrite merely for style.
             }
         }
 
+        suspend fun emitUsage(iterationTokens: Int, totalTokens: Int) {
+            send(
+                AgentEvent.TokenUsageUpdate(
+                    iterationTokens = iterationTokens,
+                    totalTokens = totalTokens,
+                    budget = config.tokenBudget
+                )
+            )
+        }
+
         send(AgentEvent.Started)
         phase(AgentExecutionPhase.ANALYZE, "Reviewing objective, context and constraints")
         brain?.onTaskStart(userMessage)
@@ -144,12 +142,11 @@ Do not use tools. Do not rewrite merely for style.
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            // Optional analytics.
+            // Optional telemetry.
         }
 
         val model = ModelRegistry.findModelById(modelId) ?: ModelRegistry.getModelById(modelId)
         val resolvedApiKey = apiKeyRepository?.getApiKey(model.provider)
-
         val relevantDomains = IntentClassifier.getRelevantDomains(userMessage)
         val localTools = toolManager.getToolDefinitions()
             .asSequence()
@@ -161,23 +158,11 @@ Do not use tools. Do not rewrite merely for style.
         } catch (_: Exception) {
             emptyList()
         }
-        val toolDefs = (localTools + mcpTools)
-            .distinctBy { it.name }
-            .take(MAX_TOOLS_PER_REQUEST)
-
+        val toolDefs = (localTools + mcpTools).distinctBy { it.name }.take(MAX_TOOLS_PER_REQUEST)
         brain?.registerTools(toolDefs)
 
-        val memoryContext = try {
-            memoryManager?.buildKnowledgeContext()
-        } catch (_: Exception) {
-            null
-        }
-        val brainContext = try {
-            brain?.buildFullContextEnrichment()
-        } catch (_: Exception) {
-            null
-        }
-
+        val memoryContext = try { memoryManager?.buildKnowledgeContext() } catch (_: Exception) { null }
+        val brainContext = try { brain?.buildFullContextEnrichment() } catch (_: Exception) { null }
         val systemPrompt = AgentPromptCompiler.compile(
             tier = model.tier,
             scopePath = scopePath,
@@ -194,13 +179,7 @@ Do not use tools. Do not rewrite merely for style.
 
         val messages = mutableListOf<ChatMessage>().apply {
             addAll(conversationHistory)
-            add(
-                ChatMessage(
-                    role = MessageRole.USER,
-                    content = userMessage,
-                    attachments = userAttachments
-                )
-            )
+            add(ChatMessage(MessageRole.USER, userMessage, attachments = userAttachments))
         }
 
         var iteration = 0
@@ -218,72 +197,89 @@ Do not use tools. Do not rewrite merely for style.
 
             config.maxExecutionTimeMs?.let { timeoutMs ->
                 if (System.currentTimeMillis() - startedAt >= timeoutMs) {
-                    brain?.onTaskEnd(
-                        EpisodeOutcome.ABANDONED,
-                        "wall-clock timeout after ${timeoutMs / 1_000}s"
-                    )
-                    send(
-                        AgentEvent.Error(
-                            "Agent execution timed out after ${timeoutMs / 1_000}s."
-                        )
-                    )
+                    brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "wall-clock timeout after ${timeoutMs / 1_000}s")
+                    send(AgentEvent.Error("Agent execution timed out after ${timeoutMs / 1_000}s."))
                     return@channelFlow
                 }
             }
 
-            if (config.tokenBudget != null && totalTokensUsed >= config.tokenBudget) {
-                brain?.onTaskEnd(
-                    EpisodeOutcome.ABANDONED,
-                    "token budget exhausted after $iteration iterations"
-                )
-                send(
-                    AgentEvent.Error(
-                        "Token budget of ${config.tokenBudget} tokens exhausted after $iteration iterations."
-                    )
-                )
+            val remainingAtStart = config.tokenBudget?.minus(totalTokensUsed)
+            if (remainingAtStart != null && remainingAtStart <= MIN_COMPLETION_OUTPUT_RESERVE) {
+                brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "token budget exhausted before iteration $iteration")
+                send(AgentEvent.Error("Token budget of ${config.tokenBudget} tokens is exhausted."))
                 return@channelFlow
             }
 
             if (iteration > 1) delay(interCallDelayFor(model.tier))
             send(AgentEvent.Thinking(iteration))
 
-            val outputBudget = minOf(model.maxOutputTokens, 8_192)
+            val desiredOutputBudget = minOf(
+                model.maxOutputTokens,
+                8_192,
+                remainingAtStart?.coerceAtLeast(MIN_COMPLETION_OUTPUT_RESERVE) ?: 8_192
+            )
             val schemaEstimate = toolDefs.sumOf { it.toString().length } / 2
-            val inputBudget = model.contextWindow - outputBudget - config.contextWindowBuffer -
+            val inputBudget = model.contextWindow - desiredOutputBudget - config.contextWindowBuffer -
                 systemPrompt.length / 2 - schemaEstimate
             if (inputBudget <= 0) {
                 brain?.onTaskEnd(EpisodeOutcome.FAILURE, "system/tool schema exceeds context window")
+                send(AgentEvent.Error("System instructions and tool definitions exceed this model's context window."))
+                return@channelFlow
+            }
+
+            if (config.enableMemoryTrimming) {
+                val report = ContextCompressor.checkAndCompact(
+                    messages = messages,
+                    tokenBudget = inputBudget,
+                    modelId = modelId,
+                    completionProvider = completionProvider,
+                    apiKey = resolvedApiKey,
+                    remainingTokenBudget = config.tokenBudget?.minus(totalTokensUsed),
+                    allowModelSummary = config.tokenBudget?.let { budget ->
+                        totalTokensUsed < (budget * 0.70f).toInt()
+                    } ?: true
+                ) { send(it) }
+                if (report.tokensUsed > 0) {
+                    totalTokensUsed += report.tokensUsed
+                    emitUsage(report.tokensUsed, totalTokensUsed)
+                }
+            }
+
+            val requestMessages = if (config.enableMemoryTrimming) {
+                ContextCompressor.trim(messages, inputBudget)
+            } else messages.toList()
+            if (requestMessages.sumOf(ContextCompressor::estimatedTokens) > inputBudget) {
+                brain?.onTaskEnd(EpisodeOutcome.FAILURE, "latest context still exceeds input budget")
+                send(AgentEvent.Error("The latest message/tool result exceeds this model's context window."))
+                return@channelFlow
+            }
+
+            // Reserve both estimated input and a minimum output slice before calling the provider.
+            // This prevents a request from entering when the run has only a few hundred tokens left.
+            val estimatedRequestInput = requestMessages.sumOf(ContextCompressor::estimatedTokens) +
+                systemPrompt.length / 2 + schemaEstimate
+            val remainingAfterCompaction = config.tokenBudget?.minus(totalTokensUsed)
+            if (remainingAfterCompaction != null &&
+                remainingAfterCompaction <= estimatedRequestInput + MIN_COMPLETION_OUTPUT_RESERVE
+            ) {
+                brain?.onTaskEnd(
+                    EpisodeOutcome.ABANDONED,
+                    "insufficient remaining token budget for next request"
+                )
                 send(
                     AgentEvent.Error(
-                        "System instructions and tool definitions exceed this model's context window."
+                        "Token budget is too low for another safe model request after accounting for its input context."
                     )
                 )
                 return@channelFlow
             }
 
-            if (config.enableMemoryTrimming) {
-                ContextCompressor.checkAndCompact(
-                    messages = messages,
-                    tokenBudget = inputBudget,
-                    modelId = modelId,
-                    completionProvider = completionProvider,
-                    apiKey = resolvedApiKey
-                ) { send(it) }
-            }
-            val requestMessages = if (config.enableMemoryTrimming) {
-                ContextCompressor.trim(messages, inputBudget)
-            } else {
-                messages.toList()
-            }
-            if (requestMessages.sumOf(ContextCompressor::estimatedTokens) > inputBudget) {
-                brain?.onTaskEnd(EpisodeOutcome.FAILURE, "latest context still exceeds input budget")
-                send(
-                    AgentEvent.Error(
-                        "The latest message/tool result exceeds this model's context window."
-                    )
-                )
-                return@channelFlow
-            }
+            val outputBudget = minOf(
+                desiredOutputBudget,
+                remainingAfterCompaction?.let {
+                    (it - estimatedRequestInput).coerceAtLeast(MIN_COMPLETION_OUTPUT_RESERVE)
+                } ?: desiredOutputBudget
+            )
 
             val request = CompletionRequest(
                 modelId = modelId,
@@ -302,8 +298,7 @@ Do not use tools. Do not rewrite merely for style.
                 iteration = iteration,
                 onStreamChunk = { send(AgentEvent.StreamChunk(it)) },
                 onFatalError = { error ->
-                    val outcome = if (isInfrastructureError(error)) EpisodeOutcome.BLOCKED
-                    else EpisodeOutcome.FAILURE
+                    val outcome = if (isInfrastructureError(error)) EpisodeOutcome.BLOCKED else EpisodeOutcome.FAILURE
                     brain?.onTaskEnd(outcome, "API/runtime failure: ${error.take(240)}")
                     send(AgentEvent.Error(error))
                 }
@@ -311,13 +306,7 @@ Do not use tools. Do not rewrite merely for style.
 
             response.tokensUsed?.let { usage ->
                 totalTokensUsed += usage.totalTokens
-                send(
-                    AgentEvent.TokenUsageUpdate(
-                        iterationTokens = usage.totalTokens,
-                        totalTokens = totalTokensUsed,
-                        budget = config.tokenBudget
-                    )
-                )
+                emitUsage(usage.totalTokens, totalTokensUsed)
             }
 
             response.thinkingContent
@@ -342,13 +331,7 @@ Do not use tools. Do not rewrite merely for style.
                     totalTokensUsed = totalTokensUsed,
                     onUsage = { used ->
                         totalTokensUsed += used
-                        send(
-                            AgentEvent.TokenUsageUpdate(
-                                iterationTokens = used,
-                                totalTokens = totalTokensUsed,
-                                budget = config.tokenBudget
-                            )
-                        )
+                        emitUsage(used, totalTokensUsed)
                     },
                     onReflecting = { send(AgentEvent.Reflecting(it)) }
                 )
@@ -376,10 +359,7 @@ Do not use tools. Do not rewrite merely for style.
 
             for (call in response.toolCalls) {
                 if (!repetitionGuard.allow(call.name, call.arguments)) {
-                    brain?.onTaskEnd(
-                        EpisodeOutcome.ABANDONED,
-                        "semantic duplicate tool-call limit reached: ${call.name}"
-                    )
+                    brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "semantic duplicate tool-call limit reached: ${call.name}")
                     send(
                         AgentEvent.Error(
                             "Agent no-progress loop detected: ${call.name} repeated with equivalent arguments more than ${config.maxRepeatedToolCalls} times."
@@ -402,22 +382,8 @@ Do not use tools. Do not rewrite merely for style.
 
             val toolResults = mutableListOf<ToolCallResult>()
             for ((call, result) in response.toolCalls.zip(rawResults)) {
-                val compactResult = ToolCallResult(
-                    toolCallId = call.id,
-                    toolName = call.name,
-                    output = result.output,
-                    isError = result.isError
-                )
-                toolResults += compactResult
-                send(
-                    AgentEvent.ToolResult(
-                        toolName = call.name,
-                        output = result.output,
-                        isError = result.isError,
-                        iteration = iteration
-                    )
-                )
-
+                toolResults += ToolCallResult(call.id, call.name, result.output, result.isError)
+                send(AgentEvent.ToolResult(call.name, result.output, result.isError, iteration))
                 brain?.onToolExecutionEnd(
                     toolName = call.name,
                     parameters = call.arguments,
@@ -427,18 +393,14 @@ Do not use tools. Do not rewrite merely for style.
                 )
             }
 
-            // Rich, result-side no-progress detection. This replaces the old semantic_ui-only
-            // counter and sees every tool, result signature, failure classification and backend.
             val stagnation = stagnationDetector.observe(response.toolCalls, rawResults)
             if (stagnation.shouldAbort) {
                 val outcome = if (stagnation.kind == AgentStagnationDetector.Kind.INFRASTRUCTURE_BLOCK) {
                     EpisodeOutcome.BLOCKED
-                } else {
-                    EpisodeOutcome.ABANDONED
-                }
+                } else EpisodeOutcome.ABANDONED
                 brain?.onTaskEnd(
-                    outcome = outcome,
-                    finalSummary = buildString {
+                    outcome,
+                    buildString {
                         append("stagnation kind=${stagnation.kind} score=${"%.2f".format(stagnation.score)}")
                         if (stagnation.reasons.isNotEmpty()) {
                             append(" reasons=").append(stagnation.reasons.joinToString("; ").take(320))
@@ -457,27 +419,14 @@ Do not use tools. Do not rewrite merely for style.
                     }
                 )
                 if (hasErrors) {
-                    append(
-                        "\n\nOne or more tools failed. Do not claim those operations succeeded; pivot strategy or report the blocker explicitly."
-                    )
+                    append("\n\nOne or more tools failed. Do not claim those operations succeeded; pivot strategy or report the blocker explicitly.")
                 }
             }
-            messages += ChatMessage(
-                role = MessageRole.TOOL,
-                content = toolContent,
-                toolResults = toolResults
-            )
+            messages += ChatMessage(MessageRole.TOOL, toolContent, toolResults = toolResults)
         }
 
-        brain?.onTaskEnd(
-            EpisodeOutcome.ABANDONED,
-            "max iterations reached after ${config.maxIterations} loops"
-        )
-        send(
-            AgentEvent.Error(
-                "Agent reached maximum iterations (${config.maxIterations}) without completing."
-            )
-        )
+        brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "max iterations reached after ${config.maxIterations} loops")
+        send(AgentEvent.Error("Agent reached maximum iterations (${config.maxIterations}) without completing."))
     }
 
     private suspend fun executeToolBatch(
@@ -520,9 +469,7 @@ Do not use tools. Do not rewrite merely for style.
                 result
             }
 
-            return if (orchestrated.isSuccess) {
-                orchestrated.getOrThrow()
-            } else {
+            return if (orchestrated.isSuccess) orchestrated.getOrThrow() else {
                 ToolExecutionResult(
                     output = orchestrated.exceptionOrNull()?.message ?: "Tool execution failed",
                     isError = true,
@@ -535,9 +482,7 @@ Do not use tools. Do not rewrite merely for style.
         val parallel = allowParallel && ToolBatchPolicy.canRunBatchInParallel(calls)
         return if (parallel) {
             coroutineScope { calls.map { async { executeOne(it) } }.awaitAll() }
-        } else {
-            calls.map { executeOne(it) }
-        }
+        } else calls.map { executeOne(it) }
     }
 
     private suspend fun maybeCritique(
@@ -569,8 +514,7 @@ Do not use tools. Do not rewrite merely for style.
                     buildString {
                         appendLine("Original request:")
                         appendLine(originalUserMessage.take(6_000))
-                        appendLine()
-                        appendLine("Draft:")
+                        appendLine("\nDraft:")
                         appendLine(draft.take(CRITIC_MAX_DRAFT_CHARS))
                     }
                 )
@@ -588,12 +532,12 @@ Do not use tools. Do not rewrite merely for style.
             val response = withTimeout(config.maxIterationTimeMs ?: 180_000L) {
                 completionProvider(criticRequest)
             }
-            recordAnalytics(criticRequest, response, started, isError = false)
+            recordAnalytics(criticRequest, response, started, false)
             response
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            recordAnalytics(criticRequest, null, started, isError = true)
+            recordAnalytics(criticRequest, null, started, true)
             null
         } ?: return draft
 
@@ -604,9 +548,7 @@ Do not use tools. Do not rewrite merely for style.
         val index = text.indexOf(marker, ignoreCase = true)
         return if (index >= 0) {
             text.substring(index + marker.length).trim().takeIf(String::isNotBlank) ?: draft
-        } else {
-            draft
-        }
+        } else draft
     }
 
     private suspend fun callWithRetry(
@@ -637,28 +579,24 @@ Do not use tools. Do not rewrite merely for style.
                     withTimeout(config.maxIterationTimeMs) {
                         if (streamingCompletionProvider != null) {
                             streamingCompletionProvider.invoke(streamRequest, chunkHandler)
-                        } else {
-                            completionProvider(request)
-                        }
+                        } else completionProvider(request)
                     }
                 } else {
                     if (streamingCompletionProvider != null) {
                         streamingCompletionProvider.invoke(streamRequest, chunkHandler)
-                    } else {
-                        completionProvider(request)
-                    }
+                    } else completionProvider(request)
                 }
-                recordAnalytics(request, response, callStarted, isError = false)
+                recordAnalytics(request, response, callStarted, false)
                 return response
-            } catch (timeout: TimeoutCancellationException) {
-                recordAnalytics(request, null, callStarted, isError = true)
+            } catch (_: TimeoutCancellationException) {
+                recordAnalytics(request, null, callStarted, true)
                 val seconds = (config.maxIterationTimeMs ?: 180_000L) / 1_000L
                 onFatalError("LLM call timed out after ${seconds}s at iteration $iteration.")
                 return null
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                recordAnalytics(request, null, callStarted, isError = true)
+                recordAnalytics(request, null, callStarted, true)
                 if (emitted) {
                     onFatalError("Response interrupted after partial output: ${error.message}")
                     return null
@@ -673,15 +611,15 @@ Do not use tools. Do not rewrite merely for style.
                     onFatalError(rateLimit?.message ?: "Provider cooldown exceeds the retry window.")
                     return null
                 }
-
                 if (rateLimited && rateLimitAttemptsRemaining > 0) {
                     rateLimitAttemptsRemaining--
                     val retryNumber = RATE_LIMIT_MAX_RETRIES - rateLimitAttemptsRemaining
-                    val delayMs = maxOf(
-                        rateLimit?.retryAfterMs ?: 0L,
-                        min(RATE_LIMIT_BASE_DELAY_MS * retryNumber, RATE_LIMIT_MAX_DELAY_MS)
+                    delay(
+                        maxOf(
+                            rateLimit?.retryAfterMs ?: 0L,
+                            min(RATE_LIMIT_BASE_DELAY_MS * retryNumber, RATE_LIMIT_MAX_DELAY_MS)
+                        )
                     )
-                    delay(delayMs)
                     continue
                 }
 
@@ -696,8 +634,7 @@ Do not use tools. Do not rewrite merely for style.
                     return null
                 }
 
-                val delayMs = config.baseRetryDelayMs * (1L shl normalAttempt)
-                delay(min(delayMs, 30_000L))
+                delay(min(config.baseRetryDelayMs * (1L shl normalAttempt), 30_000L))
                 normalAttempt++
             }
         }
@@ -753,26 +690,15 @@ Do not use tools. Do not rewrite merely for style.
         needles.any(haystack::contains)
 
     private fun redact(value: String): String = value
-        .replace(
-            Regex("(?i)(key|token|secret|password|otp|bearer)[=:\\s]+\\S+"),
-            "$1=[REDACTED]"
-        )
+        .replace(Regex("(?i)(key|token|secret|password|otp|bearer)[=:\\s]+\\S+"), "$1=[REDACTED]")
         .replace(
             Regex("(?i)\"(api_?key|token|secret|password|otp)\"\\s*:\\s*\"[^\"]+\""),
             "\"$1\":\"[REDACTED]\""
         )
-        .replace(
-            Regex("(?i)(key|token|secret|password|otp)=([^&\\s\"]+)"),
-            "$1=[REDACTED]"
-        )
+        .replace(Regex("(?i)(key|token|secret|password|otp)=([^&\\s\"]+)"), "$1=[REDACTED]")
 }
 
-enum class AgentExecutionPhase {
-    ANALYZE,
-    IMPLEMENT,
-    VERIFY,
-    REPORT
-}
+enum class AgentExecutionPhase { ANALYZE, IMPLEMENT, VERIFY, REPORT }
 
 sealed class AgentEvent {
     data object Started : AgentEvent()
@@ -794,10 +720,7 @@ sealed class AgentEvent {
         val totalTokens: Int,
         val budget: Int?
     ) : AgentEvent()
-    data class PhaseChanged(
-        val phase: AgentExecutionPhase,
-        val detail: String? = null
-    ) : AgentEvent()
+    data class PhaseChanged(val phase: AgentExecutionPhase, val detail: String? = null) : AgentEvent()
     data class StreamChunk(val delta: String) : AgentEvent()
     data class FinalAnswer(
         val content: String,
