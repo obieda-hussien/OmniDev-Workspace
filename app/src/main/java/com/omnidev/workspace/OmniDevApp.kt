@@ -14,6 +14,7 @@ import com.omnidev.workspace.data.brain.ReflexionEngine
 import com.omnidev.workspace.data.brain.SmartLearningBridge
 import com.omnidev.workspace.data.brain.ToolAwarenessEngine
 import com.omnidev.workspace.data.brain.ToolExecutionJournal
+import com.omnidev.workspace.data.brain.UserFeedbackLearningStore
 import com.omnidev.workspace.data.builddoctor.BuildDoctorPro
 import com.omnidev.workspace.data.db.OmniDevDatabase
 import com.omnidev.workspace.data.debug.CrashHandler
@@ -34,6 +35,7 @@ import com.omnidev.workspace.data.tools.ToolDownloaderEngine
 import com.omnidev.workspace.data.tools.ml.ToolMachineLearningEngine
 import com.omnidev.workspace.data.tools.monitoring.ToolMonitoringSystem
 import com.omnidev.workspace.data.tools.orchestration.ToolIntelligenceEngine
+import com.omnidev.workspace.domain.engine.AdaptiveModeRouter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -67,6 +69,9 @@ class OmniDevApp : Application() {
         private set
 
     lateinit var episodicMemoryStore: EpisodicMemoryStore
+        private set
+
+    lateinit var userFeedbackLearningStore: UserFeedbackLearningStore
         private set
 
     lateinit var rollbackManager: RollbackManager
@@ -128,16 +133,7 @@ class OmniDevApp : Application() {
         restoreCopilotModelsAsync()
     }
 
-    /**
-     * Assemble the complete Agent Brain in strict dependency order.
-     *
-     * Order matters:
-     * 1) persistent execution/tool awareness
-     * 2) Reflexion + episodic memory
-     * 3) trust + causal planner
-     * 4) SmartLearningBridge wired to every component
-     * 5) repo/build support services
-     */
+    /** Assemble the complete Agent Brain in strict dependency order. */
     private fun initializeAgentBrainSystem() {
         try {
             val db = OmniDevDatabase.getInstance(applicationContext)
@@ -172,6 +168,9 @@ class OmniDevApp : Application() {
                 scope = appScope
             )
 
+            userFeedbackLearningStore = UserFeedbackLearningStore(applicationContext)
+            AdaptiveModeRouter.installPreferenceSource(userFeedbackLearningStore)
+
             val trustEngine = ProgressiveTrustEngine(applicationContext)
             progressiveTrustEngine = trustEngine
 
@@ -179,8 +178,6 @@ class OmniDevApp : Application() {
                 CausalChainPlanner(maxNodes = 50)
             )
 
-            // Critical wiring: these memories were historically created AFTER this bridge,
-            // leaving reflexionEngine/episodicMemoryStore null forever. Keep them explicit.
             smartLearningBridge = SmartLearningBridge(
                 context = applicationContext,
                 journal = toolExecutionJournal,
@@ -192,6 +189,7 @@ class OmniDevApp : Application() {
                 episodicMemoryStore = episodicMemoryStore,
                 progressiveTrustEngine = trustEngine,
                 causalChainPlannerTool = causalChainPlannerTool,
+                userFeedbackLearningStore = userFeedbackLearningStore,
                 scope = appScope
             )
 
@@ -238,10 +236,7 @@ class OmniDevApp : Application() {
         }
     }
 
-    /**
-     * Fallback is still fully wired: reduced intelligence engines are acceptable, disconnected
-     * memories are not. If the main path fails, Reflexion/Episodic remain usable.
-     */
+    /** Fallback remains fully wired; reduced engines are acceptable, disconnected memory is not. */
     private fun initializeFallbackBrain() {
         val db = OmniDevDatabase.getInstance(applicationContext)
 
@@ -260,6 +255,8 @@ class OmniDevApp : Application() {
             dao = db.episodicMemoryDao(),
             scope = appScope
         )
+        userFeedbackLearningStore = UserFeedbackLearningStore(applicationContext)
+        AdaptiveModeRouter.installPreferenceSource(userFeedbackLearningStore)
 
         val fallbackTrustEngine = ProgressiveTrustEngine(applicationContext)
         progressiveTrustEngine = fallbackTrustEngine
@@ -278,6 +275,7 @@ class OmniDevApp : Application() {
             episodicMemoryStore = episodicMemoryStore,
             progressiveTrustEngine = fallbackTrustEngine,
             causalChainPlannerTool = fallbackCausalTool,
+            userFeedbackLearningStore = userFeedbackLearningStore,
             scope = appScope
         )
 
