@@ -12,8 +12,13 @@ interface ModePreferenceSource {
 /**
  * Local-only execution-mode router.
  *
- * Routing is evidence-based and deterministic. It never grants authority: it only produces a
- * recommendation. [ModeSwitchPermissionStore] remains the sole authority for automatic switches.
+ * Routing is evidence-based and deterministic. Static task signals are treated as priors and are
+ * calibrated by two independent local feedback channels:
+ * 1) explicit user preference about a transition, and
+ * 2) observed runtime outcome utility for the same coarse task shape.
+ *
+ * Neither channel grants authority. [ModeSwitchPermissionStore] remains the sole authority for
+ * automatic switches.
  */
 object AdaptiveModeRouter {
 
@@ -49,8 +54,9 @@ object AdaptiveModeRouter {
     }
 
     /**
-     * Agent -> Team escalation. The previous implementation escalated nearly every hard stop.
-     * This version requires evidence that decomposition can plausibly improve the outcome.
+     * Agent -> Team escalation. Team is selected only when failure evidence and decomposition
+     * evidence agree. Local historical outcomes can gently raise/lower confidence but cannot
+     * override infrastructure blockers or the user's authority boundary.
      */
     fun fromAgentFailure(errorMessage: String, userRequest: String = ""): Suggestion? {
         val failureClass = classifyFailure(errorMessage)
@@ -87,8 +93,12 @@ object AdaptiveModeRouter {
         if (signals.breadth >= 0.55f) evidence += "request spans multiple domains/components"
         if (signals.verificationIntent >= 0.45f) evidence += "verification can be separated from implementation"
 
+        val outcomeSignal = ModeOutcomeLearner.signal(userRequest, OmniMode.SWARM)
+        addOutcomeEvidence(evidence, outcomeSignal, OmniMode.SWARM)
+
         var confidence = 0.30f + failureEvidence + decompositionEvidence
         confidence += preferenceAdjustment(OmniMode.AGENT, OmniMode.SWARM)
+        confidence += outcomeSignal.adjustment
         confidence = confidence.coerceIn(0f, 0.97f)
 
         // Hysteresis: Team is expensive. Borderline evidence stays in Agent.
@@ -115,19 +125,20 @@ object AdaptiveModeRouter {
             reason = reason,
             confidence = confidence,
             trigger = if (failureClass == FailureClass.STAGNATION) Trigger.AGENT_STUCK else Trigger.AGENT_COMPLEXITY,
-            evidence = evidence.distinct().take(5)
+            evidence = evidence.distinct().take(6)
         )
     }
 
     /**
      * Team -> Agent de-escalation. Team should not pay planner/worker/synthesis overhead for one
-     * serial atomic task. A small two-task dependency chain may also de-escalate if nothing can
-     * run in parallel.
+     * serial atomic task. When [userRequest] is available, historical outcome utility is also used
+     * to avoid repeatedly paying Team overhead for task shapes that perform better in Agent mode.
      */
     fun fromTeamPlan(
         taskCount: Int,
         parallelSafeTaskCount: Int,
-        dependencyEdgeCount: Int = 0
+        dependencyEdgeCount: Int = 0,
+        userRequest: String = ""
     ): Suggestion? {
         if (taskCount <= 0) return null
 
@@ -135,8 +146,17 @@ object AdaptiveModeRouter {
         val tinySerial = taskCount == 2 && parallelSafeTaskCount == 0 && dependencyEdgeCount >= 1
         if (!atomic && !tinySerial) return null
 
+        val evidence = mutableListOf(
+            "tasks=$taskCount",
+            "parallelSafe=$parallelSafeTaskCount",
+            "dependencyEdges=$dependencyEdgeCount"
+        )
+        val outcomeSignal = ModeOutcomeLearner.signal(userRequest, OmniMode.AGENT)
+        addOutcomeEvidence(evidence, outcomeSignal, OmniMode.AGENT)
+
         var confidence = if (atomic) 0.92f else 0.78f
         confidence += preferenceAdjustment(OmniMode.SWARM, OmniMode.AGENT)
+        confidence += outcomeSignal.adjustment
         confidence = confidence.coerceIn(0f, 0.97f)
 
         if (confidence < 0.64f) return null
@@ -152,16 +172,13 @@ object AdaptiveModeRouter {
             },
             confidence = confidence,
             trigger = Trigger.TEAM_OVERHEAD,
-            evidence = listOf(
-                "tasks=$taskCount",
-                "parallelSafe=$parallelSafeTaskCount",
-                "dependencyEdges=$dependencyEdgeCount"
-            )
+            evidence = evidence.distinct().take(6)
         )
     }
 
     /**
      * Chat -> execution recommendation for callers that need a deterministic capability-gap check.
+     * The selected target is still a proposal only.
      */
     fun fromChatRequest(userRequest: String): Suggestion? {
         val signals = IntentClassifier.analyze(userRequest)
@@ -174,8 +191,17 @@ object AdaptiveModeRouter {
             scores.swarm >= scores.agent + 0.06f
         ) OmniMode.SWARM else OmniMode.AGENT
 
+        val outcomeSignal = ModeOutcomeLearner.signal(userRequest, target)
+        val evidence = mutableListOf(
+            "execution=${signals.executionIntent.format2()}",
+            "parallelism=${signals.parallelism.format2()}",
+            "breadth=${signals.breadth.format2()}"
+        )
+        addOutcomeEvidence(evidence, outcomeSignal, target)
+
         var confidence = scores.score(target)
         confidence += preferenceAdjustment(OmniMode.CHAT, target)
+        confidence += outcomeSignal.adjustment
         confidence = confidence.coerceIn(0f, 0.96f)
         if (confidence < 0.58f) return null
         if (isStronglyDisliked(OmniMode.CHAT, target) && confidence < 0.82f) return null
@@ -190,11 +216,7 @@ object AdaptiveModeRouter {
             },
             confidence = confidence,
             trigger = Trigger.CHAT_CAPABILITY_GAP,
-            evidence = listOf(
-                "execution=${signals.executionIntent.format2()}",
-                "parallelism=${signals.parallelism.format2()}",
-                "breadth=${signals.breadth.format2()}"
-            )
+            evidence = evidence.distinct().take(6)
         )
     }
 
@@ -208,7 +230,8 @@ object AdaptiveModeRouter {
                 "rate limit", "429", "api key", "unauthorized", "forbidden", "401", "403",
                 "model not found", "provider cooldown", "insufficient quota", "quota exceeded",
                 "network timeout", "internet connection", "dns", "connection refused",
-                "service unavailable", "http 502", "http 503", "http 504"
+                "service unavailable", "http 502", "http 503", "http 504",
+                "persistent infrastructure", "backend failure", "transport circuit breaker"
             )
         ) return FailureClass.INFRASTRUCTURE
 
@@ -216,7 +239,8 @@ object AdaptiveModeRouter {
                 error,
                 "maximum iterations", "max iterations", "repeated with identical",
                 "agent stuck", "no progress", "without completing", "stagnat",
-                "read-only operations", "loop detected"
+                "read-only operations", "loop detected", "no-progress loop",
+                "observations are repeating", "strategy is oscillating"
             )
         ) return FailureClass.STAGNATION
 
@@ -235,6 +259,17 @@ object AdaptiveModeRouter {
         ) return FailureClass.DETERMINISTIC_TASK_FAILURE
 
         return FailureClass.UNKNOWN
+    }
+
+    private fun addOutcomeEvidence(
+        evidence: MutableList<String>,
+        signal: ModeOutcomeLearner.Signal,
+        target: OmniMode
+    ) {
+        if (signal.observations < 3) return
+        if (kotlin.math.abs(signal.adjustment) < 0.015f) return
+        val direction = if (signal.adjustment > 0f) "supports" else "penalizes"
+        evidence += "local outcome history $direction ${target.label} for ${signal.bucket} (n=${signal.observations})"
     }
 
     private fun preferenceAdjustment(from: OmniMode, to: OmniMode): Float =
