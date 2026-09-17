@@ -22,7 +22,13 @@ import java.util.TimeZone
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 
-/** Token-bounded, dependency-aware multi-agent coordinator. */
+/**
+ * Token-bounded, dependency-aware multi-agent coordinator.
+ *
+ * Planner output is untrusted input. The runtime validates identities/references, removes semantic
+ * duplicates, caps oversized plans without cutting prerequisite chains, re-checks mutation safety,
+ * and allocates one hard worker budget before any worker starts.
+ */
 class SwarmOrchestrator(
     private val toolManager: ToolManager,
     private val completionProvider: suspend (CompletionRequest) -> CompletionResponse,
@@ -40,6 +46,7 @@ class SwarmOrchestrator(
         private const val MAX_HANDOFF_CHARS_TOTAL = 10_000
         private const val MAX_SYNTHESIS_CHARS_PER_TASK = 6_500
         private const val MAX_SYNTHESIS_CONTEXT_CHARS = 28_000
+        private const val MAX_OVERFLOW_DESCRIPTION_CHARS = 5_500
 
         /** Planner + workers + synthesis all fit under this logical run ceiling. */
         private const val TEAM_TOTAL_TOKEN_HARD_LIMIT = 320_000
@@ -141,30 +148,29 @@ Synthesize specialist evidence into the answer to the original request.
             send(SwarmEvent.Error("Planning failed: ${error.message}"))
             return@channelFlow
         }
-        observedTeamTokens.addAndGet(planResponse.tokensUsed?.totalTokens ?: 0)
+        observedTeamTokens.addAndGet(TokenAccounting.usage(planRequest, planResponse).totalTokens)
 
         val parsed = parseTasks(planResponse.content, userMessage)
-        val normalized = TeamExecutionPolicy.normalizePlan(parsed)
-        val runtimeTasks = normalized.tasks.map { task ->
+        val rawValidationError = validateRawPlannerTasks(parsed)
+        val normalized = if (rawValidationError == null) {
+            TeamExecutionPolicy.normalizePlan(parsed).tasks
+        } else {
+            listOf(directWorker(userMessage))
+        }
+        val bounded = boundPlan(normalized, userMessage)
+        val runtimeCandidate = bounded.map { task ->
             val runtime = TeamExecutionPolicy.classify(task)
             task.copy(parallelSafe = runtime.effectiveParallelSafe)
         }
-        val validationError = validateTasks(runtimeTasks)
-        if (validationError != null) {
-            recordTeamOutcome(
-                userMessage,
-                ModeOutcomeLearner.Outcome.FAILURE,
-                teamStartedAt,
-                observedTeamTokens.get(),
-                runtimeTasks.size,
-                false
-            )
-            send(SwarmEvent.Error(validationError))
-            return@channelFlow
+        val runtimeTasks = if (validateTasks(runtimeCandidate) == null) {
+            runtimeCandidate
+        } else {
+            listOf(directWorker(userMessage))
         }
 
-        val remainingRunBudget = (TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTeamTokens.get() - SYNTHESIS_TOKEN_RESERVE)
-            .coerceAtLeast(0)
+        val remainingRunBudget = (
+            TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTeamTokens.get() - SYNTHESIS_TOKEN_RESERVE
+            ).coerceAtLeast(0)
         val workerPool = minOf(TEAM_WORKER_POOL_CEILING, remainingRunBudget)
         val allocation = TeamBudgetAllocator.allocate(runtimeTasks, workerPool)
         if (runtimeTasks.isNotEmpty() &&
@@ -182,14 +188,16 @@ Synthesize specialist evidence into the answer to the original request.
             return@channelFlow
         }
 
-        // Expose runtime truth, not planner claims, to UI/adaptive mode routing.
+        // Expose runtime truth, not planner claims, to UI/adaptive routing.
         send(SwarmEvent.PlanCompleted(runtimeTasks))
 
         val completed = linkedMapOf<String, String>()
         val failed = linkedMapOf<String, String>()
         val skipped = linkedMapOf<String, String>()
         val infrastructureFailed = mutableSetOf<String>()
-        val remaining = runtimeTasks.sortedBy { it.priority }.toMutableList()
+        val infrastructureSkipped = mutableSetOf<String>()
+        val remaining = runtimeTasks.sortedWith(compareBy<SwarmTask> { it.priority }.thenBy { it.id })
+            .toMutableList()
 
         data class TaskOutcome(
             val task: SwarmTask,
@@ -313,6 +321,9 @@ Synthesize specialist evidence into the answer to the original request.
                 val dependencies = task.dependencies.filter { it in failed || it in skipped }
                 val reason = "Blocked by failed/skipped dependency: $dependencies"
                 skipped[task.id] = reason
+                if (dependencies.any { it in infrastructureFailed || it in infrastructureSkipped }) {
+                    infrastructureSkipped += task.id
+                }
                 send(SwarmEvent.TaskSkipped(task, reason))
             }
 
@@ -347,37 +358,27 @@ Synthesize specialist evidence into the answer to the original request.
         val totalFailures = failed.size + skipped.size
 
         val finalSummary = when {
-            runtimeTasks.size == 1 && totalFailures == 0 -> {
-                completed[runtimeTasks.single().id].orEmpty()
-            }
-            successfulCount == 0 -> {
-                deterministicFailureSummary(failed, skipped)
-            }
-            else -> {
-                send(SwarmEvent.SynthesisStarted)
-                synthesize(
-                    userMessage = userMessage,
-                    completed = completed,
-                    failed = failed,
-                    skipped = skipped,
-                    orchestratorModelId = orchestratorModelId,
-                    orchestratorApiKey = orchestratorApiKey,
-                    modelMaxOutput = orchestratorModel.maxOutputTokens,
-                    scopePath = scopePath,
-                    enableThinking = enableDeepThinking && orchestratorModel.supportsThinking,
-                    observedTokens = observedTeamTokens
-                ) ?: deterministicEvidenceSummary(completed, failed, skipped)
-            }
+            runtimeTasks.size == 1 && totalFailures == 0 -> completed[runtimeTasks.single().id].orEmpty()
+            successfulCount == 0 -> deterministicFailureSummary(failed, skipped)
+            else -> synthesize(
+                userMessage = userMessage,
+                completed = completed,
+                failed = failed,
+                skipped = skipped,
+                orchestratorModelId = orchestratorModelId,
+                orchestratorApiKey = orchestratorApiKey,
+                modelMaxOutput = orchestratorModel.maxOutputTokens,
+                scopePath = scopePath,
+                enableThinking = enableDeepThinking && orchestratorModel.supportsThinking,
+                observedTokens = observedTeamTokens,
+                onStart = { send(SwarmEvent.SynthesisStarted) }
+            ) ?: deterministicEvidenceSummary(completed, failed, skipped)
         }
 
         val rootFailures = failed.keys
         val onlyInfrastructureFailure = rootFailures.isNotEmpty() &&
             rootFailures.all { it in infrastructureFailed } &&
-            skipped.keys.all { skippedId ->
-                runtimeTasks.firstOrNull { it.id == skippedId }
-                    ?.dependencies
-                    ?.any { it in infrastructureFailed } == true
-            }
+            skipped.keys.all { it in infrastructureSkipped }
 
         if (!onlyInfrastructureFailure) {
             recordTeamOutcome(
@@ -402,6 +403,56 @@ Synthesize specialist evidence into the answer to the original request.
             )
         )
     }
+
+    /**
+     * If a planner ignored the 1-6 instruction, preserve five dependency-safe branches and fold
+     * everything else into one serial overflow worker. No user requirement is silently discarded.
+     */
+    private fun boundPlan(tasks: List<SwarmTask>, originalObjective: String): List<SwarmTask> {
+        if (tasks.isEmpty()) return listOf(directWorker(originalObjective))
+        if (tasks.size <= MAX_SUBTASKS) return tasks
+
+        val capped = TeamExecutionPolicy.capPlan(tasks, MAX_SUBTASKS - 1)
+        val selected = capped.tasks
+        val selectedIds = selected.mapTo(linkedSetOf()) { it.id }
+        val dropped = tasks.filter { it.id in capped.droppedTaskIds }
+        if (dropped.isEmpty()) return selected.take(MAX_SUBTASKS)
+
+        val overflowId = generateSequence("team-overflow") { "$it-x" }
+            .first { candidate -> tasks.none { it.id == candidate } }
+        val dependencyIds = dropped
+            .flatMap { it.dependencies }
+            .filter { it in selectedIds }
+            .distinct()
+        val description = buildString {
+            appendLine("Complete the remaining planner objectives serially inside this one worker.")
+            appendLine("Preserve their logical order and verify each completed part:")
+            dropped.sortedWith(compareBy<SwarmTask> { it.priority }.thenBy { it.id }).forEach { task ->
+                append("- [").append(task.id).append("] ")
+                    .appendLine(task.description.take(700))
+            }
+        }.take(MAX_OVERFLOW_DESCRIPTION_CHARS)
+
+        val overflow = SwarmTask(
+            id = overflowId,
+            description = description,
+            priority = dropped.minOfOrNull { it.priority } ?: Int.MAX_VALUE,
+            dependencies = dependencyIds,
+            requiredPersona = "Integration Specialist",
+            parallelSafe = false,
+            needsConnectedTools = dropped.any { it.needsConnectedTools }
+        )
+        return selected + overflow
+    }
+
+    private fun directWorker(originalObjective: String): SwarmTask = SwarmTask(
+        id = "direct-worker",
+        description = originalObjective.take(2_500),
+        priority = 1,
+        requiredPersona = "General Specialist",
+        parallelSafe = false,
+        needsConnectedTools = false
+    )
 
     private fun buildWorkerPrompt(
         task: SwarmTask,
@@ -441,20 +492,11 @@ Synthesize specialist evidence into the answer to the original request.
         modelMaxOutput: Int,
         scopePath: String,
         enableThinking: Boolean,
-        observedTokens: AtomicInteger
+        observedTokens: AtomicInteger,
+        onStart: suspend () -> Unit
     ): String? {
         val evidence = buildSynthesisContext(completed, failed, skipped)
-        val remaining = (TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTokens.get()).coerceAtLeast(0)
-        val estimatedInput = ((userMessage.length + evidence.length + SYNTHESIS_PROMPT.length) / 4)
-            .coerceAtLeast(256)
-        if (remaining <= estimatedInput + MIN_SYNTHESIS_OUTPUT_TOKENS) return null
-
-        val outputBudget = minOf(
-            modelMaxOutput,
-            SYNTHESIS_MAX_OUTPUT_TOKENS,
-            (remaining - estimatedInput).coerceAtLeast(MIN_SYNTHESIS_OUTPUT_TOKENS)
-        )
-        val request = CompletionRequest(
+        val provisional = CompletionRequest(
             modelId = orchestratorModelId,
             messages = listOf(
                 ChatMessage(MessageRole.USER, userMessage),
@@ -462,15 +504,25 @@ Synthesize specialist evidence into the answer to the original request.
                 ChatMessage(MessageRole.USER, "Produce the final answer from the evidence above.")
             ),
             systemPrompt = SYNTHESIS_PROMPT.trimIndent(),
-            maxTokens = outputBudget,
+            maxTokens = minOf(modelMaxOutput, SYNTHESIS_MAX_OUTPUT_TOKENS),
             enableThinking = enableThinking,
             targetContext = scopePath,
             apiKey = orchestratorApiKey
         )
+        val remaining = (TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTokens.get()).coerceAtLeast(0)
+        val estimatedInput = TokenAccounting.estimateInputTokens(provisional)
+        if (remaining <= estimatedInput + MIN_SYNTHESIS_OUTPUT_TOKENS) return null
+
+        val outputBudget = minOf(
+            provisional.maxTokens,
+            (remaining - estimatedInput).coerceAtLeast(MIN_SYNTHESIS_OUTPUT_TOKENS)
+        )
+        val request = if (outputBudget == provisional.maxTokens) provisional else provisional.copy(maxTokens = outputBudget)
 
         return try {
+            onStart()
             val response = callWithRateLimitRetry(request, maxRetries = 2)
-            observedTokens.addAndGet(response.tokensUsed?.totalTokens ?: 0)
+            observedTokens.addAndGet(TokenAccounting.usage(request, response).totalTokens)
             response.content.takeIf(String::isNotBlank)
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -548,19 +600,26 @@ Synthesize specialist evidence into the answer to the original request.
             require(start >= 0 && end > start) { "No JSON task array found" }
             val parsed = json.decodeFromString<List<SwarmTask>>(responseContent.substring(start, end + 1))
             require(parsed.isNotEmpty()) { "Empty task list" }
-            parsed.take(MAX_SUBTASKS)
+            parsed
         } catch (_: Exception) {
-            listOf(
-                SwarmTask(
-                    id = "direct-worker",
-                    description = originalUserMessage.take(2_000),
-                    priority = 1,
-                    requiredPersona = "General Specialist",
-                    parallelSafe = false,
-                    needsConnectedTools = false
-                )
-            )
+            listOf(directWorker(originalUserMessage))
         }
+    }
+
+    /** Validate references before normalization/capping so truncation cannot hide malformed IDs. */
+    private fun validateRawPlannerTasks(tasks: List<SwarmTask>): String? {
+        if (tasks.isEmpty()) return "Orchestrator produced no actionable tasks."
+        val ids = tasks.map { it.id }
+        if (ids.any(String::isBlank) || ids.distinct().size != ids.size) {
+            return "Invalid Team plan: task IDs must be non-empty and unique."
+        }
+        if (tasks.any { task -> task.description.isBlank() }) {
+            return "Invalid Team plan: every task needs a description."
+        }
+        if (tasks.any { task -> task.dependencies.any { it !in ids || it == task.id } }) {
+            return "Invalid Team plan: every dependency must reference another task."
+        }
+        return null
     }
 
     private fun validateTasks(tasks: List<SwarmTask>): String? {
@@ -614,9 +673,9 @@ Synthesize specialist evidence into the answer to the original request.
         val repository = analyticsRepository ?: return
         try {
             val model = ModelRegistry.findModelById(request.modelId)
-            val usage = response?.tokensUsed
-            val input = usage?.promptTokens ?: 0
-            val output = usage?.completionTokens ?: 0
+            val usage = response?.let { TokenAccounting.usage(request, it) }
+            val input = usage?.inputTokens ?: 0
+            val output = usage?.outputTokens ?: 0
             repository.recordTokenUsage(
                 modelId = request.modelId,
                 provider = model?.provider,
@@ -682,8 +741,17 @@ sealed class SwarmEvent {
     data class TaskCompleted(val task: SwarmTask, val result: String) : SwarmEvent()
     data class TaskFailed(val task: SwarmTask, val error: String) : SwarmEvent()
     data class TaskSkipped(val task: SwarmTask, val reason: String) : SwarmEvent()
-    data class WorkerToolUse(val task: SwarmTask, val toolName: String, val arguments: Map<String, String>) : SwarmEvent()
-    data class WorkerToolResult(val task: SwarmTask, val toolName: String, val output: String, val isError: Boolean) : SwarmEvent()
+    data class WorkerToolUse(
+        val task: SwarmTask,
+        val toolName: String,
+        val arguments: Map<String, String>
+    ) : SwarmEvent()
+    data class WorkerToolResult(
+        val task: SwarmTask,
+        val toolName: String,
+        val output: String,
+        val isError: Boolean
+    ) : SwarmEvent()
     data class WorkerThinking(val task: SwarmTask, val iteration: Int) : SwarmEvent()
     data class WorkerThinkingBlock(val task: SwarmTask, val content: String) : SwarmEvent()
     data class WorkerTokenUsage(
