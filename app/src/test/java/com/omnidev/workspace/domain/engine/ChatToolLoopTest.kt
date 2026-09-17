@@ -34,6 +34,21 @@ class ChatToolLoopTest {
         assertNull(result.request)
     }
 
+    @Test fun `provider without usage metadata still consumes chat budget`() = runTest {
+        val usageEvents = mutableListOf<AgentEvent.TokenUsageUpdate>()
+        val result = ChatToolLoop(FakeTools()).run(request, emptySet(), "user", complete = {
+            CompletionResponse("A useful answer without native usage metadata")
+        }, event = { event ->
+            if (event is AgentEvent.TokenUsageUpdate) usageEvents += event
+        })
+
+        assertEquals("A useful answer without native usage metadata", result.content)
+        assertEquals(1, usageEvents.size)
+        assertTrue(usageEvents.single().iterationTokens > 0)
+        assertTrue(usageEvents.single().totalTokens > 0)
+        assertEquals(32_000, usageEvents.single().budget)
+    }
+
     @Test fun `mode tool proposes but never executes a worker`() = runTest {
         val tools = FakeTools()
         val result = ChatToolLoop(tools).run(request, emptySet(), "user", complete = {
