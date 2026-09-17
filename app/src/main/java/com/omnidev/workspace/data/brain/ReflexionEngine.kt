@@ -14,9 +14,9 @@ import java.security.MessageDigest
 /**
  * ReflexionEngine — local, mobile-first execution lesson memory.
  *
- * Besides remembering failures/slow calls, it learns recovery transitions: when one tool/strategy
- * fails and a later alternative succeeds, the successful escape path is stored as a higher-value
- * positive lesson. Persistent lessons are shared; active attribution is run-local.
+ * It stores notable failures/inefficiencies and successful recovery edges. Retrieval uses semantic
+ * relevance + learned quality + MMR diversity so the tiny prompt budget is not filled by three
+ * versions of the same lesson. All persisted lesson text is secret-redacted before storage.
  */
 class ReflexionEngine(
     private val dao: ReflexionDao,
@@ -32,8 +32,26 @@ class ReflexionEngine(
         private const val DB_CANDIDATE_LIMIT = 80
         private const val MAX_LESSON_LENGTH = 280
         private const val RECOVERY_INITIAL_QUALITY = 0.72f
+        private const val MMR_LAMBDA = 0.80f
+
+        private val SENSITIVE_KEY = Regex(
+            "(?i)(api_?key|token|secret|password|passwd|otp|authorization|cookie|session|credential)"
+        )
+        private val SECRET_ASSIGNMENT = Regex(
+            "(?i)(\\b(?:api_?key|token|secret|password|passwd|otp|authorization|cookie)\\b)" +
+                "\\s*(?:=|:)\\s*(?:\\\"[^\\\"]+\\\"|[^\\s,;&]+)"
+        )
+        private val BEARER_SECRET = Regex("(?i)\\bbearer\\s+[A-Za-z0-9._~+/-]{8,}")
+        private val LONG_SECRET_LIKE = Regex("\\b[A-Za-z0-9_-]{32,}\\b")
     }
 
+    private data class RankedCandidate(
+        val entry: ReflexionLessonEntry,
+        val vector: FloatArray,
+        val relevance: Float
+    )
+
+    /** Lessons used by this run only. */
     private val activeLessonIds = mutableListOf<Long>()
 
     fun forkForRun(): ReflexionEngine = ReflexionEngine(
@@ -74,14 +92,16 @@ class ReflexionEngine(
         val lesson = synthesizeLesson(toolName, parameters, result, executionTimeMs, userIntent)
             ?: return@withContext
 
-        upsertBySignature(lesson, duplicateReward = 0.02f)
+        val duplicateReward = when {
+            result.persistentFailure -> 0.04f
+            result.isError -> 0.025f
+            else -> 0.015f
+        }
+        upsertBySignature(lesson, duplicateReward)
         enforceQuota()
     }
 
-    /**
-     * Learns a positive "escape edge" from a failed strategy to a successful recovery.
-     * Example: advanced_terminal(permission denied) -> shizuku_command succeeded.
-     */
+    /** Learns a positive escape edge from a failed strategy to a successful alternative. */
     fun recordRecoveryAsync(
         failedTool: String,
         failedParameters: Map<String, Any?>,
@@ -118,27 +138,34 @@ class ReflexionEngine(
             return@withContext
         }
 
-        val failureSig = signatureOf(failedOutput)
+        val safeFailure = redactSecrets(failedOutput)
+        val failureSig = signatureOf(safeFailure)
         if (failureSig.isBlank()) return@withContext
 
         val failedParams = abbreviateParams(failedParameters)
         val recoveryParams = abbreviateParams(recoveryParameters)
-        val failureHint = compactFailureHint(failedOutput)
-        val lessonText = buildString {
-            append("Recovery learned: ")
-            append(failedTool).append(failedParams)
-            append(" failed (").append(failureHint).append("). ")
-            append(recoveryTool).append(recoveryParams)
-            append(" succeeded next. Prefer this recovery path when the same failure pattern appears.")
-        }.take(MAX_LESSON_LENGTH)
+        val failureHint = compactFailureHint(safeFailure)
+        val lessonText = redactSecrets(
+            buildString {
+                append("Recovery learned: ")
+                append(failedTool).append(failedParams)
+                append(" failed (").append(failureHint).append("). ")
+                append(recoveryTool).append(recoveryParams)
+                append(" succeeded next. Prefer this recovery path when the same failure pattern appears.")
+            }
+        ).take(MAX_LESSON_LENGTH)
 
-        val recoverySignature = signatureOf("RECOVERY|$failureSig|$failedTool|$recoveryTool|$recoveryParams")
+        val recoverySignature = signatureOf(
+            "RECOVERY|$failureSig|$failedTool|$recoveryTool|$recoveryParams"
+        )
         val lesson = ReflexionLessonEntry(
             toolName = recoveryTool,
             lesson = lessonText,
             errorSignature = recoverySignature,
             embedding = HashEmbedder.toBytes(
-                HashEmbedder.embed("$userIntent $failedTool $failureHint $recoveryTool $lessonText")
+                HashEmbedder.embed(
+                    "${redactSecrets(userIntent)} $failedTool $failureHint $recoveryTool $lessonText"
+                )
             ),
             successContext = true,
             createdAt = System.currentTimeMillis(),
@@ -155,38 +182,48 @@ class ReflexionEngine(
         currentToolName: String? = null,
         topK: Int = topKForInjection
     ): List<ReflexionLessonEntry> = withContext(Dispatchers.IO) {
-        if (contextQuery.isBlank() && currentToolName.isNullOrBlank()) return@withContext emptyList()
+        if (topK <= 0) return@withContext emptyList()
+        if (contextQuery.isBlank() && currentToolName.isNullOrBlank()) {
+            return@withContext emptyList()
+        }
 
-        val queryVec = HashEmbedder.embed("$contextQuery ${currentToolName.orEmpty()}")
-        val candidates = mutableListOf<ReflexionLessonEntry>()
+        val queryVec = HashEmbedder.embed(
+            "${redactSecrets(contextQuery)} ${currentToolName.orEmpty()}"
+        )
+        val raw = mutableListOf<ReflexionLessonEntry>()
 
         if (!currentToolName.isNullOrBlank()) {
-            candidates += dao.getByTool(currentToolName, limit = 30)
+            raw += dao.getByTool(currentToolName, limit = 30)
         }
-        if (candidates.size < DB_CANDIDATE_LIMIT) {
-            val remaining = DB_CANDIDATE_LIMIT - candidates.size
-            val seenIds = candidates.mapTo(HashSet()) { it.id }
+        if (raw.size < DB_CANDIDATE_LIMIT) {
+            val remaining = DB_CANDIDATE_LIMIT - raw.size
+            val seenIds = raw.mapTo(HashSet()) { it.id }
             for (entry in dao.getTopCandidates(remaining * 2)) {
                 if (entry.id in seenIds) continue
-                candidates += entry
-                if (candidates.size >= DB_CANDIDATE_LIMIT) break
+                raw += entry
+                seenIds += entry.id
+                if (raw.size >= DB_CANDIDATE_LIMIT) break
             }
         }
 
-        if (candidates.isEmpty()) return@withContext emptyList()
+        if (raw.isEmpty()) return@withContext emptyList()
 
-        val ranked = candidates
-            .map { entry ->
-                val sim = HashEmbedder.cosine(queryVec, HashEmbedder.fromBytes(entry.embedding))
-                entry to sim
-            }
-            .filter { it.second >= MIN_SIMILARITY }
-            .sortedByDescending { pair ->
-                // Positive recovery lessons get their advantage through quality, not hard-coded type.
-                pair.second * 0.68f + pair.first.quality * 0.32f
-            }
-            .take(topK)
-            .map { it.first }
+        val candidates = raw.distinctBy { it.id }.mapNotNull { entry ->
+            val vector = HashEmbedder.fromBytes(entry.embedding)
+            val similarity = HashEmbedder.cosine(queryVec, vector)
+            if (similarity < MIN_SIMILARITY) return@mapNotNull null
+
+            // Quality is learned from downstream task outcomes. Similarity stays dominant.
+            val successPrior = if (entry.successContext) 0.025f else 0f
+            val relevance = (
+                similarity * 0.70f +
+                    entry.quality.coerceIn(0f, 1f) * 0.275f +
+                    successPrior
+                ).coerceIn(0f, 1f)
+            RankedCandidate(entry, vector, relevance)
+        }
+
+        val ranked = selectWithMmr(candidates, topK).map { it.entry }
 
         synchronized(activeLessonIds) {
             activeLessonIds.clear()
@@ -197,10 +234,38 @@ class ReflexionEngine(
         for (lesson in ranked) {
             try {
                 dao.recordUsage(lesson.id, now, qualityDelta = 0.01f)
-            } catch (_: Throwable) { /* best effort */ }
+            } catch (_: Throwable) {
+                // Best effort; retrieval must not fail because usage accounting failed.
+            }
         }
 
         ranked
+    }
+
+    private fun selectWithMmr(
+        candidates: List<RankedCandidate>,
+        topK: Int
+    ): List<RankedCandidate> {
+        if (candidates.isEmpty()) return emptyList()
+        val remaining = candidates.toMutableList()
+        val selected = mutableListOf<RankedCandidate>()
+
+        while (remaining.isNotEmpty() && selected.size < topK) {
+            val best = remaining.maxByOrNull { candidate ->
+                if (selected.isEmpty()) {
+                    candidate.relevance
+                } else {
+                    val redundancy = selected.maxOf { chosen ->
+                        HashEmbedder.cosine(candidate.vector, chosen.vector)
+                    }.coerceIn(0f, 1f)
+                    MMR_LAMBDA * candidate.relevance -
+                        (1f - MMR_LAMBDA) * redundancy
+                }
+            } ?: break
+            selected += best
+            remaining.remove(best)
+        }
+        return selected
     }
 
     suspend fun buildPromptInjection(
@@ -216,7 +281,7 @@ class ReflexionEngine(
             for (lesson in lessons) {
                 val icon = if (lesson.successContext) "✅" else "⚠️"
                 val toolHint = if (lesson.toolName.isNotBlank()) "[${lesson.toolName}] " else ""
-                val line = "$icon $toolHint${lesson.lesson.take(MAX_LESSON_LENGTH)}"
+                val line = "$icon $toolHint${redactSecrets(lesson.lesson).take(MAX_LESSON_LENGTH)}"
                 if (length + line.length + 1 > maxChars) break
                 appendLine(line)
             }
@@ -234,9 +299,10 @@ class ReflexionEngine(
                 } else {
                     dao.penalize(id, penalty = 0.06f)
                 }
-            } catch (_: Throwable) { /* best effort */ }
+            } catch (_: Throwable) {
+                // Best effort feedback.
+            }
         }
-
         synchronized(activeLessonIds) { activeLessonIds.clear() }
     }
 
@@ -266,23 +332,51 @@ class ReflexionEngine(
         userIntent: String
     ): ReflexionLessonEntry? {
         val paramsAbbrev = abbreviateParams(parameters)
-        val (lessonText, success) = when {
+        val metadata = buildMetadataHint(result)
+        val safeOutput = redactSecrets(result.output)
+
+        val (lessonText, success, initialQuality) = when {
             result.isError -> {
-                val errSnippet = compactFailureHint(result.output, 150)
-                "$toolName$paramsAbbrev failed: $errSnippet. Avoid repeating the identical call; change strategy or parameters." to false
+                val errSnippet = compactFailureHint(safeOutput, 135)
+                val strategy = when {
+                    result.persistentFailure ->
+                        "Do not retry the same backend blindly; pivot backend/capability or surface the blocker."
+                    result.retryable ->
+                        "A bounded retry may help, then pivot if the same classification repeats."
+                    else ->
+                        "Avoid the identical call; change strategy, parameters, or tool."
+                }
+                Triple(
+                    "$toolName$paramsAbbrev failed$metadata: $errSnippet. $strategy",
+                    false,
+                    if (result.persistentFailure) 0.64f else 0.54f
+                )
             }
-            executionTimeMs >= NOTABLE_THRESHOLD_MS -> {
-                "$toolName$paramsAbbrev was slow (${executionTimeMs}ms). Prefer batching, caching, narrower scope, or a cheaper probe when equivalent." to true
-            }
-            result.output.length > 4000 -> {
-                "$toolName$paramsAbbrev returned ${result.output.length} chars. Prefer top_k/limit/range parameters to keep context compact." to true
-            }
+            executionTimeMs >= NOTABLE_THRESHOLD_MS -> Triple(
+                "$toolName$paramsAbbrev was slow (${executionTimeMs}ms)$metadata. " +
+                    "Prefer batching, caching, narrower scope, or a cheaper equivalent probe.",
+                true,
+                0.50f
+            )
+            result.output.length > 4000 -> Triple(
+                "$toolName$paramsAbbrev returned ${result.output.length} chars$metadata. " +
+                    "Prefer top_k/limit/range parameters to keep context compact.",
+                true,
+                0.50f
+            )
             else -> return null
         }
 
-        val truncated = lessonText.take(MAX_LESSON_LENGTH)
-        val signature = if (result.isError) signatureOf(result.output) else ""
-        val embedding = HashEmbedder.embed("$toolName $userIntent $truncated")
+        val truncated = redactSecrets(lessonText).take(MAX_LESSON_LENGTH)
+        val signatureMaterial = buildString {
+            append(result.classification.orEmpty()).append('|')
+            append(result.backend.orEmpty()).append('|')
+            append(safeOutput)
+        }
+        val signature = if (result.isError) signatureOf(signatureMaterial) else ""
+        val embedding = HashEmbedder.embed(
+            "${redactSecrets(toolName)} ${redactSecrets(userIntent)} $truncated"
+        )
 
         return ReflexionLessonEntry(
             toolName = toolName,
@@ -292,11 +386,22 @@ class ReflexionEngine(
             successContext = success,
             createdAt = System.currentTimeMillis(),
             lastUsedAt = System.currentTimeMillis(),
-            quality = 0.5f
+            quality = initialQuality
         )
     }
 
-    private fun compactFailureHint(text: String, maxChars: Int = 90): String = text
+    private fun buildMetadataHint(result: ToolExecutionResult): String {
+        val pieces = mutableListOf<String>()
+        result.classification?.takeIf { it.isNotBlank() }?.let { pieces += "class=${it.take(40)}" }
+        result.backend?.takeIf { it.isNotBlank() }?.let { pieces += "backend=${it.take(32)}" }
+        result.exitCode?.let { pieces += "exit=$it" }
+        if (result.verification?.isNotBlank() == true) pieces += "verified"
+        if (result.persistentFailure) pieces += "persistent"
+        if (pieces.isEmpty()) return ""
+        return " [${pieces.joinToString(", ")}]"
+    }
+
+    private fun compactFailureHint(text: String, maxChars: Int = 90): String = redactSecrets(text)
         .replace('\n', ' ')
         .replace(Regex("\\s+"), " ")
         .trim()
@@ -304,15 +409,30 @@ class ReflexionEngine(
 
     private fun abbreviateParams(params: Map<String, Any?>): String {
         if (params.isEmpty()) return ""
-        val pretty = params.entries.take(3).joinToString(", ") { (k, v) ->
-            val sv = v?.toString()?.take(40) ?: "null"
-            "$k=$sv"
+        val pretty = params.entries.take(3).joinToString(", ") { (key, value) ->
+            val safe = if (SENSITIVE_KEY.containsMatchIn(key)) {
+                "[REDACTED]"
+            } else {
+                redactSecrets(value?.toString().orEmpty()).take(40).ifBlank { "null" }
+            }
+            "$key=$safe"
         }
         return " ($pretty)"
     }
 
+    private fun redactSecrets(value: String): String = value
+        .replace(SECRET_ASSIGNMENT) { match ->
+            val key = match.groupValues.getOrNull(1).orEmpty().ifBlank { "secret" }
+            "$key=[REDACTED]"
+        }
+        .replace(BEARER_SECRET, "Bearer [REDACTED]")
+        .replace(LONG_SECRET_LIKE) { token ->
+            val text = token.value
+            if (text.all(Char::isDigit)) text else "[REDACTED]"
+        }
+
     private fun signatureOf(text: String): String {
-        val normalized = text.take(240)
+        val normalized = redactSecrets(text).take(300)
             .replace(Regex("/[\\w./-]+"), "/PATH")
             .replace(Regex("\\b[0-9a-f]{8,}\\b", RegexOption.IGNORE_CASE), "HEX")
             .replace(Regex("\\d+"), "N")
