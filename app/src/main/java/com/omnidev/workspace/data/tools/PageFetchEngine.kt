@@ -132,7 +132,12 @@ internal object PageFetchEngine {
                 }
 
                 val bytes = readBytes(connection, MAX_BODY_BYTES)
-                val sniffedType = declaredType.ifBlank { sniffContentType(bytes) }
+                val sniffed = sniffContentType(bytes)
+                val sniffedType = when {
+                    declaredType.isBlank() -> sniffed
+                    declaredType == "application/octet-stream" && isSupportedContentType(sniffed) -> sniffed
+                    else -> declaredType
+                }
                 if (!isSupportedContentType(sniffedType)) {
                     throw IllegalStateException("Unsupported content type: ${sniffedType.ifBlank { "unknown" }}")
                 }
@@ -196,7 +201,10 @@ internal object PageFetchEngine {
     }
 
     private fun sniffContentType(bytes: ByteArray): String {
-        val prefix = bytes.take(512).toByteArray().toString(Charsets.UTF_8).trimStart()
+        if (bytes.isEmpty()) return "text/plain"
+        val probe = bytes.take(512).toByteArray()
+        if (probe.any { it == 0.toByte() }) return "application/octet-stream"
+        val prefix = probe.toString(Charsets.UTF_8).trimStart()
         return when {
             prefix.startsWith("<!doctype html", ignoreCase = true) ||
                 prefix.startsWith("<html", ignoreCase = true) -> "text/html"
@@ -228,10 +236,11 @@ internal object PageFetchEngine {
     }
 
     private fun isBlockedLiteralHost(host: String): Boolean {
-        val address = runCatching { InetAddress.getByName(host) }.getOrNull() ?: return false
-        // Only treat it as a literal if the host itself looks numeric. Domain names are resolved later.
+        // Keep syntax validation cheap: domain names are resolved exactly once just before connecting.
         val looksLiteral = host.contains(':') || host.all { it.isDigit() || it == '.' }
-        return looksLiteral && isBlockedAddress(address)
+        if (!looksLiteral) return false
+        val address = runCatching { InetAddress.getByName(host) }.getOrNull() ?: return true
+        return isBlockedAddress(address)
     }
 
     private fun isBlockedAddress(address: InetAddress): Boolean {
