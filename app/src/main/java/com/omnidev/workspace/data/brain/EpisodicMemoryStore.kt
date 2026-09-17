@@ -14,14 +14,13 @@ import kotlinx.coroutines.withContext
 /**
  * Episodic task memory for the local Agent Brain.
  *
- * Retrieval is deliberately more than nearest-neighbour search: successful, failed and abandoned
- * episodes are sampled separately, scored by semantic relevance + recency + execution efficiency,
- * then selected with Maximal Marginal Relevance (MMR). That prevents the prompt from wasting its
- * tiny memory budget on near-duplicate past runs while still retaining cautionary failures.
+ * Retrieval is deliberately more than nearest-neighbour search: successful, failed, abandoned,
+ * and externally-blocked episodes are sampled, scored by semantic relevance + recency + execution
+ * efficiency, then selected with Maximal Marginal Relevance (MMR).
  *
- * Completed standalone Agent episodes also feed the local execution-mode outcome learner. Team
- * worker episodes remain useful episodic memory, but Team mode is scored once at the orchestrator
- * level so a six-worker run does not count as six independent Team successes.
+ * Standalone Agent outcomes feed mode learning except BLOCKED. A provider/network/permission/backend
+ * block is useful operational memory, but it is not evidence that Agent mode itself was a bad fit.
+ * Team workers remain episodic memory only; Team is scored once by the orchestrator.
  */
 class EpisodicMemoryStore(
     private val dao: EpisodicMemoryDao,
@@ -42,7 +41,6 @@ class EpisodicMemoryStore(
     private data class Candidate(
         val entry: EpisodicMemoryEntry,
         val vector: FloatArray,
-        val semanticSimilarity: Float,
         val relevance: Float
     )
 
@@ -102,25 +100,27 @@ class EpisodicMemoryStore(
 
         val id = dao.insert(entry)
 
-        // Standalone Agent outcomes calibrate Agent routing here. Team workers are intentionally
-        // excluded because SwarmOrchestrator records one aggregate Team outcome for the run.
-        if (!userIntent.contains(TEAM_TASK_MARKER, ignoreCase = true)) {
+        if (!userIntent.contains(TEAM_TASK_MARKER, ignoreCase = true) &&
+            finalOutcome != EpisodeOutcome.BLOCKED
+        ) {
             try {
                 val modeOutcome = when (finalOutcome) {
                     EpisodeOutcome.SUCCESS -> ModeOutcomeLearner.Outcome.SUCCESS
                     EpisodeOutcome.FAILURE -> ModeOutcomeLearner.Outcome.FAILURE
                     EpisodeOutcome.ABANDONED -> ModeOutcomeLearner.Outcome.ABANDONED
+                    EpisodeOutcome.BLOCKED -> null
                 }
-                ModeOutcomeLearner.recordOutcome(
-                    userRequest = userIntent,
-                    mode = OmniMode.AGENT,
-                    outcome = modeOutcome,
-                    iterations = iterationsCount,
-                    durationMs = totalTimeMs,
-                    verified = false
-                )
+                if (modeOutcome != null) {
+                    ModeOutcomeLearner.recordOutcome(
+                        userRequest = userIntent,
+                        mode = OmniMode.AGENT,
+                        outcome = modeOutcome,
+                        iterations = iterationsCount,
+                        durationMs = totalTimeMs,
+                        verified = false
+                    )
+                }
             } catch (t: Throwable) {
-                // Outcome learning must never make primary episodic persistence fail.
                 Log.w(TAG, "mode outcome learning failed: ${t.message}")
             }
         }
@@ -129,13 +129,6 @@ class EpisodicMemoryStore(
         id
     }
 
-    /**
-     * Two-stage retrieval:
-     * 1. bounded SQL outcome sampling
-     * 2. hash-embedding similarity
-     * 3. relevance calibration (recency + efficiency + outcome prior)
-     * 4. MMR diversity selection
-     */
     suspend fun retrieveSimilar(
         query: String,
         topK: Int = 2,
@@ -146,9 +139,10 @@ class EpisodicMemoryStore(
         val queryVec = HashEmbedder.embed(query)
         val rawCandidates = if (preferSuccess) {
             buildList {
-                addAll(dao.getByOutcome(EpisodeOutcome.SUCCESS.name, limit = 42))
-                addAll(dao.getByOutcome(EpisodeOutcome.FAILURE.name, limit = 22))
-                addAll(dao.getByOutcome(EpisodeOutcome.ABANDONED.name, limit = 16))
+                addAll(dao.getByOutcome(EpisodeOutcome.SUCCESS.name, limit = 38))
+                addAll(dao.getByOutcome(EpisodeOutcome.FAILURE.name, limit = 18))
+                addAll(dao.getByOutcome(EpisodeOutcome.ABANDONED.name, limit = 14))
+                addAll(dao.getByOutcome(EpisodeOutcome.BLOCKED.name, limit = 10))
             }
         } else {
             dao.getRecent(limit = DB_CANDIDATE_LIMIT)
@@ -171,6 +165,7 @@ class EpisodicMemoryStore(
                     EpisodeOutcome.SUCCESS.name -> 0.08f
                     EpisodeOutcome.FAILURE.name -> 0.045f
                     EpisodeOutcome.ABANDONED.name -> 0.025f
+                    EpisodeOutcome.BLOCKED.name -> 0.04f
                     else -> 0f
                 }
                 val relevance = (
@@ -180,56 +175,37 @@ class EpisodicMemoryStore(
                         outcomePrior
                     ).coerceIn(0f, 1f)
 
-                Candidate(
-                    entry = entry,
-                    vector = vector,
-                    semanticSimilarity = similarity,
-                    relevance = relevance
-                )
+                Candidate(entry, vector, relevance)
             }
 
         selectWithMmr(candidates, topK).map { it.entry }
     }
 
-    private fun selectWithMmr(
-        candidates: List<Candidate>,
-        topK: Int
-    ): List<Candidate> {
+    private fun selectWithMmr(candidates: List<Candidate>, topK: Int): List<Candidate> {
         if (candidates.isEmpty()) return emptyList()
-
         val remaining = candidates.toMutableList()
         val selected = mutableListOf<Candidate>()
 
         while (remaining.isNotEmpty() && selected.size < topK) {
             val best = remaining.maxByOrNull { candidate ->
-                if (selected.isEmpty()) {
-                    candidate.relevance
-                } else {
+                if (selected.isEmpty()) candidate.relevance else {
                     val redundancy = selected.maxOf { chosen ->
                         HashEmbedder.cosine(candidate.vector, chosen.vector)
                     }.coerceIn(0f, 1f)
-                    MMR_LAMBDA * candidate.relevance -
-                        (1f - MMR_LAMBDA) * redundancy
+                    MMR_LAMBDA * candidate.relevance - (1f - MMR_LAMBDA) * redundancy
                 }
             } ?: break
-
             selected += best
             remaining.remove(best)
         }
-
         return selected
     }
 
     private fun recencyScore(now: Long, createdAt: Long): Float {
-        val ageMs = (now - createdAt).coerceAtLeast(0L)
-        val ageDays = ageMs.toFloat() / 86_400_000f
+        val ageDays = (now - createdAt).coerceAtLeast(0L).toFloat() / 86_400_000f
         return (1f / (1f + ageDays / 30f)).coerceIn(0f, 1f)
     }
 
-    /**
-     * Mild efficiency prior only: relevance still dominates. A 50-iteration success should not
-     * outrank a much more similar 10-iteration solution merely because it was faster.
-     */
     private fun efficiencyScore(iterations: Int, totalTimeMs: Long): Float {
         val iterationCost = iterations.coerceAtLeast(0) / 20f
         val minuteCost = totalTimeMs.coerceAtLeast(0L).toFloat() / 600_000f
@@ -251,16 +227,15 @@ class EpisodicMemoryStore(
                     EpisodeOutcome.SUCCESS.name -> "WORKED"
                     EpisodeOutcome.FAILURE.name -> "FAILED"
                     EpisodeOutcome.ABANDONED.name -> "STALLED"
+                    EpisodeOutcome.BLOCKED.name -> "BLOCKED_EXTERNALLY"
                     else -> episode.finalOutcome
                 }
-                val tools = episode.toolsUsedCsv
-                    .split(',')
+                val tools = episode.toolsUsedCsv.split(',')
                     .filter(String::isNotBlank)
                     .take(5)
                     .joinToString(" → ")
                 val line = "[$outcomeLabel] ${episode.summary.take(190)}"
                 val toolLine = if (tools.isNotBlank()) "Tools: $tools" else ""
-
                 if (length + line.length + toolLine.length + 3 > maxChars) break
                 appendLine(line)
                 if (toolLine.isNotBlank()) appendLine(toolLine)
@@ -282,4 +257,4 @@ class EpisodicMemoryStore(
     }
 }
 
-enum class EpisodeOutcome { SUCCESS, FAILURE, ABANDONED }
+enum class EpisodeOutcome { SUCCESS, FAILURE, ABANDONED, BLOCKED }
