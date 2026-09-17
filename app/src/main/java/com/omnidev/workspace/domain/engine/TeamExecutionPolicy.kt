@@ -32,6 +32,8 @@ object TeamExecutionPolicy {
     private const val MAX_WORKER_TOKENS = 82_000
     private const val MIN_ITERATIONS = 6
     private const val MAX_ITERATIONS = 15
+    private const val HARD_MUTATION_THRESHOLD = 0.42f
+    private const val BORDERLINE_MUTATION_THRESHOLD = 0.15f
 
     /**
      * Budget grows sub-linearly with difficulty. Broad/parallel context does not automatically
@@ -53,9 +55,10 @@ object TeamExecutionPolicy {
                 (MAX_WORKER_TOKENS - MIN_WORKER_TOKENS) * complexity
             ).toInt().coerceIn(MIN_WORKER_TOKENS, MAX_WORKER_TOKENS)
 
-        val maxIterations = ceil(
-            MIN_ITERATIONS + (MAX_ITERATIONS - MIN_ITERATIONS) * complexity
-        ).toInt().coerceIn(MIN_ITERATIONS, MAX_ITERATIONS)
+        val rawIterations = MIN_ITERATIONS +
+            (MAX_ITERATIONS - MIN_ITERATIONS) * complexity
+        val maxIterations = ceil(rawIterations.toDouble()).toInt()
+            .coerceIn(MIN_ITERATIONS, MAX_ITERATIONS)
 
         val repeatedToolLimit = when {
             complexity < 0.30f -> 2
@@ -80,17 +83,19 @@ object TeamExecutionPolicy {
 
     /**
      * Planner output is untrusted metadata. We independently classify mutation and resource
-     * overlap before allowing concurrency.
+     * overlap before allowing concurrency. Explicitly negated mutation phrases are stripped first
+     * so "inspect without editing" remains read-only.
      */
     fun classify(task: SwarmTask): ClassifiedTask {
         val signals = IntentClassifier.analyze(task.description)
         val lower = task.description.lowercase()
-        val explicitMutation = MUTATION_HINTS.any(lower::contains)
+        val mutationText = stripNegatedMutationPhrases(lower)
+        val explicitMutation = MUTATION_HINTS.any(mutationText::contains)
         val mutationScore = maxOf(
-            signals.mutationIntent,
+            signals.mutationIntent * if (containsReadOnlyNegation(lower)) 0.35f else 1f,
             if (explicitMutation) 0.78f else 0f
         )
-        val effectiveParallel = task.parallelSafe && mutationScore < 0.42f
+        val effectiveParallel = task.parallelSafe && mutationScore < HARD_MUTATION_THRESHOLD
 
         return ClassifiedTask(
             task = task,
@@ -104,8 +109,8 @@ object TeamExecutionPolicy {
      * Greedy conflict-aware coloring for a single ready DAG frontier.
      *
      * Every returned inner list is one concurrently executable wave. Mutating tasks are always
-     * singleton waves. Read-only tasks can share a wave only when their inferred exclusive
-     * resources do not overlap. The algorithm is O(n^2) with n <= 6 in Team mode.
+     * singleton waves. Pure read-only tasks may inspect the same resource concurrently. For
+     * borderline mutation risk we serialize overlapping resources conservatively.
      */
     fun buildExecutionWaves(
         readyTasks: List<SwarmTask>,
@@ -145,13 +150,29 @@ object TeamExecutionPolicy {
 
     private fun resourcesConflict(a: ClassifiedTask, b: ClassifiedTask): Boolean {
         if (a.resourceKeys.isEmpty() || b.resourceKeys.isEmpty()) return false
+        if (a.mutationScore < BORDERLINE_MUTATION_THRESHOLD &&
+            b.mutationScore < BORDERLINE_MUTATION_THRESHOLD
+        ) return false
         return a.resourceKeys.any { it in b.resourceKeys }
     }
 
+    private fun stripNegatedMutationPhrases(value: String): String = value
+        .replace(NEGATED_MUTATION_REGEX, " read-only ")
+        .replace("read-only", "readonly")
+        .replace("read only", "readonly")
+        .replace("بدون تعديل", "قراءة فقط")
+        .replace("من غير تعديل", "قراءة فقط")
+        .replace("لا تعدل", "قراءة فقط")
+        .replace("لا تكتب", "قراءة فقط")
+
+    private fun containsReadOnlyNegation(value: String): Boolean =
+        NEGATED_MUTATION_REGEX.containsMatchIn(value) ||
+            listOf("read-only", "read only", "without changes", "بدون تعديل", "من غير تعديل", "لا تعدل", "قراءة فقط")
+                .any(value::contains)
+
     /**
      * Extracts conservative resource identities from task text. File paths are the strongest
-     * signal; architecture domains are fallback keys. Read-only overlap is safe, but these keys
-     * become useful when a planner accidentally labels a mutation as parallel-safe.
+     * signal; architecture domains are fallback keys.
      */
     private fun inferResourceKeys(description: String): Set<String> {
         val lower = description.lowercase()
@@ -170,8 +191,6 @@ object TeamExecutionPolicy {
             if (hints.any(lower::contains)) keys += "domain:$key"
         }
 
-        // Package/class-looking identifiers help separate Android components even when no path
-        // was included in the planner description.
         IDENTIFIER_REGEX.findAll(description).take(8).forEach { match ->
             val value = match.value.lowercase()
             if (value.contains('.') && value.length <= 120) keys += "symbol:$value"
@@ -187,14 +206,18 @@ object TeamExecutionPolicy {
         "اكتب", "عدل", "احذف", "انشئ", "أنشئ", "صلح", "ثبت", "غيّر", "غير"
     )
 
+    private val NEGATED_MUTATION_REGEX = Regex(
+        "\\b(?:without|do\\s+not|don't|dont|never)\\s+(?:edit(?:ing)?|write|modify(?:ing)?|change(?:s|ing)?|patch(?:ing)?|delete|remove)\\b"
+    )
+
     private val DOMAIN_KEYS = linkedMapOf(
         "database" to listOf("database", "sqlite", "room", "dao", "migration", "قاعدة بيانات"),
         "ui" to listOf("compose", "screen", "ui", "viewmodel", "واجهة", "شاشة"),
         "gradle" to listOf("gradle", "build.gradle", "settings.gradle", "dependency"),
         "manifest" to listOf("androidmanifest", "manifest", "permission"),
-        "network" to listOf("api", "network", "retrofit", "okhttp", "http"),
+        "network" to listOf(" api ", "network", "retrofit", "okhttp", "http"),
         "tests" to listOf("test", "junit", "espresso", "اختبار"),
-        "device" to listOf("shizuku", "adb", "rish", "root", "device", "system setting")
+        "device" to listOf("shizuku", " adb ", "rish", "root", "device", "system setting")
     )
 
     private val PATH_REGEX = Regex(
