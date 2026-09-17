@@ -3,612 +3,50 @@ package com.omnidev.workspace.data.tools.ml
 import android.content.Context
 import android.util.Log
 import com.omnidev.workspace.data.tools.ToolExecutionResult
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
-import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.*
+import kotlin.math.abs
+import kotlin.math.sqrt
 
 /**
- * ToolMachineLearningEngine — نظام التعلم الآلي المتقدم للأدوات
- * 
- * المميزات:
- * - تعلم أنماط استخدام الأدوات
- * - التنبؤ بالأدوات التالية
- * - تحسين ترتيب الأدوات
- * - اكتشاف الأنماط الشاذة
- * - توصيات ذكية للمستخدم
- * - نماذج تعلم متعددة
- * 
- * النماذج المدعومة:
- * - Naive Bayes
- * - K-Nearest Neighbors
- * - Decision Trees
- * - Neural Networks (بسيطة)
- * - Ensemble Learning
+ * Local next-tool sequence learner optimized for Android.
+ *
+ * This intentionally replaces the old pseudo-ensemble (Naive Bayes + KNN + decision tree + a
+ * five-output hash-collision neural net) with a model that matches the actual problem: predicting
+ * the next discrete tool from a short tool sequence.
+ *
+ * Algorithm:
+ * - variable-order Markov model (1/2/3-gram)
+ * - Bayesian/Laplace smoothing for sparse transitions
+ * - context backoff (coarse time bucket -> global sequence)
+ * - tool reliability posterior to suppress historically failing tools
+ * - online confidence calibration from evidence and top-vs-second margin
+ * - Welford running statistics for latency/result-size anomaly detection
+ *
+ * No model download, API, tensor runtime, hourly retraining loop or unbounded KNN dataset exists.
  */
-class ToolMachineLearningEngine(
-    private val context: Context
-) {
+class ToolMachineLearningEngine(private val context: Context) {
+
     companion object {
-        private const val TAG = "ToolML"
-        private const val MODEL_VERSION = 2
-        private const val MIN_TRAINING_SAMPLES = 10
-        private const val MAX_HISTORY_SIZE = 10000
-        private const val PREDICTION_THRESHOLD = 0.3
-        private const val ANOMALY_THRESHOLD = 0.15
+        private const val TAG = "ToolSequenceML"
+        private const val PREFS_NAME = "tool_sequence_ml_v3"
+        private const val PREFS_KEY = "state"
+        private const val MODEL_VERSION = 3
+        private const val MAX_HISTORY_SIZE = 1_000
+        private const val MAX_TRANSITION_KEYS = 1_024
+        private const val MAX_TOOLS_PER_KEY = 48
+        private const val SAVE_EVERY_UPDATES = 25
+        private const val MIN_ANOMALY_SAMPLES = 8
+        private const val SEPARATOR = "\u001F"
     }
 
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    
-    // مخزن البيانات
-    private val executionHistory = mutableListOf<ToolExecutionRecord>()
-    private val toolSequences = ConcurrentHashMap<String, MutableList<String>>()
-    private val toolSuccessRates = ConcurrentHashMap<String, ToolStats>()
-    private val userPatterns = ConcurrentHashMap<String, UserPattern>()
-    
-    // النماذج
-    private val naiveBayesModel = NaiveBayesClassifier()
-    private val knnModel = KNearestNeighbors(k = 5)
-    private val decisionTree = SimpleDecisionTree()
-    private val neuralNet = SimpleFeedforwardNN(inputSize = 10, hiddenSize = 20, outputSize = 5)
-    
-    // الإحصائيات
-    private var totalPredictions = 0
-    private var correctPredictions = 0
-    private var trainingEpochs = 0
-
-    init {
-        scope.launch {
-            loadModels()
-            startPeriodicTraining()
-        }
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    // التسجيل والتعلم
-    // ══════════════════════════════════════════════════════════════
-
-    /**
-     * تسجيل تنفيذ أداة
-     */
-    suspend fun recordExecution(
-        toolName: String,
-        parameters: Map<String, Any>,
-        result: ToolExecutionResult,
-        executionTimeMs: Long,
-        contextualData: Map<String, Any> = emptyMap()
-    ) = withContext(Dispatchers.Default) {
-        val record = ToolExecutionRecord(
-            timestamp = System.currentTimeMillis(),
-            toolName = toolName,
-            parameters = parameters,
-            success = !result.isError,
-            executionTimeMs = executionTimeMs,
-            resultSize = result.output.length,
-            contextualData = contextualData
-        )
-
-        // تحديث السجل
-        synchronized(executionHistory) {
-            executionHistory.add(record)
-            if (executionHistory.size > MAX_HISTORY_SIZE) {
-                executionHistory.removeAt(0)
-            }
-        }
-
-        // تحديث الإحصائيات
-        updateToolStats(toolName, !result.isError, executionTimeMs)
-        
-        // تحديث التسلسلات
-        updateSequences(toolName)
-        
-        // تحديث أنماط المستخدم
-        updateUserPatterns(toolName, contextualData)
-        
-        // التدريب التدريجي
-        if (executionHistory.size % 50 == 0) {
-            trainIncrementally(record)
-        }
-    }
-
-    /**
-     * التنبؤ بالأداة التالية
-     */
-    suspend fun predictNextTool(
-        currentTool: String? = null,
-        recentTools: List<String> = emptyList(),
-        contextualData: Map<String, Any> = emptyMap()
-    ): ToolPrediction = withContext(Dispatchers.Default) {
-        val features = extractFeatures(currentTool, recentTools, contextualData)
-        
-        // التنبؤ باستخدام نماذج متعددة
-        val predictions = mutableListOf<Pair<String, Double>>()
-        
-        // Naive Bayes
-        val nbPrediction = naiveBayesModel.predict(features)
-        if (nbPrediction != null) {
-            predictions.add(nbPrediction)
-        }
-        
-        // KNN
-        val knnPredictions = knnModel.predict(features, 3)
-        predictions.addAll(knnPredictions)
-        
-        // Decision Tree
-        val treePrediction = decisionTree.predict(features)
-        if (treePrediction != null) {
-            predictions.add(treePrediction)
-        }
-        
-        // Neural Network
-        val nnPredictions = neuralNet.predict(features)
-        predictions.addAll(nnPredictions)
-        
-        // دمج النتائج (Ensemble)
-        val aggregated = aggregatePredictions(predictions)
-        
-        totalPredictions++
-        
-        ToolPrediction(
-            suggestedTools = aggregated.take(5),
-            confidence = aggregated.firstOrNull()?.second ?: 0.0,
-            basedOnPattern = recentTools.takeLast(3).joinToString(" → ")
-        )
-    }
-
-    /**
-     * اكتشاف الأنماط الشاذة
-     */
-    suspend fun detectAnomalies(
-        toolName: String,
-        executionTimeMs: Long,
-        result: ToolExecutionResult
-    ): AnomalyDetectionResult = withContext(Dispatchers.Default) {
-        val stats = toolSuccessRates[toolName]
-        
-        if (stats == null || stats.executionCount < MIN_TRAINING_SAMPLES) {
-            return@withContext AnomalyDetectionResult(false, 0.0, "")
-        }
-        
-        val anomalies = mutableListOf<String>()
-        var anomalyScore = 0.0
-        
-        // فحص وقت التنفيذ
-        val timeZScore = abs(executionTimeMs - stats.avgExecutionTime) / 
-                         (stats.stdDevExecutionTime + 1.0)
-        if (timeZScore > 3.0) {
-            anomalies.add("وقت تنفيذ غير طبيعي: ${executionTimeMs}ms (متوسط: ${stats.avgExecutionTime.toInt()}ms)")
-            anomalyScore += 0.3
-        }
-        
-        // فحص معدل النجاح
-        if (result.isError && stats.successRate > 0.9) {
-            anomalies.add("فشل غير متوقع (معدل النجاح الطبيعي: ${(stats.successRate * 100).toInt()}%)")
-            anomalyScore += 0.4
-        }
-        
-        // فحص حجم النتيجة
-        val resultSizeZScore = abs(result.output.length - stats.avgResultSize) / 
-                               (stats.stdDevResultSize + 1.0)
-        if (resultSizeZScore > 3.0) {
-            anomalies.add("حجم نتيجة غير طبيعي: ${result.output.length} حرف")
-            anomalyScore += 0.2
-        }
-        
-        // فحص التسلسل
-        val expectedTools = getExpectedNextTools(toolName)
-        if (expectedTools.isNotEmpty()) {
-            val lastTool = executionHistory.lastOrNull()?.toolName
-            if (lastTool != null && !expectedTools.contains(lastTool)) {
-                anomalies.add("تسلسل غير متوقع: $lastTool → $toolName")
-                anomalyScore += 0.1
-            }
-        }
-        
-        AnomalyDetectionResult(
-            isAnomaly = anomalyScore >= ANOMALY_THRESHOLD,
-            score = anomalyScore,
-            description = anomalies.joinToString("; ")
-        )
-    }
-
-    /**
-     * الحصول على توصيات ذكية
-     */
-    suspend fun getRecommendations(
-        currentContext: Map<String, Any>
-    ): List<ToolRecommendation> = withContext(Dispatchers.Default) {
-        val recommendations = mutableListOf<ToolRecommendation>()
-        
-        // 1. بناءً على الوقت
-        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        val timeBasedTools = findToolsUsedAtTime(hour)
-        timeBasedTools.forEach { (tool, frequency) ->
-            recommendations.add(
-                ToolRecommendation(
-                    toolName = tool,
-                    reason = "يُستخدم عادةً في هذا الوقت",
-                    confidence = frequency,
-                    priority = 1
-                )
-            )
-        }
-        
-        // 2. بناءً على التسلسل
-        val lastTool = executionHistory.lastOrNull()?.toolName
-        if (lastTool != null) {
-            val sequenceTools = toolSequences[lastTool] ?: emptyList()
-            sequenceTools.groupingBy { it }.eachCount()
-                .toList()
-                .sortedByDescending { it.second }
-                .take(3)
-                .forEach { (tool, count) ->
-                    recommendations.add(
-                        ToolRecommendation(
-                            toolName = tool,
-                            reason = "يُستخدم عادةً بعد $lastTool",
-                            confidence = count.toDouble() / sequenceTools.size,
-                            priority = 2
-                        )
-                    )
-                }
-        }
-        
-        // 3. بناءً على معدل النجاح
-        toolSuccessRates.entries
-            .filter { it.value.successRate > 0.95 && it.value.executionCount > 20 }
-            .sortedByDescending { it.value.successRate }
-            .take(3)
-            .forEach { (tool, stats) ->
-                recommendations.add(
-                    ToolRecommendation(
-                        toolName = tool,
-                        reason = "معدل نجاح عالي: ${(stats.successRate * 100).toInt()}%",
-                        confidence = stats.successRate,
-                        priority = 3
-                    )
-                )
-            }
-        
-        // 4. بناءً على السياق
-        currentContext["task_type"]?.let { taskType ->
-            val contextTools = findToolsForTaskType(taskType.toString())
-            contextTools.forEach { (tool, relevance) ->
-                recommendations.add(
-                    ToolRecommendation(
-                        toolName = tool,
-                        reason = "مناسب لنوع المهمة: $taskType",
-                        confidence = relevance,
-                        priority = 0
-                    )
-                )
-            }
-        }
-        
-        // ترتيب حسب الأولوية والثقة
-        recommendations
-            .sortedWith(compareBy({ it.priority }, { -it.confidence }))
-            .distinctBy { it.toolName }
-            .take(10)
-    }
-
-    /**
-     * تحليل أداء الأدوات
-     */
-    suspend fun analyzeToolPerformance(): PerformanceAnalysis = withContext(Dispatchers.Default) {
-        val totalExecutions = executionHistory.size
-        val successfulExecutions = executionHistory.count { it.success }
-        
-        val topPerformers = toolSuccessRates.entries
-            .filter { it.value.executionCount >= 10 }
-            .sortedByDescending { it.value.successRate }
-            .take(10)
-            .map { (tool, stats) ->
-                PerformanceMetric(
-                    toolName = tool,
-                    successRate = stats.successRate,
-                    avgExecutionTime = stats.avgExecutionTime,
-                    executionCount = stats.executionCount
-                )
-            }
-        
-        val bottlenecks = toolSuccessRates.entries
-            .filter { it.value.executionCount >= 10 }
-            .sortedByDescending { it.value.avgExecutionTime }
-            .take(5)
-            .map { (tool, stats) ->
-                PerformanceMetric(
-                    toolName = tool,
-                    successRate = stats.successRate,
-                    avgExecutionTime = stats.avgExecutionTime,
-                    executionCount = stats.executionCount
-                )
-            }
-        
-        val unreliable = toolSuccessRates.entries
-            .filter { it.value.executionCount >= 10 && it.value.successRate < 0.7 }
-            .sortedBy { it.value.successRate }
-            .take(5)
-            .map { (tool, stats) ->
-                PerformanceMetric(
-                    toolName = tool,
-                    successRate = stats.successRate,
-                    avgExecutionTime = stats.avgExecutionTime,
-                    executionCount = stats.executionCount
-                )
-            }
-        
-        PerformanceAnalysis(
-            totalExecutions = totalExecutions,
-            overallSuccessRate = if (totalExecutions > 0) successfulExecutions.toDouble() / totalExecutions else 0.0,
-            topPerformers = topPerformers,
-            bottlenecks = bottlenecks,
-            unreliableTools = unreliable,
-            predictionAccuracy = if (totalPredictions > 0) correctPredictions.toDouble() / totalPredictions else 0.0,
-            trainingEpochs = trainingEpochs
-        )
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    // التدريب
-    // ══════════════════════════════════════════════════════════════
-
-    private suspend fun trainIncrementally(record: ToolExecutionRecord) = withContext(Dispatchers.Default) {
-        try {
-            val features = extractFeaturesFromRecord(record)
-            val label = record.toolName
-            
-            // تدريب Naive Bayes
-            naiveBayesModel.train(features, label)
-            
-            // تدريب KNN (إضافة نقطة بيانات)
-            knnModel.addDataPoint(features, label)
-            
-            // تدريب Decision Tree
-            decisionTree.train(listOf(features to label))
-            
-            // تدريب Neural Network
-            val targetVector = createOneHotVector(label)
-            neuralNet.train(features, targetVector, learningRate = 0.01)
-            
-            trainingEpochs++
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "خطأ في التدريب التدريجي: ${e.message}")
-        }
-    }
-
-    private suspend fun startPeriodicTraining() {
-        scope.launch {
-            while (isActive) {
-                delay(3600_000) // كل ساعة
-                
-                if (executionHistory.size >= MIN_TRAINING_SAMPLES) {
-                    trainFullModel()
-                    saveModels()
-                }
-            }
-        }
-    }
-
-    private suspend fun trainFullModel() = withContext(Dispatchers.Default) {
-        try {
-            Log.d(TAG, "بدء التدريب الكامل على ${executionHistory.size} سجل...")
-            
-            val trainingData = executionHistory.map { record ->
-                extractFeaturesFromRecord(record) to record.toolName
-            }
-            
-            // تدريب جميع النماذج
-            naiveBayesModel.trainBatch(trainingData)
-            knnModel.trainBatch(trainingData)
-            decisionTree.train(trainingData)
-            neuralNet.trainBatch(trainingData, epochs = 10, learningRate = 0.01)
-            
-            trainingEpochs++
-            
-            Log.d(TAG, "اكتمل التدريب - Epoch: $trainingEpochs")
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "خطأ في التدريب الكامل: ${e.message}")
-        }
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    // استخراج الميزات
-    // ══════════════════════════════════════════════════════════════
-
-    private fun extractFeatures(
-        currentTool: String?,
-        recentTools: List<String>,
-        contextualData: Map<String, Any>
-    ): DoubleArray {
-        val features = DoubleArray(10)
-        
-        // الميزة 1: هاش الأداة الحالية
-        features[0] = (currentTool?.hashCode()?.rem(1000) ?: 0).toDouble()
-        
-        // الميزات 2-4: الأدوات الأخيرة
-        recentTools.take(3).forEachIndexed { index, tool ->
-            features[index + 1] = tool.hashCode().rem(1000).toDouble()
-        }
-        
-        // الميزة 5: الوقت من اليوم (0-23)
-        features[4] = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY).toDouble()
-        
-        // الميزة 6: يوم الأسبوع (1-7)
-        features[5] = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_WEEK).toDouble()
-        
-        // الميزة 7: عدد الأدوات المستخدمة مؤخرًا
-        features[6] = recentTools.size.toDouble()
-        
-        // الميزة 8: نوع المهمة
-        features[7] = (contextualData["task_type"]?.hashCode()?.rem(1000) ?: 0).toDouble()
-        
-        // الميزة 9: الأولوية
-        features[8] = (contextualData["priority"] as? Number)?.toDouble() ?: 0.0
-        
-        // الميزة 10: السياق
-        features[9] = (contextualData["context"]?.hashCode()?.rem(1000) ?: 0).toDouble()
-        
-        return features
-    }
-
-    private fun extractFeaturesFromRecord(record: ToolExecutionRecord): DoubleArray {
-        val features = DoubleArray(10)
-        
-        features[0] = record.toolName.hashCode().rem(1000).toDouble()
-        features[1] = if (record.success) 1.0 else 0.0
-        features[2] = log10(record.executionTimeMs.toDouble() + 1.0)
-        features[3] = log10(record.resultSize.toDouble() + 1.0)
-        features[4] = (record.timestamp % (24 * 3600_000) / 3600_000).toDouble()
-        features[5] = record.parameters.size.toDouble()
-        features[6] = (record.contextualData["priority"] as? Number)?.toDouble() ?: 0.0
-        features[7] = (record.contextualData["task_type"]?.hashCode()?.rem(1000) ?: 0).toDouble()
-        features[8] = (record.contextualData["user_intent"]?.hashCode()?.rem(1000) ?: 0).toDouble()
-        features[9] = (record.contextualData["context"]?.hashCode()?.rem(1000) ?: 0).toDouble()
-        
-        return features
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    // الدوال المساعدة
-    // ══════════════════════════════════════════════════════════════
-
-    private fun updateToolStats(toolName: String, success: Boolean, executionTimeMs: Long) {
-        val stats = toolSuccessRates.getOrPut(toolName) { ToolStats() }
-        
-        synchronized(stats) {
-            stats.executionCount++
-            if (success) stats.successCount++
-            
-            // تحديث المتوسطات
-            val n = stats.executionCount.toDouble()
-            stats.avgExecutionTime = ((stats.avgExecutionTime * (n - 1.0)) + executionTimeMs.toDouble()) / n
-            
-            // تحديث الانحراف المعياري
-            val diff = executionTimeMs.toDouble() - stats.avgExecutionTime
-            stats.stdDevExecutionTime = sqrt(
-                ((stats.stdDevExecutionTime * stats.stdDevExecutionTime * (n - 1.0)) + diff * diff) / n
-            )
-            
-            stats.successRate = stats.successCount.toDouble() / stats.executionCount
-        }
-    }
-
-    private fun updateSequences(toolName: String) {
-        val lastTool = executionHistory.getOrNull(executionHistory.size - 2)?.toolName
-        if (lastTool != null) {
-            toolSequences.getOrPut(lastTool) { mutableListOf() }.add(toolName)
-        }
-    }
-
-    private fun updateUserPatterns(toolName: String, contextualData: Map<String, Any>) {
-        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-        val pattern = userPatterns.getOrPut("hour_$hour") { UserPattern() }
-        pattern.tools.add(toolName)
-    }
-
-    private fun findToolsUsedAtTime(hour: Int): List<Pair<String, Double>> {
-        val pattern = userPatterns["hour_$hour"] ?: return emptyList()
-        return pattern.tools.groupingBy { it }.eachCount()
-            .map { it.key to it.value.toDouble() / pattern.tools.size }
-            .sortedByDescending { it.second }
-    }
-
-    private fun findToolsForTaskType(taskType: String): List<Pair<String, Double>> {
-        return executionHistory
-            .filter { it.contextualData["task_type"] == taskType }
-            .groupingBy { it.toolName }
-            .eachCount()
-            .map { it.key to it.value.toDouble() / executionHistory.size }
-            .sortedByDescending { it.second }
-    }
-
-    private fun getExpectedNextTools(toolName: String): List<String> {
-        return toolSequences[toolName]?.groupingBy { it }?.eachCount()
-            ?.toList()?.sortedByDescending { it.second }
-            ?.take(3)?.map { it.first } ?: emptyList()
-    }
-
-    private fun aggregatePredictions(predictions: List<Pair<String, Double>>): List<Pair<String, Double>> {
-        return predictions.groupBy { it.first }
-            .mapValues { entry -> entry.value.map { it.second }.average() }
-            .toList()
-            .sortedByDescending { it.second }
-    }
-
-    private fun createOneHotVector(label: String): DoubleArray {
-        // تبسيط: استخدام هاش بدلاً من one-hot كامل
-        val vector = DoubleArray(5)
-        val index = abs(label.hashCode()) % 5
-        vector[index] = 1.0
-        return vector
-    }
-
-    private suspend fun loadModels() = withContext(Dispatchers.IO) {
-        try {
-            val modelDir = File(context.filesDir, "ml_models")
-            if (!modelDir.exists()) return@withContext
-            
-            // تحميل البيانات التاريخية
-            val historyFile = File(modelDir, "execution_history.json")
-            if (historyFile.exists()) {
-                val json = JSONArray(historyFile.readText())
-                for (i in 0 until json.length()) {
-                    val obj = json.getJSONObject(i)
-                    // تحليل وإضافة السجلات...
-                }
-            }
-            
-            Log.d(TAG, "تم تحميل النماذج بنجاح")
-        } catch (e: Exception) {
-            Log.e(TAG, "خطأ في تحميل النماذج: ${e.message}")
-        }
-    }
-
-    private suspend fun saveModels() = withContext(Dispatchers.IO) {
-        try {
-            val modelDir = File(context.filesDir, "ml_models")
-            modelDir.mkdirs()
-            
-            // حفظ البيانات التاريخية
-            val historyFile = File(modelDir, "execution_history.json")
-            val jsonArray = JSONArray()
-            executionHistory.takeLast(1000).forEach { record ->
-                val obj = JSONObject()
-                obj.put("timestamp", record.timestamp)
-                obj.put("toolName", record.toolName)
-                obj.put("success", record.success)
-                obj.put("executionTimeMs", record.executionTimeMs)
-                jsonArray.put(obj)
-            }
-            historyFile.writeText(jsonArray.toString())
-            
-            Log.d(TAG, "تم حفظ النماذج بنجاح")
-        } catch (e: Exception) {
-            Log.e(TAG, "خطأ في حفظ النماذج: ${e.message}")
-        }
-    }
-
-    fun shutdown() {
-        scope.cancel()
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    // Data Classes
-    // ══════════════════════════════════════════════════════════════
-
-    data class ToolExecutionRecord(
-        val timestamp: Long,
-        val toolName: String,
-        val parameters: Map<String, Any>,
-        val success: Boolean,
-        val executionTimeMs: Long,
-        val resultSize: Int,
-        val contextualData: Map<String, Any>
+    private data class TransitionStats(
+        var count: Int = 0,
+        var successfulCount: Int = 0,
+        var rewardMean: Double = 0.5,
+        var lastSeen: Long = 0L
     )
 
     data class ToolStats(
@@ -618,11 +56,20 @@ class ToolMachineLearningEngine(
         var avgExecutionTime: Double = 0.0,
         var stdDevExecutionTime: Double = 0.0,
         var avgResultSize: Double = 0.0,
-        var stdDevResultSize: Double = 0.0
+        var stdDevResultSize: Double = 0.0,
+        internal var executionTimeM2: Double = 0.0,
+        internal var resultSizeM2: Double = 0.0,
+        internal var lastUsed: Long = 0L
     )
 
-    data class UserPattern(
-        val tools: MutableList<String> = mutableListOf()
+    data class ToolExecutionRecord(
+        val timestamp: Long,
+        val toolName: String,
+        val parameters: Map<String, Any>,
+        val success: Boolean,
+        val executionTimeMs: Long,
+        val resultSize: Int,
+        val contextualData: Map<String, Any>
     )
 
     data class ToolPrediction(
@@ -660,284 +107,569 @@ class ToolMachineLearningEngine(
         val predictionAccuracy: Double,
         val trainingEpochs: Int
     )
-}
 
-// ══════════════════════════════════════════════════════════════════════
-// نماذج التعلم الآلي
-// ══════════════════════════════════════════════════════════════════════
+    private val lock = Any()
+    private val executionHistory = ArrayDeque<ToolExecutionRecord>()
+    private val transitions = mutableMapOf<String, MutableMap<String, TransitionStats>>()
+    private val toolStats = mutableMapOf<String, ToolStats>()
+    private var totalPredictions = 0
+    private var correctPredictions = 0
+    private var updateCount = 0
+    private var updatesSinceSave = 0
 
-/**
- * Naive Bayes Classifier
- */
-class NaiveBayesClassifier {
-    private val classCounts = mutableMapOf<String, Int>()
-    private val featureStats = mutableMapOf<String, MutableMap<Int, FeatureStats>>()
-    private var totalSamples = 0
+    init {
+        loadState()
+    }
 
-    fun train(features: DoubleArray, label: String) {
-        classCounts[label] = (classCounts[label] ?: 0) + 1
-        totalSamples++
-        
-        features.forEachIndexed { index, value ->
-            val stats = featureStats.getOrPut(label) { mutableMapOf() }
-                .getOrPut(index) { FeatureStats() }
-            
-            stats.sum += value
-            stats.sumSquared += value * value
-            stats.count++
+    suspend fun recordExecution(
+        toolName: String,
+        parameters: Map<String, Any>,
+        result: ToolExecutionResult,
+        executionTimeMs: Long,
+        contextualData: Map<String, Any> = emptyMap()
+    ) = withContext(Dispatchers.Default) {
+        val now = System.currentTimeMillis()
+        val success = !result.isError
+        val resultSize = result.output.length
+        val reward = executionReward(result, executionTimeMs)
+
+        synchronized(lock) {
+            val recent = recentSequenceFromContext(contextualData)
+                .ifEmpty { executionHistory.takeLastCompat(3).map { it.toolName } }
+
+            evaluateOnlinePrediction(recent, contextualData, toolName)
+            updateTransitions(recent, contextualData, toolName, success, reward, now)
+            updateToolStats(toolName, success, executionTimeMs, resultSize, now)
+
+            executionHistory.addLast(
+                ToolExecutionRecord(
+                    timestamp = now,
+                    toolName = toolName,
+                    parameters = parameters.take(8),
+                    success = success,
+                    executionTimeMs = executionTimeMs.coerceAtLeast(0L),
+                    resultSize = resultSize,
+                    contextualData = contextualData.filterKeys {
+                        it in setOf("hour", "task_type", "recent_tools")
+                    }
+                )
+            )
+            while (executionHistory.size > MAX_HISTORY_SIZE) executionHistory.removeFirst()
+
+            updateCount++
+            updatesSinceSave++
+            pruneModel(now)
+        }
+
+        if (updatesSinceSave >= SAVE_EVERY_UPDATES) {
+            saveState()
         }
     }
 
-    fun trainBatch(data: List<Pair<DoubleArray, String>>) {
-        data.forEach { (features, label) -> train(features, label) }
+    suspend fun predictNextTool(
+        currentTool: String? = null,
+        recentTools: List<String> = emptyList(),
+        contextualData: Map<String, Any> = emptyMap()
+    ): ToolPrediction = withContext(Dispatchers.Default) {
+        synchronized(lock) {
+            val sequence = buildList {
+                addAll(recentTools.filter(String::isNotBlank))
+                if (!currentTool.isNullOrBlank() && lastOrNull() != currentTool) add(currentTool)
+            }.takeLast(3)
+
+            val prediction = predictInternal(sequence, contextualData)
+            totalPredictions++
+            ToolPrediction(
+                suggestedTools = prediction.first.take(5),
+                confidence = prediction.second,
+                basedOnPattern = sequence.joinToString(" → ")
+            )
+        }
     }
 
-    fun predict(features: DoubleArray): Pair<String, Double>? {
-        if (classCounts.isEmpty()) return null
-        
-        val probabilities = classCounts.map { (label, count) ->
-            var logProb = ln(count.toDouble() / totalSamples)
-            
-            features.forEachIndexed { index, value ->
-                val stats = featureStats[label]?.get(index)
-                if (stats != null && stats.count > 0) {
-                    val mean = stats.sum / stats.count
-                    val variance = (stats.sumSquared / stats.count) - (mean * mean)
-                    val stdDev = sqrt(variance + 1e-6)
-                    
-                    // Gaussian probability
-                    val exponent = -((value - mean) * (value - mean)) / (2 * variance + 1e-6)
-                    val prob = (1.0 / (sqrt(2 * PI) * stdDev)) * exp(exponent)
-                    logProb += ln(prob + 1e-10)
+    /**
+     * Robust-ish anomaly detector using online variance and Bayesian failure surprise.
+     */
+    suspend fun detectAnomalies(
+        toolName: String,
+        executionTimeMs: Long,
+        result: ToolExecutionResult
+    ): AnomalyDetectionResult = withContext(Dispatchers.Default) {
+        synchronized(lock) {
+            val stats = toolStats[toolName]
+                ?: return@synchronized AnomalyDetectionResult(false, 0.0, "")
+            if (stats.executionCount < MIN_ANOMALY_SAMPLES) {
+                return@synchronized AnomalyDetectionResult(false, 0.0, "")
+            }
+
+            val reasons = mutableListOf<String>()
+            var score = 0.0
+
+            val timeStd = stats.stdDevExecutionTime.coerceAtLeast(1.0)
+            val timeZ = abs(executionTimeMs - stats.avgExecutionTime) / timeStd
+            if (timeZ >= 3.5) {
+                score += 0.30
+                reasons += "latency z=${format(timeZ)}"
+            }
+
+            val sizeStd = stats.stdDevResultSize.coerceAtLeast(1.0)
+            val sizeZ = abs(result.output.length - stats.avgResultSize) / sizeStd
+            if (sizeZ >= 3.5) {
+                score += 0.18
+                reasons += "result-size z=${format(sizeZ)}"
+            }
+
+            val reliability = bayesianReliability(stats)
+            if (result.isError && reliability >= 0.82) {
+                score += 0.30
+                reasons += "unexpected failure for reliable tool"
+            }
+            if (result.persistentFailure) {
+                score += 0.34
+                reasons += "persistent failure"
+            }
+            if (result.isError && !result.retryable && result.classification != null) {
+                score += 0.12
+                reasons += "non-retryable ${result.classification}"
+            }
+
+            AnomalyDetectionResult(
+                isAnomaly = score >= 0.30,
+                score = score.coerceIn(0.0, 1.0),
+                description = reasons.joinToString("; ")
+            )
+        }
+    }
+
+    suspend fun getRecommendations(
+        currentContext: Map<String, Any>
+    ): List<ToolRecommendation> = withContext(Dispatchers.Default) {
+        synchronized(lock) {
+            val recent = executionHistory.takeLastCompat(3).map { it.toolName }
+            val prediction = predictInternal(recent, currentContext).first
+            val sequenceRecommendations = prediction.take(5).mapIndexed { index, (tool, score) ->
+                ToolRecommendation(
+                    toolName = tool,
+                    reason = "learned sequence after ${recent.joinToString(" → ").ifBlank { "start" }}",
+                    confidence = score,
+                    priority = index
+                )
+            }
+
+            val reliable = toolStats.entries
+                .filter { it.value.executionCount >= 6 }
+                .sortedByDescending { bayesianReliability(it.value) }
+                .take(5)
+                .map { (tool, stats) ->
+                    ToolRecommendation(
+                        toolName = tool,
+                        reason = "reliable tool (${(bayesianReliability(stats) * 100).toInt()}% posterior)",
+                        confidence = bayesianReliability(stats),
+                        priority = 10
+                    )
+                }
+
+            (sequenceRecommendations + reliable)
+                .distinctBy { it.toolName }
+                .sortedWith(compareBy<ToolRecommendation> { it.priority }.thenByDescending { it.confidence })
+                .take(10)
+        }
+    }
+
+    suspend fun analyzeToolPerformance(): PerformanceAnalysis = withContext(Dispatchers.Default) {
+        synchronized(lock) {
+            val total = toolStats.values.sumOf { it.executionCount }
+            val successes = toolStats.values.sumOf { it.successCount }
+
+            fun ToolStats.metric(name: String) = PerformanceMetric(
+                toolName = name,
+                successRate = successRate,
+                avgExecutionTime = avgExecutionTime,
+                executionCount = executionCount
+            )
+
+            val eligible = toolStats.filterValues { it.executionCount >= 5 }
+            val top = eligible.entries
+                .sortedByDescending { bayesianReliability(it.value) }
+                .take(10)
+                .map { it.value.metric(it.key) }
+            val bottlenecks = eligible.entries
+                .sortedByDescending { it.value.avgExecutionTime }
+                .take(5)
+                .map { it.value.metric(it.key) }
+            val unreliable = eligible.entries
+                .filter { bayesianReliability(it.value) < 0.55 }
+                .sortedBy { bayesianReliability(it.value) }
+                .take(5)
+                .map { it.value.metric(it.key) }
+
+            PerformanceAnalysis(
+                totalExecutions = total,
+                overallSuccessRate = if (total == 0) 0.0 else successes.toDouble() / total.toDouble(),
+                topPerformers = top,
+                bottlenecks = bottlenecks,
+                unreliableTools = unreliable,
+                predictionAccuracy = if (totalPredictions == 0) 0.0
+                else correctPredictions.toDouble() / totalPredictions.toDouble(),
+                trainingEpochs = updateCount
+            )
+        }
+    }
+
+    /** No background trainer exists anymore; retained for source compatibility. */
+    fun shutdown() {
+        saveState()
+    }
+
+    private fun predictInternal(
+        recentTools: List<String>,
+        contextualData: Map<String, Any>
+    ): Pair<List<Pair<String, Double>>, Double> {
+        val recent = recentTools.filter(String::isNotBlank).takeLast(3)
+        val hourBand = hourBand(contextualData)
+        val aggregate = mutableMapOf<String, Double>()
+        val evidence = mutableMapOf<String, Int>()
+        var usedWeight = 0.0
+
+        val orderWeights = mapOf(3 to 0.42, 2 to 0.29, 1 to 0.19)
+        for (order in 3 downTo 1) {
+            if (recent.size < order) continue
+            val sequence = recent.takeLast(order)
+            val weight = orderWeights.getValue(order)
+
+            // Specific context gets more weight; global sequence provides robust backoff.
+            val contextual = transitions[transitionKey(hourBand, sequence)]
+            val global = transitions[transitionKey("*", sequence)]
+
+            if (!contextual.isNullOrEmpty()) {
+                addTransitionEvidence(aggregate, evidence, contextual, weight * 0.62)
+                usedWeight += weight * 0.62
+            }
+            if (!global.isNullOrEmpty()) {
+                addTransitionEvidence(aggregate, evidence, global, weight * 0.38)
+                usedWeight += weight * 0.38
+            }
+        }
+
+        // No sequence evidence: use calibrated tool reliability as a weak prior only.
+        if (aggregate.isEmpty()) {
+            toolStats.forEach { (tool, stats) ->
+                if (stats.executionCount > 0) {
+                    aggregate[tool] = bayesianReliability(stats) * 0.55
+                    evidence[tool] = stats.executionCount
                 }
             }
-            
-            label to logProb
-        }
-        
-        return probabilities.maxByOrNull { it.second }?.let { (label, logProb) ->
-            label to exp(logProb)
-        }
-    }
-
-    data class FeatureStats(
-        var sum: Double = 0.0,
-        var sumSquared: Double = 0.0,
-        var count: Int = 0
-    )
-}
-
-/**
- * K-Nearest Neighbors
- */
-class KNearestNeighbors(private val k: Int = 5) {
-    private val dataPoints = mutableListOf<Pair<DoubleArray, String>>()
-
-    fun addDataPoint(features: DoubleArray, label: String) {
-        dataPoints.add(features to label)
-        if (dataPoints.size > 1000) {
-            dataPoints.removeAt(0) // FIFO
-        }
-    }
-
-    fun trainBatch(data: List<Pair<DoubleArray, String>>) {
-        dataPoints.clear()
-        dataPoints.addAll(data.takeLast(1000))
-    }
-
-    fun predict(features: DoubleArray, topN: Int = 1): List<Pair<String, Double>> {
-        if (dataPoints.isEmpty()) return emptyList()
-        
-        val distances = dataPoints.map { (point, label) ->
-            val distance = euclideanDistance(features, point)
-            Triple(label, distance, point)
-        }.sortedBy { it.second }
-        
-        val nearest = distances.take(k)
-        val votes = nearest.groupingBy { it.first }.eachCount()
-        
-        return votes.map { (label, count) ->
-            label to (count.toDouble() / k)
-        }.sortedByDescending { it.second }.take(topN)
-    }
-
-    private fun euclideanDistance(a: DoubleArray, b: DoubleArray): Double {
-        return sqrt(a.zip(b).sumOf { (x, y) -> (x - y) * (x - y) })
-    }
-}
-
-/**
- * Simple Decision Tree
- */
-class SimpleDecisionTree {
-    private var root: TreeNode? = null
-
-    fun train(data: List<Pair<DoubleArray, String>>) {
-        if (data.isEmpty()) return
-        root = buildTree(data, depth = 0, maxDepth = 5)
-    }
-
-    fun predict(features: DoubleArray): Pair<String, Double>? {
-        return root?.predict(features)
-    }
-
-    private fun buildTree(data: List<Pair<DoubleArray, String>>, depth: Int, maxDepth: Int): TreeNode {
-        val labels = data.groupingBy { it.second }.eachCount()
-        val majorityLabel = labels.maxByOrNull { it.value }?.key ?: ""
-        
-        if (depth >= maxDepth || labels.size == 1 || data.size < 5) {
-            return LeafNode(majorityLabel, labels[majorityLabel]!!.toDouble() / data.size)
-        }
-        
-        // إيجاد أفضل تقسيم
-        val bestSplit = findBestSplit(data)
-        if (bestSplit == null) {
-            return LeafNode(majorityLabel, labels[majorityLabel]!!.toDouble() / data.size)
-        }
-        
-        val (featureIndex, threshold) = bestSplit
-        val left = data.filter { it.first[featureIndex] <= threshold }
-        val right = data.filter { it.first[featureIndex] > threshold }
-        
-        return DecisionNode(
-            featureIndex = featureIndex,
-            threshold = threshold,
-            left = buildTree(left, depth + 1, maxDepth),
-            right = buildTree(right, depth + 1, maxDepth)
-        )
-    }
-
-    private fun findBestSplit(data: List<Pair<DoubleArray, String>>): Pair<Int, Double>? {
-        if (data.isEmpty()) return null
-        
-        val featureCount = data.first().first.size
-        var bestGain = 0.0
-        var bestSplit: Pair<Int, Double>? = null
-        
-        for (featureIndex in 0 until featureCount) {
-            val values = data.map { it.first[featureIndex] }.sorted().distinct()
-            
-            values.forEach { threshold ->
-                val gain = informationGain(data, featureIndex, threshold)
-                if (gain > bestGain) {
-                    bestGain = gain
-                    bestSplit = featureIndex to threshold
+            usedWeight = 0.55
+        } else {
+            // Reliability prior prevents a frequent transition into a consistently broken tool.
+            toolStats.forEach { (tool, stats) ->
+                if (tool in aggregate) {
+                    aggregate[tool] = (aggregate[tool] ?: 0.0) + bayesianReliability(stats) * 0.10
+                    evidence[tool] = (evidence[tool] ?: 0) + stats.executionCount.coerceAtMost(20)
                 }
             }
+            usedWeight += 0.10
         }
-        
-        return bestSplit
+
+        if (aggregate.isEmpty()) return emptyList<Pair<String, Double>>() to 0.0
+
+        val denominator = usedWeight.coerceAtLeast(0.01)
+        val normalized = aggregate.mapValues { (_, value) ->
+            (value / denominator).coerceIn(0.0, 1.0)
+        }.toList().sortedWith(compareByDescending<Pair<String, Double>> { it.second }.thenBy { it.first })
+
+        val top = normalized.first()
+        val second = normalized.getOrNull(1)?.second ?: 0.0
+        val margin = (top.second - second).coerceIn(0.0, 1.0)
+        val topEvidence = evidence[top.first] ?: 0
+        val evidenceStrength = topEvidence.toDouble() / (topEvidence + 8.0)
+        val confidence = (
+            top.second * 0.55 +
+                evidenceStrength * 0.30 +
+                margin * 0.15
+            ).coerceIn(0.0, 0.98)
+
+        return normalized to confidence
     }
 
-    private fun informationGain(data: List<Pair<DoubleArray, String>>, featureIndex: Int, threshold: Double): Double {
-        val left = data.filter { it.first[featureIndex] <= threshold }
-        val right = data.filter { it.first[featureIndex] > threshold }
-        
-        if (left.isEmpty() || right.isEmpty()) return 0.0
-        
-        val parentEntropy = entropy(data.map { it.second })
-        val leftEntropy = entropy(left.map { it.second })
-        val rightEntropy = entropy(right.map { it.second })
-        
-        val weightedEntropy = (left.size.toDouble() / data.size) * leftEntropy +
-                              (right.size.toDouble() / data.size) * rightEntropy
-        
-        return parentEntropy - weightedEntropy
-    }
+    private fun addTransitionEvidence(
+        aggregate: MutableMap<String, Double>,
+        evidence: MutableMap<String, Int>,
+        options: Map<String, TransitionStats>,
+        weight: Double
+    ) {
+        if (options.isEmpty() || weight <= 0.0) return
+        val total = options.values.sumOf { it.count }.coerceAtLeast(1)
+        val vocabulary = options.size.coerceAtLeast(1)
 
-    private fun entropy(labels: List<String>): Double {
-        val counts = labels.groupingBy { it }.eachCount()
-        val total = labels.size.toDouble()
-        
-        return -counts.values.sumOf { count ->
-            val p = count / total
-            if (p > 0) p * ln(p) else 0.0
+        options.forEach { (tool, stats) ->
+            val probability = (stats.count + 0.5) / (total + 0.5 * vocabulary)
+            val successPosterior = (stats.successfulCount + 1.5) /
+                (stats.count + 3.0)
+            val reward = stats.rewardMean.coerceIn(0.0, 1.0)
+            val calibrated = probability * (0.60 + 0.25 * successPosterior + 0.15 * reward)
+            aggregate[tool] = (aggregate[tool] ?: 0.0) + calibrated * weight
+            evidence[tool] = (evidence[tool] ?: 0) + stats.count
         }
     }
 
-    interface TreeNode {
-        fun predict(features: DoubleArray): Pair<String, Double>
+    private fun updateTransitions(
+        recent: List<String>,
+        contextualData: Map<String, Any>,
+        nextTool: String,
+        success: Boolean,
+        reward: Double,
+        now: Long
+    ) {
+        val sequence = recent.filter(String::isNotBlank).takeLast(3)
+        val hourBand = hourBand(contextualData)
+
+        for (order in 1..3) {
+            if (sequence.size < order) continue
+            val suffix = sequence.takeLast(order)
+            updateTransitionKey(transitionKey(hourBand, suffix), nextTool, success, reward, now)
+            updateTransitionKey(transitionKey("*", suffix), nextTool, success, reward, now)
+        }
     }
 
-    data class LeafNode(val label: String, val confidence: Double) : TreeNode {
-        override fun predict(features: DoubleArray) = label to confidence
+    private fun updateTransitionKey(
+        key: String,
+        nextTool: String,
+        success: Boolean,
+        reward: Double,
+        now: Long
+    ) {
+        val options = transitions.getOrPut(key) { mutableMapOf() }
+        val stats = options.getOrPut(nextTool) { TransitionStats() }
+        val oldCount = stats.count
+        stats.count++
+        if (success) stats.successfulCount++
+        stats.rewardMean = if (oldCount == 0) reward else
+            stats.rewardMean + (reward - stats.rewardMean) / stats.count.toDouble()
+        stats.lastSeen = now
+
+        if (options.size > MAX_TOOLS_PER_KEY) {
+            options.entries
+                .sortedWith(compareBy<Map.Entry<String, TransitionStats>> { it.value.count }
+                    .thenBy { it.value.lastSeen })
+                .take(options.size - MAX_TOOLS_PER_KEY)
+                .forEach { options.remove(it.key) }
+        }
     }
 
-    data class DecisionNode(
-        val featureIndex: Int,
-        val threshold: Double,
-        val left: TreeNode,
-        val right: TreeNode
-    ) : TreeNode {
-        override fun predict(features: DoubleArray): Pair<String, Double> {
-            return if (features[featureIndex] <= threshold) {
-                left.predict(features)
-            } else {
-                right.predict(features)
+    private fun evaluateOnlinePrediction(
+        recent: List<String>,
+        contextualData: Map<String, Any>,
+        actualTool: String
+    ) {
+        val predicted = predictInternal(recent, contextualData).first.firstOrNull()?.first ?: return
+        totalPredictions++
+        if (predicted == actualTool) correctPredictions++
+    }
+
+    private fun updateToolStats(
+        toolName: String,
+        success: Boolean,
+        executionTimeMs: Long,
+        resultSize: Int,
+        now: Long
+    ) {
+        val stats = toolStats.getOrPut(toolName) { ToolStats() }
+        stats.executionCount++
+        if (success) stats.successCount++
+        stats.successRate = stats.successCount.toDouble() / stats.executionCount.toDouble()
+        stats.lastUsed = now
+
+        val n = stats.executionCount.toDouble()
+        val time = executionTimeMs.coerceAtLeast(0L).toDouble()
+        val timeDelta = time - stats.avgExecutionTime
+        stats.avgExecutionTime += timeDelta / n
+        val timeDelta2 = time - stats.avgExecutionTime
+        stats.executionTimeM2 += timeDelta * timeDelta2
+        stats.stdDevExecutionTime = if (stats.executionCount > 1) {
+            sqrt((stats.executionTimeM2 / (stats.executionCount - 1)).coerceAtLeast(0.0))
+        } else 0.0
+
+        val size = resultSize.coerceAtLeast(0).toDouble()
+        val sizeDelta = size - stats.avgResultSize
+        stats.avgResultSize += sizeDelta / n
+        val sizeDelta2 = size - stats.avgResultSize
+        stats.resultSizeM2 += sizeDelta * sizeDelta2
+        stats.stdDevResultSize = if (stats.executionCount > 1) {
+            sqrt((stats.resultSizeM2 / (stats.executionCount - 1)).coerceAtLeast(0.0))
+        } else 0.0
+    }
+
+    private fun executionReward(result: ToolExecutionResult, executionTimeMs: Long): Double {
+        if (result.isError) return 0.0
+        var reward = 0.58
+        if (!result.verification.isNullOrBlank()) reward += 0.16
+        if (result.exitCode == 0) reward += 0.08
+        if (result.output.isNotBlank()) reward += 0.06
+        if (result.output.length in 1..4_000) reward += 0.04
+        if (executionTimeMs in 1..2_000) reward += 0.05
+        if (executionTimeMs > 10_000) reward -= 0.08
+        return reward.coerceIn(0.0, 1.0)
+    }
+
+    private fun bayesianReliability(stats: ToolStats): Double {
+        val failures = (stats.executionCount - stats.successCount).coerceAtLeast(0)
+        return (stats.successCount + 2.0) / (stats.successCount + failures + 4.0)
+    }
+
+    private fun recentSequenceFromContext(contextualData: Map<String, Any>): List<String> =
+        contextualData["recent_tools"]
+            ?.toString()
+            ?.split(',')
+            ?.map(String::trim)
+            ?.filter(String::isNotBlank)
+            ?.takeLast(3)
+            .orEmpty()
+
+    private fun hourBand(contextualData: Map<String, Any>): String {
+        val hour = (contextualData["hour"] as? Number)?.toInt()
+            ?: java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        return when (hour.coerceIn(0, 23)) {
+            in 0..5 -> "night"
+            in 6..11 -> "morning"
+            in 12..17 -> "afternoon"
+            else -> "evening"
+        }
+    }
+
+    private fun transitionKey(contextBand: String, sequence: List<String>): String =
+        "$contextBand|${sequence.joinToString(SEPARATOR)}"
+
+    private fun pruneModel(now: Long) {
+        if (transitions.size <= MAX_TRANSITION_KEYS) return
+        val staleBefore = now - 60L * 24 * 3_600_000L
+        transitions.entries
+            .filter { (_, options) -> options.values.maxOfOrNull { it.lastSeen } ?: 0L < staleBefore }
+            .sortedBy { (_, options) -> options.values.sumOf { it.count } }
+            .take(transitions.size - MAX_TRANSITION_KEYS)
+            .forEach { transitions.remove(it.key) }
+
+        if (transitions.size > MAX_TRANSITION_KEYS) {
+            transitions.entries
+                .sortedBy { (_, options) -> options.values.sumOf { it.count } }
+                .take(transitions.size - MAX_TRANSITION_KEYS)
+                .forEach { transitions.remove(it.key) }
+        }
+    }
+
+    private fun saveState() {
+        try {
+            val root = synchronized(lock) {
+                JSONObject().apply {
+                    put("version", MODEL_VERSION)
+                    put("updateCount", updateCount)
+                    put("totalPredictions", totalPredictions)
+                    put("correctPredictions", correctPredictions)
+
+                    put("tools", JSONArray().apply {
+                        toolStats.forEach { (name, stats) ->
+                            put(JSONObject().apply {
+                                put("name", name)
+                                put("executionCount", stats.executionCount)
+                                put("successCount", stats.successCount)
+                                put("avgExecutionTime", stats.avgExecutionTime)
+                                put("executionTimeM2", stats.executionTimeM2)
+                                put("avgResultSize", stats.avgResultSize)
+                                put("resultSizeM2", stats.resultSizeM2)
+                                put("lastUsed", stats.lastUsed)
+                            })
+                        }
+                    })
+
+                    put("transitions", JSONArray().apply {
+                        transitions.forEach { (key, options) ->
+                            options.forEach { (tool, stats) ->
+                                put(JSONObject().apply {
+                                    put("key", key)
+                                    put("tool", tool)
+                                    put("count", stats.count)
+                                    put("successfulCount", stats.successfulCount)
+                                    put("rewardMean", stats.rewardMean)
+                                    put("lastSeen", stats.lastSeen)
+                                })
+                            }
+                        }
+                    })
+                }
             }
+
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit()
+                .putString(PREFS_KEY, root.toString())
+                .apply()
+            updatesSinceSave = 0
+        } catch (e: Exception) {
+            Log.w(TAG, "saveState failed: ${e.message}")
         }
     }
-}
 
-/**
- * Simple Feedforward Neural Network
- */
-class SimpleFeedforwardNN(
-    private val inputSize: Int,
-    private val hiddenSize: Int,
-    private val outputSize: Int
-) {
-    private var weightsInputHidden = Array(inputSize) { DoubleArray(hiddenSize) { Math.random() * 0.1 - 0.05 } }
-    private var weightsHiddenOutput = Array(hiddenSize) { DoubleArray(outputSize) { Math.random() * 0.1 - 0.05 } }
-    private var biasHidden = DoubleArray(hiddenSize) { 0.0 }
-    private var biasOutput = DoubleArray(outputSize) { 0.0 }
+    private fun loadState() {
+        try {
+            val payload = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(PREFS_KEY, null)
+                ?: return
+            val root = JSONObject(payload)
+            if (root.optInt("version", 0) != MODEL_VERSION) return
 
-    fun train(input: DoubleArray, target: DoubleArray, learningRate: Double = 0.01) {
-        // Forward pass
-        val hidden = forward(input, weightsInputHidden, biasHidden)
-        val output = forward(hidden, weightsHiddenOutput, biasOutput)
-        
-        // Backward pass (simplified)
-        val outputError = DoubleArray(outputSize) { i -> target[i] - output[i] }
-        
-        // تحديث الأوزان (gradient descent مبسط)
-        for (i in weightsHiddenOutput.indices) {
-            for (j in weightsHiddenOutput[i].indices) {
-                weightsHiddenOutput[i][j] += learningRate * outputError[j] * hidden[i]
+            synchronized(lock) {
+                updateCount = root.optInt("updateCount", 0).coerceAtLeast(0)
+                totalPredictions = root.optInt("totalPredictions", 0).coerceAtLeast(0)
+                correctPredictions = root.optInt("correctPredictions", 0)
+                    .coerceIn(0, totalPredictions)
+
+                toolStats.clear()
+                val tools = root.optJSONArray("tools") ?: JSONArray()
+                for (i in 0 until tools.length()) {
+                    val item = tools.optJSONObject(i) ?: continue
+                    val name = item.optString("name").takeIf(String::isNotBlank) ?: continue
+                    val executions = item.optInt("executionCount", 0).coerceAtLeast(0)
+                    val successes = item.optInt("successCount", 0).coerceIn(0, executions)
+                    val timeM2 = item.optDouble("executionTimeM2", 0.0).coerceAtLeast(0.0)
+                    val sizeM2 = item.optDouble("resultSizeM2", 0.0).coerceAtLeast(0.0)
+                    toolStats[name] = ToolStats(
+                        executionCount = executions,
+                        successCount = successes,
+                        successRate = if (executions == 0) 0.0 else successes.toDouble() / executions,
+                        avgExecutionTime = item.optDouble("avgExecutionTime", 0.0).coerceAtLeast(0.0),
+                        stdDevExecutionTime = if (executions > 1) sqrt(timeM2 / (executions - 1)) else 0.0,
+                        avgResultSize = item.optDouble("avgResultSize", 0.0).coerceAtLeast(0.0),
+                        stdDevResultSize = if (executions > 1) sqrt(sizeM2 / (executions - 1)) else 0.0,
+                        executionTimeM2 = timeM2,
+                        resultSizeM2 = sizeM2,
+                        lastUsed = item.optLong("lastUsed", 0L)
+                    )
+                }
+
+                transitions.clear()
+                val encodedTransitions = root.optJSONArray("transitions") ?: JSONArray()
+                for (i in 0 until encodedTransitions.length()) {
+                    val item = encodedTransitions.optJSONObject(i) ?: continue
+                    val key = item.optString("key").takeIf(String::isNotBlank) ?: continue
+                    val tool = item.optString("tool").takeIf(String::isNotBlank) ?: continue
+                    val count = item.optInt("count", 0).coerceAtLeast(0)
+                    val successes = item.optInt("successfulCount", 0).coerceIn(0, count)
+                    transitions.getOrPut(key) { mutableMapOf() }[tool] = TransitionStats(
+                        count = count,
+                        successfulCount = successes,
+                        rewardMean = item.optDouble("rewardMean", 0.5).coerceIn(0.0, 1.0),
+                        lastSeen = item.optLong("lastSeen", 0L)
+                    )
+                }
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "loadState failed: ${e.message}")
         }
     }
 
-    fun trainBatch(data: List<Pair<DoubleArray, String>>, epochs: Int = 10, learningRate: Double = 0.01) {
-        repeat(epochs) {
-            data.forEach { (features, _) ->
-                val target = DoubleArray(outputSize) { 0.0 }
-                target[0] = 1.0 // تبسيط
-                train(features, target, learningRate)
-            }
-        }
-    }
+    private fun format(value: Double): String = "%.2f".format(value)
 
-    fun predict(input: DoubleArray): List<Pair<String, Double>> {
-        val hidden = forward(input, weightsInputHidden, biasHidden)
-        val output = forward(hidden, weightsHiddenOutput, biasOutput)
-        
-        return output.mapIndexed { index, value ->
-            "class_$index" to sigmoid(value)
-        }.sortedByDescending { it.second }.take(3)
+    private fun <T> ArrayDeque<T>.takeLastCompat(count: Int): List<T> {
+        if (count <= 0 || isEmpty()) return emptyList()
+        return toList().takeLast(count)
     }
-
-    private fun forward(input: DoubleArray, weights: Array<DoubleArray>, bias: DoubleArray): DoubleArray {
-        val output = DoubleArray(weights.first().size)
-        for (j in output.indices) {
-            var sum = bias[j]
-            for (i in input.indices) {
-                sum += input[i] * weights[i][j]
-            }
-            output[j] = sigmoid(sum)
-        }
-        return output
-    }
-
-    private fun sigmoid(x: Double) = 1.0 / (1.0 + exp(-x))
 }
