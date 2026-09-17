@@ -235,15 +235,16 @@ class ChatViewModel(
     }
 
     fun loadSession(sessionId: Long) {
+        val repo = chatRepository ?: return
         modePermissionStore.clearSession(_uiState.value.currentSessionId)
         activeRunId.incrementAndGet()
         currentAgentJob?.cancel()
         _uiState.update { it.copy(isProcessing = false, streamingContent = null) }
         sessionObservation?.cancel()
         sessionObservation = viewModelScope.launch {
-            chatRepository?.observeMessages(sessionId)?.collect {
+            repo.observeMessages(sessionId).collect {
                 if (_uiState.value.isProcessing) return@collect
-                val (messages, consoleMap) = chatRepository.loadMessages(sessionId)
+                val (messages, consoleMap) = repo.loadMessages(sessionId)
                 compositeToolManager?.currentSessionId = sessionId
                 _uiState.update {
                     it.copy(
@@ -457,11 +458,12 @@ class ChatViewModel(
         }
     }
 
-    private suspend fun resolveImageAttachments(attachments: List<PendingAttachment>): List<AttachmentMeta> =
-        attachments.mapNotNull { pending ->
-            val mime = attachmentProcessor?.getMimeType(pending.uri) ?: return@mapNotNull null
+    private suspend fun resolveImageAttachments(attachments: List<PendingAttachment>): List<AttachmentMeta> {
+        val processor = attachmentProcessor ?: return emptyList()
+        return attachments.mapNotNull { pending ->
+            val mime = processor.getMimeType(pending.uri) ?: return@mapNotNull null
             if (!mime.startsWith("image/", true)) return@mapNotNull null
-            val base64 = attachmentProcessor.readImageAsBase64(pending.uri) ?: return@mapNotNull null
+            val base64 = processor.readImageAsBase64(pending.uri) ?: return@mapNotNull null
             AttachmentMeta(
                 uri = pending.uri.toString(),
                 mimeType = mime,
@@ -471,13 +473,14 @@ class ChatViewModel(
                 base64Data = base64
             )
         }
+    }
 
     fun cancelCurrentRun() {
         if (!_uiState.value.isProcessing) return
         val state = _uiState.value
         val checkpoint = buildInterruptionCheckpointMessage(USER_STOPPED_MESSAGE, state)
         val status = checkpoint ?: buildRunStatusMessage(USER_STOPPED_MESSAGE)
-        val sessionId = state.currentSessionId
+        val persistableSessionId = state.currentSessionId?.takeIf { it >= 0L }
         val console = state.consoleEntries
 
         activeRunId.incrementAndGet()
@@ -494,10 +497,10 @@ class ChatViewModel(
                 errorMessage = USER_STOPPED_MESSAGE
             )
         }
-        if (isPersistableSessionId(sessionId)) {
+        if (persistableSessionId != null) {
             viewModelScope.launch {
-                chatRepository?.saveMessage(sessionId!!, status, console)
-                chatRepository?.updateSessionRunStatus(sessionId, STATUS_USER_STOPPED)
+                chatRepository?.saveMessage(persistableSessionId, status, console)
+                chatRepository?.updateSessionRunStatus(persistableSessionId, STATUS_USER_STOPPED)
             }
         }
     }
@@ -626,9 +629,7 @@ class ChatViewModel(
     fun acceptExecutionMode(messageId: String) =
         acceptExecutionMode(messageId, ModeSwitchPermissionStore.Approval.ONCE)
 
-    /**
-     * Approves a mode request with explicit scope chosen by the user.
-     */
+    /** Approves a mode request with explicit scope chosen by the user. */
     fun acceptExecutionMode(messageId: String, approval: ModeSwitchPermissionStore.Approval) {
         if (approval == ModeSwitchPermissionStore.Approval.DENY) {
             denyExecutionMode(messageId)
@@ -651,7 +652,7 @@ class ChatViewModel(
         val accepted = proposal.copy(executionRequest = request.copy(status = status))
         _uiState.update { s -> s.copy(messages = s.messages.map { if (it.messageId == messageId) accepted else it }) }
         viewModelScope.launch { chatRepository?.updateMetadata(sessionId, accepted) }
-        startModeHandoff(target, request, accepted, autoApproved = false)
+        startModeHandoff(target, request, autoApproved = false)
     }
 
     fun denyExecutionMode(messageId: String) {
@@ -678,13 +679,12 @@ class ChatViewModel(
         val accepted = proposal.copy(executionRequest = request.copy(status = "accepted_auto"))
         _uiState.update { s -> s.copy(messages = s.messages.map { if (it.messageId == proposal.messageId) accepted else it }) }
         viewModelScope.launch { chatRepository?.updateMetadata(sessionId, accepted) }
-        startModeHandoff(target, request, accepted, autoApproved = true)
+        startModeHandoff(target, request, autoApproved = true)
     }
 
     private fun startModeHandoff(
         target: OmniMode,
         request: ExecutionModeRequest,
-        proposal: ChatMessage,
         autoApproved: Boolean
     ) {
         val state = _uiState.value
@@ -867,7 +867,7 @@ class ChatViewModel(
                 state.copy(messages = state.messages.map { if (it.messageId == proposal.messageId) accepted else it })
             }
             viewModelScope.launch { chatRepository?.updateMetadata(sessionId, accepted) }
-            startModeHandoff(suggestion.to, request, accepted, autoApproved = true)
+            startModeHandoff(suggestion.to, request, autoApproved = true)
         }
     }
 
