@@ -101,13 +101,10 @@ object AdaptiveModeRouter {
         confidence += outcomeSignal.adjustment
         confidence = confidence.coerceIn(0f, 0.97f)
 
-        // Hysteresis: Team is expensive. Borderline evidence stays in Agent.
         val enoughDecomposition = signals.parallelism >= 0.30f || signals.breadth >= 0.58f
         val criticalStall = failureClass == FailureClass.STAGNATION && confidence >= 0.76f
         if (!enoughDecomposition && !criticalStall) return null
         if (confidence < 0.68f) return null
-
-        // Repeated explicit rejections suppress non-critical nagging, not critical recovery.
         if (isStronglyDisliked(OmniMode.AGENT, OmniMode.SWARM) && !criticalStall) return null
 
         val reason = when {
@@ -130,9 +127,9 @@ object AdaptiveModeRouter {
     }
 
     /**
-     * Team -> Agent de-escalation. Team should not pay planner/worker/synthesis overhead for one
-     * serial atomic task. When [userRequest] is available, historical outcome utility is also used
-     * to avoid repeatedly paying Team overhead for task shapes that perform better in Agent mode.
+     * Team -> Agent de-escalation. The effective runtime plan matters more than planner intent:
+     * if two tasks are both serialized after safety classification, Team cannot gain useful
+     * concurrency even when the planner forgot to express an explicit dependency edge.
      */
     fun fromTeamPlan(
         taskCount: Int,
@@ -143,7 +140,7 @@ object AdaptiveModeRouter {
         if (taskCount <= 0) return null
 
         val atomic = taskCount == 1
-        val tinySerial = taskCount == 2 && parallelSafeTaskCount == 0 && dependencyEdgeCount >= 1
+        val tinySerial = taskCount == 2 && parallelSafeTaskCount == 0
         if (!atomic && !tinySerial) return null
 
         val evidence = mutableListOf(
@@ -154,7 +151,7 @@ object AdaptiveModeRouter {
         val outcomeSignal = ModeOutcomeLearner.signal(userRequest, OmniMode.AGENT)
         addOutcomeEvidence(evidence, outcomeSignal, OmniMode.AGENT)
 
-        var confidence = if (atomic) 0.92f else 0.78f
+        var confidence = if (atomic) 0.92f else if (dependencyEdgeCount > 0) 0.80f else 0.74f
         confidence += preferenceAdjustment(OmniMode.SWARM, OmniMode.AGENT)
         confidence += outcomeSignal.adjustment
         confidence = confidence.coerceIn(0f, 0.97f)
@@ -168,7 +165,7 @@ object AdaptiveModeRouter {
             reason = if (atomic) {
                 "The Team planner found only one atomic task. A single Agent can continue with the same context and avoid planner/worker/synthesis overhead."
             } else {
-                "The Team plan is a tiny serial dependency chain with no useful parallel work. A single Agent can execute it more efficiently."
+                "The effective Team plan has only two serialized tasks and no useful parallel work. A single Agent can execute them more efficiently from the same checkpoint."
             },
             confidence = confidence,
             trigger = Trigger.TEAM_OVERHEAD,
