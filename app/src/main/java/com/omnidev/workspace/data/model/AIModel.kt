@@ -101,13 +101,12 @@ enum class ModelRole(val displayName: String, val description: String) {
     /** General question-and-answer interactions with the user. */
     CHAT("Chat Model", "General Q&A and conversational responses"),
 
-    /** Single-step ReAct loop executor for autonomous tool use. */
-    AGENT("Agent Model", "Single ReAct loop tool executor"),
+    /** Single-agent ReAct executor. This selection is not used by Team mode. */
+    AGENT("Agent Model", "Single-Agent mode only — not used by Team mode"),
 
-    /** The planner model in Swarm/Team mode that decomposes tasks. */
-    SWARM_ORCHESTRATOR("Swarm Orchestrator", "Task decomposition planner in Team mode"),
+    /** Team coordinator used for decomposition and final synthesis. */
+    SWARM_ORCHESTRATOR("Swarm Orchestrator", "Team coordinator — plans tasks and synthesizes results"),
 
-    /** The coder model in Swarm/Team mode that executes sub-tasks. */
-    SWARM_WORKER("Swarm Worker", "Code executor in Team mode")
+    /** Specialist model instantiated for the atomic tasks created by the Team coordinator. */
+    SWARM_WORKER("Swarm Worker", "Team specialist — executes delegated sub-tasks")
 }
-
