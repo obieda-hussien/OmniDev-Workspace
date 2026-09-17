@@ -50,7 +50,17 @@ class ChatToolLoop(private val tools: ToolManager?) {
                 val reason = call.arguments["reason"]?.trim()?.take(1200)
                 if (call.name == REQUEST_MODE && mode != null && !reason.isNullOrBlank()) {
                     event(AgentEvent.ToolResult(call.name, "Awaiting user approval; no execution started.", false, round))
-                    return Result(reason, ExecutionModeRequest(mode, reason, originMessageId))
+                    return Result(
+                        reason,
+                        ExecutionModeRequest(
+                            mode = mode,
+                            reason = reason,
+                            originMessageId = originMessageId,
+                            sourceMode = OmniMode.CHAT.name,
+                            confidence = 0.9f,
+                            trigger = AdaptiveModeRouter.Trigger.CHAT_CAPABILITY_GAP.name
+                        )
+                    )
                 }
                 val result = when {
                     calls >= 8 -> ToolExecutionResult("Chat tool budget exhausted.", true)
