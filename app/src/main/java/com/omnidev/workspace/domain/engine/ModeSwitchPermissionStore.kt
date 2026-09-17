@@ -1,14 +1,15 @@
 package com.omnidev.workspace.domain.engine
 
 import android.content.Context
+import com.omnidev.workspace.data.brain.UserFeedbackLearningStore
 import java.util.concurrent.ConcurrentHashMap
 
 /**
  * User-controlled authority for agent-initiated execution-mode switches.
  *
- * Security/agency rule: a router may *recommend* a switch, but it may not silently expand
- * execution capability unless the user previously granted an explicit matching permission.
- * Manual tab changes are always user-authorized and do not consult this store.
+ * A router may recommend a switch, but it may not silently expand execution capability unless
+ * the user previously granted an explicit matching permission. Learned preference is kept in a
+ * separate local store and can only tune recommendation confidence/noise — never authorization.
  */
 class ModeSwitchPermissionStore(context: Context) {
 
@@ -23,10 +24,9 @@ class ModeSwitchPermissionStore(context: Context) {
         DENY
     }
 
-    private val prefs = context.applicationContext.getSharedPreferences(
-        PREFS_NAME,
-        Context.MODE_PRIVATE
-    )
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val feedbackStore = UserFeedbackLearningStore(appContext)
 
     /** Session grants intentionally live only in process memory. */
     private val allowAllForSession = ConcurrentHashMap.newKeySet<Long>()
@@ -52,10 +52,25 @@ class ModeSwitchPermissionStore(context: Context) {
             Approval.DENY -> Unit
         }
 
-        // Keep tiny aggregate feedback. This is not an authorization mechanism; it is only
-        // learning/telemetry for the local Agent Brain so it can avoid nagging the user.
-        val key = statsKey(from, to, approval != Approval.DENY)
-        prefs.edit().putInt(key, prefs.getInt(key, 0) + 1).apply()
+        feedbackStore.recordModeDecision(
+            from = from.name,
+            to = to.name,
+            accepted = approval != Approval.DENY
+        )
+    }
+
+    /** Advisory preference only. A positive value is never permission. */
+    fun recommendationConfidenceAdjustment(from: OmniMode, to: OmniMode): Float =
+        feedbackStore.recommendationConfidenceAdjustment(from.name, to.name)
+
+    /**
+     * Suppress low-value nagging after repeated rejection. Hard blockers can explicitly bypass
+     * this in the caller, because a newly blocked run may still need to explain the only viable
+     * recovery path to the user.
+     */
+    fun shouldSuggest(from: OmniMode, to: OmniMode, hardBlocked: Boolean): Boolean {
+        if (hardBlocked) return true
+        return !feedbackStore.modePreference(from.name, to.name).stronglyDisliked
     }
 
     fun clearPersistentTransition(from: OmniMode, to: OmniMode) {
@@ -66,36 +81,10 @@ class ModeSwitchPermissionStore(context: Context) {
         if (sessionId != null) allowAllForSession.remove(sessionId)
     }
 
-    /**
-     * Compact local-only feedback for the brain prompt. It describes observed preference but
-     * never turns statistical history into permission; [canAutoSwitch] remains explicit-only.
-     */
-    fun buildLearningHint(): String {
-        val transitions = buildList {
-            for (from in MANUAL_MODES) {
-                for (to in MANUAL_MODES) {
-                    if (from == to) continue
-                    val accepted = prefs.getInt(statsKey(from, to, true), 0)
-                    val denied = prefs.getInt(statsKey(from, to, false), 0)
-                    if (accepted + denied >= 2) {
-                        add("${from.name}->${to.name}: accepted=$accepted denied=$denied")
-                    }
-                }
-            }
-        }
-        if (transitions.isEmpty()) return ""
-        return "User mode-switch feedback (preference only; never permission): ${transitions.joinToString("; ")}"
-            .take(480)
-    }
-
     private fun allowKey(from: OmniMode, to: OmniMode) =
         "allow_${from.name}_${to.name}"
 
-    private fun statsKey(from: OmniMode, to: OmniMode, accepted: Boolean) =
-        "stats_${from.name}_${to.name}_${if (accepted) "accepted" else "denied"}"
-
     companion object {
         private const val PREFS_NAME = "adaptive_mode_permissions_v1"
-        private val MANUAL_MODES = listOf(OmniMode.CHAT, OmniMode.AGENT, OmniMode.SWARM)
     }
 }
