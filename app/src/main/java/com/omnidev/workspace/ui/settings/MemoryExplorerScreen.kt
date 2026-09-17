@@ -1,10 +1,11 @@
 package com.omnidev.workspace.ui.settings
 
 import androidx.compose.animation.animateContentSize
-import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -25,6 +27,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,14 +35,10 @@ import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SwipeToDismissBox
-import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,9 +55,12 @@ import com.omnidev.workspace.data.db.entities.KnowledgeSnippet
 import kotlinx.coroutines.launch
 
 /**
- * Memory Explorer — lets users browse, search, edit, and delete knowledge snippets.
+ * Omni Memory management surface.
+ *
+ * The user sees one editable memory collection. Semantic/vector retrieval is an internal search
+ * strategy over these same rows, not a second user-visible datastore.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MemoryExplorerScreen(
     knowledgeDao: KnowledgeDao,
@@ -69,21 +71,41 @@ fun MemoryExplorerScreen(
 
     val allSnippets by knowledgeDao.observeAll().collectAsState(initial = emptyList())
     var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf<String?>(null) }
     var editTarget by remember { mutableStateOf<KnowledgeSnippet?>(null) }
+    var pendingDelete by remember { mutableStateOf<KnowledgeSnippet?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
 
-    // Edit / Add dialog
+    val categories = remember(allSnippets) {
+        allSnippets.map { it.category }.filter { it.isNotBlank() }.distinct().sorted()
+    }
+
     val dialogSnippet = editTarget
     if (dialogSnippet != null || showAddDialog) {
         MemoryEditDialog(
             initial = dialogSnippet,
-            onDismiss = { editTarget = null; showAddDialog = false },
+            onDismiss = {
+                editTarget = null
+                showAddDialog = false
+            },
             onConfirm = { content, category, tags ->
                 scope.launch {
                     if (dialogSnippet != null) {
-                        knowledgeDao.update(dialogSnippet.copy(content = content, category = category, tags = tags))
+                        knowledgeDao.update(
+                            dialogSnippet.copy(
+                                content = content.trim(),
+                                category = category.trim().lowercase(),
+                                tags = tags.trim().lowercase()
+                            )
+                        )
                     } else {
-                        knowledgeDao.insert(KnowledgeSnippet(content = content, category = category, tags = tags))
+                        knowledgeDao.insert(
+                            KnowledgeSnippet(
+                                content = content.trim(),
+                                category = category.trim().lowercase(),
+                                tags = tags.trim().lowercase()
+                            )
+                        )
                     }
                     editTarget = null
                     showAddDialog = false
@@ -92,18 +114,58 @@ fun MemoryExplorerScreen(
         )
     }
 
-    val filtered = allSnippets.filter { snippet ->
-        searchQuery.isBlank() ||
-            snippet.content.contains(searchQuery, ignoreCase = true) ||
-            snippet.tags.contains(searchQuery, ignoreCase = true) ||
-            snippet.category.contains(searchQuery, ignoreCase = true)
+    pendingDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Delete memory?") },
+            text = {
+                Text(
+                    "This removes the memory from Omni Memory. " +
+                        "Keyword and semantic retrieval will both stop seeing it."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch { knowledgeDao.deleteById(target.id) }
+                        pendingDelete = null
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    val filtered = remember(allSnippets, searchQuery, selectedCategory) {
+        val query = searchQuery.trim()
+        allSnippets.filter { snippet ->
+            val categoryMatches = selectedCategory == null || snippet.category == selectedCategory
+            val queryMatches = query.isBlank() ||
+                snippet.content.contains(query, ignoreCase = true) ||
+                snippet.tags.contains(query, ignoreCase = true) ||
+                snippet.category.contains(query, ignoreCase = true)
+            categoryMatches && queryMatches
+        }
     }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text("Knowledge Base (${allSnippets.size} memories)") },
+                title = {
+                    Column {
+                        Text("Omni Memory")
+                        Text(
+                            text = "${allSnippets.size} memories · one unified store",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -123,14 +185,13 @@ fun MemoryExplorerScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Search bar
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Search memories…") },
+                placeholder = { Text("Search content, tags, or categories…") },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
@@ -139,8 +200,34 @@ fun MemoryExplorerScreen(
                         }
                     }
                 },
+                supportingText = {
+                    Text("Semantic retrieval uses these same memories automatically in the agent.")
+                },
                 singleLine = true
             )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = selectedCategory == null,
+                    onClick = { selectedCategory = null },
+                    label = { Text("All") }
+                )
+                categories.forEach { category ->
+                    FilterChip(
+                        selected = selectedCategory == category,
+                        onClick = {
+                            selectedCategory = if (selectedCategory == category) null else category
+                        },
+                        label = { Text(prettyCategory(category)) }
+                    )
+                }
+            }
 
             if (filtered.isEmpty()) {
                 Box(
@@ -150,81 +237,46 @@ fun MemoryExplorerScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = if (searchQuery.isBlank()) "No memories yet. Tap + to add one."
-                               else "No results for \"$searchQuery\"",
+                        text = when {
+                            allSnippets.isEmpty() -> "No memories yet. Tap + to add your first one."
+                            searchQuery.isNotBlank() -> "No memories match \"$searchQuery\"."
+                            else -> "No memories in this category."
+                        },
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        horizontal = 16.dp, vertical = 8.dp
-                    ),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(
-                        items = filtered,
-                        key = { it.id }
-                    ) { snippet ->
-                        SwipeToDeleteItem(
-                            onDelete = { scope.launch { knowledgeDao.deleteById(snippet.id) } }
-                        ) {
-                            MemoryCard(
-                                snippet = snippet,
-                                onEdit = { editTarget = snippet }
-                            )
-                        }
+                    items(items = filtered, key = { it.id }) { snippet ->
+                        MemoryCard(
+                            snippet = snippet,
+                            onEdit = { editTarget = snippet },
+                            onDelete = { pendingDelete = snippet }
+                        )
                     }
-                    item { Spacer(Modifier.height(80.dp)) } // FAB clearance
+                    item { Spacer(Modifier.height(80.dp)) }
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwipeToDeleteItem(
-    onDelete: () -> Unit,
-    content: @Composable () -> Unit
+private fun MemoryCard(
+    snippet: KnowledgeSnippet,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
 ) {
-    val dismissState = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) { onDelete(); true } else false
-        }
-    )
-    SwipeToDismissBox(
-        state = dismissState,
-        enableDismissFromStartToEnd = false,
-        backgroundContent = {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.CenterEnd
-            ) {
-                Icon(
-                    Icons.Filled.Delete,
-                    contentDescription = "Delete",
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(end = 16.dp)
-                )
-            }
-        }
-    ) {
-        content()
-    }
-}
-
-@Composable
-private fun MemoryCard(snippet: KnowledgeSnippet, onEdit: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
@@ -234,7 +286,7 @@ private fun MemoryCard(snippet: KnowledgeSnippet, onEdit: () -> Unit) {
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = snippet.category,
+                        text = prettyCategory(snippet.category),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -242,24 +294,35 @@ private fun MemoryCard(snippet: KnowledgeSnippet, onEdit: () -> Unit) {
                     Text(
                         text = snippet.content,
                         style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 4,
+                        maxLines = 5,
                         overflow = TextOverflow.Ellipsis
                     )
                     if (snippet.tags.isNotBlank()) {
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(6.dp))
                         Text(
                             text = "🏷 ${snippet.tags}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
-                IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
-                    Icon(
-                        Icons.Filled.Edit,
-                        contentDescription = "Edit memory",
-                        modifier = Modifier.size(18.dp)
-                    )
+
+                Row {
+                    IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Filled.Edit,
+                            contentDescription = "Edit memory",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = "Delete memory",
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         }
@@ -272,9 +335,9 @@ private fun MemoryEditDialog(
     onDismiss: () -> Unit,
     onConfirm: (content: String, category: String, tags: String) -> Unit
 ) {
-    var content by remember { mutableStateOf(initial?.content ?: "") }
-    var category by remember { mutableStateOf(initial?.category ?: "project_rule") }
-    var tags by remember { mutableStateOf(initial?.tags ?: "") }
+    var content by remember(initial?.id) { mutableStateOf(initial?.content ?: "") }
+    var category by remember(initial?.id) { mutableStateOf(initial?.category ?: "general") }
+    var tags by remember(initial?.id) { mutableStateOf(initial?.tags ?: "") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -284,24 +347,26 @@ private fun MemoryEditDialog(
                 OutlinedTextField(
                     value = content,
                     onValueChange = { content = it },
-                    label = { Text("Content (the fact or rule)") },
+                    label = { Text("Memory") },
+                    placeholder = { Text("Fact, preference, project rule, architecture note…") },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(120.dp),
+                        .height(132.dp),
                     minLines = 3
                 )
                 OutlinedTextField(
                     value = category,
                     onValueChange = { category = it },
                     label = { Text("Category") },
-                    placeholder = { Text("e.g. project_rule, user_preference, architecture") },
+                    placeholder = { Text("user_preference, project_rule, architecture, general") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = tags,
                     onValueChange = { tags = it },
-                    label = { Text("Tags (comma-separated)") },
+                    label = { Text("Tags") },
+                    placeholder = { Text("comma-separated keywords") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -311,10 +376,19 @@ private fun MemoryEditDialog(
             TextButton(
                 onClick = { onConfirm(content, category, tags) },
                 enabled = content.isNotBlank() && category.isNotBlank()
-            ) { Text(if (initial != null) "Update" else "Add") }
+            ) {
+                Text(if (initial != null) "Save" else "Add")
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
 }
+
+private fun prettyCategory(category: String): String =
+    category
+        .split('_', '-', ' ')
+        .filter { it.isNotBlank() }
+        .joinToString(" ") { part -> part.replaceFirstChar { it.uppercase() } }
+        .ifBlank { "General" }
