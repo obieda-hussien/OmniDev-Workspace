@@ -9,6 +9,7 @@ import kotlin.math.ceil
  * - spend tokens proportional to task difficulty instead of giving every worker a huge budget
  * - distrust planner parallelSafe metadata when task text clearly mutates shared state
  * - schedule ready tasks in conflict-free waves using inferred resource keys
+ * - preserve planner priority across exclusive mutation barriers
  * - keep the policy cheap enough to run on every planning cycle without an LLM call
  */
 object TeamExecutionPolicy {
@@ -35,10 +36,6 @@ object TeamExecutionPolicy {
     private const val HARD_MUTATION_THRESHOLD = 0.42f
     private const val BORDERLINE_MUTATION_THRESHOLD = 0.15f
 
-    /**
-     * Budget grows sub-linearly with difficulty. Broad/parallel context does not automatically
-     * inflate a worker: the worker should receive one atomic slice, not the original whole task.
-     */
     fun budgetFor(task: SwarmTask): WorkerBudget {
         val signals = IntentClassifier.analyze(task.description)
         val researchBoost = signals.researchIntent * 0.10f
@@ -81,11 +78,7 @@ object TeamExecutionPolicy {
         )
     }
 
-    /**
-     * Planner output is untrusted metadata. We independently classify mutation and resource
-     * overlap before allowing concurrency. Explicitly negated mutation phrases are stripped first
-     * so "inspect without editing" remains read-only.
-     */
+    /** Planner output is advisory; runtime independently checks mutation risk. */
     fun classify(task: SwarmTask): ClassifiedTask {
         val signals = IntentClassifier.analyze(task.description)
         val lower = task.description.lowercase()
@@ -106,11 +99,11 @@ object TeamExecutionPolicy {
     }
 
     /**
-     * Greedy conflict-aware coloring for a single ready DAG frontier.
+     * Ordered conflict-aware wave builder for one ready DAG frontier.
      *
-     * Every returned inner list is one concurrently executable wave. Mutating tasks are always
-     * singleton waves. Pure read-only tasks may inspect the same resource concurrently. For
-     * borderline mutation risk we serialize overlapping resources conservatively.
+     * Only adjacent compatible read-only tasks are packed into a wave. An exclusive/mutating task
+     * is a hard barrier: later tasks are never moved to a wave before it. This preserves planner
+     * priority while still exploiting safe concurrency.
      */
     fun buildExecutionWaves(
         readyTasks: List<SwarmTask>,
@@ -129,13 +122,16 @@ object TeamExecutionPolicy {
                 continue
             }
 
-            val targetWave = waves.firstOrNull { wave ->
-                wave.size < limit &&
-                    wave.all { existing ->
-                        existing.effectiveParallelSafe && !resourcesConflict(existing, candidate)
-                    }
-            }
-            if (targetWave != null) targetWave += candidate
+            // Only the immediately preceding wave may absorb this task. Searching older waves
+            // would reorder it across an exclusive barrier or an intentional priority boundary.
+            val lastWave = waves.lastOrNull()
+            val canJoinLast = lastWave != null &&
+                lastWave.size < limit &&
+                lastWave.all { existing ->
+                    existing.effectiveParallelSafe && !resourcesConflict(existing, candidate)
+                }
+
+            if (canJoinLast) lastWave!!.add(candidate)
             else waves += mutableListOf(candidate)
         }
 
@@ -170,10 +166,6 @@ object TeamExecutionPolicy {
             listOf("read-only", "read only", "without changes", "بدون تعديل", "من غير تعديل", "لا تعدل", "قراءة فقط")
                 .any(value::contains)
 
-    /**
-     * Extracts conservative resource identities from task text. File paths are the strongest
-     * signal; architecture domains are fallback keys.
-     */
     private fun inferResourceKeys(description: String): Set<String> {
         val lower = description.lowercase()
         val keys = linkedSetOf<String>()
