@@ -9,7 +9,12 @@ import com.omnidev.workspace.domain.model.SkillAccessMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Long-term memory + policy-aware Agent Skills bridge. */
+/**
+ * Canonical long-term Omni Memory manager.
+ *
+ * Knowledge and legacy vector memory intentionally share the same [KnowledgeDao] source of truth.
+ * Retrieval is hybrid and multilingual; vectors are a search strategy, not a second memory store.
+ */
 class MemoryManager(private val knowledgeDao: KnowledgeDao) {
 
     companion object {
@@ -24,25 +29,27 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "remember_fact",
-            description = "Store a new fact, preference, or rule in long-term memory. " +
+            description = "Store a fact, preference, rule, or reusable knowledge item in Omni Memory. " +
+                "All memories are saved to one canonical store and become available to both keyword and semantic retrieval. " +
                 "Special case: category='agent_skill' installs a validated SKILL.md into the local Agent Skills registry.",
             parameters = listOf(
                 ToolParameter("content", "string", "Fact text or complete SKILL.md for category=agent_skill.", required = true),
                 ToolParameter("category", "string", "user_preference, project_rule, architecture, api_key_hint, general, or agent_skill.", required = false),
-                ToolParameter("tags", "string", "Comma-separated ordinary-memory keywords.", required = false)
+                ToolParameter("tags", "string", "Comma-separated memory keywords.", required = false)
             )
         ),
         ToolDefinition(
             name = "search_knowledge",
-            description = "Search long-term memory or the Agent Skills allowed by this chat. " +
-                "query='skills' lists only chat-eligible skills; query='skill:<exact-name>' loads an allowed skill on demand.",
+            description = "Search Omni Memory using unified hybrid multilingual retrieval (semantic + keyword + tags + category), " +
+                "or search Agent Skills allowed by this chat. query='skills' lists chat-eligible skills; " +
+                "query='skill:<exact-name>' loads an allowed skill on demand.",
             parameters = listOf(
-                ToolParameter("query", "string", "Memory keyword, 'skills', or 'skill:<exact-skill-name>'.", required = true)
+                ToolParameter("query", "string", "Natural-language memory query, 'skills', or 'skill:<exact-skill-name>'.", required = true)
             )
         ),
         ToolDefinition(
             name = "update_memory",
-            description = "Update an existing ordinary memory entry by ID.",
+            description = "Update an existing Omni Memory entry by ID. The same edited entry is immediately visible to every retrieval path.",
             parameters = listOf(
                 ToolParameter("id", "string", "Numeric memory ID.", required = true),
                 ToolParameter("content", "string", "Replacement content.", required = true),
@@ -52,7 +59,7 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
         ),
         ToolDefinition(
             name = "delete_memory",
-            description = "Permanently delete an ordinary memory entry by ID.",
+            description = "Permanently delete an Omni Memory entry by ID from the canonical store.",
             parameters = listOf(ToolParameter("id", "string", "Numeric memory ID.", required = true))
         )
     )
@@ -95,7 +102,9 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
         if (content.isBlank()) return ToolExecutionResult("Memory content cannot be blank.", isError = true)
         val tags = args["tags"]?.lowercase()?.trim() ?: ""
         val id = knowledgeDao.insert(KnowledgeSnippet(category = category, content = content, tags = tags))
-        return ToolExecutionResult("✅ Fact stored successfully in long-term memory (id=$id).")
+        return ToolExecutionResult(
+            "✅ Stored in Omni Memory (id=$id). It is available to both keyword and semantic retrieval."
+        )
     }
 
     private suspend fun searchKnowledge(args: Map<String, String>): ToolExecutionResult {
@@ -151,16 +160,29 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
             )
         }
 
-        val results = knowledgeDao.search(query).take(MAX_SEARCH_RESULTS)
-        if (results.isEmpty()) {
-            return ToolExecutionResult("No matching knowledge found for keyword: \"$query\". Try a different keyword.")
+        val corpus = knowledgeDao.getAll()
+        if (corpus.isEmpty()) {
+            return ToolExecutionResult("Omni Memory is empty. Store a memory first with remember_fact.")
         }
 
-        val formatted = results.joinToString("\n\n") { snippet ->
-            "[ID: ${snippet.id}] (${snippet.category}) ${snippet.content}" +
-                if (snippet.tags.isNotBlank()) "\n  Tags: ${snippet.tags}" else ""
+        val matches = HybridMemorySearchEngine.rank(query, corpus, MAX_SEARCH_RESULTS)
+        if (matches.isEmpty()) {
+            return ToolExecutionResult(
+                "No relevant Omni Memory entries found for: \"$query\". Try a broader natural-language query."
+            )
         }
-        return ToolExecutionResult("🧠 Found ${results.size} memory result(s):\n\n$formatted")
+
+        val formatted = matches.joinToString("\n\n") { match ->
+            val snippet = match.snippet
+            val pct = "%.1f".format(match.score * 100.0)
+            buildString {
+                append("[ID: ${snippet.id}] ($pct% • ${match.reason}) [${snippet.category}] ${snippet.content}")
+                if (snippet.tags.isNotBlank()) append("\n  Tags: ${snippet.tags}")
+            }
+        }
+        return ToolExecutionResult(
+            "🧠 Omni Memory found ${matches.size} hybrid result(s):\n\n$formatted"
+        )
     }
 
     private suspend fun updateMemory(args: Map<String, String>): ToolExecutionResult {
@@ -168,6 +190,8 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
             ?: return ToolExecutionResult("Missing or invalid argument: id (must be a number)", isError = true)
         val newContent = args["content"]?.trim()
             ?: return ToolExecutionResult("Missing required argument: content", isError = true)
+        if (newContent.isBlank()) return ToolExecutionResult("Memory content cannot be blank.", isError = true)
+
         val existing = knowledgeDao.findById(id)
             ?: return ToolExecutionResult("No memory entry found with id=$id", isError = true)
         knowledgeDao.update(
@@ -177,7 +201,7 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
                 tags = args["tags"]?.lowercase()?.trim() ?: existing.tags
             )
         )
-        return ToolExecutionResult("✅ Memory entry id=$id updated successfully.")
+        return ToolExecutionResult("✅ Omni Memory entry id=$id updated successfully.")
     }
 
     private suspend fun deleteMemory(args: Map<String, String>): ToolExecutionResult {
@@ -186,7 +210,7 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
         val existing = knowledgeDao.findById(id)
             ?: return ToolExecutionResult("No memory entry found with id=$id.", isError = true)
         knowledgeDao.deleteById(id)
-        return ToolExecutionResult("🗑️ Memory entry id=$id deleted permanently.")
+        return ToolExecutionResult("🗑️ Omni Memory entry id=$id deleted permanently.")
     }
 
     suspend fun buildKnowledgeContext(): String? = withContext(Dispatchers.IO) {
@@ -203,7 +227,7 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
         buildString {
             if (skillContext.isNotBlank()) append(skillContext)
             if (all.isNotEmpty()) {
-                appendLine("\n--- 🧠 LONG-TERM MEMORY (Auto-Injected) ---")
+                appendLine("\n--- 🧠 OMNI MEMORY (Auto-Injected) ---")
                 if (projectRules.isNotEmpty()) {
                     appendLine("\nProject Rules:")
                     projectRules.forEach { appendLine("• [${it.id}] ${it.content}") }
@@ -216,8 +240,8 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
                     appendLine("\nArchitecture Notes:")
                     archNotes.forEach { appendLine("• [${it.id}] ${it.content}") }
                 }
-                appendLine("\n(Use search_knowledge for older/specific facts or chat-authorized Agent Skills.)")
-                appendLine("--- END MEMORY ---")
+                appendLine("\n(Use search_knowledge for hybrid retrieval of older or task-specific memories.)")
+                appendLine("--- END OMNI MEMORY ---")
             }
         }
     }

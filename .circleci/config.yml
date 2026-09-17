@@ -1,0 +1,411 @@
+version: 2.1
+
+executors:
+  android-machine:
+    machine:
+      image: android:current
+    resource_class: medium.gen2
+
+commands:
+  prepare-android:
+    steps:
+      - checkout
+
+      - run:
+          name: Prepare Android toolchain and CI memory guardrails
+          command: |
+            set -euo pipefail
+            chmod +x gradlew
+            java -version
+            ./gradlew --version
+            yes | sdkmanager --licenses >/dev/null || true
+            sdkmanager \
+              "platform-tools" \
+              "platforms;android-36" \
+              "build-tools;35.0.0" \
+              "ndk;27.0.12077973" \
+              "cmake;3.22.1"
+            git submodule update --init --recursive --depth 1 || true
+            mkdir -p ci-logs /tmp/omnidev-ci-status
+
+            if ! swapon --show | grep -q '/swapfile'; then
+              sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+              sudo chmod 600 /swapfile
+              sudo mkswap /swapfile >/dev/null
+              sudo swapon /swapfile
+            fi
+            sudo sysctl -w vm.swappiness=15 >/dev/null || true
+            free -h
+
+            printf '%s\n' \
+              'allprojects {' \
+              '  tasks.configureEach {' \
+              '    if (name.toLowerCase().contains("lintvital")) {' \
+              '      enabled = false' \
+              '    }' \
+              '  }' \
+              '}' > /tmp/disable-release-lint.gradle
+
+      - restore_cache:
+          keys:
+            - gradle-v6-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
+            - gradle-v6-
+            - gradle-v5-
+
+  send-zip-to-telegram:
+    parameters:
+      paths:
+        type: string
+      label:
+        type: string
+        default: "CircleCI archive"
+      archive_name:
+        type: string
+        default: "artifact"
+    steps:
+      - run:
+          name: Send ZIP archive to Telegram
+          when: always
+          command: |
+            set +e
+            if [ -z "${TELEGRAM_BOT_TOKEN:-}" ]; then
+              echo "TELEGRAM_BOT_TOKEN is not configured; skipping Telegram upload."
+              exit 0
+            fi
+
+            CHAT_ID="1100444932"
+            LABEL='<< parameters.label >>'
+            ARCHIVE_NAME='<< parameters.archive_name >>'
+            shopt -s globstar nullglob
+            FILES=()
+
+            printf '%s\n' '<< parameters.paths >>' > /tmp/telegram-zip-patterns.txt
+            while IFS= read -r PATTERN; do
+              [ -n "$PATTERN" ] || continue
+              while IFS= read -r FILE; do
+                [ -n "$FILE" ] && [ -f "$FILE" ] && FILES+=("$FILE")
+              done < <(compgen -G "$PATTERN" || true)
+            done < /tmp/telegram-zip-patterns.txt
+
+            if [ "${#FILES[@]}" -eq 0 ]; then
+              echo "No matching files found for ZIP upload."
+              exit 0
+            fi
+
+            SAFE_BRANCH=$(printf '%s' "${CIRCLE_BRANCH:-unknown}" | tr '/ ' '--')
+            ZIP_PATH="/tmp/${ARCHIVE_NAME}-${SAFE_BRANCH}-${CIRCLE_BUILD_NUM:-0}.zip"
+            rm -f "$ZIP_PATH"
+            zip -q "$ZIP_PATH" "${FILES[@]}"
+
+            SIZE=$(wc -c < "$ZIP_PATH" | tr -d ' ')
+            if [ "$SIZE" -gt 50000000 ]; then
+              curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                -d chat_id="$CHAT_ID" \
+                --data-urlencode "text=⚠️ ${LABEL}: $(basename "$ZIP_PATH") is ${SIZE} bytes and exceeds Telegram's direct-upload limit. It was not split." \
+                >/dev/null || true
+              exit 0
+            fi
+
+            curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+              -F chat_id="$CHAT_ID" \
+              -F document=@"$ZIP_PATH" \
+              -F "caption=${LABEL} | ${CIRCLE_PROJECT_REPONAME:-OmniDev-Workspace} | ${CIRCLE_BRANCH:-unknown} | build ${CIRCLE_BUILD_NUM:-unknown}" \
+              >/dev/null || true
+
+  send-debug-apks-as-zips:
+    steps:
+      - run:
+          name: Send each debug APK as its own ZIP
+          when: always
+          command: |
+            set +e
+            if [ -z "${TELEGRAM_BOT_TOKEN:-}" ]; then
+              echo "TELEGRAM_BOT_TOKEN is not configured; skipping Telegram upload."
+              exit 0
+            fi
+
+            CHAT_ID="1100444932"
+            shopt -s nullglob
+            APKS=(app/build/outputs/apk/*/debug/*.apk)
+            [ "${#APKS[@]}" -gt 0 ] || { echo "No debug APKs found."; exit 0; }
+
+            SAFE_BRANCH=$(printf '%s' "${CIRCLE_BRANCH:-unknown}" | tr '/ ' '--')
+            for APK in "${APKS[@]}"; do
+              NAME=$(basename "$APK" .apk)
+              ZIP_PATH="/tmp/${NAME}-${SAFE_BRANCH}-${CIRCLE_BUILD_NUM:-0}.zip"
+              rm -f "$ZIP_PATH"
+              zip -q -j "$ZIP_PATH" "$APK"
+              SIZE=$(wc -c < "$ZIP_PATH" | tr -d ' ')
+
+              if [ "$SIZE" -gt 50000000 ]; then
+                curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                  -d chat_id="$CHAT_ID" \
+                  --data-urlencode "text=⚠️ Debug APK ZIP ${NAME}.zip is ${SIZE} bytes and exceeds Telegram's direct-upload limit. It was not split." \
+                  >/dev/null || true
+                continue
+              fi
+
+              curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+                -F chat_id="$CHAT_ID" \
+                -F document=@"$ZIP_PATH" \
+                -F "caption=Debug APK ZIP | ${NAME} | ${CIRCLE_BRANCH:-unknown} | build ${CIRCLE_BUILD_NUM:-unknown}" \
+                >/dev/null || true
+            done
+
+  send-admin-release-apk:
+    steps:
+      - run:
+          name: Send Admin release APK directly to Telegram
+          when: always
+          command: |
+            set +e
+            if [ -z "${TELEGRAM_BOT_TOKEN:-}" ]; then
+              echo "TELEGRAM_BOT_TOKEN is not configured; skipping Telegram upload."
+              exit 0
+            fi
+
+            CHAT_ID="1100444932"
+            shopt -s nullglob
+            APKS=(app/build/outputs/apk/admin/release/*.apk)
+            [ "${#APKS[@]}" -gt 0 ] || { echo "No Admin release APK found."; exit 0; }
+
+            for APK in "${APKS[@]}"; do
+              SIZE=$(wc -c < "$APK" | tr -d ' ')
+              NAME=$(basename "$APK")
+              if [ "$SIZE" -gt 50000000 ]; then
+                curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                  -d chat_id="$CHAT_ID" \
+                  --data-urlencode "text=⚠️ Admin Release APK ${NAME} is ${SIZE} bytes and exceeds Telegram's direct-upload limit. It was not split." \
+                  >/dev/null || true
+                continue
+              fi
+
+              curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+                -F chat_id="$CHAT_ID" \
+                -F document=@"$APK" \
+                -F "caption=🚀 OmniDev Admin Release APK | ${CIRCLE_BRANCH:-unknown} | build ${CIRCLE_BUILD_NUM:-unknown} | ${CIRCLE_SHA1:0:7}" \
+                >/dev/null || true
+            done
+
+jobs:
+  lint:
+    executor: android-machine
+    environment:
+      CI_GRADLE_JVMARGS: "-Xmx4608m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8 -XX:+HeapDumpOnOutOfMemoryError"
+    steps:
+      - prepare-android
+
+      - run:
+          name: Lint all debug flavors
+          command: |
+            set +e
+            set -o pipefail
+            ./gradlew --no-daemon --max-workers 1 \
+              -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+              -Pkotlin.compiler.execution.strategy=in-process \
+              -Pkotlin.incremental=false \
+              -Dorg.gradle.vfs.watch=false \
+              :app:lintLiteDebug \
+              :app:lintNormDebug \
+              :app:lintProDebug \
+              :app:lintOemDebug \
+              :app:lintAdminDebug \
+              --continue --stacktrace 2>&1 | tee ci-logs/lint.log
+            RC=${PIPESTATUS[0]}
+            echo "$RC" > /tmp/omnidev-ci-status/lint
+            echo "LINT_EXIT_CODE=$RC"
+            ./gradlew --stop >/dev/null 2>&1 || true
+            free -h
+            exit 0
+
+      - send-zip-to-telegram:
+          label: "Lint reports ZIP"
+          archive_name: "omnidev-lint"
+          paths: |
+            ci-logs/lint.log
+            app/build/reports/lint-results*.html
+            app/build/reports/lint-results*.xml
+
+      - store_artifacts:
+          path: ci-logs
+          destination: lint-logs
+
+      - store_artifacts:
+          path: app/build/reports
+          destination: lint-reports
+
+  tests:
+    executor: android-machine
+    environment:
+      CI_GRADLE_JVMARGS: "-Xmx4608m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8 -XX:+HeapDumpOnOutOfMemoryError"
+    steps:
+      - prepare-android
+
+      - run:
+          name: Compile and run unit tests
+          command: |
+            set +e
+            set -o pipefail
+            ./gradlew --no-daemon --max-workers 1 \
+              -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+              -Pkotlin.compiler.execution.strategy=in-process \
+              -Pkotlin.incremental=false \
+              -Dorg.gradle.vfs.watch=false \
+              :app:compileLiteDebugKotlin :app:testLiteDebugUnitTest \
+              :app:compileNormDebugKotlin :app:testNormDebugUnitTest \
+              :app:compileProDebugKotlin :app:testProDebugUnitTest \
+              :app:compileOemDebugKotlin :app:testOemDebugUnitTest \
+              :app:compileAdminDebugKotlin :app:testAdminDebugUnitTest \
+              --continue --stacktrace 2>&1 | tee ci-logs/tests.log
+            RC=${PIPESTATUS[0]}
+            echo "$RC" > /tmp/omnidev-ci-status/tests
+            echo "TESTS_EXIT_CODE=$RC"
+            ./gradlew --stop >/dev/null 2>&1 || true
+            free -h
+            exit 0
+
+      - store_test_results:
+          path: app/build/test-results
+
+      - send-zip-to-telegram:
+          label: "Unit tests ZIP"
+          archive_name: "omnidev-tests"
+          paths: |
+            ci-logs/tests.log
+            app/build/test-results/**/*.xml
+            app/build/reports/tests/**/*.html
+
+      - store_artifacts:
+          path: ci-logs
+          destination: test-logs
+
+      - run:
+          name: Enforce test result
+          when: always
+          command: |
+            RC=99
+            [ -f /tmp/omnidev-ci-status/tests ] && RC=$(cat /tmp/omnidev-ci-status/tests)
+            echo "tests=$RC"
+            exit "$RC"
+
+  debug-build:
+    executor: android-machine
+    environment:
+      CI_GRADLE_JVMARGS: "-Xmx4608m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8 -XX:+HeapDumpOnOutOfMemoryError"
+    steps:
+      - prepare-android
+
+      - run:
+          name: Build all debug APKs
+          command: |
+            set +e
+            set -o pipefail
+            ./gradlew --no-daemon --max-workers 1 \
+              -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+              -Pkotlin.compiler.execution.strategy=in-process \
+              -Pkotlin.incremental=false \
+              -Dorg.gradle.vfs.watch=false \
+              :app:assembleLiteDebug \
+              :app:assembleNormDebug \
+              :app:assembleProDebug \
+              :app:assembleOemDebug \
+              :app:assembleAdminDebug \
+              --continue --stacktrace 2>&1 | tee ci-logs/debug-build.log
+            RC=${PIPESTATUS[0]}
+            echo "$RC" > /tmp/omnidev-ci-status/debug
+            echo "DEBUG_EXIT_CODE=$RC"
+            ./gradlew --stop >/dev/null 2>&1 || true
+            free -h
+            exit 0
+
+      - send-debug-apks-as-zips
+
+      - send-zip-to-telegram:
+          label: "Debug build log ZIP"
+          archive_name: "omnidev-debug-log"
+          paths: |
+            ci-logs/debug-build.log
+
+      - store_artifacts:
+          path: app/build/outputs/apk
+          destination: debug-apks
+
+      - store_artifacts:
+          path: ci-logs
+          destination: debug-logs
+
+      - save_cache:
+          key: gradle-v6-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
+          paths:
+            - ~/.gradle/caches
+            - ~/.gradle/wrapper
+
+      - run:
+          name: Enforce debug build result
+          when: always
+          command: |
+            RC=99
+            [ -f /tmp/omnidev-ci-status/debug ] && RC=$(cat /tmp/omnidev-ci-status/debug)
+            echo "debug=$RC"
+            exit "$RC"
+
+  admin-release:
+    executor: android-machine
+    environment:
+      CI_GRADLE_JVMARGS: "-Xmx4608m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8 -XX:+HeapDumpOnOutOfMemoryError"
+    steps:
+      - prepare-android
+
+      - run:
+          name: Build Admin release APK only
+          no_output_timeout: 45m
+          command: |
+            set +e
+            set -o pipefail
+            ./gradlew --no-daemon --max-workers 1 \
+              -I /tmp/disable-release-lint.gradle \
+              -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+              -Pkotlin.compiler.execution.strategy=in-process \
+              -Pkotlin.incremental=false \
+              -Dorg.gradle.vfs.watch=false \
+              :app:assembleAdminRelease \
+              --stacktrace 2>&1 | tee ci-logs/release-build.log
+            RC=${PIPESTATUS[0]}
+            echo "$RC" > /tmp/omnidev-ci-status/release
+            echo "RELEASE_EXIT_CODE=$RC"
+            ./gradlew --stop >/dev/null 2>&1 || true
+            free -h
+            exit 0
+
+      - send-admin-release-apk
+
+      - send-zip-to-telegram:
+          label: "Admin release build log ZIP"
+          archive_name: "omnidev-admin-release-log"
+          paths: |
+            ci-logs/release-build.log
+
+      - store_artifacts:
+          path: app/build/outputs/apk
+          destination: admin-release-apk
+
+      - store_artifacts:
+          path: ci-logs
+          destination: admin-release-logs
+
+      - run:
+          name: Enforce Admin release result
+          when: always
+          command: |
+            RC=99
+            [ -f /tmp/omnidev-ci-status/release ] && RC=$(cat /tmp/omnidev-ci-status/release)
+            echo "release=$RC"
+            exit "$RC"
+
+workflows:
+  omnidev-ci:
+    jobs:
+      - lint
+      - tests
+      - debug-build
+      - admin-release
