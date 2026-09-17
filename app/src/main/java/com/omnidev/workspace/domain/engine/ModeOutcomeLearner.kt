@@ -51,17 +51,17 @@ object ModeOutcomeLearner {
             else (1.0 - exp(-observations.toDouble() / MATURITY_SCALE)).toFloat().coerceIn(0f, 1f)
 
         val abandonmentRate: Float
-            get() = if (observations == 0) 0f else abandoned.toFloat() / observations
+            get() = if (observations == 0) 0f else abandoned.toFloat() / observations.toFloat()
 
         val verifiedRate: Float
             get() {
                 val estimatedSuccesses = successEvidence.coerceAtLeast(0f)
                 if (estimatedSuccesses <= 0f) return 0f
-                return (verifiedSuccesses / estimatedSuccesses).coerceIn(0f, 1f)
+                return (verifiedSuccesses.toFloat() / estimatedSuccesses).coerceIn(0f, 1f)
             }
 
         val averageIterations: Float
-            get() = if (observations == 0) 0f else totalIterations.toFloat() / observations
+            get() = if (observations == 0) 0f else totalIterations.toFloat() / observations.toFloat()
 
         val averageDurationMs: Long
             get() = if (observations == 0) 0L else totalDurationMs / observations
@@ -153,7 +153,7 @@ object ModeOutcomeLearner {
                     observations = targetStats.observations,
                     posteriorSuccess = targetStats.posteriorSuccess,
                     maturity = targetStats.maturity,
-                    utility = utility(targetStats, targetStats, targetStats),
+                    utility = utility(targetStats, 0L, 0L),
                     bucket = bucket
                 )
             }
@@ -173,7 +173,8 @@ object ModeOutcomeLearner {
                 ?: targetUtility
 
             val relative = (targetUtility - meanUtility) * 0.42f
-            val sampleGate = targetStats.maturity * (targetStats.observations / (targetStats.observations + 5f))
+            val sampleGate = targetStats.maturity *
+                (targetStats.observations.toFloat() / (targetStats.observations.toFloat() + 5f))
             val adjustment = (relative * sampleGate).coerceIn(-MAX_ADJUSTMENT, MAX_ADJUSTMENT)
 
             return Signal(
@@ -193,7 +194,8 @@ object ModeOutcomeLearner {
     fun statsFor(userRequest: String, mode: OmniMode): Stats {
         if (userRequest.isBlank() || mode == OmniMode.AUTO) return emptyStats()
         val bucket = IntentClassifier.analyze(normalizeRequest(userRequest)).bucketKey()
-        return synchronized(lock) { readStats(prefs() ?: return emptyStats(), bucket, mode) }
+        val prefs = prefs() ?: return emptyStats()
+        return synchronized(lock) { readStats(prefs, bucket, mode) }
     }
 
     private fun utility(stats: Stats, cheapestTokens: Long, fastestMs: Long): Float {
@@ -205,8 +207,12 @@ object ModeOutcomeLearner {
             stats.averageDurationMs <= 0L || fastestMs <= 0L -> 0.65f
             else -> (fastestMs.toFloat() / stats.averageDurationMs.toFloat()).coerceIn(0.15f, 1f)
         }
-        val iterationEfficiency = if (stats.averageIterations <= 0f) 0.65f else
-            (1f / (1f + ln(1f + stats.averageIterations) / 3f)).coerceIn(0.20f, 1f)
+        val iterationEfficiency = if (stats.averageIterations <= 0f) {
+            0.65f
+        } else {
+            val logCost = ln(1.0 + stats.averageIterations.toDouble()).toFloat()
+            (1f / (1f + logCost / 3f)).coerceIn(0.20f, 1f)
+        }
 
         return (
             stats.posteriorSuccess * 0.62f +
@@ -217,9 +223,6 @@ object ModeOutcomeLearner {
                 (1f - stats.abandonmentRate) * 0.07f
             ).coerceIn(0f, 1f)
     }
-
-    private fun utility(stats: Stats, ignoredA: Stats, ignoredB: Stats): Float =
-        utility(stats, 0L, 0L)
 
     private fun normalizeRequest(text: String): String {
         // Team workers receive a contract around the original objective. Learn against the
