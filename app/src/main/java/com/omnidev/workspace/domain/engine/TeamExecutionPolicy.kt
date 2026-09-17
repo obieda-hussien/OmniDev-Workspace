@@ -27,6 +27,11 @@ object TeamExecutionPolicy {
         val removedTaskCount: Int get() = aliases.size
     }
 
+    data class CappedPlan(
+        val tasks: List<SwarmTask>,
+        val droppedTaskIds: Set<String>
+    )
+
     private const val MIN_WORKER_TOKENS = 22_000
     private const val MAX_WORKER_TOKENS = 82_000
     private const val MIN_ITERATIONS = 6
@@ -109,6 +114,48 @@ object TeamExecutionPolicy {
             )
         }
         return NormalizedPlan(rewired, aliases)
+    }
+
+    /**
+     * Shrinks an oversized planner DAG without cutting off prerequisites. A task is selected only
+     * when its complete known dependency closure fits inside [maxTasks]. This is intentionally
+     * conservative: it is better to drop one oversized branch than to execute a child after its
+     * prerequisite was truncated from the plan.
+     */
+    fun capPlan(tasks: List<SwarmTask>, maxTasks: Int): CappedPlan {
+        require(maxTasks >= 1) { "maxTasks must be >= 1" }
+        if (tasks.size <= maxTasks) return CappedPlan(tasks, emptySet())
+
+        val byId = tasks.associateBy { it.id }
+        val selectedIds = linkedSetOf<String>()
+
+        fun dependencyClosure(rootId: String): LinkedHashSet<String> {
+            val closure = linkedSetOf<String>()
+            val visiting = mutableSetOf<String>()
+
+            fun visit(id: String) {
+                if (id in closure || !visiting.add(id)) return
+                byId[id]?.dependencies.orEmpty().forEach(::visit)
+                visiting.remove(id)
+                closure += id
+            }
+
+            visit(rootId)
+            return closure
+        }
+
+        tasks.sortedWith(compareBy<SwarmTask> { it.priority }.thenBy { it.id }).forEach { candidate ->
+            if (candidate.id in selectedIds || selectedIds.size >= maxTasks) return@forEach
+            val closure = dependencyClosure(candidate.id)
+            val newIds = closure.filterNot(selectedIds::contains)
+            if (selectedIds.size + newIds.size <= maxTasks) {
+                selectedIds.addAll(newIds)
+            }
+        }
+
+        val selected = tasks.filter { it.id in selectedIds }
+        val dropped = tasks.mapTo(linkedSetOf()) { it.id }.apply { removeAll(selectedIds) }
+        return CappedPlan(selected, dropped)
     }
 
     fun classify(task: SwarmTask): ClassifiedTask {
