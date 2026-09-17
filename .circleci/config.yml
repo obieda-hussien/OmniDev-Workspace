@@ -236,6 +236,15 @@ jobs:
           path: app/build/reports
           destination: lint-reports
 
+      - run:
+          name: Enforce lint result
+          when: always
+          command: |
+            RC=99
+            [ -f /tmp/omnidev-ci-status/lint ] && RC=$(cat /tmp/omnidev-ci-status/lint)
+            echo "lint=$RC"
+            exit "$RC"
+
   tests:
     executor: android-machine
     environment:
@@ -407,7 +416,19 @@ jobs:
 workflows:
   omnidev-ci:
     jobs:
-      - lint
+      # Feature/development branches get one compile+unit-test gate only. This is the
+      # highest-signal check per credit because it compiles every product flavor.
       - tests
-      - debug-build
-      - admin-release
+      # Expensive artifact/lint/release jobs run only after changes land on main.
+      - lint:
+          filters:
+            branches:
+              only: main
+      - debug-build:
+          filters:
+            branches:
+              only: main
+      - admin-release:
+          filters:
+            branches:
+              only: main
