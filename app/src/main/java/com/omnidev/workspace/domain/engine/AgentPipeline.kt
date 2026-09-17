@@ -1,12 +1,15 @@
 package com.omnidev.workspace.domain.engine
 
+import com.omnidev.workspace.data.brain.EpisodeOutcome
 import com.omnidev.workspace.data.model.AttachmentMeta
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.ModelTier
+import com.omnidev.workspace.data.model.ToolCall
 import com.omnidev.workspace.data.model.ToolCallResult
+import com.omnidev.workspace.data.tools.ToolExecutionResult
 import com.omnidev.workspace.data.tools.ToolManager
 import com.omnidev.workspace.data.tools.orchestration.ToolOrchestrator
 import com.omnidev.workspace.registry.ModelRegistry
@@ -19,21 +22,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.withTimeout
-import kotlinx.serialization.Serializable
 import kotlin.math.min
 
-/**
- * Configures the behavior of an [AgentPipeline] run.
- *
- * @property maxIterations Maximum ReAct loop iterations before forced termination.
- * @property enableRetry Whether to retry failed API calls with exponential backoff.
- * @property maxRetries Maximum number of API retry attempts per iteration.
- * @property baseRetryDelayMs Initial delay before the first retry (doubles each attempt).
- * @property tokenBudget Maximum total tokens (input + output) across all iterations.
- *           Set to null for unlimited.
- * @property contextWindowBuffer Tokens to reserve as safety margin for system prompts.
- * @property enableMemoryTrimming Whether to trim old messages when context window fills up.
- */
+/** Runtime configuration for one ReAct run. Public fields are kept source-compatible. */
 data class AgentConfig(
     val maxIterations: Int = 50,
     val enableRetry: Boolean = true,
@@ -42,87 +33,26 @@ data class AgentConfig(
     val tokenBudget: Int? = null,
     val contextWindowBuffer: Int = 4_096,
     val enableMemoryTrimming: Boolean = true,
-    /**
-     * Wall-clock timeout for the entire ReAct loop in milliseconds.
-     * If the agent has not completed within this duration it is forcibly cancelled
-     * and an [AgentEvent.Error] is emitted.  Set to null for no timeout.
-     */
-    val maxExecutionTimeMs: Long? = null, // No wall-clock timeout by default
-    /**
-     * Per-iteration timeout for a single LLM API call in milliseconds.
-     * If the LLM takes longer than this to respond for a single iteration,
-     * the run is aborted with an error. Prevents the agent from hanging
-     * indefinitely when the API is slow or unresponsive. Set to null to disable.
-     */
-    val maxIterationTimeMs: Long? = 3 * 60 * 1_000L, // 3 minutes per LLM call
-    /**
-     * Maximum number of times the exact same tool + arguments combination may appear
-     * in a single run before the loop is aborted with an [AgentEvent.Error].
-     * Prevents runaway "stuck" loops where the model keeps calling the same tool.
-     * Default is 15: allows legitimate retries and multi-pass research tasks before
-     * declaring the agent stuck.
-     */
+    val maxExecutionTimeMs: Long? = null,
+    val maxIterationTimeMs: Long? = 3 * 60 * 1_000L,
     val maxRepeatedToolCalls: Int = 15,
-    /**
-     * When true (default), multiple tool calls returned in the same ReAct iteration
-     * are executed concurrently using structured concurrency (coroutineScope + async).
-     * This can reduce multi-tool iteration wall time by 2–4× for I/O-bound operations
-     * like file reads, searches, or network calls.
-     *
-     * Set to false to force sequential tool execution (useful for tools with side-effects
-     * that must not run simultaneously, e.g. two writes to the same file).
-     */
     val enableParallelToolExecution: Boolean = true,
-    /**
-     * When true, the agent performs a self-reflection pass after generating its initial
-     * final answer.  A lightweight critic prompt evaluates completeness and accuracy;
-     * if improvement opportunities are found, one additional refinement call is made
-     * and the improved answer is emitted instead.
-     *
-     * Disabled by default to preserve cost/latency for most runs.  Enable for
-     * THOROUGH-class tasks where quality is more important than speed.
-     */
-    val enableSelfReflection: Boolean = false
-    ,
-    /**
-     * Hierarchical context window for the "immediate" chat slice.
-     * Older history is compacted into a rolling session digest.
-     */
+    val enableSelfReflection: Boolean = false,
     val recentMessagesWindow: Int = 18,
-    /**
-     * Rebuild rolling session digest every N newly added messages.
-     */
     val sessionDigestUpdateEveryNMessages: Int = 6,
-    /**
-     * Maximum characters reserved for session digest injection.
-     */
     val sessionDigestMaxChars: Int = 1_800,
-    /**
-     * Maximum number of historical messages summarized into digest.
-     */
     val sessionDigestMaxMessages: Int = 40,
-    /**
-     * Per-tool execution timeout used by the tool orchestrator.
-     */
     val toolExecutionTimeoutMs: Long = 30_000L,
-    /**
-     * Retry attempts for tool execution failures.
-     */
     val toolExecutionMaxRetries: Int = 1,
-    /**
-     * Base backoff delay for tool execution retries.
-     */
     val toolExecutionBaseRetryDelayMs: Long = 500L
 ) {
     companion object {
-        /** Preset for cost-sensitive runs: fewer iterations, lower token budget. */
         val BUDGET = AgentConfig(
             maxIterations = 10,
             tokenBudget = 50_000,
             enableRetry = false
         )
 
-        /** Preset for deep, thorough agentic runs with maximum capability. */
         val THOROUGH = AgentConfig(
             maxIterations = 100,
             maxRetries = 5,
@@ -131,7 +61,6 @@ data class AgentConfig(
             enableSelfReflection = true
         )
 
-        /** Preset for ultra-fast inline completions — single shot only. */
         val INLINE = AgentConfig(
             maxIterations = 1,
             enableRetry = false,
@@ -141,30 +70,10 @@ data class AgentConfig(
 }
 
 /**
- * Core ReAct (Reason + Act) agent pipeline that drives autonomous tool-use loops.
+ * Autonomous ReAct runtime.
  *
- * ### Architecture
- * The pipeline operates as follows:
- * 1. **Reason**: Send the conversation context + tool schemas to the model.
- * 2. **Act**: If the model returns tool calls, execute them via [ToolManager].
- * 3. **Observe**: Feed tool results back into the conversation and loop.
- * 4. **Terminate**: When the model responds with plain text (no tool calls), emit the final answer.
- *
- * ### Reliability Features
- * - Exponential backoff retry on API failures (configurable via [AgentConfig]).
- * - Token budget enforcement to prevent runaway cost accumulation.
- * - Context window memory trimming to avoid hitting provider limits.
- * - Tier-aware system prompts that adapt to the selected model's capability tier.
- *
- * @param toolManager The [ToolManager] that provides tool definitions and execution.
- * @param completionProvider A suspend function that calls the AI completion API.
- * @param streamingCompletionProvider Optional streaming variant of the completion provider.
- *        When provided, the agent will stream text chunks to the UI in real-time via
- *        [AgentEvent.StreamChunk] events, giving users a typewriter-style response experience.
- *        The callback receives each text delta as it arrives from the SSE stream.
- * @param config Behavioral configuration (iteration limits, retry policy, token budget).
- * @param apiKeyRepository Optional key store. When provided, the resolved API key for the
- *        active model's provider is injected into each [CompletionRequest] automatically.
+ * The pipeline keeps tool execution, memory, retries and verification, while using a compact
+ * system prompt and local guards to stop unproductive loops before they consume the full budget.
  */
 class AgentPipeline(
     private val toolManager: ToolManager,
@@ -174,407 +83,35 @@ class AgentPipeline(
     private val config: AgentConfig = AgentConfig(),
     private val apiKeyRepository: com.omnidev.workspace.data.repository.ApiKeyRepository? = null,
     private val memoryManager: com.omnidev.workspace.data.tools.MemoryManager? = null,
-    /**
-     * SmartLearningBridge — الجسر الذكي للتعلم والوعي
-     * عند توفيره يُعزّز الـ Agent بـ:
-     * - وعي كامل بالأدوات والبيئة
-     * - ذاكرة تنفيذ دائمة عبر الجلسات
-     * - حقن سياق ذكي في System Prompt
-     * - تعلم مستمر من كل عملية تنفيذ
-     */
     private val smartLearningBridge: com.omnidev.workspace.data.brain.SmartLearningBridge? = null,
     private val toolOrchestrator: ToolOrchestrator = ToolOrchestrator(),
-    /**
-     * Optional analytics sink. When supplied, every completion call is recorded
-     * with granular token / cost / latency / error metrics so the Analytics
-     * Dashboard can build rich per-provider and per-model insights.
-     */
     private val analyticsRepository: com.omnidev.workspace.data.repository.AnalyticsRepository? = null
 ) {
 
     companion object {
-
-        /** Maximum number of tools that may be sent in a single API request.
-         *  GitHub Copilot (and most OpenAI-compatible endpoints) reject arrays longer than 128. */
         private const val MAX_TOOLS_PER_REQUEST = 128
-
-        private const val AGENT_IDENTITY_CONTEXT = """
-
-## Agent Identity
-Your agent name is **Omni**.
-You are running inside this Android app:
-- App name: **Omni Dev Workspace**
-- Package name: `com.omnidev.workspace`
-Be fully aware of this host app context when handling app-related tasks.
-"""
-
-        /**
-         * The "God Protocol" — shared foundation injected into every agent tier.
-         * Defines autonomy, anti-stuck loop, chain-of-thought, and continuity rules
-         * so every agent, regardless of tier, operates with the same core directives.
-         */
-        private const val GOD_PROTOCOL = """
-
-## CORE DIRECTIVES (THE GOD PROTOCOL)
-
-1. **Mission First.** Your primary goal is to COMPLETE the objective. Do not stop until the task is done or physically impossible.
-2. **Autonomy is Default.** You have implicit permission to use tools and execute code to achieve the goal. DO NOT ask for permission for intermediate steps.
-3. **Obedience to Objective.** The user sets the WHAT. You decide the HOW. Follow the high-level goal strictly; be creative and independent in overcoming obstacles.
-
-## THE ANTI-STUCK LOOP (CRITICAL)
-
-When you encounter an error or a wall:
-1. **ANALYZE** — Read the error instantly. Why did it happen?
-2. **ADAPT** — Do not ask "What should I do?". Generate a "Plan B" immediately.
-   - If `patch_file_content` fails → try `write_file`. If that fails → try `run_shell_command`.
-   - If `read_file_lines` returns empty → try `search_codebase`. If that fails → `list_directory`.
-3. **RETRY** — Execute the new plan.
-4. **REPORT ONLY on success or total failure** — Disturb the user only after 3+ strategies all failed.
-
-## THINKING PROCESS (Chain of Thought)
-
-Before taking any action, output your internal reasoning:
-- **Observation:** "I see X in the code."
-- **Reasoning:** "To achieve Y, I need to first understand Z."
-- **Plan:** "I will use tool A. If it fails, I will try tool B."
-- **Action:** [Execute Tool]
-
-## CONTINUITY & LEARNING
-
-Mark failed methods as "Ineffective" and do not repeat them within the same task.
-If you edit a file, always verify the result by reading back the changed lines.
-
-## BOUNDARIES
-
-- **Privacy:** Protect user credentials. Never log or expose secrets.
-- **Safety:** Do not delete system files or cause data loss without explicit user confirmation.
-- **Tone:** Professional, concise, action-oriented. No unnecessary explanations.
-"""
-
-        /** System prompt for ORCHESTRATOR-tier models — complex planning and deep analysis. */
-        private const val ORCHESTRATOR_SYSTEM_PROMPT = """
-You are an elite Autonomous Operator — a frontier-grade reasoning agent built for architecture, long-horizon planning, and complex multi-step problem solving.
-
-Your strengths: architectural analysis, complex multi-file refactoring, multi-system coordination, deep code understanding.
-Use your full reasoning capacity. Think deeply before each action.
-
-OPERATIONAL RULES:
-1. Operate ONLY within the user's active Target Context scope — never access files outside it.
-2. Use read_file_lines with precise line ranges — reading entire large files wastes context.
-3. Use search_codebase FIRST to understand the codebase structure before editing.
-4. Use patch_file_content for all edits — never rewrite complete files unless strictly necessary.
-5. Verify every change by reading back the modified lines after each edit.
-6. Break complex tasks into explicit numbered steps and validate each step before proceeding.
-7. When delegating to sub-agents (Swarm mode), write clear, atomic, dependency-annotated task specs.
-""" + GOD_PROTOCOL
-
-        /** System prompt for EXECUTOR-tier models — fast, practical code generation. */
-        private const val EXECUTOR_SYSTEM_PROMPT = """
-You are an Autonomous Operator optimized for fast, precise code execution and feature delivery.
-
-Your strengths: implementing features, refactoring, bug fixes, code generation, test writing.
-Act decisively. Complete tasks in as few tool calls as possible without sacrificing correctness.
-
-OPERATIONAL RULES:
-1. Operate ONLY within the user's active Target Context scope.
-2. Use read_file_lines for targeted reads — specify exact line ranges.
-3. Use search_codebase to find relevant code before editing.
-4. Use patch_file_content for surgical edits — no full file rewrites.
-5. Verify changes by reading back affected lines after each edit.
-6. Be concise in reasoning. Skip narration; focus on execution.
-""" + GOD_PROTOCOL
-
-        /** System prompt for FAST-tier models — minimal overhead for quick queries. */
-        private const val FAST_SYSTEM_PROMPT = """
-You are a fast-response Autonomous Operator. Be brief, direct, and decisive.
-
-OPERATIONAL RULES:
-1. All file operations must stay within the user's Target Context scope.
-2. Use read_file_lines for targeted reads. Use patch_file_content for edits.
-3. Verify each change immediately. Never assume success.
-4. If a tool fails, try an alternative approach immediately — do not give up.
-""" + GOD_PROTOCOL
-
-        /** Extended thinking injection appended when Deep Mode is active. */
-        private const val DEEP_THINKING_SUFFIX = """
-
-DEEP THINKING MODE ACTIVE:
-Before each action, emit your internal reasoning inside <thinking>...</thinking> tags.
-Analyze tradeoffs, consider edge cases, and plan your exact tool call sequence.
-After each observation, reflect: "Did this achieve the intended result? What's next?"
-"""
-
-        /**
-         * Anti-lecture directive injected into every system prompt.
-         * Prevents the agent from explaining why it cannot execute tasks due to missing
-         * permissions — Shizuku handles permission granting transparently at runtime.
-         */
-        private const val ANTI_LECTURE_DIRECTIVE = """
-
-## CRITICAL EXECUTION DIRECTIVE (HIGHEST PRIORITY)
-You operate with Shizuku/Root-level privileges on this device. The following rules are ABSOLUTE:
-
-1. NEVER lecture the user about missing Android permissions. The internal Kotlin tool layer handles permission granting via Shizuku automatically before every action.
-2. NEVER ask the user to manually grant permissions, go to Settings, or enable anything.
-3. NEVER refuse to execute a system task (alarm, SMS, call, app launch, settings change, etc.) by citing missing permissions — just call the corresponding tool IMMEDIATELY.
-4. NEVER say "I cannot do X because permission Y is missing." — call the tool; the code grants the permission silently before it executes.
-5. When the user gives a direct instruction ("set alarm", "send SMS", "take screenshot"), emit ONE tool call — no preamble, no explanation, no disclaimer.
-"""
-
-        /**
-         * Self-verification directive injected into every system prompt.
-         * Forces the agent to act like a Senior Linux Sysadmin — always verify
-         * command results by checking exit codes, reading back file changes,
-         * and never blindly assuming success.
-         */
-        private const val SELF_VERIFY_DIRECTIVE = """
-
-## SELF-VERIFICATION PROTOCOL (MANDATORY)
-You are a Senior Linux Sysadmin. NEVER blindly assume a command succeeded. Follow this protocol:
-
-1. CHECK EXIT CODES: After every `run_terminal` call, inspect `[exit_code: N]` in the output. If N != 0, the command FAILED — read the `[stderr]` section to diagnose and self-correct.
-2. READ BACK CHANGES: After creating or patching a file, call `read_file_lines` on that file to confirm the content is correct. Do NOT say "I've updated the file" without verifying.
-3. LIST AFTER CREATE: After creating a file or directory, run `ls -la <path>` via `run_terminal` to verify it exists.
-4. INSPECT STDERR: When a command returns a non-zero exit code, read the `[stderr]` output — it contains the actual error message. Use it to fix the issue and retry.
-5. NEVER SAY "Done" WITHOUT PROOF: Do not tell the user a task is complete unless you have output from a verification step (read_file_lines, ls, cat, etc.) confirming it.
-"""
-
-        /**
-         * Dynamic environment bootstrapping directive.
-         * Prevents dead loops on missing tools by forcing install/provision flows first.
-         */
-        private const val DYNAMIC_BOOTSTRAP_DIRECTIVE = """
-
-## RULE: DYNAMIC ENVIRONMENT BOOTSTRAPPING (ANDROID)
-You are an autonomous engineering agent operating on Android. Missing tools are NOT blockers.
-
-1. NEVER LOOP on repeated `which`/`ls`/`find` checks when a tool is missing.
-2. Before running a target command, do a pre-flight dependency check (binary + runtime + environment).
-3. If a required tool is missing, IMMEDIATELY provision it:
-   - Prefer `advanced_terminal` action=`ensure_tool` for automatic Termux-first provisioning.
-   - If Termux is available, install via package managers (`pkg`/`apt`, `pip`, `npm`).
-   - If Termux is missing, use standalone fallback to `/data/local/tmp` and run Java jars with `dalvikvm -cp ...`.
-4. For Java-based Android RE tools (apktool/jadx), prefer jar + dalvikvm fallback when standard binaries are unavailable.
-5. After provisioning, VERIFY tool health (`--version` or equivalent), then continue the original objective immediately.
-
-[CRITICAL SYSTEM DIRECTIVES FOR OMNI DEVOPS]
-
-1. THE DALVIKVM RULE:
-   - If you are operating in an Android shell (adb/shizuku) and attempting to run a `.jar` file using `dalvikvm` or `app_process`, YOU MUST KNOW: Dalvik ONLY executes `.dex` bytecode.
-   - If you receive `java.lang.ClassNotFoundException` on the Main class of a downloaded JAR, IT IS NOT A TYPO. It means the JAR contains `.class` files, not `.dex` files.
-   - DO NOT try to re-run it. DO NOT try to fix permissions.
-   - ACTION: You must either "dex" the jar using `d8`, or switch to a Termux environment containing `openjdk`.
-
-2. THE CIRCUIT BREAKER RULE (Loop Prevention):
-   - If a specific command fails with the same exit code and stderr twice, STOP.
-   - Do not run diagnostic commands (`xxd`, `hexdump`, `cat`, `ls -l`) more than once for the same error.
-   - Pivot your strategy. If tool execution fails, look for an alternative tool. If native execution fails, pivot to Termux package management.
-
-3. WORKSPACE DEGRADATION AWARENESS:
-   - If standard tools (`unzip`, `python`, `java`) are missing or returning "Permission denied" / "I/O error", you are in a stripped-down Android environment (Toybox/Toolbox).
-   - Stop relying on standard Linux assumptions. Your highest priority becomes bootstrapping a proper Linux environment (Termux) before attempting complex reverse-engineering tasks.
-
-[RESTRICTED DIRECTORY ACCESS RULE]
-- If you need to access or modify files inside `/storage/emulated/0/Android/data` or `/Android/obb`, standard file readers will fail due to Android Scoped Storage.
-- ACTION: You MUST use the `privileged_tool` (Shizuku shell) using commands like `ls`, `cat`, and `cp` to interact with these specific directories.
-"""
-
-        /**
-         * Agent V2 execution framework:
-         * - Structured phases (Analyze → Implement → Verify → Report)
-         * - Stronger context continuity and decision logging
-         * - Intent-aware tool orchestration with safe parallelism
-         * - Mandatory self-validation and corrective retries
-         * - Pre-response quality gates
-         */
-        private const val AGENT_V2_EXECUTION_PROTOCOL = """
-
-## AGENT V2 EXECUTION FRAMEWORK (MANDATORY)
-Execute every task in four phases:
-1. ANALYZE: identify objective, constraints, and affected files/tools.
-2. IMPLEMENT: apply the smallest correct change set.
-3. VERIFY: run checks relevant to the change (build/tests/lint/command-output verification).
-4. REPORT: summarize exactly what changed and why.
-
-Rules:
-- Maintain continuity: track decisions, assumptions, and failed attempts within the same run.
-- Prefer intent-matched tools (e.g. file edits → file tools, runtime checks → terminal tools) and parallelize only independent, non-conflicting calls.
-- On verification failure, self-correct and retry with a different strategy before giving up.
-- Apply quality gates before final answer: no unresolved errors, no unverified claims, and no changes beyond the stated objective.
-"""
-
-        /**
-         * Autonomous memory management directive injected into every system prompt.
-         * Instructs the agent to behave like MemGPT — proactively reading and writing
-         * long-term memory without waiting for explicit user instructions.
-         */
-        private const val MEMORY_DIRECTIVE = """
-
-## Autonomous Memory Management (MANDATORY)
-You have long-term memory tools. You MUST use them autonomously — do NOT wait for the user to tell you to save or search.
-
-RULES:
-1. SEARCH FIRST: At the start of any task, call `search_knowledge` to retrieve any relevant context before acting.
-2. SAVE PROACTIVELY: Whenever the user mentions a preference, a project rule, an architecture decision, or any fact that will be useful in future sessions, IMMEDIATELY call `remember_fact` to store it.
-3. UPDATE STALE FACTS: If a stored memory (shown in the injected context above) is now outdated or incorrect, call `update_memory` with its ID to correct it.
-4. DELETE IRRELEVANT FACTS: If a stored memory is no longer relevant, call `delete_memory` with its ID.
-5. NEVER HALLUCINATE ACTIONS: If you call `remember_fact` or `delete_memory`, you MUST actually call the tool — do not just say you will do it.
-"""
-
-        /**
-         * Tool Directory — the "Soul Layer 3" strict routing rules.
-         * Prevents the agent from using codebase/file tools for OS/device tasks.
-         * Injected after the base persona and memory directives.
-         */
-        private const val TOOL_DIRECTORY = """
-
-## CRITICAL: Tool Routing Directory (READ THIS BEFORE EVERY ACTION)
-You are an AI with two categories of tools. Routing to the wrong category is a CRITICAL FAILURE.
-
-### CATEGORY A — OS / DEVICE TOOLS (use for anything device or system related):
-| Task | Correct Tool |
-|------|-------------|
-| Search/find a contact by name | `search_contacts` |
-| Make a phone call | `communicate_tool` (method=call) — MUST use `search_contacts` first if you only have a name |
-| Send an SMS | `communicate_tool` (method=sms) |
-| Toggle WiFi / Bluetooth / Location / Mobile Data | `hardware_toggle_tool` |
-| Open / launch an app | `app_manager_tool` (action=launch_app) |
-| Clone/replicate an app UI into code (YouTube-like, etc.) | `ui_replica_pipeline` (action=orchestrate_replica) — PREFERRED integrated flow |
-| Read the device screen / UI elements | `semantic_ui` (action=dump_tree) — PREFERRED, returns semantic node IDs |
-| Tap a button on screen | `semantic_ui` (action=click, node_id=N3) — PREFERRED semantic click |
-| Force-tap (bypass app restrictions) | `semantic_ui` (action=force_click, node_id=N3) — Shizuku hardware tap |
-| Swipe on screen | `ui_automation` (action=swipe) — coordinate-based fallback |
-| Type text into an app | `semantic_ui` (action=type, node_id=N2, text="hello") — PREFERRED |
-| Scroll a list or page | `semantic_ui` (action=scroll, direction=forward) |
-| Press back / home / enter key | `semantic_ui` (action=back) or `ui_automation` (action=press_key) |
-| Long-press an element | `semantic_ui` (action=long_click, node_id=N5) |
-| Force long-press (hardware) | `semantic_ui` (action=force_long_click, node_id=N5) — Shizuku |
-| Tap at raw pixel coordinates (fallback) | `semantic_ui` (action=tap_xy, x=540, y=960) or `ui_automation` (action=tap) |
-| Auto-enable accessibility service | `semantic_ui` (action=auto_enable) — uses Shizuku |
-| Set an alarm or calendar event | `planner_tool` |
-| Get GPS location | `get_current_location` |
-| Get device info (battery, storage) | `get_device_info` |
-| Read system notifications | `read_notifications` |
-| Force-stop / list apps | `app_manager_tool` |
-| Read call history / search calls | `call_log_tool` |
-| Read SMS inbox / sent / search | `sms_reader_tool` |
-| Take a screenshot | `screenshot_tool` |
-| Read or change system settings (brightness, timeout, etc.) | `system_settings_tool` |
-| Install / uninstall APK packages | `package_installer_tool` |
-| Run advanced root/system commands (dumpsys, getprop, wm, etc.) | `root_shell_tool` |
-| Reverse-engineer an app (activities, deep links, services) | `app_manifest_analyzer` (target_package="com.whatsapp") |
-| Store a fact in semantic vector memory | `vector_store` (content="user prefers dark mode") |
-| Search semantic memory by meaning | `vector_search` (query="user's UI preferences") |
-| Find similar memories | `vector_similar` (id=42) |
-| Read a web page / article / documentation | `web_scraper` (url="https://...") — converts HTML to clean Markdown |
-| Navigate headless browser to a dynamic page | `browser_navigate` (url="https://...") — loads with JS execution |
-| Execute JavaScript on a loaded page | `browser_execute_js` (js_code="document.querySelector(...)") |
-| Read current page DOM text | `browser_get_dom` — text snapshot of browser content |
-| Recursive grep search across filesystem | `grep_search` (directory="/sdcard", pattern="TODO") — root access |
-| Find files by pattern/size/date | `find_files` (directory="/data", name_pattern="*.db") — root access |
-| Change file permissions (chmod/chown) | `file_permissions` (path="/data/file", action="chmod", value="755") |
-| Analyze disk usage | `disk_usage` (path="/sdcard") — shows directory sizes |
-| Create/extract archives (tar/zip) | `archive_tool` (action="create", archive_path="...", target_path="...") |
-
-### CATEGORY B — CODEBASE TOOLS (use ONLY for coding tasks in the project files):
-`read_file_lines`, `search_codebase`, `patch_file_content`, `create_file`, `delete_file`, `run_terminal`, `web_search`
-
-### THE GOLDEN RULE:
-**NEVER use `search_codebase` or `run_terminal` for OS tasks like contacts, calls, toggles, SMS, call log, screenshots, system settings, or screen interaction.**
-**ALWAYS use Category A tools for any request involving device state, hardware, screen, personal data, or system commands.**
-**For "replicate UI into code" requests, use `ui_replica_pipeline` first (orchestrate_replica / capture_reference / validate_code) before manually chaining multiple lower-level tools.**
-**PREFER `semantic_ui` over `ui_automation` for ALL screen interaction. Use `dump_tree` first to get node IDs, then `click`/`type`/`scroll` by ID. Only fall back to `ui_automation` (X/Y coordinates) when semantic_ui is unavailable.**
-**Use `force_click` / `force_long_click` when a normal `click` fails — these use Shizuku hardware taps that bypass app restrictions.**
-**Use `app_manifest_analyzer` to reverse-engineer any app's entry points before attempting `am start` commands.**
-**Use `vector_store` and `vector_search` for semantic RAG memory — these understand meaning, not just exact keywords.**
-**Use `web_scraper` to read web pages and convert them to clean Markdown for deep research.**
-**Use `browser_navigate` + `browser_execute_js` for dynamic/SPA pages that require JavaScript execution.**
-**Use `grep_search` and `find_files` for filesystem-wide searches with root access (not limited to project scope).**
-"""
-
-        /** Number of extra retry attempts reserved exclusively for 429 rate-limit responses. */
         private const val RATE_LIMIT_MAX_RETRIES = 4
-
-        /** Base delay (ms) per rate-limit retry attempt; multiplied linearly by attempt number. */
         private const val RATE_LIMIT_BASE_DELAY_MS = 15_000L
-
-        /** Hard cap on the delay applied between rate-limit retries (60 s). */
         private const val RATE_LIMIT_MAX_DELAY_MS = 60_000L
+        private const val CRITIC_MIN_REMAINING_BUDGET = 6_000
+        private const val CRITIC_MAX_OUTPUT_TOKENS = 2_048
+        private const val CRITIC_MAX_DRAFT_CHARS = 24_000
 
-        /**
-         * Minimum pause between consecutive LLM API calls inside the ReAct loop.
-         * Prevents burst-firing requests when tools resolve instantly (e.g. file reads)
-         * and helps stay within rate-limit windows on free-tier providers (e.g. GitHub Models).
-         * Tier-specific overrides are applied at runtime — see [interCallDelayFor].
-         */
-        private const val INTER_CALL_DELAY_MS = 500L
-
-        /**
-         * Critic system prompt used during the self-reflection pass.
-         * Instructs a lightweight evaluator to check the draft answer for completeness,
-         * correctness, and relevance — and either approve it or suggest specific improvements.
-         */
         private const val CRITIC_SYSTEM_PROMPT = """
-You are a precise and demanding quality reviewer for AI agent responses.
-
-Your task is to critically evaluate the draft answer below against the original user request.
-
-Evaluation criteria:
-1. **Completeness** — Does it fully address every part of the user's request?
-2. **Accuracy** — Are all statements, code snippets, and commands correct and verifiable?
-3. **Clarity** — Is it well-structured, easy to follow, and free of ambiguity?
-4. **Actionability** — Are the next steps clear and immediately executable?
-5. **Conciseness** — Does it avoid unnecessary verbosity or repetition?
-
-Respond in this exact format:
+Review the draft only for substantive incompleteness, incorrect claims, missing failure disclosure, or missing verification.
+Return exactly:
 VERDICT: APPROVED | NEEDS_IMPROVEMENT
-ISSUES: <comma-separated list of specific issues, or "none" if approved>
-IMPROVED_ANSWER: <the improved answer text, or the exact original if approved>
-
-Rules:
-- If the answer is already excellent, output VERDICT: APPROVED and repeat the original answer verbatim under IMPROVED_ANSWER.
-- Only output VERDICT: NEEDS_IMPROVEMENT when there are clear, substantive gaps — not stylistic preferences.
-- The IMPROVED_ANSWER must be a complete standalone response, not a diff or patch.
-- Do NOT use tools. Your job is review and rewrite only.
+IMPROVED_ANSWER: <complete answer>
+Do not use tools. Do not rewrite merely for style.
 """
 
-        /**
-         * Returns the appropriate inter-call delay for [tier].
-         * FAST models are high-throughput (600+ t/s) and typically run on providers
-         * with generous rate limits, so they need a much shorter pause.
-         * ORCHESTRATOR models (reasoning/frontier) are slower to respond, so the
-         * existing 500 ms buffer is fine.
-         */
         private fun interCallDelayFor(tier: ModelTier): Long = when (tier) {
             ModelTier.FAST -> 100L
             ModelTier.EXECUTOR -> 250L
-            ModelTier.ORCHESTRATOR -> INTER_CALL_DELAY_MS
+            ModelTier.ORCHESTRATOR -> 500L
         }
-
-        /**
-         * Abort if semantic_ui(dump_tree) is called this many consecutive iterations
-         * without any action (click/type/tap/scroll) — the agent is stuck inspecting.
-         */
-        private const val NO_PROGRESS_THRESHOLD = 3
     }
 
-    /**
-     * Executes the full ReAct loop for a given user prompt.
-     *
-     * @param userMessage The user's original request.
-     * @param conversationHistory Prior messages in the conversation (for context).
-     * @param modelId The AI model ID to use (from the Agent role assignment).
-     * @param scopePath The active Target Context directory path.
-     * @param enableDeepThinking Whether to inject extended thinking prompts.
-     * @param userAttachments Optional image attachments to include in the first user message.
-     *        Should contain [AttachmentMeta] with [AttachmentMeta.base64Data] populated.
-     * @param customSystemPrompt When non-null, overrides the default tier-based system prompt.
-     *        This allows users to inject custom personas via the System Prompt Studio.
-     * @param workerPersona When non-null and non-blank, prepended to the tier-based system prompt
-     *        to give this agent instance a dynamic role (e.g. "Senior Web Researcher").
-     *        Used by the SwarmOrchestrator to assign domain-specific personas to workers.
-     * @return A [Flow] of [AgentEvent]s representing the agent's progress.
-     */
     fun execute(
         userMessage: String,
         conversationHistory: List<ChatMessage> = emptyList(),
@@ -585,610 +122,493 @@ Rules:
         customSystemPrompt: String? = null,
         workerPersona: String? = null,
         userContext: String? = null,
-        /** Tool names to exclude from this run (e.g. disabled via ChatSettings). */
         disabledToolNames: Set<String> = emptySet(),
-        /**
-         * Controls how tools are surfaced to the LLM.
-         * - "AUTO" / "ALWAYS_AVAILABLE" — tools listed in system prompt (default behavior).
-         * - "ON_DEMAND" — tools registered as API function calls but NOT described in the system
-         *   prompt text; the model infers their availability from the function schema only.
-         */
         toolAccessMode: String = "AUTO"
     ): Flow<AgentEvent> = channelFlow {
-        val smartLearningBridge = this@AgentPipeline.smartLearningBridge?.forkForRun()
-        send(AgentEvent.Started)
+        val brain = smartLearningBridge?.forkForRun()
+        val startedAt = System.currentTimeMillis()
         var activePhase: AgentExecutionPhase? = null
-        suspend fun transitionPhase(phase: AgentExecutionPhase, detail: String? = null) {
-            if (activePhase != phase) {
-                activePhase = phase
-                send(AgentEvent.PhaseChanged(phase = phase, detail = detail))
+
+        suspend fun phase(next: AgentExecutionPhase, detail: String? = null) {
+            if (activePhase != next) {
+                activePhase = next
+                send(AgentEvent.PhaseChanged(next, detail))
             }
         }
-        transitionPhase(
-            AgentExecutionPhase.ANALYZE,
-            "Reviewing request, context, and constraints"
+
+        send(AgentEvent.Started)
+        phase(AgentExecutionPhase.ANALYZE, "Reviewing objective, context and constraints")
+        brain?.onTaskStart(userMessage)
+        try {
+            analyticsRepository?.recordAgentRun(isSwarm = false)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Optional analytics.
+        }
+
+        val model = ModelRegistry.findModelById(modelId) ?: ModelRegistry.getModelById(modelId)
+        val resolvedApiKey = apiKeyRepository?.getApiKey(model.provider)
+
+        val relevantDomains = IntentClassifier.getRelevantDomains(userMessage)
+        val localTools = toolManager.getToolDefinitions()
+            .asSequence()
+            .filter { it.name !in disabledToolNames }
+            .filter { IntentClassifier.getToolDomain(it.name) in relevantDomains }
+            .toList()
+        val mcpTools = try {
+            mcpRegistry?.fetchAllAvailableTools().orEmpty()
+        } catch (_: Exception) {
+            emptyList()
+        }
+        val toolDefs = (localTools + mcpTools)
+            .distinctBy { it.name }
+            .take(MAX_TOOLS_PER_REQUEST)
+
+        brain?.registerTools(toolDefs)
+
+        val memoryContext = try {
+            memoryManager?.buildKnowledgeContext()
+        } catch (_: Exception) {
+            null
+        }
+        val brainContext = try {
+            brain?.buildFullContextEnrichment()
+        } catch (_: Exception) {
+            null
+        }
+
+        val systemPrompt = AgentPromptCompiler.compile(
+            tier = model.tier,
+            scopePath = scopePath,
+            baseOverride = customSystemPrompt,
+            workerPersona = workerPersona,
+            userContext = userContext,
+            memoryContext = memoryContext,
+            brainContext = brainContext,
+            toolDefinitions = toolDefs,
+            toolAccessMode = toolAccessMode,
+            enableDeepThinking = enableDeepThinking,
+            supportsThinking = model.supportsThinking
         )
 
-        // ═══════════════════════════════════════════════════════════════
-        // 🧠 Agent Brain 2.0 — تسجيل بداية المهمة (لربط episodic memory)
-        // ═══════════════════════════════════════════════════════════════
-        smartLearningBridge?.onTaskStart(userMessage)
-        try { analyticsRepository?.recordAgentRun(isSwarm = false) }
-        catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { /* Optional telemetry. */ }
-
-        val model = ModelRegistry.findModelById(modelId)
-            ?: ModelRegistry.getModelById(modelId)
-
-        // Select tier-appropriate system prompt, or use the custom override
-        val baseSystemPrompt = customSystemPrompt?.takeIf { it.isNotBlank() }
-            ?: when (model.tier) {
-                ModelTier.ORCHESTRATOR -> ORCHESTRATOR_SYSTEM_PROMPT
-                ModelTier.EXECUTOR -> EXECUTOR_SYSTEM_PROMPT
-                ModelTier.FAST -> FAST_SYSTEM_PROMPT
-            }
-
-        // If a specific worker persona is assigned (e.g. by the SwarmOrchestrator), prepend it
-        // so the agent adopts the correct domain role before applying operational rules.
-        val effectiveBasePrompt = if (!workerPersona.isNullOrBlank()) {
-            "You are $workerPersona.\n\n${baseSystemPrompt.trimIndent()}"
-        } else {
-            baseSystemPrompt.trimIndent()
-        }
-
-        // Build the complete system prompt with tool definitions
-        // Predict the user's intent to lazily inject tools and reduce prompt payload.
-        val relevantDomains = IntentClassifier.getRelevantDomains(userMessage)
-        val localToolDefs = toolManager.getToolDefinitions()
-            .filter { it.name !in disabledToolNames }
-            .filter { def -> IntentClassifier.getToolDomain(def.name) in relevantDomains }
-        val mcpTools = try { mcpRegistry?.fetchAllAvailableTools() ?: emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() } catch(e: Exception) { emptyList<com.omnidev.workspace.data.tools.ToolDefinition>() }
-        val toolDefs = localToolDefs + mcpTools
-        // Register tool definitions with the brain so it is aware of all available capabilities
-        smartLearningBridge?.registerTools(toolDefs)
-        val toolSchemaText = "\n[DYNAMIC MCP TOOLS AWARENESS]\n- You are equipped with a dynamic Model Context Protocol (MCP) client.\n- In addition to your local Android terminal tools, you may see tools prefixed with `mcp_` in your tool list. \n- These are remote tools provided by the user's connected services (e.g., GitHub, Render, Custom APIs).\n- Treat these `mcp_` tools exactly like local tools. If a task requires cloud infrastructure, repo management, or external data, prioritize checking your available MCP tools.\n" + "\n" + toolDefs.joinToString("\n\n") { tool ->
-            buildString {
-                appendLine("### Tool: ${tool.name}")
-                appendLine(tool.description)
-                appendLine("Parameters:")
-                tool.parameters.forEach { param ->
-                    val reqTag = if (param.required) " (required)" else " (optional)"
-                    appendLine("  - ${param.name}: ${param.type}$reqTag — ${param.description}")
-                }
-            }
-        }
-
-        // Compute brain context enrichment outside buildString (it's a suspend call)
-        val brainContext = try {
-            smartLearningBridge?.buildFullContextEnrichment() ?: ""
-        } catch (_: Exception) { "" }
-
-        val systemPrompt = buildString {
-            append(effectiveBasePrompt)
-            append(AGENT_IDENTITY_CONTEXT)
-            // User context — personalise advice/style to the specific person if provided
-            if (!userContext.isNullOrBlank()) {
-                appendLine()
-                appendLine()
-                appendLine("## User Context")
-                appendLine("The person you are helping has shared the following about themselves:")
-                appendLine(userContext.trim())
-                appendLine("Tailor your explanations, code examples, and tone to match their background.")
-            }
-            // Anti-lecture directive — always injected first; prevents the agent from
-            // refusing tasks or lecturing the user about missing Android permissions.
-            append(ANTI_LECTURE_DIRECTIVE)
-            // Self-verification directive — forces the agent to verify results, check exit codes,
-            // and read back changes instead of blindly assuming success.
-            append(SELF_VERIFY_DIRECTIVE)
-            // Dynamic bootstrapping directive — forces autonomous dependency provisioning
-            // instead of repeated environment probing loops.
-            append(DYNAMIC_BOOTSTRAP_DIRECTIVE)
-            // Agent V2 execution framework — phased execution + orchestration + quality gates.
-            append(AGENT_V2_EXECUTION_PROTOCOL)
-            // Autonomous memory directive — always injected so the agent proactively manages memory
-            if (memoryManager != null) {
-                append(MEMORY_DIRECTIVE.trimIndent())
-            }
-            // Context hydration — inject long-term knowledge before the first iteration
-            memoryManager?.buildKnowledgeContext()?.let { knowledge ->
-                appendLine()
-                append(knowledge)
-            }
-            // ═══════════════════════════════════════════════════════════════
-            // 🧠 SMART LEARNING BRIDGE CONTEXT INJECTION
-            // يحقن وعي الأدوات + ذاكرة التنفيذ + أفضل الممارسات المكتسبة
-            // هذا ما يجعل الـ Agent يتصرف كـ Claude Code / GitHub Copilot Agent
-            // ═══════════════════════════════════════════════════════════════
-            if (brainContext.isNotBlank()) {
-                appendLine()
-                append(brainContext)
-            }
-            // Tool routing directory — prevents hallucinated use of codebase tools for OS tasks
-            append(TOOL_DIRECTORY.trimIndent())
-            appendLine()
-            appendLine()
-            appendLine("## Scope & Path Context")
-            appendLine("Your active Target Context (working directory root) is: `$scopePath`")
-            appendLine("Use this absolute path as the prefix for all file tool arguments.")
-            appendLine("If the user references this path directly, it maps to your scope root `/`.")
-            appendLine("Accepted formats for file paths:")
-            appendLine("  • Full absolute path: `$scopePath/app/src/main/AndroidManifest.xml`")
-            appendLine("  • Bare relative path (no leading /): `app/src/main/AndroidManifest.xml` (auto-prefixed)")
-            appendLine()
-            // For ON_DEMAND mode: skip the verbose per-tool schema injection so the system prompt
-            // is lighter.  The model still has full function-call access via the API `tools` array.
-            if (toolAccessMode != "ON_DEMAND") {
-                appendLine("## Available Tools")
-                appendLine(toolSchemaText)
-            }
-            if (enableDeepThinking && model.supportsThinking) {
-                append(DEEP_THINKING_SUFFIX.trimIndent())
-            }
-        }
-
-        // Initialize the conversation
         val messages = mutableListOf<ChatMessage>().apply {
             addAll(conversationHistory)
-            add(ChatMessage(
-                role = MessageRole.USER,
-                content = userMessage,
-                attachments = userAttachments
-            ))
+            add(
+                ChatMessage(
+                    role = MessageRole.USER,
+                    content = userMessage,
+                    attachments = userAttachments
+                )
+            )
         }
-
-        // Resolve the API key for this model's provider (injected into every request)
-        val resolvedApiKey: String? = apiKeyRepository?.getApiKey(model.provider)
 
         var iteration = 0
         var totalTokensUsed = 0
+        val repetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
+        val stagnationDetector = AgentStagnationDetector(
+            windowSize = 8,
+            minIterationsBeforeAbort = 3,
+            abortThreshold = 0.76f
+        )
 
-        // Wall-clock start time for timeout enforcement
-        val startTimeMs = System.currentTimeMillis()
-
-        // Loop-detection: tracks how many times each identical tool call has appeared.
-        // Key = "toolName:sortedArgs" fingerprint; value = occurrence count.
-        val toolRepetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
-
-        // No-progress detection: counts consecutive iterations where the agent only called
-        // read-only / observation tools (e.g. dump_tree, read_file, search) without taking
-        // any write/action tool. 3+ read-only-only iterations = agent is stuck inspecting.
-        var consecutiveReadOnlyIterations = 0
-
-        // ── ReAct Loop ──
         while (iteration < config.maxIterations) {
             iteration++
-            // Agent Brain 2.0 — تتبّع iterations الحالية لتسجيل episode دقيق
-            smartLearningBridge?.onIterationStart()
+            brain?.onIterationStart()
 
-            // ── Wall-clock timeout check ──
             config.maxExecutionTimeMs?.let { timeoutMs ->
-                if (System.currentTimeMillis() - startTimeMs >= timeoutMs) {
-                    smartLearningBridge?.onTaskEnd(
-                        outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.ABANDONED,
-                        finalSummary = "wall-clock timeout after ${timeoutMs / 1_000}s"
+                if (System.currentTimeMillis() - startedAt >= timeoutMs) {
+                    brain?.onTaskEnd(
+                        EpisodeOutcome.ABANDONED,
+                        "wall-clock timeout after ${timeoutMs / 1_000}s"
                     )
-                    send(AgentEvent.Error(
-                        "Agent execution timed out after ${timeoutMs / 1_000}s. " +
-                        "Use the ⏹ stop button to cancel a run at any time."
-                    ))
+                    send(
+                        AgentEvent.Error(
+                            "Agent execution timed out after ${timeoutMs / 1_000}s."
+                        )
+                    )
                     return@channelFlow
                 }
             }
 
-            // Brief pause between iterations to avoid bursting free-tier rate limits
-            // (e.g. GitHub Models / Azure inference). Skipped on the very first call.
-            // Delay scales with model tier: FAST=100ms, EXECUTOR=250ms, ORCHESTRATOR=500ms.
-            if (iteration > 1) delay(interCallDelayFor(model.tier))
-            send(AgentEvent.Thinking(iteration = iteration))
-
-            // Token budget enforcement
             if (config.tokenBudget != null && totalTokensUsed >= config.tokenBudget) {
-                smartLearningBridge?.onTaskEnd(
-                    outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.ABANDONED,
-                    finalSummary = "token budget exhausted after $iteration iterations"
+                brain?.onTaskEnd(
+                    EpisodeOutcome.ABANDONED,
+                    "token budget exhausted after $iteration iterations"
                 )
-                send(AgentEvent.Error(
-                    "Token budget of ${config.tokenBudget} tokens exhausted after $iteration iterations."
-                ))
+                send(
+                    AgentEvent.Error(
+                        "Token budget of ${config.tokenBudget} tokens exhausted after $iteration iterations."
+                    )
+                )
                 return@channelFlow
             }
 
-            val effectiveSystemPrompt = systemPrompt
+            if (iteration > 1) delay(interCallDelayFor(model.tier))
+            send(AgentEvent.Thinking(iteration))
+
             val outputBudget = minOf(model.maxOutputTokens, 8_192)
-            val inputBudget = (model.contextWindow - outputBudget -
-                config.contextWindowBuffer - systemPrompt.length / 2 -
-                toolDefs.take(MAX_TOOLS_PER_REQUEST).sumOf { it.toString().length } / 2)
+            val schemaEstimate = toolDefs.sumOf { it.toString().length } / 2
+            val inputBudget = model.contextWindow - outputBudget - config.contextWindowBuffer -
+                systemPrompt.length / 2 - schemaEstimate
             if (inputBudget <= 0) {
-                send(AgentEvent.Error("System instructions and tool definitions exceed this model's context window. " +
-                    "Disable unused tools or choose a larger-context model."))
-                return@channelFlow
-            }
-            if (config.enableMemoryTrimming) {
-                ContextCompressor.checkAndCompact(messages, inputBudget, modelId,
-                    completionProvider, resolvedApiKey) { send(it) }
-            }
-            val trimmedMessages = if (config.enableMemoryTrimming) {
-                ContextCompressor.trim(messages, inputBudget)
-            } else messages.toList()
-            if (trimmedMessages.sumOf(ContextCompressor::estimatedTokens) > inputBudget) {
-                send(AgentEvent.Error("The latest message or tool result exceeds this model's context window. " +
-                    "Use a larger-context model or a smaller input."))
+                brain?.onTaskEnd(EpisodeOutcome.FAILURE, "system/tool schema exceeds context window")
+                send(
+                    AgentEvent.Error(
+                        "System instructions and tool definitions exceed this model's context window."
+                    )
+                )
                 return@channelFlow
             }
 
-            if (toolDefs.size > MAX_TOOLS_PER_REQUEST) {
-                android.util.Log.w("AgentPipeline", "Tool list truncated from ${toolDefs.size} to $MAX_TOOLS_PER_REQUEST; ${toolDefs.size - MAX_TOOLS_PER_REQUEST} MCP tools dropped to stay within API limit")
+            if (config.enableMemoryTrimming) {
+                ContextCompressor.checkAndCompact(
+                    messages = messages,
+                    tokenBudget = inputBudget,
+                    modelId = modelId,
+                    completionProvider = completionProvider,
+                    apiKey = resolvedApiKey
+                ) { send(it) }
+            }
+            val requestMessages = if (config.enableMemoryTrimming) {
+                ContextCompressor.trim(messages, inputBudget)
+            } else {
+                messages.toList()
+            }
+            if (requestMessages.sumOf(ContextCompressor::estimatedTokens) > inputBudget) {
+                brain?.onTaskEnd(EpisodeOutcome.FAILURE, "latest context still exceeds input budget")
+                send(
+                    AgentEvent.Error(
+                        "The latest message/tool result exceeds this model's context window."
+                    )
+                )
+                return@channelFlow
             }
 
             val request = CompletionRequest(
                 modelId = modelId,
-                messages = trimmedMessages,
-                systemPrompt = effectiveSystemPrompt,
+                messages = requestMessages,
+                systemPrompt = systemPrompt,
                 maxTokens = outputBudget,
                 enableThinking = enableDeepThinking && model.supportsThinking,
                 targetContext = scopePath,
                 apiKey = resolvedApiKey,
-                tools = toolDefs.take(MAX_TOOLS_PER_REQUEST),
+                tools = toolDefs,
                 onReasoning = { send(AgentEvent.ThinkingBlock(it)) }
             )
 
-            // ── API call with retry/backoff ──
-            val response = callWithRetry(request, iteration,
-                onStreamChunk = { delta -> send(AgentEvent.StreamChunk(delta)) }
-            ) { errorMsg ->
-                smartLearningBridge?.onTaskEnd(
-                    outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.FAILURE,
-                    finalSummary = "API failure: ${errorMsg.take(200)}"
-                )
-                send(AgentEvent.Error(errorMsg))
-            } ?: return@channelFlow
+            val response = callWithRetry(
+                request = request,
+                iteration = iteration,
+                onStreamChunk = { send(AgentEvent.StreamChunk(it)) },
+                onFatalError = { error ->
+                    val outcome = if (isInfrastructureError(error)) EpisodeOutcome.BLOCKED
+                    else EpisodeOutcome.FAILURE
+                    brain?.onTaskEnd(outcome, "API/runtime failure: ${error.take(240)}")
+                    send(AgentEvent.Error(error))
+                }
+            ) ?: return@channelFlow
 
-            // Track token usage
             response.tokensUsed?.let { usage ->
                 totalTokensUsed += usage.totalTokens
-                send(AgentEvent.TokenUsageUpdate(
-                    iterationTokens = usage.totalTokens,
-                    totalTokens = totalTokensUsed,
-                    budget = config.tokenBudget
-                ))
-            }
-
-            // ── Emit thinking content if present ──
-            response.thinkingContent?.takeIf { streamingCompletionProvider == null }?.let { thinking ->
-                send(AgentEvent.ThinkingBlock(thinking))
-            }
-
-            // ── No tool calls → Final answer ──
-            if (response.toolCalls.isEmpty()) {
-                transitionPhase(
-                    AgentExecutionPhase.VERIFY,
-                    "Validating completeness before final response"
+                send(
+                    AgentEvent.TokenUsageUpdate(
+                        iterationTokens = usage.totalTokens,
+                        totalTokens = totalTokensUsed,
+                        budget = config.tokenBudget
+                    )
                 )
-                val assistantMessage = ChatMessage(
+            }
+
+            response.thinkingContent
+                ?.takeIf { streamingCompletionProvider == null }
+                ?.let { send(AgentEvent.ThinkingBlock(it)) }
+
+            if (response.toolCalls.isEmpty()) {
+                phase(AgentExecutionPhase.VERIFY, "Checking final completeness")
+                messages += ChatMessage(
                     role = MessageRole.ASSISTANT,
                     content = response.content,
                     thinkingContent = response.thinkingContent
                 )
-                messages.add(assistantMessage)
 
-                // ── Self-Reflection pass (optional) ──
-                // When enabled, run a lightweight critic pass that evaluates the draft
-                // answer and optionally rewrites it with targeted improvements.
-                val finalContent = if (config.enableSelfReflection && response.content.isNotBlank()) {
-                    send(AgentEvent.Reflecting(draftLength = response.content.length))
-                    val originalUserMessage = userMessage
-
-                    val criticPrompt = buildString {
-                        appendLine("**Original user request:**")
-                        appendLine(originalUserMessage)
-                        appendLine()
-                        appendLine("**Draft answer to review:**")
-                        appendLine(response.content)
-                    }
-
-                    val criticRequest = CompletionRequest(
-                        modelId = modelId,
-                        messages = listOf(
-                            ChatMessage(role = MessageRole.USER, content = criticPrompt)
-                        ),
-                        systemPrompt = CRITIC_SYSTEM_PROMPT.trimIndent(),
-                        maxTokens = minOf(model.maxOutputTokens, 8_192),
-                        enableThinking = false,
-                        targetContext = scopePath,
-                        apiKey = resolvedApiKey,
-                        tools = emptyList()
-                    )
-
-                    val criticResponse = try {
-                        callWithRetry(criticRequest, iteration + 1) { /* ignore critic errors */ }
-                    } catch (_: Exception) {
-                        null
-                    }
-
-                    criticResponse?.tokensUsed?.let { usage ->
-                        totalTokensUsed += usage.totalTokens
-                        send(AgentEvent.TokenUsageUpdate(
-                            iterationTokens = usage.totalTokens,
-                            totalTokens = totalTokensUsed,
-                            budget = config.tokenBudget
-                        ))
-                    }
-
-                    val criticText = criticResponse?.content?.trim().orEmpty()
-                    val improvedAnswerMarker = "IMPROVED_ANSWER:"
-                    val verdictNeedsImprovement = criticText.contains("VERDICT: NEEDS_IMPROVEMENT", ignoreCase = true)
-
-                    if (verdictNeedsImprovement) {
-                        val improvedIdx = criticText.indexOf(improvedAnswerMarker, ignoreCase = true)
-                        if (improvedIdx >= 0) {
-                            criticText.substring(improvedIdx + improvedAnswerMarker.length).trim()
-                                .takeIf { it.isNotBlank() } ?: response.content
-                        } else {
-                            response.content
-                        }
-                    } else {
-                        // APPROVED or unparseable response — use original answer unchanged
-                        response.content
-                    }
-                } else {
-                    response.content
-                }
-
-                transitionPhase(
-                    AgentExecutionPhase.REPORT,
-                    "Publishing final answer"
-                )
-                // Agent Brain 2.0 — تسجيل episode كامل للنجاح
-                smartLearningBridge?.onTaskEnd(
-                    outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.SUCCESS,
-                    finalSummary = finalContent.take(500)
-                )
-                send(AgentEvent.FinalAnswer(
-                    content = finalContent,
-                    totalIterations = iteration,
+                val finalContent = maybeCritique(
+                    draft = response.content,
+                    originalUserMessage = userMessage,
+                    modelId = modelId,
+                    modelMaxOutputTokens = model.maxOutputTokens,
+                    scopePath = scopePath,
+                    apiKey = resolvedApiKey,
                     totalTokensUsed = totalTokensUsed,
-                    conversationHistory = messages.toList()
-                ))
+                    onUsage = { used ->
+                        totalTokensUsed += used
+                        send(
+                            AgentEvent.TokenUsageUpdate(
+                                iterationTokens = used,
+                                totalTokens = totalTokensUsed,
+                                budget = config.tokenBudget
+                            )
+                        )
+                    },
+                    onReflecting = { send(AgentEvent.Reflecting(it)) }
+                )
+
+                phase(AgentExecutionPhase.REPORT, "Publishing verified result")
+                brain?.onTaskEnd(EpisodeOutcome.SUCCESS, finalContent.take(500))
+                send(
+                    AgentEvent.FinalAnswer(
+                        content = finalContent,
+                        totalIterations = iteration,
+                        totalTokensUsed = totalTokensUsed,
+                        conversationHistory = messages.toList()
+                    )
+                )
                 return@channelFlow
             }
 
-            // ── Tool calls present → Execute and observe ──
-            transitionPhase(
-                AgentExecutionPhase.IMPLEMENT,
-                "Executing planned tool operations"
-            )
-            val assistantMessage = ChatMessage(
+            phase(AgentExecutionPhase.IMPLEMENT, "Executing planned tool operations")
+            messages += ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = response.content,
                 toolCalls = response.toolCalls,
                 thinkingContent = response.thinkingContent
             )
-            messages.add(assistantMessage)
 
-            val toolResults = mutableListOf<ToolCallResult>()
-
-            // ── Loop detection — check all fingerprints upfront (before any I/O) ──
-            for (toolCall in response.toolCalls) {
-                if (!toolRepetitionGuard.allow(toolCall.name, toolCall.arguments)) {
-                    smartLearningBridge?.onTaskEnd(
-                        outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.ABANDONED,
-                        finalSummary = "Repeated identical tool call limit reached: ${toolCall.name}"
+            for (call in response.toolCalls) {
+                if (!repetitionGuard.allow(call.name, call.arguments)) {
+                    brain?.onTaskEnd(
+                        EpisodeOutcome.ABANDONED,
+                        "semantic duplicate tool-call limit reached: ${call.name}"
                     )
-                    send(AgentEvent.Error(
-                        "Stopped: ${toolCall.name} repeated with identical arguments more than " +
-                            "${config.maxRepeatedToolCalls} times. No tools from this batch were executed."
-                    ))
+                    send(
+                        AgentEvent.Error(
+                            "Agent no-progress loop detected: ${call.name} repeated with equivalent arguments more than ${config.maxRepeatedToolCalls} times."
+                        )
+                    )
                     return@channelFlow
                 }
             }
 
-            // Emit ToolExecution events for all calls (before we start executing them)
-            for (toolCall in response.toolCalls) {
-                send(AgentEvent.ToolExecution(
-                    toolName = toolCall.name,
-                    arguments = toolCall.arguments,
-                    iteration = iteration
-                ))
-                // سجّل وقت بداية التنفيذ بمعرف فريد لكل استدعاء (لدعم التوازي)
-                smartLearningBridge?.onToolExecutionStart(toolCall.name, callId = toolCall.id)
+            response.toolCalls.forEach { call ->
+                send(AgentEvent.ToolExecution(call.name, call.arguments, iteration))
+                brain?.onToolExecutionStart(call.name, call.id)
             }
 
-            suspend fun executeTrackedTool(call: com.omnidev.workspace.data.model.ToolCall): com.omnidev.workspace.data.tools.ToolExecutionResult {
-                val started = System.nanoTime()
-                val result = if (call.name.startsWith("mcp_")) {
-                    val output = mcpRegistry?.executeMcpTool(call.name, call.arguments) ?: "Error: MCP Registry not configured"
-                    com.omnidev.workspace.data.tools.ToolExecutionResult(output, isError = output.startsWith("Error", true))
-                } else toolManager.executeTool(call.name, call.arguments, scopePath)
-                try {
-                    analyticsRepository?.recordToolUsage(call.name, !result.isError, (System.nanoTime() - started) / 1_000_000)
-                } catch (cancelled: CancellationException) { throw cancelled }
-                catch (_: Exception) { /* Telemetry must not break tool execution. */ }
-                return result
-            }
+            val rawResults = executeToolBatch(
+                calls = response.toolCalls,
+                scopePath = scopePath,
+                allowParallel = config.enableParallelToolExecution
+            )
 
-            // ── Execute tools: parallel when enabled and >1 call, sequential otherwise ──
-            val rawResults: List<com.omnidev.workspace.data.tools.ToolExecutionResult> =
-                if (config.enableParallelToolExecution && response.toolCalls.size > 1) {
-                    // Run all tool calls concurrently. coroutineScope propagates cancellation
-                    // cleanly — if the parent Flow is cancelled mid-flight, all async blocks
-                    // are cancelled immediately.
-                    coroutineScope {
-                        response.toolCalls.map { toolCall ->
-                            async {
-                                val result = toolOrchestrator.executeTool(
-                                    toolName = toolCall.name,
-                                    cacheKey = null,
-                                    timeoutMs = config.toolExecutionTimeoutMs,
-                                    maxRetries = config.toolExecutionMaxRetries,
-                                    baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs
-                                ) {
-                                    executeTrackedTool(toolCall)
-                                }
-                                if (result.isSuccess) {
-                                    result.getOrThrow()
-                                } else {
-                                    com.omnidev.workspace.data.tools.ToolExecutionResult(
-                                        output = result.exceptionOrNull()?.message ?: "Tool execution failed",
-                                        isError = true
-                                    )
-                                }
-                            }
-                        }.awaitAll()
-                    }
-                } else {
-                    // Sequential fallback for single calls or when parallel is disabled
-                    response.toolCalls.map { toolCall ->
-                        val result = toolOrchestrator.executeTool(
-                            toolName = toolCall.name,
-                            cacheKey = null,
-                            timeoutMs = config.toolExecutionTimeoutMs,
-                            maxRetries = config.toolExecutionMaxRetries,
-                            baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs
-                        ) {
-                            executeTrackedTool(toolCall)
-                        }
-                        if (result.isSuccess) {
-                            result.getOrThrow()
-                        } else {
-                            com.omnidev.workspace.data.tools.ToolExecutionResult(
-                                output = result.exceptionOrNull()?.message ?: "Tool execution failed",
-                                isError = true
-                            )
-                        }
-                    }
-                }
-
-            // Collect results in original toolCall order, emit ToolResult events
-            for ((toolCall, result) in response.toolCalls.zip(rawResults)) {
-                val toolCallResult = ToolCallResult(
-                    toolCallId = toolCall.id,
-                    toolName = toolCall.name,
+            val toolResults = mutableListOf<ToolCallResult>()
+            for ((call, result) in response.toolCalls.zip(rawResults)) {
+                val compactResult = ToolCallResult(
+                    toolCallId = call.id,
+                    toolName = call.name,
                     output = result.output,
                     isError = result.isError
                 )
-                toolResults.add(toolCallResult)
-
-                send(AgentEvent.ToolResult(
-                    toolName = toolCall.name,
-                    output = result.output,
-                    isError = result.isError,
-                    iteration = iteration
-                ))
-
-                // ═══════════════════════════════════════════════════════════════
-                // 🧠 SMART LEARNING HOOK — يتعلم من كل عملية تنفيذ
-                // يُرسل نتيجة التنفيذ لـ SmartLearningBridge لتحديث:
-                // - ToolExecutionJournal (الذاكرة الدائمة)
-                // - ToolAwarenessEngine (الوعي بالأدوات)
-                // - ToolIntelligenceEngine (التعلم بالتعزيز)
-                // - ToolMachineLearningEngine (التنبؤ)
-                // ═══════════════════════════════════════════════════════════════
-                smartLearningBridge?.let { bridge ->
-                    val redactedContext = userMessage.take(200)
-                        // Redact key=value / key: value style (headers, assignments)
-                        .replace(Regex("(?i)(key|token|secret|password|otp|bearer)[=:\\s]+\\S+"), "$1=[REDACTED]")
-                        // Redact JSON string values for sensitive keys
-                        .replace(Regex("(?i)\"(api_?key|token|secret|password|otp)\"\\s*:\\s*\"[^\"]+\""), "\"$1\":\"[REDACTED]\"")
-                        // Redact URL query params
-                        .replace(Regex("(?i)(key|token|secret|password|otp)=([^&\\s\"]+)"), "$1=[REDACTED]")
-                    bridge.onToolExecutionEnd(
-                        toolName = toolCall.name,
-                        parameters = toolCall.arguments,
-                        result = result,
-                        agentContext = redactedContext,
-                        callId = toolCall.id
+                toolResults += compactResult
+                send(
+                    AgentEvent.ToolResult(
+                        toolName = call.name,
+                        output = result.output,
+                        isError = result.isError,
+                        iteration = iteration
                     )
-                }
+                )
+
+                brain?.onToolExecutionEnd(
+                    toolName = call.name,
+                    parameters = call.arguments,
+                    result = result,
+                    agentContext = redact(userMessage.take(240)),
+                    callId = call.id
+                )
             }
 
-            // Add tool results as a TOOL message for the next iteration
-            val hasToolErrors = toolResults.any { it.isError }
+            // Rich, result-side no-progress detection. This replaces the old semantic_ui-only
+            // counter and sees every tool, result signature, failure classification and backend.
+            val stagnation = stagnationDetector.observe(response.toolCalls, rawResults)
+            if (stagnation.shouldAbort) {
+                val outcome = if (stagnation.kind == AgentStagnationDetector.Kind.INFRASTRUCTURE_BLOCK) {
+                    EpisodeOutcome.BLOCKED
+                } else {
+                    EpisodeOutcome.ABANDONED
+                }
+                brain?.onTaskEnd(
+                    outcome = outcome,
+                    finalSummary = buildString {
+                        append("stagnation kind=${stagnation.kind} score=${"%.2f".format(stagnation.score)}")
+                        if (stagnation.reasons.isNotEmpty()) {
+                            append(" reasons=").append(stagnation.reasons.joinToString("; ").take(320))
+                        }
+                    }
+                )
+                send(AgentEvent.Error(stagnation.errorMessage()))
+                return@channelFlow
+            }
+
+            val hasErrors = toolResults.any { it.isError }
             val toolContent = buildString {
-                append(toolResults.joinToString("\n\n") { r ->
-                    "[${r.toolName}] ${if (r.isError) "ERROR: " else ""}${r.output}"
-                })
-                if (hasToolErrors) {
-                    appendLine()
-                    appendLine()
+                append(
+                    toolResults.joinToString("\n\n") { result ->
+                        "[${result.toolName}] ${if (result.isError) "ERROR: " else ""}${result.output}"
+                    }
+                )
+                if (hasErrors) {
                     append(
-                        "CRITICAL DIRECTIVE: One or more tools above returned an error. " +
-                        "You MUST explicitly report each failure to the user in your final response. " +
-                        "NEVER claim a task succeeded when its tool observation shows an error or exception."
+                        "\n\nOne or more tools failed. Do not claim those operations succeeded; pivot strategy or report the blocker explicitly."
                     )
                 }
             }
-
-            // ── No-progress / read-only loop detection ──
-            // Detect when the agent is stuck only inspecting (dump_tree) without acting.
-            // We check semantic_ui calls: if EVERY call this iteration uses a read-only
-            // action (dump_tree, get_node, find_node), increment the counter; reset on any
-            // click/type/tap/scroll/press action.
-            val semanticUiCalls = response.toolCalls.filter { it.name == "semantic_ui" }
-            val readOnlyActions = setOf("dump_tree", "get_node", "find_node", "list_nodes")
-            val allSemUiAreReadOnly = semanticUiCalls.isNotEmpty() &&
-                semanticUiCalls.all { tc ->
-                    // Treat missing/null action as read-only (conservative — no write assumed)
-                    val action = tc.arguments["action"]?.toString()
-                    action == null || action in readOnlyActions
-                }
-            // Non-semantic_ui tools (write_file, execute_command, etc.) always count as action
-            val hasNonSemUiTool = response.toolCalls.any { it.name != "semantic_ui" }
-            if (allSemUiAreReadOnly && !hasNonSemUiTool) {
-                consecutiveReadOnlyIterations++
-                if (consecutiveReadOnlyIterations >= NO_PROGRESS_THRESHOLD) {
-                    smartLearningBridge?.onTaskEnd(
-                        outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.ABANDONED,
-                        finalSummary = "stuck on semantic_ui read-only loop"
-                    )
-                    send(AgentEvent.Error(
-                        "🔍 Agent stuck: called semantic_ui read-only operations $consecutiveReadOnlyIterations " +
-                        "consecutive times without taking any action (click/type/scroll/etc). " +
-                        "The agent may not know how to interact with the current screen. " +
-                        "Try rephrasing the task or providing a more specific instruction."
-                    ))
-                    return@channelFlow
-                }
-            } else {
-                consecutiveReadOnlyIterations = 0
-            }
-
-            val toolMessage = ChatMessage(
+            messages += ChatMessage(
                 role = MessageRole.TOOL,
                 content = toolContent,
                 toolResults = toolResults
             )
-            messages.add(toolMessage)
         }
 
-        // ── Max iterations reached ──
-        // Agent Brain 2.0 — تسجيل episode للإيقاف بسبب maxIterations
-        smartLearningBridge?.onTaskEnd(
-            outcome = com.omnidev.workspace.data.brain.EpisodeOutcome.ABANDONED,
-            finalSummary = "max iterations reached after ${config.maxIterations} loops"
+        brain?.onTaskEnd(
+            EpisodeOutcome.ABANDONED,
+            "max iterations reached after ${config.maxIterations} loops"
         )
-        send(AgentEvent.Error(
-            "Agent reached maximum iterations (${config.maxIterations}) without completing. " +
-                "Consider using a Swarm run for complex tasks, or increase maxIterations in AgentConfig."
-        ))
+        send(
+            AgentEvent.Error(
+                "Agent reached maximum iterations (${config.maxIterations}) without completing."
+            )
+        )
     }
 
-    /**
-     * Wraps an API call with exponential backoff retry logic.
-     *
-     * Rate-limit (429) errors receive special treatment: they use a much longer initial
-     * delay ([RATE_LIMIT_BASE_DELAY_MS]) and up to [RATE_LIMIT_MAX_RETRIES] extra attempts
-     * beyond the normal retry budget, because 429s typically require waiting 30–60 seconds.
-     *
-     * When [streamingCompletionProvider] is available, text delta chunks are emitted via
-     * [onStreamChunk] as they arrive, enabling real-time streaming in the UI.
-     *
-     * @param request The completion request.
-     * @param iteration The current loop iteration number (for error messages).
-     * @param onStreamChunk Called with each streaming text delta (no-op if not streaming).
-     * @param onFatalError Called with the error message if all retries are exhausted.
-     * @return The [CompletionResponse] on success, or null if all retries failed.
-     */
+    private suspend fun executeToolBatch(
+        calls: List<ToolCall>,
+        scopePath: String,
+        allowParallel: Boolean
+    ): List<ToolExecutionResult> {
+        suspend fun executeOne(call: ToolCall): ToolExecutionResult {
+            val started = System.nanoTime()
+            val orchestrated = toolOrchestrator.executeTool(
+                toolName = call.name,
+                cacheKey = null,
+                timeoutMs = config.toolExecutionTimeoutMs,
+                maxRetries = config.toolExecutionMaxRetries,
+                baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs
+            ) {
+                val result = if (call.name.startsWith("mcp_")) {
+                    val output = mcpRegistry?.executeMcpTool(call.name, call.arguments)
+                        ?: "Error: MCP Registry not configured"
+                    ToolExecutionResult(
+                        output = output,
+                        isError = output.startsWith("Error", ignoreCase = true),
+                        classification = if (output.startsWith("Error", true)) "MCP_ERROR" else null,
+                        backend = "mcp"
+                    )
+                } else {
+                    toolManager.executeTool(call.name, call.arguments, scopePath)
+                }
+                try {
+                    analyticsRepository?.recordToolUsage(
+                        call.name,
+                        !result.isError,
+                        (System.nanoTime() - started) / 1_000_000
+                    )
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    // Telemetry cannot break execution.
+                }
+                result
+            }
+
+            return if (orchestrated.isSuccess) {
+                orchestrated.getOrThrow()
+            } else {
+                ToolExecutionResult(
+                    output = orchestrated.exceptionOrNull()?.message ?: "Tool execution failed",
+                    isError = true,
+                    classification = "TOOL_TRANSPORT_FAILURE",
+                    persistentFailure = true
+                )
+            }
+        }
+
+        val parallel = allowParallel && ToolBatchPolicy.canRunBatchInParallel(calls)
+        return if (parallel) {
+            coroutineScope { calls.map { async { executeOne(it) } }.awaitAll() }
+        } else {
+            calls.map { executeOne(it) }
+        }
+    }
+
+    private suspend fun maybeCritique(
+        draft: String,
+        originalUserMessage: String,
+        modelId: String,
+        modelMaxOutputTokens: Int,
+        scopePath: String,
+        apiKey: String?,
+        totalTokensUsed: Int,
+        onUsage: suspend (Int) -> Unit,
+        onReflecting: suspend (Int) -> Unit
+    ): String {
+        if (!config.enableSelfReflection || draft.isBlank()) return draft
+        val remaining = config.tokenBudget?.minus(totalTokensUsed)
+        if (remaining != null && remaining < CRITIC_MIN_REMAINING_BUDGET) return draft
+
+        onReflecting(draft.length)
+        val criticOutputBudget = minOf(
+            modelMaxOutputTokens,
+            CRITIC_MAX_OUTPUT_TOKENS,
+            remaining?.coerceAtLeast(512) ?: CRITIC_MAX_OUTPUT_TOKENS
+        )
+        val criticRequest = CompletionRequest(
+            modelId = modelId,
+            messages = listOf(
+                ChatMessage(
+                    MessageRole.USER,
+                    buildString {
+                        appendLine("Original request:")
+                        appendLine(originalUserMessage.take(6_000))
+                        appendLine()
+                        appendLine("Draft:")
+                        appendLine(draft.take(CRITIC_MAX_DRAFT_CHARS))
+                    }
+                )
+            ),
+            systemPrompt = CRITIC_SYSTEM_PROMPT.trimIndent(),
+            maxTokens = criticOutputBudget,
+            enableThinking = false,
+            targetContext = scopePath,
+            apiKey = apiKey,
+            tools = emptyList()
+        )
+
+        val started = System.currentTimeMillis()
+        val critic = try {
+            val response = withTimeout(config.maxIterationTimeMs ?: 180_000L) {
+                completionProvider(criticRequest)
+            }
+            recordAnalytics(criticRequest, response, started, isError = false)
+            response
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            recordAnalytics(criticRequest, null, started, isError = true)
+            null
+        } ?: return draft
+
+        critic.tokensUsed?.totalTokens?.takeIf { it > 0 }?.let { onUsage(it) }
+        val text = critic.content.trim()
+        if (!text.contains("VERDICT: NEEDS_IMPROVEMENT", ignoreCase = true)) return draft
+        val marker = "IMPROVED_ANSWER:"
+        val index = text.indexOf(marker, ignoreCase = true)
+        return if (index >= 0) {
+            text.substring(index + marker.length).trim().takeIf(String::isNotBlank) ?: draft
+        } else {
+            draft
+        }
+    }
+
     private suspend fun callWithRetry(
         request: CompletionRequest,
         iteration: Int,
@@ -1196,17 +616,23 @@ Rules:
         onFatalError: suspend (String) -> Unit
     ): CompletionResponse? {
         val normalMaxAttempts = if (config.enableRetry) config.maxRetries + 1 else 1
-        // Rate-limit retries run in a separate budget: up to RATE_LIMIT_MAX_RETRIES extra attempts
-        // with a much longer base delay so the 429 window has time to expire.
         var rateLimitAttemptsRemaining = if (config.enableRetry) RATE_LIMIT_MAX_RETRIES else 0
         var normalAttempt = 0
-        val callStartMs = System.currentTimeMillis()
-
         var emitted = false
-        val chunkHandler: suspend (String) -> Unit = { emitted = true; onStreamChunk(it) }
-        val streamRequest = request.copy(onReasoning = { emitted = true; request.onReasoning?.invoke(it) })
+
         while (true) {
+            val callStarted = System.currentTimeMillis()
             try {
+                val chunkHandler: suspend (String) -> Unit = {
+                    emitted = true
+                    onStreamChunk(it)
+                }
+                val streamRequest = request.copy(
+                    onReasoning = {
+                        emitted = true
+                        request.onReasoning?.invoke(it)
+                    }
+                )
                 val response = if (config.maxIterationTimeMs != null) {
                     withTimeout(config.maxIterationTimeMs) {
                         if (streamingCompletionProvider != null) {
@@ -1222,88 +648,54 @@ Rules:
                         completionProvider(request)
                     }
                 }
-                // Record successful usage for analytics (best-effort; never break the agent).
-                recordAnalytics(request, response, callStartMs, isError = false)
+                recordAnalytics(request, response, callStarted, isError = false)
                 return response
-            } catch (e: TimeoutCancellationException) {
-                val timeoutSec = (config.maxIterationTimeMs ?: 90_000L) / 1_000
-                recordAnalytics(request, null, callStartMs, isError = true)
-                onFatalError(
-                    "⏱ LLM call timed out after ${timeoutSec}s at iteration $iteration. " +
-                    "The model API did not respond in time. Try again or use ⏹ to cancel."
-                )
+            } catch (timeout: TimeoutCancellationException) {
+                recordAnalytics(request, null, callStarted, isError = true)
+                val seconds = (config.maxIterationTimeMs ?: 180_000L) / 1_000L
+                onFatalError("LLM call timed out after ${seconds}s at iteration $iteration.")
                 return null
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                recordAnalytics(request, null, callStarted, isError = true)
                 if (emitted) {
-                    recordAnalytics(request, null, callStartMs, isError = true)
-                    onFatalError("Response interrupted after partial output: ${e.message}")
+                    onFatalError("Response interrupted after partial output: ${error.message}")
                     return null
                 }
 
-                val rateLimit = e as? com.omnidev.workspace.data.network.RateLimitException
-                val isRateLimit = rateLimit != null || e.message?.let { message ->
-                    listOf("rate limit", "too many requests", "HTTP 429").any {
-                        message.contains(it, ignoreCase = true)
-                    }
-                } == true
-                if ((rateLimit?.retryAfterMs ?: 0) > RATE_LIMIT_MAX_DELAY_MS) {
-                    recordAnalytics(request, null, callStartMs, isError = true)
-                    onFatalError(rateLimit?.message ?: "Provider cooldown exceeds the automatic retry window.")
+                val rateLimit = error as? com.omnidev.workspace.data.network.RateLimitException
+                val rateLimited = rateLimit != null || containsAny(
+                    error.message.orEmpty().lowercase(),
+                    "rate limit", "too many requests", "http 429"
+                )
+                if ((rateLimit?.retryAfterMs ?: 0L) > RATE_LIMIT_MAX_DELAY_MS) {
+                    onFatalError(rateLimit?.message ?: "Provider cooldown exceeds the retry window.")
                     return null
                 }
 
-                if (isRateLimit && rateLimitAttemptsRemaining > 0) {
-                    // Rate-limit path: long fixed delay then retry (don't consume normal retry budget)
+                if (rateLimited && rateLimitAttemptsRemaining > 0) {
                     rateLimitAttemptsRemaining--
-                    val retryNum = RATE_LIMIT_MAX_RETRIES - rateLimitAttemptsRemaining
-                    val delayMs = maxOf(rateLimit?.retryAfterMs ?: 0,
-                        min(RATE_LIMIT_BASE_DELAY_MS * retryNum, RATE_LIMIT_MAX_DELAY_MS))
+                    val retryNumber = RATE_LIMIT_MAX_RETRIES - rateLimitAttemptsRemaining
+                    val delayMs = maxOf(
+                        rateLimit?.retryAfterMs ?: 0L,
+                        min(RATE_LIMIT_BASE_DELAY_MS * retryNumber, RATE_LIMIT_MAX_DELAY_MS)
+                    )
                     delay(delayMs)
                     continue
                 }
 
-                // Normal error path: consume normal retry budget with exponential backoff
-                // Exhausted 429 retries must not fall through into a second retry budget.
-                // Invalid payload/auth/model errors also cannot improve by resending.
-                val permanentRequestError = e.message?.let { message ->
-                    listOf("API error 400", "API key is invalid", "No API key",
-                        "Access forbidden", "Model not found", "Invalid request format",
-                        "Insufficient quota").any { message.contains(it, ignoreCase = true) }
-                } == true
-                val isLastNormalAttempt = isRateLimit || permanentRequestError ||
-                    normalAttempt >= normalMaxAttempts - 1
-                if (isLastNormalAttempt) {
-                    if (isRateLimit) {
-                        // Rate limits are expected — log as warning, not error, since they
-                        // are normal API behaviour and not a code defect.
-                        com.omnidev.workspace.data.debug.DebugLogManager.appendWarning(
-                            "AgentPipeline",
-                            "Rate limit exhausted after all retries (iteration $iteration). " +
-                            "Please wait a few minutes before sending another message."
-                        )
-                        onFatalError(
-                            "Rate limit reached. All retry attempts have been exhausted " +
-                            "(iteration $iteration). Please wait a few minutes and try again."
-                        )
-                    } else {
-                        com.omnidev.workspace.data.debug.DebugLogManager.appendError("AgentPipeline", e)
-                        val isNetworkTimeout = e is java.net.SocketTimeoutException ||
-                                e is java.net.SocketException ||
-                                e is java.io.IOException && e.message?.contains("timeout", ignoreCase = true) == true
-                        val userMsg = if (isNetworkTimeout) {
-                            "Network timeout after $normalMaxAttempts attempt(s) (iteration $iteration). " +
-                            "Check your internet connection and try again."
-                        } else {
-                            "API call failed after $normalMaxAttempts attempt(s) (iteration $iteration): ${e.message}"
-                        }
-                        onFatalError(userMsg)
+                val permanent = isPermanentRequestError(error.message.orEmpty())
+                if (rateLimited || permanent || normalAttempt >= normalMaxAttempts - 1) {
+                    val message = when {
+                        rateLimited -> "Rate limit reached after all retry attempts (iteration $iteration)."
+                        isNetworkException(error) -> "Network failure after $normalMaxAttempts attempt(s) (iteration $iteration): ${error.message}"
+                        else -> "API call failed after $normalMaxAttempts attempt(s) (iteration $iteration): ${error.message}"
                     }
-                    recordAnalytics(request, null, callStartMs, isError = true)
+                    onFatalError(message)
                     return null
                 }
-                // Exponential backoff: 500ms, 1s, 2s, 4s, ... (bit-shift for integer powers of 2)
+
                 val delayMs = config.baseRetryDelayMs * (1L shl normalAttempt)
                 delay(min(delayMs, 30_000L))
                 normalAttempt++
@@ -1311,49 +703,70 @@ Rules:
         }
     }
 
-    /**
-     * Best-effort analytics recorder.
-     *
-     * Resolves the model's provider + pricing via [ModelRegistry] so the repository
-     * can store the precise USD cost and keep per-provider roll-ups accurate.
-     * Never throws — analytics must never break an agent run.
-     */
     private suspend fun recordAnalytics(
         request: CompletionRequest,
         response: CompletionResponse?,
         callStartMs: Long,
         isError: Boolean
     ) {
-        val repo = analyticsRepository ?: return
+        val repository = analyticsRepository ?: return
         try {
-            val latencyMs = (System.currentTimeMillis() - callStartMs).coerceAtLeast(0L)
             val model = ModelRegistry.findModelById(request.modelId)
             val usage = response?.tokensUsed
-
             val inputTokens = usage?.promptTokens ?: 0
             val outputTokens = usage?.completionTokens ?: 0
-
-            val cost = com.omnidev.workspace.data.repository.DynamicPricingManager().calculateCost(request.modelId, inputTokens, outputTokens)
-
-            repo.recordTokenUsage(
-
+            repository.recordTokenUsage(
                 modelId = request.modelId,
                 provider = model?.provider,
                 inputTokens = inputTokens,
                 outputTokens = outputTokens,
-                costUsd = cost,
-                latencyMs = latencyMs,
+                costUsd = com.omnidev.workspace.data.repository.DynamicPricingManager()
+                    .calculateCost(request.modelId, inputTokens, outputTokens),
+                latencyMs = (System.currentTimeMillis() - callStartMs).coerceAtLeast(0L),
                 isError = isError
             )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
-            // Swallow — analytics is best-effort.
+            // Analytics is best effort.
         }
     }
+
+    private fun isPermanentRequestError(message: String): Boolean = containsAny(
+        message.lowercase(),
+        "api error 400", "api key is invalid", "no api key", "unauthorized", "forbidden",
+        "model not found", "invalid request format", "insufficient quota"
+    )
+
+    private fun isInfrastructureError(message: String): Boolean = containsAny(
+        message.lowercase(),
+        "rate limit", "429", "api key", "unauthorized", "forbidden", "quota", "network",
+        "timed out", "timeout", "connection", "dns", "service unavailable", "provider cooldown"
+    )
+
+    private fun isNetworkException(error: Exception): Boolean =
+        error is java.net.SocketTimeoutException ||
+            error is java.net.SocketException ||
+            error is java.io.IOException
+
+    private fun containsAny(haystack: String, vararg needles: String): Boolean =
+        needles.any(haystack::contains)
+
+    private fun redact(value: String): String = value
+        .replace(
+            Regex("(?i)(key|token|secret|password|otp|bearer)[=:\\s]+\\S+"),
+            "$1=[REDACTED]"
+        )
+        .replace(
+            Regex("(?i)\"(api_?key|token|secret|password|otp)\"\\s*:\\s*\"[^\"]+\""),
+            "\"$1\":\"[REDACTED]\""
+        )
+        .replace(
+            Regex("(?i)(key|token|secret|password|otp)=([^&\\s\"]+)"),
+            "$1=[REDACTED]"
+        )
 }
 
-/**
- * High-level execution phases surfaced to UI consumers (e.g. Agent Console).
- */
 enum class AgentExecutionPhase {
     ANALYZE,
     IMPLEMENT,
@@ -1361,65 +774,38 @@ enum class AgentExecutionPhase {
     REPORT
 }
 
-/**
- * Events emitted by the [AgentPipeline] during ReAct loop execution.
- * These drive the UI's real-time streaming display.
- */
 sealed class AgentEvent {
-    /** The agent loop has started. */
     data object Started : AgentEvent()
-
-    /** The agent is reasoning (sending to model). */
     data class Thinking(val iteration: Int) : AgentEvent()
-
-    /** Extended thinking content from the model. */
     data class ThinkingBlock(val content: String) : AgentEvent()
-
-    /** A tool is being executed. */
     data class ToolExecution(
         val toolName: String,
         val arguments: Map<String, String>,
         val iteration: Int
     ) : AgentEvent()
-
-    /** The result of a tool execution. */
     data class ToolResult(
         val toolName: String,
         val output: String,
         val isError: Boolean,
         val iteration: Int
     ) : AgentEvent()
-
-    /** Token usage stats after an API call. */
     data class TokenUsageUpdate(
         val iterationTokens: Int,
         val totalTokens: Int,
         val budget: Int?
     ) : AgentEvent()
-
-    /** High-level Agent V2 phase transition (Analyze/Implement/Verify/Report). */
     data class PhaseChanged(
         val phase: AgentExecutionPhase,
         val detail: String? = null
     ) : AgentEvent()
-
-    /** A streaming text delta chunk from the model's SSE response. */
     data class StreamChunk(val delta: String) : AgentEvent()
-
-    /** The agent has produced a final answer. */
     data class FinalAnswer(
         val content: String,
         val totalIterations: Int,
         val totalTokensUsed: Int,
         val conversationHistory: List<ChatMessage>
     ) : AgentEvent()
-
-    /** The agent is performing a self-reflection critique of its draft answer. */
     data class Reflecting(val draftLength: Int) : AgentEvent()
-
-    /** An unrecoverable error occurred. */
     data class Error(val message: String) : AgentEvent()
-
-    /** Context compressor generated a summary. */
     data class ContextCompaction(val summary: String) : AgentEvent()
 }
