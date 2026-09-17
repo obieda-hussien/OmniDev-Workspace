@@ -3,8 +3,10 @@ version: 2.1
 executors:
   android-machine:
     machine:
-      image: android:current
-    resource_class: medium.gen2
+      # Gen2 Android resource classes are paid-plan only. Keep CI usable on the
+      # free plan with the stable Gen1 tag/resource class.
+      image: android:default
+    resource_class: medium
 
 commands:
   prepare-android:
