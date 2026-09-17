@@ -26,8 +26,8 @@ import java.util.concurrent.atomic.AtomicReference
  * Local learning bridge for the Agent Brain.
  *
  * Persistent knowledge engines are shared across runs, while mutable task state (intent,
- * tool history, timers and active Reflexion lessons) is isolated by [forkForRun]. This keeps
- * parallel Team workers from contaminating each other's feedback.
+ * tool history, timers, pending recovery attribution and active Reflexion lessons) is isolated
+ * by [forkForRun]. This prevents Team workers from contaminating one another's learning.
  */
 class SmartLearningBridge(
     private val context: Context,
@@ -43,6 +43,13 @@ class SmartLearningBridge(
     private val userFeedbackLearningStore: UserFeedbackLearningStore? = null,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 ) {
+
+    private data class PendingFailure(
+        val toolName: String,
+        val parameters: Map<String, Any?>,
+        val output: String,
+        val fingerprint: String
+    )
 
     /** Persistent knowledge is shared; all run-local mutable attribution is forked. */
     fun forkForRun() = SmartLearningBridge(
@@ -78,6 +85,7 @@ class SmartLearningBridge(
     private val sessionToolHistory = mutableListOf<String>()
     private val toolExecutionStartTimes = ConcurrentHashMap<String, Long>()
     private val availableToolNamesSnapshot = AtomicReference<List<String>>(emptyList())
+    private val pendingFailure = AtomicReference<PendingFailure?>(null)
     private var sessionId: String = "session_${System.currentTimeMillis()}"
     private var persistenceJob: kotlinx.coroutines.Job? = null
 
@@ -88,6 +96,7 @@ class SmartLearningBridge(
     suspend fun onSessionStart(agentMode: String = "ASSISTANT") = withContext(Dispatchers.IO) {
         sessionId = "session_${System.currentTimeMillis()}"
         synchronized(sessionToolHistory) { sessionToolHistory.clear() }
+        pendingFailure.set(null)
         currentUserIntent = ""
         currentTaskStartMs = System.currentTimeMillis()
         currentTaskIterations = 0
@@ -99,20 +108,19 @@ class SmartLearningBridge(
 
     fun onTaskStart(userIntent: String) {
         synchronized(sessionToolHistory) { sessionToolHistory.clear() }
+        pendingFailure.set(null)
         currentUserIntent = userIntent.take(200)
         currentTaskStartMs = System.currentTimeMillis()
         currentTaskIterations = 0
     }
 
-    /**
-     * Closes the feedback loop for every task, including tasks that used zero tools.
-     */
     fun onTaskEnd(
         outcome: EpisodeOutcome,
         finalSummary: String = ""
     ) {
         val toolsUsed = synchronized(sessionToolHistory) { sessionToolHistory.toList() }
         val totalTime = (System.currentTimeMillis() - currentTaskStartMs).coerceAtLeast(0L)
+        pendingFailure.set(null)
 
         scope.launch(Dispatchers.IO) {
             try {
@@ -248,6 +256,8 @@ class SmartLearningBridge(
             userIntent = currentUserIntent
         )
 
+        learnRecoveryTransition(toolName, parameters, result)
+
         if (!result.isError) {
             progressiveTrustEngine?.onOperationSuccess(toolName)
         } else {
@@ -271,8 +281,48 @@ class SmartLearningBridge(
     }
 
     /**
-     * Builds a bounded prompt enrichment ordered by expected decision value.
+     * Converts immediate failure -> alternative success transitions into positive Reflexion edges.
+     * Identical retries are intentionally ignored because a transient retry is not a strategy.
      */
+    private fun learnRecoveryTransition(
+        toolName: String,
+        parameters: Map<String, Any?>,
+        result: ToolExecutionResult
+    ) {
+        val fingerprint = toolFingerprint(toolName, parameters)
+        if (result.isError) {
+            pendingFailure.set(
+                PendingFailure(
+                    toolName = toolName,
+                    parameters = parameters.toMap(),
+                    output = result.output.take(1200),
+                    fingerprint = fingerprint
+                )
+            )
+            return
+        }
+
+        val failed = pendingFailure.getAndSet(null) ?: return
+        if (failed.fingerprint == fingerprint) return
+
+        reflexionEngine?.recordRecoveryAsync(
+            failedTool = failed.toolName,
+            failedParameters = failed.parameters,
+            failedOutput = failed.output,
+            recoveryTool = toolName,
+            recoveryParameters = parameters,
+            userIntent = currentUserIntent
+        )
+    }
+
+    private fun toolFingerprint(toolName: String, parameters: Map<String, Any?>): String =
+        buildString {
+            append(toolName)
+            parameters.entries.sortedBy { it.key }.forEach { (key, value) ->
+                append('|').append(key).append('=').append(value?.toString()?.take(80))
+            }
+        }
+
     suspend fun buildFullContextEnrichment(): String = withContext(Dispatchers.IO) {
         val parts = mutableListOf<String>()
 
@@ -299,7 +349,6 @@ class SmartLearningBridge(
             Log.w(TAG, "reflexion injection failed: ${t.message}")
         }
 
-        // Explicit user decisions are high-value behavior preferences, but never permissions.
         try {
             userFeedbackLearningStore?.buildPromptInjection(USER_FEEDBACK_MAX_CHARS)
                 ?.takeIf { it.isNotBlank() }
