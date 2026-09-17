@@ -12,6 +12,7 @@ import com.omnidev.workspace.data.tools.ToolManager
 import com.omnidev.workspace.data.tools.ToolParameter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.min
 
 /**
  * Small native-tool loop for Chat.
@@ -27,6 +28,12 @@ class ChatToolLoop(private val tools: ToolManager?) {
             "web_search", "web_search_deep", "web_scraper", "fetch_page", "scrape_multiple"
         )
         const val REQUEST_MODE = "request_execution_mode"
+        private const val CHAT_TOKEN_BUDGET = 32_000
+        private const val MIN_OUTPUT_RESERVE = 256
+        private const val MAX_ROUNDS = 7
+        private const val MAX_TOOL_ROUNDS = 6
+        private const val MAX_TOOL_CALLS = 8
+
         val MODE_TOOL = ToolDefinition(
             REQUEST_MODE,
             "Ask the user to enable execution. Never needed for web research. Use AGENT for sequential execution; SWARM only for independent parallel tasks. This only proposes a mode; it does not execute anything.",
@@ -79,8 +86,6 @@ class ChatToolLoop(private val tools: ToolManager?) {
             return Result(content, request)
         }
 
-        // Local preflight: deterministic, zero network/token cost. Only high-confidence capability
-        // gaps are short-circuited; ordinary coding questions remain answerable in Chat.
         val localSuggestion = AdaptiveModeRouter.fromChatRequest(userRequest)
         if (localSuggestion != null && localSuggestion.confidence >= 0.72f) {
             val request = ExecutionModeRequest(
@@ -91,8 +96,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
                 confidence = localSuggestion.confidence,
                 trigger = localSuggestion.trigger.name
             )
-            // Correct capability-gap detection is not a failed Chat attempt. Do not contaminate
-            // the outcome posterior by recording a synthetic failure here.
+            // Correct capability-gap detection is not a failed Chat attempt.
             return Result(localSuggestion.reason, request)
         }
 
@@ -102,26 +106,45 @@ class ChatToolLoop(private val tools: ToolManager?) {
         val history = base.messages.toMutableList()
         val seen = mutableSetOf<Pair<String, Map<String, String>>>()
 
-        for (round in 1..7) {
+        for (round in 1..MAX_ROUNDS) {
             roundsObserved = round
-            val canUseTools = round <= 6 && calls < 8 && tokens < 32_000
-            event(AgentEvent.Thinking(round))
-            val response = complete(
-                base.copy(
-                    messages = history.toList(),
-                    tools = if (canUseTools) definitions + MODE_TOOL else null,
-                    systemPrompt = base.systemPrompt.orEmpty() + if (canUseTools) "" else
-                        "\nTool budget exhausted. Summarize verified results and any remaining limitations; do not claim unfinished work is complete."
+            val toolsAllowedThisRound = round <= MAX_TOOL_ROUNDS && calls < MAX_TOOL_CALLS
+            val provisional = base.copy(
+                messages = history.toList(),
+                tools = if (toolsAllowedThisRound) definitions + MODE_TOOL else null,
+                systemPrompt = base.systemPrompt.orEmpty() + if (toolsAllowedThisRound) "" else
+                    "\nTool budget exhausted. Summarize verified results and any remaining limitations; do not claim unfinished work is complete."
+            )
+
+            val remaining = CHAT_TOKEN_BUDGET - tokens
+            val estimatedInput = TokenAccounting.estimateInputTokens(provisional)
+            if (remaining <= estimatedInput + MIN_OUTPUT_RESERVE) {
+                return learnedResult(
+                    content = "Chat token budget reached. Continue in a new message if more work is needed.",
+                    outcome = ModeOutcomeLearner.Outcome.ABANDONED
+                )
+            }
+
+            val request = provisional.copy(
+                maxTokens = min(
+                    provisional.maxTokens,
+                    (remaining - estimatedInput).coerceAtLeast(MIN_OUTPUT_RESERVE)
                 )
             )
-            tokens += response.tokensUsed?.totalTokens ?: 0
+            val canUseTools = toolsAllowedThisRound && request.tools?.isNotEmpty() == true
+
+            event(AgentEvent.Thinking(round))
+            val response = complete(request)
+            val usage = TokenAccounting.usage(request, response)
+            tokens += usage.totalTokens
             event(
                 AgentEvent.TokenUsageUpdate(
-                    response.tokensUsed?.totalTokens ?: 0,
-                    tokens,
-                    32_000
+                    iterationTokens = usage.totalTokens,
+                    totalTokens = tokens,
+                    budget = CHAT_TOKEN_BUDGET
                 )
             )
+
             if (response.toolCalls.isEmpty()) {
                 return learnedResult(
                     content = response.content,
@@ -134,8 +157,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
                     content = response.content.ifBlank {
                         "Chat tool budget reached. Continue the research in a new message if needed."
                     },
-                    outcome = ModeOutcomeLearner.Outcome.ABANDONED,
-                    verified = false
+                    outcome = ModeOutcomeLearner.Outcome.ABANDONED
                 )
             }
 
@@ -160,7 +182,6 @@ class ChatToolLoop(private val tools: ToolManager?) {
                             round
                         )
                     )
-                    // A handoff proposal is correct behavior, not a failed Chat run.
                     return Result(
                         reason,
                         ExecutionModeRequest(
@@ -175,7 +196,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
                 }
 
                 val result = when {
-                    calls >= 8 -> ToolExecutionResult("Chat tool budget exhausted.", true)
+                    calls >= MAX_TOOL_CALLS -> ToolExecutionResult("Chat tool budget exhausted.", true)
                     call.name !in allowed -> ToolExecutionResult(
                         "Tool unavailable in Chat. Use request_execution_mode only if execution is required.",
                         true
@@ -217,8 +238,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
 
         return learnedResult(
             content = "Chat tool budget reached. Continue the research in a new message if needed.",
-            outcome = ModeOutcomeLearner.Outcome.ABANDONED,
-            verified = false
+            outcome = ModeOutcomeLearner.Outcome.ABANDONED
         )
     }
 }
