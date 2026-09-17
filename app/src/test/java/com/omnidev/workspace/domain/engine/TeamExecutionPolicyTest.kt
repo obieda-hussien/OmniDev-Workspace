@@ -133,4 +133,39 @@ class TeamExecutionPolicyTest {
         assertEquals("db-a", normalized.aliases["db-b"])
         assertEquals(listOf("db-a"), normalized.tasks.first { it.id == "verify" }.dependencies)
     }
+
+    @Test
+    fun `plan cap keeps prerequisite closure together`() {
+        val root = SwarmTask("root", "Inspect repository architecture", priority = 1)
+        val database = SwarmTask("db", "Inspect database layer", priority = 2, dependencies = listOf("root"))
+        val verify = SwarmTask("verify", "Verify database findings", priority = 3, dependencies = listOf("db"))
+        val extras = (1..5).map { index ->
+            SwarmTask("extra-$index", "Research independent topic $index", priority = 10 + index)
+        }
+
+        val capped = TeamExecutionPolicy.capPlan(listOf(root, database, verify) + extras, maxTasks = 5)
+
+        val ids = capped.tasks.map { it.id }.toSet()
+        assertTrue("verify" !in ids || ("db" in ids && "root" in ids))
+        assertTrue(capped.tasks.size <= 5)
+        assertEquals(3, capped.tasks.count { it.id in setOf("root", "db", "verify") })
+    }
+
+    @Test
+    fun `oversized dependency branch is not cut in half`() {
+        val chain = (1..7).map { index ->
+            SwarmTask(
+                id = "c$index",
+                description = "Chain task $index",
+                priority = index,
+                dependencies = if (index == 1) emptyList() else listOf("c${index - 1}")
+            )
+        }
+        val capped = TeamExecutionPolicy.capPlan(chain, maxTasks = 5)
+
+        assertTrue(capped.tasks.size <= 5)
+        capped.tasks.forEach { task ->
+            assertTrue(task.dependencies.all { dependency -> capped.tasks.any { it.id == dependency } })
+        }
+    }
 }
