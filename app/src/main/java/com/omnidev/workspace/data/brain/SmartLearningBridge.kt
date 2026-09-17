@@ -40,6 +40,7 @@ class SmartLearningBridge(
     private val episodicMemoryStore: EpisodicMemoryStore? = null,
     private val progressiveTrustEngine: ProgressiveTrustEngine? = null,
     private val causalChainPlannerTool: com.omnidev.workspace.data.tools.CausalChainPlannerTool? = null,
+    private val userFeedbackLearningStore: UserFeedbackLearningStore? = null,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 ) {
 
@@ -55,6 +56,7 @@ class SmartLearningBridge(
         episodicMemoryStore = episodicMemoryStore,
         progressiveTrustEngine = progressiveTrustEngine,
         causalChainPlannerTool = causalChainPlannerTool,
+        userFeedbackLearningStore = userFeedbackLearningStore,
         scope = scope
     )
 
@@ -70,6 +72,7 @@ class SmartLearningBridge(
         private const val MAX_RECOMMENDATION_CANDIDATES = 2
         private const val REFLEXION_MAX_CHARS = 500
         private const val EPISODIC_MAX_CHARS = 600
+        private const val USER_FEEDBACK_MAX_CHARS = 320
     }
 
     private val sessionToolHistory = mutableListOf<String>()
@@ -103,8 +106,6 @@ class SmartLearningBridge(
 
     /**
      * Closes the feedback loop for every task, including tasks that used zero tools.
-     * Previously no-tool tasks vanished from episodic memory entirely, so conversational
-     * successes/failures could never influence future behavior.
      */
     fun onTaskEnd(
         outcome: EpisodeOutcome,
@@ -271,8 +272,6 @@ class SmartLearningBridge(
 
     /**
      * Builds a bounded prompt enrichment ordered by expected decision value.
-     * High-value task-specific memories are placed first so truncation cannot silently discard
-     * them behind generic tool-awareness text.
      */
     suspend fun buildFullContextEnrichment(): String = withContext(Dispatchers.IO) {
         val parts = mutableListOf<String>()
@@ -300,7 +299,16 @@ class SmartLearningBridge(
             Log.w(TAG, "reflexion injection failed: ${t.message}")
         }
 
-        getToolRecommendation()?.let { parts.add("\n🎯 Local next-tool signal: $it") }
+        // Explicit user decisions are high-value behavior preferences, but never permissions.
+        try {
+            userFeedbackLearningStore?.buildPromptInjection(USER_FEEDBACK_MAX_CHARS)
+                ?.takeIf { it.isNotBlank() }
+                ?.let(parts::add)
+        } catch (t: Throwable) {
+            Log.w(TAG, "user feedback injection failed: ${t.message}")
+        }
+
+        getToolRecommendation()?.let { parts.add("\nLocal next-tool signal: $it") }
 
         try {
             progressiveTrustEngine?.buildPromptInjection()
@@ -454,7 +462,6 @@ class SmartLearningBridge(
         Log.d(TAG, "Learning maintenance completed")
     }
 
-    /** Per-tool quality is deliberately conservative: speed/output length are weak proxies. */
     private fun estimateQuality(result: ToolExecutionResult, timeMs: Long): Float {
         if (result.isError) return 0f
         if (result.output.isBlank()) return 0.35f
