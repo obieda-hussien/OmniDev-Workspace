@@ -57,6 +57,18 @@ class AdaptiveModeRouterTest {
     }
 
     @Test
+    fun `two runtime serialized tasks collapse even without explicit dependency`() {
+        val result = AdaptiveModeRouter.fromTeamPlan(
+            taskCount = 2,
+            parallelSafeTaskCount = 0,
+            dependencyEdgeCount = 0
+        )
+        requireNotNull(result)
+        assertEquals(OmniMode.AGENT, result.to)
+        assertTrue(result.reason.contains("serialized", ignoreCase = true))
+    }
+
+    @Test
     fun `real parallel team plan stays in team mode`() {
         assertNull(
             AdaptiveModeRouter.fromTeamPlan(
