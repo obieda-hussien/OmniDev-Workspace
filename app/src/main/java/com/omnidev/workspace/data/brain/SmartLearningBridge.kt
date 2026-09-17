@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.BatteryManager
+import android.os.Build
 import android.util.Log
 import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.tools.ToolExecutionResult
@@ -488,23 +489,37 @@ class SmartLearningBridge(
         -1
     }
 
-    private fun readNetworkType(): String = try {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-            ?: return "unknown"
-        val network = cm.activeNetwork ?: return "none"
-        val caps = cm.getNetworkCapabilities(network) ?: return "unknown"
-        when {
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "wifi"
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "cellular"
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "ethernet"
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> "vpn"
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH) -> "bluetooth"
-            else -> "other"
+    private fun readNetworkType(): String {
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                ?: return "unknown"
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val network = cm.activeNetwork ?: return "none"
+                val caps = cm.getNetworkCapabilities(network) ?: return "unknown"
+                when {
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "wifi"
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "cellular"
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "ethernet"
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> "vpn"
+                    else -> "other"
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                val info = cm.activeNetworkInfo ?: return "none"
+                @Suppress("DEPRECATION")
+                when (info.type) {
+                    ConnectivityManager.TYPE_WIFI -> "wifi"
+                    ConnectivityManager.TYPE_MOBILE -> "cellular"
+                    ConnectivityManager.TYPE_ETHERNET -> "ethernet"
+                    else -> "other"
+                }
+            }
+        } catch (_: SecurityException) {
+            "unknown"
+        } catch (_: Throwable) {
+            "unknown"
         }
-    } catch (_: SecurityException) {
-        "unknown"
-    } catch (_: Throwable) {
-        "unknown"
     }
 
     private suspend fun discoverAndRecordDependency(toolA: String, toolB: String) {
