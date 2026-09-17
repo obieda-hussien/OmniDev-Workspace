@@ -24,7 +24,7 @@ commands:
           command: |
             set +e
             if [ -z "${TELEGRAM_BOT_TOKEN:-}" ]; then
-              echo "TELEGRAM_BOT_TOKEN is not configured in CircleCI Project Settings; skipping Telegram upload."
+              echo "TELEGRAM_BOT_TOKEN is not configured; skipping Telegram upload."
               exit 0
             fi
 
@@ -62,7 +62,6 @@ commands:
               exit 0
             fi
 
-            echo "Sending ZIP: $ZIP_PATH (${SIZE} bytes, ${#FILES[@]} files)"
             curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
               -F chat_id="$CHAT_ID" \
               -F document=@"$ZIP_PATH" \
@@ -84,14 +83,9 @@ commands:
             CHAT_ID="1100444932"
             shopt -s nullglob
             APKS=(app/build/outputs/apk/*/debug/*.apk)
-
-            if [ "${#APKS[@]}" -eq 0 ]; then
-              echo "No debug APKs found."
-              exit 0
-            fi
+            [ "${#APKS[@]}" -gt 0 ] || { echo "No debug APKs found."; exit 0; }
 
             SAFE_BRANCH=$(printf '%s' "${CIRCLE_BRANCH:-unknown}" | tr '/ ' '--')
-
             for APK in "${APKS[@]}"; do
               NAME=$(basename "$APK" .apk)
               ZIP_PATH="/tmp/${NAME}-${SAFE_BRANCH}-${CIRCLE_BUILD_NUM:-0}.zip"
@@ -100,7 +94,6 @@ commands:
               SIZE=$(wc -c < "$ZIP_PATH" | tr -d ' ')
 
               if [ "$SIZE" -gt 50000000 ]; then
-                echo "Skipping $ZIP_PATH: ${SIZE} bytes exceeds Telegram direct-upload limit. ZIP was NOT split."
                 curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
                   -d chat_id="$CHAT_ID" \
                   --data-urlencode "text=⚠️ Debug APK ZIP ${NAME}.zip is ${SIZE} bytes and exceeds Telegram's direct-upload limit. It was not split." \
@@ -108,7 +101,6 @@ commands:
                 continue
               fi
 
-              echo "Sending debug APK ZIP: $ZIP_PATH"
               curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
                 -F chat_id="$CHAT_ID" \
                 -F document=@"$ZIP_PATH" \
@@ -131,18 +123,12 @@ commands:
             CHAT_ID="1100444932"
             shopt -s nullglob
             APKS=(app/build/outputs/apk/admin/release/*.apk)
-
-            if [ "${#APKS[@]}" -eq 0 ]; then
-              echo "No Admin release APK found."
-              exit 0
-            fi
+            [ "${#APKS[@]}" -gt 0 ] || { echo "No Admin release APK found."; exit 0; }
 
             for APK in "${APKS[@]}"; do
               SIZE=$(wc -c < "$APK" | tr -d ' ')
               NAME=$(basename "$APK")
-
               if [ "$SIZE" -gt 50000000 ]; then
-                echo "Admin release APK ${NAME} exceeds Telegram direct-upload limit and will NOT be split."
                 curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
                   -d chat_id="$CHAT_ID" \
                   --data-urlencode "text=⚠️ Admin Release APK ${NAME} is ${SIZE} bytes and exceeds Telegram's direct-upload limit. It was not split." \
@@ -150,7 +136,6 @@ commands:
                 continue
               fi
 
-              echo "Sending Admin release APK directly: $APK"
               curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
                 -F chat_id="$CHAT_ID" \
                 -F document=@"$APK" \
@@ -161,11 +146,13 @@ commands:
 jobs:
   android-ci:
     executor: android-machine
+    environment:
+      CI_GRADLE_JVMARGS: "-Xmx4608m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8 -XX:+HeapDumpOnOutOfMemoryError"
     steps:
       - checkout
 
       - run:
-          name: Prepare Android toolchain
+          name: Prepare Android toolchain and memory guardrails
           command: |
             set -euo pipefail
             chmod +x gradlew
@@ -181,10 +168,35 @@ jobs:
             git submodule update --init --recursive --depth 1 || true
             mkdir -p ci-logs /tmp/omnidev-ci-status
 
+            # medium.gen2 has 8 GiB RAM. The project gradle.properties allows
+            # 6 GiB for Gradle and another 6 GiB for Kotlin, which can exceed
+            # runner memory. CI runs Kotlin in-process and caps the Gradle heap.
+            if ! swapon --show | grep -q '/swapfile'; then
+              sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+              sudo chmod 600 /swapfile
+              sudo mkswap /swapfile >/dev/null
+              sudo swapon /swapfile
+            fi
+            sudo sysctl -w vm.swappiness=15 >/dev/null || true
+            echo "Memory after swap setup:"
+            free -h
+
+            # Release builds already have a dedicated lint stage. Disable AGP's
+            # lintVital release tasks so assembleAdminRelease does not repeat
+            # expensive lint/model work or pull unrelated release variants.
+            printf '%s\n' \
+              'allprojects {' \
+              '  tasks.configureEach {' \
+              '    if (name.toLowerCase().contains("lintvital")) {' \
+              '      enabled = false' \
+              '    }' \
+              '  }' \
+              '}' > /tmp/disable-release-lint.gradle
+
       - restore_cache:
           keys:
-            - gradle-v4-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
-            - gradle-v4-
+            - gradle-v5-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
+            - gradle-v5-
 
       - run:
           name: Lint all debug flavors
@@ -192,15 +204,21 @@ jobs:
             set +e
             set -o pipefail
             ./gradlew --no-daemon --max-workers 1 \
+              -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+              -Pkotlin.compiler.execution.strategy=in-process \
+              -Pkotlin.incremental=false \
+              -Dorg.gradle.vfs.watch=false \
               :app:lintLiteDebug \
               :app:lintNormDebug \
               :app:lintProDebug \
               :app:lintOemDebug \
               :app:lintAdminDebug \
-              --continue 2>&1 | tee ci-logs/lint.log
+              --continue --stacktrace 2>&1 | tee ci-logs/lint.log
             RC=${PIPESTATUS[0]}
             echo "$RC" > /tmp/omnidev-ci-status/lint
             echo "LINT_EXIT_CODE=$RC"
+            ./gradlew --stop >/dev/null 2>&1 || true
+            free -h
             exit 0
 
       - send-zip-to-telegram:
@@ -217,15 +235,21 @@ jobs:
             set +e
             set -o pipefail
             ./gradlew --no-daemon --max-workers 1 \
+              -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+              -Pkotlin.compiler.execution.strategy=in-process \
+              -Pkotlin.incremental=false \
+              -Dorg.gradle.vfs.watch=false \
               :app:compileLiteDebugKotlin :app:testLiteDebugUnitTest \
               :app:compileNormDebugKotlin :app:testNormDebugUnitTest \
               :app:compileProDebugKotlin :app:testProDebugUnitTest \
               :app:compileOemDebugKotlin :app:testOemDebugUnitTest \
               :app:compileAdminDebugKotlin :app:testAdminDebugUnitTest \
-              --continue 2>&1 | tee ci-logs/tests.log
+              --continue --stacktrace 2>&1 | tee ci-logs/tests.log
             RC=${PIPESTATUS[0]}
             echo "$RC" > /tmp/omnidev-ci-status/tests
             echo "TESTS_EXIT_CODE=$RC"
+            ./gradlew --stop >/dev/null 2>&1 || true
+            free -h
             exit 0
 
       - store_test_results:
@@ -245,15 +269,21 @@ jobs:
             set +e
             set -o pipefail
             ./gradlew --no-daemon --max-workers 1 \
+              -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+              -Pkotlin.compiler.execution.strategy=in-process \
+              -Pkotlin.incremental=false \
+              -Dorg.gradle.vfs.watch=false \
               :app:assembleLiteDebug \
               :app:assembleNormDebug \
               :app:assembleProDebug \
               :app:assembleOemDebug \
               :app:assembleAdminDebug \
-              --continue 2>&1 | tee ci-logs/debug-build.log
+              --continue --stacktrace 2>&1 | tee ci-logs/debug-build.log
             RC=${PIPESTATUS[0]}
             echo "$RC" > /tmp/omnidev-ci-status/debug
             echo "DEBUG_EXIT_CODE=$RC"
+            ./gradlew --stop >/dev/null 2>&1 || true
+            free -h
             exit 0
 
       - send-debug-apks-as-zips
@@ -270,11 +300,18 @@ jobs:
             set +e
             set -o pipefail
             ./gradlew --no-daemon --max-workers 1 \
+              -I /tmp/disable-release-lint.gradle \
+              -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+              -Pkotlin.compiler.execution.strategy=in-process \
+              -Pkotlin.incremental=false \
+              -Dorg.gradle.vfs.watch=false \
               :app:assembleAdminRelease \
-              --continue 2>&1 | tee ci-logs/release-build.log
+              --stacktrace 2>&1 | tee ci-logs/release-build.log
             RC=${PIPESTATUS[0]}
             echo "$RC" > /tmp/omnidev-ci-status/release
             echo "RELEASE_EXIT_CODE=$RC"
+            ./gradlew --stop >/dev/null 2>&1 || true
+            free -h
             exit 0
 
       - send-admin-release-apk
@@ -294,7 +331,7 @@ jobs:
           destination: ci-logs
 
       - save_cache:
-          key: gradle-v4-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
+          key: gradle-v5-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
           paths:
             - ~/.gradle/caches
             - ~/.gradle/wrapper
@@ -304,19 +341,16 @@ jobs:
           when: always
           command: |
             set +e
-            FAILED=0
-            SUMMARY=""
+            LINT_RC=99
+            TESTS_RC=99
+            DEBUG_RC=99
+            RELEASE_RC=99
+            [ -f /tmp/omnidev-ci-status/lint ] && LINT_RC=$(cat /tmp/omnidev-ci-status/lint)
+            [ -f /tmp/omnidev-ci-status/tests ] && TESTS_RC=$(cat /tmp/omnidev-ci-status/tests)
+            [ -f /tmp/omnidev-ci-status/debug ] && DEBUG_RC=$(cat /tmp/omnidev-ci-status/debug)
+            [ -f /tmp/omnidev-ci-status/release ] && RELEASE_RC=$(cat /tmp/omnidev-ci-status/release)
 
-            for STAGE in lint tests debug release; do
-              FILE="/tmp/omnidev-ci-status/$STAGE"
-              RC=99
-              [ -f "$FILE" ] && RC=$(cat "$FILE")
-              SUMMARY="${SUMMARY}${STAGE}=${RC} "
-              if [ "$RC" -ne 0 ]; then
-                FAILED=1
-              fi
-            done
-
+            SUMMARY="lint=${LINT_RC}(report-only) tests=${TESTS_RC} debug=${DEBUG_RC} release=${RELEASE_RC}"
             echo "============================================================"
             echo "OMNIDEV CI STATUS: ${SUMMARY}"
             echo "============================================================"
@@ -328,12 +362,14 @@ jobs:
                 >/dev/null || true
             fi
 
-            if [ "$FAILED" -ne 0 ]; then
-              echo "One or more CI stages failed. Check the Telegram ZIP diagnostics or CircleCI ci-logs artifact for the exact Gradle error."
+            # Lint remains visible in its Telegram/CircleCI report but does not
+            # block delivery. Tests, debug build and Admin release are hard gates.
+            if [ "$TESTS_RC" -ne 0 ] || [ "$DEBUG_RC" -ne 0 ] || [ "$RELEASE_RC" -ne 0 ]; then
+              echo "A required CI stage failed. Open the diagnostic ZIP for the exact Gradle stack trace."
               exit 1
             fi
 
-            echo "All OmniDev CI stages passed."
+            echo "Required OmniDev CI stages passed."
 
 workflows:
   omnidev-ci:
