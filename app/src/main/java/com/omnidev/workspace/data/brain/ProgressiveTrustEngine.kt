@@ -11,9 +11,9 @@ import kotlin.math.exp
  * It is NOT an authorization model. User-controlled authority such as God Mode or automatic mode
  * switching can never be earned by accumulating successful operations.
  *
- * The score is computed from Bayesian reliability evidence plus maturity rather than monotonically
- * adding a fixed amount on every success. Failures on higher-risk tools carry more evidence than
- * harmless read failures, and one long success streak cannot create permissions.
+ * The score is computed from Bayesian reliability evidence gated by evidence maturity rather than
+ * monotonically adding a fixed amount on every success. Failures on higher-risk tools carry more
+ * evidence than harmless read failures, and one lucky success streak cannot create permissions.
  */
 class ProgressiveTrustEngine(private val context: Context) {
 
@@ -32,7 +32,7 @@ class ProgressiveTrustEngine(private val context: Context) {
 
         private const val BETA_PRIOR_SUCCESS = 2.0f
         private const val BETA_PRIOR_FAILURE = 2.0f
-        private const val MATURITY_HALF_LIFE_EVIDENCE = 18.0f
+        private const val MATURITY_SCALE_EVIDENCE = 18.0f
 
         private val USER_AUTHORITY_CAPABILITIES = setOf(
             "god_mode",
@@ -143,9 +143,7 @@ class ProgressiveTrustEngine(private val context: Context) {
         }
     }
 
-    /**
-     * Compatibility API for familiarity badges. Reserved user authority can never be earned.
-     */
+    /** Compatibility API for familiarity badges. Reserved user authority can never be earned. */
     fun earnCapability(capability: String): Boolean {
         val normalized = capability.trim().lowercase()
         if (normalized !in FAMILIARITY_CAPABILITIES) return false
@@ -175,14 +173,9 @@ class ProgressiveTrustEngine(private val context: Context) {
         return posteriorReliability(p.successEvidence, p.failureEvidence)
     }
 
-    fun evidenceMaturity(): Float {
-        val total = profile.successEvidence + profile.failureEvidence
-        return maturity(total)
-    }
+    fun evidenceMaturity(): Float = maturity(profile.successEvidence + profile.failureEvidence)
 
-    /**
-     * Prompt injection is deliberately explicit that trust is advisory and grants no authority.
-     */
+    /** Prompt injection is deliberately explicit that trust is advisory and grants no authority. */
     fun buildPromptInjection(): String {
         val p = profile
         val level = getTrustLevel()
@@ -243,17 +236,17 @@ class ProgressiveTrustEngine(private val context: Context) {
     }
 
     private fun computeTrustScore(successEvidence: Float, failureEvidence: Float): Float {
-        val posterior = posteriorReliability(successEvidence, failureEvidence)
-        val maturity = maturity(successEvidence + failureEvidence)
+        val totalEvidence = successEvidence + failureEvidence
+        if (totalEvidence <= 0f) return BASELINE_SCORE
 
-        // New agents stay near baseline despite lucky early successes. As evidence matures, the
-        // posterior dominates. Score can decrease again after failures; it is not an unlock meter.
+        val posterior = posteriorReliability(successEvidence, failureEvidence)
+        val maturity = maturity(totalEvidence)
+
+        // Maturity is a hard calibration gate: a neutral Bayesian prior or a lucky first success
+        // cannot lift the score by itself. With enough evidence the posterior becomes dominant.
         val calibrated = BASELINE_SCORE +
-            (0.67f * posterior + 0.23f * maturity) * (1f - BASELINE_SCORE)
-        val failurePenalty = (
-            failureEvidence / (successEvidence + failureEvidence + 6f)
-            ).coerceIn(0f, 0.35f) * 0.22f
-        return (calibrated - failurePenalty).coerceIn(SCORE_MIN, SCORE_MAX)
+            maturity * posterior * (1f - BASELINE_SCORE)
+        return calibrated.coerceIn(SCORE_MIN, SCORE_MAX)
     }
 
     private fun posteriorReliability(successEvidence: Float, failureEvidence: Float): Float =
@@ -263,7 +256,7 @@ class ProgressiveTrustEngine(private val context: Context) {
 
     private fun maturity(totalEvidence: Float): Float {
         if (totalEvidence <= 0f) return 0f
-        return (1.0 - exp(-totalEvidence.toDouble() / MATURITY_HALF_LIFE_EVIDENCE.toDouble()))
+        return (1.0 - exp(-totalEvidence.toDouble() / MATURITY_SCALE_EVIDENCE.toDouble()))
             .toFloat()
             .coerceIn(0f, 1f)
     }
@@ -331,26 +324,23 @@ class ProgressiveTrustEngine(private val context: Context) {
         try {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val raw = prefs.getString(PREFS_KEY, null)
-            profile = if (raw.isNullOrBlank()) {
-                AgentTrustProfile()
-            } else {
-                jsonToProfile(raw) ?: AgentTrustProfile()
-            }
+            profile = if (raw.isNullOrBlank()) AgentTrustProfile()
+            else jsonToProfile(raw) ?: AgentTrustProfile()
 
-            // Migrate legacy linear-score profiles. Factual success/failure counts are preserved;
-            // stale God Mode / swarm capabilities are stripped unconditionally.
+            // Legacy migration preserves factual operation counts but discards old linear scores
+            // and strips stale God Mode / swarm authority entries unconditionally.
             val hasExplicitEvidence = profile.successEvidence > 0f || profile.failureEvidence > 0f
-            if (!hasExplicitEvidence && (profile.successfulOps > 0 || profile.failedOps > 0)) {
+            profile = if (!hasExplicitEvidence && (profile.successfulOps > 0 || profile.failedOps > 0)) {
                 val migratedSuccessEvidence = profile.successfulOps * 0.55f
                 val migratedFailureEvidence = profile.failedOps * 1.20f
-                profile = profile.copy(
+                profile.copy(
                     successEvidence = migratedSuccessEvidence,
                     failureEvidence = migratedFailureEvidence,
                     trustScore = computeTrustScore(migratedSuccessEvidence, migratedFailureEvidence),
                     earnedCapabilities = sanitizeCapabilities(profile.earnedCapabilities)
                 )
             } else {
-                profile = profile.copy(
+                profile.copy(
                     trustScore = computeTrustScore(profile.successEvidence, profile.failureEvidence),
                     earnedCapabilities = sanitizeCapabilities(profile.earnedCapabilities)
                 )
