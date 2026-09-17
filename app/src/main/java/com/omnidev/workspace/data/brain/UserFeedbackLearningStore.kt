@@ -1,16 +1,17 @@
 package com.omnidev.workspace.data.brain
 
 import android.content.Context
+import com.omnidev.workspace.domain.engine.ModePreferenceSource
+import com.omnidev.workspace.domain.engine.OmniMode
 import kotlin.math.max
 
 /**
- * Tiny local-only preference learner for explicit user feedback.
+ * Local-only learner for explicit user decisions around execution-mode handoffs.
  *
- * This store learns *preferences*, never permissions. A high historical acceptance rate may
- * make a recommendation less noisy, but it can never authorize an action. Authorization remains
- * the responsibility of the mode/confirmation policy layer.
+ * This learns preferences, never permissions. Even a 100% historical acceptance rate cannot
+ * authorize a future switch; it may only calibrate recommendation confidence/noise.
  */
-class UserFeedbackLearningStore(context: Context) {
+class UserFeedbackLearningStore(context: Context) : ModePreferenceSource {
 
     data class TransitionPreference(
         val accepted: Int,
@@ -20,12 +21,16 @@ class UserFeedbackLearningStore(context: Context) {
         val acceptanceRate: Float
             get() = if (observations == 0) 0.5f else accepted.toFloat() / observations.toFloat()
 
-        /**
-         * Bayesian-smoothed preference in [0,1]. The 1/1 prior prevents one click from becoming
-         * an overconfident long-term preference.
-         */
+        /** Beta(1,1) posterior mean. */
         val smoothedAcceptance: Float
             get() = (accepted + 1f) / (observations + 2f)
+
+        /**
+         * Wilson-like confidence strength approximation: grows slowly with observations so a
+         * handful of clicks cannot dominate routing forever.
+         */
+        val evidenceStrength: Float
+            get() = (observations.toFloat() / (observations + 6f)).coerceIn(0f, 1f)
 
         val stronglyDisliked: Boolean
             get() = observations >= 3 && denied >= max(3, accepted * 2)
@@ -45,6 +50,9 @@ class UserFeedbackLearningStore(context: Context) {
         prefs.edit().putInt(key, prefs.getInt(key, 0) + 1).apply()
     }
 
+    fun recordModeDecision(from: OmniMode, to: OmniMode, accepted: Boolean) =
+        recordModeDecision(from.name, to.name, accepted)
+
     fun modePreference(from: String, to: String): TransitionPreference {
         val normalizedFrom = normalize(from)
         val normalizedTo = normalize(to)
@@ -54,44 +62,73 @@ class UserFeedbackLearningStore(context: Context) {
         )
     }
 
-    /**
-     * Returns a small confidence adjustment for recommendation ranking only.
-     * Never use this value as an authorization signal.
-     */
-    fun recommendationConfidenceAdjustment(from: String, to: String): Float {
+    fun modePreference(from: OmniMode, to: OmniMode): TransitionPreference =
+        modePreference(from.name, to.name)
+
+    override fun confidenceAdjustment(from: OmniMode, to: OmniMode): Float {
         val preference = modePreference(from, to)
         if (preference.observations < 2) return 0f
-        return ((preference.smoothedAcceptance - 0.5f) * 0.20f).coerceIn(-0.10f, 0.10f)
+
+        // Center posterior around neutral 0.5, then scale by evidence strength. Maximum impact is
+        // intentionally small because preference is not task-success evidence.
+        val centered = (preference.smoothedAcceptance - 0.5f) * 2f
+        return (centered * preference.evidenceStrength * 0.10f).coerceIn(-0.10f, 0.10f)
     }
 
-    /**
-     * User-facing agents can use this compact hint to avoid repeatedly suggesting transitions
-     * the user usually rejects. It intentionally contains no raw prompts or personal content.
-     */
+    override fun stronglyDisliked(from: OmniMode, to: OmniMode): Boolean =
+        modePreference(from, to).stronglyDisliked
+
+    /** Backward-compatible string API. */
+    fun recommendationConfidenceAdjustment(from: String, to: String): Float {
+        val fromMode = normalizeModeOrNull(from) ?: return 0f
+        val toMode = normalizeModeOrNull(to) ?: return 0f
+        return confidenceAdjustment(fromMode, toMode)
+    }
+
+    /** Compact advisory prompt context; contains no raw user text. */
     fun buildPromptInjection(maxChars: Int = 360): String {
-        val modes = listOf("CHAT", "AGENT", "SWARM")
+        val modes = listOf(OmniMode.CHAT, OmniMode.AGENT, OmniMode.SWARM)
         val observations = buildList {
             for (from in modes) {
                 for (to in modes) {
                     if (from == to) continue
                     val p = modePreference(from, to)
                     if (p.observations >= 2) {
-                        add("$from->$to accepted=${p.accepted} denied=${p.denied}")
+                        add(
+                            "${from.name}->${to.name} accepted=${p.accepted} denied=${p.denied} " +
+                                "posterior=${((p.smoothedAcceptance * 100).toInt())}%"
+                        )
                     }
                 }
             }
         }
         if (observations.isEmpty()) return ""
         return buildString {
-            append("\n👤 Learned user execution preferences (advisory only; NEVER permission): ")
+            append("\nLearned execution-mode preferences (advisory only; NEVER permission): ")
             append(observations.joinToString("; "))
-            append(". Avoid nagging for repeatedly rejected switches unless the current run is genuinely blocked.")
+            append(". Avoid repeated low-value suggestions the user usually rejects.")
         }.take(maxChars)
+    }
+
+    fun resetPreference(from: OmniMode, to: OmniMode) {
+        val f = normalize(from.name)
+        val t = normalize(to.name)
+        prefs.edit()
+            .remove(key(f, t, true))
+            .remove(key(f, t, false))
+            .apply()
     }
 
     private fun normalize(mode: String): String = when (mode.trim().uppercase()) {
         "TEAM" -> "SWARM"
         else -> mode.trim().uppercase()
+    }
+
+    private fun normalizeModeOrNull(mode: String): OmniMode? = when (normalize(mode)) {
+        "CHAT" -> OmniMode.CHAT
+        "AGENT" -> OmniMode.AGENT
+        "SWARM" -> OmniMode.SWARM
+        else -> null
     }
 
     private fun key(from: String, to: String, accepted: Boolean): String =
