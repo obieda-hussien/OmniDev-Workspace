@@ -1,77 +1,74 @@
 package com.omnidev.workspace.data.tools
 
-import org.jsoup.Jsoup
+import kotlin.math.ln
 import kotlin.math.max
 
+/** Query-focused reader used after search discovery by web_search_deep. */
 internal object DeepResearchPageReader {
-    private const val PAGE_TIMEOUT_MS = 14_000
-    private const val MAX_PAGE_CHARS = 8_000
+    private const val MAX_PAGE_TEXT = 9_000
+    private const val MAX_PASSAGES = 5
 
-    fun read(url: String, query: String): String {
-        if (!KeylessSearchHttp.isSafePublicUrl(url)) return ""
-        val doc = Jsoup.connect(url)
-            .userAgent(KeylessSearchHttp.userAgent())
-            .timeout(PAGE_TIMEOUT_MS)
-            .followRedirects(true)
-            .maxBodySize(1_750_000)
-            .get()
+    suspend fun read(url: String, query: String): String {
+        val response = PageFetchEngine.fetch(url)
+        val page = ReadablePageExtractor.extract(response)
+        if (page.text.length < 120) return ""
 
-        doc.select(
-            "script,style,nav,footer,header,aside,iframe,noscript,svg,form,button,input,select,textarea," +
-                ".ad,.ads,.advertisement,.sidebar,.menu,.cookie,.popup,.newsletter,.social-share," +
-                "[aria-hidden=true],[role=navigation]"
-        ).remove()
-
-        val content = doc.selectFirst("article")
-            ?: doc.selectFirst("main")
-            ?: doc.selectFirst("[role=main]")
-            ?: doc.selectFirst(
-                ".post-content,.entry-content,.article-content,.article-body,.story-content,.post-body," +
-                    "#article-body,.main-content,.content,#content,#main"
-            )
-            ?: doc.body()
-            ?: return ""
-
-        val text = content.wholeText().lines()
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .joinToString("\n")
-            .trim()
-        if (text.isBlank()) return ""
-
-        val terms = SearchSemantics.tokenize(query).toSet()
-        val passages = text.split(Regex("\\n{2,}|(?<=[.!?؟])\\s+"))
-            .map { it.replace(Regex("\\s+"), " ").trim() }
-            .filter { it.length in 80..900 }
-            .map { passage ->
-                val passageTerms = SearchSemantics.tokenize(passage).toSet()
-                val matched = terms.intersect(passageTerms).size
-                val coverage = matched.toDouble() / max(1, terms.size)
-                val density = matched.toDouble() / max(1, passageTerms.size)
-                passage to (coverage * 0.8 + density * 0.2)
-            }
-            .filter { it.second > 0.0 }
-            .sortedByDescending { it.second }
-            .fold(mutableListOf<Pair<String, Double>>()) { selected, candidate ->
-                val candidateTerms = SearchSemantics.tokenize(candidate.first).toSet()
-                val nearDuplicate = selected.any { existing ->
-                    val existingTerms = SearchSemantics.tokenize(existing.first).toSet()
-                    val union = candidateTerms.union(existingTerms).size
-                    union > 0 && candidateTerms.intersect(existingTerms).size.toDouble() / union > 0.72
-                }
-                if (!nearDuplicate && selected.size < 4) selected += candidate
-                selected
-            }
-            .map { it.first }
-
+        val passages = selectPassages(query, page.text)
         return buildString {
+            appendLine("**Source metadata:**")
+            if (page.metadata.title.isNotBlank()) appendLine("- Title: ${page.metadata.title}")
+            appendLine("- Final URL: ${response.finalUrl}")
+            if (page.metadata.author.isNotBlank()) appendLine("- Author: ${page.metadata.author}")
+            if (page.metadata.publishedAt.isNotBlank()) appendLine("- Published: ${page.metadata.publishedAt}")
+            if (page.metadata.modifiedAt.isNotBlank()) appendLine("- Modified: ${page.metadata.modifiedAt}")
+            appendLine("- Readable words: ${page.wordCount}; extraction quality=${"%.2f".format(page.qualityScore)}")
+            if (page.warnings.isNotEmpty()) appendLine("- Warnings: ${page.warnings.joinToString(" | ")}")
+            appendLine()
             if (passages.isNotEmpty()) {
                 appendLine("**Query-focused evidence:**")
                 passages.forEachIndexed { index, passage -> appendLine("${index + 1}. $passage") }
                 appendLine()
             }
-            appendLine("**Readable page text (truncated):**")
-            append(text.take(MAX_PAGE_CHARS))
+            appendLine("--- BEGIN UNTRUSTED PAGE CONTENT ---")
+            appendLine(page.text.take(MAX_PAGE_TEXT))
+            appendLine("--- END UNTRUSTED PAGE CONTENT ---")
+        }.trim()
+    }
+
+    private fun selectPassages(query: String, text: String): List<String> {
+        val queryTerms = SearchSemantics.tokenize(query).toSet()
+        if (queryTerms.isEmpty()) return emptyList()
+
+        val chunks = text
+            .split(Regex("\\n{2,}|(?<=[.!?؟])\\s+"))
+            .map { it.replace(Regex("\\s+"), " ").trim() }
+            .filter { it.length in 90..1100 }
+        if (chunks.isEmpty()) return emptyList()
+
+        val docFreq = queryTerms.associateWith { term -> chunks.count { term in SearchSemantics.tokenize(it).toSet() } }
+        val n = chunks.size.toDouble()
+
+        data class Candidate(val text: String, val terms: Set<String>, val score: Double)
+        val candidates = chunks.mapIndexed { index, chunk ->
+            val tokens = SearchSemantics.tokenize(chunk)
+            val tokenSet = tokens.toSet()
+            val matched = queryTerms.intersect(tokenSet)
+            val coverage = matched.size.toDouble() / max(1, queryTerms.size)
+            val idfSignal = matched.sumOf { term -> ln((n + 1.0) / (docFreq.getValue(term) + 1.0)) + 1.0 }
+            val density = matched.size.toDouble() / max(1, tokenSet.size)
+            val earlyBonus = 1.0 / (1.0 + index / 12.0)
+            Candidate(chunk, tokenSet, coverage * 2.2 + idfSignal * 0.35 + density * 0.5 + earlyBonus * 0.12)
+        }.filter { it.score > 0.1 }.sortedByDescending { it.score }
+
+        val selected = mutableListOf<Candidate>()
+        for (candidate in candidates) {
+            if (selected.size >= MAX_PASSAGES) break
+            val tooSimilar = selected.any { existing ->
+                val union = candidate.terms.union(existing.terms).size
+                union > 0 && candidate.terms.intersect(existing.terms).size.toDouble() / union > 0.68
+            }
+            if (!tooSimilar) selected += candidate
         }
+        return selected.map { it.text }
     }
 }
