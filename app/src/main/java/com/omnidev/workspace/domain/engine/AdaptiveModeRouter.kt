@@ -1,12 +1,19 @@
 package com.omnidev.workspace.domain.engine
 
 /**
+ * Read-only preference contract consumed by the local mode router.
+ * Implementations may learn from user decisions, but MUST NOT expose authorization state here.
+ */
+interface ModePreferenceSource {
+    fun confidenceAdjustment(from: OmniMode, to: OmniMode): Float
+    fun stronglyDisliked(from: OmniMode, to: OmniMode): Boolean
+}
+
+/**
  * Local-only execution-mode router.
  *
- * This deliberately avoids a network/model call.  It consumes deterministic runtime
- * evidence (failures, team plan shape and task wording) and emits a *suggestion* only;
- * [ModeSwitchPermissionStore] remains the authority for whether that suggestion may
- * execute automatically.
+ * Routing is evidence-based and deterministic. It never grants authority: it only produces a
+ * recommendation. [ModeSwitchPermissionStore] remains the sole authority for automatic switches.
  */
 object AdaptiveModeRouter {
 
@@ -15,7 +22,8 @@ object AdaptiveModeRouter {
         val to: OmniMode,
         val reason: String,
         val confidence: Float,
-        val trigger: Trigger
+        val trigger: Trigger,
+        val evidence: List<String> = emptyList()
     )
 
     enum class Trigger {
@@ -25,35 +33,80 @@ object AdaptiveModeRouter {
         TEAM_OVERHEAD
     }
 
+    private enum class FailureClass {
+        INFRASTRUCTURE,
+        STAGNATION,
+        CONTEXT_PRESSURE,
+        DETERMINISTIC_TASK_FAILURE,
+        UNKNOWN
+    }
+
+    @Volatile
+    private var preferenceSource: ModePreferenceSource? = null
+
+    fun installPreferenceSource(source: ModePreferenceSource?) {
+        preferenceSource = source
+    }
+
     /**
-     * Returns an Agent -> Team suggestion only for failures where another independent
-     * worker / decomposition can plausibly help. Provider outages, auth failures and rate
-     * limits are intentionally excluded because spawning more workers would only amplify
-     * the same failure and waste tokens.
+     * Agent -> Team escalation. The previous implementation escalated nearly every hard stop.
+     * This version requires evidence that decomposition can plausibly improve the outcome.
      */
     fun fromAgentFailure(errorMessage: String, userRequest: String = ""): Suggestion? {
-        val error = errorMessage.lowercase()
+        val failureClass = classifyFailure(errorMessage)
+        if (failureClass == FailureClass.INFRASTRUCTURE) return null
 
-        val infrastructureFailure = listOf(
-            "rate limit", "429", "api key", "unauthorized", "forbidden",
-            "model not found", "network timeout", "internet connection",
-            "provider cooldown", "insufficient quota"
-        ).any(error::contains)
-        if (infrastructureFailure) return null
+        val signals = IntentClassifier.analyze(userRequest)
+        val scores = IntentClassifier.scoreModes(signals)
+        val evidence = mutableListOf<String>()
 
-        val hardStall = listOf(
-            "maximum iterations", "max iterations", "repeated with identical",
-            "agent stuck", "no progress", "token budget", "without completing"
-        ).any(error::contains)
+        val failureEvidence = when (failureClass) {
+            FailureClass.STAGNATION -> {
+                evidence += "single-agent execution stagnated"
+                0.34f
+            }
+            FailureClass.CONTEXT_PRESSURE -> {
+                evidence += "single-agent context/budget pressure"
+                0.24f
+            }
+            FailureClass.DETERMINISTIC_TASK_FAILURE -> {
+                evidence += "task failed but failure is not infrastructure-wide"
+                0.12f
+            }
+            FailureClass.UNKNOWN -> 0.04f
+            FailureClass.INFRASTRUCTURE -> 0f
+        }
 
-        if (!hardStall) return null
+        val decompositionEvidence =
+            signals.parallelism * 0.28f +
+                signals.breadth * 0.18f +
+                signals.complexity * 0.10f +
+                scores.swarm * 0.10f
 
-        val parallelism = estimateParallelism(userRequest)
-        val confidence = (0.78f + parallelism * 0.18f).coerceAtMost(0.96f)
-        val reason = if (parallelism >= 0.45f) {
-            "The single agent reached a no-progress/complexity limit. The remaining work appears splittable, so Team Agents can continue from the saved checkpoint with focused workers instead of restarting."
-        } else {
-            "The single agent reached a no-progress limit. Team Agents can try a fresh decomposition and recovery path while reusing the saved checkpoint."
+        if (signals.parallelism >= 0.45f) evidence += "request contains independent work streams"
+        if (signals.breadth >= 0.55f) evidence += "request spans multiple domains/components"
+        if (signals.verificationIntent >= 0.45f) evidence += "verification can be separated from implementation"
+
+        var confidence = 0.30f + failureEvidence + decompositionEvidence
+        confidence += preferenceAdjustment(OmniMode.AGENT, OmniMode.SWARM)
+        confidence = confidence.coerceIn(0f, 0.97f)
+
+        // Hysteresis: Team is expensive. Borderline evidence stays in Agent.
+        val enoughDecomposition = signals.parallelism >= 0.30f || signals.breadth >= 0.58f
+        val criticalStall = failureClass == FailureClass.STAGNATION && confidence >= 0.76f
+        if (!enoughDecomposition && !criticalStall) return null
+        if (confidence < 0.68f) return null
+
+        // Repeated explicit rejections suppress non-critical nagging, not critical recovery.
+        if (isStronglyDisliked(OmniMode.AGENT, OmniMode.SWARM) && !criticalStall) return null
+
+        val reason = when {
+            signals.parallelism >= 0.55f ->
+                "The single Agent is no longer making reliable progress, and the remaining work has independent parts. Team Agents can split the work and continue from the saved checkpoint without redoing completed steps."
+            signals.breadth >= 0.58f ->
+                "The task now spans enough distinct components that a single loop is becoming inefficient. Team Agents can decompose the remaining work while reusing the current checkpoint."
+            else ->
+                "The Agent hit a persistent no-progress condition. Team Agents can try an independent decomposition/recovery path while preserving the current checkpoint."
         }
 
         return Suggestion(
@@ -61,39 +114,137 @@ object AdaptiveModeRouter {
             to = OmniMode.SWARM,
             reason = reason,
             confidence = confidence,
-            trigger = Trigger.AGENT_STUCK
+            trigger = if (failureClass == FailureClass.STAGNATION) Trigger.AGENT_STUCK else Trigger.AGENT_COMPLEXITY,
+            evidence = evidence.distinct().take(5)
         )
     }
 
     /**
-     * Team mode is wasteful when the orchestrator itself discovers that there is only one
-     * atomic task and no parallel work.  In that case a single Agent keeps all context in
-     * one loop and avoids planner/worker/synthesis overhead.
+     * Team -> Agent de-escalation. Team should not pay planner/worker/synthesis overhead for one
+     * serial atomic task. A small two-task dependency chain may also de-escalate if nothing can
+     * run in parallel.
      */
-    fun fromTeamPlan(taskCount: Int, parallelSafeTaskCount: Int): Suggestion? {
-        if (taskCount != 1 || parallelSafeTaskCount > 1) return null
+    fun fromTeamPlan(
+        taskCount: Int,
+        parallelSafeTaskCount: Int,
+        dependencyEdgeCount: Int = 0
+    ): Suggestion? {
+        if (taskCount <= 0) return null
+
+        val atomic = taskCount == 1
+        val tinySerial = taskCount == 2 && parallelSafeTaskCount == 0 && dependencyEdgeCount >= 1
+        if (!atomic && !tinySerial) return null
+
+        var confidence = if (atomic) 0.92f else 0.78f
+        confidence += preferenceAdjustment(OmniMode.SWARM, OmniMode.AGENT)
+        confidence = confidence.coerceIn(0f, 0.97f)
+
+        if (confidence < 0.64f) return null
+        if (isStronglyDisliked(OmniMode.SWARM, OmniMode.AGENT) && !atomic) return null
+
         return Suggestion(
             from = OmniMode.SWARM,
             to = OmniMode.AGENT,
-            reason = "The Team plan contains only one atomic task, so a single Agent can continue with less coordination and token overhead.",
-            confidence = 0.91f,
-            trigger = Trigger.TEAM_OVERHEAD
+            reason = if (atomic) {
+                "The Team planner found only one atomic task. A single Agent can continue with the same context and avoid planner/worker/synthesis overhead."
+            } else {
+                "The Team plan is a tiny serial dependency chain with no useful parallel work. A single Agent can execute it more efficiently."
+            },
+            confidence = confidence,
+            trigger = Trigger.TEAM_OVERHEAD,
+            evidence = listOf(
+                "tasks=$taskCount",
+                "parallelSafe=$parallelSafeTaskCount",
+                "dependencyEdges=$dependencyEdgeCount"
+            )
         )
     }
 
-    /** Cheap, language-tolerant signal used only to tune confidence, never as authority. */
-    internal fun estimateParallelism(text: String): Float {
-        if (text.isBlank()) return 0f
-        val lower = text.lowercase()
-        val domains = listOf(
-            "ui", "واجهة", "database", "قاعدة", "backend", "api", "tests", "اختبارات",
-            "browser", "متصفح", "gradle", "build", "memory", "ذاكرة", "shizuku",
-            "security", "أمان", "performance", "أداء"
-        ).count(lower::contains)
-        val splitWords = listOf(
-            " and ", " + ", "كمان", "وكمان", "كل المشاكل", "عدة", "multiple",
-            "several", "independent", "parallel", "بالتوازي"
-        ).count(lower::contains)
-        return ((domains * 0.12f) + (splitWords * 0.16f)).coerceIn(0f, 1f)
+    /**
+     * Chat -> execution recommendation for callers that need a deterministic capability-gap check.
+     */
+    fun fromChatRequest(userRequest: String): Suggestion? {
+        val signals = IntentClassifier.analyze(userRequest)
+        val scores = IntentClassifier.scoreModes(signals)
+        if (signals.executionIntent < 0.42f) return null
+
+        val target = if (
+            scores.swarm >= 0.66f &&
+            signals.parallelism >= 0.38f &&
+            scores.swarm >= scores.agent + 0.06f
+        ) OmniMode.SWARM else OmniMode.AGENT
+
+        var confidence = scores.score(target)
+        confidence += preferenceAdjustment(OmniMode.CHAT, target)
+        confidence = confidence.coerceIn(0f, 0.96f)
+        if (confidence < 0.58f) return null
+        if (isStronglyDisliked(OmniMode.CHAT, target) && confidence < 0.82f) return null
+
+        return Suggestion(
+            from = OmniMode.CHAT,
+            to = target,
+            reason = if (target == OmniMode.SWARM) {
+                "This request requires execution across multiple independent components. Team Agents can perform the work instead of only describing it."
+            } else {
+                "This request requires execution tools and project/device access. Agent mode can perform the work instead of only describing it."
+            },
+            confidence = confidence,
+            trigger = Trigger.CHAT_CAPABILITY_GAP,
+            evidence = listOf(
+                "execution=${signals.executionIntent.format2()}",
+                "parallelism=${signals.parallelism.format2()}",
+                "breadth=${signals.breadth.format2()}"
+            )
+        )
     }
+
+    internal fun estimateParallelism(text: String): Float = IntentClassifier.analyze(text).parallelism
+
+    private fun classifyFailure(message: String): FailureClass {
+        val error = message.lowercase()
+
+        if (containsAny(
+                error,
+                "rate limit", "429", "api key", "unauthorized", "forbidden", "401", "403",
+                "model not found", "provider cooldown", "insufficient quota", "quota exceeded",
+                "network timeout", "internet connection", "dns", "connection refused",
+                "service unavailable", "http 502", "http 503", "http 504"
+            )
+        ) return FailureClass.INFRASTRUCTURE
+
+        if (containsAny(
+                error,
+                "maximum iterations", "max iterations", "repeated with identical",
+                "agent stuck", "no progress", "without completing", "stagnat",
+                "read-only operations", "loop detected"
+            )
+        ) return FailureClass.STAGNATION
+
+        if (containsAny(
+                error,
+                "token budget", "context window", "context limit", "too large", "compaction",
+                "maximum context", "input budget"
+            )
+        ) return FailureClass.CONTEXT_PRESSURE
+
+        if (containsAny(
+                error,
+                "build failed", "compile failed", "tests failed", "verification failed",
+                "tool execution failed", "cannot complete", "unable to complete"
+            )
+        ) return FailureClass.DETERMINISTIC_TASK_FAILURE
+
+        return FailureClass.UNKNOWN
+    }
+
+    private fun preferenceAdjustment(from: OmniMode, to: OmniMode): Float =
+        preferenceSource?.confidenceAdjustment(from, to)?.coerceIn(-0.12f, 0.12f) ?: 0f
+
+    private fun isStronglyDisliked(from: OmniMode, to: OmniMode): Boolean =
+        preferenceSource?.stronglyDisliked(from, to) == true
+
+    private fun containsAny(haystack: String, vararg needles: String): Boolean =
+        needles.any { it in haystack }
+
+    private fun Float.format2(): String = ((this * 100f).toInt() / 100f).toString()
 }
