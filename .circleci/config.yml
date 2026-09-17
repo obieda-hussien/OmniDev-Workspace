@@ -7,16 +7,19 @@ executors:
     resource_class: medium.gen2
 
 commands:
-  send-files-to-telegram:
+  send-zip-to-telegram:
     parameters:
       paths:
         type: string
       label:
         type: string
-        default: "CircleCI artifact"
+        default: "CircleCI archive"
+      archive_name:
+        type: string
+        default: "artifact"
     steps:
       - run:
-          name: Send complete files to Telegram
+          name: Send ZIP archive to Telegram
           when: always
           command: |
             set +e
@@ -27,45 +30,133 @@ commands:
 
             CHAT_ID="1100444932"
             LABEL='<< parameters.label >>'
-            FOUND=0
+            ARCHIVE_NAME='<< parameters.archive_name >>'
             shopt -s globstar nullglob
+            FILES=()
 
-            send_file() {
-              FILE="$1"
-              [ -f "$FILE" ] || return 0
-              FOUND=1
-              SIZE=$(wc -c < "$FILE" | tr -d ' ')
-              NAME=$(basename "$FILE")
-
-              # Files are always sent intact. Never split/chunk artifacts.
-              if [ "$SIZE" -gt 50000000 ]; then
-                echo "Skipping $FILE: ${SIZE} bytes exceeds Telegram Bot API direct-upload limit. File was NOT split."
-                curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-                  -d chat_id="$CHAT_ID" \
-                  --data-urlencode "text=⚠️ ${LABEL}: ${NAME} is ${SIZE} bytes and exceeds Telegram's direct-upload limit. It was not split." \
-                  >/dev/null || true
-                return 0
-              fi
-
-              echo "Sending complete file: $FILE (${SIZE} bytes)"
-              curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
-                -F chat_id="$CHAT_ID" \
-                -F document=@"$FILE" \
-                -F "caption=${LABEL} | ${CIRCLE_PROJECT_REPONAME:-OmniDev-Workspace} | ${CIRCLE_BRANCH:-unknown} | build ${CIRCLE_BUILD_NUM:-unknown}" \
-                >/dev/null || true
-            }
-
-            printf '%s\n' '<< parameters.paths >>' > /tmp/telegram-patterns.txt
+            printf '%s\n' '<< parameters.paths >>' > /tmp/telegram-zip-patterns.txt
             while IFS= read -r PATTERN; do
               [ -n "$PATTERN" ] || continue
               while IFS= read -r FILE; do
-                [ -n "$FILE" ] && send_file "$FILE"
+                [ -n "$FILE" ] && [ -f "$FILE" ] && FILES+=("$FILE")
               done < <(compgen -G "$PATTERN" || true)
-            done < /tmp/telegram-patterns.txt
+            done < /tmp/telegram-zip-patterns.txt
 
-            if [ "$FOUND" -eq 0 ]; then
-              echo "No matching files found for Telegram upload."
+            if [ "${#FILES[@]}" -eq 0 ]; then
+              echo "No matching files found for ZIP upload."
+              exit 0
             fi
+
+            SAFE_BRANCH=$(printf '%s' "${CIRCLE_BRANCH:-unknown}" | tr '/ ' '--')
+            ZIP_PATH="/tmp/${ARCHIVE_NAME}-${SAFE_BRANCH}-${CIRCLE_BUILD_NUM:-0}.zip"
+            rm -f "$ZIP_PATH"
+            zip -q "$ZIP_PATH" "${FILES[@]}"
+
+            SIZE=$(wc -c < "$ZIP_PATH" | tr -d ' ')
+            if [ "$SIZE" -gt 50000000 ]; then
+              echo "ZIP ${ZIP_PATH} is ${SIZE} bytes and exceeds Telegram direct-upload limit. It will NOT be split."
+              curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                -d chat_id="$CHAT_ID" \
+                --data-urlencode "text=⚠️ ${LABEL}: $(basename "$ZIP_PATH") is ${SIZE} bytes and exceeds Telegram's direct-upload limit. It was not split." \
+                >/dev/null || true
+              exit 0
+            fi
+
+            echo "Sending ZIP: $ZIP_PATH (${SIZE} bytes, ${#FILES[@]} files)"
+            curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+              -F chat_id="$CHAT_ID" \
+              -F document=@"$ZIP_PATH" \
+              -F "caption=${LABEL} | ${CIRCLE_PROJECT_REPONAME:-OmniDev-Workspace} | ${CIRCLE_BRANCH:-unknown} | build ${CIRCLE_BUILD_NUM:-unknown}" \
+              >/dev/null || true
+
+  send-debug-apks-as-zips:
+    steps:
+      - run:
+          name: Send each debug APK as its own ZIP
+          when: always
+          command: |
+            set +e
+            if [ -z "${TELEGRAM_BOT_TOKEN:-}" ]; then
+              echo "TELEGRAM_BOT_TOKEN is not configured; skipping Telegram upload."
+              exit 0
+            fi
+
+            CHAT_ID="1100444932"
+            shopt -s nullglob
+            APKS=(app/build/outputs/apk/*/debug/*.apk)
+
+            if [ "${#APKS[@]}" -eq 0 ]; then
+              echo "No debug APKs found."
+              exit 0
+            fi
+
+            SAFE_BRANCH=$(printf '%s' "${CIRCLE_BRANCH:-unknown}" | tr '/ ' '--')
+
+            for APK in "${APKS[@]}"; do
+              NAME=$(basename "$APK" .apk)
+              ZIP_PATH="/tmp/${NAME}-${SAFE_BRANCH}-${CIRCLE_BUILD_NUM:-0}.zip"
+              rm -f "$ZIP_PATH"
+              zip -q -j "$ZIP_PATH" "$APK"
+              SIZE=$(wc -c < "$ZIP_PATH" | tr -d ' ')
+
+              if [ "$SIZE" -gt 50000000 ]; then
+                echo "Skipping $ZIP_PATH: ${SIZE} bytes exceeds Telegram direct-upload limit. ZIP was NOT split."
+                curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                  -d chat_id="$CHAT_ID" \
+                  --data-urlencode "text=⚠️ Debug APK ZIP ${NAME}.zip is ${SIZE} bytes and exceeds Telegram's direct-upload limit. It was not split." \
+                  >/dev/null || true
+                continue
+              fi
+
+              echo "Sending debug APK ZIP: $ZIP_PATH"
+              curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+                -F chat_id="$CHAT_ID" \
+                -F document=@"$ZIP_PATH" \
+                -F "caption=Debug APK ZIP | ${NAME} | ${CIRCLE_BRANCH:-unknown} | build ${CIRCLE_BUILD_NUM:-unknown}" \
+                >/dev/null || true
+            done
+
+  send-admin-release-apk:
+    steps:
+      - run:
+          name: Send Admin release APK directly to Telegram
+          when: always
+          command: |
+            set +e
+            if [ -z "${TELEGRAM_BOT_TOKEN:-}" ]; then
+              echo "TELEGRAM_BOT_TOKEN is not configured; skipping Telegram upload."
+              exit 0
+            fi
+
+            CHAT_ID="1100444932"
+            shopt -s nullglob
+            APKS=(app/build/outputs/apk/admin/release/*.apk)
+
+            if [ "${#APKS[@]}" -eq 0 ]; then
+              echo "No Admin release APK found."
+              exit 0
+            fi
+
+            for APK in "${APKS[@]}"; do
+              SIZE=$(wc -c < "$APK" | tr -d ' ')
+              NAME=$(basename "$APK")
+
+              if [ "$SIZE" -gt 50000000 ]; then
+                echo "Admin release APK ${NAME} exceeds Telegram direct-upload limit and will NOT be split."
+                curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                  -d chat_id="$CHAT_ID" \
+                  --data-urlencode "text=⚠️ Admin Release APK ${NAME} is ${SIZE} bytes and exceeds Telegram's direct-upload limit. It was not split." \
+                  >/dev/null || true
+                continue
+              fi
+
+              echo "Sending Admin release APK directly: $APK"
+              curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+                -F chat_id="$CHAT_ID" \
+                -F document=@"$APK" \
+                -F "caption=🚀 OmniDev Admin Release APK | ${CIRCLE_BRANCH:-unknown} | build ${CIRCLE_BUILD_NUM:-unknown} | ${CIRCLE_SHA1:0:7}" \
+                >/dev/null || true
+            done
 
 jobs:
   android-ci:
@@ -92,8 +183,8 @@ jobs:
 
       - restore_cache:
           keys:
-            - gradle-v3-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
-            - gradle-v3-
+            - gradle-v4-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
+            - gradle-v4-
 
       - run:
           name: Lint all debug flavors
@@ -112,8 +203,9 @@ jobs:
             echo "LINT_EXIT_CODE=$RC"
             exit 0
 
-      - send-files-to-telegram:
-          label: "Lint diagnostic log"
+      - send-zip-to-telegram:
+          label: "Lint reports ZIP"
+          archive_name: "omnidev-lint"
           paths: |
             ci-logs/lint.log
             app/build/reports/lint-results*.html
@@ -139,11 +231,13 @@ jobs:
       - store_test_results:
           path: app/build/test-results
 
-      - send-files-to-telegram:
-          label: "Unit test diagnostic log"
+      - send-zip-to-telegram:
+          label: "Unit tests ZIP"
+          archive_name: "omnidev-tests"
           paths: |
             ci-logs/tests.log
             app/build/test-results/**/*.xml
+            app/build/reports/tests/**/*.html
 
       - run:
           name: Build all debug APKs
@@ -162,22 +256,20 @@ jobs:
             echo "DEBUG_EXIT_CODE=$RC"
             exit 0
 
-      - send-files-to-telegram:
-          label: "Debug build output"
+      - send-debug-apks-as-zips
+
+      - send-zip-to-telegram:
+          label: "Debug build log ZIP"
+          archive_name: "omnidev-debug-log"
           paths: |
             ci-logs/debug-build.log
-            app/build/outputs/apk/*/debug/*.apk
 
       - run:
-          name: Build all release APKs
+          name: Build Admin release APK only
           command: |
             set +e
             set -o pipefail
             ./gradlew --no-daemon --max-workers 1 \
-              :app:assembleLiteRelease \
-              :app:assembleNormRelease \
-              :app:assembleProRelease \
-              :app:assembleOemRelease \
               :app:assembleAdminRelease \
               --continue 2>&1 | tee ci-logs/release-build.log
             RC=${PIPESTATUS[0]}
@@ -185,11 +277,13 @@ jobs:
             echo "RELEASE_EXIT_CODE=$RC"
             exit 0
 
-      - send-files-to-telegram:
-          label: "Release build output"
+      - send-admin-release-apk
+
+      - send-zip-to-telegram:
+          label: "Admin release build log ZIP"
+          archive_name: "omnidev-admin-release-log"
           paths: |
             ci-logs/release-build.log
-            app/build/outputs/apk/*/release/*.apk
 
       - store_artifacts:
           path: app/build/outputs/apk
@@ -200,7 +294,7 @@ jobs:
           destination: ci-logs
 
       - save_cache:
-          key: gradle-v3-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
+          key: gradle-v4-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
           paths:
             - ~/.gradle/caches
             - ~/.gradle/wrapper
@@ -235,7 +329,7 @@ jobs:
             fi
 
             if [ "$FAILED" -ne 0 ]; then
-              echo "One or more CI stages failed. Open the ci-logs artifact or Telegram diagnostic log for the exact Gradle error."
+              echo "One or more CI stages failed. Check the Telegram ZIP diagnostics or CircleCI ci-logs artifact for the exact Gradle error."
               exit 1
             fi
 
