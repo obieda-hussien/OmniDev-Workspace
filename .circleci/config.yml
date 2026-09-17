@@ -37,12 +37,12 @@ commands:
               SIZE=$(wc -c < "$FILE" | tr -d ' ')
               NAME=$(basename "$FILE")
 
-              # User requested intact files only. Never split/chunk an artifact.
+              # Files are always sent intact. Never split/chunk artifacts.
               if [ "$SIZE" -gt 50000000 ]; then
-                echo "Skipping $FILE: ${SIZE} bytes exceeds Telegram Bot API's 50 MB sendDocument limit. File was NOT split."
+                echo "Skipping $FILE: ${SIZE} bytes exceeds Telegram Bot API direct-upload limit. File was NOT split."
                 curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
                   -d chat_id="$CHAT_ID" \
-                  --data-urlencode "text=⚠️ ${LABEL}: ${NAME} is ${SIZE} bytes and exceeds Telegram Bot API's 50 MB direct-upload limit. It was not split." \
+                  --data-urlencode "text=⚠️ ${LABEL}: ${NAME} is ${SIZE} bytes and exceeds Telegram's direct-upload limit. It was not split." \
                   >/dev/null || true
                 return 0
               fi
@@ -88,31 +88,34 @@ jobs:
               "ndk;27.0.12077973" \
               "cmake;3.22.1"
             git submodule update --init --recursive --depth 1 || true
-            mkdir -p /tmp/omnidev-ci-status
+            mkdir -p ci-logs /tmp/omnidev-ci-status
 
       - restore_cache:
           keys:
-            - gradle-v2-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
-            - gradle-v2-
+            - gradle-v3-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
+            - gradle-v3-
 
       - run:
           name: Lint all debug flavors
           command: |
             set +e
+            set -o pipefail
             ./gradlew --no-daemon --max-workers 1 \
               :app:lintLiteDebug \
               :app:lintNormDebug \
               :app:lintProDebug \
               :app:lintOemDebug \
               :app:lintAdminDebug \
-              --continue
-            RC=$?
+              --continue 2>&1 | tee ci-logs/lint.log
+            RC=${PIPESTATUS[0]}
             echo "$RC" > /tmp/omnidev-ci-status/lint
+            echo "LINT_EXIT_CODE=$RC"
             exit 0
 
       - send-files-to-telegram:
-          label: "Lint report"
+          label: "Lint diagnostic log"
           paths: |
+            ci-logs/lint.log
             app/build/reports/lint-results*.html
             app/build/reports/lint-results*.xml
 
@@ -120,72 +123,84 @@ jobs:
           name: Compile and run unit tests
           command: |
             set +e
+            set -o pipefail
             ./gradlew --no-daemon --max-workers 1 \
               :app:compileLiteDebugKotlin :app:testLiteDebugUnitTest \
               :app:compileNormDebugKotlin :app:testNormDebugUnitTest \
               :app:compileProDebugKotlin :app:testProDebugUnitTest \
               :app:compileOemDebugKotlin :app:testOemDebugUnitTest \
               :app:compileAdminDebugKotlin :app:testAdminDebugUnitTest \
-              --continue
-            RC=$?
+              --continue 2>&1 | tee ci-logs/tests.log
+            RC=${PIPESTATUS[0]}
             echo "$RC" > /tmp/omnidev-ci-status/tests
+            echo "TESTS_EXIT_CODE=$RC"
             exit 0
 
       - store_test_results:
           path: app/build/test-results
 
       - send-files-to-telegram:
-          label: "Unit test report"
+          label: "Unit test diagnostic log"
           paths: |
-            app/build/reports/tests/**/*.html
+            ci-logs/tests.log
             app/build/test-results/**/*.xml
 
       - run:
           name: Build all debug APKs
           command: |
             set +e
+            set -o pipefail
             ./gradlew --no-daemon --max-workers 1 \
               :app:assembleLiteDebug \
               :app:assembleNormDebug \
               :app:assembleProDebug \
               :app:assembleOemDebug \
               :app:assembleAdminDebug \
-              --continue
-            RC=$?
+              --continue 2>&1 | tee ci-logs/debug-build.log
+            RC=${PIPESTATUS[0]}
             echo "$RC" > /tmp/omnidev-ci-status/debug
+            echo "DEBUG_EXIT_CODE=$RC"
             exit 0
 
       - send-files-to-telegram:
-          label: "Debug APK"
+          label: "Debug build output"
           paths: |
+            ci-logs/debug-build.log
             app/build/outputs/apk/*/debug/*.apk
 
       - run:
           name: Build all release APKs
           command: |
             set +e
+            set -o pipefail
             ./gradlew --no-daemon --max-workers 1 \
               :app:assembleLiteRelease \
               :app:assembleNormRelease \
               :app:assembleProRelease \
               :app:assembleOemRelease \
               :app:assembleAdminRelease \
-              --continue
-            RC=$?
+              --continue 2>&1 | tee ci-logs/release-build.log
+            RC=${PIPESTATUS[0]}
             echo "$RC" > /tmp/omnidev-ci-status/release
+            echo "RELEASE_EXIT_CODE=$RC"
             exit 0
 
       - send-files-to-telegram:
-          label: "Release APK"
+          label: "Release build output"
           paths: |
+            ci-logs/release-build.log
             app/build/outputs/apk/*/release/*.apk
 
       - store_artifacts:
           path: app/build/outputs/apk
           destination: apk-output
 
+      - store_artifacts:
+          path: ci-logs
+          destination: ci-logs
+
       - save_cache:
-          key: gradle-v2-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
+          key: gradle-v3-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
           paths:
             - ~/.gradle/caches
             - ~/.gradle/wrapper
@@ -196,18 +211,31 @@ jobs:
           command: |
             set +e
             FAILED=0
+            SUMMARY=""
+
             for STAGE in lint tests debug release; do
               FILE="/tmp/omnidev-ci-status/$STAGE"
               RC=99
               [ -f "$FILE" ] && RC=$(cat "$FILE")
-              echo "$STAGE => exit $RC"
+              SUMMARY="${SUMMARY}${STAGE}=${RC} "
               if [ "$RC" -ne 0 ]; then
                 FAILED=1
               fi
             done
 
+            echo "============================================================"
+            echo "OMNIDEV CI STATUS: ${SUMMARY}"
+            echo "============================================================"
+
+            if [ -n "${TELEGRAM_BOT_TOKEN:-}" ]; then
+              curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                -d chat_id="1100444932" \
+                --data-urlencode "text=OmniDev CircleCI summary | ${CIRCLE_BRANCH:-unknown} | ${SUMMARY}" \
+                >/dev/null || true
+            fi
+
             if [ "$FAILED" -ne 0 ]; then
-              echo "One or more CI stages failed. Existing reports/APKs were still sent to Telegram intact."
+              echo "One or more CI stages failed. Open the ci-logs artifact or Telegram diagnostic log for the exact Gradle error."
               exit 1
             fi
 
