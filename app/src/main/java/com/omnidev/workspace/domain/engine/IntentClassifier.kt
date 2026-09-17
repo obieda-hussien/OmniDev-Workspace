@@ -1,17 +1,71 @@
 package com.omnidev.workspace.domain.engine
 
+import kotlin.math.ln
+import kotlin.math.max
+import kotlin.math.min
+
 /**
- * Shared intent classifier used by AUTO mode and by AgentPipeline tool-schema routing.
+ * Shared intent classifier used by AUTO mode and AgentPipeline tool-schema routing.
  *
- * Tool-domain selection is deliberately conservative: CORE tools are always visible,
- * while expensive capability families are injected only when the request actually
- * needs them. This avoids the historical failure mode where every unknown tool was
- * GENERAL and GENERAL was always enabled, effectively injecting most of the tool
- * catalog on every ReAct iteration.
+ * The old classifier was mostly a phrase counter. This version extracts a bounded feature vector
+ * and scores Chat / Agent / Team independently. It stays deterministic, local and cheap enough
+ * to run for every message on low-end Android devices.
  */
 object IntentClassifier {
 
     data class Phrase(val text: String, val weight: Int)
+
+    data class TaskSignals(
+        val wordCount: Int,
+        val executionIntent: Float,
+        val conversationalIntent: Float,
+        val mutationIntent: Float,
+        val codeIntent: Float,
+        val deviceIntent: Float,
+        val researchIntent: Float,
+        val verificationIntent: Float,
+        val parallelism: Float,
+        val breadth: Float,
+        val structuralComplexity: Float,
+        val domainCount: Int
+    ) {
+        val complexity: Float
+            get() = (
+                structuralComplexity * 0.35f +
+                    breadth * 0.30f +
+                    executionIntent * 0.20f +
+                    verificationIntent * 0.15f
+                ).coerceIn(0f, 1f)
+
+        /** Stable coarse context key for future local outcome learning. */
+        fun bucketKey(): String = buildString {
+            append(if (executionIntent >= 0.55f) "exec" else "talk")
+            append('_').append(if (parallelism >= 0.50f) "parallel" else "serial")
+            append('_').append(if (breadth >= 0.55f) "broad" else "focused")
+            append('_').append(if (mutationIntent >= 0.45f) "mutating" else "readonly")
+            append('_').append(
+                when {
+                    deviceIntent >= 0.55f -> "device"
+                    codeIntent >= 0.55f -> "code"
+                    researchIntent >= 0.55f -> "research"
+                    else -> "general"
+                }
+            )
+        }
+    }
+
+    data class ModeScores(
+        val chat: Float,
+        val agent: Float,
+        val swarm: Float
+    ) {
+        fun score(mode: OmniMode): Float = when (mode) {
+            OmniMode.CHAT -> chat
+            OmniMode.AGENT -> agent
+            OmniMode.SWARM -> swarm
+            OmniMode.AUTO -> max(chat, max(agent, swarm))
+        }
+    }
 
     val SWARM_PHRASES = listOf(
         Phrase("from scratch", 4), Phrase("من الصفر", 4),
@@ -58,56 +112,229 @@ object IntentClassifier {
     )
 
     enum class ToolDomain {
-        /** Small always-on planning/memory/control plane. */
         CORE,
-        /** Files, repo, build, terminal and language runtimes. */
         CODE_TERMINAL,
-        /** Android device/system/privileged execution. */
         DEVICE_CONTROL,
         MESSAGING,
         ANALYTICS,
         WEB_SEARCH,
-        /** Miscellaneous utilities only when generic utility intent is present. */
         GENERAL
     }
 
+    fun analyze(input: String): TaskSignals {
+        val lower = input.lowercase().trim()
+        if (lower.isBlank()) {
+            return TaskSignals(
+                wordCount = 0,
+                executionIntent = 0f,
+                conversationalIntent = 1f,
+                mutationIntent = 0f,
+                codeIntent = 0f,
+                deviceIntent = 0f,
+                researchIntent = 0f,
+                verificationIntent = 0f,
+                parallelism = 0f,
+                breadth = 0f,
+                structuralComplexity = 0f,
+                domainCount = 0
+            )
+        }
+
+        val words = lower.split(Regex("\\s+")).filter { it.isNotBlank() }
+        val wordCount = words.size
+        val bulletCount = Regex("(?m)^\\s*(?:[-*•]|\\d+[.)])\\s+").findAll(input).count()
+        val sentenceCount = max(1, Regex("[.!?؟\\n]+").findAll(input).count())
+
+        val agentPhraseWeight = weightedMatches(lower, AGENT_PHRASES)
+        val chatPhraseWeight = weightedMatches(lower, CHAT_PHRASES)
+        val swarmPhraseWeight = weightedMatches(lower, SWARM_PHRASES)
+
+        val mutationHits = countAny(
+            lower,
+            "write", "edit", "modify", "change", "delete", "create", "implement", "refactor",
+            "patch", "install", "configure", "deploy", "fix", "صلح", "عدل", "احذف", "انشئ",
+            "اكتب", "ضيف", "اضف", "نفذ"
+        )
+        val verificationHits = countAny(
+            lower,
+            "verify", "test", "lint", "compile", "build", "benchmark", "validate", "check",
+            "اختبر", "اتأكد", "تاكد", "افحص", "راجع"
+        )
+        val splitHits = countAny(
+            lower,
+            " independently", "parallel", "in parallel", "multiple parts", "several parts",
+            "frontend", "backend", "database", "tests", "ui", "api", "security", "performance",
+            "بالتوازي", "كمان", "وكمان", "عدة", "أجزاء", "اجزاء", "كل المشاكل"
+        )
+
+        val codeHits = countAny(
+            lower,
+            "code", "kotlin", "java", "python", "gradle", "manifest", "repository", "repo",
+            "project", "function", "class", "dependency", "terminal", "shell", "كود", "مشروع", "ملف"
+        )
+        val deviceHits = countAny(
+            lower,
+            "android system", "shizuku", "rish", " adb", "adb ", "root", "device", "phone",
+            "dumpsys", "getprop", "logcat", "permission", "wifi", "bluetooth", "screen",
+            "الموبايل", "الهاتف", "الجهاز", "شيزوكو", "روت", "صلاحيات"
+        )
+        val researchHits = countAny(
+            lower,
+            "research", "search online", "latest", "today", "news", "compare sources",
+            "web", "internet", "browser", "github", "ابحث", "بحث", "احدث", "الويب", "الانترنت"
+        )
+
+        val domainFlags = listOf(
+            codeHits > 0,
+            deviceHits > 0,
+            researchHits > 0,
+            containsAny(lower, "database", "room", "sqlite", "قاعدة بيانات"),
+            containsAny(lower, "ui", "compose", "واجهة", "تصميم"),
+            containsAny(lower, "security", "vulnerability", "أمان", "ثغرة"),
+            containsAny(lower, "performance", "latency", "memory", "أداء", "ذاكرة")
+        )
+        val domainCount = domainFlags.count { it }
+
+        val executionIntent = normalizeEvidence(
+            agentPhraseWeight * 0.10f + mutationHits * 0.16f + verificationHits * 0.08f +
+                if (codeHits + deviceHits > 0) 0.12f else 0f
+        )
+        val conversationalIntent = normalizeEvidence(
+            chatPhraseWeight * 0.12f +
+                if (lower.endsWith("?") || '؟' in lower) 0.15f else 0f
+        )
+        val mutationIntent = normalizeEvidence(mutationHits * 0.24f)
+        val codeIntent = normalizeEvidence(codeHits * 0.17f)
+        val deviceIntent = normalizeEvidence(deviceHits * 0.20f)
+        val researchIntent = normalizeEvidence(researchHits * 0.18f)
+        val verificationIntent = normalizeEvidence(verificationHits * 0.22f)
+
+        val breadth = (
+            domainCount * 0.13f +
+                min(4, bulletCount) * 0.08f +
+                min(4, splitHits) * 0.09f +
+                swarmPhraseWeight * 0.06f
+            ).coerceIn(0f, 1f)
+
+        val parallelism = (
+            splitHits * 0.16f +
+                max(0, domainCount - 1) * 0.14f +
+                swarmPhraseWeight * 0.07f +
+                if (bulletCount >= 3) 0.12f else 0f
+            ).coerceIn(0f, 1f)
+
+        // Logarithmic length contribution avoids making every long pasted prompt a Team task.
+        val lengthComplexity = if (wordCount <= 8) 0f else {
+            (ln(wordCount.toDouble()) / ln(120.0)).toFloat().coerceIn(0f, 1f)
+        }
+        val structuralComplexity = (
+            lengthComplexity * 0.42f +
+                min(6, bulletCount) * 0.07f +
+                min(6, sentenceCount) * 0.025f +
+                breadth * 0.25f
+            ).coerceIn(0f, 1f)
+
+        return TaskSignals(
+            wordCount = wordCount,
+            executionIntent = executionIntent,
+            conversationalIntent = conversationalIntent,
+            mutationIntent = mutationIntent,
+            codeIntent = codeIntent,
+            deviceIntent = deviceIntent,
+            researchIntent = researchIntent,
+            verificationIntent = verificationIntent,
+            parallelism = parallelism,
+            breadth = breadth,
+            structuralComplexity = structuralComplexity,
+            domainCount = domainCount
+        )
+    }
+
+    fun scoreModes(input: String): ModeScores = scoreModes(analyze(input))
+
+    fun scoreModes(signals: TaskSignals): ModeScores {
+        val readOnlyResearch = signals.researchIntent >= 0.45f && signals.mutationIntent < 0.25f
+
+        val chat = (
+            0.18f +
+                signals.conversationalIntent * 0.52f +
+                (1f - signals.executionIntent) * 0.24f +
+                (if (readOnlyResearch) 0.10f else 0f) -
+                signals.mutationIntent * 0.30f -
+                signals.parallelism * 0.16f
+            ).coerceIn(0f, 1f)
+
+        val agent = (
+            0.18f +
+                signals.executionIntent * 0.42f +
+                signals.mutationIntent * 0.25f +
+                max(signals.codeIntent, signals.deviceIntent) * 0.13f +
+                signals.verificationIntent * 0.08f +
+                signals.complexity * 0.08f -
+                signals.parallelism * 0.08f
+            ).coerceIn(0f, 1f)
+
+        var swarm = (
+            0.05f +
+                signals.parallelism * 0.42f +
+                signals.breadth * 0.24f +
+                signals.complexity * 0.17f +
+                signals.executionIntent * 0.10f +
+                signals.verificationIntent * 0.05f
+            ).coerceIn(0f, 1f)
+
+        // Team has orchestration cost. Pure discussion/research should not enter Team solely
+        // because the prompt is long or mentions many topics.
+        if (signals.executionIntent < 0.35f) swarm = min(swarm, 0.52f)
+        if (signals.parallelism < 0.30f) swarm = min(swarm, 0.58f)
+
+        return ModeScores(chat = chat, agent = agent, swarm = swarm)
+    }
+
     /**
-     * Select the minimum useful domain set for this request.
-     * Native function schemas remain callable only for selected domains, so keeping
-     * this set tight directly reduces prompt tokens on every ReAct iteration.
+     * Hysteresis margins prevent unstable Agent <-> Team flipping on borderline prompts.
      */
+    fun classify(input: String): OmniMode {
+        val signals = analyze(input)
+        val scores = scoreModes(signals)
+        return when {
+            scores.swarm >= 0.62f &&
+                scores.swarm >= scores.agent + 0.07f &&
+                signals.parallelism >= 0.34f -> OmniMode.SWARM
+
+            scores.agent >= 0.48f &&
+                scores.agent >= scores.chat + 0.03f -> OmniMode.AGENT
+
+            else -> OmniMode.CHAT
+        }
+    }
+
     fun getRelevantDomains(input: String): Set<ToolDomain> {
+        val signals = analyze(input)
         val mode = classify(input)
         val lower = input.lowercase()
 
-        val hasMessaging = containsAny(lower,
+        val hasMessaging = containsAny(
+            lower,
             "message", "whatsapp", "telegram", "discord", "email", "slack", "send",
-            "رسالة", "واتساب", "تليجرام", "ابعت", "ارسل")
-
-        val hasAnalytics = containsAny(lower,
+            "رسالة", "واتساب", "تليجرام", "ابعت", "ارسل"
+        )
+        val hasAnalytics = containsAny(
+            lower,
             "analytics", "metrics", "cost", "tokens", "usage", "stats", "performance",
-            "token", "latency", "benchmark", "احصائيات", "تكلفة", "توكن")
-
-        val hasWeb = containsAny(lower,
-            "http://", "https://", "www.", "web", "internet", "browser", "search online",
-            "google", "github", "gitlab", "latest", "today", "news", "price", "weather",
-            "research", "website", "url", "موقع", "الويب", "الانترنت", "ابحث على", "جيت هاب")
-
-        val hasDeviceControl = containsAny(lower,
-            "shizuku", "rish", " adb", "adb ", "root", "android system", "device", "phone",
-            "settings put", "settings get", "dumpsys", "getprop", "setprop", "logcat",
-            "battery", "brightness", "screen", "wifi", "bluetooth", "package manager",
-            "permission", "notification", "launcher", "keyevent", "screencap", "system uid",
-            "جهاز", "الموبايل", "الهاتف", "شيزوكو", "روت", "بطارية", "سطوع", "صلاحيات")
-
-        val hasCode = mode == OmniMode.AGENT || mode == OmniMode.SWARM || containsAny(lower,
-            "code", "كود", "file", "ملف", "repo", "repository", "project", "مشروع",
-            "kotlin", "java", "python", "node", "gradle", "compile", "build", "test", "lint",
-            "terminal", "shell", "package", "dependency", "git ", "branch", "commit", "pull request")
-
-        val hasGeneralUtility = containsAny(lower,
+            "token", "latency", "benchmark", "احصائيات", "تكلفة", "توكن"
+        )
+        val hasWeb = signals.researchIntent >= 0.35f || containsAny(
+            lower,
+            "http://", "https://", "www.", "website", "url", "google"
+        )
+        val hasDeviceControl = signals.deviceIntent >= 0.35f
+        val hasCode = signals.codeIntent >= 0.30f || mode == OmniMode.AGENT || mode == OmniMode.SWARM
+        val hasGeneralUtility = containsAny(
+            lower,
             "reminder", "schedule", "task", "calendar", "clipboard", "contact", "location",
-            "time", "date", "automation", "تذكير", "مهمة", "موعد", "الحافظة", "الموقع")
+            "time", "date", "automation", "تذكير", "مهمة", "موعد", "الحافظة", "الموقع"
+        )
 
         return buildSet {
             add(ToolDomain.CORE)
@@ -120,7 +347,6 @@ object IntentClassifier {
         }
     }
 
-    /** Maps a tool to a stable capability family. Unknown tools are not always-on. */
     fun getToolDomain(toolName: String): ToolDomain {
         val n = toolName.lowercase()
         if (n.startsWith("mcp_")) return ToolDomain.CORE
@@ -166,6 +392,15 @@ object IntentClassifier {
         return ToolDomain.GENERAL
     }
 
+    private fun weightedMatches(text: String, phrases: List<Phrase>): Int =
+        phrases.sumOf { if (text.contains(it.text)) it.weight else 0 }
+
+    private fun normalizeEvidence(value: Float): Float = (1f - 1f / (1f + value)).coerceIn(0f, 1f)
+
+    private fun countAny(haystack: String, vararg needles: String): Int = needles.count { it in haystack }
+
+    private fun containsAny(haystack: String, vararg needles: String): Boolean = needles.any { it in haystack }
+
     private val CORE_TOOLS = setOf(
         "remember_fact", "search_knowledge", "update_memory", "delete_memory",
         "planner", "eval_expression", "request_execution_mode",
@@ -201,27 +436,4 @@ object IntentClassifier {
         "web_search", "web_search_deep", "fetch_page", "fetch_url", "headless_browser",
         "github_manager", "web_scraper", "scrape_multiple"
     )
-
-    fun classify(input: String): OmniMode {
-        val lower = input.lowercase()
-        val wordCount = lower.split(Regex("\\s+")).size
-
-        var swarmScore = SWARM_PHRASES.sumOf { if (lower.contains(it.text)) it.weight else 0 }
-        val agentScore = AGENT_PHRASES.sumOf { if (lower.contains(it.text)) it.weight else 0 }
-        val chatScore = CHAT_PHRASES.sumOf { if (lower.contains(it.text)) it.weight else 0 }
-
-        if (wordCount > 25) swarmScore += 2
-        if (wordCount > 40) swarmScore += 3
-
-        return when {
-            swarmScore > agentScore && swarmScore > chatScore && swarmScore >= 4 -> OmniMode.SWARM
-            agentScore > chatScore -> OmniMode.AGENT
-            chatScore > agentScore -> OmniMode.CHAT
-            wordCount <= 12 -> OmniMode.CHAT
-            else -> OmniMode.AGENT
-        }
-    }
-
-    private fun containsAny(haystack: String, vararg needles: String): Boolean =
-        needles.any { it in haystack }
 }
