@@ -33,6 +33,45 @@ class TokenAccountingTest {
     }
 
     @Test
+    fun `native total only is split without losing authoritative total`() {
+        val request = CompletionRequest(
+            modelId = "test",
+            messages = listOf(ChatMessage(MessageRole.USER, "input ".repeat(100))),
+            systemPrompt = "system ".repeat(20)
+        )
+        val response = CompletionResponse(
+            content = "output ".repeat(20),
+            tokensUsed = TokenUsage(totalTokens = 500)
+        )
+
+        val usage = TokenAccounting.usage(request, response)
+
+        assertEquals(500, usage.totalTokens)
+        assertEquals(500, usage.inputTokens + usage.outputTokens)
+        assertTrue(usage.inputTokens > 0)
+        assertTrue(usage.outputTokens > 0)
+        assertFalse(usage.estimated)
+    }
+
+    @Test
+    fun `native components are reconciled to provider total`() {
+        val request = CompletionRequest(
+            modelId = "test",
+            messages = listOf(ChatMessage(MessageRole.USER, "hello"))
+        )
+        val response = CompletionResponse(
+            content = "answer",
+            tokensUsed = TokenUsage(promptTokens = 80, completionTokens = 40, totalTokens = 100)
+        )
+
+        val usage = TokenAccounting.usage(request, response)
+
+        assertEquals(100, usage.totalTokens)
+        assertEquals(100, usage.inputTokens + usage.outputTokens)
+        assertTrue(usage.inputTokens > usage.outputTokens)
+    }
+
+    @Test
     fun `missing usage metadata receives nonzero conservative estimate`() {
         val request = CompletionRequest(
             modelId = "test",
