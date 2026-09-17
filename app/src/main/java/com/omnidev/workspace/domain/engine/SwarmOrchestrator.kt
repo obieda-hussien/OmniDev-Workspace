@@ -19,14 +19,16 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 
 /**
  * Team/Swarm coordinator.
  *
- * The orchestrator model only plans and synthesizes. Worker model instances execute
- * atomic tasks. Independent read-only/research tasks may run concurrently while any
- * workspace-mutating task remains exclusive.
+ * The orchestrator model only plans and synthesizes. Worker model instances execute atomic tasks.
+ * Runtime scheduling does not blindly trust planner metadata: task descriptions are independently
+ * classified for mutation/resource conflicts before concurrency is allowed, and each worker gets
+ * an adaptive token/iteration budget instead of a fixed oversized allowance.
  */
 class SwarmOrchestrator(
     private val toolManager: ToolManager,
@@ -45,16 +47,18 @@ class SwarmOrchestrator(
         private const val MAX_HANDOFF_CHARS_TOTAL = 14_000
         private const val MAX_SYNTHESIS_CHARS_PER_TASK = 9_000
         private const val MAX_SYNTHESIS_CONTEXT_CHARS = 36_000
+        /** Hard configured ceiling across all worker budgets before actual usage. */
+        private const val TEAM_CONFIGURED_WORKER_TOKEN_CEILING = 300_000
+        private const val MIN_SCALED_WORKER_BUDGET = 18_000
 
         /**
-         * Workers are intentionally bounded. Team mode should increase capability by
-         * specialization/parallelism, not by allowing every worker to burn an unlimited
-         * ReAct context for dozens of turns.
+         * Base worker settings. Per-task maxIterations/tokenBudget/repetition are replaced by
+         * [TeamExecutionPolicy] at runtime.
          */
         private val TEAM_WORKER_CONFIG = AgentConfig(
-            maxIterations = 14,
-            tokenBudget = 180_000,
-            maxRepeatedToolCalls = 4,
+            maxIterations = 10,
+            tokenBudget = 48_000,
+            maxRepeatedToolCalls = 3,
             enableParallelToolExecution = true,
             enableSelfReflection = false,
             recentMessagesWindow = 10,
@@ -75,12 +79,13 @@ TEAM DESIGN RULES:
 2. Do NOT create a worker whose only job is to repeat planning that you have already done.
 3. Split work by genuinely independent evidence streams or implementation areas. Independent tasks should have no dependency so they can run concurrently.
 4. A dependency is allowed only when the later task truly needs the earlier task's output.
-5. Set parallelSafe=true only for read-only/research/analysis work that can safely overlap. Any task that edits files, changes device state, writes a repository, deploys, installs, or otherwise mutates shared state MUST use parallelSafe=false.
+5. Set parallelSafe=true only for read-only/research/analysis work that can safely overlap. Any task that edits files, changes device state, writes a repository, deploys, installs, or otherwise mutates shared state MUST use parallelSafe=false. Runtime will independently verify this flag and may serialize the task anyway.
 6. Set needsConnectedTools=true only when the task explicitly needs MCP/connected cloud services such as GitHub, Render, Notion, etc. Ordinary web research and local work do not need it.
 7. A verifier is optional. Create one only when independent verification materially improves correctness. A verifier MUST actually inspect evidence/use appropriate tools; it must never claim something is verified solely because another worker said it.
 8. For time-sensitive research, obey the exact requested date window. Do not include archival events merely because a page was recently retrieved.
 9. Runtime clock information is supplied below. Never create shell/Python/tool tasks merely to discover the current date or perform trivial date arithmetic that can be derived from it.
 10. Give each worker a concrete finish condition. Prefer one focused worker with several parallel tool calls over many tiny conversational turns.
+11. Do not split a task only to create more workers. Every additional worker has context/token overhead and must provide real specialization or safe parallelism.
 
 Return ONLY a JSON array with this shape:
 [
@@ -107,6 +112,7 @@ Rules:
 5. Prefer concrete tool-observed facts and source metadata over worker opinion.
 6. Remove duplicate findings from workers and synthesize rather than concatenate.
 7. Keep the final answer proportional to the user's request; do not repeat huge intermediate reports.
+8. A dependent task skipped because its prerequisite failed is NOT evidence of completion. Preserve that limitation explicitly.
 """
     }
 
@@ -120,6 +126,8 @@ Rules:
         enableDeepThinking: Boolean = false,
         godModeEnabled: Boolean = false
     ): Flow<SwarmEvent> = channelFlow {
+        val teamStartedAt = System.currentTimeMillis()
+        val observedTeamTokens = AtomicInteger(0)
         send(SwarmEvent.PlanningStarted)
 
         val orchestratorModel = ModelRegistry.findModelById(orchestratorModelId)
@@ -140,8 +148,6 @@ Rules:
                 appendLine()
                 appendLine("RUNTIME CLOCK (device): $runtimeClock")
             },
-            // Planning JSON should be compact; letting a planner emit tens of thousands
-            // of tokens is waste without increasing coordination quality.
             maxTokens = minOf(orchestratorModel.maxOutputTokens, 4_096),
             enableThinking = enableDeepThinking && orchestratorModel.supportsThinking,
             targetContext = scopePath,
@@ -153,16 +159,46 @@ Rules:
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (e: Exception) {
+            ModeOutcomeLearner.recordOutcome(
+                userRequest = userMessage,
+                mode = OmniMode.SWARM,
+                outcome = ModeOutcomeLearner.Outcome.FAILURE,
+                durationMs = (System.currentTimeMillis() - teamStartedAt).coerceAtLeast(0L)
+            )
             send(SwarmEvent.Error("Planning failed: ${e.message}"))
             return@channelFlow
         }
+        observedTeamTokens.addAndGet(planResponse.tokensUsed?.totalTokens ?: 0)
 
         val tasks = parseTasks(planResponse.content, userMessage)
         val validationError = validateTasks(tasks)
         if (validationError != null) {
+            ModeOutcomeLearner.recordOutcome(
+                userRequest = userMessage,
+                mode = OmniMode.SWARM,
+                outcome = ModeOutcomeLearner.Outcome.FAILURE,
+                durationMs = (System.currentTimeMillis() - teamStartedAt).coerceAtLeast(0L),
+                tokens = observedTeamTokens.get().takeIf { it > 0 }
+            )
             send(SwarmEvent.Error(validationError))
             return@channelFlow
         }
+
+        // Allocate worker budgets once for this plan, then scale them so a 6-worker plan cannot
+        // silently configure ~1M tokens of maximum spend.
+        val requestedBudgets = tasks.associate { it.id to TeamExecutionPolicy.budgetFor(it) }
+        val requestedTotal = requestedBudgets.values.sumOf { it.tokenBudget }.coerceAtLeast(1)
+        val budgetScale = minOf(
+            1f,
+            TEAM_CONFIGURED_WORKER_TOKEN_CEILING.toFloat() / requestedTotal.toFloat()
+        )
+        val workerBudgets = requestedBudgets.mapValues { (_, budget) ->
+            if (budgetScale >= 0.999f) budget else budget.copy(
+                tokenBudget = (budget.tokenBudget * budgetScale).toInt()
+                    .coerceAtLeast(MIN_SCALED_WORKER_BUDGET)
+            )
+        }
+
         send(SwarmEvent.PlanCompleted(tasks))
 
         val completedTasks = linkedMapOf<String, String>()
@@ -180,6 +216,7 @@ Rules:
             send(SwarmEvent.TaskStarted(task))
 
             val dependencyContext = compactDependencyContext(task, completedTasks)
+            val budget = workerBudgets[task.id] ?: TeamExecutionPolicy.budgetFor(task)
             val workerPrompt = buildString {
                 appendLine("## Assigned Team Task")
                 appendLine(task.description)
@@ -188,6 +225,11 @@ Rules:
                 appendLine("Device time: $runtimeClock")
                 appendLine("Active workspace: $scopePath")
                 appendLine()
+                appendLine("## Worker budget")
+                appendLine("- Max iterations: ${budget.maxIterations}")
+                appendLine("- Token ceiling: ${budget.tokenBudget}")
+                appendLine("- Budget class: ${budget.reason}; finish as soon as evidence is sufficient.")
+                appendLine()
                 appendLine("## Execution contract")
                 appendLine("- Execute this assigned task directly; do not redo team decomposition.")
                 appendLine("- Batch independent tool calls in the same model turn whenever possible.")
@@ -195,6 +237,7 @@ Rules:
                 appendLine("- Do not use shell/Python merely for trivial current-date arithmetic; the runtime clock above is authoritative for this run.")
                 appendLine("- Keep tool observations focused. Return the evidence/result needed by the parent task, not a second giant report.")
                 appendLine("- Never claim verification without concrete evidence. If verification is incomplete, state exactly what remains unverified.")
+                appendLine("- Do not spend remaining budget simply because it exists. Stop when the assigned finish condition is satisfied.")
                 if (godModeEnabled) {
                     appendLine("- God Mode is enabled, but privileged access is not guaranteed; trust actual tool outcomes.")
                 }
@@ -217,7 +260,11 @@ Rules:
                 mcpRegistry = mcpRegistry,
                 completionProvider = completionProvider,
                 streamingCompletionProvider = streamingCompletionProvider,
-                config = TEAM_WORKER_CONFIG,
+                config = TEAM_WORKER_CONFIG.copy(
+                    maxIterations = budget.maxIterations,
+                    tokenBudget = budget.tokenBudget,
+                    maxRepeatedToolCalls = budget.repeatedToolLimit
+                ),
                 apiKeyRepository = apiKeyRepository,
                 memoryManager = memoryManager,
                 smartLearningBridge = smartLearningBridge,
@@ -233,8 +280,6 @@ Rules:
                 scopePath = scopePath,
                 enableDeepThinking = enableDeepThinking,
                 workerPersona = task.requiredPersona.takeIf { it.isNotBlank() },
-                // Function schemas are already sent natively. Repeating every schema in
-                // the system prompt was one of the largest sources of per-iteration tokens.
                 toolAccessMode = "ON_DEMAND"
             ).collect { event ->
                 when (event) {
@@ -245,14 +290,17 @@ Rules:
                     is AgentEvent.ToolResult -> send(SwarmEvent.WorkerToolResult(task, event.toolName, event.output, event.isError))
                     is AgentEvent.Thinking -> send(SwarmEvent.WorkerThinking(task, event.iteration))
                     is AgentEvent.ThinkingBlock -> send(SwarmEvent.WorkerThinkingBlock(task, event.content))
-                    is AgentEvent.TokenUsageUpdate -> send(
-                        SwarmEvent.WorkerTokenUsage(
-                            task = task,
-                            totalTokens = event.totalTokens,
-                            budget = event.budget,
-                            iterationTokens = event.iterationTokens
+                    is AgentEvent.TokenUsageUpdate -> {
+                        observedTeamTokens.addAndGet(event.iterationTokens.coerceAtLeast(0))
+                        send(
+                            SwarmEvent.WorkerTokenUsage(
+                                task = task,
+                                totalTokens = event.totalTokens,
+                                budget = event.budget,
+                                iterationTokens = event.iterationTokens
+                            )
                         )
-                    )
+                    }
                     is AgentEvent.PhaseChanged -> send(SwarmEvent.WorkerPhaseChanged(task, event.phase.name, event.detail))
                     else -> Unit
                 }
@@ -274,6 +322,8 @@ Rules:
         suspend fun acceptOutcome(outcome: TaskOutcome) {
             if (outcome.error != null) {
                 failedTasks[outcome.task.id] = outcome.error
+                // Keep partial/failure evidence for synthesis, but failedTasks remains the source
+                // of truth for dependency blocking.
                 completedTasks[outcome.task.id] = outcome.result
                 send(SwarmEvent.TaskFailed(outcome.task, outcome.error))
             } else {
@@ -284,17 +334,18 @@ Rules:
 
         while (remaining.isNotEmpty()) {
             val permanentlyBlocked = remaining.filter { task ->
-                task.dependencies.any { dep -> dep in skippedTasks }
+                task.dependencies.any { dep -> dep in skippedTasks || dep in failedTasks }
             }
             permanentlyBlocked.forEach { task ->
                 remaining.remove(task)
-                val reason = "Blocked by skipped dependency: ${task.dependencies.filter { it in skippedTasks }}"
+                val blockedDeps = task.dependencies.filter { it in skippedTasks || it in failedTasks }
+                val reason = "Blocked by failed/skipped dependency: $blockedDeps"
                 skippedTasks[task.id] = reason
                 send(SwarmEvent.TaskSkipped(task, reason))
             }
 
             val readyNow = remaining.filter { task ->
-                task.dependencies.all { dep -> dep in completedTasks }
+                task.dependencies.all { dep -> dep in completedTasks && dep !in failedTasks }
             }
             if (readyNow.isEmpty()) {
                 if (remaining.isNotEmpty()) {
@@ -309,27 +360,25 @@ Rules:
             }
             remaining.removeAll(readyNow)
 
-            val parallelTasks = readyNow.filter { it.parallelSafe }
-            val exclusiveTasks = readyNow.filterNot { it.parallelSafe }
-
-            if (parallelTasks.isNotEmpty()) {
-                // limitedParallelism bounds CPU scheduling while child pipelines perform their
-                // own I/O. Independent research no longer gets accidentally serialized.
-                val dispatcher = Dispatchers.Default.limitedParallelism(MAX_PARALLEL_WORKERS)
-                val outcomes = coroutineScope {
-                    parallelTasks.map { task -> async(dispatcher) { runWorker(task) } }.awaitAll()
+            // Planner parallelSafe is advisory. The local policy re-checks mutation/resource
+            // conflicts and produces waves where each inner list can safely run concurrently.
+            val waves = TeamExecutionPolicy.buildExecutionWaves(
+                readyTasks = readyNow,
+                maxParallelWorkers = MAX_PARALLEL_WORKERS
+            )
+            for (wave in waves) {
+                if (wave.size <= 1) {
+                    wave.firstOrNull()?.let { acceptOutcome(runWorker(it)) }
+                } else {
+                    val dispatcher = Dispatchers.Default.limitedParallelism(MAX_PARALLEL_WORKERS)
+                    val outcomes = coroutineScope {
+                        wave.map { task -> async(dispatcher) { runWorker(task) } }.awaitAll()
+                    }
+                    outcomes.forEach { acceptOutcome(it) }
                 }
-                outcomes.forEach { acceptOutcome(it) }
-            }
-
-            // Mutating tasks remain strictly ordered to protect the shared workspace/device.
-            for (task in exclusiveTasks) {
-                acceptOutcome(runWorker(task))
             }
         }
 
-        // Do not emit the legacy SynthesisStarted event here. The old UI rendered it as
-        // fake "iteration 99", which made traces look like the worker loop ran 99 times.
         val summaryContent = buildSynthesisContext(completedTasks, failedTasks, skippedTasks)
 
         val synthesisRequest = CompletionRequest(
@@ -354,22 +403,48 @@ Rules:
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (e: Exception) {
+            ModeOutcomeLearner.recordOutcome(
+                userRequest = userMessage,
+                mode = OmniMode.SWARM,
+                outcome = ModeOutcomeLearner.Outcome.FAILURE,
+                iterations = tasks.size,
+                durationMs = (System.currentTimeMillis() - teamStartedAt).coerceAtLeast(0L),
+                tokens = observedTeamTokens.get().takeIf { it > 0 }
+            )
             send(SwarmEvent.Error("Synthesis failed: ${e.message}"))
             return@channelFlow
         }
+        observedTeamTokens.addAndGet(synthesisResponse.tokensUsed?.totalTokens ?: 0)
+
+        val taskFailures = failedTasks.size + skippedTasks.size
+        ModeOutcomeLearner.recordOutcome(
+            userRequest = userMessage,
+            mode = OmniMode.SWARM,
+            outcome = if (taskFailures == 0) {
+                ModeOutcomeLearner.Outcome.SUCCESS
+            } else {
+                ModeOutcomeLearner.Outcome.FAILURE
+            },
+            iterations = tasks.size,
+            durationMs = (System.currentTimeMillis() - teamStartedAt).coerceAtLeast(0L),
+            tokens = observedTeamTokens.get().takeIf { it > 0 },
+            verified = taskFailures == 0 && tasks.any {
+                IntentClassifier.analyze(it.description).verificationIntent >= 0.45f
+            }
+        )
 
         send(
             SwarmEvent.Completed(
                 summary = synthesisResponse.content,
                 tasksCompleted = completedTasks.size - failedTasks.size,
-                tasksFailed = failedTasks.size + skippedTasks.size
+                tasksFailed = taskFailures
             )
         )
     }
 
     /**
-     * One logical orchestration call may retry rate limits, but every actual provider
-     * attempt is recorded so request analytics reflects what really happened.
+     * One logical orchestration call may retry rate limits, but every actual provider attempt
+     * is recorded so request analytics reflects what really happened.
      */
     private suspend fun callWithRateLimitRetry(
         request: CompletionRequest,
