@@ -4,7 +4,7 @@ executors:
   android-machine:
     machine:
       image: android:current
-    resource_class: medium.gen2
+    resource_class: large.gen2
 
 commands:
   send-zip-to-telegram:
@@ -180,6 +180,8 @@ jobs:
               "cmake;3.22.1"
             git submodule update --init --recursive --depth 1 || true
             mkdir -p ci-logs /tmp/omnidev-ci-status
+            # Cap JVM heap per daemon to fit within large.gen2 (15 GB); gradle.properties requests 6 GB which OOMs on medium.gen2.
+            printf 'GRADLE_OPTS=-Xmx3g -Dfile.encoding=UTF-8\nKOTLIN_DAEMON_JVM_OPTIONS=-Xmx3g\n' >> "$BASH_ENV"
 
       - restore_cache:
           keys:
