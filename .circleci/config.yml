@@ -1,25 +1,12 @@
 version: 2.1
 
-orbs:
-  android: circleci/android@3.1.0
-
 executors:
   android-machine:
     machine:
-      image: android:2024.11.1
+      image: android:current
     resource_class: medium
 
 commands:
-  prepare-project:
-    steps:
-      - checkout
-      - run:
-          name: Prepare Gradle
-          command: |
-            chmod +x gradlew
-            java -version
-            ./gradlew --version
-
   send-files-to-telegram:
     parameters:
       paths:
@@ -41,6 +28,7 @@ commands:
             CHAT_ID="1100444932"
             LABEL='<< parameters.label >>'
             FOUND=0
+            shopt -s globstar nullglob
 
             send_file() {
               FILE="$1"
@@ -49,10 +37,9 @@ commands:
               SIZE=$(wc -c < "$FILE" | tr -d ' ')
               NAME=$(basename "$FILE")
 
-              # Telegram Bot API currently accepts sendDocument uploads up to 50 MB.
-              # The user explicitly requested no splitting/chunking, so oversized files are skipped intact.
+              # User requested intact files only. Never split/chunk an artifact.
               if [ "$SIZE" -gt 50000000 ]; then
-                echo "Skipping $FILE: ${SIZE} bytes exceeds Telegram Bot API 50 MB sendDocument limit; file was NOT split."
+                echo "Skipping $FILE: ${SIZE} bytes exceeds Telegram Bot API's 50 MB sendDocument limit. File was NOT split."
                 curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
                   -d chat_id="$CHAT_ID" \
                   --data-urlencode "text=⚠️ ${LABEL}: ${NAME} is ${SIZE} bytes and exceeds Telegram Bot API's 50 MB direct-upload limit. It was not split." \
@@ -72,7 +59,7 @@ commands:
               [ -n "$PATTERN" ] || continue
               while IFS= read -r FILE; do
                 [ -n "$FILE" ] && send_file "$FILE"
-              done < <(find . -path "./.git" -prune -o -type f -path "$PATTERN" -print 2>/dev/null)
+              done < <(compgen -G "$PATTERN" || true)
             done <<'PATTERNS'
             << parameters.paths >>
             PATTERNS
@@ -82,13 +69,37 @@ commands:
             fi
 
 jobs:
-  quality:
+  android-ci:
     executor: android-machine
     steps:
-      - prepare-project
+      - checkout
+
+      - run:
+          name: Prepare Android toolchain
+          command: |
+            set -euo pipefail
+            chmod +x gradlew
+            java -version
+            ./gradlew --version
+            yes | sdkmanager --licenses >/dev/null || true
+            sdkmanager \
+              "platform-tools" \
+              "platforms;android-36" \
+              "build-tools;35.0.0" \
+              "ndk;27.0.12077973" \
+              "cmake;3.22.1"
+            git submodule update --init --recursive --depth 1 || true
+            mkdir -p /tmp/omnidev-ci-status
+
+      - restore_cache:
+          keys:
+            - gradle-v2-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
+            - gradle-v2-
+
       - run:
           name: Lint all debug flavors
           command: |
+            set +e
             ./gradlew --no-daemon --max-workers 1 \
               :app:lintLiteDebug \
               :app:lintNormDebug \
@@ -96,22 +107,20 @@ jobs:
               :app:lintOemDebug \
               :app:lintAdminDebug \
               --continue
-      - store_artifacts:
-          path: app/build/reports
-          destination: quality-reports
+            RC=$?
+            echo "$RC" > /tmp/omnidev-ci-status/lint
+            exit 0
+
       - send-files-to-telegram:
           label: "Lint report"
           paths: |
-            ./app/build/reports/lint-results*.html
-            ./app/build/reports/lint-results*.xml
+            app/build/reports/lint-results*.html
+            app/build/reports/lint-results*.xml
 
-  test:
-    executor: android-machine
-    steps:
-      - prepare-project
       - run:
           name: Compile and run unit tests
           command: |
+            set +e
             ./gradlew --no-daemon --max-workers 1 \
               :app:compileLiteDebugKotlin :app:testLiteDebugUnitTest \
               :app:compileNormDebugKotlin :app:testNormDebugUnitTest \
@@ -119,69 +128,93 @@ jobs:
               :app:compileOemDebugKotlin :app:testOemDebugUnitTest \
               :app:compileAdminDebugKotlin :app:testAdminDebugUnitTest \
               --continue
+            RC=$?
+            echo "$RC" > /tmp/omnidev-ci-status/tests
+            exit 0
+
       - store_test_results:
           path: app/build/test-results
-      - store_artifacts:
-          path: app/build/reports/tests
-          destination: unit-tests
+
       - send-files-to-telegram:
           label: "Unit test report"
           paths: |
-            ./app/build/reports/tests/**/*.html
-            ./app/build/test-results/**/*.xml
+            app/build/reports/tests/**/*.html
+            app/build/test-results/**/*.xml
 
-  build-debug:
-    executor: android-machine
-    steps:
-      - prepare-project
       - run:
           name: Build all debug APKs
           command: |
+            set +e
             ./gradlew --no-daemon --max-workers 1 \
               :app:assembleLiteDebug \
               :app:assembleNormDebug \
               :app:assembleProDebug \
               :app:assembleOemDebug \
-              :app:assembleAdminDebug
-      - store_artifacts:
-          path: app/build/outputs/apk
-          destination: debug-apks
+              :app:assembleAdminDebug \
+              --continue
+            RC=$?
+            echo "$RC" > /tmp/omnidev-ci-status/debug
+            exit 0
+
       - send-files-to-telegram:
           label: "Debug APK"
           paths: |
-            ./app/build/outputs/apk/*/debug/*.apk
+            app/build/outputs/apk/*/debug/*.apk
 
-  build-release:
-    executor: android-machine
-    steps:
-      - prepare-project
       - run:
-          name: Build unsigned release APKs
+          name: Build all release APKs
           command: |
+            set +e
             ./gradlew --no-daemon --max-workers 1 \
               :app:assembleLiteRelease \
               :app:assembleNormRelease \
               :app:assembleProRelease \
               :app:assembleOemRelease \
-              :app:assembleAdminRelease
-      - store_artifacts:
-          path: app/build/outputs/apk
-          destination: release-apks
+              :app:assembleAdminRelease \
+              --continue
+            RC=$?
+            echo "$RC" > /tmp/omnidev-ci-status/release
+            exit 0
+
       - send-files-to-telegram:
           label: "Release APK"
           paths: |
-            ./app/build/outputs/apk/*/release/*.apk
+            app/build/outputs/apk/*/release/*.apk
+
+      - store_artifacts:
+          path: app/build/outputs/apk
+          destination: apk-output
+
+      - save_cache:
+          key: gradle-v2-{{ checksum "gradle/libs.versions.toml" }}-{{ checksum "app/build.gradle.kts" }}
+          paths:
+            - ~/.gradle/caches
+            - ~/.gradle/wrapper
+
+      - run:
+          name: Final CI status
+          when: always
+          command: |
+            set +e
+            FAILED=0
+            for STAGE in lint tests debug release; do
+              FILE="/tmp/omnidev-ci-status/$STAGE"
+              RC=99
+              [ -f "$FILE" ] && RC=$(cat "$FILE")
+              echo "$STAGE => exit $RC"
+              if [ "$RC" -ne 0 ]; then
+                FAILED=1
+              fi
+            done
+
+            if [ "$FAILED" -ne 0 ]; then
+              echo "One or more CI stages failed. Existing reports/APKs were still sent to Telegram intact."
+              exit 1
+            fi
+
+            echo "All OmniDev CI stages passed."
 
 workflows:
   omnidev-ci:
     jobs:
-      - quality
-      - test:
-          requires:
-            - quality
-      - build-debug:
-          requires:
-            - test
-      - build-release:
-          requires:
-            - test
+      - android-ci
