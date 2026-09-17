@@ -55,14 +55,13 @@ commands:
                 >/dev/null || true
             }
 
+            printf '%s\n' '<< parameters.paths >>' > /tmp/telegram-patterns.txt
             while IFS= read -r PATTERN; do
               [ -n "$PATTERN" ] || continue
               while IFS= read -r FILE; do
                 [ -n "$FILE" ] && send_file "$FILE"
               done < <(compgen -G "$PATTERN" || true)
-            done <<'PATTERNS'
-            << parameters.paths >>
-            PATTERNS
+            done < /tmp/telegram-patterns.txt
 
             if [ "$FOUND" -eq 0 ]; then
               echo "No matching files found for Telegram upload."
