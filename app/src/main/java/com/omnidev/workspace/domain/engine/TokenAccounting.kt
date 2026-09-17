@@ -8,9 +8,10 @@ import com.omnidev.workspace.data.tools.ToolDefinition
 /**
  * Provider-independent token accounting.
  *
- * Native usage is authoritative when present. Providers that omit usage receive a conservative
- * local estimate so budget enforcement, Team allocation and analytics do not silently treat a
- * completion as free.
+ * Native total usage is authoritative when present. Missing prompt/completion components are
+ * reconciled against a local estimate without changing the provider's reported total. Providers
+ * that omit usage entirely receive a conservative local estimate so budgets and analytics never
+ * silently treat a completion as free.
  */
 object TokenAccounting {
 
@@ -24,10 +25,21 @@ object TokenAccounting {
     fun usage(request: CompletionRequest, response: CompletionResponse): Usage {
         val native = response.tokensUsed
         if (native != null && native.totalTokens > 0) {
+            val total = native.totalTokens.coerceAtLeast(1)
+            val reportedInput = native.promptTokens.coerceAtLeast(0)
+            val reportedOutput = native.completionTokens.coerceAtLeast(0)
+            val reconciled = reconcileComponents(
+                total = total,
+                reportedInput = reportedInput,
+                reportedOutput = reportedOutput,
+                estimatedInput = estimateInputTokens(request),
+                estimatedOutput = estimateResponseTokens(response)
+            )
             return Usage(
-                inputTokens = native.promptTokens.coerceAtLeast(0),
-                outputTokens = native.completionTokens.coerceAtLeast(0),
-                totalTokens = native.totalTokens.coerceAtLeast(1),
+                inputTokens = reconciled.first,
+                outputTokens = reconciled.second,
+                totalTokens = total,
+                // Total is provider-native; only component allocation may be inferred.
                 estimated = false
             )
         }
@@ -56,6 +68,37 @@ object TokenAccounting {
                 call.name.length + call.arguments.entries.sumOf { (k, v) -> k.length + v.length + 4 }
             }
         return ((chars + 2) / 3).coerceAtLeast(1)
+    }
+
+    private fun reconcileComponents(
+        total: Int,
+        reportedInput: Int,
+        reportedOutput: Int,
+        estimatedInput: Int,
+        estimatedOutput: Int
+    ): Pair<Int, Int> {
+        if (reportedInput > 0 && reportedOutput > 0) {
+            // Some providers round components independently. Preserve their ratio but force
+            // components to sum to the authoritative total used for budgets/costs.
+            val reportedSum = reportedInput.toLong() + reportedOutput.toLong()
+            if (reportedSum == total.toLong()) return reportedInput to reportedOutput
+            val input = ((total.toLong() * reportedInput) / reportedSum)
+                .toInt().coerceIn(0, total)
+            return input to (total - input)
+        }
+        if (reportedInput > 0) {
+            val input = reportedInput.coerceAtMost(total)
+            return input to (total - input)
+        }
+        if (reportedOutput > 0) {
+            val output = reportedOutput.coerceAtMost(total)
+            return (total - output) to output
+        }
+
+        val estimatedSum = (estimatedInput.toLong() + estimatedOutput.toLong()).coerceAtLeast(1L)
+        val input = ((total.toLong() * estimatedInput.toLong()) / estimatedSum)
+            .toInt().coerceIn(0, total)
+        return input to (total - input)
     }
 
     private fun messageChars(message: ChatMessage): Int =
