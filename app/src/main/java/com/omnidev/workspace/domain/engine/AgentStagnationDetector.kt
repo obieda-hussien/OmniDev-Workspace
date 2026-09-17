@@ -22,6 +22,14 @@ class AgentStagnationDetector(
     private val abortThreshold: Float = 0.76f
 ) {
 
+    init {
+        require(windowSize >= 3) { "windowSize must be >= 3" }
+        require(minIterationsBeforeAbort in 2..windowSize) {
+            "minIterationsBeforeAbort must be within the detector window"
+        }
+        require(abortThreshold in 0.5f..1f) { "abortThreshold must be in [0.5, 1.0]" }
+    }
+
     enum class Kind {
         HEALTHY,
         STRATEGY_STAGNATION,
@@ -39,15 +47,10 @@ class AgentStagnationDetector(
         val readOnlyRatio: Float,
         val oscillationScore: Float,
         val noActionStreak: Int,
+        val shouldAbort: Boolean,
+        val canBenefitFromDecomposition: Boolean,
         val reasons: List<String>
     ) {
-        val shouldAbort: Boolean
-            get() = iterationsObserved >= 3 &&
-                (kind == Kind.INFRASTRUCTURE_BLOCK || score >= 0.76f)
-
-        val canBenefitFromDecomposition: Boolean
-            get() = kind == Kind.STRATEGY_STAGNATION && score >= 0.68f
-
         fun errorMessage(): String = when (kind) {
             Kind.INFRASTRUCTURE_BLOCK -> buildString {
                 append("Persistent infrastructure/backend failure detected")
@@ -80,13 +83,11 @@ class AgentStagnationDetector(
 
     private val history = ArrayDeque<IterationObservation>()
     private val seenResultSignatures = LinkedHashSet<String>()
-    private var totalIterations = 0
     private var consecutiveNoAction = 0
 
     fun reset() {
         history.clear()
         seenResultSignatures.clear()
-        totalIterations = 0
         consecutiveNoAction = 0
     }
 
@@ -97,17 +98,23 @@ class AgentStagnationDetector(
         require(toolCalls.size == results.size) {
             "Tool calls/results must preserve one-to-one ordering"
         }
-        totalIterations++
 
         val callFingerprints = toolCalls.mapTo(linkedSetOf())(::fingerprintCall)
         val resultSignatures = results.mapTo(linkedSetOf())(::signatureOfResult)
         val newSignatures = resultSignatures.count { it !in seenResultSignatures }
-        val novelty = if (resultSignatures.isEmpty()) 1f
-        else newSignatures.toFloat() / resultSignatures.size.toFloat()
+        val novelty = if (resultSignatures.isEmpty()) {
+            1f
+        } else {
+            newSignatures.toFloat() / resultSignatures.size.toFloat()
+        }
 
         val readOnlyCalls = toolCalls.count(::isReadOnlyCall)
         val actionCalls = toolCalls.size - readOnlyCalls
-        if (actionCalls == 0 && toolCalls.isNotEmpty()) consecutiveNoAction++ else consecutiveNoAction = 0
+        if (actionCalls == 0 && toolCalls.isNotEmpty()) {
+            consecutiveNoAction++
+        } else {
+            consecutiveNoAction = 0
+        }
 
         val classifications = results.mapNotNullTo(linkedSetOf()) {
             it.classification?.trim()?.uppercase()?.takeIf(String::isNotBlank)
@@ -134,16 +141,20 @@ class AgentStagnationDetector(
         )
 
         val previousSignatures = history.flatMapTo(linkedSetOf()) { it.resultSignatures }
-        val repeatedObservationRatio = if (resultSignatures.isEmpty()) 0f else {
-            resultSignatures.count { it in previousSignatures }.toFloat() / resultSignatures.size
+        val repeatedObservationRatio = if (resultSignatures.isEmpty()) {
+            0f
+        } else {
+            resultSignatures.count { it in previousSignatures }.toFloat() /
+                resultSignatures.size.toFloat()
         }
 
         history.addLast(observation)
         while (history.size > windowSize) history.removeFirst()
         seenResultSignatures += resultSignatures
+
         // Bound lifetime memory even for extremely long sessions.
         if (seenResultSignatures.size > 128) {
-            val keep = seenResultSignatures.takeLast(96)
+            val keep = seenResultSignatures.toList().takeLast(96)
             seenResultSignatures.clear()
             seenResultSignatures.addAll(keep)
         }
@@ -162,11 +173,14 @@ class AgentStagnationDetector(
         val totalResults = observations.sumOf { it.totalResults }.coerceAtLeast(1)
         val totalCalls = observations.sumOf { it.readOnlyCalls + it.actionCalls }.coerceAtLeast(1)
 
-        val errorRatio = observations.sumOf { it.errorCount }.toFloat() / totalResults
-        val persistentFailureRatio = observations.sumOf { it.persistentFailureCount }.toFloat() / totalResults
-        val infrastructureRatio = observations.sumOf { it.infrastructureSignals }.toFloat() / totalResults
-        val readOnlyRatio = observations.sumOf { it.readOnlyCalls }.toFloat() / totalCalls
-        val retryableRatio = observations.sumOf { it.retryableErrorCount }.toFloat() / totalResults
+        val errorRatio = observations.sumOf { it.errorCount }.toFloat() / totalResults.toFloat()
+        val persistentFailureRatio = observations.sumOf { it.persistentFailureCount }.toFloat() /
+            totalResults.toFloat()
+        val infrastructureRatio = observations.sumOf { it.infrastructureSignals }.toFloat() /
+            totalResults.toFloat()
+        val readOnlyRatio = observations.sumOf { it.readOnlyCalls }.toFloat() / totalCalls.toFloat()
+        val retryableRatio = observations.sumOf { it.retryableErrorCount }.toFloat() /
+            totalResults.toFloat()
         val oscillation = calculateOscillation(observations.mapNotNull { it.primaryTool })
         val callRepetition = calculateCallRepetition(observations)
         val resultRepetition = calculateResultRepetition(observations)
@@ -184,12 +198,22 @@ class AgentStagnationDetector(
         }
         if (oscillation >= 0.70f) reasons += "tool strategy is oscillating"
         if (callRepetition >= 0.70f) reasons += "tool-call patterns are repeating"
-        if (consecutiveNoAction >= 3) reasons += "$consecutiveNoAction read-only iterations without action"
+        if (consecutiveNoAction >= 3) {
+            reasons += "$consecutiveNoAction read-only iterations without action"
+        }
         if (errorRatio >= 0.65f) reasons += "error ratio is ${(errorRatio * 100).toInt()}%"
-        if (persistentFailureRatio >= 0.45f) reasons += "persistent failures dominate recent results"
-        if (classificationLock && errorRatio >= 0.5f) reasons += "same failure classification keeps recurring"
-        if (backendLock && persistentFailureRatio >= 0.35f) reasons += "same backend remains blocked"
-        if (currentNovelty <= 0.25f && observations.size >= 3) reasons += "new information gain is low"
+        if (persistentFailureRatio >= 0.45f) {
+            reasons += "persistent failures dominate recent results"
+        }
+        if (classificationLock && errorRatio >= 0.5f) {
+            reasons += "same failure classification keeps recurring"
+        }
+        if (backendLock && persistentFailureRatio >= 0.35f) {
+            reasons += "same backend remains blocked"
+        }
+        if (currentNovelty <= 0.25f && observations.size >= 3) {
+            reasons += "new information gain is low"
+        }
 
         val infrastructureDominance = (
             persistentFailureRatio * 0.46f +
@@ -209,18 +233,27 @@ class AgentStagnationDetector(
                 minOf(consecutiveNoAction / 4f, 1f) * 0.12f
             ).coerceIn(0f, 1f)
 
-        val kind = when {
-            observations.size >= minIterationsBeforeAbort && infrastructureDominance >= 0.62f ->
-                Kind.INFRASTRUCTURE_BLOCK
-            observations.size >= minIterationsBeforeAbort && strategyScore >= 0.60f ->
-                Kind.STRATEGY_STAGNATION
+        val enoughHistory = observations.size >= minIterationsBeforeAbort
+        val rawKind = when {
+            enoughHistory && infrastructureDominance >= 0.62f -> Kind.INFRASTRUCTURE_BLOCK
+            enoughHistory && strategyScore >= 0.60f -> Kind.STRATEGY_STAGNATION
             else -> Kind.HEALTHY
         }
-
-        val score = when (kind) {
+        val score = when (rawKind) {
             Kind.INFRASTRUCTURE_BLOCK -> max(strategyScore, infrastructureDominance)
             else -> strategyScore
         }.coerceIn(0f, 1f)
+
+        val shouldAbort = enoughHistory && when (rawKind) {
+            Kind.INFRASTRUCTURE_BLOCK -> infrastructureDominance >= 0.62f
+            Kind.STRATEGY_STAGNATION -> score >= abortThreshold
+            Kind.HEALTHY -> false
+        }
+        val kind = if (rawKind == Kind.STRATEGY_STAGNATION && !shouldAbort) {
+            Kind.HEALTHY
+        } else {
+            rawKind
+        }
 
         return Snapshot(
             kind = kind,
@@ -233,13 +266,10 @@ class AgentStagnationDetector(
             readOnlyRatio = readOnlyRatio,
             oscillationScore = oscillation,
             noActionStreak = consecutiveNoAction,
+            shouldAbort = shouldAbort,
+            canBenefitFromDecomposition = kind == Kind.STRATEGY_STAGNATION && score >= 0.68f,
             reasons = reasons.distinct().take(6)
-        ).let { snapshot ->
-            // Respect constructor-level threshold even though Snapshot exposes portable defaults.
-            if (snapshot.kind == Kind.STRATEGY_STAGNATION && snapshot.score < abortThreshold) {
-                snapshot.copy(kind = Kind.HEALTHY)
-            } else snapshot
-        }
+        )
     }
 
     private fun calculateCallRepetition(observations: List<IterationObservation>): Float {
@@ -250,7 +280,7 @@ class AgentStagnationDetector(
             comparisons++
             if (observations[i].callFingerprints == observations[i - 1].callFingerprints) repeated++
         }
-        return if (comparisons == 0) 0f else repeated.toFloat() / comparisons
+        return if (comparisons == 0) 0f else repeated.toFloat() / comparisons.toFloat()
     }
 
     private fun calculateResultRepetition(observations: List<IterationObservation>): Float {
@@ -263,7 +293,7 @@ class AgentStagnationDetector(
             val b = observations[i].resultSignatures
             if (a.isNotEmpty() && a == b) repeated++
         }
-        return if (comparisons == 0) 0f else repeated.toFloat() / comparisons
+        return if (comparisons == 0) 0f else repeated.toFloat() / comparisons.toFloat()
     }
 
     /** ABAB/ABCABC-like tool oscillation signal. */
@@ -298,8 +328,8 @@ class AgentStagnationDetector(
         if (ACTION_NAME_HINTS.any(name::contains)) return false
         if (READ_ONLY_NAME_HINTS.any(name::contains)) return true
 
-        // Unknown tools are treated as actions conservatively so the detector does not abort
-        // simply because a newly added tool was not classified yet.
+        // Unknown tools are treated as actions conservatively so newly added tools do not
+        // trigger false-positive stagnation until explicitly classified.
         return false
     }
 
