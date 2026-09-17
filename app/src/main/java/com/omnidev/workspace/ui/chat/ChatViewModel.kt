@@ -803,7 +803,7 @@ class ChatViewModel(
         val original = state.messages.find { it.messageId == request.originMessageId } ?: return
         val sessionId = state.currentSessionId ?: return
         val scope = state.targetContext ?: if (state.isGodModeEnabled) "/" else {
-            _uiState.update { it.copy(errorMessage = "اختار مجلد المشروع أولًا، وبعدها اضغط تفعيل الوضع.") }
+            _uiState.update { it.copy(errorMessage = "Select a project folder first, then enable the execution mode.") }
             return
         }
         val accepted = proposal.copy(executionRequest = request.copy(status = "accepted"))
@@ -1006,7 +1006,7 @@ class ChatViewModel(
                     it.copy(agentStatus = "🔍 Self-reflection (reviewing draft answer)...")
                 }
 
-                        is AgentEvent.ContextCompaction ->
+            is AgentEvent.ContextCompaction ->
                 _uiState.update {
                     it.copy(
                         consoleEntries = it.consoleEntries +
@@ -1113,7 +1113,6 @@ class ChatViewModel(
                 is AgentConsoleEntry.ReplyEntry -> null
                 is AgentConsoleEntry.ContextSummaryEntry ->
                     "• Context compressed: ${entry.summary.take(40)}..."
-
             }
         }
 

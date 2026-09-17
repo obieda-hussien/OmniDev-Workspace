@@ -3,6 +3,7 @@ package com.omnidev.workspace.data.debug
 import android.content.Context
 import android.os.Build
 import android.util.Log
+import com.omnidev.workspace.data.background.BackgroundServiceSupervisor
 import java.io.File
 import java.io.PrintWriter
 import java.io.StringWriter
@@ -51,7 +52,15 @@ object DebugLogManager {
     private lateinit var logDir: File
 
     fun init(context: Context) {
-        logDir = File(context.filesDir, LOG_DIR).apply { mkdirs() }
+        val app = context.applicationContext
+        logDir = File(app.filesDir, LOG_DIR).apply { mkdirs() }
+
+        // OmniDevApp initializes DebugLogManager on every process creation. Piggybacking the
+        // background bootstrap here gives a force-stopped/OEM-killed install an immediate repair
+        // path as soon as the user explicitly opens the app again. The supervisor itself guards
+        // against secondary processes and duplicate scheduling.
+        runCatching { BackgroundServiceSupervisor.bootstrap(app) }
+            .onFailure { Log.w(TAG, "Background runtime bootstrap failed", it) }
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -254,4 +263,5 @@ object DebugLogManager {
         return sw.toString()
     }
 }
-    private const val TAG = "DebugLogManager"
+
+private const val TAG = "DebugLogManager"

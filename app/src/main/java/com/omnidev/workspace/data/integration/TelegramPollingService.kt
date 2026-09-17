@@ -198,7 +198,7 @@ class TelegramPollingService : Service() {
     private val toolManager: CompositeToolManager by lazy {
         val db = OmniDevDatabase.getInstance(applicationContext)
         val memoryManager = MemoryManager(db.knowledgeDao())
-        // ── Agent Brain 2.0: مراجع المحركات المُهيَّأة في OmniDevApp ──
+        // ── Agent Brain 2.0: references to engines initialized in OmniDevApp ──
         val omniApp = com.omnidev.workspace.OmniDevApp.instance
         CompositeToolManager(
             fileToolManager = FileToolManager(),
@@ -309,50 +309,50 @@ class TelegramPollingService : Service() {
                                 val best = photoArr?.optJSONObject((photoArr.length() - 1).coerceAtLeast(0))
                                 val fid = best?.optString("file_id", "") ?: ""
                                 val cap = msg.optString("caption", "")
-                                "[📷 صورة${if (cap.isNotBlank()) ": $cap" else ""}] file_id=$fid"
+                                "[📷 Photo${if (cap.isNotBlank()) ": $cap" else ""}] file_id=$fid"
                             }
                             msg.has("document") -> {
                                 val doc = msg.optJSONObject("document")
                                 val name = doc?.optString("file_name", "document") ?: "document"
                                 val fid = doc?.optString("file_id", "") ?: ""
                                 val cap = msg.optString("caption", "")
-                                "[📄 ملف: $name${if (cap.isNotBlank()) " ($cap)" else ""}] file_id=$fid"
+                                "[📄 File: $name${if (cap.isNotBlank()) " ($cap)" else ""}] file_id=$fid"
                             }
                             msg.has("location") -> {
                                 val loc = msg.optJSONObject("location")
                                 val lat = loc?.optDouble("latitude") ?: 0.0
                                 val lon = loc?.optDouble("longitude") ?: 0.0
                                 val isLive = loc?.has("live_period") == true
-                                "[${if (isLive) "📍 موقع مباشر" else "📍 موقع"}: lat=$lat, lon=$lon]"
+                                "[${if (isLive) "📍 Live location" else "📍 Location"}: lat=$lat, lon=$lon]"
                             }
                             msg.has("contact") -> {
                                 val c = msg.optJSONObject("contact")
                                 val name = "${c?.optString("first_name", "")} ${c?.optString("last_name", "")}".trim()
                                 val phone = c?.optString("phone_number", "") ?: ""
-                                "[👤 جهة اتصال: $name, هاتف: $phone]"
+                                "[👤 Contact: $name, phone: $phone]"
                             }
                             msg.has("sticker") -> {
                                 val e = msg.optJSONObject("sticker")?.optString("emoji", "") ?: ""
-                                "[🎭 ملصق $e]"
+                                "[🎭 Sticker $e]"
                             }
                             msg.has("voice") -> {
                                 val fid = msg.optJSONObject("voice")?.optString("file_id", "") ?: ""
-                                "[🎤 رسالة صوتية] file_id=$fid"
+                                "[🎤 Voice message] file_id=$fid"
                             }
                             msg.has("video") -> {
                                 val fid = msg.optJSONObject("video")?.optString("file_id", "") ?: ""
                                 val cap = msg.optString("caption", "")
-                                "[🎥 فيديو${if (cap.isNotBlank()) ": $cap" else ""}] file_id=$fid"
+                                "[🎥 Video${if (cap.isNotBlank()) ": $cap" else ""}] file_id=$fid"
                             }
                             msg.has("audio") -> {
                                 val audio = msg.optJSONObject("audio")
                                 val fid = audio?.optString("file_id", "") ?: ""
                                 val title = audio?.optString("title", "") ?: ""
-                                "[🎵 صوت${if (title.isNotBlank()) ": $title" else ""}] file_id=$fid"
+                                "[🎵 Audio${if (title.isNotBlank()) ": $title" else ""}] file_id=$fid"
                             }
                             msg.has("video_note") -> {
                                 val fid = msg.optJSONObject("video_note")?.optString("file_id", "") ?: ""
-                                "[📹 فيديو مستدير] file_id=$fid"
+                                "[📹 Video note] file_id=$fid"
                             }
                             else -> ""
                         }
@@ -416,28 +416,28 @@ class TelegramPollingService : Service() {
         when (cmd) {
             "/start" -> {
                 sendReply(token, chatId, messageId,
-                    "👋 مرحباً! أنا *أومني* — مساعدك الذكي على تيليجرام.\n\n" +
-                    "الوضع الحالي: *${currentMode.label}*\n\n" +
-                    "اكتب أي سؤال أو طلب وسأرد عليك فوراً 🤖\n\n" +
-                    "/help — قائمة الأوامر\n/clear — مسح المحادثة\n" +
-                    "/mode\\_chat — وضع المحادثة العادية\n" +
-                    "/mode\\_agent — وضع الوكيل (Agent) بكل الأدوات\n" +
-                    "/mode\\_swarm — وضع الفريق (Swarm)\n" +
-                    "/status — حالة الجلسة الحالية")
+                    "👋 Welcome! I'm *Omni* — your AI assistant on Telegram.\n\n" +
+                    "Current mode: *${currentMode.label}*\n\n" +
+                    "Send any question or task and I'll respond right away 🤖\n\n" +
+                    "/help — command list\n/clear — clear the conversation\n" +
+                    "/mode\\_chat — standard chat mode\n" +
+                    "/mode\\_agent — Agent mode with all tools\n" +
+                    "/mode\\_swarm — multi-agent Swarm mode\n" +
+                    "/status — current session status")
                 return
             }
 
             "/clear", "/reset" -> {
                 // Archive before clearing
                 val oldHistory = sessionHistory[chatId]
-                val oldName = sessionNameMap[chatId] ?: "جلسة ${sessionCounters.getOrDefault(chatId, 1)}"
+                val oldName = sessionNameMap[chatId] ?: "Session ${sessionCounters.getOrDefault(chatId, 1)}"
                 if (!oldHistory.isNullOrEmpty()) {
                     val sessionList = namedSessions.getOrPut(chatId) { mutableListOf() }
                     sessionList.add(oldName to oldHistory.size)
                 }
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "✅ تم مسح تاريخ المحادثة.\n_استخدم /sessions لرؤية الجلسات السابقة._")
+                    "✅ Conversation history cleared.\n_Use /sessions to view previous sessions._")
                 return
             }
 
@@ -446,18 +446,18 @@ class TelegramPollingService : Service() {
                     .take(20)
                     .joinToString("\n") { "  • `${it.name}` — ${it.description?.take(60) ?: ""}" }
                 sendReply(token, chatId, messageId,
-                    "*Omni — الأوامر المتاحة:*\n\n" +
-                    "🎛️ *الأوضاع:*\n" +
-                    "/mode\\_chat — محادثة عادية\n" +
-                    "/mode\\_agent — وكيل ذاتي بكل الأدوات\n" +
-                    "/mode\\_swarm — فريق من الوكلاء\n\n" +
-                    "📋 *إدارة الجلسات:*\n" +
-                    "/status — عرض الوضع والإحصائيات\n" +
-                    "/new\\_session [اسم] — بدء جلسة جديدة مع حفظ الحالية\n" +
-                    "/sessions — عرض الجلسات المحفوظة\n" +
-                    "/clear — مسح سياق المحادثة الحالي\n\n" +
-                    "🛠️ *أمثلة على الأدوات المتاحة:*\n$toolList\n\n" +
-                    "_اكتب / لرؤية القائمة الكاملة للأدوات_")
+                    "*Omni — available commands:*\n\n" +
+                    "🎛️ *Modes:*\n" +
+                    "/mode\\_chat — standard conversation\n" +
+                    "/mode\\_agent — autonomous agent with all tools\n" +
+                    "/mode\\_swarm — multi-agent team\n\n" +
+                    "📋 *Session management:*\n" +
+                    "/status — show mode and statistics\n" +
+                    "/new\\_session [name] — start a new session and save the current one\n" +
+                    "/sessions — show saved sessions\n" +
+                    "/clear — clear the current conversation context\n\n" +
+                    "🛠️ *Examples of available tools:*\n$toolList\n\n" +
+                    "_Type / to see the complete command list_")
                 return
             }
 
@@ -465,7 +465,7 @@ class TelegramPollingService : Service() {
                 chatModes[chatId] = OmniMode.CHAT
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "✅ تم التبديل إلى *وضع المحادثة* 💬\nردود مباشرة بدون أدوات.")
+                    "✅ Switched to *Chat mode* 💬\nDirect responses without tools.")
                 return
             }
 
@@ -473,9 +473,9 @@ class TelegramPollingService : Service() {
                 chatModes[chatId] = OmniMode.AGENT
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "🤖 تم التبديل إلى *وضع الوكيل* ⚡\n" +
-                    "الوكيل يملك وصولاً كاملاً لجميع الأدوات ويعمل في حلقة ReAct.\n" +
-                    "_تنبيه: الردود قد تأخذ وقتاً أطول نظراً لتنفيذ الأدوات._")
+                    "🤖 Switched to *Agent mode* ⚡\n" +
+                    "The agent has full access to all tools and runs a ReAct loop.\n" +
+                    "_Note: replies can take longer while tools are being executed._")
                 return
             }
 
@@ -483,9 +483,9 @@ class TelegramPollingService : Service() {
                 chatModes[chatId] = OmniMode.SWARM
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
-                    "🐝 تم التبديل إلى *وضع الفريق* 🌐\n" +
-                    "المُنسّق يقسّم المهمة على فريق من الوكلاء المتخصصين.\n" +
-                    "_مثالي للمهام المعقدة متعددة الخطوات._")
+                    "🐝 Switched to *Swarm mode* 🌐\n" +
+                    "The orchestrator divides the task across a team of specialized agents.\n" +
+                    "_Best for complex multi-step tasks._")
                 return
             }
 
@@ -493,23 +493,23 @@ class TelegramPollingService : Service() {
                 val history = sessionHistory[chatId]
                 val msgCount = history?.size ?: 0
                 val toolCount = toolManager.getToolDefinitions().size
-                val sesName = sessionNameMap[chatId] ?: "الجلسة الافتراضية"
+                val sesName = sessionNameMap[chatId] ?: "Default session"
                 sendReply(token, chatId, messageId,
-                    "📊 *حالة الجلسة:*\n\n" +
-                    "🎛️ الوضع: *${(chatModes[chatId] ?: OmniMode.CHAT).label}*\n" +
-                    "📝 اسم الجلسة: *$sesName*\n" +
-                    "💬 رسائل في السياق: *$msgCount*\n" +
-                    "🛠️ أدوات متاحة: *$toolCount*\n" +
-                    "🤖 البوت شغّال: ${if (isRunning) "✅" else "❌"}\n\n" +
-                    "_/new\\_session [اسم] — ابدأ جلسة جديدة_\n" +
-                    "_/sessions — عرض كل الجلسات السابقة_")
+                    "📊 *Session status:*\n\n" +
+                    "🎛️ Mode: *${(chatModes[chatId] ?: OmniMode.CHAT).label}*\n" +
+                    "📝 Session name: *$sesName*\n" +
+                    "💬 Messages in context: *$msgCount*\n" +
+                    "🛠️ Available tools: *$toolCount*\n" +
+                    "🤖 Bot running: ${if (isRunning) "✅" else "❌"}\n\n" +
+                    "_/new\\_session [name] — start a new session_\n" +
+                    "_/sessions — show all previous sessions_")
                 return
             }
 
             "/new_session" -> {
                 // Archive current session
                 val oldHistory = sessionHistory[chatId]
-                val oldName = sessionNameMap[chatId] ?: "جلسة ${sessionCounters.getOrDefault(chatId, 1)}"
+                val oldName = sessionNameMap[chatId] ?: "Session ${sessionCounters.getOrDefault(chatId, 1)}"
                 if (!oldHistory.isNullOrEmpty()) {
                     val sessionList = namedSessions.getOrPut(chatId) { mutableListOf() }
                     sessionList.add(oldName to oldHistory.size)
@@ -519,12 +519,12 @@ class TelegramPollingService : Service() {
                 sessionCounters[chatId] = counter
                 val parts = text.split(" ", limit = 2)
                 val newName = if (parts.size > 1 && parts[1].isNotBlank())
-                    parts[1].trim() else "جلسة $counter"
+                    parts[1].trim() else "Session $counter"
                 sessionHistory.remove(chatId)
                 sessionNameMap[chatId] = newName
                 sendReply(token, chatId, messageId,
-                    "🆕 تم بدء جلسة جديدة: *$newName*\n" +
-                    "سياق المحادثة تم مسحه — ابدأ من جديد!")
+                    "🆕 Started a new session: *$newName*\n" +
+                    "Conversation context was cleared — start fresh!")
                 return
             }
 
@@ -532,16 +532,16 @@ class TelegramPollingService : Service() {
                 val list = namedSessions[chatId]
                 if (list.isNullOrEmpty()) {
                     sendReply(token, chatId, messageId,
-                        "📋 لا توجد جلسات محفوظة بعد.\n\n" +
-                        "_استخدم /new\\_session [اسم] لبدء جلسة وحفظ الحالية_")
+                        "📋 No saved sessions yet.\n\n" +
+                        "_Use /new\\_session [name] to start a session and save the current one._")
                 } else {
-                    val sb = StringBuilder("📋 *الجلسات السابقة:*\n\n")
+                    val sb = StringBuilder("📋 *Previous sessions:*\n\n")
                     list.takeLast(10).forEachIndexed { i, (name, count) ->
-                        sb.append("${i + 1}. *$name* — $count رسالة\n")
+                        sb.append("${i + 1}. *$name* — $count messages\n")
                     }
-                    val currentName = sessionNameMap[chatId] ?: "الجلسة الحالية"
+                    val currentName = sessionNameMap[chatId] ?: "Current session"
                     val currentCount = sessionHistory[chatId]?.size ?: 0
-                    sb.append("\n🟢 الحالية: *$currentName* ($currentCount رسالة)")
+                    sb.append("\n🟢 Current: *$currentName* ($currentCount messages)")
                     sendReply(token, chatId, messageId, sb.toString())
                 }
                 return
@@ -637,7 +637,7 @@ class TelegramPollingService : Service() {
             }
             reply
         } catch (e: Exception) {
-            "⚠️ خطأ: ${e.message?.take(200) ?: "خطأ غير معروف"}"
+            "⚠️ Error: ${e.message?.take(200) ?: "Unknown error"}"
         }
     }
 
@@ -698,8 +698,8 @@ class TelegramPollingService : Service() {
             }
 
             if (result == null) {
-                return "⏱ انتهت مهلة الوكيل ($AGENT_TIMEOUT_MINUTES دقائق). " +
-                    "حاول تبسيط المهمة أو تقسيمها."
+                return "⏱ Agent timed out after $AGENT_TIMEOUT_MINUTES minutes. " +
+                    "Try simplifying or splitting the task."
             }
 
             // Store the exchange in session history
@@ -713,14 +713,14 @@ class TelegramPollingService : Service() {
             }
 
             val suffix = if (toolLog.isNotEmpty())
-                "\n\n_⚙️ الأدوات المُستخدمة:${toolLog}_"
+                "\n\n_⚙️ Tools used:${toolLog}_"
             else ""
 
             (replyBuilder.toString().trim() + suffix).ifBlank {
-                "✅ اكتمل تنفيذ المهمة. (لم يُنتج الوكيل رسالة نصية)"
+                "✅ Task completed. (The agent did not produce a text response.)"
             }
         } catch (e: Exception) {
-            "⚠️ خطأ في وضع الوكيل: ${e.message?.take(200) ?: "خطأ غير معروف"}"
+            "⚠️ Agent mode error: ${e.message?.take(200) ?: "Unknown error"}"
         }
     }
 
@@ -749,7 +749,7 @@ class TelegramPollingService : Service() {
                             is com.omnidev.workspace.domain.engine.SwarmEvent.Error ->
                                 replyBuilder.append("\n⚠️ ${event.message}")
                             is com.omnidev.workspace.domain.engine.SwarmEvent.TaskFailed ->
-                                replyBuilder.append("\n❌ فشل: ${event.task.description} — ${event.error}")
+                                replyBuilder.append("\n❌ Failed: ${event.task.description} — ${event.error}")
                             else -> Unit
                         }
                     }
@@ -758,15 +758,15 @@ class TelegramPollingService : Service() {
             }
 
             if (result == null) {
-                return "⏱ انتهت مهلة الفريق ($AGENT_TIMEOUT_MINUTES دقائق). " +
-                    "حاول تبسيط المهمة أو تقسيمها."
+                return "⏱ Swarm timed out after $AGENT_TIMEOUT_MINUTES minutes. " +
+                    "Try simplifying or splitting the task."
             }
 
             replyBuilder.toString().trim().ifBlank {
-                "✅ اكتمل تنفيذ مهمة الفريق. (لم يُنتج الفريق رسالة نصية)"
+                "✅ Swarm task completed. (The team did not produce a text response.)"
             }
         } catch (e: Exception) {
-            "⚠️ خطأ في وضع الفريق: ${e.message?.take(200) ?: "خطأ غير معروف"}"
+            "⚠️ Swarm mode error: ${e.message?.take(200) ?: "Unknown error"}"
         }
     }
 
@@ -780,15 +780,15 @@ class TelegramPollingService : Service() {
     private suspend fun registerBotCommands(token: String) = withContext(Dispatchers.IO) {
         try {
             val builtIn = listOf(
-                "start" to "بدء المحادثة مع أومني",
-                "help" to "قائمة الأوامر والأدوات المتاحة",
-                "clear" to "مسح تاريخ المحادثة",
-                "status" to "عرض الوضع والإحصائيات",
-                "new_session" to "بدء جلسة جديدة وحفظ الحالية",
-                "sessions" to "عرض الجلسات السابقة المحفوظة",
-                "mode_chat" to "تفعيل وضع المحادثة العادية 💬",
-                "mode_agent" to "تفعيل وضع الوكيل بالأدوات 🤖",
-                "mode_swarm" to "تفعيل وضع الفريق متعدد الوكلاء 🐝"
+                "start" to "Start a conversation with Omni",
+                "help" to "Show available commands and tools",
+                "clear" to "Clear conversation history",
+                "status" to "Show mode and statistics",
+                "new_session" to "Start a new session and save the current one",
+                "sessions" to "Show saved previous sessions",
+                "mode_chat" to "Enable standard chat mode 💬",
+                "mode_agent" to "Enable Agent mode with tools 🤖",
+                "mode_swarm" to "Enable multi-agent Swarm mode 🐝"
             )
 
             // Sanitize tool names to valid Telegram command format (a-z, 0-9, underscore only)

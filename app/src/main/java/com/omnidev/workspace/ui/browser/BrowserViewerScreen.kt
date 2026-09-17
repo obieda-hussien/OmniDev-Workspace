@@ -120,10 +120,19 @@ fun BrowserViewerScreen(
             confirmButton = { TextButton(onClick = { viewModel.clearBrowserError() }) { Text("OK") } })
     }
     if (autofillHelp) {
-        AlertDialog(onDismissRequest = { autofillHelp = false },
-            title = { Text("كلمات المرور") },
-            text = { Text("فعّل مدير كلمات المرور من إعدادات الملء التلقائي في أندرويد. هيقترح حسابات الموقع ويحفظ تسجيل الدخول بموافقتك. التخفي لا يحفظ أو يقترح كلمات مرور.") },
-            confirmButton = { TextButton(onClick = { autofillHelp = false }) { Text("تمام") } })
+        AlertDialog(
+            onDismissRequest = { autofillHelp = false },
+            title = { Text("Passwords") },
+            text = {
+                Text(
+                    "Enable Android Password Manager from the Autofill settings. It can suggest site accounts " +
+                        "and save sign-ins with your approval. Incognito tabs never save or suggest passwords."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { autofillHelp = false }) { Text("OK") }
+            }
+        )
     }
     val activeSession = sessions.firstOrNull { it.isActive } ?: sessions.firstOrNull()
 
@@ -230,7 +239,7 @@ fun BrowserViewerScreen(
 
             if (activeSession != null && !activeSession.isIncognito) {
                 TextButton(onClick = { if (!viewModel.requestPasswordAutofill()) autofillHelp = true }) {
-                    Text("كلمات المرور والملء التلقائي")
+                    Text("Passwords & Autofill")
                 }
             }
             HorizontalDivider(color = BrowserBgLight)

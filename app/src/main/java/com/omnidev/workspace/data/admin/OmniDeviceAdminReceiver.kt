@@ -18,30 +18,30 @@ import java.util.Locale
 import java.util.concurrent.ConcurrentLinkedDeque
 
 /**
- * OmniDeviceAdminReceiver — مدير الجهاز المتقدم
+ * OmniDeviceAdminReceiver — advanced device administration.
  *
- * الجيل الثاني: أمان ذكي وتحليل سلوكي
+ * Second generation: intelligent security and behavioral analysis.
  * ─────────────────────────────────────────────────────────────────────────────
- * 1. **نقاط التهديد الديناميكية (Dynamic Threat Scoring)**:
- *    كل محاولة فاشلة لفتح القفل تُضيف نقاطاً للتهديد.
- *    عند تجاوز عتبة معينة → تفعيل إجراء أمني تلقائي.
+ * 1. **Dynamic Threat Scoring**:
+ *    Every failed unlock attempt adds threat points.
+ *    Crossing configured thresholds triggers automatic security actions.
  *
- * 2. **سجل التدقيق الكامل (Audit Log)**:
- *    كل إجراء أمني (قفل، تغيير كلمة مرور، تعطيل كاميرا)
- *    يُسجَّل مع الوقت والسبب — قابل للاستعراض من الوكيل.
+ * 2. **Complete Audit Log**:
+ *    Every security action (lock, password policy change, camera disable)
+ *    is recorded with its timestamp and reason for agent inspection.
  *
- * 3. **سياسات الاستجابة التلقائية (Auto-Response Policies)**:
- *    - 3 محاولات فاشلة → قفل فوري
- *    - 10 محاولات فاشلة → تعطيل الكاميرا وإشعار
- *    - 15 محاولة فاشلة → زيادة مهلة القفل تدريجياً
+ * 3. **Auto-Response Policies**:
+ *    - 3 failed attempts → immediate lock
+ *    - 10 failed attempts → disable camera and alert
+ *    - 15 failed attempts → progressively stronger response
  *
- * 4. **مراقبة صحة الجهاز (Device Health Monitoring)**:
- *    يتتبع: وضع Admin نشط/معطّل، Device Owner، كاميرا مفعّلة/معطّلة.
+ * 4. **Device Health Monitoring**:
+ *    Tracks whether Device Admin is active, Device Owner state, and camera policy state.
  *
- * 5. **إجراءات موسّعة (Extended Actions)**:
- *    - setPasswordExpiry: انتهاء صلاحية كلمة المرور
- *    - setKeyguardFeatures: تخصيص شاشة القفل
- *    - enableNetworkLogging: تسجيل حركة الشبكة (Device Owner فقط)
+ * 5. **Extended Actions**:
+ *    - setPasswordExpiry: password expiration policy
+ *    - setKeyguardFeatures: lock-screen feature policy
+ *    - enableNetworkLogging: network logging (Device Owner only)
  */
 class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
 
@@ -50,10 +50,10 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         private const val MAX_AUDIT_LOG_SIZE = 200
         private const val THREAT_SCORE_PER_FAILURE = 10
 
-        // عتبات التهديد
-        private const val THREAT_LOCK_THRESHOLD = 30    // 3 محاولات → قفل
-        private const val THREAT_CAMERA_THRESHOLD = 100 // 10 محاولات → تعطيل كاميرا
-        private const val THREAT_ALERT_THRESHOLD = 150  // 15 محاولة → تنبيه متقدم
+        // Threat thresholds
+        private const val THREAT_LOCK_THRESHOLD = 30    // 3 attempts → lock
+        private const val THREAT_CAMERA_THRESHOLD = 100 // 10 attempts → disable camera
+        private const val THREAT_ALERT_THRESHOLD = 150  // 15 attempts → advanced response
 
         // ── State ────────────────────────────────────────────────────────────
         private val _deviceAdminState = MutableStateFlow(DeviceAdminState())
@@ -62,7 +62,7 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         private val _threatScore = MutableStateFlow(0)
         val threatScore: StateFlow<Int> = _threatScore.asStateFlow()
 
-        /** سجل التدقيق: آخر MAX_AUDIT_LOG_SIZE حدث */
+        /** Audit log containing the latest [MAX_AUDIT_LOG_SIZE] events. */
         private val auditLog = ConcurrentLinkedDeque<AuditEntry>()
 
         // ── Core Helpers ──────────────────────────────────────────────────────
@@ -83,29 +83,27 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
                 putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, getComponentName(context))
                 putExtra(
                     DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                    explanation ?: "OmniDev يحتاج Device Admin لحماية جهازك وإدارته ذكياً."
+                    explanation ?: "OmniDev needs Device Admin access to protect and intelligently manage your device."
                 )
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             try { context.startActivity(intent) }
-            catch (e: Exception) { Log.e(TAG, "فشل تشغيل Device Admin activation", e) }
+            catch (e: Exception) { Log.e(TAG, "Failed to launch Device Admin activation", e) }
         }
 
         // ── Security Actions ──────────────────────────────────────────────────
 
-        /**
-         * يقفل الشاشة فوراً مع تسجيل السبب.
-         */
+        /** Locks the screen immediately and records the reason. */
         fun lockScreen(context: Context, reason: String = "Agent command"): Boolean {
             val dpm = getDpm(context) ?: return false
             if (!dpm.isAdminActive(getComponentName(context))) {
-                Log.w(TAG, "قفل الشاشة: Admin غير نشط")
+                Log.w(TAG, "Screen lock rejected: Device Admin is inactive")
                 return false
             }
             return try {
                 dpm.lockNow()
                 addAuditEntry(AuditEntry("LOCK_SCREEN", reason, success = true))
-                Log.i(TAG, "✅ قُفلت الشاشة: $reason")
+                Log.i(TAG, "✅ Screen locked: $reason")
                 true
             } catch (e: Exception) {
                 addAuditEntry(AuditEntry("LOCK_SCREEN", reason, success = false, error = e.message))
@@ -113,9 +111,7 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
             }
         }
 
-        /**
-         * يُعطّل أو يُفعّل الكاميرات مع تسجيل.
-         */
+        /** Enables or disables cameras and records the policy change. */
         fun setCameraDisabled(context: Context, disabled: Boolean, reason: String = "Agent policy"): Boolean {
             val dpm = getDpm(context) ?: return false
             if (!dpm.isAdminActive(getComponentName(context))) return false
@@ -125,7 +121,7 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
                     if (disabled) "CAMERA_DISABLED" else "CAMERA_ENABLED", reason, success = true
                 ))
                 updateDeviceState(context)
-                Log.i(TAG, "${if (disabled) "تعطيل" else "تفعيل"} الكاميرا: $reason")
+                Log.i(TAG, "Camera ${if (disabled) "disabled" else "enabled"}: $reason")
                 true
             } catch (e: Exception) {
                 addAuditEntry(AuditEntry("CAMERA_STATE_CHANGE", reason, success = false, error = e.message))
@@ -134,8 +130,8 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         }
 
         /**
-         * [جديد] يُعيّن مهلة انتهاء كلمة المرور.
-         * يجبر المستخدم على تغيير كلمة المرور بعد X يوم.
+         * Sets the password-expiration timeout.
+         * The user must change the password after the configured number of days.
          */
         fun setPasswordExpiry(context: Context, daysFromNow: Int): Boolean {
             if (!isDeviceOwner(context)) return false
@@ -145,15 +141,13 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
                     val expiryMs = System.currentTimeMillis() + daysFromNow * 24 * 60 * 60 * 1000L
                     @Suppress("DEPRECATION")
                     dpm.setPasswordExpirationTimeout(getComponentName(context), expiryMs)
-                    addAuditEntry(AuditEntry("SET_PASSWORD_EXPIRY", "انتهاء بعد $daysFromNow يوم", success = true))
+                    addAuditEntry(AuditEntry("SET_PASSWORD_EXPIRY", "Expires in $daysFromNow days", success = true))
                     true
                 } else false
             } catch (e: Exception) { false }
         }
 
-        /**
-         * [جديد] يُعيّن خصائص شاشة القفل (Keyguard Features).
-         */
+        /** Sets lock-screen keyguard feature restrictions. */
         fun setKeyguardFeatures(context: Context, features: Int): Boolean {
             val dpm = getDpm(context) ?: return false
             if (!dpm.isAdminActive(getComponentName(context))) return false
@@ -164,9 +158,7 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
             } catch (e: Exception) { false }
         }
 
-        /**
-         * [جديد] يُعيّن الحد الأدنى لطول كلمة المرور مع تحقق من الصلاحيات.
-         */
+        /** Sets the minimum password length after checking privileges. */
         @Suppress("DEPRECATION")
         fun setMinPasswordLength(context: Context, minLength: Int): Boolean {
             val dpm = getDpm(context) ?: return false
@@ -177,7 +169,7 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
                     addAuditEntry(AuditEntry("SET_MIN_PASSWORD", "min=$minLength", success = true))
                     true
                 } else {
-                    Log.w(TAG, "Device Owner مطلوب لـ setPasswordMinimumLength على Android 11+")
+                    Log.w(TAG, "Device Owner is required for setPasswordMinimumLength on Android 11+")
                     false
                 }
             } catch (e: Exception) { false }
@@ -194,8 +186,8 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         }
 
         /**
-         * ⚠️ خطير جداً: يمسح كل بيانات الجهاز (Factory Reset).
-         * يتطلب تأكيداً مزدوجاً.
+         * ⚠️ Highly destructive: erases all device data (Factory Reset).
+         * Requires an explicit confirmation token.
          */
         fun wipeDeviceData(context: Context, confirmationToken: String): Boolean {
             // ─── TIER POLICY GUARD ───────────────────────────────────────────
@@ -209,7 +201,7 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
                 addAuditEntry(
                     AuditEntry(
                         "WIPE_REJECTED",
-                        "تم الحظر بواسطة سياسة المستوى (tier=${policy.tier})",
+                        "Blocked by tier policy (tier=${policy.tier})",
                         success = false
                     )
                 )
@@ -218,33 +210,31 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
             // ────────────────────────────────────────────────────────────────
 
             if (confirmationToken != "CONFIRMED_WIPE_ALL_DATA") {
-                Log.e(TAG, "محاولة مسح بيانات الجهاز بدون تأكيد صحيح!")
-                addAuditEntry(AuditEntry("WIPE_REJECTED", "رمز تأكيد خاطئ", success = false))
+                Log.e(TAG, "Device wipe attempted without a valid confirmation token")
+                addAuditEntry(AuditEntry("WIPE_REJECTED", "Invalid confirmation token", success = false))
                 return false
             }
             val dpm = getDpm(context) ?: return false
             if (!dpm.isAdminActive(getComponentName(context))) return false
             return try {
-                addAuditEntry(AuditEntry("DEVICE_WIPE", "تم تأكيد المسح الكامل", success = true))
-                Log.e(TAG, "⚠️ بدأ مسح بيانات الجهاز!")
+                addAuditEntry(AuditEntry("DEVICE_WIPE", "Full wipe confirmed", success = true))
+                Log.e(TAG, "⚠️ Device data wipe started")
                 dpm.wipeData(0)
                 true
             } catch (e: Exception) {
-                addAuditEntry(AuditEntry("DEVICE_WIPE", "فشل", success = false, error = e.message))
+                addAuditEntry(AuditEntry("DEVICE_WIPE", "Failed", success = false, error = e.message))
                 false
             }
         }
 
         // ── Audit & Threat System ─────────────────────────────────────────────
 
-        /**
-         * يُرجع سجل التدقيق الكامل للوكيل.
-         */
+        /** Returns the complete Device Admin audit log for the agent. */
         fun getAuditLog(limit: Int = 50): String = buildString {
-            append("📋 سجل تدقيق Device Admin (آخر $limit):\n")
+            append("📋 Device Admin audit log (latest $limit):\n")
             append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
             val entries = auditLog.toList().takeLast(limit)
-            if (entries.isEmpty()) { append("(فارغ)"); return@buildString }
+            if (entries.isEmpty()) { append("(empty)"); return@buildString }
             entries.reversed().forEach { entry ->
                 val status = if (entry.success) "✅" else "❌"
                 append("$status [${entry.formattedTime}] ${entry.action}: ${entry.reason}\n")
@@ -252,21 +242,19 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
             }
         }
 
-        /**
-         * يُرجع تقرير الأمان الكامل.
-         */
+        /** Returns a complete device security report. */
         fun getSecurityReport(context: Context): String = buildString {
             val state = _deviceAdminState.value
             val score = _threatScore.value
 
-            append("🔐 تقرير أمان الجهاز\n")
+            append("🔐 Device security report\n")
             append("━━━━━━━━━━━━━━━━━━━━━\n")
-            append("Device Admin نشط: ${isAdminActive(context)}\n")
+            append("Device Admin active: ${isAdminActive(context)}\n")
             append("Device Owner: ${isDeviceOwner(context)}\n")
-            append("الكاميرا معطّلة: ${state.isCameraDisabled}\n")
-            append("نقاط التهديد: $score\n")
-            append("مستوى التهديد: ${getThreatLevel(score).name}\n")
-            append("محاولات دخول فاشلة: ${state.failedPasswordAttempts}\n")
+            append("Camera disabled: ${state.isCameraDisabled}\n")
+            append("Threat score: $score\n")
+            append("Threat level: ${getThreatLevel(score).name}\n")
+            append("Failed unlock attempts: ${state.failedPasswordAttempts}\n")
             append("\n")
             append(getAuditLog(10))
         }
@@ -306,26 +294,26 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
     override fun onEnabled(context: Context, intent: Intent) {
         super.onEnabled(context, intent)
         updateDeviceState(context)
-        addAuditEntry(AuditEntry("ADMIN_ENABLED", "تفعيل من المستخدم", success = true))
-        Toast.makeText(context, "✅ OmniDev Device Admin نشط", Toast.LENGTH_SHORT).show()
-        Log.i(TAG, "✅ Device Admin تم تفعيله")
+        addAuditEntry(AuditEntry("ADMIN_ENABLED", "Enabled by user", success = true))
+        Toast.makeText(context, "✅ OmniDev Device Admin is active", Toast.LENGTH_SHORT).show()
+        Log.i(TAG, "✅ Device Admin enabled")
     }
 
     override fun onDisabled(context: Context, intent: Intent) {
         super.onDisabled(context, intent)
-        addAuditEntry(AuditEntry("ADMIN_DISABLED", "إلغاء تفعيل من المستخدم", success = true))
+        addAuditEntry(AuditEntry("ADMIN_DISABLED", "Disabled by user", success = true))
         _deviceAdminState.value = DeviceAdminState()
-        Toast.makeText(context, "⚠️ OmniDev Device Admin معطّل", Toast.LENGTH_SHORT).show()
-        Log.w(TAG, "Device Admin تم إلغاء تفعيله")
+        Toast.makeText(context, "⚠️ OmniDev Device Admin is disabled", Toast.LENGTH_SHORT).show()
+        Log.w(TAG, "Device Admin disabled")
     }
 
     override fun onPasswordChanged(context: Context, intent: Intent, user: android.os.UserHandle) {
         super.onPasswordChanged(context, intent, user)
-        // إعادة تعيين نقاط التهديد عند تغيير كلمة المرور
+        // Reset the threat score when the password changes.
         _threatScore.value = 0
         _deviceAdminState.value = _deviceAdminState.value.copy(failedPasswordAttempts = 0)
-        addAuditEntry(AuditEntry("PASSWORD_CHANGED", "تم تغيير كلمة المرور بنجاح", success = true))
-        Log.d(TAG, "تم تغيير كلمة مرور الجهاز — تصفير نقاط التهديد")
+        addAuditEntry(AuditEntry("PASSWORD_CHANGED", "Password changed successfully", success = true))
+        Log.d(TAG, "Device password changed — threat score reset")
     }
 
     override fun onPasswordFailed(context: Context, intent: Intent, user: android.os.UserHandle) {
@@ -336,26 +324,26 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         val attempts = _deviceAdminState.value.failedPasswordAttempts + 1
         _deviceAdminState.value = _deviceAdminState.value.copy(failedPasswordAttempts = attempts)
 
-        Log.w(TAG, "⚠️ محاولة دخول فاشلة #$attempts | نقاط التهديد: $newScore")
-        addAuditEntry(AuditEntry("PASSWORD_FAILED", "محاولة #$attempts", success = false))
+        Log.w(TAG, "⚠️ Failed unlock attempt #$attempts | Threat score: $newScore")
+        addAuditEntry(AuditEntry("PASSWORD_FAILED", "Attempt #$attempts", success = false))
 
-        // الاستجابة التلقائية حسب مستوى التهديد
+        // Automatic response based on the current threat level.
         when {
             newScore >= THREAT_ALERT_THRESHOLD -> {
-                // مستوى حرج: قفل + تعطيل كاميرا + تسجيل
-                lockScreen(context, "تهديد حرج: $attempts محاولة فاشلة")
-                setCameraDisabled(context, true, "تهديد أمني حرج")
+                // Critical: lock + disable camera + audit.
+                lockScreen(context, "Critical threat: $attempts failed attempts")
+                setCameraDisabled(context, true, "Critical security threat")
                 addAuditEntry(AuditEntry("AUTO_RESPONSE_CRITICAL",
-                    "قفل + تعطيل كاميرا بعد $attempts محاولة", success = true))
+                    "Locked device and disabled camera after $attempts attempts", success = true))
             }
             newScore >= THREAT_CAMERA_THRESHOLD -> {
-                // مستوى عالٍ: قفل + تسجيل
-                lockScreen(context, "تهديد عالٍ: $attempts محاولة فاشلة")
-                setCameraDisabled(context, true, "تهديد أمني عالٍ")
+                // High: lock + disable camera.
+                lockScreen(context, "High threat: $attempts failed attempts")
+                setCameraDisabled(context, true, "High security threat")
             }
             newScore >= THREAT_LOCK_THRESHOLD -> {
-                // مستوى متوسط: قفل فقط
-                lockScreen(context, "تهديد متوسط: $attempts محاولة فاشلة")
+                // Medium: lock only.
+                lockScreen(context, "Medium threat: $attempts failed attempts")
             }
         }
     }
@@ -364,8 +352,8 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
         super.onPasswordSucceeded(context, intent, user)
         _threatScore.value = 0
         _deviceAdminState.value = _deviceAdminState.value.copy(failedPasswordAttempts = 0)
-        addAuditEntry(AuditEntry("PASSWORD_SUCCESS", "دخول ناجح — تصفير التهديد", success = true))
-        Log.i(TAG, "✅ دخول ناجح — تصفير نقاط التهديد")
+        addAuditEntry(AuditEntry("PASSWORD_SUCCESS", "Successful unlock — threat score reset", success = true))
+        Log.i(TAG, "✅ Successful unlock — threat score reset")
     }
 
     // ── Data Classes ──────────────────────────────────────────────────────────

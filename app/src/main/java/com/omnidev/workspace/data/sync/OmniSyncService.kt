@@ -18,6 +18,8 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.omnidev.workspace.MainActivity
 import com.omnidev.workspace.R
+import com.omnidev.workspace.data.background.BackgroundChatRuntime
+import com.omnidev.workspace.data.background.BackgroundServiceSupervisor
 import com.omnidev.workspace.data.debug.DebugLogManager
 import com.omnidev.workspace.data.tools.TaskSchedulerTool
 import kotlinx.coroutines.*
@@ -33,23 +35,11 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.min
 
 /**
- * OmniSyncService — v2.0 "Task Execution Engine"
+ * Long-lived background orchestration service for scheduled tasks and agent recovery.
  *
- * KEY FIX: `performSync()` now ACTUALLY EXECUTES tasks via TaskSchedulerTool.executionCallback.
- * Previously tasks were only "marked running" but the prompt was never sent to AgentPipeline.
- *
- * Execution Flow:
- *  1. getReadyTasks() → finds due PENDING tasks
- *  2. For each task: markRunning() + call executionCallback(task)
- *  3. On success: markCompleted(taskId, result, summary)
- *  4. On failure: markFailed(taskId, error, summary)
- *  5. Notify user with rich summary notification
- *
- * Notification improvements:
- *  - Task STARTED notification (foreground)
- *  - Task COMPLETED notification with: start time, end time, duration, tools used, result
- *  - Task FAILED notification with error details
- *  - Progress notification showing currently running task
+ * The service itself is intentionally replaceable: Android/OEM firmware may kill any process.
+ * Durable desired-state, heartbeat monitoring, AlarmManager and WorkManager recovery are owned by
+ * [BackgroundServiceSupervisor], so killing this instance does not lose the background runtime.
  */
 class OmniSyncService : Service() {
 
@@ -64,16 +54,20 @@ class OmniSyncService : Service() {
         private const val TASK_EVENT_NOTIFICATION_RANGE = 500
         private const val MAX_PROMPT_LENGTH_IN_STATUS = 200
 
-        private const val SYNC_INTERVAL_ACTIVE_MS  = 15_000L  // Every 15s when active tasks exist
-        private const val SYNC_INTERVAL_NORMAL_MS  = 30_000L  // Every 30s normally
-        private const val SYNC_INTERVAL_QUIET_MS   = 120_000L // Every 2min at night
-        private const val SYNC_INTERVAL_IDLE_MS    = 300_000L // Every 5min when idle
+        private const val ACTION_START = "com.omnidev.workspace.sync.START"
+        private const val ACTION_RECOVER = "com.omnidev.workspace.sync.RECOVER"
+        private const val EXTRA_RECOVERY_REASON = "recovery_reason"
+
+        private const val SYNC_INTERVAL_ACTIVE_MS = 15_000L
+        private const val SYNC_INTERVAL_NORMAL_MS = 30_000L
+        private const val SYNC_INTERVAL_QUIET_MS = 120_000L
+        private const val SYNC_INTERVAL_IDLE_MS = 300_000L
+        private const val HEARTBEAT_INTERVAL_MS = 30_000L
         private const val ACTIVE_HOUR_START = 8
-        private const val ACTIVE_HOUR_END   = 23
+        private const val ACTIVE_HOUR_END = 23
 
         private const val CIRCUIT_BREAKER_THRESHOLD = 3
         private const val CIRCUIT_RECOVERY_MS = 60_000L
-        private val RETRY_DELAYS_MS = listOf(60_000L, 300_000L, 900_000L)
 
         private val _syncState = MutableStateFlow(SyncState.IDLE)
         val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
@@ -90,23 +84,41 @@ class OmniSyncService : Service() {
         private val _currentlyRunningTask = MutableStateFlow<String?>(null)
         val currentlyRunningTask: StateFlow<String?> = _currentlyRunningTask.asStateFlow()
 
+        /** Explicit/user-visible start. Persists that the runtime should remain enabled. */
         fun start(context: Context) {
-            val intent = Intent(context, OmniSyncService::class.java)
+            val app = context.applicationContext
+            BackgroundServiceSupervisor.setSyncDesired(app, true)
+            startIntent(app, Intent(app, OmniSyncService::class.java).setAction(ACTION_START))
+        }
+
+        /** Watchdog/boot reconstruction. Does not overwrite an explicit disabled state. */
+        fun startFromRecovery(context: Context, reason: String) {
+            val app = context.applicationContext
+            if (!BackgroundServiceSupervisor.isSyncDesired(app)) return
+            val intent = Intent(app, OmniSyncService::class.java)
+                .setAction(ACTION_RECOVER)
+                .putExtra(EXTRA_RECOVERY_REASON, reason)
+            startIntent(app, intent)
+        }
+
+        private fun startIntent(context: Context, intent: Intent) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
             else context.startService(intent)
         }
 
-        fun taskIntent(context: Context, taskId: String): Intent = Intent(context, MainActivity::class.java).apply {
-            data = android.net.Uri.parse("omnidev://task?id=$taskId")
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        fun taskIntent(context: Context, taskId: String): Intent =
+            Intent(context, MainActivity::class.java).apply {
+                data = android.net.Uri.parse("omnidev://task?id=$taskId")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+
+        /** An explicit stop must suppress watchdog resurrection. */
+        fun stop(context: Context) {
+            val app = context.applicationContext
+            BackgroundServiceSupervisor.setSyncDesired(app, false)
+            app.stopService(Intent(app, OmniSyncService::class.java))
         }
 
-        fun stop(context: Context) = context.stopService(Intent(context, OmniSyncService::class.java))
-
-        /**
-         * Post a rich completion notification for a task.
-         * Called from TaskSchedulerTool.notificationCallback.
-         */
         @SuppressLint("MissingPermission")
         fun postCompletionNotification(
             context: Context,
@@ -116,7 +128,8 @@ class OmniSyncService : Service() {
             if (!canPostNotifications(context)) return
             val nm = NotificationManagerCompat.from(context)
             val intent = PendingIntent.getActivity(
-                context, task.id.hashCode(),
+                context,
+                task.id.hashCode(),
                 taskIntent(context, task.id),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
             )
@@ -131,21 +144,24 @@ class OmniSyncService : Service() {
                 .setContentIntent(intent)
                 .build()
 
-            val notifId = TASK_COMPLETE_NOTIFICATION_BASE + kotlin.math.abs(task.id.hashCode() % TASK_EVENT_NOTIFICATION_RANGE)
+            val notifId = TASK_COMPLETE_NOTIFICATION_BASE +
+                kotlin.math.abs(task.id.hashCode() % TASK_EVENT_NOTIFICATION_RANGE)
             runCatching { nm.notify(notifId, notification) }
         }
 
         private fun buildSingleLineBody(summary: TaskSchedulerTool.ExecutionSummary): String {
             val dur = "${summary.durationSec}s"
-            val tools = "${summary.toolsUsed} أدوات"
+            val tools = "${summary.toolsUsed} tools"
             return if (summary.isSuccess) "✅ $dur | $tools | ${summary.result.take(80)}"
-                   else "❌ ${summary.errorMessage?.take(100) ?: "Error"}"
+            else "❌ ${summary.errorMessage?.take(100) ?: "Error"}"
         }
 
         private fun canPostNotifications(context: Context): Boolean {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
-            return ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) ==
-                    PackageManager.PERMISSION_GRANTED
+            return ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
         }
     }
 
@@ -163,13 +179,17 @@ class OmniSyncService : Service() {
         val consecutiveFailures: Int = 0,
         val uptimeMs: Long = 0L
     ) {
-        val successRate: Float get() = if (totalCycles == 0) 1f else successfulCycles.toFloat() / totalCycles
-        val taskSuccessRate: Float get() = if (totalTasksExecuted == 0) 1f else tasksSucceeded.toFloat() / totalTasksExecuted
-        val isHealthy: Boolean get() = successRate >= 0.7f && consecutiveFailures < CIRCUIT_BREAKER_THRESHOLD
+        val successRate: Float
+            get() = if (totalCycles == 0) 1f else successfulCycles.toFloat() / totalCycles
+        val taskSuccessRate: Float
+            get() = if (totalTasksExecuted == 0) 1f else tasksSucceeded.toFloat() / totalTasksExecuted
+        val isHealthy: Boolean
+            get() = successRate >= 0.7f && consecutiveFailures < CIRCUIT_BREAKER_THRESHOLD
     }
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var syncJob: Job? = null
+    private var heartbeatJob: Job? = null
     private val serviceStartTime = System.currentTimeMillis()
 
     private val consecutiveFailures = AtomicInteger(0)
@@ -181,54 +201,116 @@ class OmniSyncService : Service() {
     private val tasksSucceeded = AtomicInteger(0)
     private val tasksFailed = AtomicInteger(0)
 
-    // ── Lifecycle ─────────────────────────────────────────────────────────
-
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
-        startForegroundSafe(buildNotification("OmniDev Sync نشطة"))
-        Log.i(TAG, "✅ OmniSyncService بدأت")
+        // Android requires promotion immediately after startForegroundService(). Do this before
+        // database/agent initialization so a slow cold start cannot trigger the 5-second kill.
+        startForegroundSafe(buildNotification("Background runtime starting…"))
+        BackgroundServiceSupervisor.onServiceHealthy(applicationContext)
+        Log.i(TAG, "OmniSyncService foreground runtime started")
 
-        // Register notification callback in TaskSchedulerTool
         TaskSchedulerTool.notificationCallback = { task, summary ->
             postCompletionNotification(applicationContext, task, summary)
         }
-
         TaskSchedulerTool.executionCallback =
             com.omnidev.workspace.domain.engine.ScheduledTaskExecutor(applicationContext)::execute
+
+        startHeartbeatLoop()
         startAdaptiveSyncLoop()
+        runCatching { BackgroundChatRuntime.recoverAll(applicationContext) }
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val recoveryReason = intent?.getStringExtra(EXTRA_RECOVERY_REASON)
+        BackgroundServiceSupervisor.onServiceHealthy(applicationContext)
+        if (recoveryReason != null) {
+            Log.i(TAG, "Recovered foreground runtime: $recoveryReason")
+            updateNotification("Recovered after interruption • checking pending work")
+        }
+        // Null intent is expected when Android reconstructs a START_STICKY service.
+        return START_STICKY
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        Log.w(TAG, "App task removed; preserving background runtime")
+        BackgroundServiceSupervisor.scheduleRecovery(
+            applicationContext,
+            reason = "task_removed",
+            delayMs = 750L
+        )
+        super.onTaskRemoved(rootIntent)
+    }
 
     override fun onDestroy() {
-        Log.i(TAG, "OmniSyncService أوقفت")
+        val shouldRecover = BackgroundServiceSupervisor.hasDurableWork(applicationContext)
+        Log.w(TAG, "OmniSyncService destroyed; shouldRecover=$shouldRecover")
         syncJob?.cancel()
+        heartbeatJob?.cancel()
         scope.cancel()
         _syncState.value = SyncState.IDLE
         _currentlyRunningTask.value = null
         TaskSchedulerTool.notificationCallback = null
+
+        if (shouldRecover) {
+            BackgroundServiceSupervisor.scheduleRecovery(
+                applicationContext,
+                reason = "service_destroyed",
+                delayMs = 1_500L
+            )
+        }
         super.onDestroy()
+    }
+
+    /** Defensive hook for present/future FGS timeouts. */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        Log.w(TAG, "Foreground runtime timed out; type=$fgsType")
+        BackgroundServiceSupervisor.scheduleRecovery(
+            applicationContext,
+            reason = "fgs_timeout_$fgsType",
+            delayMs = 5_000L
+        )
+        stopSelf(startId)
     }
 
     private fun startForegroundSafe(notification: Notification) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            try { startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC) }
-            catch (e: Exception) { startForeground(NOTIFICATION_ID, notification) }
+            try {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                )
+            } catch (error: Exception) {
+                BackgroundServiceSupervisor.recordFailure(
+                    applicationContext,
+                    "Typed foreground promotion failed: ${error.javaClass.simpleName}: ${error.message}"
+                )
+                startForeground(NOTIFICATION_ID, notification)
+            }
         } else {
             startForeground(NOTIFICATION_ID, notification)
         }
     }
 
-    // ── Adaptive Sync Loop ────────────────────────────────────────────────
+    private fun startHeartbeatLoop() {
+        heartbeatJob?.cancel()
+        heartbeatJob = scope.launch {
+            while (isActive) {
+                BackgroundServiceSupervisor.recordHeartbeat(applicationContext)
+                delay(HEARTBEAT_INTERVAL_MS)
+            }
+        }
+    }
 
     private fun startAdaptiveSyncLoop() {
         syncJob?.cancel()
         syncJob = scope.launch {
             while (isActive) {
                 val interval = computeAdaptiveInterval()
+                BackgroundServiceSupervisor.recordHeartbeat(applicationContext)
 
                 when (_circuitState.value) {
                     CircuitState.OPEN -> {
@@ -238,7 +320,9 @@ class OmniSyncService : Service() {
                             _circuitState.value = CircuitState.HALF_OPEN
                         } else {
                             _syncState.value = SyncState.CIRCUIT_OPEN
-                            updateNotification("Circuit Open — انتعاش في ${(CIRCUIT_RECOVERY_MS - elapsed) / 1000}s")
+                            updateNotification(
+                                "Circuit open — retrying in ${(CIRCUIT_RECOVERY_MS - elapsed) / 1000}s"
+                            )
                             delay(min(interval, CIRCUIT_RECOVERY_MS - elapsed + 1000))
                             continue
                         }
@@ -252,10 +336,8 @@ class OmniSyncService : Service() {
 
                     if (_circuitState.value == CircuitState.HALF_OPEN) {
                         _circuitState.value = CircuitState.CLOSED
-                        consecutiveFailures.set(0)
-                    } else {
-                        consecutiveFailures.set(0)
                     }
+                    consecutiveFailures.set(0)
 
                     _syncState.value = SyncState.IDLE
                     _lastSyncTimeMs.value = System.currentTimeMillis()
@@ -264,14 +346,13 @@ class OmniSyncService : Service() {
                     updateHealthReport(success = true, tasksThisCycle = executed)
 
                     val statusText = if (executed > 0) {
-                        "آخر sync: ${formatTime(System.currentTimeMillis())} | نفّذ $executed مهمة"
+                        "Last sync: ${formatTime(System.currentTimeMillis())} | executed $executed task(s)"
                     } else {
-                        "آخر sync: ${formatTime(System.currentTimeMillis())} | لا مهام"
+                        "Background runtime active • ${formatTime(System.currentTimeMillis())}"
                     }
                     updateNotification(statusText)
-
                 } catch (e: Exception) {
-                    Log.e(TAG, "فشلت دورة المزامنة: ${e.message}", e)
+                    Log.e(TAG, "Sync cycle failed: ${e.message}", e)
                     totalCycles.incrementAndGet()
                     failedCycles.incrementAndGet()
                     val failures = consecutiveFailures.incrementAndGet()
@@ -281,7 +362,7 @@ class OmniSyncService : Service() {
                     if (failures >= CIRCUIT_BREAKER_THRESHOLD) {
                         _circuitState.value = CircuitState.OPEN
                         circuitOpenTime.set(System.currentTimeMillis())
-                        updateNotification("⚠️ Circuit Open — $failures فشل")
+                        updateNotification("⚠️ Circuit open — $failures failures")
                     }
                 }
 
@@ -290,32 +371,33 @@ class OmniSyncService : Service() {
         }
     }
 
-    // ══════════════════════════════════════════════════════════════════════
-    // performSync — THE FIXED VERSION
-    // Tasks are now ACTUALLY EXECUTED via TaskSchedulerTool.executionCallback
-    // ══════════════════════════════════════════════════════════════════════
-
     private suspend fun performSync(): Int {
         val readyTasks = TaskSchedulerTool.getReadyTasks()
         if (readyTasks.isEmpty()) return 0
 
-        Log.d(TAG, "دورة sync: ${readyTasks.size} مهمة جاهزة")
+        Log.d(TAG, "Sync cycle: ${readyTasks.size} task(s) ready")
         var executedCount = 0
 
         for (task in readyTasks) {
-            // Check timeout deadline before execution
             val timeoutDeadline = TaskSchedulerTool.getTimeoutDeadlineMillis(task.id)
             if (timeoutDeadline != null && System.currentTimeMillis() >= timeoutDeadline) {
-                Log.w(TAG, "⏱ انتهت مهلة المهمة: ${task.name}")
+                Log.w(TAG, "⏱ Task timed out: ${task.name}")
                 val summary = TaskSchedulerTool.ExecutionSummary(
-                    taskId = task.id, taskName = task.name,
+                    taskId = task.id,
+                    taskName = task.name,
                     startTimeMs = task.startedAtMillis ?: System.currentTimeMillis(),
                     endTimeMs = System.currentTimeMillis(),
-                    toolsUsed = 0, toolNames = emptyList(),
-                    result = "", isSuccess = false,
-                    errorMessage = "انتهت المهلة (${task.timeoutMinutes} دقيقة)"
+                    toolsUsed = 0,
+                    toolNames = emptyList(),
+                    result = "",
+                    isSuccess = false,
+                    errorMessage = "Timed out after ${task.timeoutMinutes} minutes"
                 )
-                TaskSchedulerTool.markFailed(task.id, "Timeout after ${task.timeoutMinutes}m", summary)
+                TaskSchedulerTool.markFailed(
+                    task.id,
+                    "Timeout after ${task.timeoutMinutes}m",
+                    summary
+                )
                 continue
             }
 
@@ -323,22 +405,21 @@ class OmniSyncService : Service() {
                 val startTime = System.currentTimeMillis()
                 val displayPrompt = task.prompt.take(MAX_PROMPT_LENGTH_IN_STATUS)
 
-                // Mark as running
-                if (!TaskSchedulerTool.markRunning(task.id,
-                    executionDetails = "بدأت: ${formatTime(startTime)} | ${displayPrompt}")) continue
+                if (!TaskSchedulerTool.markRunning(
+                        task.id,
+                        executionDetails = "Started: ${formatTime(startTime)} | $displayPrompt"
+                    )
+                ) continue
+
                 _syncState.value = SyncState.EXECUTING_TASK
                 _currentlyRunningTask.value = task.name
-
-                updateNotification("▶️ تنفّذ: ${task.name.take(50)}")
+                updateNotification("▶️ Running: ${task.name.take(50)}")
                 notifyTaskStarted(task.name, task.id, displayPrompt)
-                DebugLogManager.appendInfo(TAG, "▶️ مهمة بدأت: ${task.name} (${task.id})")
+                DebugLogManager.appendInfo(TAG, "▶️ Task started: ${task.name} (${task.id})")
 
-                // ═══════════════════════════════════════════════════════════
-                // ACTUAL EXECUTION via executionCallback
-                // ═══════════════════════════════════════════════════════════
                 val callback = TaskSchedulerTool.executionCallback
                 if (callback != null) {
-                    Log.d(TAG, "🤖 تنفيذ مهمة عبر AgentPipeline: ${task.name}")
+                    Log.d(TAG, "🤖 Executing task via AgentPipeline: ${task.name}")
                     try {
                         val summary = withTimeout(
                             ((task.timeoutMinutes ?: 30) * 60 * 1_000L).coerceAtLeast(60_000L)
@@ -347,76 +428,112 @@ class OmniSyncService : Service() {
                                 val execution = async { callback(task) }
                                 val cancellation = launch {
                                     TaskSchedulerTool.tasksFlow.first { list ->
-                                        list.none { it.id == task.id } || list.any { it.id == task.id && it.status == TaskSchedulerTool.TaskStatus.CANCELLED }
+                                        list.none { it.id == task.id } ||
+                                            list.any {
+                                                it.id == task.id &&
+                                                    it.status == TaskSchedulerTool.TaskStatus.CANCELLED
+                                            }
                                     }
                                     execution.cancel(CancellationException("Task cancelled"))
                                 }
-                                try { execution.await() } finally { cancellation.cancel() }
+                                try {
+                                    execution.await()
+                                } finally {
+                                    cancellation.cancel()
+                                }
                             }
                         }
                         if (summary.isSuccess) {
                             TaskSchedulerTool.markCompleted(task.id, summary.result, summary)
                             tasksSucceeded.incrementAndGet()
-                            DebugLogManager.appendInfo(TAG, "✅ مهمة أكملت: ${task.name} (${summary.durationSec}s, ${summary.toolsUsed} أدوات)")
+                            DebugLogManager.appendInfo(
+                                TAG,
+                                "✅ Task completed: ${task.name} (${summary.durationSec}s, ${summary.toolsUsed} tools)"
+                            )
                         } else {
-                            TaskSchedulerTool.markFailed(task.id, summary.errorMessage ?: "Unknown error", summary)
+                            TaskSchedulerTool.markFailed(
+                                task.id,
+                                summary.errorMessage ?: "Unknown error",
+                                summary
+                            )
                             tasksFailed.incrementAndGet()
-                            DebugLogManager.appendError(TAG, RuntimeException("Task failed: ${summary.errorMessage}"))
+                            DebugLogManager.appendError(
+                                TAG,
+                                RuntimeException("Task failed: ${summary.errorMessage}")
+                            )
                         }
                     } catch (e: TimeoutCancellationException) {
                         val timeoutSummary = TaskSchedulerTool.ExecutionSummary(
-                            taskId = task.id, taskName = task.name,
-                            startTimeMs = startTime, endTimeMs = System.currentTimeMillis(),
-                            toolsUsed = 0, toolNames = emptyList(),
-                            result = "", isSuccess = false,
+                            taskId = task.id,
+                            taskName = task.name,
+                            startTimeMs = startTime,
+                            endTimeMs = System.currentTimeMillis(),
+                            toolsUsed = 0,
+                            toolNames = emptyList(),
+                            result = "",
+                            isSuccess = false,
                             errorMessage = "Timeout after ${task.timeoutMinutes ?: 30} minutes"
                         )
                         TaskSchedulerTool.markFailed(task.id, "Timeout", timeoutSummary)
                         tasksFailed.incrementAndGet()
                     }
                 } else {
-                    // Fallback when callback is not set (should not happen in production)
-                    Log.w(TAG, "⚠️ executionCallback غير محدد — المهمة لن تُنفَّذ: ${task.name}")
+                    Log.w(TAG, "executionCallback is not configured: ${task.name}")
                     val noCallbackSummary = TaskSchedulerTool.ExecutionSummary(
-                        taskId = task.id, taskName = task.name,
-                        startTimeMs = startTime, endTimeMs = System.currentTimeMillis(),
-                        toolsUsed = 0, toolNames = emptyList(),
+                        taskId = task.id,
+                        taskName = task.name,
+                        startTimeMs = startTime,
+                        endTimeMs = System.currentTimeMillis(),
+                        toolsUsed = 0,
+                        toolNames = emptyList(),
                         result = "Execution bridge not configured. Restart the background task service.",
                         isSuccess = false,
                         errorMessage = "executionCallback not set — AgentPipeline not connected"
                     )
-                    TaskSchedulerTool.markFailed(task.id, noCallbackSummary.result, noCallbackSummary)
+                    TaskSchedulerTool.markFailed(
+                        task.id,
+                        noCallbackSummary.result,
+                        noCallbackSummary
+                    )
                     tasksFailed.incrementAndGet()
                 }
 
                 executedCount++
                 tasksExecuted.incrementAndGet()
 
-                // Reschedule if repeating
                 if (task.recurrenceType != TaskSchedulerTool.RecurrenceType.ONCE) {
                     TaskSchedulerTool.rescheduleRepeating(task.id)
                 }
-
             } catch (e: CancellationException) {
                 currentCoroutineContext().ensureActive()
-                if (TaskSchedulerTool.getTaskById(task.id)?.status != TaskSchedulerTool.TaskStatus.CANCELLED &&
-                    TaskSchedulerTool.getTaskById(task.id) != null) throw e
+                if (
+                    TaskSchedulerTool.getTaskById(task.id)?.status != TaskSchedulerTool.TaskStatus.CANCELLED &&
+                    TaskSchedulerTool.getTaskById(task.id) != null
+                ) throw e
             } catch (e: Exception) {
-                Log.e(TAG, "❌ خطأ في تنفيذ مهمة ${task.id}: ${e.message}")
+                Log.e(TAG, "Error executing task ${task.id}: ${e.message}")
                 DebugLogManager.appendError(TAG, e)
                 val errorSummary = TaskSchedulerTool.ExecutionSummary(
-                    taskId = task.id, taskName = task.name,
+                    taskId = task.id,
+                    taskName = task.name,
                     startTimeMs = task.startedAtMillis ?: System.currentTimeMillis(),
                     endTimeMs = System.currentTimeMillis(),
-                    toolsUsed = 0, toolNames = emptyList(),
-                    result = "", isSuccess = false,
+                    toolsUsed = 0,
+                    toolNames = emptyList(),
+                    result = "",
+                    isSuccess = false,
                     errorMessage = e.message ?: "Unknown error"
                 )
-                TaskSchedulerTool.markFailed(task.id, e.message ?: "Unknown error", errorSummary)
+                TaskSchedulerTool.markFailed(
+                    task.id,
+                    e.message ?: "Unknown error",
+                    errorSummary
+                )
                 tasksFailed.incrementAndGet()
             } finally {
                 _currentlyRunningTask.value = null
                 _syncState.value = SyncState.IDLE
+                BackgroundServiceSupervisor.recordHeartbeat(applicationContext)
             }
         }
 
@@ -430,7 +547,7 @@ class OmniSyncService : Service() {
         val runningCount = TaskSchedulerTool.getAllTasks().count { it.status.name == "RUNNING" }
 
         return when {
-            runningCount > 0 -> 5_000L           // Something is running — check every 5s
+            runningCount > 0 -> 5_000L
             pendingCount > 0 && isActivePeriod -> SYNC_INTERVAL_ACTIVE_MS
             pendingCount == 0 && !isActivePeriod -> SYNC_INTERVAL_IDLE_MS
             isActivePeriod -> SYNC_INTERVAL_NORMAL_MS
@@ -438,9 +555,11 @@ class OmniSyncService : Service() {
         }
     }
 
-    // ── Health Report ─────────────────────────────────────────────────────
-
-    private fun updateHealthReport(success: Boolean, tasksThisCycle: Int = 0, error: String? = null) {
+    private fun updateHealthReport(
+        success: Boolean,
+        tasksThisCycle: Int = 0,
+        error: String? = null
+    ) {
         val current = _healthReport.value
         _healthReport.value = current.copy(
             totalCycles = current.totalCycles + 1,
@@ -457,62 +576,90 @@ class OmniSyncService : Service() {
 
     fun getStatusReport(): String = buildString {
         val h = _healthReport.value
-        append("📊 OmniSync:\n")
-        append("  دورات: ${h.totalCycles} (${h.successfulCycles}✅ / ${h.failedCycles}❌)\n")
-        append("  مهام نُفّذت: ${h.totalTasksExecuted} (${h.tasksSucceeded}✅ / ${h.tasksFailed}❌)\n")
-        append("  صحة: ${if(h.isHealthy) "🟢 سليمة" else "🔴 تدهور"}\n")
+        append("📊 Omni background runtime:\n")
+        append("  Cycles: ${h.totalCycles} (${h.successfulCycles}✅ / ${h.failedCycles}❌)\n")
+        append("  Tasks executed: ${h.totalTasksExecuted} (${h.tasksSucceeded}✅ / ${h.tasksFailed}❌)\n")
+        append("  Health: ${if (h.isHealthy) "🟢 Healthy" else "🔴 Degraded"}\n")
         append("  Circuit: ${_circuitState.value.name}\n")
+        append("  Heartbeat age: ${BackgroundServiceSupervisor.heartbeatAgeMs(applicationContext) / 1000}s\n")
         val running = _currentlyRunningTask.value
-        if (running != null) append("  🤖 يُنفّذ الآن: $running\n")
+        if (running != null) append("  🤖 Running now: $running\n")
         val bridgeSet = TaskSchedulerTool.executionCallback != null
-        append("  Execution Bridge: ${if(bridgeSet) "✅ متصل" else "❌ غير محدد"}\n")
-        h.lastError?.let { append("  آخر خطأ: $it\n") }
+        append("  Execution Bridge: ${if (bridgeSet) "✅ Connected" else "❌ Not configured"}\n")
+        h.lastError?.let { append("  Last error: $it\n") }
     }.trimEnd()
-
-    // ── Notifications ─────────────────────────────────────────────────────
 
     private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val nm = getSystemService(NotificationManager::class.java)
-            nm?.createNotificationChannel(NotificationChannel(
-                CHANNEL_ID, "OmniDev Sync", NotificationManager.IMPORTANCE_LOW
-            ).apply { description = "مزامنة خلفية"; setShowBadge(false) })
-            nm?.createNotificationChannel(NotificationChannel(
-                TASK_EVENTS_CHANNEL_ID, "بدء المهام المجدولة", NotificationManager.IMPORTANCE_DEFAULT
-            ).apply { description = "إشعارات بدء المهام"; setShowBadge(true) })
-            nm?.createNotificationChannel(NotificationChannel(
-                TASK_COMPLETE_CHANNEL_ID, "اكتمال المهام المجدولة", NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "إشعارات اكتمال المهام مع ملخص التنفيذ"
-                setShowBadge(true)
-                enableVibration(true)
-            })
+            nm?.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ID,
+                    "Omni background runtime",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "Keeps scheduled tasks and agent work alive in the background"
+                    setShowBadge(false)
+                }
+            )
+            nm?.createNotificationChannel(
+                NotificationChannel(
+                    TASK_EVENTS_CHANNEL_ID,
+                    "Scheduled task activity",
+                    NotificationManager.IMPORTANCE_DEFAULT
+                ).apply {
+                    description = "Notifications when scheduled tasks start"
+                    setShowBadge(true)
+                }
+            )
+            nm?.createNotificationChannel(
+                NotificationChannel(
+                    TASK_COMPLETE_CHANNEL_ID,
+                    "Scheduled task results",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Completion notifications with task execution summaries"
+                    setShowBadge(true)
+                    enableVibration(true)
+                }
+            )
         }
     }
 
     private fun buildNotification(contentText: String): Notification {
         val pendingIntent = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java),
+            this,
+            0,
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        val allTasks = TaskSchedulerTool.getAllTasks()
+        val allTasks = runCatching { TaskSchedulerTool.getAllTasks() }.getOrDefault(emptyList())
         val pending = allTasks.count { it.status.name == "PENDING" }
         val running = allTasks.count { it.status.name == "RUNNING" }
-        val subText = if (running > 0) "▶️ $running تُنفَّذ | ⏳ $pending منتظرة"
-                      else if (pending > 0) "⏳ $pending مهمة منتظرة"
-                      else "لا مهام مجدولة"
+        val subText = when {
+            running > 0 -> "▶️ $running running | ⏳ $pending pending"
+            pending > 0 -> "⏳ $pending task(s) pending"
+            else -> "Background protection active"
+        }
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("OmniDev Sync")
+            .setContentTitle("OmniDev background runtime")
             .setContentText(contentText)
             .setSubText(subText)
-            .setOngoing(true).setSilent(true)
-            .setContentIntent(pendingIntent).build()
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setContentIntent(pendingIntent)
+            .build()
     }
 
     private fun updateNotification(text: String) {
         val nm = getSystemService(NotificationManager::class.java)
-        nm?.notify(NOTIFICATION_ID, buildNotification(text))
+        runCatching { nm?.notify(NOTIFICATION_ID, buildNotification(text)) }
     }
 
     @SuppressLint("MissingPermission")
@@ -520,19 +667,27 @@ class OmniSyncService : Service() {
         if (!canPostNotifications(applicationContext)) return
         val notification = NotificationCompat.Builder(this, TASK_EVENTS_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("▶️ مهمة بدأت")
-            .setContentText("\"$taskName\" تعمل الآن")
-            .setStyle(NotificationCompat.BigTextStyle()
-                .bigText("\"$taskName\" تعمل الآن\n📋 ${promptPreview}"))
+            .setContentTitle("▶️ Task started")
+            .setContentText("\"$taskName\" is running now")
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText("\"$taskName\" is running now\n📋 $promptPreview")
+            )
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(PendingIntent.getActivity(
-                this, taskId.hashCode(), taskIntent(this, taskId),
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            )).build()
+            .setContentIntent(
+                PendingIntent.getActivity(
+                    this,
+                    taskId.hashCode(),
+                    taskIntent(this, taskId),
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+            )
+            .build()
         runCatching {
             NotificationManagerCompat.from(this).notify(
-                TASK_EVENT_NOTIFICATION_BASE + kotlin.math.abs(taskId.hashCode() % TASK_EVENT_NOTIFICATION_RANGE),
+                TASK_EVENT_NOTIFICATION_BASE +
+                    kotlin.math.abs(taskId.hashCode() % TASK_EVENT_NOTIFICATION_RANGE),
                 notification
             )
         }
@@ -540,8 +695,10 @@ class OmniSyncService : Service() {
 
     private fun canPostNotifications(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
-        return ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) ==
-                PackageManager.PERMISSION_GRANTED
+        return ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun formatTime(ms: Long): String =

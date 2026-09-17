@@ -2,7 +2,6 @@ package com.omnidev.workspace.data.tools
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -13,15 +12,15 @@ import androidx.core.app.NotificationCompat
 import java.util.Calendar
 
 /**
- * BroadcastReceiver بسيط للمنبّهات المباشرة عبر AlarmManager.
- * (يُسجَّل في AndroidManifest.xml)
+ * Simple BroadcastReceiver for immediate alarms triggered through AlarmManager.
+ * Registered in AndroidManifest.xml.
  */
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val title = intent.getStringExtra("title") ?: "منبّه"
-        Log.i("AlarmReceiver", "🔔 المنبّه نشّط: \$title")
+        val title = intent.getStringExtra("title") ?: "Alarm"
+        Log.i("AlarmReceiver", "🔔 Alarm triggered: $title")
 
-        // إطلاق نشاط المنبّه إن وُجد
+        // Launch the system alarm activity when available.
         try {
             val alarmIntent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -32,19 +31,23 @@ class AlarmReceiver : BroadcastReceiver() {
             }
             context.startActivity(alarmIntent)
         } catch (_: Exception) {
-            // fallback: notification فقط
+            // Fallback to a notification when the system alarm UI is unavailable.
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val ch = NotificationChannel("alarm_ch", "المنبّهات", NotificationManager.IMPORTANCE_HIGH)
-                nm.createNotificationChannel(ch)
+                val channel = NotificationChannel(
+                    "alarm_ch",
+                    "Alarms",
+                    NotificationManager.IMPORTANCE_HIGH
+                )
+                nm.createNotificationChannel(channel)
             }
-            val notif = NotificationCompat.Builder(context, "alarm_ch")
-                .setContentTitle("⏰ \$title")
-                .setContentText("حان الوقت!")
+            val notification = NotificationCompat.Builder(context, "alarm_ch")
+                .setContentTitle("⏰ $title")
+                .setContentText("It's time!")
                 .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
                 .setAutoCancel(true)
                 .build()
-            nm.notify(title.hashCode(), notif)
+            nm.notify(title.hashCode(), notification)
         }
     }
 }
