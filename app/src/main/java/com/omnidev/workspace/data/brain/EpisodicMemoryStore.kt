@@ -3,6 +3,8 @@ package com.omnidev.workspace.data.brain
 import android.util.Log
 import com.omnidev.workspace.data.db.dao.EpisodicMemoryDao
 import com.omnidev.workspace.data.db.entities.EpisodicMemoryEntry
+import com.omnidev.workspace.domain.engine.ModeOutcomeLearner
+import com.omnidev.workspace.domain.engine.OmniMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -16,6 +18,9 @@ import kotlinx.coroutines.withContext
  * episodes are sampled separately, scored by semantic relevance + recency + execution efficiency,
  * then selected with Maximal Marginal Relevance (MMR). That prevents the prompt from wasting its
  * tiny memory budget on near-duplicate past runs while still retaining cautionary failures.
+ *
+ * Completed episodes also feed the local execution-mode outcome learner. That feedback is
+ * advisory routing evidence only; it never grants permission to switch modes.
  */
 class EpisodicMemoryStore(
     private val dao: EpisodicMemoryDao,
@@ -30,6 +35,7 @@ class EpisodicMemoryStore(
         private const val MAX_SUMMARY_LENGTH = 500
         private const val MAX_TOOLS_STORED = 10
         private const val MMR_LAMBDA = 0.78f
+        private const val TEAM_TASK_MARKER = "## Assigned Team Task"
     }
 
     private data class Candidate(
@@ -94,6 +100,33 @@ class EpisodicMemoryStore(
         )
 
         val id = dao.insert(entry)
+
+        // Feed actual execution outcomes back into adaptive mode routing. Team workers are
+        // recognizable from the worker contract prefix; ordinary Agent runs use AGENT.
+        try {
+            val executionMode = if (userIntent.contains(TEAM_TASK_MARKER, ignoreCase = true)) {
+                OmniMode.SWARM
+            } else {
+                OmniMode.AGENT
+            }
+            val modeOutcome = when (finalOutcome) {
+                EpisodeOutcome.SUCCESS -> ModeOutcomeLearner.Outcome.SUCCESS
+                EpisodeOutcome.FAILURE -> ModeOutcomeLearner.Outcome.FAILURE
+                EpisodeOutcome.ABANDONED -> ModeOutcomeLearner.Outcome.ABANDONED
+            }
+            ModeOutcomeLearner.recordOutcome(
+                userRequest = userIntent,
+                mode = executionMode,
+                outcome = modeOutcome,
+                iterations = iterationsCount,
+                durationMs = totalTimeMs,
+                verified = false
+            )
+        } catch (t: Throwable) {
+            // Outcome learning must never make primary episodic persistence fail.
+            Log.w(TAG, "mode outcome learning failed: ${t.message}")
+        }
+
         enforceQuota()
         id
     }
