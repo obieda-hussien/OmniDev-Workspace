@@ -14,13 +14,9 @@ import java.util.concurrent.ConcurrentHashMap
 class ModeSwitchPermissionStore(context: Context) {
 
     enum class Approval {
-        /** Approve this request only. */
         ONCE,
-        /** Remember this exact FROM -> TO transition across future sessions. */
         ALWAYS_THIS_TRANSITION,
-        /** Allow any agent-initiated mode transition for the current chat session only. */
         ALL_THIS_SESSION,
-        /** Reject this request. No future permission is granted. */
         DENY
     }
 
@@ -43,6 +39,8 @@ class ModeSwitchPermissionStore(context: Context) {
         sessionId: Long?,
         approval: Approval
     ) {
+        if (from == to || to == OmniMode.AUTO) return
+
         when (approval) {
             Approval.ONCE -> Unit
             Approval.ALWAYS_THIS_TRANSITION -> prefs.edit()
@@ -53,25 +51,25 @@ class ModeSwitchPermissionStore(context: Context) {
         }
 
         feedbackStore.recordModeDecision(
-            from = from.name,
-            to = to.name,
+            from = from,
+            to = to,
             accepted = approval != Approval.DENY
         )
     }
 
     /** Advisory preference only. A positive value is never permission. */
     fun recommendationConfidenceAdjustment(from: OmniMode, to: OmniMode): Float =
-        feedbackStore.recommendationConfidenceAdjustment(from.name, to.name)
+        feedbackStore.confidenceAdjustment(from, to)
 
-    /**
-     * Suppress low-value nagging after repeated rejection. Hard blockers can explicitly bypass
-     * this in the caller, because a newly blocked run may still need to explain the only viable
-     * recovery path to the user.
-     */
     fun shouldSuggest(from: OmniMode, to: OmniMode, hardBlocked: Boolean): Boolean {
         if (hardBlocked) return true
-        return !feedbackStore.modePreference(from.name, to.name).stronglyDisliked
+        return !feedbackStore.stronglyDisliked(from, to)
     }
+
+    /** Lets the router consume preference signals without seeing authorization state. */
+    fun preferenceSource(): ModePreferenceSource = feedbackStore
+
+    fun buildLearningHint(): String = feedbackStore.buildPromptInjection()
 
     fun clearPersistentTransition(from: OmniMode, to: OmniMode) {
         prefs.edit().remove(allowKey(from, to)).apply()
