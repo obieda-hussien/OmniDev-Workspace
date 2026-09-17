@@ -22,14 +22,7 @@ import java.util.TimeZone
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 
-/**
- * Team/Swarm coordinator.
- *
- * The orchestrator model only plans and synthesizes. Worker model instances execute atomic tasks.
- * Runtime scheduling does not blindly trust planner metadata: task descriptions are independently
- * classified for mutation/resource conflicts before concurrency is allowed, and each worker gets
- * an adaptive token/iteration budget instead of a fixed oversized allowance.
- */
+/** Token-bounded, dependency-aware multi-agent coordinator. */
 class SwarmOrchestrator(
     private val toolManager: ToolManager,
     private val completionProvider: suspend (CompletionRequest) -> CompletionResponse,
@@ -43,18 +36,19 @@ class SwarmOrchestrator(
     companion object {
         private const val MAX_SUBTASKS = 6
         private const val MAX_PARALLEL_WORKERS = 3
-        private const val MAX_HANDOFF_CHARS_PER_DEPENDENCY = 6_000
-        private const val MAX_HANDOFF_CHARS_TOTAL = 14_000
-        private const val MAX_SYNTHESIS_CHARS_PER_TASK = 9_000
-        private const val MAX_SYNTHESIS_CONTEXT_CHARS = 36_000
-        /** Hard configured ceiling across all worker budgets before actual usage. */
-        private const val TEAM_CONFIGURED_WORKER_TOKEN_CEILING = 300_000
-        private const val MIN_SCALED_WORKER_BUDGET = 18_000
+        private const val MAX_HANDOFF_CHARS_PER_DEPENDENCY = 4_500
+        private const val MAX_HANDOFF_CHARS_TOTAL = 10_000
+        private const val MAX_SYNTHESIS_CHARS_PER_TASK = 6_500
+        private const val MAX_SYNTHESIS_CONTEXT_CHARS = 28_000
 
-        /**
-         * Base worker settings. Per-task maxIterations/tokenBudget/repetition are replaced by
-         * [TeamExecutionPolicy] at runtime.
-         */
+        /** Planner + workers + synthesis all fit under this logical run ceiling. */
+        private const val TEAM_TOTAL_TOKEN_HARD_LIMIT = 320_000
+        private const val TEAM_WORKER_POOL_CEILING = 280_000
+        private const val SYNTHESIS_TOKEN_RESERVE = 9_000
+        private const val PLANNER_MAX_OUTPUT_TOKENS = 2_048
+        private const val SYNTHESIS_MAX_OUTPUT_TOKENS = 4_096
+        private const val MIN_SYNTHESIS_OUTPUT_TOKENS = 512
+
         private val TEAM_WORKER_CONFIG = AgentConfig(
             maxIterations = 10,
             tokenBudget = 48_000,
@@ -70,49 +64,27 @@ class SwarmOrchestrator(
         )
 
         private const val ORCHESTRATOR_SYSTEM_PROMPT = """
-You are Omni Team Orchestrator. You coordinate specialist agents; you do not perform their work yourself.
-
-Create the SMALLEST useful set of atomic tasks for the user's objective.
-
-TEAM DESIGN RULES:
-1. Produce 1-6 tasks. Never create filler tasks merely to satisfy a fixed Planner/Executor/Verifier template.
-2. Do NOT create a worker whose only job is to repeat planning that you have already done.
-3. Split work by genuinely independent evidence streams or implementation areas. Independent tasks should have no dependency so they can run concurrently.
-4. A dependency is allowed only when the later task truly needs the earlier task's output.
-5. Set parallelSafe=true only for read-only/research/analysis work that can safely overlap. Any task that edits files, changes device state, writes a repository, deploys, installs, or otherwise mutates shared state MUST use parallelSafe=false. Runtime will independently verify this flag and may serialize the task anyway.
-6. Set needsConnectedTools=true only when the task explicitly needs MCP/connected cloud services such as GitHub, Render, Notion, etc. Ordinary web research and local work do not need it.
-7. A verifier is optional. Create one only when independent verification materially improves correctness. A verifier MUST actually inspect evidence/use appropriate tools; it must never claim something is verified solely because another worker said it.
-8. For time-sensitive research, obey the exact requested date window. Do not include archival events merely because a page was recently retrieved.
-9. Runtime clock information is supplied below. Never create shell/Python/tool tasks merely to discover the current date or perform trivial date arithmetic that can be derived from it.
-10. Give each worker a concrete finish condition. Prefer one focused worker with several parallel tool calls over many tiny conversational turns.
-11. Do not split a task only to create more workers. Every additional worker has context/token overhead and must provide real specialization or safe parallelism.
-
-Return ONLY a JSON array with this shape:
-[
-  {
-    "id": "short-stable-id",
-    "description": "Concrete task and expected evidence/output",
-    "priority": 1,
-    "dependencies": [],
-    "requiredPersona": "Best specialist persona",
-    "parallelSafe": true,
-    "needsConnectedTools": false
-  }
-]
+You are Omni Team Orchestrator. Create the SMALLEST useful execution DAG for the objective.
+Rules:
+- Return 1-6 atomic tasks only; no filler Planner/Executor/Reviewer roles.
+- Split only genuinely independent evidence streams or implementation areas.
+- Add a dependency only when its output is required by the later task.
+- parallelSafe=true only for read-only/research work. Shared-state mutation must be false; runtime re-checks this.
+- needsConnectedTools=true only when MCP/cloud tools are actually required.
+- Add a verifier only when independent verification materially changes confidence.
+- Give each worker a concrete finish condition. More workers are overhead, not a quality metric.
+- Do not create tasks merely to discover the supplied current time/date.
+Return ONLY JSON array:
+[{"id":"id","description":"task + finish evidence","priority":1,"dependencies":[],"requiredPersona":"specialist","parallelSafe":true,"needsConnectedTools":false}]
 """
 
         private const val SYNTHESIS_PROMPT = """
-You are Omni Team Orchestrator producing the final answer from specialist-worker evidence.
-
-Rules:
-1. Answer the user's original request directly. Do not narrate the team machinery unless relevant.
-2. Treat worker outputs as evidence, not unquestionable truth. Do not upgrade an unsupported worker assertion into a verified fact.
-3. If a worker failed, timed out, or could not verify something, say so where it matters and never claim overall verification for that part.
-4. For time-windowed research, exclude evidence outside the requested window even if a worker included it.
-5. Prefer concrete tool-observed facts and source metadata over worker opinion.
-6. Remove duplicate findings from workers and synthesize rather than concatenate.
-7. Keep the final answer proportional to the user's request; do not repeat huge intermediate reports.
-8. A dependent task skipped because its prerequisite failed is NOT evidence of completion. Preserve that limitation explicitly.
+Synthesize specialist evidence into the answer to the original request.
+- Worker text is evidence, not authority. Never upgrade unsupported claims to verified facts.
+- Preserve relevant failures, skipped dependency work, and verification gaps.
+- Prefer concrete tool observations, paths, tests, errors and sources.
+- Deduplicate findings. Do not narrate Team machinery unless needed.
+- Stay proportional to the user's request.
 """
     }
 
@@ -134,21 +106,18 @@ Rules:
             ?: ModelRegistry.getModelById(orchestratorModelId)
         val orchestratorApiKey = apiKeyRepository?.getApiKey(orchestratorModel.provider)
         val runtimeClock = currentRuntimeClock()
-        val godModeNote = if (godModeEnabled) {
-            "\n[GOD MODE ENABLED]: Extended file tools are enabled. Actual privileged access still depends on the available backend."
-        } else ""
 
         val planRequest = CompletionRequest(
             modelId = orchestratorModelId,
-            messages = listOf(ChatMessage(role = MessageRole.USER, content = userMessage)),
+            messages = listOf(ChatMessage(MessageRole.USER, userMessage)),
             systemPrompt = buildString {
-                append(ORCHESTRATOR_SYSTEM_PROMPT.trimIndent())
-                append(godModeNote)
-                appendLine()
-                appendLine()
-                appendLine("RUNTIME CLOCK (device): $runtimeClock")
+                appendLine(ORCHESTRATOR_SYSTEM_PROMPT.trimIndent())
+                appendLine("RUNTIME CLOCK: $runtimeClock")
+                if (godModeEnabled) {
+                    appendLine("God Mode flag is enabled, but actual privilege still depends on runtime tool evidence.")
+                }
             },
-            maxTokens = minOf(orchestratorModel.maxOutputTokens, 4_096),
+            maxTokens = minOf(orchestratorModel.maxOutputTokens, PLANNER_MAX_OUTPUT_TOKENS),
             enableThinking = enableDeepThinking && orchestratorModel.supportsThinking,
             targetContext = scopePath,
             apiKey = orchestratorApiKey
@@ -158,106 +127,96 @@ Rules:
             callWithRateLimitRetry(planRequest)
         } catch (cancelled: CancellationException) {
             throw cancelled
-        } catch (e: Exception) {
-            ModeOutcomeLearner.recordOutcome(
-                userRequest = userMessage,
-                mode = OmniMode.SWARM,
-                outcome = ModeOutcomeLearner.Outcome.FAILURE,
-                durationMs = (System.currentTimeMillis() - teamStartedAt).coerceAtLeast(0L)
-            )
-            send(SwarmEvent.Error("Planning failed: ${e.message}"))
+        } catch (error: Exception) {
+            if (!isInfrastructureFailure(error.message.orEmpty())) {
+                recordTeamOutcome(
+                    userMessage,
+                    ModeOutcomeLearner.Outcome.FAILURE,
+                    teamStartedAt,
+                    observedTeamTokens.get(),
+                    taskCount = 0,
+                    verified = false
+                )
+            }
+            send(SwarmEvent.Error("Planning failed: ${error.message}"))
             return@channelFlow
         }
         observedTeamTokens.addAndGet(planResponse.tokensUsed?.totalTokens ?: 0)
 
-        val tasks = parseTasks(planResponse.content, userMessage)
-        val validationError = validateTasks(tasks)
+        val parsed = parseTasks(planResponse.content, userMessage)
+        val normalized = TeamExecutionPolicy.normalizePlan(parsed)
+        val runtimeTasks = normalized.tasks.map { task ->
+            val runtime = TeamExecutionPolicy.classify(task)
+            task.copy(parallelSafe = runtime.effectiveParallelSafe)
+        }
+        val validationError = validateTasks(runtimeTasks)
         if (validationError != null) {
-            ModeOutcomeLearner.recordOutcome(
-                userRequest = userMessage,
-                mode = OmniMode.SWARM,
-                outcome = ModeOutcomeLearner.Outcome.FAILURE,
-                durationMs = (System.currentTimeMillis() - teamStartedAt).coerceAtLeast(0L),
-                tokens = observedTeamTokens.get().takeIf { it > 0 }
+            recordTeamOutcome(
+                userMessage,
+                ModeOutcomeLearner.Outcome.FAILURE,
+                teamStartedAt,
+                observedTeamTokens.get(),
+                runtimeTasks.size,
+                false
             )
             send(SwarmEvent.Error(validationError))
             return@channelFlow
         }
 
-        // Allocate worker budgets once for this plan, then scale them so a 6-worker plan cannot
-        // silently configure ~1M tokens of maximum spend.
-        val requestedBudgets = tasks.associate { it.id to TeamExecutionPolicy.budgetFor(it) }
-        val requestedTotal = requestedBudgets.values.sumOf { it.tokenBudget }.coerceAtLeast(1)
-        val budgetScale = minOf(
-            1f,
-            TEAM_CONFIGURED_WORKER_TOKEN_CEILING.toFloat() / requestedTotal.toFloat()
-        )
-        val workerBudgets = requestedBudgets.mapValues { (_, budget) ->
-            if (budgetScale >= 0.999f) budget else budget.copy(
-                tokenBudget = (budget.tokenBudget * budgetScale).toInt()
-                    .coerceAtLeast(MIN_SCALED_WORKER_BUDGET)
+        val remainingRunBudget = (TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTeamTokens.get() - SYNTHESIS_TOKEN_RESERVE)
+            .coerceAtLeast(0)
+        val workerPool = minOf(TEAM_WORKER_POOL_CEILING, remainingRunBudget)
+        val allocation = TeamBudgetAllocator.allocate(runtimeTasks, workerPool)
+        if (runtimeTasks.isNotEmpty() &&
+            (allocation.budgets.size != runtimeTasks.size || allocation.allocatedTotal > workerPool)
+        ) {
+            recordTeamOutcome(
+                userMessage,
+                ModeOutcomeLearner.Outcome.ABANDONED,
+                teamStartedAt,
+                observedTeamTokens.get(),
+                runtimeTasks.size,
+                false
             )
+            send(SwarmEvent.Error("Team token pool is too small for a safe worker allocation."))
+            return@channelFlow
         }
 
-        send(SwarmEvent.PlanCompleted(tasks))
+        // Expose runtime truth, not planner claims, to UI/adaptive mode routing.
+        send(SwarmEvent.PlanCompleted(runtimeTasks))
 
-        val completedTasks = linkedMapOf<String, String>()
-        val failedTasks = linkedMapOf<String, String>()
-        val skippedTasks = linkedMapOf<String, String>()
-        val remaining = tasks.sortedBy { it.priority }.toMutableList()
+        val completed = linkedMapOf<String, String>()
+        val failed = linkedMapOf<String, String>()
+        val skipped = linkedMapOf<String, String>()
+        val infrastructureFailed = mutableSetOf<String>()
+        val remaining = runtimeTasks.sortedBy { it.priority }.toMutableList()
 
         data class TaskOutcome(
             val task: SwarmTask,
             val result: String,
-            val error: String? = null
+            val error: String? = null,
+            val infrastructureBlocked: Boolean = false
         )
 
         suspend fun runWorker(task: SwarmTask): TaskOutcome {
             send(SwarmEvent.TaskStarted(task))
-
-            val dependencyContext = compactDependencyContext(task, completedTasks)
-            val budget = workerBudgets[task.id] ?: TeamExecutionPolicy.budgetFor(task)
-            val workerPrompt = buildString {
-                appendLine("## Assigned Team Task")
-                appendLine(task.description)
-                appendLine()
-                appendLine("## Runtime")
-                appendLine("Device time: $runtimeClock")
-                appendLine("Active workspace: $scopePath")
-                appendLine()
-                appendLine("## Worker budget")
-                appendLine("- Max iterations: ${budget.maxIterations}")
-                appendLine("- Token ceiling: ${budget.tokenBudget}")
-                appendLine("- Budget class: ${budget.reason}; finish as soon as evidence is sufficient.")
-                appendLine()
-                appendLine("## Execution contract")
-                appendLine("- Execute this assigned task directly; do not redo team decomposition.")
-                appendLine("- Batch independent tool calls in the same model turn whenever possible.")
-                appendLine("- Stop probing a failed backend after the failure clearly states it is unavailable; pivot to a viable tool once.")
-                appendLine("- Do not use shell/Python merely for trivial current-date arithmetic; the runtime clock above is authoritative for this run.")
-                appendLine("- Keep tool observations focused. Return the evidence/result needed by the parent task, not a second giant report.")
-                appendLine("- Never claim verification without concrete evidence. If verification is incomplete, state exactly what remains unverified.")
-                appendLine("- Do not spend remaining budget simply because it exists. Stop when the assigned finish condition is satisfied.")
-                if (godModeEnabled) {
-                    appendLine("- God Mode is enabled, but privileged access is not guaranteed; trust actual tool outcomes.")
-                }
-                if (dependencyContext.isNotBlank()) {
-                    appendLine()
-                    appendLine("## Compact dependency handoff")
-                    appendLine(dependencyContext)
-                }
-                appendLine()
-                appendLine("## Original objective (for alignment only)")
-                appendLine(userMessage.take(1_500))
-            }
-
-            val mcpRegistry = if (task.needsConnectedTools) {
-                com.omnidev.workspace.OmniDevApp.instance.mcpRegistry
-            } else null
+            val budget = allocation.budgets[task.id] ?: TeamExecutionPolicy.budgetFor(task)
+            val dependencyContext = compactDependencyContext(task, completed)
+            val workerPrompt = buildWorkerPrompt(
+                task = task,
+                dependencyContext = dependencyContext,
+                originalObjective = userMessage,
+                runtimeClock = runtimeClock,
+                scopePath = scopePath,
+                budget = budget,
+                godModeEnabled = godModeEnabled
+            )
 
             val workerPipeline = AgentPipeline(
                 toolManager = toolManager,
-                mcpRegistry = mcpRegistry,
+                mcpRegistry = if (task.needsConnectedTools) {
+                    com.omnidev.workspace.OmniDevApp.instance.mcpRegistry
+                } else null,
                 completionProvider = completionProvider,
                 streamingCompletionProvider = streamingCompletionProvider,
                 config = TEAM_WORKER_CONFIG.copy(
@@ -273,13 +232,12 @@ Rules:
 
             var taskResult = ""
             var taskError: String? = null
-
             workerPipeline.execute(
                 userMessage = workerPrompt,
                 modelId = workerModelId,
                 scopePath = scopePath,
                 enableDeepThinking = enableDeepThinking,
-                workerPersona = task.requiredPersona.takeIf { it.isNotBlank() },
+                workerPersona = task.requiredPersona.takeIf(String::isNotBlank),
                 toolAccessMode = "ON_DEMAND"
             ).collect { event ->
                 when (event) {
@@ -301,7 +259,9 @@ Rules:
                             )
                         )
                     }
-                    is AgentEvent.PhaseChanged -> send(SwarmEvent.WorkerPhaseChanged(task, event.phase.name, event.detail))
+                    is AgentEvent.PhaseChanged -> send(
+                        SwarmEvent.WorkerPhaseChanged(task, event.phase.name, event.detail)
+                    )
                     else -> Unit
                 }
             }
@@ -309,213 +269,287 @@ Rules:
             if (taskError == null && taskResult.isBlank()) {
                 taskError = "Worker ended without a final response."
             }
-            return if (taskError != null) {
-                val error = if (taskResult.isNotBlank()) {
-                    "$taskError\n[Partial output]: ${taskResult.take(4_000)}"
-                } else taskError!!
-                TaskOutcome(task, result = "[FAILED] $error", error = error)
-            } else {
-                TaskOutcome(task, result = taskResult)
-            }
+            if (taskError == null) return TaskOutcome(task, taskResult)
+
+            val error = taskError.orEmpty()
+            val partial = taskResult.takeIf(String::isNotBlank)?.let {
+                "\n[Partial evidence]\n${TeamHandoffCompressor.compact(it, 3_000)}"
+            }.orEmpty()
+            return TaskOutcome(
+                task = task,
+                result = "[FAILED] $error$partial",
+                error = error,
+                infrastructureBlocked = isInfrastructureFailure(error)
+            )
         }
 
-        suspend fun acceptOutcome(outcome: TaskOutcome) {
+        suspend fun accept(outcome: TaskOutcome) {
+            completed[outcome.task.id] = outcome.result
             if (outcome.error != null) {
-                failedTasks[outcome.task.id] = outcome.error
-                // Keep partial/failure evidence for synthesis, but failedTasks remains the source
-                // of truth for dependency blocking.
-                completedTasks[outcome.task.id] = outcome.result
+                failed[outcome.task.id] = outcome.error
+                if (outcome.infrastructureBlocked) infrastructureFailed += outcome.task.id
                 send(SwarmEvent.TaskFailed(outcome.task, outcome.error))
             } else {
-                completedTasks[outcome.task.id] = outcome.result
                 send(SwarmEvent.TaskCompleted(outcome.task, outcome.result))
             }
         }
 
         while (remaining.isNotEmpty()) {
-            val permanentlyBlocked = remaining.filter { task ->
-                task.dependencies.any { dep -> dep in skippedTasks || dep in failedTasks }
+            if (observedTeamTokens.get() >= TEAM_TOTAL_TOKEN_HARD_LIMIT - SYNTHESIS_TOKEN_RESERVE) {
+                remaining.toList().forEach { task ->
+                    val reason = "Team token ceiling reached before this task could start"
+                    skipped[task.id] = reason
+                    send(SwarmEvent.TaskSkipped(task, reason))
+                }
+                remaining.clear()
+                break
             }
-            permanentlyBlocked.forEach { task ->
+
+            val blocked = remaining.filter { task ->
+                task.dependencies.any { dependency -> dependency in failed || dependency in skipped }
+            }
+            blocked.forEach { task ->
                 remaining.remove(task)
-                val blockedDeps = task.dependencies.filter { it in skippedTasks || it in failedTasks }
-                val reason = "Blocked by failed/skipped dependency: $blockedDeps"
-                skippedTasks[task.id] = reason
+                val dependencies = task.dependencies.filter { it in failed || it in skipped }
+                val reason = "Blocked by failed/skipped dependency: $dependencies"
+                skipped[task.id] = reason
                 send(SwarmEvent.TaskSkipped(task, reason))
             }
 
-            val readyNow = remaining.filter { task ->
-                task.dependencies.all { dep -> dep in completedTasks && dep !in failedTasks }
+            val ready = remaining.filter { task ->
+                task.dependencies.all { dependency -> dependency in completed && dependency !in failed }
             }
-            if (readyNow.isEmpty()) {
-                if (remaining.isNotEmpty()) {
-                    remaining.toList().forEach { task ->
-                        val reason = "Dependency cycle or unresolved dependency"
-                        skippedTasks[task.id] = reason
-                        send(SwarmEvent.TaskSkipped(task, reason))
-                    }
-                    remaining.clear()
+            if (ready.isEmpty()) {
+                remaining.toList().forEach { task ->
+                    val reason = "Dependency cycle or unresolved dependency"
+                    skipped[task.id] = reason
+                    send(SwarmEvent.TaskSkipped(task, reason))
                 }
+                remaining.clear()
                 break
             }
-            remaining.removeAll(readyNow)
+            remaining.removeAll(ready)
 
-            // Planner parallelSafe is advisory. The local policy re-checks mutation/resource
-            // conflicts and produces waves where each inner list can safely run concurrently.
-            val waves = TeamExecutionPolicy.buildExecutionWaves(
-                readyTasks = readyNow,
-                maxParallelWorkers = MAX_PARALLEL_WORKERS
-            )
+            val waves = TeamExecutionPolicy.buildExecutionWaves(ready, MAX_PARALLEL_WORKERS)
             for (wave in waves) {
-                if (wave.size <= 1) {
-                    wave.firstOrNull()?.let { acceptOutcome(runWorker(it)) }
+                if (wave.size == 1) {
+                    accept(runWorker(wave.first()))
                 } else {
                     val dispatcher = Dispatchers.Default.limitedParallelism(MAX_PARALLEL_WORKERS)
-                    val outcomes = coroutineScope {
+                    coroutineScope {
                         wave.map { task -> async(dispatcher) { runWorker(task) } }.awaitAll()
-                    }
-                    outcomes.forEach { acceptOutcome(it) }
+                    }.forEach { accept(it) }
                 }
             }
         }
 
-        val summaryContent = buildSynthesisContext(completedTasks, failedTasks, skippedTasks)
+        val successfulCount = completed.keys.count { it !in failed }
+        val totalFailures = failed.size + skipped.size
 
-        val synthesisRequest = CompletionRequest(
+        val finalSummary = when {
+            runtimeTasks.size == 1 && totalFailures == 0 -> {
+                completed[runtimeTasks.single().id].orEmpty()
+            }
+            successfulCount == 0 -> {
+                deterministicFailureSummary(failed, skipped)
+            }
+            else -> {
+                send(SwarmEvent.SynthesisStarted)
+                synthesize(
+                    userMessage = userMessage,
+                    completed = completed,
+                    failed = failed,
+                    skipped = skipped,
+                    orchestratorModelId = orchestratorModelId,
+                    orchestratorApiKey = orchestratorApiKey,
+                    modelMaxOutput = orchestratorModel.maxOutputTokens,
+                    scopePath = scopePath,
+                    enableThinking = enableDeepThinking && orchestratorModel.supportsThinking,
+                    observedTokens = observedTeamTokens
+                ) ?: deterministicEvidenceSummary(completed, failed, skipped)
+            }
+        }
+
+        val rootFailures = failed.keys
+        val onlyInfrastructureFailure = rootFailures.isNotEmpty() &&
+            rootFailures.all { it in infrastructureFailed } &&
+            skipped.keys.all { skippedId ->
+                runtimeTasks.firstOrNull { it.id == skippedId }
+                    ?.dependencies
+                    ?.any { it in infrastructureFailed } == true
+            }
+
+        if (!onlyInfrastructureFailure) {
+            recordTeamOutcome(
+                userRequest = userMessage,
+                outcome = if (totalFailures == 0) {
+                    ModeOutcomeLearner.Outcome.SUCCESS
+                } else ModeOutcomeLearner.Outcome.FAILURE,
+                startedAt = teamStartedAt,
+                tokens = observedTeamTokens.get(),
+                taskCount = runtimeTasks.size,
+                verified = totalFailures == 0 && runtimeTasks.any {
+                    IntentClassifier.analyze(it.description).verificationIntent >= 0.45f
+                }
+            )
+        }
+
+        send(
+            SwarmEvent.Completed(
+                summary = finalSummary,
+                tasksCompleted = successfulCount,
+                tasksFailed = totalFailures
+            )
+        )
+    }
+
+    private fun buildWorkerPrompt(
+        task: SwarmTask,
+        dependencyContext: String,
+        originalObjective: String,
+        runtimeClock: String,
+        scopePath: String,
+        budget: TeamExecutionPolicy.WorkerBudget,
+        godModeEnabled: Boolean
+    ): String = buildString {
+        appendLine("## Assigned Team Task")
+        appendLine(task.description)
+        appendLine("\n## Runtime")
+        appendLine("Time: $runtimeClock")
+        appendLine("Workspace: $scopePath")
+        appendLine("Budget: ${budget.maxIterations} iterations / ${budget.tokenBudget} tokens (${budget.reason})")
+        appendLine("\n## Contract")
+        appendLine("Execute only this task. Batch safe reads, stop when finish evidence is sufficient, and do not redo team planning.")
+        appendLine("Pivot once when a backend is clearly blocked; do not probe it repeatedly. Never claim verification without concrete evidence.")
+        appendLine("Return concise evidence useful to the parent: changes, paths, tests, errors, decisions, sources, and remaining risk.")
+        if (godModeEnabled) appendLine("God Mode flag does not guarantee privilege; trust actual tool outcomes.")
+        if (dependencyContext.isNotBlank()) {
+            appendLine("\n## Dependency evidence")
+            appendLine(dependencyContext)
+        }
+        appendLine("\n## Original objective")
+        appendLine(originalObjective.take(1_200))
+    }
+
+    private suspend fun synthesize(
+        userMessage: String,
+        completed: Map<String, String>,
+        failed: Map<String, String>,
+        skipped: Map<String, String>,
+        orchestratorModelId: String,
+        orchestratorApiKey: String?,
+        modelMaxOutput: Int,
+        scopePath: String,
+        enableThinking: Boolean,
+        observedTokens: AtomicInteger
+    ): String? {
+        val evidence = buildSynthesisContext(completed, failed, skipped)
+        val remaining = (TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTokens.get()).coerceAtLeast(0)
+        val estimatedInput = ((userMessage.length + evidence.length + SYNTHESIS_PROMPT.length) / 4)
+            .coerceAtLeast(256)
+        if (remaining <= estimatedInput + MIN_SYNTHESIS_OUTPUT_TOKENS) return null
+
+        val outputBudget = minOf(
+            modelMaxOutput,
+            SYNTHESIS_MAX_OUTPUT_TOKENS,
+            (remaining - estimatedInput).coerceAtLeast(MIN_SYNTHESIS_OUTPUT_TOKENS)
+        )
+        val request = CompletionRequest(
             modelId = orchestratorModelId,
             messages = listOf(
-                ChatMessage(role = MessageRole.USER, content = userMessage),
-                ChatMessage(role = MessageRole.ASSISTANT, content = "Team evidence:\n\n$summaryContent"),
-                ChatMessage(
-                    role = MessageRole.USER,
-                    content = "Synthesize the evidence into the final answer for my original request. Do not invent verification that the workers did not perform."
-                )
+                ChatMessage(MessageRole.USER, userMessage),
+                ChatMessage(MessageRole.ASSISTANT, "Team evidence:\n$evidence"),
+                ChatMessage(MessageRole.USER, "Produce the final answer from the evidence above.")
             ),
             systemPrompt = SYNTHESIS_PROMPT.trimIndent(),
-            maxTokens = minOf(orchestratorModel.maxOutputTokens, 8_192),
-            enableThinking = enableDeepThinking && orchestratorModel.supportsThinking,
+            maxTokens = outputBudget,
+            enableThinking = enableThinking,
             targetContext = scopePath,
             apiKey = orchestratorApiKey
         )
 
-        val synthesisResponse = try {
-            callWithRateLimitRetry(synthesisRequest)
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (e: Exception) {
-            ModeOutcomeLearner.recordOutcome(
-                userRequest = userMessage,
-                mode = OmniMode.SWARM,
-                outcome = ModeOutcomeLearner.Outcome.FAILURE,
-                iterations = tasks.size,
-                durationMs = (System.currentTimeMillis() - teamStartedAt).coerceAtLeast(0L),
-                tokens = observedTeamTokens.get().takeIf { it > 0 }
-            )
-            send(SwarmEvent.Error("Synthesis failed: ${e.message}"))
-            return@channelFlow
-        }
-        observedTeamTokens.addAndGet(synthesisResponse.tokensUsed?.totalTokens ?: 0)
-
-        val taskFailures = failedTasks.size + skippedTasks.size
-        ModeOutcomeLearner.recordOutcome(
-            userRequest = userMessage,
-            mode = OmniMode.SWARM,
-            outcome = if (taskFailures == 0) {
-                ModeOutcomeLearner.Outcome.SUCCESS
-            } else {
-                ModeOutcomeLearner.Outcome.FAILURE
-            },
-            iterations = tasks.size,
-            durationMs = (System.currentTimeMillis() - teamStartedAt).coerceAtLeast(0L),
-            tokens = observedTeamTokens.get().takeIf { it > 0 },
-            verified = taskFailures == 0 && tasks.any {
-                IntentClassifier.analyze(it.description).verificationIntent >= 0.45f
-            }
-        )
-
-        send(
-            SwarmEvent.Completed(
-                summary = synthesisResponse.content,
-                tasksCompleted = completedTasks.size - failedTasks.size,
-                tasksFailed = taskFailures
-            )
-        )
-    }
-
-    /**
-     * One logical orchestration call may retry rate limits, but every actual provider attempt
-     * is recorded so request analytics reflects what really happened.
-     */
-    private suspend fun callWithRateLimitRetry(
-        request: CompletionRequest,
-        maxRetries: Int = 5,
-        baseDelayMs: Long = 15_000L
-    ): CompletionResponse {
-        var attempt = 0
-        while (true) {
-            val attemptStarted = System.currentTimeMillis()
-            try {
-                val response = completionProvider(request)
-                recordOrchestratorAnalytics(request, response, attemptStarted, isError = false)
-                return response
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (e: Exception) {
-                recordOrchestratorAnalytics(request, null, attemptStarted, isError = true)
-                val isRateLimit = e is java.io.IOException &&
-                    (e.message?.contains("Rate limit exceeded", ignoreCase = true) == true ||
-                        e.message?.contains("429", ignoreCase = true) == true)
-                if (isRateLimit && attempt < maxRetries) {
-                    val delayMs = min(baseDelayMs * (attempt + 1), 60_000L)
-                    attempt++
-                    delay(delayMs)
-                } else {
-                    throw e
-                }
-            }
-        }
-    }
-
-    private suspend fun recordOrchestratorAnalytics(
-        request: CompletionRequest,
-        response: CompletionResponse?,
-        startedAtMs: Long,
-        isError: Boolean
-    ) {
-        val repo = analyticsRepository ?: return
-        try {
-            val model = ModelRegistry.findModelById(request.modelId)
-            val usage = response?.tokensUsed
-            val inputTokens = usage?.promptTokens ?: 0
-            val outputTokens = usage?.completionTokens ?: 0
-            val cost = com.omnidev.workspace.data.repository.DynamicPricingManager()
-                .calculateCost(request.modelId, inputTokens, outputTokens)
-            repo.recordTokenUsage(
-                modelId = request.modelId,
-                provider = model?.provider,
-                inputTokens = inputTokens,
-                outputTokens = outputTokens,
-                costUsd = cost,
-                latencyMs = (System.currentTimeMillis() - startedAtMs).coerceAtLeast(0L),
-                isError = isError
-            )
+        return try {
+            val response = callWithRateLimitRetry(request, maxRetries = 2)
+            observedTokens.addAndGet(response.tokensUsed?.totalTokens ?: 0)
+            response.content.takeIf(String::isNotBlank)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
-            // Telemetry must never break orchestration.
+            null
         }
     }
+
+    private fun compactDependencyContext(
+        task: SwarmTask,
+        completed: Map<String, String>
+    ): String {
+        if (task.dependencies.isEmpty()) return ""
+        var remaining = MAX_HANDOFF_CHARS_TOTAL
+        val parts = mutableListOf<String>()
+        task.dependencies.forEach { dependency ->
+            if (remaining <= 0) return@forEach
+            val raw = completed[dependency] ?: return@forEach
+            val limit = minOf(MAX_HANDOFF_CHARS_PER_DEPENDENCY, remaining)
+            val compact = TeamHandoffCompressor.compact(raw, limit)
+            if (compact.isNotBlank()) {
+                parts += "[$dependency]\n$compact"
+                remaining -= compact.length
+            }
+        }
+        return parts.joinToString("\n\n")
+    }
+
+    private fun buildSynthesisContext(
+        completed: Map<String, String>,
+        failed: Map<String, String>,
+        skipped: Map<String, String>
+    ): String {
+        val out = StringBuilder()
+        completed.forEach { (id, raw) ->
+            if (out.length >= MAX_SYNTHESIS_CONTEXT_CHARS) return@forEach
+            val remaining = MAX_SYNTHESIS_CONTEXT_CHARS - out.length
+            val bodyLimit = minOf(MAX_SYNTHESIS_CHARS_PER_TASK, remaining)
+            out.appendLine("## $id (${if (id in failed) "FAILED" else "SUCCESS"})")
+            out.appendLine(TeamHandoffCompressor.compact(raw, bodyLimit))
+        }
+        if (skipped.isNotEmpty() && out.length < MAX_SYNTHESIS_CONTEXT_CHARS) {
+            out.appendLine("## Skipped")
+            skipped.forEach { (id, reason) -> out.appendLine("- $id: $reason") }
+        }
+        return out.toString().take(MAX_SYNTHESIS_CONTEXT_CHARS)
+    }
+
+    private fun deterministicEvidenceSummary(
+        completed: Map<String, String>,
+        failed: Map<String, String>,
+        skipped: Map<String, String>
+    ): String = buildString {
+        appendLine("Team execution evidence:")
+        completed.forEach { (id, output) ->
+            appendLine("\n[$id ${if (id in failed) "FAILED" else "DONE"}]")
+            appendLine(TeamHandoffCompressor.compact(output, 2_500))
+        }
+        skipped.forEach { (id, reason) -> appendLine("\n[$id SKIPPED] $reason") }
+    }.take(12_000)
+
+    private fun deterministicFailureSummary(
+        failed: Map<String, String>,
+        skipped: Map<String, String>
+    ): String = buildString {
+        appendLine("The Team could not complete the objective.")
+        failed.forEach { (id, error) -> appendLine("- $id failed: ${error.take(700)}") }
+        skipped.forEach { (id, reason) -> appendLine("- $id skipped: ${reason.take(500)}") }
+    }.take(8_000)
 
     private fun parseTasks(responseContent: String, originalUserMessage: String): List<SwarmTask> {
         return try {
             val start = responseContent.indexOf('[')
             val end = responseContent.lastIndexOf(']')
             require(start >= 0 && end > start) { "No JSON task array found" }
-            val tasks = json.decodeFromString<List<SwarmTask>>(responseContent.substring(start, end + 1))
-            require(tasks.isNotEmpty()) { "Empty task list" }
-            tasks
+            val parsed = json.decodeFromString<List<SwarmTask>>(responseContent.substring(start, end + 1))
+            require(parsed.isNotEmpty()) { "Empty task list" }
+            parsed.take(MAX_SUBTASKS)
         } catch (_: Exception) {
-            // Graceful fallback: execute the user's real objective, not malformed planner prose.
             listOf(
                 SwarmTask(
                     id = "direct-worker",
@@ -530,72 +564,107 @@ Rules:
     }
 
     private fun validateTasks(tasks: List<SwarmTask>): String? {
-        if (tasks.isEmpty()) return "Orchestrator produced no actionable sub-tasks."
-        if (tasks.size > MAX_SUBTASKS) return "Too many sub-tasks (${tasks.size}); maximum is $MAX_SUBTASKS."
+        if (tasks.isEmpty()) return "Orchestrator produced no actionable tasks."
+        if (tasks.size > MAX_SUBTASKS) return "Too many tasks (${tasks.size}); maximum is $MAX_SUBTASKS."
         val ids = tasks.map { it.id }
-        if (ids.any { it.isBlank() } || ids.distinct().size != ids.size) {
-            return "Invalid task plan: task IDs must be non-empty and unique."
+        if (ids.any(String::isBlank) || ids.distinct().size != ids.size) {
+            return "Invalid Team plan: task IDs must be non-empty and unique."
         }
         if (tasks.any { task -> task.dependencies.any { it !in ids || it == task.id } }) {
-            return "Invalid task plan: every dependency must reference another task."
+            return "Invalid Team plan: every dependency must reference another task."
         }
         val resolved = mutableSetOf<String>()
         repeat(tasks.size) {
-            tasks.filter { task -> task.dependencies.all(resolved::contains) }.forEach { resolved += it.id }
+            tasks.filter { it.id !in resolved && it.dependencies.all(resolved::contains) }
+                .forEach { resolved += it.id }
         }
-        return if (resolved.size == tasks.size) null else "Invalid task plan: circular dependencies."
+        return if (resolved.size == tasks.size) null else "Invalid Team plan: circular dependencies."
     }
 
-    private fun compactDependencyContext(
-        task: SwarmTask,
-        completedTasks: Map<String, String>
-    ): String {
-        if (task.dependencies.isEmpty()) return ""
-        var remaining = MAX_HANDOFF_CHARS_TOTAL
-        val parts = mutableListOf<String>()
-        for (dependency in task.dependencies) {
-            if (remaining <= 0) break
-            val result = completedTasks[dependency] ?: continue
-            val allowed = minOf(MAX_HANDOFF_CHARS_PER_DEPENDENCY, remaining)
-            val compact = compactText(result, allowed)
-            parts += "[$dependency]\n$compact"
-            remaining -= compact.length
+    private suspend fun callWithRateLimitRetry(
+        request: CompletionRequest,
+        maxRetries: Int = 4,
+        baseDelayMs: Long = 15_000L
+    ): CompletionResponse {
+        var attempt = 0
+        while (true) {
+            val started = System.currentTimeMillis()
+            try {
+                val response = completionProvider(request)
+                recordOrchestratorAnalytics(request, response, started, false)
+                return response
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                recordOrchestratorAnalytics(request, null, started, true)
+                val rateLimit = isRateLimit(error.message.orEmpty())
+                if (!rateLimit || attempt >= maxRetries) throw error
+                attempt++
+                delay(min(baseDelayMs * attempt, 60_000L))
+            }
         }
-        return parts.joinToString("\n\n")
     }
 
-    private fun buildSynthesisContext(
-        completedTasks: Map<String, String>,
-        failedTasks: Map<String, String>,
-        skippedTasks: Map<String, String>
-    ): String {
-        val out = StringBuilder()
-        completedTasks.forEach { (id, result) ->
-            if (out.length >= MAX_SYNTHESIS_CONTEXT_CHARS) return@forEach
-            val status = if (id in failedTasks) "FAILED" else "SUCCESS"
-            val remaining = MAX_SYNTHESIS_CONTEXT_CHARS - out.length
-            val bodyLimit = minOf(MAX_SYNTHESIS_CHARS_PER_TASK, remaining)
-            out.appendLine("## $id ($status)")
-            out.appendLine(compactText(result, bodyLimit))
-            out.appendLine()
+    private suspend fun recordOrchestratorAnalytics(
+        request: CompletionRequest,
+        response: CompletionResponse?,
+        startedAtMs: Long,
+        isError: Boolean
+    ) {
+        val repository = analyticsRepository ?: return
+        try {
+            val model = ModelRegistry.findModelById(request.modelId)
+            val usage = response?.tokensUsed
+            val input = usage?.promptTokens ?: 0
+            val output = usage?.completionTokens ?: 0
+            repository.recordTokenUsage(
+                modelId = request.modelId,
+                provider = model?.provider,
+                inputTokens = input,
+                outputTokens = output,
+                costUsd = com.omnidev.workspace.data.repository.DynamicPricingManager()
+                    .calculateCost(request.modelId, input, output),
+                latencyMs = (System.currentTimeMillis() - startedAtMs).coerceAtLeast(0L),
+                isError = isError
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Best effort.
         }
-        if (skippedTasks.isNotEmpty() && out.length < MAX_SYNTHESIS_CONTEXT_CHARS) {
-            out.appendLine("## Skipped tasks")
-            skippedTasks.forEach { (id, reason) -> out.appendLine("- $id: $reason") }
-        }
-        return out.toString().take(MAX_SYNTHESIS_CONTEXT_CHARS)
     }
 
-    private fun compactText(value: String, maxChars: Int): String {
-        if (value.length <= maxChars) return value
-        if (maxChars <= 80) return value.take(maxChars)
-        val headSize = (maxChars * 3) / 4
-        val tailSize = maxChars - headSize - 45
-        return buildString(maxChars) {
-            append(value.take(headSize))
-            append("\n[...handoff compacted...]\n")
-            append(value.takeLast(tailSize.coerceAtLeast(0)))
-        }.take(maxChars)
+    private fun recordTeamOutcome(
+        userRequest: String,
+        outcome: ModeOutcomeLearner.Outcome,
+        startedAt: Long,
+        tokens: Int,
+        taskCount: Int,
+        verified: Boolean
+    ) {
+        ModeOutcomeLearner.recordOutcome(
+            userRequest = userRequest,
+            mode = OmniMode.SWARM,
+            outcome = outcome,
+            iterations = taskCount,
+            durationMs = (System.currentTimeMillis() - startedAt).coerceAtLeast(0L),
+            tokens = tokens.takeIf { it > 0 },
+            verified = verified
+        )
+    }
+
+    private fun isRateLimit(message: String): Boolean {
+        val lower = message.lowercase()
+        return "rate limit" in lower || "429" in lower || "too many requests" in lower
+    }
+
+    private fun isInfrastructureFailure(message: String): Boolean {
+        val lower = message.lowercase()
+        return listOf(
+            "rate limit", "429", "quota", "api key", "unauthorized", "forbidden", "network",
+            "timeout", "timed out", "connection", "dns", "service unavailable", "provider cooldown",
+            "persistent infrastructure", "backend failure"
+        ).any(lower::contains)
     }
 
     private fun currentRuntimeClock(): String {
@@ -613,40 +682,20 @@ sealed class SwarmEvent {
     data class TaskCompleted(val task: SwarmTask, val result: String) : SwarmEvent()
     data class TaskFailed(val task: SwarmTask, val error: String) : SwarmEvent()
     data class TaskSkipped(val task: SwarmTask, val reason: String) : SwarmEvent()
-    data class WorkerToolUse(
-        val task: SwarmTask,
-        val toolName: String,
-        val arguments: Map<String, String>
-    ) : SwarmEvent()
-    data class WorkerToolResult(
-        val task: SwarmTask,
-        val toolName: String,
-        val output: String,
-        val isError: Boolean
-    ) : SwarmEvent()
+    data class WorkerToolUse(val task: SwarmTask, val toolName: String, val arguments: Map<String, String>) : SwarmEvent()
+    data class WorkerToolResult(val task: SwarmTask, val toolName: String, val output: String, val isError: Boolean) : SwarmEvent()
     data class WorkerThinking(val task: SwarmTask, val iteration: Int) : SwarmEvent()
     data class WorkerThinkingBlock(val task: SwarmTask, val content: String) : SwarmEvent()
     data class WorkerTokenUsage(
         val task: SwarmTask,
-        /** Cumulative tokens consumed by this worker run. */
         val totalTokens: Int,
         val budget: Int?,
-        /** Tokens consumed by only the most recent model request. */
         val iterationTokens: Int = 0
     ) : SwarmEvent()
-    data class WorkerPhaseChanged(
-        val task: SwarmTask,
-        val phase: String,
-        val detail: String?
-    ) : SwarmEvent()
+    data class WorkerPhaseChanged(val task: SwarmTask, val phase: String, val detail: String?) : SwarmEvent()
     data class WorkerStreamChunk(val task: SwarmTask, val delta: String) : SwarmEvent()
-    /** Kept for source compatibility with existing UI; new runs no longer emit fake iteration-99 synthesis events. */
     data object SynthesisStarted : SwarmEvent()
-    data class Completed(
-        val summary: String,
-        val tasksCompleted: Int,
-        val tasksFailed: Int
-    ) : SwarmEvent()
+    data class Completed(val summary: String, val tasksCompleted: Int, val tasksFailed: Int) : SwarmEvent()
     data class Error(val message: String) : SwarmEvent()
 }
 
@@ -658,13 +707,9 @@ data class SwarmTask(
     val dependencies: List<String> = emptyList(),
     val status: SwarmTaskStatus = SwarmTaskStatus.PENDING,
     val requiredPersona: String = "",
-    /** True only when the task is read-only / research and safe to overlap with peers. */
     val parallelSafe: Boolean = true,
-    /** Opt-in to MCP/connected-service schemas; false avoids needless schema tokens for ordinary tasks. */
     val needsConnectedTools: Boolean = false
 )
 
 @kotlinx.serialization.Serializable
-enum class SwarmTaskStatus {
-    PENDING, IN_PROGRESS, COMPLETED, FAILED
-}
+enum class SwarmTaskStatus { PENDING, IN_PROGRESS, COMPLETED, FAILED }
