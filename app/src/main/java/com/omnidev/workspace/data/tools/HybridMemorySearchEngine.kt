@@ -1,19 +1,13 @@
 package com.omnidev.workspace.data.tools
 
-import com.omnidev.workspace.data.brain.HashEmbedder
 import com.omnidev.workspace.data.db.entities.KnowledgeSnippet
 
 /**
  * Shared retrieval engine for Omni Memory.
  *
- * Combines:
- *  - multilingual local semantic similarity via [HashEmbedder]
- *  - exact phrase matching
- *  - token overlap
- *  - tag/category boosts
- *
- * Both the classic knowledge tools and the legacy vector tools use this same engine and the same
- * [KnowledgeSnippet] corpus, so there is one source of truth and one ranking policy.
+ * Combines multilingual local semantic similarity, exact phrase matching, token overlap,
+ * tag/category boosts, and a small in-memory embedding cache. Both the classic knowledge tools
+ * and the legacy vector tools use this same engine and the same [KnowledgeSnippet] corpus.
  */
 object HybridMemorySearchEngine {
 
@@ -25,6 +19,13 @@ object HybridMemorySearchEngine {
         val reason: String
     )
 
+    private data class CacheKey(val id: Long, val fingerprint: Int)
+
+    private val embeddingCache = object : LinkedHashMap<CacheKey, FloatArray>(256, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<CacheKey, FloatArray>?): Boolean =
+            size > MAX_EMBEDDING_CACHE
+    }
+
     fun rank(
         query: String,
         corpus: List<KnowledgeSnippet>,
@@ -33,11 +34,11 @@ object HybridMemorySearchEngine {
         val cleanQuery = query.trim()
         if (cleanQuery.isBlank() || corpus.isEmpty() || topK <= 0) return emptyList()
 
-        val normalizedQuery = HashEmbedder.normalize(cleanQuery).trim().replace(WHITESPACE, " ")
+        val normalizedQuery = OmniMemoryEmbedder.normalizeText(cleanQuery).trim().replace(WHITESPACE, " ")
         val queryTokens = tokenize(normalizedQuery)
         if (normalizedQuery.isBlank() || queryTokens.isEmpty()) return emptyList()
 
-        val queryEmbedding = HashEmbedder.embed(cleanQuery)
+        val queryEmbedding = OmniMemoryEmbedder.embed(cleanQuery)
 
         return corpus.asSequence()
             .mapNotNull { snippet -> score(snippet, normalizedQuery, queryTokens, queryEmbedding) }
@@ -55,9 +56,9 @@ object HybridMemorySearchEngine {
         queryTokens: Set<String>,
         queryEmbedding: FloatArray
     ): Match? {
-        val normalizedContent = HashEmbedder.normalize(snippet.content).trim().replace(WHITESPACE, " ")
-        val normalizedTags = HashEmbedder.normalize(snippet.tags).trim().replace(WHITESPACE, " ")
-        val normalizedCategory = HashEmbedder.normalize(snippet.category).trim().replace(WHITESPACE, " ")
+        val normalizedContent = OmniMemoryEmbedder.normalizeText(snippet.content).trim().replace(WHITESPACE, " ")
+        val normalizedTags = OmniMemoryEmbedder.normalizeText(snippet.tags).trim().replace(WHITESPACE, " ")
+        val normalizedCategory = OmniMemoryEmbedder.normalizeText(snippet.category).trim().replace(WHITESPACE, " ")
         val document = listOf(normalizedContent, normalizedTags, normalizedCategory)
             .filter { it.isNotBlank() }
             .joinToString(" ")
@@ -74,8 +75,8 @@ object HybridMemorySearchEngine {
         val categoryCoverage = coverage(queryTokens, categoryTokens)
         val prefixCoverage = prefixCoverage(queryTokens, documentTokens)
 
-        val semantic = HashEmbedder
-            .cosine(queryEmbedding, HashEmbedder.embed("${snippet.content} ${snippet.tags} ${snippet.category}"))
+        val semantic = OmniMemoryEmbedder
+            .cosine(queryEmbedding, embeddingFor(snippet))
             .coerceAtLeast(0f)
             .toDouble()
 
@@ -91,8 +92,8 @@ object HybridMemorySearchEngine {
         if (tagCoverage >= 0.5) combined += 0.04
         combined = combined.coerceIn(0.0, 1.0)
 
-        // Hash embeddings can collide. Require either a meaningful semantic signal or some lexical
-        // evidence before a candidate is allowed into the result set.
+        // Hash embeddings can collide. Require either lexical evidence or a meaningful semantic
+        // signal before a candidate can enter the result set.
         if (!exactPhrase && lexical <= 0.0 && semantic < MIN_SEMANTIC_SCORE) return null
         if (combined < MIN_COMBINED_SCORE) return null
 
@@ -111,6 +112,20 @@ object HybridMemorySearchEngine {
             lexicalScore = lexical,
             reason = reason
         )
+    }
+
+    private fun embeddingFor(snippet: KnowledgeSnippet): FloatArray {
+        val fingerprint = 31 * snippet.content.hashCode() + 17 * snippet.tags.hashCode() + snippet.category.hashCode()
+        val key = CacheKey(snippet.id, fingerprint)
+        synchronized(embeddingCache) {
+            embeddingCache[key]?.let { return it }
+        }
+
+        val generated = OmniMemoryEmbedder.embed("${snippet.content} ${snippet.tags} ${snippet.category}")
+        synchronized(embeddingCache) {
+            embeddingCache[key] = generated
+        }
+        return generated
     }
 
     private fun tokenize(normalized: String): Set<String> =
@@ -139,6 +154,7 @@ object HybridMemorySearchEngine {
 
     private val WHITESPACE = Regex("\\s+")
     private const val MAX_QUERY_TOKENS = 64
+    private const val MAX_EMBEDDING_CACHE = 4096
     private const val MIN_SEMANTIC_SCORE = 0.15
     private const val MIN_COMBINED_SCORE = 0.08
 
