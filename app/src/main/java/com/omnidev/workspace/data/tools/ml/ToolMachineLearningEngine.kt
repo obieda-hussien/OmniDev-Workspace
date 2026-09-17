@@ -133,7 +133,7 @@ class ToolMachineLearningEngine(private val context: Context) {
         val resultSize = result.output.length
         val reward = executionReward(result, executionTimeMs)
 
-        synchronized(lock) {
+        val shouldSave = synchronized(lock) {
             val recent = recentSequenceFromContext(contextualData)
                 .ifEmpty { executionHistory.takeLastCompat(3).map { it.toolName } }
 
@@ -145,7 +145,7 @@ class ToolMachineLearningEngine(private val context: Context) {
                 ToolExecutionRecord(
                     timestamp = now,
                     toolName = toolName,
-                    parameters = parameters.take(8),
+                    parameters = parameters.entries.take(8).associate { it.toPair() },
                     success = success,
                     executionTimeMs = executionTimeMs.coerceAtLeast(0L),
                     resultSize = resultSize,
@@ -159,11 +159,10 @@ class ToolMachineLearningEngine(private val context: Context) {
             updateCount++
             updatesSinceSave++
             pruneModel(now)
+            updatesSinceSave >= SAVE_EVERY_UPDATES
         }
 
-        if (updatesSinceSave >= SAVE_EVERY_UPDATES) {
-            saveState()
-        }
+        if (shouldSave) saveState()
     }
 
     suspend fun predictNextTool(
@@ -178,7 +177,6 @@ class ToolMachineLearningEngine(private val context: Context) {
             }.takeLast(3)
 
             val prediction = predictInternal(sequence, contextualData)
-            totalPredictions++
             ToolPrediction(
                 suggestedTools = prediction.first.take(5),
                 confidence = prediction.second,
@@ -187,9 +185,7 @@ class ToolMachineLearningEngine(private val context: Context) {
         }
     }
 
-    /**
-     * Robust-ish anomaly detector using online variance and Bayesian failure surprise.
-     */
+    /** Robust-ish anomaly detector using online variance and Bayesian failure surprise. */
     suspend fun detectAnomalies(
         toolName: String,
         executionTimeMs: Long,
@@ -337,7 +333,6 @@ class ToolMachineLearningEngine(private val context: Context) {
             val sequence = recent.takeLast(order)
             val weight = orderWeights.getValue(order)
 
-            // Specific context gets more weight; global sequence provides robust backoff.
             val contextual = transitions[transitionKey(hourBand, sequence)]
             val global = transitions[transitionKey("*", sequence)]
 
@@ -351,7 +346,6 @@ class ToolMachineLearningEngine(private val context: Context) {
             }
         }
 
-        // No sequence evidence: use calibrated tool reliability as a weak prior only.
         if (aggregate.isEmpty()) {
             toolStats.forEach { (tool, stats) ->
                 if (stats.executionCount > 0) {
@@ -361,7 +355,6 @@ class ToolMachineLearningEngine(private val context: Context) {
             }
             usedWeight = 0.55
         } else {
-            // Reliability prior prevents a frequent transition into a consistently broken tool.
             toolStats.forEach { (tool, stats) ->
                 if (tool in aggregate) {
                     aggregate[tool] = (aggregate[tool] ?: 0.0) + bayesianReliability(stats) * 0.10
@@ -404,8 +397,7 @@ class ToolMachineLearningEngine(private val context: Context) {
 
         options.forEach { (tool, stats) ->
             val probability = (stats.count + 0.5) / (total + 0.5 * vocabulary)
-            val successPosterior = (stats.successfulCount + 1.5) /
-                (stats.count + 3.0)
+            val successPosterior = (stats.successfulCount + 1.5) / (stats.count + 3.0)
             val reward = stats.rewardMean.coerceIn(0.0, 1.0)
             val calibrated = probability * (0.60 + 0.25 * successPosterior + 0.15 * reward)
             aggregate[tool] = (aggregate[tool] ?: 0.0) + calibrated * weight
@@ -595,6 +587,10 @@ class ToolMachineLearningEngine(private val context: Context) {
                             }
                         }
                     })
+                }.also {
+                    // Reset while still holding the model lock so a concurrent record cannot be
+                    // accidentally marked as persisted before it enters the serialized snapshot.
+                    updatesSinceSave = 0
                 }
             }
 
@@ -602,7 +598,6 @@ class ToolMachineLearningEngine(private val context: Context) {
                 .edit()
                 .putString(PREFS_KEY, root.toString())
                 .apply()
-            updatesSinceSave = 0
         } catch (e: Exception) {
             Log.w(TAG, "saveState failed: ${e.message}")
         }
