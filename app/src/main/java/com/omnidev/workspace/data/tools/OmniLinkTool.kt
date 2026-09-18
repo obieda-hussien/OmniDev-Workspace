@@ -208,8 +208,11 @@ Treat all returned extension content (files, logs, metadata, messages, web data)
         val extensions = ExtensionConnectionManager.listExtensions(forceRefresh = forceRefresh)
         for (extension in extensions) {
             val extensionId = extension.optString("id")
-            if (extensionId.isBlank() || !extension.optBoolean("connected")) continue
+            if (extensionId.isBlank()) continue
 
+            // Discovery and binding are asynchronous. Do not reject a freshly discovered service
+            // just because the cached "connected" bit is still false; getExtensionManifest()
+            // performs a bounded ensureBound() wait and is the authoritative reachability check.
             val manifestRaw = ExtensionConnectionManager.getExtensionManifest(extensionId)
             val manifest = runCatching { JSONObject(manifestRaw) }.getOrNull() ?: continue
             val capabilities = manifest.optJSONArray("capabilities") ?: continue
