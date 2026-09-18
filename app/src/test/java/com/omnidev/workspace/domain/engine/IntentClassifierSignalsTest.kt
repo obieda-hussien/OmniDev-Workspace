@@ -89,4 +89,31 @@ class IntentClassifierSignalsTest {
     }
 
 
+    @Test
+    fun `generic agent utility does not default to terminal domain`() {
+        val domains = IntentClassifier.getRelevantDomains(
+            "Create a reminder for tomorrow"
+        )
+
+        assertTrue(IntentClassifier.ToolDomain.GENERAL in domains)
+        assertTrue(IntentClassifier.ToolDomain.CODE_TERMINAL !in domains)
+    }
+
+    @Test
+    fun `MCP GitHub and search tools are not universal core tools`() {
+        assertEquals(
+            IntentClassifier.ToolDomain.CODE_TERMINAL,
+            IntentClassifier.getToolDomain("mcp_GitHub_create_pull_request")
+        )
+        assertEquals(
+            IntentClassifier.ToolDomain.WEB_SEARCH,
+            IntentClassifier.getToolDomain("mcp_Exa_search")
+        )
+        assertEquals(
+            IntentClassifier.ToolDomain.GENERAL,
+            IntentClassifier.getToolDomain("mcp_Canva_create_design")
+        )
+    }
+
+
 }
