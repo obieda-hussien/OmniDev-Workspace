@@ -67,6 +67,19 @@ class SmartLearningBridge(
         scope = scope
     )
 
+    private val NON_PERFORMANCE_OUTCOMES = setOf(
+        "USER_ACTION_REQUIRED",
+        "SHIZUKU_PERMISSION_REQUIRED",
+        "SHIZUKU_UNAVAILABLE",
+        "TERMUX_RUN_COMMAND_UNAVAILABLE",
+        "TERMUX_EXTERNAL_APPS_DISABLED",
+        "RISH_UNAVAILABLE",
+        "ROOT_UNAVAILABLE",
+        "ANDROID_BACKEND_UNAVAILABLE",
+        "TOOL_TRANSPORT_BLOCKED",
+        "MUTATION_OUTCOME_UNKNOWN"
+    )
+
     companion object {
         private const val TAG = "SmartLearning"
         private const val MAX_CONTEXT_CHARS = 2000
@@ -213,8 +226,11 @@ class SmartLearningBridge(
             )
         }
 
-        scope.launch {
-            mlEngine?.recordExecution(
+        val performanceLearningEligible = result.classification !in NON_PERFORMANCE_OUTCOMES
+
+        if (performanceLearningEligible) {
+            scope.launch {
+                mlEngine?.recordExecution(
                 toolName = toolName,
                 parameters = parameters.mapNotNull { (k, v) -> v?.let { k to it } }.toMap(),
                 result = result,
@@ -225,17 +241,18 @@ class SmartLearningBridge(
                     "hour" to Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
                 )
             )
-        }
+            }
 
-        scope.launch {
-            intelligenceEngine?.recordExecution(
+            scope.launch {
+                intelligenceEngine?.recordExecution(
                 toolName = toolName,
                 parameters = parameters.mapValues { it.value?.toString() ?: "" },
                 executionTimeMs = executionTimeMs,
                 success = !result.isError,
                 resultQuality = estimateQuality(result, executionTimeMs),
                 context = buildExecutionContext()
-            )
+                )
+            }
         }
 
         monitoringSystem?.let { monitor ->
@@ -260,10 +277,12 @@ class SmartLearningBridge(
 
         learnRecoveryTransition(toolName, parameters, result)
 
-        if (!result.isError) {
-            progressiveTrustEngine?.onOperationSuccess(toolName)
-        } else {
-            progressiveTrustEngine?.onOperationFailure(toolName)
+        if (performanceLearningEligible) {
+            if (!result.isError) {
+                progressiveTrustEngine?.onOperationSuccess(toolName)
+            } else {
+                progressiveTrustEngine?.onOperationFailure(toolName)
+            }
         }
 
         val dependencyPair = synchronized(sessionToolHistory) {
