@@ -460,6 +460,7 @@ object IntentClassifier {
 
     private val CORE_TOOLS = setOf(
         "remember_fact", "search_knowledge", "update_memory", "delete_memory",
+        "omni_link",
         "planner", "eval_expression", "request_execution_mode",
         "get_trust_profile", "list_earned_capabilities"
     )
