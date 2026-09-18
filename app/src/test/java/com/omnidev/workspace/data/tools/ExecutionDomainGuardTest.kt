@@ -141,4 +141,19 @@ class ExecutionDomainGuardTest {
     }
 
 
+    @Test
+    fun `su wrapper restores escaped where quotes before Shizuku routing`() {
+        val prepared = ExecutionDomainGuard.preparePrivilegedCommand(
+            "su -c \"content query --uri content://sms --where \\\"address LIKE '%Orange%' OR body LIKE '%Cash%'\\\"\""
+        )
+
+        assertTrue(
+            prepared.command.contains(
+                "--where \"address LIKE '%Orange%' OR body LIKE '%Cash%'\""
+            )
+        )
+        assertFalse(prepared.command.contains("\\\"address"))
+    }
+
+
 }
