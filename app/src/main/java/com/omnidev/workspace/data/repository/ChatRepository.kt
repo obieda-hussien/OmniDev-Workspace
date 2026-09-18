@@ -9,6 +9,8 @@ import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.ui.chat.AgentConsoleEntry
 import com.omnidev.workspace.ui.chat.AgentConsoleSerializer
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -35,6 +37,7 @@ class ChatRepository(
         private const val MAX_STORED_SOURCE_CONTEXT_CHARS = 250_000
         private const val SESSION_STATUS_SEPARATOR = " • Status: "
         private const val DEFAULT_SESSION_TITLE = "New conversation"
+        private val externalSessionMutex = Mutex()
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -76,7 +79,7 @@ class ChatRepository(
         conversationId: String,
         topicTitle: String,
         replaceExistingTitle: Boolean = false
-    ): Long {
+    ): Long = externalSessionMutex.withLock {
         val existing = sessionDao.getByExternalConversation(packageName, conversationId)
         if (existing != null) {
             sessionDao.touchExternalSession(
@@ -85,10 +88,10 @@ class ChatRepository(
                 title = if (replaceExistingTitle && topicTitle.isNotBlank()) topicTitle else existing.title,
                 timestamp = System.currentTimeMillis()
             )
-            return existing.id
+            return@withLock existing.id
         }
 
-        return sessionDao.insert(
+        sessionDao.insert(
             ChatSessionEntity(
                 title = topicTitle.ifBlank { DEFAULT_SESSION_TITLE },
                 source = ChatSessionEntity.SOURCE_EXTERNAL_APP,
