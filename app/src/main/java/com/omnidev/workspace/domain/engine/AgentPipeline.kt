@@ -474,13 +474,14 @@ Do not use tools. Do not rewrite merely for style.
     ): List<ToolExecutionResult> {
         suspend fun executeOne(call: ToolCall): ToolExecutionResult {
             val started = System.nanoTime()
+            val retrySafe = ToolBatchPolicy.isReadOnly(call)
             val orchestrated = toolOrchestrator.executeTool(
                 toolName = call.name,
                 cacheKey = null,
                 timeoutMs = config.toolExecutionTimeoutMs,
                 maxRetries = config.toolExecutionMaxRetries,
                 baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs,
-                retrySafe = ToolBatchPolicy.isReadOnly(call)
+                retrySafe = retrySafe
             ) {
                 val result = if (call.name.startsWith("mcp_")) {
                     val output = mcpRegistry?.executeMcpTool(call.name, call.arguments)
@@ -509,12 +510,42 @@ Do not use tools. Do not rewrite merely for style.
             }
 
             return if (orchestrated.isSuccess) orchestrated.getOrThrow() else {
-                ToolExecutionResult(
-                    output = orchestrated.exceptionOrNull()?.message ?: "Tool execution failed",
-                    isError = true,
-                    classification = "TOOL_TRANSPORT_FAILURE",
-                    persistentFailure = true
-                )
+                val failure = orchestrated.exceptionOrNull()
+                val message = failure?.message ?: "Tool execution failed"
+                val circuitOpen = message.contains("circuit breaker", ignoreCase = true)
+
+                if (!retrySafe) {
+                    ToolExecutionResult(
+                        output = buildString {
+                            appendLine(
+                                "Mutation transport failed and the side-effect outcome is unknown: " +
+                                    message.take(1_200)
+                            )
+                            append(
+                                "Do NOT repeat the same mutation blindly. Verify the requested " +
+                                    "postcondition/state with a read-only tool first; retry only if verification proves it did not happen."
+                            )
+                        },
+                        isError = true,
+                        classification = "MUTATION_OUTCOME_UNKNOWN",
+                        backend = "tool-orchestrator",
+                        retryable = false,
+                        persistentFailure = true
+                    )
+                } else {
+                    ToolExecutionResult(
+                        output = message,
+                        isError = true,
+                        classification = if (circuitOpen) {
+                            "TOOL_TRANSPORT_BLOCKED"
+                        } else {
+                            "TOOL_TRANSPORT_FAILURE"
+                        },
+                        backend = "tool-orchestrator",
+                        retryable = false,
+                        persistentFailure = circuitOpen
+                    )
+                }
             }
         }
 
