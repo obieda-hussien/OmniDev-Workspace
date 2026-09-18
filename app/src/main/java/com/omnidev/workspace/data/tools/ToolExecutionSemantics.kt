@@ -125,6 +125,14 @@ object ToolExecutionSemantics {
         val semanticIndex = lower.indexOf(semanticMarker)
         if (semanticIndex >= 0) return text.substring(semanticIndex)
 
+        // Android shell utilities sometimes print usage followed by an explicit [ERROR]
+        // line while still returning a misleading/zero process status. Treat only the
+        // runtime-owned marker as failure evidence; ordinary stdout mentioning "error"
+        // remains data.
+        Regex("(?im)^\\[error]\\s+").find(text)?.let { marker ->
+            return text.substring(marker.range.first)
+        }
+
         val trimmed = text.trimStart()
         if (trimmed.startsWith("❌") ||
             trimmed.startsWith("Error:", ignoreCase = true) ||
