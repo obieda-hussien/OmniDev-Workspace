@@ -173,6 +173,7 @@ Do not use tools. Do not rewrite merely for style.
             .toList()
         val mcpTools = try {
             mcpRegistry?.fetchAllAvailableTools().orEmpty()
+                .filter { IntentClassifier.getToolDomain(it.name) in relevantDomains }
         } catch (_: Exception) {
             emptyList()
         }
