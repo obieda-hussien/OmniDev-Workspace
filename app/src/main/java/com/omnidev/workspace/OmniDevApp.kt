@@ -3,6 +3,7 @@ package com.omnidev.workspace
 import android.app.Application
 import android.util.Log
 import androidx.work.Configuration
+import androidx.work.WorkManager
 import com.omnidev.workspace.core.policy.TierPolicyBootstrap
 import com.omnidev.workspace.core.policy.TierPolicyHolder
 import com.omnidev.workspace.core.privileged.PrivilegedExecutionFacadeBootstrap
@@ -108,6 +109,7 @@ class OmniDevApp : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        ensureWorkManagerInitialized(this)
 
         TierPolicyBootstrap.install()
         Log.i(
@@ -320,7 +322,31 @@ class OmniDevApp : Application(), Configuration.Provider {
     }
 
     companion object {
+        private val workManagerInitLock = Any()
+
         lateinit var instance: OmniDevApp
             private set
+
+        fun ensureWorkManagerInitialized(context: android.content.Context) {
+            val appContext = context.applicationContext
+            synchronized(workManagerInitLock) {
+                val alreadyReady = runCatching { WorkManager.getInstance(appContext) }.isSuccess
+                if (alreadyReady) return
+
+                val configuration = (appContext as? Configuration.Provider)
+                    ?.workManagerConfiguration
+                    ?: Configuration.Builder()
+                        .setMinimumLoggingLevel(Log.INFO)
+                        .build()
+
+                runCatching { WorkManager.initialize(appContext, configuration) }
+                    .onFailure { error ->
+                        // Another initializer may have won the race. Verify before surfacing it.
+                        if (runCatching { WorkManager.getInstance(appContext) }.isFailure) {
+                            throw error
+                        }
+                    }
+            }
+        }
     }
 }
