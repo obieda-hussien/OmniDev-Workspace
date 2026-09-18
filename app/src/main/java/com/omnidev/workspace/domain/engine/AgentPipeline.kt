@@ -420,6 +420,24 @@ Do not use tools. Do not rewrite merely for style.
                 )
             }
 
+            val pendingUserAction = modelSafeResults.firstOrNull {
+                it.classification == "USER_ACTION_REQUIRED"
+            }
+            if (pendingUserAction != null) {
+                brain?.onTaskEnd(
+                    EpisodeOutcome.BLOCKED,
+                    "user action required: " + pendingUserAction.output.take(320)
+                )
+                send(
+                    AgentEvent.Error(
+                        pendingUserAction.output.ifBlank {
+                            "USER_ACTION_REQUIRED: Android is waiting for user approval."
+                        }
+                    )
+                )
+                return@channelFlow
+            }
+
             val stagnation = stagnationDetector.observe(response.toolCalls, modelSafeResults)
             if (stagnation.shouldAbort) {
                 val outcome = if (stagnation.kind == AgentStagnationDetector.Kind.INFRASTRUCTURE_BLOCK) {
