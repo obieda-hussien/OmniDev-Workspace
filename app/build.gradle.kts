@@ -283,6 +283,10 @@ android.applicationVariants.configureEach {
 }
 
 dependencies {
+    // OmniLink typed IPC + embedded-agent gateway.
+    // Commit pin keeps cross-repo protocol changes deterministic until the next tagged SDK release.
+    implementation("com.github.obieda-hussien:OmniLinkSDK:fccf8e328c7e5b44814870cb1b8e33d7bc6ac89d")
+
     implementation("androidx.webkit:webkit:1.17.0")
     implementation("org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r")
 
