@@ -1,5 +1,12 @@
 version: 2.1
 
+# GitHub Actions Android CI is the primary CI gate.
+# CircleCI is retained as an emergency fallback but consumes no build credits by default.
+parameters:
+  circleci_enabled:
+    type: boolean
+    default: false
+
 executors:
   android-machine:
     machine:
@@ -415,6 +422,7 @@ jobs:
 
 workflows:
   omnidev-ci:
+    when: << pipeline.parameters.circleci_enabled >>
     jobs:
       # Feature/development branches get one compile+unit-test gate only. This is the
       # highest-signal check per credit because it compiles every product flavor.
