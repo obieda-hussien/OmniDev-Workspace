@@ -8,6 +8,7 @@ import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.ToolCallResult
 import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.tools.ToolExecutionResult
+import com.omnidev.workspace.data.tools.ToolExecutionSemantics
 import com.omnidev.workspace.data.tools.ToolManager
 import com.omnidev.workspace.data.tools.ToolParameter
 import kotlinx.coroutines.CancellationException
@@ -195,7 +196,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
                     )
                 }
 
-                val result = when {
+                val rawResult = when {
                     calls >= MAX_TOOL_CALLS -> ToolExecutionResult("Chat tool budget exhausted.", true)
                     call.name !in allowed -> ToolExecutionResult(
                         "Tool unavailable in Chat. Use request_execution_mode only if execution is required.",
@@ -218,14 +219,19 @@ class ChatToolLoop(private val tools: ToolManager?) {
                         }
                     }
                 }
-                if (result.isError) hadToolError = true
-                val output = result.output.take(12_000)
-                event(AgentEvent.ToolResult(call.name, output, result.isError, round))
+
+                val normalized = ToolExecutionSemantics.normalize(call.name, rawResult)
+                val modelSafe = normalized.copy(
+                    output = SensitiveObservationRedactor.redact(normalized.output)
+                )
+                if (modelSafe.isError) hadToolError = true
+                val output = modelSafe.output.take(12_000)
+                event(AgentEvent.ToolResult(call.name, output, modelSafe.isError, round))
                 results += ToolCallResult(
                     call.id,
                     call.name,
                     output.take(4000),
-                    result.isError
+                    modelSafe.isError
                 )
             }
 
