@@ -15,3 +15,28 @@ app/build
 .cxx
 local.properties
 .kotlin/
+
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+keystore.properties
+signing.properties
+secrets.properties
+credentials.json
+service-account*.json
+service_account*.json
+google-services.json
+firebase-adminsdk*.json
+*.mobileprovision
+
+# Local authentication/session state
+.auth/
+.tokens/
+.credentials/
