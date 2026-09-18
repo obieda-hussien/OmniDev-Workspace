@@ -43,6 +43,7 @@ object ExtensionConnectionManager {
     private const val MAX_BIND_RETRIES = 15
     private const val BIND_RETRY_DELAY_MS = 100L
     private const val ACTION_TIMEOUT_MS = 10 * 60 * 1000L
+    private const val MAX_BINDER_REQUEST_CHARS = 300_000
     private const val LEGACY_PROTOCOL_VERSION = 1
 
     const val ACTION_BIND_EXTENSION = OmniLinkConstants.ACTION_EXTENSION_BIND
@@ -171,6 +172,13 @@ object ExtensionConnectionManager {
             json.parseToJsonElement(jsonPayload.ifBlank { "{}" })
         }.getOrElse { buildJsonObject {} }
         val requestJson = json.encodeToString(ActionRequest(actionName, payload))
+        if (requestJson.length > MAX_BINDER_REQUEST_CHARS) {
+            return@withContext errorJson(
+                "Action payload is too large for safe Binder transport (" +
+                    requestJson.length + " chars; max " + MAX_BINDER_REQUEST_CHARS +
+                    "). Use smaller targeted operations."
+            )
+        }
 
         try {
             val protocol = negotiateProtocol(binder)
