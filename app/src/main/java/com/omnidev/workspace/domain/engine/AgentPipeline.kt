@@ -153,7 +153,19 @@ Do not use tools. Do not rewrite merely for style.
         // Route capabilities from the assigned slice only, otherwise every worker gets the whole
         // project's tool domains and pays for irrelevant schemas.
         val routingObjective = extractRoutingObjective(userMessage)
-        val relevantDomains = IntentClassifier.getRelevantDomains(routingObjective)
+        val recentUserIntent = conversationHistory
+            .asReversed()
+            .asSequence()
+            .filter { it.role == MessageRole.USER }
+            .take(2)
+            .toList()
+            .asReversed()
+            .joinToString("\n") { it.content.take(800) }
+        val routingContext = buildString {
+            if (recentUserIntent.isNotBlank()) append(recentUserIntent).appendLine()
+            append(routingObjective)
+        }.takeLast(2_400)
+        val relevantDomains = IntentClassifier.getRelevantDomains(routingContext)
         val localTools = toolManager.getToolDefinitions()
             .asSequence()
             .filter { it.name !in disabledToolNames }
@@ -167,7 +179,7 @@ Do not use tools. Do not rewrite merely for style.
         val rawToolDefs = (localTools + mcpTools).distinctBy { it.name }
         val toolDefs = ToolSchemaCompactor.compact(
             tools = rawToolDefs,
-            messages = listOf(ChatMessage(MessageRole.USER, routingObjective))
+            messages = listOf(ChatMessage(MessageRole.USER, routingContext))
         ).orEmpty().take(MAX_TOOLS_PER_REQUEST)
         brain?.registerTools(toolDefs)
 
