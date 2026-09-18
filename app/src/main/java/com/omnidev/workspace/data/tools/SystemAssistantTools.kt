@@ -261,10 +261,29 @@ object HardwareToggleTool {
 
     private suspend fun executeShizuku(command: String): ToolExecutionResult {
         return when (val result = ShizukuCommandTool.execute(command)) {
-            is ShizukuResult.Success, is ShizukuResult.PartialSuccess -> ToolExecutionResult(output = "✅ State changed successfully.")
-            is ShizukuResult.Failure -> ToolExecutionResult(output = result.reason, isError = true)
-            is ShizukuResult.PermissionRequired -> ToolExecutionResult(output = result.message, isError = true)
-            is ShizukuResult.Unavailable -> ToolExecutionResult(output = result.message, isError = true)
+            is ShizukuResult.Success -> ToolExecutionResult(
+                output = "✅ State changed successfully.",
+                classification = "SUCCESS",
+                backend = "shizuku-user-service"
+            )
+            is ShizukuResult.PartialSuccess -> ToolExecutionResult(
+                output = "State command exited ${result.exitCode}: ${result.output}",
+                isError = true,
+                classification = "NON_ZERO_EXIT",
+                exitCode = result.exitCode,
+                backend = "shizuku-user-service"
+            )
+            is ShizukuResult.Failure -> ToolExecutionResult(
+                output = result.reason, isError = true, backend = "shizuku-user-service"
+            )
+            is ShizukuResult.PermissionRequired -> ToolExecutionResult(
+                output = result.message, isError = true, classification = "SHIZUKU_PERMISSION_REQUIRED",
+                backend = "shizuku-user-service", persistentFailure = true
+            )
+            is ShizukuResult.Unavailable -> ToolExecutionResult(
+                output = result.message, isError = true, classification = "SHIZUKU_UNAVAILABLE",
+                backend = "shizuku-user-service", persistentFailure = true
+            )
         }
     }
 
@@ -468,21 +487,59 @@ object AppManagerTool {
     }
 
     private suspend fun forceStop(packageName: String): ToolExecutionResult {
-        val result = ShizukuCommandTool.execute("am force-stop $packageName")
-        return if (result.hasUsefulOutput() || result is ShizukuResult.Success) {
-             ToolExecutionResult("✅ Force-stopped $packageName.")
-        } else {
-             ToolExecutionResult("❌ Failed to force-stop $packageName.", isError = true)
+        return when (val result = ShizukuCommandTool.execute("am force-stop $packageName")) {
+            is ShizukuResult.Success -> ToolExecutionResult(
+                output = "✅ Force-stopped $packageName.",
+                classification = "SUCCESS",
+                backend = "shizuku-user-service"
+            )
+            is ShizukuResult.PartialSuccess -> ToolExecutionResult(
+                output = "Force-stop exited ${result.exitCode}: ${result.output}",
+                isError = true,
+                classification = "NON_ZERO_EXIT",
+                exitCode = result.exitCode,
+                backend = "shizuku-user-service"
+            )
+            is ShizukuResult.Failure -> ToolExecutionResult(
+                result.reason, true, classification = "ANDROID_COMMAND_FAILED", backend = "shizuku-user-service"
+            )
+            is ShizukuResult.PermissionRequired -> ToolExecutionResult(
+                result.message, true, classification = "SHIZUKU_PERMISSION_REQUIRED",
+                backend = "shizuku-user-service", persistentFailure = true
+            )
+            is ShizukuResult.Unavailable -> ToolExecutionResult(
+                result.message, true, classification = "SHIZUKU_UNAVAILABLE",
+                backend = "shizuku-user-service", persistentFailure = true
+            )
         }
     }
 
     private suspend fun clearData(packageName: String): ToolExecutionResult {
-        val result = ShizukuCommandTool.execute("pm clear $packageName")
-        return if (result.hasUsefulOutput() || result is ShizukuResult.Success) {
-            ToolExecutionResult("✅ Cleared all data for $packageName.")
-       } else {
-            ToolExecutionResult("❌ Failed to clear data for $packageName.", isError = true)
-       }
+        return when (val result = ShizukuCommandTool.execute("pm clear $packageName")) {
+            is ShizukuResult.Success -> ToolExecutionResult(
+                output = "✅ Cleared all data for $packageName.",
+                classification = "SUCCESS",
+                backend = "shizuku-user-service"
+            )
+            is ShizukuResult.PartialSuccess -> ToolExecutionResult(
+                output = "pm clear exited ${result.exitCode}: ${result.output}",
+                isError = true,
+                classification = "NON_ZERO_EXIT",
+                exitCode = result.exitCode,
+                backend = "shizuku-user-service"
+            )
+            is ShizukuResult.Failure -> ToolExecutionResult(
+                result.reason, true, classification = "ANDROID_COMMAND_FAILED", backend = "shizuku-user-service"
+            )
+            is ShizukuResult.PermissionRequired -> ToolExecutionResult(
+                result.message, true, classification = "SHIZUKU_PERMISSION_REQUIRED",
+                backend = "shizuku-user-service", persistentFailure = true
+            )
+            is ShizukuResult.Unavailable -> ToolExecutionResult(
+                result.message, true, classification = "SHIZUKU_UNAVAILABLE",
+                backend = "shizuku-user-service", persistentFailure = true
+            )
+        }
     }
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
