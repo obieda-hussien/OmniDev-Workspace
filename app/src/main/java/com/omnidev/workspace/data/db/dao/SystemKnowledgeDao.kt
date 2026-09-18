@@ -79,7 +79,7 @@ interface SystemKnowledgeDao {
      */
     @Query("""
         UPDATE system_knowledge
-        SET isValid = 0, updatedAt = :now
+        SET isValid = 0
         WHERE subject = :subject
           AND source = :source
           AND knowledgeType != :keepType
@@ -88,8 +88,7 @@ interface SystemKnowledgeDao {
     suspend fun invalidateOtherTypesForSubject(
         subject: String,
         source: String,
-        keepType: String,
-        now: Long = System.currentTimeMillis()
+        keepType: String
     )
 
     @Query("UPDATE system_knowledge SET isValid = 0, updatedAt = :now WHERE id = :id")
