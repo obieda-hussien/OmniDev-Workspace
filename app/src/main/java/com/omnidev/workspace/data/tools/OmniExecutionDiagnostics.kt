@@ -232,6 +232,10 @@ Never repair rish by copying `librish.so`, changing LD_LIBRARY_PATH, or adding
     }
 
     private suspend fun fixTermux(): ToolExecutionResult {
+        // This is the explicit user/agent repair action, so it is the one place allowed to clear
+        // a known-broken transport cache and perform a fresh RunCommandService probe.
+        TermuxRunCommandBridge.resetTransportHealth()
+        EnvironmentSetupManager.probe(force = true)
         val status = EnvironmentSetupManager.statusReport()
         if (!EnvironmentSetupManager.isTermuxUsable()) {
             return ToolExecutionResult(
