@@ -185,6 +185,22 @@ object PrivilegedExecutionManager {
     }
 
     /**
+     * Execute through real root only. This API intentionally never falls back to Shizuku/rish,
+     * so callers named/advertised as root cannot silently run as shell uid=2000.
+     */
+    suspend fun executeRootCommand(command: String): Result<String> = withContext(Dispatchers.IO) {
+        if (command.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("Root command is empty."))
+        }
+        if (!isRootAvailable()) {
+            return@withContext Result.failure(
+                IllegalStateException("Root backend is unavailable or su did not return uid=0.")
+            )
+        }
+        executeViaRoot(command)
+    }
+
+    /**
      * Builds a diagnostic failure message explaining why execution failed and the solution.
      */
     private fun buildFailureMessage(rootReady: Boolean): String = buildString {
@@ -533,8 +549,11 @@ object PrivilegedExecutionManager {
             else -> "(no output)"
         }
 
-        if (exit == 0 || stdout.isNotBlank()) output.trim().ifBlank { "(no output)" }
-        else throw RuntimeException("Root exited $exit:\n$output")
+        if (exit == 0) {
+            output.trim().ifBlank { "(no output)" }
+        } else {
+            throw RuntimeException("Root exited $exit:\n$output")
+        }
     }
 
     private suspend fun getForegroundPackage(): String = withContext(Dispatchers.IO) {
