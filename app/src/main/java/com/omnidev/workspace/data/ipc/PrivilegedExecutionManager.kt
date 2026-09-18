@@ -155,14 +155,15 @@ object PrivilegedExecutionManager {
         }
 
         // ── 3. Root/SU ──
-        if (isRootAvailable()) {
+        val rootReady = isRootAvailable()
+        if (rootReady) {
             Log.d(TAG, "Trying root: ${command.take(40)}")
             return@withContext executeViaRoot(preparedCommand)
         }
 
         // ── Failure: Clear diagnostics ──
         Result.failure(
-            IllegalStateException(buildFailureMessage())
+            IllegalStateException(buildFailureMessage(rootReady = rootReady))
         )
     }
 
@@ -186,7 +187,7 @@ object PrivilegedExecutionManager {
     /**
      * Builds a diagnostic failure message explaining why execution failed and the solution.
      */
-    private fun buildFailureMessage(): String = buildString {
+    private fun buildFailureMessage(rootReady: Boolean): String = buildString {
         appendLine("❌ No execution backend available.")
         appendLine()
         val shizukuAvail = ShizukuCommandTool.isAvailable()
@@ -197,7 +198,7 @@ object PrivilegedExecutionManager {
             else          -> "⚠️ Available but execution failed"
         }}")
         appendLine("• rish: ${if (isRishReady()) "⚠️ Available but failed" else "❌ Unavailable"}")
-        appendLine("• root: ❌ Unavailable")
+        appendLine("• root: ${if (rootReady) "✅ ready" else "❌ unavailable"}")
         appendLine()
         appendLine("Solution:")
         if (!shizukuAvail) {
