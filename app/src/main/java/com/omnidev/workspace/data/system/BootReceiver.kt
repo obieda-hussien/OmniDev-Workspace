@@ -14,19 +14,14 @@ import kotlinx.coroutines.launch
 /**
  * Reconstructs durable OmniDev background work after reboot, user unlock, or app replacement.
  *
- * LOCKED_BOOT_COMPLETED is deliberately not used to open Room/WorkManager because their normal
- * storage is credential-protected. Real reconstruction happens once user storage is available.
+ * Recovery is intentionally registered only for post-unlock boot events because Room, DataStore
+ * and WorkManager state live in credential-protected storage.
  */
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
         val action = intent?.action ?: return
         val app = context.applicationContext
-
-        if (action == Intent.ACTION_LOCKED_BOOT_COMPLETED) {
-            Log.i(TAG, "Locked boot completed; durable recovery deferred until user storage unlocks")
-            return
-        }
 
         if (action !in SUPPORTED_ACTIONS) return
         val pending = goAsync()
