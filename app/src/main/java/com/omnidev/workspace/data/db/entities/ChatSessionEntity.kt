@@ -35,8 +35,11 @@ data class ChatSessionEntity(
     val discordChannelId: String = "",
     val whatsappJid: String = "",
     val backgroundKey: String? = null,
+    @androidx.room.ColumnInfo(defaultValue = "''")
     val sourceAppPackage: String = "",
+    @androidx.room.ColumnInfo(defaultValue = "''")
     val sourceAppName: String = "",
+    @androidx.room.ColumnInfo(defaultValue = "''")
     val externalConversationId: String = ""
 ) {
     companion object {
