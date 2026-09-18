@@ -148,6 +148,7 @@ object SmsReaderTool {
         context: Context,
         action: String,
         query: String? = null,
+        sender: String? = null,
         limit: Int = DEFAULT_RESULTS
     ): ToolExecutionResult {
         val normalizedAction = action.lowercase()
@@ -157,8 +158,15 @@ object SmsReaderTool {
                 isError = true
             )
         }
-        if (normalizedAction in setOf("search", "latest_search") && query.isNullOrBlank()) {
-            return ToolExecutionResult("Missing 'query'.", isError = true)
+        if (
+            normalizedAction in setOf("search", "latest_search") &&
+            query.isNullOrBlank() &&
+            sender.isNullOrBlank()
+        ) {
+            return ToolExecutionResult(
+                "search/latest_search requires at least 'query' or 'sender'.",
+                isError = true
+            )
         }
 
         val safeLimit = if (normalizedAction == "latest_search") {
@@ -176,7 +184,7 @@ object SmsReaderTool {
                     "read_inbox" -> readMessages(context, Telephony.Sms.Inbox.CONTENT_URI, safeLimit)
                     "read_sent" -> readMessages(context, Telephony.Sms.Sent.CONTENT_URI, safeLimit)
                     "search", "latest_search" ->
-                        searchMessages(context, query.orEmpty(), safeLimit)
+                        searchMessages(context, query, sender, safeLimit)
                     else -> error("validated above")
                 }
             } catch (_: SecurityException) {
@@ -187,7 +195,7 @@ object SmsReaderTool {
             }
         }
 
-        return executeViaShizuku(normalizedAction, query, safeLimit)
+        return executeViaShizuku(normalizedAction, query, sender, safeLimit)
     }
 
     private fun readMessages(context: Context, uri: Uri, limit: Int): ToolExecutionResult {
@@ -201,21 +209,43 @@ object SmsReaderTool {
         return formatSmsCursor(cursor, limit)
     }
 
-    private fun searchMessages(context: Context, query: String, limit: Int): ToolExecutionResult {
-        val safeQuery = query.replace("%", "\\%").replace("_", "\\_")
+    private fun searchMessages(
+        context: Context,
+        query: String?,
+        sender: String?,
+        limit: Int
+    ): ToolExecutionResult {
+        val clauses = mutableListOf<String>()
+        val args = mutableListOf<String>()
+
+        sender?.takeIf(String::isNotBlank)?.let {
+            clauses += "${Telephony.Sms.ADDRESS} LIKE ? ESCAPE '\\'"
+            args += "%${escapeResolverLike(it)}%"
+        }
+        query?.takeIf(String::isNotBlank)?.let {
+            clauses += "${Telephony.Sms.BODY} LIKE ? ESCAPE '\\'"
+            args += "%${escapeResolverLike(it)}%"
+        }
+
         val cursor = context.contentResolver.query(
             Telephony.Sms.CONTENT_URI,
             arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.READ),
-            "${Telephony.Sms.ADDRESS} LIKE ? ESCAPE '\\' OR ${Telephony.Sms.BODY} LIKE ? ESCAPE '\\'",
-            arrayOf("%$safeQuery%", "%$safeQuery%"),
+            clauses.joinToString(" AND "),
+            args.toTypedArray(),
             "${Telephony.Sms.DATE} DESC"
         )
         return formatSmsCursor(cursor, limit)
     }
 
+    private fun escapeResolverLike(value: String): String = value
+        .replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+
     private suspend fun executeViaShizuku(
         action: String,
         query: String?,
+        sender: String?,
         limit: Int
     ): ToolExecutionResult {
         val uri = when (action) {
@@ -224,8 +254,14 @@ object SmsReaderTool {
             else -> "content://sms"
         }
         val selection = if (action == "search" || action == "latest_search") {
-            val safe = escapeSqlLike(query.orEmpty())
-            "address LIKE '%$safe%' ESCAPE '\\' OR body LIKE '%$safe%' ESCAPE '\\'"
+            buildList {
+                sender?.takeIf(String::isNotBlank)?.let {
+                    add("address LIKE '%${escapeSqlLike(it)}%' ESCAPE '\\'")
+                }
+                query?.takeIf(String::isNotBlank)?.let {
+                    add("body LIKE '%${escapeSqlLike(it)}%' ESCAPE '\\'")
+                }
+            }.joinToString(" AND ").takeIf(String::isNotBlank)
         } else null
 
         val command = buildString {
@@ -286,11 +322,13 @@ object SmsReaderTool {
             name = "sms_reader_tool",
             description =
                 "Read/search device SMS with bounded results. Prefer this over raw content-query shell. " +
-                    "Use latest_search when one newest matching message is enough (for example latest wallet/balance SMS). " +
+                    "Use latest_search with sender + query when one newest matching message is enough " +
+                    "(for example sender=OrangeCash, query=رصيدك الحالي). " +
                     "Uses READ_SMS when available and automatically falls back to authorized Shizuku.",
             parameters = listOf(
                 ToolParameter("action", "string", "Action: read_inbox, read_sent, search, latest_search.", required = true),
-                ToolParameter("query", "string", "Search sender/body text for action=search.", required = false),
+                ToolParameter("query", "string", "Optional body-text filter for search/latest_search.", required = false),
+                ToolParameter("sender", "string", "Optional sender/address filter, e.g. OrangeCash. Combines with query using AND.", required = false),
                 ToolParameter("limit", "string", "Max entries, 1-30 (default 10; latest_search always returns 1).", required = false)
             )
         )
