@@ -1,6 +1,7 @@
 package com.omnidev.workspace.data.tools.orchestration
 
 import com.omnidev.workspace.data.tools.ToolExecutionResult
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -169,6 +170,39 @@ class ToolOrchestratorSemanticTest {
         assertTrue(results["a"]?.isFailure == true)
         assertTrue(results["b"]?.isFailure == true)
         assertTrue(results["a"]?.exceptionOrNull()?.message.orEmpty().contains("cyclic"))
+    }
+
+
+    @Test
+    fun `cancellation propagates without retrying or poisoning tool circuit`() = runBlocking {
+        val orchestrator = ToolOrchestrator()
+        var attempts = 0
+
+        try {
+            orchestrator.executeTool(
+                toolName = "read_file_lines",
+                maxRetries = 3,
+                retrySafe = true
+            ) {
+                attempts++
+                throw CancellationException("user stopped run")
+            }
+            throw AssertionError("Cancellation must propagate")
+        } catch (_: CancellationException) {
+            // expected
+        }
+
+        assertEquals(1, attempts)
+
+        val recovery = orchestrator.executeTool(
+            toolName = "read_file_lines",
+            maxRetries = 0,
+            retrySafe = true
+        ) {
+            ToolExecutionResult("still usable")
+        }.getOrThrow()
+
+        assertFalse(recovery.isError)
     }
 
 
