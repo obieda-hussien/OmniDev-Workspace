@@ -49,6 +49,7 @@ class IntentClassifierToolDomainTest {
         assertTrue(IntentClassifier.getToolDomain("privileged_tool") == ToolDomain.DEVICE_CONTROL)
         assertTrue(IntentClassifier.getToolDomain("root_shell_tool") == ToolDomain.ROOT_CONTROL)
         assertTrue(IntentClassifier.getToolDomain("search_knowledge") == ToolDomain.CORE)
+        assertTrue(IntentClassifier.getToolDomain("omni_link") == ToolDomain.CORE)
     }
     @Test
     fun `ordinary Android system task does not expose root-only tools`() {
