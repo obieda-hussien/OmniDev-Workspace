@@ -146,7 +146,8 @@ class ToolAwarenessEngine(
         val state = runCatching { EnvironmentSetupManager.probe(force = true) }.getOrNull()
         val termuxInstalled = TermuxRunCommandBridge.isTermuxInstalled(context)
         val termuxPermission = TermuxRunCommandBridge.hasRunCommandPermission(context)
-        val termuxReady = state?.termuxPrefix != null
+        val termuxReady =
+            state?.termuxPrefix != null && !TermuxRunCommandBridge.isKnownUnusable()
 
         runtimeEnvironmentCache["termux_installed"] = termuxInstalled.toString()
         runtimeEnvironmentCache["termux_permission"] = termuxPermission.toString()
@@ -172,7 +173,7 @@ class ToolAwarenessEngine(
             termuxInstalled -> saveOrUpdateKnowledge(
                 TYPE_WARNING,
                 "termux",
-                "Termux is installed but its RunCommand transport is not healthy. Use agent_runtime action=env_check for exact diagnostics.",
+                "Termux is installed but its RunCommand transport is not healthy. Treat this as a circuit-breaker state: do not retry agent_runtime shell/package work until execution_diagnostics action=fix_termux succeeds.",
                 confidence = 1.0f,
                 priority = 2,
                 tags = "termux,runtime,warning"
@@ -196,7 +197,7 @@ class ToolAwarenessEngine(
             saveOrUpdateKnowledge(
                 TYPE_ENVIRONMENT,
                 "shizuku",
-                "Shizuku UserService is ready${shizukuUid?.let { " (uid=$it)" }.orEmpty()}. Use shizuku_command only for Android/system privileged commands; use agent_runtime for developer packages and Termux tools.",
+                "Shizuku UserService is ready${shizukuUid?.let { " (uid=$it)" }.orEmpty()}. Prefer specialized device tools first; generic Android content/settings/pm/cmd work can use run_terminal which auto-routes to Shizuku. Keep agent_runtime for developer/Termux work only.",
                 confidence = 1.0f,
                 priority = 2,
                 tags = "shizuku,user_service,adb,privileged"
@@ -276,7 +277,7 @@ class ToolAwarenessEngine(
         val practices = listOf(
             Triple(
                 "terminal_runtime_routing",
-                "Use agent_runtime for developer shell/package/runtime work; shizuku_command for privileged Android commands; rish is the ADB-equivalent privileged shell backend. Never execute Termux private binaries through Shizuku PATH/LD_PRELOAD hacks.",
+                "Prefer specialized domain tools first. Use agent_runtime only for developer shell/package/runtime work; generic Android content/settings/pm/cmd commands use the Shizuku domain (run_terminal auto-routes them); rish is only the explicit ADB-equivalent terminal backend. Never execute Termux private binaries through Shizuku PATH/LD_PRELOAD hacks.",
                 "terminal,termux,shizuku,rish,routing"
             ),
             Triple(
