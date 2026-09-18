@@ -73,6 +73,25 @@ interface SystemKnowledgeDao {
     @Query("UPDATE system_knowledge SET isValid = 0 WHERE subject = :subject AND knowledgeType = :type")
     suspend fun invalidate(subject: String, type: String)
 
+    /**
+     * Stateful runtime facts (for example termux/shizuku readiness) are mutually exclusive.
+     * Invalidate older types from the same source before persisting the new authoritative state.
+     */
+    @Query("""
+        UPDATE system_knowledge
+        SET isValid = 0, updatedAt = :now
+        WHERE subject = :subject
+          AND source = :source
+          AND knowledgeType != :keepType
+          AND isValid = 1
+    """)
+    suspend fun invalidateOtherTypesForSubject(
+        subject: String,
+        source: String,
+        keepType: String,
+        now: Long = System.currentTimeMillis()
+    )
+
     @Query("UPDATE system_knowledge SET isValid = 0, updatedAt = :now WHERE id = :id")
     suspend fun invalidateById(id: Long, now: Long = System.currentTimeMillis())
 
