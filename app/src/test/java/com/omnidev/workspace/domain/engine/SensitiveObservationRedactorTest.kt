@@ -24,12 +24,12 @@ class SensitiveObservationRedactorTest {
 
     @Test
     fun `redacts English credentials but preserves business data`() {
-        val input = "otp=819204 token abcDEF123 transaction=25000156742425 amount=22.50"
+        val input = "otp=819204 token abcDEF1234567890 transaction=25000156742425 amount=22.50"
 
         val result = SensitiveObservationRedactor.redact(input)
 
         assertFalse(result.contains("819204"))
-        assertFalse(result.contains("abcDEF123"))
+        assertFalse(result.contains("abcDEF1234567890"))
         assertTrue(result.contains("25000156742425"))
         assertTrue(result.contains("22.50"))
     }
@@ -43,4 +43,15 @@ class SensitiveObservationRedactorTest {
         assertFalse(result.contains("eyJhbGciOi"))
         assertTrue(result.contains("Bearer [REDACTED]"))
     }
+    @Test
+    fun `ordinary token budget diagnostics are not treated as credentials`() {
+        val input = "token budget exhausted after 12 iterations"
+
+        val result = SensitiveObservationRedactor.redact(input)
+
+        assertTrue(result.contains("token budget exhausted"))
+        assertFalse(result.contains("[REDACTED]"))
+    }
+
+
 }
