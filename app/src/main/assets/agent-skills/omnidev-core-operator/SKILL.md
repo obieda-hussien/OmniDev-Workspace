@@ -21,9 +21,10 @@ Operate as an execution agent, not a narrator. Translate the user's objective in
 
 Treat execution as separate domains; do not blur their sandboxes.
 
+- **Specialized tools first:** use dedicated tools when they exist instead of reconstructing their behavior with shell. Example: use `sms_reader_tool` for SMS; it owns permission handling, bounded output, and Shizuku fallback.
 - **Developer shell/packages:** use `agent_runtime` / `EnvironmentSetupManager` through Termux `RunCommandService`. `pkg`, `apt`, Python, Node, npm, pip, git and Termux filesystem work belong here.
-- **Android privileged commands:** use `privileged_tool` / `ShizukuCommandTool`, which executes through the supported Shizuku UserService AIDL backend.
-- **rish terminal shell:** use `privileged_tool action=rish_setup/rish_exec`; rish lives inside Termux private storage and must pass a real `rish -c id` smoke test before it is considered available.
+- **Android privileged commands:** `content`, `settings`, `dumpsys`, `getprop/setprop`, `pm/am/cmd/wm/svc/input/appops` belong to the Shizuku/system-shell domain. `run_terminal` auto-routes them; never wrap them in `su -c`, `rish -c`, or `agent_runtime`.
+- **rish terminal shell:** use `privileged_tool action=rish_setup/rish_exec` only when an explicit ADB-equivalent terminal shell is needed; rish must pass a real `rish -c id` smoke test before it is considered available.
 
 Never:
 - reflect into `Shizuku.newProcess()`;
