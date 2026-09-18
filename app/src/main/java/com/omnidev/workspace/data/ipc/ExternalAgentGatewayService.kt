@@ -46,6 +46,8 @@ class ExternalAgentGatewayService : Service() {
         private const val TAG = "ExternalAgentGateway"
         private const val MAX_CONTEXT_CHARS_FOR_PROMPT = 60000
         private const val MAX_EVENT_DETAIL_CHARS = 8000
+        private const val MAX_FINAL_ANSWER_CHARS = 160_000
+        private const val MAX_RUNNING_TASKS = 6
         private const val MAX_SNAPSHOTS = 100
     }
 
@@ -117,6 +119,20 @@ class ExternalAgentGatewayService : Service() {
                     AgentTaskEvent.Error(
                         request.taskId.ifBlank { "invalid" }, 1, System.currentTimeMillis(),
                         "invalid_request", "taskId and prompt are required"
+                    )
+                )
+                return
+            }
+            if (jobs.size >= MAX_RUNNING_TASKS) {
+                emitBestEffort(
+                    callback,
+                    AgentTaskEvent.Error(
+                        request.taskId,
+                        1,
+                        System.currentTimeMillis(),
+                        "gateway_busy",
+                        "Omni is already running $MAX_RUNNING_TASKS connected-app tasks. " +
+                            "Wait for one to finish or cancel an existing task."
                     )
                 )
                 return
@@ -597,7 +613,9 @@ class ExternalAgentGatewayService : Service() {
                 taskId, seq, now, event.phase.name, event.detail
             )
             is AgentEvent.StreamChunk -> AgentTaskEvent.StreamChunk(taskId, seq, now, event.delta)
-            is AgentEvent.FinalAnswer -> AgentTaskEvent.FinalAnswer(taskId, seq, now, event.content)
+            is AgentEvent.FinalAnswer -> AgentTaskEvent.FinalAnswer(
+                taskId, seq, now, event.content.take(MAX_FINAL_ANSWER_CHARS)
+            )
             is AgentEvent.Reflecting -> AgentTaskEvent.Status(
                 taskId, seq, now, "Reviewing", "Draft length " + event.draftLength
             )
@@ -668,7 +686,9 @@ class ExternalAgentGatewayService : Service() {
                 taskId, seq, now, event.delta
             )
             SwarmEvent.SynthesisStarted -> AgentTaskEvent.Status(taskId, seq, now, "Synthesizing")
-            is SwarmEvent.Completed -> AgentTaskEvent.FinalAnswer(taskId, seq, now, event.summary)
+            is SwarmEvent.Completed -> AgentTaskEvent.FinalAnswer(
+                taskId, seq, now, event.summary.take(MAX_FINAL_ANSWER_CHARS)
+            )
             is SwarmEvent.Error -> AgentTaskEvent.Error(
                 taskId, seq, now, "team_error", event.message
             )
@@ -740,7 +760,7 @@ class ExternalAgentGatewayService : Service() {
             workspaceSessionId = sessionId,
             state = AgentTaskState.COMPLETED,
             lastSequence = sequences[taskId]?.get() ?: 0,
-            finalAnswer = answer
+            finalAnswer = answer.take(MAX_FINAL_ANSWER_CHARS)
         )
     }
 
