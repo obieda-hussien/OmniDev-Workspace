@@ -226,31 +226,34 @@ class SmartLearningBridge(
             )
         }
 
-        val performanceLearningEligible = result.classification !in NON_PERFORMANCE_OUTCOMES
+        val performanceLearningEligible =
+            result.classification
+                ?.uppercase()
+                ?.let(NON_PERFORMANCE_OUTCOMES::contains) != true
 
         if (performanceLearningEligible) {
             scope.launch {
                 mlEngine?.recordExecution(
-                toolName = toolName,
-                parameters = parameters.mapNotNull { (k, v) -> v?.let { k to it } }.toMap(),
-                result = result,
-                executionTimeMs = executionTimeMs,
-                contextualData = mapOf(
-                    "session_id" to sessionId,
-                    "recent_tools" to recentBefore.joinToString(","),
-                    "hour" to Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+                    toolName = toolName,
+                    parameters = parameters.mapNotNull { (k, v) -> v?.let { k to it } }.toMap(),
+                    result = result,
+                    executionTimeMs = executionTimeMs,
+                    contextualData = mapOf(
+                        "session_id" to sessionId,
+                        "recent_tools" to recentBefore.joinToString(","),
+                        "hour" to Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+                    )
                 )
-            )
             }
 
             scope.launch {
                 intelligenceEngine?.recordExecution(
-                toolName = toolName,
-                parameters = parameters.mapValues { it.value?.toString() ?: "" },
-                executionTimeMs = executionTimeMs,
-                success = !result.isError,
-                resultQuality = estimateQuality(result, executionTimeMs),
-                context = buildExecutionContext()
+                    toolName = toolName,
+                    parameters = parameters.mapValues { it.value?.toString() ?: "" },
+                    executionTimeMs = executionTimeMs,
+                    success = !result.isError,
+                    resultQuality = estimateQuality(result, executionTimeMs),
+                    context = buildExecutionContext()
                 )
             }
         }
