@@ -114,7 +114,9 @@ object ToolExecutionSemantics {
             "TERMUX_RUN_COMMAND_UNAVAILABLE",
             "TERMUX_EXTERNAL_APPS_DISABLED",
             "SHIZUKU_PERMISSION_REQUIRED",
-            "SHIZUKU_UNAVAILABLE"
+            "SHIZUKU_UNAVAILABLE",
+            "RISH_UNAVAILABLE",
+            "ANDROID_BACKEND_UNAVAILABLE"
         )
 
     /**
@@ -201,11 +203,14 @@ object ToolExecutionSemantics {
 
             lower.contains("no su program found") ||
                 lower.contains("su: not found") ||
-                lower.contains("su: inaccessible or not found") ->
+                lower.contains("su: inaccessible or not found") ||
+                lower.contains("root backend is unavailable") ||
+                lower.contains("su did not return uid=0") ->
                 Match("ROOT_UNAVAILABLE", persistent = true)
 
             lower.contains("could not resolve/start termux runcommandservice") ||
-                lower.contains("android could not resolve/start termux runcommandservice") ->
+                lower.contains("android could not resolve/start termux runcommandservice") ||
+                lower.contains("runcommandservice is already known unavailable") ->
                 Match("TERMUX_RUN_COMMAND_UNAVAILABLE", persistent = true)
 
             lower.contains("allow-external-apps") &&
@@ -225,6 +230,23 @@ object ToolExecutionSemantics {
             lower.contains("requires android.permission.interact_across_users") ||
                 lower.contains("requires android.permission.clear_app_cache") ->
                 Match("ANDROID_PERMISSION_DENIED", persistent = true)
+
+            lower.contains("shizuku permission required") ||
+                lower.contains("shizuku denied permission") ->
+                Match("SHIZUKU_PERMISSION_REQUIRED", persistent = true)
+
+            lower.contains("shizuku is unavailable") ||
+                lower.contains("shizuku unavailable or unauthorized") ->
+                Match("SHIZUKU_UNAVAILABLE", persistent = true)
+
+            lower.contains("rish is not healthy") ||
+                lower.contains("rish manager unavailable") ||
+                lower.contains("no rish manager is initialized") ->
+                Match("RISH_UNAVAILABLE", persistent = true)
+
+            lower.contains("android backend unavailable") ||
+                lower.contains("no execution backend available") ->
+                Match("ANDROID_BACKEND_UNAVAILABLE", persistent = true)
 
             lower.contains("request timeout") && lower.contains("shizuku") ->
                 Match("SHIZUKU_CONNECTION_TIMEOUT", retryable = true)
