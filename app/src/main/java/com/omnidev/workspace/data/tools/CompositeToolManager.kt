@@ -759,6 +759,7 @@ class CompositeToolManager(
                     context = ctx,
                     action = arguments["action"] ?: return missingArg("action"),
                     query = arguments["query"],
+                    sender = arguments["sender"],
                     limit = arguments["limit"]?.toIntOrNull() ?: 10
                 )
             }
