@@ -207,34 +207,7 @@ object ExecutionDomainGuard {
             val c = value[index]
             if (c == '\\' && index + 1 < value.length) {
                 val next = value[index + 1]
-                if (next == '"' || next == '\\' || next == '
-     * substitutions remain visible because they execute in the shell.
-     */
-    private fun stripCommentOutsideQuotes(line: String): String {
-        var single = false
-        var double = false
-        var escaped = false
-        line.forEachIndexed { index, c ->
-            if (escaped) {
-                escaped = false
-                return@forEachIndexed
-            }
-            if (c == '\\' && !single) {
-                escaped = true
-                return@forEachIndexed
-            }
-            when (c) {
-                '\'' -> if (!double) single = !single
-                '"' -> if (!single) double = !double
-                '#' -> if (!single && !double && (index == 0 || line[index - 1].isWhitespace())) {
-                    return line.substring(0, index)
-                }
-            }
-        }
-        return line
-    }
-}
- || next == '`') {
+                if (next == '"' || next == '\\' || next == '$' || next == '`') {
                     out.append(next)
                     index += 2
                     continue
