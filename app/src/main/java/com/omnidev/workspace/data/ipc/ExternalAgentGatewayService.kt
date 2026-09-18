@@ -60,6 +60,7 @@ class ExternalAgentGatewayService : Service() {
     private val callbacks = ConcurrentHashMap<String, IOmniAgentCallback>()
     private val snapshots = ConcurrentHashMap<String, AgentTaskSnapshot>()
     private val sequences = ConcurrentHashMap<String, AtomicLong>()
+    private val taskOwners = ConcurrentHashMap<String, String>()
 
     private data class CallerIdentity(
         val uid: Int,
@@ -121,17 +122,24 @@ class ExternalAgentGatewayService : Service() {
                 )
                 return
             }
-            if (jobs.containsKey(request.taskId)) {
+            val existingOwner = taskOwners[request.taskId]
+            if (existingOwner != null || jobs.containsKey(request.taskId) || snapshots.containsKey(request.taskId)) {
                 emitBestEffort(
                     callback,
                     AgentTaskEvent.Error(
                         request.taskId, nextSequence(request.taskId), System.currentTimeMillis(),
-                        "task_already_running", "A task with this id is already running"
+                        "task_id_already_used",
+                        if (existingOwner != null && existingOwner != caller.packageName) {
+                            "This task id belongs to another connected application"
+                        } else {
+                            "This task id already exists; use getTaskSnapshot or create a fresh id"
+                        }
                     )
                 )
                 return
             }
 
+            taskOwners[request.taskId] = caller.packageName
             callbacks[request.taskId] = callback
             snapshots[request.taskId] = AgentTaskSnapshot(
                 taskId = request.taskId,
@@ -149,7 +157,8 @@ class ExternalAgentGatewayService : Service() {
 
         override fun cancelAgentTask(taskId: String) {
             enforceGatewayPermission()
-            resolveCallerIdentity()
+            val caller = resolveCallerIdentity()
+            enforceTaskOwner(taskId, caller)
             jobs.remove(taskId)?.cancel()
             val previous = snapshots[taskId]
             snapshots[taskId] = (previous ?: AgentTaskSnapshot(
@@ -168,7 +177,8 @@ class ExternalAgentGatewayService : Service() {
 
         override fun getTaskSnapshot(protocolVersion: Int, taskId: String): String {
             enforceGatewayPermission()
-            resolveCallerIdentity()
+            val caller = resolveCallerIdentity()
+            enforceTaskOwner(taskId, caller)
             if (protocolVersion != OmniLinkConstants.CURRENT_PROTOCOL_VERSION) {
                 return json.encodeToString(
                     AgentTaskSnapshot(
@@ -194,6 +204,7 @@ class ExternalAgentGatewayService : Service() {
         serviceScope.cancel()
         jobs.clear()
         callbacks.clear()
+        taskOwners.clear()
         super.onDestroy()
     }
 
@@ -757,6 +768,14 @@ class ExternalAgentGatewayService : Service() {
         }
     }
 
+    private fun enforceTaskOwner(taskId: String, caller: CallerIdentity) {
+        val owner = taskOwners[taskId]
+            ?: throw SecurityException("Unknown task id")
+        if (owner != caller.packageName) {
+            throw SecurityException("Task belongs to a different connected application")
+        }
+    }
+
     private fun enforceGatewayPermission() {
         enforceCallingOrSelfPermission(
             OmniLinkConstants.PERMISSION_BIND_AGENT,
@@ -798,6 +817,7 @@ class ExternalAgentGatewayService : Service() {
             .forEach {
                 snapshots.remove(it.key)
                 sequences.remove(it.key)
+                taskOwners.remove(it.key)
             }
     }
 }
