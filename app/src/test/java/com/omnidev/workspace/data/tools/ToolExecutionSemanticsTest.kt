@@ -147,4 +147,27 @@ class ToolExecutionSemanticsTest {
     }
 
 
+    @Test
+    fun `degraded diagnostics remain successful when one backend warning is embedded`() {
+        val raw = ToolExecutionResult(
+            output = """
+                Overall       : DEGRADED_BUT_USABLE
+                Preferred now : shizuku-user-service
+                Termux smoke  : [termux] Android could not resolve/start Termux RunCommandService
+                Shizuku       : PASS uid=2000(shell)
+            """.trimIndent(),
+            isError = false,
+            classification = "DEGRADED_BUT_USABLE",
+            backend = "shizuku-user-service",
+            verification = "functional backend=shizuku-user-service"
+        )
+
+        val result = ToolExecutionSemantics.normalize("execution_diagnostics", raw)
+
+        assertFalse(result.isError)
+        assertEquals("DEGRADED_BUT_USABLE", result.classification)
+        assertTrue(result.output.startsWith("[omni-outcome] status=PASS"))
+    }
+
+
 }
