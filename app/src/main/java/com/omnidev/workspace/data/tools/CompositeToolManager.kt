@@ -1011,7 +1011,11 @@ class CompositeToolManager(
                 val action = arguments["action"] ?: return missingArg("action")
                 val ctx = context ?: return missingContext()
                 ExtensionConnectionManager.initialize(ctx)
-                OmniLinkTool.execute(action = action, args = arguments)
+                OmniLinkTool.execute(
+                    action = action,
+                    args = arguments,
+                    confirmationGate = confirmationGate
+                )
             }
 
             // ── Vector memory tools ──
