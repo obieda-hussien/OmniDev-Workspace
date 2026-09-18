@@ -177,6 +177,7 @@ class ChatViewModel(
                 com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_DELETE -> ConfirmationType.GOD_MODE_FILE_DELETE
                 com.omnidev.workspace.core.policy.ConfirmationKind.SHIZUKU_COMMAND -> ConfirmationType.SHIZUKU_COMMAND
                 com.omnidev.workspace.core.policy.ConfirmationKind.ANDROID_INTENT -> ConfirmationType.ANDROID_INTENT
+                com.omnidev.workspace.core.policy.ConfirmationKind.CONNECTED_APP_ACTION -> ConfirmationType.CONNECTED_APP_ACTION
             }
             showConfirmation(
                 PendingConfirmation(
