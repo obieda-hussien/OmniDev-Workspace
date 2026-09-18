@@ -47,6 +47,28 @@ class IntentClassifierToolDomainTest {
     fun `critical execution tools are not classified as generic general`() {
         assertTrue(IntentClassifier.getToolDomain("agent_runtime") == ToolDomain.CODE_TERMINAL)
         assertTrue(IntentClassifier.getToolDomain("privileged_tool") == ToolDomain.DEVICE_CONTROL)
+        assertTrue(IntentClassifier.getToolDomain("root_shell_tool") == ToolDomain.ROOT_CONTROL)
         assertTrue(IntentClassifier.getToolDomain("search_knowledge") == ToolDomain.CORE)
     }
+    @Test
+    fun `ordinary Android system task does not expose root-only tools`() {
+        val domains = IntentClassifier.getRelevantDomains(
+            "Read screen brightness and dumpsys battery using Shizuku"
+        )
+
+        assertTrue(ToolDomain.DEVICE_CONTROL in domains)
+        assertFalse(ToolDomain.ROOT_CONTROL in domains)
+    }
+
+    @Test
+    fun `explicit Magisk root task exposes root-only tools`() {
+        val domains = IntentClassifier.getRelevantDomains(
+            "Use Magisk root access to run a root-only command"
+        )
+
+        assertTrue(ToolDomain.ROOT_CONTROL in domains)
+        assertTrue(ToolDomain.DEVICE_CONTROL in domains)
+    }
+
+
 }
