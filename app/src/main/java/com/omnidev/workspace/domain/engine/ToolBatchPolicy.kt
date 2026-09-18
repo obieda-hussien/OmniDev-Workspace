@@ -63,15 +63,26 @@ object ToolBatchPolicy {
         return false
     }
 
-    private fun isKnownReadMcp(name: String): Boolean =
-        listOf("get", "list", "search", "read", "fetch", "query", "inspect", "status", "find")
+    private fun isKnownReadMcp(name: String): Boolean {
+        val mutationMarkers = listOf(
+            "create", "write", "update", "delete", "remove", "send", "post", "put",
+            "patch", "execute", "run", "deploy", "merge", "push", "commit", "install",
+            "uninstall", "grant", "revoke", "set", "trigger", "publish"
+        )
+        if (mutationMarkers.any { marker ->
+                name.contains("_$marker") || name.endsWith(marker)
+            }
+        ) return false
+
+        return listOf("get", "list", "search", "read", "fetch", "query", "inspect", "status", "find")
             .any { marker -> name.contains("_$marker") || name.endsWith(marker) }
+    }
 
     private val EXPLICIT_READ_TOOLS = setOf(
         "read_file_lines", "search_codebase", "list_directory", "web_search", "web_search_deep",
         "web_scraper", "fetch_page", "scrape_multiple", "grep_search", "find_files",
         "get_device_info", "read_notifications", "vector_search", "vector_similar",
-        "browser_get_dom", "screenshot_tool", "sms_reader_tool", "call_log_tool",
+        "browser_get_dom", "sms_reader_tool", "call_log_tool",
         "device_info_tool", "get_trust_profile", "list_earned_capabilities"
     )
 
