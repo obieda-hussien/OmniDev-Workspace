@@ -451,7 +451,9 @@ object AdvancedRootShellTool {
             return@withContext ToolExecutionResult("Failed to inject root script.", isError = true)
         }
 
-        val result = PrivilegedExecutionManager.executeRootCommand("sh $tmpPath 2>&1; rm -f $tmpPath")
+        val result = PrivilegedExecutionManager.executeRootCommand(
+            "sh $tmpPath 2>&1; rc=\$?; rm -f $tmpPath; exit \$rc"
+        )
         
         result.fold(
             onSuccess = { output ->
