@@ -67,45 +67,48 @@ object AndroidPrivilegedCommandRouter {
         prepared: ExecutionDomainGuard.PreparedPrivilegedCommand,
         unavailableMessage: String
     ): ToolExecutionResult {
-        val canFallback = PrivilegedExecutionManager.isRishReady()
-        if (!canFallback) {
-            return ToolExecutionResult(
+        val rishManager = PrivilegedExecutionManager.getRishManager()
+            ?: return ToolExecutionResult(
                 output = buildString {
                     appendLine(unavailableMessage)
                     append(
                         "Android command was not sent to Termux/app shell because that would run " +
-                            "under the wrong UID. Start/grant Shizuku or provide a working rish backend. " +
-                            "Root is never used as an implicit fallback; use the explicit root tool when truly required."
+                            "under the wrong UID. No rish manager is initialized. " +
+                            "Root is never used as an implicit fallback."
                     )
                 }.trimEnd(),
                 isError = true,
-                classification = "SHIZUKU_UNAVAILABLE",
+                classification = "ANDROID_BACKEND_UNAVAILABLE",
                 backend = "android-domain-router",
                 persistentFailure = true
             )
-        }
 
-        val fallback = PrivilegedExecutionManager.executeCommand(prepared.command)
+        val fallback = rishManager.execute(prepared.command)
         return fallback.fold(
             onSuccess = { output ->
                 ToolExecutionResult(
                     output = ExecutionDomainGuard.applyOutputCompatibility(output, prepared),
                     isError = false,
                     classification = "SUCCESS",
-                    backend = "rish"
+                    backend = "rish",
+                    verification = "Shizuku unavailable; command completed through functional rish backend"
                 )
             },
             onFailure = { error ->
-                val message = error.message.orEmpty().ifBlank { "Privileged fallback failed." }
+                val message = error.message.orEmpty().ifBlank { "rish fallback failed." }
                 ToolExecutionResult(
-                    output = message,
+                    output = buildString {
+                        appendLine(unavailableMessage)
+                        append(message)
+                    }.trimEnd(),
                     isError = true,
                     classification = ToolExecutionSemantics.classifyText(message)
-                        ?: "ANDROID_BACKEND_UNAVAILABLE",
-                    backend = "privileged-router",
+                        ?: "RISH_UNAVAILABLE",
+                    backend = "rish",
                     persistentFailure = true
                 )
             }
         )
     }
+
 }
