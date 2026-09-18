@@ -2,6 +2,7 @@ package com.omnidev.workspace
 
 import android.app.Application
 import android.util.Log
+import androidx.work.Configuration
 import com.omnidev.workspace.core.policy.TierPolicyBootstrap
 import com.omnidev.workspace.core.policy.TierPolicyHolder
 import com.omnidev.workspace.core.privileged.PrivilegedExecutionFacadeBootstrap
@@ -49,9 +50,18 @@ import kotlinx.coroutines.launch
  * then the bridge that consumes them. This prevents a silent half-wired brain where the
  * Reflexion/Episodic stores exist but never participate in execution.
  */
-class OmniDevApp : Application() {
+class OmniDevApp : Application(), Configuration.Provider {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Enables WorkManager on-demand initialization. This is critical when the process is first
+     * created by a direct-boot-aware receiver before AndroidX Startup can initialize WorkManager.
+     */
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setMinimumLoggingLevel(Log.INFO)
+            .build()
 
     lateinit var toolExecutionJournal: ToolExecutionJournal
         private set
