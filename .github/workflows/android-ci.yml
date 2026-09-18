@@ -2,18 +2,10 @@ name: Android CI
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main]
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      build_release:
-        description: "Also build release APKs"
-        required: false
-        default: true
-        type: boolean
 
 concurrency:
   group: android-ci-${{ github.workflow }}-${{ github.ref }}
@@ -30,10 +22,10 @@ env:
   CI_GRADLE_JVMARGS: "-Xmx5g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8 -XX:+HeapDumpOnOutOfMemoryError"
 
 jobs:
-  android-verification:
-    name: Compile, test, lint, and debug APKs
+  run-quality:
+    name: Run Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -50,7 +42,7 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
-      - name: Set up Android SDK 36
+      - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
           packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
@@ -61,7 +53,64 @@ jobs:
       - name: Grant gradlew permission
         run: chmod +x gradlew
 
-      - name: Compile, test, lint, and build debug flavors
+      - name: Fast quality compile gate
+        run: |
+          ./gradlew --no-daemon --max-workers 1 \
+            -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            -Pkotlin.incremental=false \
+            -Dorg.gradle.vfs.watch=false \
+            :app:compileLiteDebugKotlin \
+            --stacktrace
+
+      - name: Check optional static-analysis tasks
+        continue-on-error: true
+        run: |
+          TASKS="$(./gradlew tasks --all --no-daemon --console=plain)"
+          if echo "$TASKS" | grep -qE '^ktlintCheck( |$)'; then
+            ./gradlew --no-daemon --max-workers 1 ktlintCheck
+          else
+            echo "ktlintCheck task not found; skipping."
+          fi
+          if echo "$TASKS" | grep -qE '^detekt( |$)'; then
+            ./gradlew --no-daemon --max-workers 1 detekt
+          else
+            echo "detekt task not found; skipping."
+          fi
+
+  lint:
+    name: Lint
+    needs: run-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
+
+      - name: Install and verify Android NDK
+        run: bash .github/scripts/install-android-ndk.sh
+
+      - name: Grant gradlew permission
+        run: chmod +x gradlew
+
+      - name: Lint all debug flavors
         run: |
           ./gradlew --no-daemon --max-workers 1 \
             -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
@@ -73,37 +122,81 @@ jobs:
             :app:lintProDebug \
             :app:lintOemDebug \
             :app:lintAdminDebug \
+            --continue --stacktrace
+
+      - name: Upload lint reports
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: lint-reports-${{ github.run_number }}
+          path: |
+            app/build/reports/lint-results*.html
+            app/build/reports/lint-results*.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+  tests:
+    name: Tests
+    needs: run-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
+
+      - name: Install and verify Android NDK
+        run: bash .github/scripts/install-android-ndk.sh
+
+      - name: Grant gradlew permission
+        run: chmod +x gradlew
+
+      - name: Compile and run unit tests for all flavors
+        run: |
+          ./gradlew --no-daemon --max-workers 1 \
+            -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            -Pkotlin.incremental=false \
+            -Dorg.gradle.vfs.watch=false \
             :app:testLiteDebugUnitTest \
             :app:testNormDebugUnitTest \
             :app:testProDebugUnitTest \
             :app:testOemDebugUnitTest \
             :app:testAdminDebugUnitTest \
-            :app:assembleLiteDebug \
-            :app:assembleNormDebug \
-            :app:assembleProDebug \
-            :app:assembleOemDebug \
-            :app:assembleAdminDebug \
             --continue --stacktrace
 
-      - name: Upload debug APKs and reports
+      - name: Upload test reports
         if: always()
         continue-on-error: true
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: android-ci-${{ github.run_number }}-${{ github.sha }}
+          name: unit-test-reports-${{ github.run_number }}
           path: |
-            app/build/outputs/apk/**/debug/*.apk
-            app/build/reports/lint-results*.html
-            app/build/reports/lint-results*.xml
             app/build/reports/tests/**
             app/build/test-results/**
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 14
 
-  release-apks:
-    name: Release APKs
-    needs: android-verification
-    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.build_release) }}
+  debug-apk:
+    name: Debug APK
+    needs: run-quality
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
@@ -122,7 +215,7 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
-      - name: Set up Android SDK 36
+      - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
           packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
@@ -133,7 +226,63 @@ jobs:
       - name: Grant gradlew permission
         run: chmod +x gradlew
 
-      - name: Build release flavors
+      - name: Build debug APKs
+        run: |
+          ./gradlew --no-daemon --max-workers 1 \
+            -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            -Pkotlin.incremental=false \
+            -Dorg.gradle.vfs.watch=false \
+            :app:assembleLiteDebug \
+            :app:assembleNormDebug \
+            :app:assembleProDebug \
+            :app:assembleOemDebug \
+            :app:assembleAdminDebug \
+            --continue --stacktrace
+
+      - name: Upload debug APKs
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: debug-apks-${{ github.run_number }}
+          path: app/build/outputs/apk/*/debug/*.apk
+          if-no-files-found: ignore
+          retention-days: 14
+
+  release-apk:
+    name: Release APK
+    needs: run-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
+
+      - name: Install and verify Android NDK
+        run: bash .github/scripts/install-android-ndk.sh
+
+      - name: Grant gradlew permission
+        run: chmod +x gradlew
+
+      - name: Build release APKs
         run: |
           ./gradlew --no-daemon --max-workers 1 \
             -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
@@ -152,7 +301,28 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: release-apks-${{ github.run_number }}-${{ github.sha }}
-          path: app/build/outputs/apk/**/release/*.apk
+          name: release-apks-${{ github.run_number }}
+          path: app/build/outputs/apk/*/release/*.apk
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 30
+
+  pipeline-summary:
+    name: Pipeline Summary
+    if: always()
+    needs: [run-quality, lint, tests, debug-apk, release-apk]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Write summary
+        run: |
+          {
+            echo "# Android CI #${{ github.run_number }}"
+            echo ""
+            echo "| Stage | Result |"
+            echo "|---|---|"
+            echo "| Run Quality | ${{ needs.run-quality.result }} |"
+            echo "| Lint | ${{ needs.lint.result }} |"
+            echo "| Tests | ${{ needs.tests.result }} |"
+            echo "| Debug APK | ${{ needs.debug-apk.result }} |"
+            echo "| Release APK | ${{ needs.release-apk.result }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
