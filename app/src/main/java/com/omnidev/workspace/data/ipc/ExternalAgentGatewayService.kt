@@ -55,7 +55,6 @@ class ExternalAgentGatewayService : Service() {
         isLenient = true
         classDiscriminator = "type"
     }
-    private val runtime by lazy { AgentRuntime(applicationContext) }
     private val jobs = ConcurrentHashMap<String, Job>()
     private val callbacks = ConcurrentHashMap<String, IOmniAgentCallback>()
     private val snapshots = ConcurrentHashMap<String, AgentTaskSnapshot>()
@@ -219,6 +218,10 @@ class ExternalAgentGatewayService : Service() {
             ?: "task:" + request.taskId
         val requestedTitle = request.title?.trim().orEmpty()
         val topicTitle = requestedTitle.ifBlank { deriveTopicTitle(request.prompt) }
+        // Every external task gets an isolated tool manager/session context. AgentRuntime internally
+        // reuses process-wide Room and app engines, but its mutable per-run tool state is not shared
+        // across concurrent connected-app tasks.
+        val runtime = AgentRuntime(applicationContext)
 
         try {
             val sessionId = runtime.chatRepository.getOrCreateExternalSession(
@@ -282,12 +285,12 @@ class ExternalAgentGatewayService : Service() {
 
             if (request.mode == AgentClientMode.TEAM) {
                 runTeam(
-                    request, callback, sessionId, history, executionPrompt,
+                    runtime, request, callback, sessionId, history, executionPrompt,
                     modelId, scopePath, deepThinking
                 )
             } else {
                 runAgent(
-                    request, callback, sessionId, history, executionPrompt,
+                    runtime, request, callback, sessionId, history, executionPrompt,
                     modelId, scopePath, deepThinking, trustedSource
                 )
             }
@@ -322,6 +325,7 @@ class ExternalAgentGatewayService : Service() {
     }
 
     private suspend fun runAgent(
+        runtime: AgentRuntime,
         request: AgentTaskRequest,
         callback: IOmniAgentCallback,
         sessionId: Long,
@@ -440,6 +444,7 @@ class ExternalAgentGatewayService : Service() {
     }
 
     private suspend fun runTeam(
+        runtime: AgentRuntime,
         request: AgentTaskRequest,
         callback: IOmniAgentCallback,
         sessionId: Long,
