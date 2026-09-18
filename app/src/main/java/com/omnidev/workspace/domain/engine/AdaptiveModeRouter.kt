@@ -40,6 +40,7 @@ object AdaptiveModeRouter {
 
     private enum class FailureClass {
         INFRASTRUCTURE,
+        USER_ACTION,
         STAGNATION,
         CONTEXT_PRESSURE,
         DETERMINISTIC_TASK_FAILURE,
@@ -60,7 +61,10 @@ object AdaptiveModeRouter {
      */
     fun fromAgentFailure(errorMessage: String, userRequest: String = ""): Suggestion? {
         val failureClass = classifyFailure(errorMessage)
-        if (failureClass == FailureClass.INFRASTRUCTURE) return null
+        if (
+            failureClass == FailureClass.INFRASTRUCTURE ||
+            failureClass == FailureClass.USER_ACTION
+        ) return null
 
         val signals = IntentClassifier.analyze(userRequest)
         val scores = IntentClassifier.scoreModes(signals)
@@ -80,7 +84,8 @@ object AdaptiveModeRouter {
                 0.12f
             }
             FailureClass.UNKNOWN -> 0.04f
-            FailureClass.INFRASTRUCTURE -> 0f
+            FailureClass.INFRASTRUCTURE,
+            FailureClass.USER_ACTION -> 0f
         }
 
         val decompositionEvidence =
@@ -234,6 +239,14 @@ object AdaptiveModeRouter {
                 "android_backend_unavailable", "root_unavailable"
             )
         ) return FailureClass.INFRASTRUCTURE
+
+        if (containsAny(
+                error,
+                "user_action_required", "waiting for user approval", "user approval is required",
+                "android is waiting for user approval", "open omnidev and retry",
+                "captcha", "manual confirmation required"
+            )
+        ) return FailureClass.USER_ACTION
 
         if (containsAny(
                 error,
