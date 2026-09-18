@@ -81,11 +81,33 @@ object TermuxRunCommandBridge {
             "else printf '\nallow-external-apps=true\n' >> ~/.termux/termux.properties; fi; " +
             "termux-reload-settings"
 
+    enum class TransportHealth { UNKNOWN, HEALTHY, UNAVAILABLE }
+
     private val nextId = AtomicInteger(1)
     private val pending = ConcurrentHashMap<Int, CompletableDeferred<TermuxCommandResult>>()
     private val externalAppsSetupShown = AtomicBoolean(false)
 
     @Volatile private var appContext: Context? = null
+    @Volatile private var transportHealth: TransportHealth = TransportHealth.UNKNOWN
+
+    fun cachedTransportHealth(): TransportHealth = transportHealth
+    fun isKnownUnusable(): Boolean = transportHealth == TransportHealth.UNAVAILABLE
+
+    /**
+     * Explicit recovery gate. Normal probes respect a known transport failure so the agent does
+     * not rediscover the same broken RunCommandService every iteration.
+     */
+    fun resetTransportHealth() {
+        transportHealth = TransportHealth.UNKNOWN
+    }
+
+    private fun recordTransportHealth(result: TermuxCommandResult) {
+        transportHealth = if (result.transportSucceeded) {
+            TransportHealth.HEALTHY
+        } else {
+            TransportHealth.UNAVAILABLE
+        }
+    }
 
     data class TermuxCommandResult(
         val exitCode: Int,
@@ -158,6 +180,7 @@ object TermuxRunCommandBridge {
 
     fun init(context: Context) {
         appContext = context.applicationContext
+        transportHealth = TransportHealth.UNKNOWN
     }
 
     fun isInitialized(): Boolean = appContext != null
@@ -278,9 +301,10 @@ object TermuxRunCommandBridge {
                 callback.cancel()
                 return@withContext setupFailure(
                     "Android could not resolve/start Termux RunCommandService. Verify that the official Termux app is installed and enabled."
-                )
+                ).also(::recordTransportHealth)
             }
             withTimeout(effectiveTimeout) { deferred.await() }
+                .also(::recordTransportHealth)
         } catch (t: Throwable) {
             pending.remove(executionId)
             callback.cancel()
@@ -297,7 +321,7 @@ object TermuxRunCommandBridge {
                     }
                     else -> "Termux RunCommandService failure: ${t.javaClass.simpleName}: ${t.message}"
                 }
-            )
+            ).also(::recordTransportHealth)
         }
     }
 
@@ -308,7 +332,9 @@ object TermuxRunCommandBridge {
         val deferred = pending.remove(id) ?: return
         val bundle = intent.getBundleExtra(EXTRA_PLUGIN_RESULT_BUNDLE)
         if (bundle == null) {
-            deferred.complete(setupFailure("Termux returned no result bundle"))
+            val failure = setupFailure("Termux returned no result bundle")
+            recordTransportHealth(failure)
+            deferred.complete(failure)
             return
         }
 
@@ -331,6 +357,7 @@ object TermuxRunCommandBridge {
             "Termux result id=$id exit=${result.exitCode} internal=${result.internalErrorCode} semantic=${result.semanticFailureClassification}"
         )
 
+        recordTransportHealth(result)
         if (result.needsExternalAppsOptIn) {
             presentExternalAppsSetup()
         }
