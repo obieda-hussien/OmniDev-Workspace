@@ -50,6 +50,26 @@ interface ChatSessionDao {
     @Query("DELETE FROM chat_sessions")
     suspend fun deleteAll()
 
+    @Query(
+        "SELECT * FROM chat_sessions WHERE source = 'external_app' " +
+            "AND sourceAppPackage = :packageName AND externalConversationId = :conversationId LIMIT 1"
+    )
+    suspend fun getByExternalConversation(
+        packageName: String,
+        conversationId: String
+    ): ChatSessionEntity?
+
+    @Query(
+        "UPDATE chat_sessions SET sourceAppName = :appName, title = :title, lastUpdated = :timestamp " +
+            "WHERE id = :id"
+    )
+    suspend fun touchExternalSession(
+        id: Long,
+        appName: String,
+        title: String,
+        timestamp: Long
+    )
+
     /** Find an existing Telegram session by its chat ID. */
     @Query("SELECT * FROM chat_sessions WHERE telegramChatId = :chatId AND source = 'telegram' LIMIT 1")
     suspend fun getByTelegramChatId(chatId: Long): ChatSessionEntity?

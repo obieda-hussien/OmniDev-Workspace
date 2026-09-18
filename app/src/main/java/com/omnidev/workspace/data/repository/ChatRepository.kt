@@ -9,6 +9,8 @@ import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.ui.chat.AgentConsoleEntry
 import com.omnidev.workspace.ui.chat.AgentConsoleSerializer
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
@@ -32,8 +34,10 @@ class ChatRepository(
          * the live UI — only the persisted copy is capped.
          */
         private const val MAX_STORED_MESSAGE_CHARS = 100_000
+        private const val MAX_STORED_SOURCE_CONTEXT_CHARS = 250_000
         private const val SESSION_STATUS_SEPARATOR = " • Status: "
         private const val DEFAULT_SESSION_TITLE = "New conversation"
+        private val externalSessionMutex = Mutex()
     }
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -62,6 +66,41 @@ class ChatRepository(
      */
     suspend fun createSession(title: String): Long =
         sessionDao.insert(ChatSessionEntity(title = title))
+
+    /**
+     * Resolve a durable conversation owned by an external application.
+     *
+     * [conversationId] is client-stable (for example one AndroidIDE project chat). Reusing it
+     * continues the same Workspace history row, including Agent Console data.
+     */
+    suspend fun getOrCreateExternalSession(
+        packageName: String,
+        appName: String,
+        conversationId: String,
+        topicTitle: String,
+        replaceExistingTitle: Boolean = false
+    ): Long = externalSessionMutex.withLock {
+        val existing = sessionDao.getByExternalConversation(packageName, conversationId)
+        if (existing != null) {
+            sessionDao.touchExternalSession(
+                id = existing.id,
+                appName = appName,
+                title = if (replaceExistingTitle && topicTitle.isNotBlank()) topicTitle else existing.title,
+                timestamp = System.currentTimeMillis()
+            )
+            return@withLock existing.id
+        }
+
+        sessionDao.insert(
+            ChatSessionEntity(
+                title = topicTitle.ifBlank { DEFAULT_SESSION_TITLE },
+                source = ChatSessionEntity.SOURCE_EXTERNAL_APP,
+                sourceAppPackage = packageName,
+                sourceAppName = appName,
+                externalConversationId = conversationId
+            )
+        )
+    }
 
     /**
      * Updates the session title and last-updated timestamp.
@@ -98,7 +137,8 @@ class ChatRepository(
     suspend fun saveMessage(
         sessionId: Long,
         message: ChatMessage,
-        consoleEntries: List<AgentConsoleEntry> = emptyList()
+        consoleEntries: List<AgentConsoleEntry> = emptyList(),
+        sourceContextJson: String = ""
     ): Long =
         messageDao.insert(
             ChatMessageEntity(
@@ -109,7 +149,8 @@ class ChatRepository(
                 consoleEntriesJson = AgentConsoleSerializer.serialize(consoleEntries),
                 messageId = message.messageId,
                 replyToMessageId = message.replyToMessageId,
-                metadataJson = metadata(message)
+                metadataJson = metadata(message),
+                sourceContextJson = sourceContextJson.take(MAX_STORED_SOURCE_CONTEXT_CHARS)
             )
         )
 

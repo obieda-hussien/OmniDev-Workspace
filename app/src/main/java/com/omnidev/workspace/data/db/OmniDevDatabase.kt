@@ -49,6 +49,7 @@ import com.omnidev.workspace.data.db.entities.ScheduledTaskEntity
  *  9 → added `messageId` and `replyToMessageId` columns to `chat_messages` for threaded replies
  *  10 → added v10 entities
  *  11 → added token usage and cost metrics to `chat_messages`
+ *  16 → added external-app conversation identity + per-message source context
  */
 @Database(
     entities = [
@@ -68,7 +69,7 @@ import com.omnidev.workspace.data.db.entities.ScheduledTaskEntity
         // ── Build Doctor Pro (v10) ────────────────────────
         BuildDiagnosticEntry::class
     , ScheduledTaskEntity::class],
-    version = 15,
+    version = 16,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -600,6 +601,19 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat_sessions ADD COLUMN sourceAppPackage TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE chat_sessions ADD COLUMN sourceAppName TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE chat_sessions ADD COLUMN externalConversationId TEXT NOT NULL DEFAULT ''")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_chat_sessions_external_source " +
+                        "ON chat_sessions(sourceAppPackage, externalConversationId)"
+                )
+                db.execSQL("ALTER TABLE chat_messages ADD COLUMN sourceContextJson TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getInstance(context: Context): OmniDevDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -618,7 +632,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         MIGRATION_8_9,
                         MIGRATION_9_10,
                         MIGRATION_10_11,
-                        MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15
+                        MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16
                     )
                     .build().also { INSTANCE = it }
             }

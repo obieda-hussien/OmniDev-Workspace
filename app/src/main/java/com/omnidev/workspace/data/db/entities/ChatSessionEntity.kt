@@ -17,7 +17,13 @@ import androidx.room.PrimaryKey
  * @property discordChannelId Discord channel ID (empty string if source != "discord").
  * @property whatsappJid WhatsApp JID/number (empty string if source != "whatsapp_bridge").
  */
-@Entity(tableName = "chat_sessions", indices = [Index(value = ["backgroundKey"], unique = true)])
+@Entity(
+    tableName = "chat_sessions",
+    indices = [
+        Index(value = ["backgroundKey"], unique = true),
+        Index(value = ["sourceAppPackage", "externalConversationId"], name = "index_chat_sessions_external_source")
+    ]
+)
 data class ChatSessionEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val title: String,
@@ -28,12 +34,19 @@ data class ChatSessionEntity(
     val telegramChatId: Long = 0L,
     val discordChannelId: String = "",
     val whatsappJid: String = "",
-    val backgroundKey: String? = null
+    val backgroundKey: String? = null,
+    @androidx.room.ColumnInfo(defaultValue = "''")
+    val sourceAppPackage: String = "",
+    @androidx.room.ColumnInfo(defaultValue = "''")
+    val sourceAppName: String = "",
+    @androidx.room.ColumnInfo(defaultValue = "''")
+    val externalConversationId: String = ""
 ) {
     companion object {
         const val SOURCE_APP = "app"
         const val SOURCE_TELEGRAM = "telegram"
         const val SOURCE_DISCORD = "discord"
         const val SOURCE_WHATSAPP_BRIDGE = "whatsapp_bridge"
+        const val SOURCE_EXTERNAL_APP = "external_app"
     }
 }

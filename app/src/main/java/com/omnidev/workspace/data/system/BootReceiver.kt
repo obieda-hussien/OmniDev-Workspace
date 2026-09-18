@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.omnidev.workspace.OmniDevApp
 import com.omnidev.workspace.data.background.BackgroundServiceSupervisor
 import com.omnidev.workspace.data.debug.DebugLogManager
 import kotlinx.coroutines.CoroutineScope
@@ -14,19 +15,14 @@ import kotlinx.coroutines.launch
 /**
  * Reconstructs durable OmniDev background work after reboot, user unlock, or app replacement.
  *
- * LOCKED_BOOT_COMPLETED is deliberately not used to open Room/WorkManager because their normal
- * storage is credential-protected. Real reconstruction happens once user storage is available.
+ * Recovery is intentionally registered only for post-unlock boot events because Room, DataStore
+ * and WorkManager state live in credential-protected storage.
  */
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent?) {
         val action = intent?.action ?: return
         val app = context.applicationContext
-
-        if (action == Intent.ACTION_LOCKED_BOOT_COMPLETED) {
-            Log.i(TAG, "Locked boot completed; durable recovery deferred until user storage unlocks")
-            return
-        }
 
         if (action !in SUPPORTED_ACTIONS) return
         val pending = goAsync()
@@ -36,22 +32,30 @@ class BootReceiver : BroadcastReceiver() {
                 Log.i(TAG, "Background recovery trigger: $action")
                 DebugLogManager.appendInfo(TAG, "Background recovery trigger: $action")
 
+                OmniDevApp.ensureWorkManagerInitialized(app)
                 BackgroundServiceSupervisor.bootstrap(app)
-                val requested = runCatching {
-                    BackgroundServiceSupervisor.recoverNow(app, "boot:${action.substringAfterLast('.')}")
-                }.getOrElse { error ->
-                    BackgroundServiceSupervisor.recordFailure(
-                        app,
-                        "Boot recovery failed: ${error.javaClass.simpleName}: ${error.message}"
-                    )
-                    false
-                }
 
+                val requested = BackgroundServiceSupervisor.recoverNow(
+                    app,
+                    "boot:${action.substringAfterLast('.')}"
+                )
                 if (!requested && BackgroundServiceSupervisor.hasDurableWork(app)) {
                     BackgroundServiceSupervisor.scheduleRecovery(
                         app,
                         reason = "boot_deferred:${action.substringAfterLast('.')}",
                         delayMs = 5_000L
+                    )
+                }
+            } catch (error: Exception) {
+                // A boot/package-replaced broadcast must never take the whole process down.
+                // Direct-boot/storage/WorkManager races are recoverable and will be retried by the
+                // next unlock/package/boot signal or by the normal supervisor once the app opens.
+                Log.e(TAG, "Background recovery trigger failed: $action", error)
+                runCatching { DebugLogManager.appendError(TAG, error) }
+                runCatching {
+                    BackgroundServiceSupervisor.recordFailure(
+                        app,
+                        "Boot recovery failed: ${error.javaClass.simpleName}: ${error.message}"
                     )
                 }
             } finally {

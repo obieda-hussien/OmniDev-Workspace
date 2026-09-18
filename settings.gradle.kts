@@ -16,6 +16,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // CI stages OmniLink here once with retry/backoff to avoid transient JitPack 429/timeouts.
+        maven { url = uri(rootDir.resolve("ci-m2")) }
+        maven { url = uri("https://jitpack.io") }
     }
 }
 

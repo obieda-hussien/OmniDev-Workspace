@@ -66,7 +66,8 @@ private enum class HistoryFilter(val label: String) {
     APP("App"),
     TELEGRAM("Telegram"),
     DISCORD("Discord"),
-    WHATSAPP("WhatsApp")
+    WHATSAPP("WhatsApp"),
+    EXTERNAL("Connected apps")
 }
 
 private enum class HistorySort(val label: String) {
@@ -127,6 +128,7 @@ internal fun ChatHistoryDrawer(
             HistoryFilter.TELEGRAM -> session.source == ChatSessionEntity.SOURCE_TELEGRAM
             HistoryFilter.DISCORD -> session.source == ChatSessionEntity.SOURCE_DISCORD
             HistoryFilter.WHATSAPP -> session.source == ChatSessionEntity.SOURCE_WHATSAPP_BRIDGE
+            HistoryFilter.EXTERNAL -> session.source == ChatSessionEntity.SOURCE_EXTERNAL_APP
         }
     }
     val visibleSessions = when (activeSort) {
@@ -779,6 +781,9 @@ private fun sessionSourceLabel(session: ChatSessionEntity): String = when (sessi
     ChatSessionEntity.SOURCE_TELEGRAM -> "Telegram"
     ChatSessionEntity.SOURCE_DISCORD -> "Discord"
     ChatSessionEntity.SOURCE_WHATSAPP_BRIDGE -> "WhatsApp"
+    ChatSessionEntity.SOURCE_EXTERNAL_APP -> session.sourceAppName.ifBlank {
+        session.sourceAppPackage.ifBlank { "Connected app" }
+    }
     else -> "App"
 }
 
@@ -786,6 +791,7 @@ private fun sessionSourceIcon(session: ChatSessionEntity): String = when (sessio
     ChatSessionEntity.SOURCE_TELEGRAM -> "✈️"
     ChatSessionEntity.SOURCE_DISCORD -> "🎮"
     ChatSessionEntity.SOURCE_WHATSAPP_BRIDGE -> "📱"
+    ChatSessionEntity.SOURCE_EXTERNAL_APP -> "🔌"
     else -> "💬"
 }
 

@@ -1,25 +1,33 @@
-# CircleCI fallback CI
+# CircleCI emergency fallback
 
-OmniDev uses CircleCI Cloud as the automatic CI fallback when GitHub-hosted Actions minutes are unavailable.
+GitHub Actions is the primary CI provider for OmniDev Workspace.
 
-## Required CircleCI setup
+## Current state
 
-1. Connect `obieda-hussien/OmniDev-Workspace` to CircleCI using the GitHub integration.
-2. Open **Project Settings → Environment Variables**.
-3. Add:
-   - `TELEGRAM_BOT_TOKEN` = the Telegram bot token.
+CircleCI is intentionally **disabled by default**. The VCS integration may still create a lightweight pipeline record, but the `omnidev-ci` workflow is guarded by the `circleci_enabled` pipeline parameter and no CircleCI build jobs run unless that parameter is explicitly set to `true`.
 
-The target Telegram chat ID is configured directly in `.circleci/config.yml`.
+This avoids duplicate Android compilation, duplicate status gates, and CircleCI credit usage while GitHub Android CI is healthy.
 
-## Delivery behavior
+## Primary Android CI
 
-- Lint HTML/XML reports are sent as individual documents.
-- Unit-test HTML/XML reports are sent as individual documents.
-- Every debug APK is sent as an individual complete document.
-- Every release APK is sent as an individual complete document.
-- Files are never split or chunked.
-- If a file exceeds Telegram Bot API's direct `sendDocument` size limit, the file is not modified; the bot sends a warning message instead.
+`.github/workflows/android-ci.yml` runs automatically for:
 
-## GitHub Actions
+- pull requests targeting `main`
+- pushes to `main`
+- manual `workflow_dispatch` runs
 
-`.github/workflows/android-ci.yml` is intentionally `workflow_dispatch` only. This prevents automatic GitHub-hosted jobs from producing quota-related failures on pushes and pull requests. It remains available as a manual backup when GitHub Actions minutes are available again.
+Pull requests run the full debug verification matrix: lint, unit tests, and debug APK builds for Lite, Norm, Pro, OEM, and Admin. Pushes to `main` additionally build release APKs after the verification job succeeds. Manual runs can choose whether release APKs are also built.
+
+## Re-enabling CircleCI as fallback
+
+The existing CircleCI jobs remain in `.circleci/config.yml`. To use them as an emergency fallback, trigger a CircleCI pipeline with pipeline parameter:
+
+```text
+circleci_enabled=true
+```
+
+Do not enable CircleCI permanently while GitHub Android CI is healthy; otherwise the same Android matrix is built twice.
+
+## Optional Telegram delivery
+
+When CircleCI is explicitly enabled, `TELEGRAM_BOT_TOKEN` may be configured in CircleCI Project Settings → Environment Variables for the existing artifact/report delivery steps.

@@ -1,16 +1,14 @@
-name: Android CI/CD Pipeline (Manual Backup)
+name: Android CI
 
 on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      build_release:
-        description: "Also build release APKs"
-        required: false
-        default: true
-        type: boolean
 
 concurrency:
-  group: android-manual-${{ github.ref }}
+  group: android-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -21,18 +19,20 @@ env:
   ANDROID_API_LEVEL: "36"
   ANDROID_BUILD_TOOLS: "35.0.0"
   ANDROID_NDK_VERSION: "27.0.12077973"
+  CI_GRADLE_JVMARGS: "-Xmx5g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8 -XX:+HeapDumpOnOutOfMemoryError"
 
 jobs:
-  manual-android-ci:
-    name: Manual Android verification
+  run-quality:
+    name: Run Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           submodules: recursive
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
@@ -42,10 +42,84 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
-      - name: Set up Android SDK 36
+      - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
-          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
+
+      - name: Install and verify Android NDK
+        run: bash .github/scripts/install-android-ndk.sh
+
+      - name: Grant gradlew permission
+        run: chmod +x gradlew .github/scripts/fetch-omnilink.sh
+
+      - name: Stage OmniLinkSDK with retry/backoff
+        run: bash .github/scripts/fetch-omnilink.sh
+
+      - name: Share OmniLinkSDK with downstream jobs
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: omnilink-maven-${{ github.run_id }}
+          path: ci-m2
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Fast quality compile gate
+        run: |
+          ./gradlew --no-daemon --max-workers 1 \
+            -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            -Pkotlin.incremental=false \
+            -Dorg.gradle.vfs.watch=false \
+            :app:compileLiteReleaseKotlin \
+            --stacktrace
+
+      - name: Check optional static-analysis tasks
+        continue-on-error: true
+        run: |
+          TASKS="$(./gradlew tasks --all --no-daemon --console=plain)"
+          if echo "$TASKS" | grep -qE '^ktlintCheck( |$)'; then
+            ./gradlew --no-daemon --max-workers 1 ktlintCheck
+          else
+            echo "ktlintCheck task not found; skipping."
+          fi
+          if echo "$TASKS" | grep -qE '^detekt( |$)'; then
+            ./gradlew --no-daemon --max-workers 1 detekt
+          else
+            echo "detekt task not found; skipping."
+          fi
+
+  lint:
+    name: Lint
+    needs: run-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Restore staged OmniLinkSDK
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: omnilink-maven-${{ github.run_id }}
+          path: ci-m2
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
 
       - name: Install and verify Android NDK
         run: bash .github/scripts/install-android-ndk.sh
@@ -53,43 +127,174 @@ jobs:
       - name: Grant gradlew permission
         run: chmod +x gradlew
 
-      - name: Compile, test, lint, and build debug flavors
+      - name: Lint all debug flavors
         run: |
           ./gradlew --no-daemon --max-workers 1 \
+            -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            -Pkotlin.incremental=false \
+            -Dorg.gradle.vfs.watch=false \
             :app:lintLiteDebug \
             :app:lintNormDebug \
             :app:lintProDebug \
             :app:lintOemDebug \
             :app:lintAdminDebug \
+            --continue --stacktrace
+
+      - name: Upload lint reports
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: lint-reports-${{ github.run_number }}
+          path: |
+            app/build/reports/lint-results*.html
+            app/build/reports/lint-results*.xml
+          if-no-files-found: ignore
+          retention-days: 7
+
+  tests:
+    name: Tests
+    needs: run-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Restore staged OmniLinkSDK
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: omnilink-maven-${{ github.run_id }}
+          path: ci-m2
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
+
+      - name: Install and verify Android NDK
+        run: bash .github/scripts/install-android-ndk.sh
+
+      - name: Grant gradlew permission
+        run: chmod +x gradlew
+
+      - name: Compile and run unit tests for all flavors
+        run: |
+          ./gradlew --no-daemon --max-workers 1 \
+            -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            -Pkotlin.incremental=false \
+            -Dorg.gradle.vfs.watch=false \
             :app:testLiteDebugUnitTest \
             :app:testNormDebugUnitTest \
             :app:testProDebugUnitTest \
             :app:testOemDebugUnitTest \
             :app:testAdminDebugUnitTest \
-            :app:assembleLiteDebug \
-            :app:assembleNormDebug \
-            :app:assembleProDebug \
-            :app:assembleOemDebug \
-            :app:assembleAdminDebug \
-            --continue
+            --continue --stacktrace
 
-      - name: Build release flavors
-        if: inputs.build_release == true
+      - name: Upload test reports
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: unit-test-reports-${{ github.run_number }}
+          path: |
+            app/build/reports/tests/**
+            app/build/test-results/**
+          if-no-files-found: ignore
+          retention-days: 14
+
+  release-apk:
+    name: Release APK
+    needs: run-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Restore staged OmniLinkSDK
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: omnilink-maven-${{ github.run_id }}
+          path: ci-m2
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
+
+      - name: Install and verify Android NDK
+        run: bash .github/scripts/install-android-ndk.sh
+
+      - name: Grant gradlew permission
+        run: chmod +x gradlew
+
+      - name: Build release APKs
         run: |
           ./gradlew --no-daemon --max-workers 1 \
+            -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            -Pkotlin.incremental=false \
+            -Dorg.gradle.vfs.watch=false \
             :app:assembleLiteRelease \
             :app:assembleNormRelease \
             :app:assembleProRelease \
             :app:assembleOemRelease \
             :app:assembleAdminRelease \
-            --continue
+            --continue --stacktrace
 
-      - name: Upload APKs
+      - name: Upload release APKs
         if: always()
         continue-on-error: true
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: manual-apks-${{ github.run_number }}
-          path: app/build/outputs/apk/**/*.apk
+          name: release-apks-${{ github.run_number }}
+          path: app/build/outputs/apk/*/release/*.apk
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 30
+
+  pipeline-summary:
+    name: Pipeline Summary
+    if: always()
+    needs: [run-quality, lint, tests, release-apk]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Write summary
+        run: |
+          {
+            echo "# Android CI #${{ github.run_number }}"
+            echo ""
+            echo "| Stage | Result |"
+            echo "|---|---|"
+            echo "| Run Quality | ${{ needs.run-quality.result }} |"
+            echo "| Lint | ${{ needs.lint.result }} |"
+            echo "| Tests | ${{ needs.tests.result }} |"
+            echo "| Release APK | ${{ needs.release-apk.result }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -141,7 +141,8 @@ object IntentClassifier {
             )
         }
 
-        val words = lower.split(Regex("\\s+")).filter { it.isNotBlank() }
+        val words = normalizedWords(lower)
+        val tokens = words.toSet()
         val wordCount = words.size
         val bulletCount = Regex("(?m)^\\s*(?:[-*•]|\\d+[.)])\\s+").findAll(input).count()
         val sentenceCount = max(1, Regex("[.!?؟\\n]+").findAll(input).count())
@@ -150,39 +151,40 @@ object IntentClassifier {
         val chatPhraseWeight = weightedMatches(lower, CHAT_PHRASES)
         val swarmPhraseWeight = weightedMatches(lower, SWARM_PHRASES)
 
-        val mutationHits = countAny(
-            lower,
+        val mutationHits = countSignals(
+            lower, tokens,
             "write", "edit", "modify", "change", "delete", "create", "implement", "refactor",
             "patch", "install", "configure", "deploy", "fix", "صلح", "عدل", "احذف", "انشئ",
             "اكتب", "ضيف", "اضف", "نفذ"
         )
-        val verificationHits = countAny(
-            lower,
+        val verificationHits = countSignals(
+            lower, tokens,
             "verify", "test", "lint", "compile", "build", "benchmark", "validate", "check",
             "اختبر", "اتأكد", "تاكد", "افحص", "راجع"
         )
-        val splitHits = countAny(
-            lower,
+        val splitHits = countSignals(
+            lower, tokens,
             " independently", "parallel", "in parallel", "multiple parts", "several parts",
             "frontend", "backend", "database", "tests", "ui", "api", "security", "performance",
             "بالتوازي", "كمان", "وكمان", "عدة", "أجزاء", "اجزاء", "كل المشاكل"
         )
 
-        val codeHits = countAny(
-            lower,
-            "code", "kotlin", "java", "python", "gradle", "manifest", "repository", "repo",
-            "project", "function", "class", "dependency", "terminal", "shell", "كود", "مشروع", "ملف"
+        val codeHits = countSignals(
+            lower, tokens,
+            "code", "coding", "kotlin", "java", "python", "gradle", "manifest", "repository", "repo",
+            "project", "function", "class", "dependency", "terminal", "shell", "rish", "adb",
+            "runtime", "parser", "viewmodel", "كود", "مشروع", "ملف"
         )
-        val deviceHits = countAny(
-            lower,
-            "android system", "shizuku", "rish", " adb", "adb ", "root", "device", "phone",
+        val deviceHits = countSignals(
+            lower, tokens,
+            "android system", "system", "shizuku", "rish", "adb", "root", "device", "phone",
             "dumpsys", "getprop", "logcat", "permission", "wifi", "bluetooth", "screen",
             "brightness", "settings", "apk", "package",
             "الموبايل", "الهاتف", "الجهاز", "شيزوكو", "روت", "صلاحيات",
             "الشاشة", "سطوع", "إعدادات", "اعدادات", "تطبيق"
         )
-        val researchHits = countAny(
-            lower,
+        val researchHits = countSignals(
+            lower, tokens,
             "research", "search online", "latest", "today", "news", "compare sources",
             "web", "internet", "browser", "github", "ابحث", "بحث", "احدث", "الويب", "الانترنت"
         )
@@ -300,6 +302,19 @@ object IntentClassifier {
     fun classify(input: String): OmniMode {
         val signals = analyze(input)
         val scores = scoreModes(signals)
+
+        // Preserve a focused code-mutation signal deterministically. This prevents generic
+        // conversational/device terms from stealing a single concrete coding task.
+        val focusedCodeScore = scoreCodeIntent(input)
+        if (
+            focusedCodeScore >= 5 &&
+            signals.parallelism < 0.34f &&
+            signals.breadth < 0.65f &&
+            (signals.mutationIntent > 0f || signals.verificationIntent > 0f)
+        ) {
+            return OmniMode.AGENT
+        }
+
         return when {
             scores.swarm >= 0.62f &&
                 scores.swarm >= scores.agent + 0.07f &&
@@ -316,37 +331,43 @@ object IntentClassifier {
         val signals = analyze(input)
         val mode = classify(input)
         val lower = input.lowercase()
+        val tokens = normalizedTokens(input)
 
-        val hasMessaging = containsAny(
-            lower,
+        val hasMessaging = countSignals(
+            lower, tokens,
             "message", "messages", "sms", "text message", "inbox",
             "whatsapp", "telegram", "discord", "email", "slack", "send",
             "wallet", "orange cash", "vodafone cash",
             "رسالة", "رسائل", "رسايل", "رساله", "اس ام اس",
             "واتساب", "تليجرام", "ابعت", "ارسل", "محفظة",
             "اورنج كاش", "أورنج كاش", "اورنچ كاش", "أورنچ كاش"
-        )
-        val hasAnalytics = containsAny(
-            lower,
+        ) > 0
+        val hasAnalytics = countSignals(
+            lower, tokens,
             "analytics", "metrics", "cost", "tokens", "usage", "stats", "performance",
             "token", "latency", "benchmark", "احصائيات", "تكلفة", "توكن"
-        )
-        val hasWeb = signals.researchIntent >= 0.35f || containsAny(
-            lower,
-            "http://", "https://", "www.", "website", "url", "google"
-        )
-        val hasDeviceControl = signals.deviceIntent >= 0.15f
-        val hasExplicitRoot = containsAny(
-            lower,
-            " root ", "rooted", "root access", "root-only", "su -c", "magisk",
+        ) > 0
+        val hasWeb = signals.researchIntent >= 0.35f || countSignals(
+            lower, tokens, "website", "url", "google", "web", "internet"
+        ) > 0 || containsAny(lower, "http://", "https://", "www.")
+        val hasDeviceControl = signals.deviceIntent >= 0.15f || countSignals(
+            lower, tokens, "rish", "shizuku", "adb", "device", "system", "settings",
+            "dumpsys", "logcat", "brightness", "screen", "package", "permission"
+        ) > 0
+        val hasExplicitRoot = countSignals(
+            lower, tokens, "root", "rooted", "root access", "root-only", "su -c", "magisk",
             "روت", "صلاحيات الروت", "ماجيسك"
-        ) || lower == "root" || lower.startsWith("root ")
-        val hasCode = signals.codeIntent >= 0.14f
-        val hasGeneralUtility = containsAny(
-            lower,
+        ) > 0
+        val hasCode = scoreCodeIntent(input) >= 4 || countSignals(
+            lower, tokens,
+            "code", "coding", "compile", "build", "mutation", "refactor", "kotlin", "java",
+            "gradle", "parser", "runtime", "rish", "shell", "adb", "repository", "project"
+        ) > 0
+        val hasGeneralUtility = countSignals(
+            lower, tokens,
             "reminder", "schedule", "task", "calendar", "clipboard", "contact", "location",
             "time", "date", "automation", "تذكير", "مهمة", "موعد", "الحافظة", "الموقع"
-        )
+        ) > 0
 
         return buildSet {
             add(ToolDomain.CORE)
@@ -449,17 +470,65 @@ object IntentClassifier {
         else -> ToolDomain.GENERAL
     }
 
-    private fun weightedMatches(text: String, phrases: List<Phrase>): Int =
-        phrases.sumOf { if (text.contains(it.text)) it.weight else 0 }
+    private fun weightedMatches(text: String, phrases: List<Phrase>): Int {
+        val tokens = normalizedTokens(text)
+        return phrases.sumOf { phrase ->
+            if (signalMatches(text, tokens, phrase.text)) phrase.weight else 0
+        }
+    }
+
+    private fun normalizedWords(text: String): List<String> =
+        text.lowercase()
+            .replace(TOKEN_SEPARATOR, " ")
+            .trim()
+            .split(WHITESPACE)
+            .filter { it.isNotEmpty() }
+
+    private fun normalizedTokens(text: String): Set<String> = normalizedWords(text).toSet()
+
+    private fun scoreCodeIntent(text: String): Int {
+        val tokens = normalizedTokens(text)
+        var score = 0
+        if ("code" in tokens || "coding" in tokens || "كود" in tokens) score += 4
+        if ("mutation" in tokens) score += 4
+        if ("refactor" in tokens) score += 3
+        if ("fix" in tokens || "debug" in tokens || "patch" in tokens || "صلح" in tokens) score += 3
+        if ("compile" in tokens || "build" in tokens) score += 2
+        if ("test" in tokens || "tests" in tokens || "lint" in tokens) score += 2
+        if (tokens.any { it in CODE_TECH_TOKENS }) score += 3
+        return score
+    }
+
+    private fun countSignals(
+        text: String,
+        tokens: Set<String>,
+        vararg signals: String
+    ): Int = signals.count { signalMatches(text, tokens, it) }
+
+    private fun signalMatches(text: String, tokens: Set<String>, signal: String): Boolean {
+        val normalizedSignal = normalizedWords(signal)
+        if (normalizedSignal.isEmpty()) return false
+        if (normalizedSignal.size == 1) return normalizedSignal.first() in tokens
+
+        val normalizedText = normalizedWords(text).joinToString(" ")
+        return (" " + normalizedText + " ").contains(" " + normalizedSignal.joinToString(" ") + " ")
+    }
 
     private fun normalizeEvidence(value: Float): Float = (1f - 1f / (1f + value)).coerceIn(0f, 1f)
 
-    private fun countAny(haystack: String, vararg needles: String): Int = needles.count { it in haystack }
-
     private fun containsAny(haystack: String, vararg needles: String): Boolean = needles.any { it in haystack }
+
+    private val TOKEN_SEPARATOR = Regex("[^\\p{L}\\p{N}_]+")
+    private val WHITESPACE = Regex("\\s+")
+    private val CODE_TECH_TOKENS = setOf(
+        "kotlin", "java", "python", "gradle", "manifest", "parser", "runtime",
+        "viewmodel", "repository", "repo", "project", "function", "class",
+        "dependency", "terminal", "shell", "rish", "adb"
+    )
 
     private val CORE_TOOLS = setOf(
         "remember_fact", "search_knowledge", "update_memory", "delete_memory",
+        "omni_link",
         "planner", "eval_expression", "request_execution_mode",
         "get_trust_profile", "list_earned_capabilities"
     )

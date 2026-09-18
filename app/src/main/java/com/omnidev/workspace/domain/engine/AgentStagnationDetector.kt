@@ -100,8 +100,10 @@ class AgentStagnationDetector(
             "Tool calls/results must preserve one-to-one ordering"
         }
 
-        val callFingerprints = toolCalls.mapTo(linkedSetOf())(::fingerprintCall)
-        val resultSignatures = results.mapTo(linkedSetOf())(::signatureOfResult)
+        val callFingerprints: Set<String> =
+            toolCalls.mapTo(linkedSetOf<String>()) { call -> fingerprintCall(call) }
+        val resultSignatures: Set<String> =
+            results.mapTo(linkedSetOf<String>()) { result -> signatureOfResult(result) }
         val newSignatures = resultSignatures.count { it !in seenResultSignatures }
         val novelty = if (resultSignatures.isEmpty()) {
             1f
@@ -117,11 +119,11 @@ class AgentStagnationDetector(
             consecutiveNoAction = 0
         }
 
-        val classifications = results.mapNotNullTo(linkedSetOf()) {
-            it.classification?.trim()?.uppercase()?.takeIf(String::isNotBlank)
+        val classifications: Set<String> = results.mapNotNullTo(linkedSetOf<String>()) { result ->
+            result.classification?.trim()?.uppercase()?.takeIf { value -> value.isNotBlank() }
         }
-        val backends = results.mapNotNullTo(linkedSetOf()) {
-            it.backend?.trim()?.lowercase()?.takeIf(String::isNotBlank)
+        val backends: Set<String> = results.mapNotNullTo(linkedSetOf<String>()) { result ->
+            result.backend?.trim()?.lowercase()?.takeIf { value -> value.isNotBlank() }
         }
         val persistentFailureCount = results.count { it.isError && it.persistentFailure }
         val infrastructureSignals = results.count(::isInfrastructureFailure)
@@ -141,7 +143,9 @@ class AgentStagnationDetector(
             backends = backends
         )
 
-        val previousSignatures = history.flatMapTo(linkedSetOf()) { it.resultSignatures }
+        val previousSignatures: Set<String> = linkedSetOf<String>().apply {
+            history.forEach { observation -> addAll(observation.resultSignatures) }
+        }
         val repeatedObservationRatio = if (resultSignatures.isEmpty()) {
             0f
         } else {

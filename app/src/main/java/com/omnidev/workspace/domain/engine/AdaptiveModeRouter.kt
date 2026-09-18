@@ -185,7 +185,13 @@ object AdaptiveModeRouter {
     fun fromChatRequest(userRequest: String): Suggestion? {
         val signals = IntentClassifier.analyze(userRequest)
         val scores = IntentClassifier.scoreModes(signals)
-        if (signals.executionIntent < 0.42f) return null
+        // Explicit mutation/verification language is execution intent even when the bounded
+        // evidence normalizer keeps the aggregate score below the old 0.42 threshold. This is
+        // especially common for broad parallel requests such as "implement UI, DB, security and
+        // tests in parallel". Do not let Chat swallow a concrete executable request.
+        val hasExplicitExecution =
+            signals.mutationIntent >= 0.16f || signals.verificationIntent >= 0.18f
+        if (signals.executionIntent < 0.34f && !hasExplicitExecution) return null
 
         val target = if (
             scores.swarm >= 0.66f &&
