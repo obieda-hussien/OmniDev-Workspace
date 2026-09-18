@@ -45,6 +45,16 @@ object ExecutionDomainGuard {
         "(?i)(?<!\\S)--limit\\s+(\\d{1,4})(?=\\s|$)"
     )
 
+    private val readOnlyPrivilegedCommands = listOf(
+        Regex("(?is)^\\s*content\\s+(?:query|gettype|read)\\b"),
+        Regex("(?is)^\\s*settings\\s+(?:get|list)\\b"),
+        Regex("(?is)^\\s*getprop(?:\\s|$)"),
+        Regex("(?is)^\\s*pm\\s+(?:list|path|dump|resolve-activity|query-activities|query-services|query-receivers)\\b"),
+        Regex("(?is)^\\s*appops\\s+get\\b"),
+        Regex("(?is)^\\s*device_config\\s+(?:get|list)\\b"),
+        Regex("(?is)^\\s*ime\\s+list\\b")
+    )
+
     /** Returns null when a script belongs in the normal developer/Termux domain. */
     fun findViolation(script: String): Violation? {
         var hereDocDelimiter: String? = null
@@ -123,6 +133,20 @@ object ExecutionDomainGuard {
         }
 
         return PreparedPrivilegedCommand(command, rowLimit, notes)
+    }
+
+    /**
+     * Used by stagnation detection only. Be deliberately conservative: a compound/multiline shell
+     * script is considered an action even if its first command is read-only.
+     */
+    fun isReadOnlyPrivilegedCommand(script: String): Boolean {
+        val prepared = preparePrivilegedCommand(script)
+        val command = prepared.command.trim()
+        if (command.isBlank() || command.contains('\n')) return false
+        if (command.contains("&&") || command.contains("||") || Regex("\\s;\\s").containsMatchIn(command)) {
+            return false
+        }
+        return readOnlyPrivilegedCommands.any { it.containsMatchIn(command) }
     }
 
     /** Preserve multiline content rows while applying a model-requested logical row limit. */
