@@ -335,8 +335,7 @@ object IntentClassifier {
             "http://", "https://", "www.", "website", "url", "google"
         )
         val hasDeviceControl = signals.deviceIntent >= 0.15f
-        val hasCode = signals.codeIntent >= 0.14f ||
-            ((mode == OmniMode.AGENT || mode == OmniMode.SWARM) && !hasMessaging && !hasDeviceControl)
+        val hasCode = signals.codeIntent >= 0.14f
         val hasGeneralUtility = containsAny(
             lower,
             "reminder", "schedule", "task", "calendar", "clipboard", "contact", "location",
@@ -350,13 +349,22 @@ object IntentClassifier {
             if (hasMessaging) add(ToolDomain.MESSAGING)
             if (hasAnalytics) add(ToolDomain.ANALYTICS)
             if (hasWeb) add(ToolDomain.WEB_SEARCH)
-            if (hasGeneralUtility || (mode == OmniMode.CHAT && !hasWeb)) add(ToolDomain.GENERAL)
+
+            val hasSpecificDomain =
+                hasCode || hasDeviceControl || hasMessaging || hasAnalytics || hasWeb
+            if (
+                hasGeneralUtility ||
+                (mode == OmniMode.CHAT && !hasWeb) ||
+                ((mode == OmniMode.AGENT || mode == OmniMode.SWARM) && !hasSpecificDomain)
+            ) {
+                add(ToolDomain.GENERAL)
+            }
         }
     }
 
     fun getToolDomain(toolName: String): ToolDomain {
         val n = toolName.lowercase()
-        if (n.startsWith("mcp_")) return ToolDomain.CORE
+        if (n.startsWith("mcp_")) return classifyMcpDomain(n)
 
         if (n in CORE_TOOLS ||
             n.startsWith("brain_") || n.startsWith("vector_") ||
@@ -397,6 +405,37 @@ object IntentClassifier {
         ) return ToolDomain.WEB_SEARCH
 
         return ToolDomain.GENERAL
+    }
+
+    /**
+     * MCP tools used to be treated as CORE, which meant every configured connector schema was
+     * exposed to every Agent request. Route them by server/tool semantics instead.
+     */
+    private fun classifyMcpDomain(name: String): ToolDomain = when {
+        containsAny(
+            name,
+            "github", "gitlab", "bitbucket", "vercel", "render", "deployment",
+            "repository", "repo_", "code_", "pull_request", "issue_"
+        ) -> ToolDomain.CODE_TERMINAL
+
+        containsAny(
+            name,
+            "exa", "parallel_search", "web", "browser", "search", "scrape",
+            "fetch", "ubersuggest", "malwarebytes"
+        ) -> ToolDomain.WEB_SEARCH
+
+        containsAny(
+            name,
+            "gmail", "outlook", "slack", "discord", "whatsapp", "telegram",
+            "email", "message", "mail"
+        ) -> ToolDomain.MESSAGING
+
+        containsAny(
+            name,
+            "analytics", "metric", "stats", "usage", "finance", "market"
+        ) -> ToolDomain.ANALYTICS
+
+        else -> ToolDomain.GENERAL
     }
 
     private fun weightedMatches(text: String, phrases: List<Phrase>): Int =
