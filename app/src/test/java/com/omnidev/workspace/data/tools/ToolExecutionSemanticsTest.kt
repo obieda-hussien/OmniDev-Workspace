@@ -170,4 +170,21 @@ class ToolExecutionSemanticsTest {
     }
 
 
+    @Test
+    fun `pending user approval is a persistent non-retryable outcome`() {
+        val raw = ToolExecutionResult(
+            output =
+                "USER_ACTION_REQUIRED: Requested runtime permission READ_SMS. Android is waiting for user approval.",
+            isError = true
+        )
+
+        val result = ToolExecutionSemantics.normalize("request_permission", raw)
+
+        assertTrue(result.isError)
+        assertEquals("USER_ACTION_REQUIRED", result.classification)
+        assertTrue(ToolExecutionSemantics.isPersistentFailure(result))
+        assertFalse(result.retryable)
+    }
+
+
 }
