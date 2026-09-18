@@ -50,12 +50,28 @@ object ToolSchemaCompactor {
         val selected = if (unique.size <= MAX_TOOLS) {
             unique.values.toList()
         } else {
-            unique.values
+            val matchedSpecializedNames = SPECIALIZED_INTENT_HINTS
+                .filterValues { hints -> hints.any(latestUser::contains) }
+                .keys
+
+            val pinned = unique.values.filter { indexed ->
+                indexed.value.name in matchedSpecializedNames
+            }
+            val pinnedNames = pinned.mapTo(mutableSetOf()) { it.value.name }
+
+            val remaining = unique.values
+                .asSequence()
+                .filterNot { it.value.name in pinnedNames }
                 .sortedWith(
                     compareByDescending<IndexedValue<ToolDefinition>> {
                         relevanceScore(it.value, queryTerms, latestUser)
                     }.thenBy { it.index }
                 )
+                .take((MAX_TOOLS - pinned.size).coerceAtLeast(0))
+                .toList()
+
+            (pinned + remaining)
+                .distinctBy { it.value.name }
                 .take(MAX_TOOLS)
                 .sortedBy { it.index }
         }
