@@ -336,8 +336,17 @@ class ToolAwarenessEngine(
         success: Boolean,
         errorMessage: String = "",
         executionTimeMs: Long = 0,
+        classification: String? = null,
+        backend: String? = null,
         @Suppress("UNUSED_PARAMETER") params: Map<String, Any?> = emptyMap()
     ) = withContext(Dispatchers.IO) {
+        updateRuntimeKnowledgeFromExecution(
+            success = success,
+            errorMessage = errorMessage,
+            classification = classification,
+            backend = backend
+        )
+
         when {
             !success && errorMessage.contains("permission", ignoreCase = true) ->
                 saveOrUpdateKnowledge(
@@ -378,6 +387,80 @@ class ToolAwarenessEngine(
                 priority = 7,
                 tags = "fast,performance,$toolName"
             )
+        }
+    }
+
+    private suspend fun updateRuntimeKnowledgeFromExecution(
+        success: Boolean,
+        errorMessage: String,
+        classification: String?,
+        backend: String?
+    ) {
+        val cls = classification?.uppercase().orEmpty()
+        val be = backend?.lowercase().orEmpty()
+        val lower = errorMessage.lowercase()
+
+        val termuxEvidence = be == "termux" ||
+            cls.startsWith("TERMUX_") ||
+            lower.contains("runcommandservice")
+        if (termuxEvidence) {
+            val healthy = success && cls !in setOf(
+                "TERMUX_RUN_COMMAND_UNAVAILABLE",
+                "TERMUX_EXTERNAL_APPS_DISABLED"
+            )
+            val type = if (healthy) TYPE_ENVIRONMENT else TYPE_WARNING
+            systemKnowledgeDao.invalidateOtherTypesForSubject(
+                subject = "termux",
+                source = "auto_discovery",
+                keepType = type
+            )
+            saveOrUpdateKnowledge(
+                type,
+                "termux",
+                if (healthy) {
+                    "Termux RunCommandService succeeded in the current session. Use agent_runtime only for developer/Linux package/runtime work."
+                } else {
+                    "Termux transport is currently unavailable in this session (${classification ?: "transport failure"}). Circuit-break it; do not retry agent_runtime shell/package work until fix_termux succeeds."
+                },
+                confidence = 1.0f,
+                priority = 1,
+                tags = "termux,runtime,current_state",
+                source = "auto_discovery"
+            )
+            runtimeEnvironmentCache["termux_ready"] = healthy.toString()
+        }
+
+        val shizukuEvidence = be == "shizuku-user-service" ||
+            cls.startsWith("SHIZUKU_") ||
+            lower.contains("shizuku userservice") ||
+            lower.contains("shizuku user service")
+        if (shizukuEvidence) {
+            val backendFailure = cls in setOf(
+                "SHIZUKU_PERMISSION_REQUIRED",
+                "SHIZUKU_UNAVAILABLE",
+                "SHIZUKU_CONNECTION_TIMEOUT"
+            ) || lower.contains("binder") || lower.contains("service disconnected")
+            val healthy = success && !backendFailure
+            val type = if (healthy) TYPE_ENVIRONMENT else TYPE_WARNING
+            systemKnowledgeDao.invalidateOtherTypesForSubject(
+                subject = "shizuku",
+                source = "auto_discovery",
+                keepType = type
+            )
+            saveOrUpdateKnowledge(
+                type,
+                "shizuku",
+                if (healthy) {
+                    "Shizuku UserService executed successfully in the current session. Prefer specialized device tools; generic Android shell work may use the Shizuku-routed path."
+                } else {
+                    "Shizuku is currently unavailable/degraded in this session (${classification ?: "backend failure"}). Do not repeat the same privileged strategy until the backend state changes."
+                },
+                confidence = 1.0f,
+                priority = 1,
+                tags = "shizuku,runtime,current_state",
+                source = "auto_discovery"
+            )
+            runtimeEnvironmentCache["shizuku"] = healthy.toString()
         }
     }
 
