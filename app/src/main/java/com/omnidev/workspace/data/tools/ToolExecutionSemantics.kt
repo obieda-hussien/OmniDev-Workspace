@@ -15,6 +15,13 @@ object ToolExecutionSemantics {
     private const val ERROR_MODEL_OUTPUT_LIMIT = 6_000
     private const val TELEMETRY_PREFIX = "[omni-outcome]"
 
+    private val successfulDiagnosticClasses = setOf(
+        "HEALTHY",
+        "DEGRADED_BUT_USABLE",
+        "DEGRADED_COMMAND_ROUTE",
+        "SUCCESS"
+    )
+
     private val terminalLikeTools = setOf(
         "run_terminal",
         "agent_runtime",
@@ -50,6 +57,9 @@ object ToolExecutionSemantics {
             }
 
             toolName !in terminalLikeTools -> result
+
+            toolName == "execution_diagnostics" &&
+                result.classification?.uppercase() in successfulDiagnosticClasses -> result
 
             else -> {
                 val text = result.output
