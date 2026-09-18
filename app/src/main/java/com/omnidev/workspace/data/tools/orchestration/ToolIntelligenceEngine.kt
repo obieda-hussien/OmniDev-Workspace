@@ -240,7 +240,7 @@ class ToolIntelligenceEngine(
         val boundedQuality = resultQuality.coerceIn(0f, 1f)
         val speed = speedScore(executionTimeMs)
         val reward = if (success) {
-            (boundedQuality * 0.82 + speed.toFloat() * 0.18).coerceIn(0f, 1f).toDouble()
+            (boundedQuality.toDouble() * 0.82 + speed * 0.18).coerceIn(0.0, 1.0)
         } else {
             0.0
         }
