@@ -10,19 +10,28 @@ object TeamHandoffCompressor {
     fun compact(raw: String, maxChars: Int): String {
         if (maxChars <= 0 || raw.isBlank()) return ""
         val redacted = redact(raw)
-        if (redacted.length <= maxChars) return redacted
 
         data class Line(val index: Int, val text: String, val score: Int)
-        val seen = linkedSetOf<String>()
+        val seenEvidence = linkedSetOf<String>()
         val candidates = redacted.lineSequence()
             .mapIndexedNotNull { index, line ->
                 val clean = line.trim().replace(WHITESPACE, " ")
                 if (clean.isBlank()) return@mapIndexedNotNull null
-                val fingerprint = normalize(clean)
-                if (!seen.add(fingerprint)) return@mapIndexedNotNull null
-                Line(index, clean.take(MAX_SINGLE_LINE), score(clean))
+
+                val lineScore = score(clean)
+                // Deduplicate evidence on every handoff, even when the raw payload already fits
+                // inside maxChars. Comparison is normalized, while the first original line is kept.
+                if (lineScore > 0) {
+                    val fingerprint = normalize(clean)
+                    if (!seenEvidence.add(fingerprint)) return@mapIndexedNotNull null
+                }
+
+                Line(index, clean.take(MAX_SINGLE_LINE), lineScore)
             }
             .toList()
+
+        val deduplicated = candidates.joinToString("\n") { it.text }
+        if (deduplicated.length <= maxChars) return deduplicated
 
         val selected = linkedSetOf<Int>()
         // Always preserve a tiny framing slice.
