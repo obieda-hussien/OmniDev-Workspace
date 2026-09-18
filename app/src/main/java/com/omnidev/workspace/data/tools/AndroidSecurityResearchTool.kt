@@ -991,7 +991,8 @@ Output is formatted for readability. Use output_format=json for machine parsing.
     private suspend fun executePrivilegedCommand(command: String): String {
         return when (val result = ShizukuCommandTool.execute(command)) {
             is ShizukuResult.Success -> result.output.trim()
-            is ShizukuResult.PartialSuccess -> result.output.trim()
+            is ShizukuResult.PartialSuccess ->
+                "error: command exited ${result.exitCode}: ${result.output.trim()}"
             is ShizukuResult.Failure -> "error: ${result.reason}"
             is ShizukuResult.PermissionRequired -> "permission_required"
             is ShizukuResult.Unavailable -> "unavailable"
