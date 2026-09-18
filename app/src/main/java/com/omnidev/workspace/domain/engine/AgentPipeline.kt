@@ -427,6 +427,13 @@ Do not use tools. Do not rewrite merely for style.
                 )
                 if (hasErrors) {
                     append("\n\nOne or more tools failed. Do not claim those operations succeeded; pivot strategy or report the blocker explicitly.")
+                } else if (stagnation.noActionStreak >= 2 && stagnation.readOnlyRatio >= 0.75f) {
+                    append(
+                        "\n\n[Omni runtime guidance] You already have multiple successful read-only " +
+                            "observations. Prefer answering/synthesizing from the evidence now. Run another " +
+                            "read-only probe only if you can name a specific missing fact that the next query " +
+                            "will materially resolve; do not re-query the same dataset with cosmetic filters."
+                    )
                 }
             }
             messages += ChatMessage(MessageRole.TOOL, toolContent, toolResults = toolResults)
