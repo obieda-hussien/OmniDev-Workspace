@@ -75,4 +75,35 @@ class ToolSchemaCompactorTest {
     }
 
 
+    @Test
+    fun `matched SMS reader is pinned even against many highly relevant competitors`() {
+        val tools = buildList {
+            repeat(160) { index ->
+                add(
+                    ToolDefinition(
+                        "orange_cash_generic_$index",
+                        "Read SMS messages and Orange Cash wallet inbox balance transactions",
+                        emptyList()
+                    )
+                )
+            }
+            add(
+                ToolDefinition(
+                    "sms_reader_tool",
+                    "Read and search device SMS with bounded Shizuku fallback.",
+                    emptyList()
+                )
+            )
+        }
+
+        val result = ToolSchemaCompactor.compact(
+            tools,
+            listOf(ChatMessage(MessageRole.USER, "اقرأ رسائل اورنچ كاش واعرف آخر رصيد"))
+        ).orEmpty()
+
+        assertTrue(result.size <= 80)
+        assertTrue(result.any { it.name == "sms_reader_tool" })
+    }
+
+
 }
