@@ -179,8 +179,9 @@ object TermuxRunCommandBridge {
     }
 
     fun init(context: Context) {
+        // Initialization is idempotent. Never erase a real transport failure discovered during
+        // this process lifetime; only explicit fix_termux/resetTransportHealth may reopen it.
         appContext = context.applicationContext
-        transportHealth = TransportHealth.UNKNOWN
     }
 
     fun isInitialized(): Boolean = appContext != null
