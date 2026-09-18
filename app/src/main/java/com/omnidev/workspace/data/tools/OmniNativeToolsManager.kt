@@ -266,7 +266,8 @@ object OmniNativeToolsManager {
         val res = withTimeoutOrNull(timeoutMs) { ShizukuCommandTool.execute(cmd) }
         when (res) {
             is ShizukuResult.Success       -> ExecResult.Ok(res.output)
-            is ShizukuResult.PartialSuccess -> ExecResult.Ok(res.output)
+            is ShizukuResult.PartialSuccess ->
+                ExecResult.Err("Command exited ${res.exitCode}: ${res.output}")
             is ShizukuResult.Failure       -> ExecResult.Err(res.reason)
             null                           -> ExecResult.Err("Timed out after ${timeoutMs}ms")
             else                           -> ExecResult.Err("Shizuku unavailable")
