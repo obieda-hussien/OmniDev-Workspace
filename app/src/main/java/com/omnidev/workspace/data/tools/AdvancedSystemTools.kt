@@ -138,40 +138,65 @@ object SmsReaderTool {
 
     private const val MAX_RESULTS = 30
 
-    fun execute(
+    /**
+     * Prefer the normal Android ContentResolver when READ_SMS is granted. If Android denies that
+     * app-UID path but Shizuku is already authorized, transparently query the same provider through
+     * the shell UserService. The model should never need to reinvent this fallback with raw shell.
+     */
+    suspend fun execute(
         context: Context,
         action: String,
         query: String? = null,
         limit: Int = MAX_RESULTS
     ): ToolExecutionResult {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
-            return ToolExecutionResult("READ_SMS permission not granted. Please grant it in Settings.", isError = true)
+        val normalizedAction = action.lowercase()
+        if (normalizedAction !in setOf("read_inbox", "read_sent", "search")) {
+            return ToolExecutionResult(
+                "Unknown sms action '$action'. Use read_inbox, read_sent, or search.",
+                isError = true
+            )
         }
-        return runCatching {
-            when (action.lowercase()) {
-                "read_inbox" -> readMessages(context, Telephony.Sms.Inbox.CONTENT_URI, limit)
-                "read_sent" -> readMessages(context, Telephony.Sms.Sent.CONTENT_URI, limit)
-                "search" -> {
-                    if (query.isNullOrBlank()) return ToolExecutionResult("Missing 'query'.", isError = true)
-                    searchMessages(context, query, limit)
+        if (normalizedAction == "search" && query.isNullOrBlank()) {
+            return ToolExecutionResult("Missing 'query'.", isError = true)
+        }
+
+        val safeLimit = limit.coerceIn(1, MAX_RESULTS)
+        val hasAppPermission =
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
+                PackageManager.PERMISSION_GRANTED
+
+        if (hasAppPermission) {
+            try {
+                return when (normalizedAction) {
+                    "read_inbox" -> readMessages(context, Telephony.Sms.Inbox.CONTENT_URI, safeLimit)
+                    "read_sent" -> readMessages(context, Telephony.Sms.Sent.CONTENT_URI, safeLimit)
+                    "search" -> searchMessages(context, query.orEmpty(), safeLimit)
+                    else -> error("validated above")
                 }
-                else -> ToolExecutionResult("Unknown sms action '$action'.", isError = true)
+            } catch (_: SecurityException) {
+                // Permission/app-op state can disagree with checkSelfPermission on some ROMs.
+                // Fall through to the already-authorized Shizuku shell domain.
+            } catch (e: Exception) {
+                return ToolExecutionResult("SMS error: ${e.message}", isError = true)
             }
-        }.getOrElse { e -> ToolExecutionResult("SMS error: ${e.message}", isError = true) }
+        }
+
+        return executeViaShizuku(normalizedAction, query, safeLimit)
     }
 
     private fun readMessages(context: Context, uri: Uri, limit: Int): ToolExecutionResult {
-        val safeLim = limit.coerceIn(1, MAX_RESULTS)
         val cursor = context.contentResolver.query(
-            uri, arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.READ),
-            null, null, "${Telephony.Sms.DATE} DESC"
+            uri,
+            arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.READ),
+            null,
+            null,
+            "${Telephony.Sms.DATE} DESC"
         )
-        return formatSmsCursor(cursor, safeLim)
+        return formatSmsCursor(cursor, limit)
     }
 
     private fun searchMessages(context: Context, query: String, limit: Int): ToolExecutionResult {
         val safeQuery = query.replace("%", "\\%").replace("_", "\\_")
-        val safeLim = limit.coerceIn(1, MAX_RESULTS)
         val cursor = context.contentResolver.query(
             Telephony.Sms.CONTENT_URI,
             arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.READ),
@@ -179,8 +204,54 @@ object SmsReaderTool {
             arrayOf("%$safeQuery%", "%$safeQuery%"),
             "${Telephony.Sms.DATE} DESC"
         )
-        return formatSmsCursor(cursor, safeLim)
+        return formatSmsCursor(cursor, limit)
     }
+
+    private suspend fun executeViaShizuku(
+        action: String,
+        query: String?,
+        limit: Int
+    ): ToolExecutionResult {
+        val uri = when (action) {
+            "read_inbox" -> "content://sms/inbox"
+            "read_sent" -> "content://sms/sent"
+            else -> "content://sms"
+        }
+        val selection = if (action == "search") {
+            val safe = escapeSqlLike(query.orEmpty())
+            "address LIKE '%$safe%' ESCAPE '\\' OR body LIKE '%$safe%' ESCAPE '\\'"
+        } else null
+
+        val command = buildString {
+            append("content query --uri ").append(shellQuote(uri))
+            append(" --projection address:body:date:read")
+            selection?.let { append(" --where ").append(shellQuote(it)) }
+            append(" --sort ").append(shellQuote("date DESC"))
+            // Android's content CLI has no native --limit. OmniDev's Android-domain adapter
+            // removes this flag before execution and limits complete Row blocks afterwards.
+            append(" --limit ").append(limit)
+        }
+
+        val result = AndroidPrivilegedCommandRouter.executeIfNeeded(command)
+            ?: return ToolExecutionResult(
+                "SMS Shizuku fallback could not route the content-provider command.",
+                isError = true,
+                classification = "SMS_BACKEND_UNAVAILABLE",
+                backend = "sms-reader"
+            )
+
+        return result.copy(
+            verification = if (!result.isError) {
+                "SMS provider queried through Shizuku fallback; max rows=$limit"
+            } else result.verification
+        )
+    }
+
+    private fun escapeSqlLike(value: String): String = value
+        .replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+        .replace("'", "''")
 
     private fun formatSmsCursor(cursor: Cursor?, limit: Int): ToolExecutionResult {
         if (cursor == null) return ToolExecutionResult("Failed to query SMS.", isError = true)
@@ -194,8 +265,7 @@ object SmsReaderTool {
                 val address = it.getString(0) ?: "Unknown"
                 val body = it.getString(1) ?: ""
                 val isRead = it.getInt(3) == 1
-                
-                // Truncate body to prevent huge outputs, but give enough context (250 chars)
+
                 val truncBody = if (body.length > 250) body.take(250) + "…" else body
                 sb.appendLine("${if (isRead) "✅" else "🆕"} $address | ${df.format(Date(it.getLong(2)))}")
                 sb.appendLine("   $truncBody")
@@ -208,11 +278,13 @@ object SmsReaderTool {
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "sms_reader_tool",
-            description = "Read device SMS. Actions: 'read_inbox', 'read_sent', 'search'. Requires READ_SMS.",
+            description =
+                "Read/search device SMS with bounded results. Prefer this over raw content-query shell. " +
+                    "Uses READ_SMS when available and automatically falls back to authorized Shizuku.",
             parameters = listOf(
                 ToolParameter("action", "string", "Action: read_inbox, read_sent, search.", required = true),
-                ToolParameter("query", "string", "Search filter.", required = false),
-                ToolParameter("limit", "string", "Max entries (default 30).", required = false)
+                ToolParameter("query", "string", "Search sender/body text for action=search.", required = false),
+                ToolParameter("limit", "string", "Max entries, 1-30 (default 30).", required = false)
             )
         )
     )
