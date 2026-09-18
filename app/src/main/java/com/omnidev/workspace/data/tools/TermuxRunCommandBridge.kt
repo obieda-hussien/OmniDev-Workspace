@@ -201,6 +201,7 @@ object TermuxRunCommandBridge {
             appendLine("Termux package visible: ${if (packageVisible) "YES" else "NO"}")
             appendLine("RUN_COMMAND permission: ${if (permission) "GRANTED" else "MISSING (requested automatically when first needed)"}")
             appendLine("Required one-time Termux opt-in: ~/.termux/termux.properties -> allow-external-apps=true")
+            appendLine("Cached transport health: ${transportHealth.name}")
             append("Execution transport: official com.termux.RUN_COMMAND / RunCommandService")
         }
     }
@@ -238,6 +239,13 @@ object TermuxRunCommandBridge {
     ): TermuxCommandResult = withContext(Dispatchers.IO) {
         require(executable.isNotBlank()) { "Termux executable is blank" }
         val context = requireContext()
+
+        if (isKnownUnusable()) {
+            return@withContext setupFailure(
+                "Termux RunCommandService is already known unavailable from a previous real transport failure. " +
+                    "Do not retry it in this run; use execution_diagnostics action=fix_termux after repairing Termux."
+            )
+        }
 
         if (!isTermuxInstalled(context)) {
             return@withContext setupFailure(
