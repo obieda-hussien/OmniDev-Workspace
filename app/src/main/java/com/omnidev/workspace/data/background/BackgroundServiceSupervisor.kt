@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Process
 import android.os.SystemClock
+import android.os.UserManager
 import android.util.Log
 import androidx.work.BackoffPolicy
 import androidx.work.Data
@@ -55,8 +56,10 @@ object BackgroundServiceSupervisor {
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
     /** Existing behavior is "always-on" unless the user explicitly stops it. */
-    fun isSyncDesired(context: Context): Boolean =
-        prefs(context).getBoolean(KEY_SYNC_DESIRED, true)
+    fun isSyncDesired(context: Context): Boolean {
+        if (!isUserUnlocked(context)) return false
+        return prefs(context).getBoolean(KEY_SYNC_DESIRED, true)
+    }
 
     fun setSyncDesired(context: Context, desired: Boolean) {
         prefs(context).edit().putBoolean(KEY_SYNC_DESIRED, desired).apply()
@@ -76,13 +79,17 @@ object BackgroundServiceSupervisor {
     }
 
     fun heartbeatAgeMs(context: Context): Long {
+        if (!isUserUnlocked(context)) return Long.MAX_VALUE
         val last = prefs(context).getLong(KEY_LAST_HEARTBEAT, 0L)
         if (last == 0L) return Long.MAX_VALUE
         return (System.currentTimeMillis() - last).coerceAtLeast(0L)
     }
 
-    fun hasDurableWork(context: Context): Boolean =
-        isSyncDesired(context) || BackgroundChatTaskStore.active(context.applicationContext).isNotEmpty()
+    fun hasDurableWork(context: Context): Boolean {
+        if (!isUserUnlocked(context)) return false
+        return isSyncDesired(context) ||
+            BackgroundChatTaskStore.active(context.applicationContext).isNotEmpty()
+    }
 
     /**
      * Called on every normal app process creation. Secondary app processes must not register their
@@ -91,6 +98,10 @@ object BackgroundServiceSupervisor {
     fun bootstrap(context: Context) {
         val app = context.applicationContext
         if (!isMainProcess(app)) return
+        if (!isUserUnlocked(app)) {
+            Log.i(TAG, "Credential storage is locked; deferring WorkManager bootstrap")
+            return
+        }
         BackgroundServiceWatchdogWorker.schedulePeriodic(app)
         if (hasDurableWork(app)) scheduleRecovery(app, "application_bootstrap", 500L)
     }
@@ -101,7 +112,7 @@ object BackgroundServiceSupervisor {
         delayMs: Long = DEFAULT_RECOVERY_DELAY_MS
     ) {
         val app = context.applicationContext
-        if (!hasDurableWork(app)) return
+        if (!isUserUnlocked(app) || !hasDurableWork(app)) return
 
         val streak = prefs(app).getInt(KEY_RESTART_STREAK, 0).coerceAtMost(8)
         val adaptiveDelay = min(60_000L, delayMs + (streak * streak * 750L))
@@ -118,7 +129,7 @@ object BackgroundServiceSupervisor {
             .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
             .build()
 
-        WorkManager.getInstance(app).enqueueUniqueWork(
+        workManagerOrNull(app)?.enqueueUniqueWork(
             RECOVERY_WORK,
             ExistingWorkPolicy.REPLACE,
             request
@@ -129,7 +140,7 @@ object BackgroundServiceSupervisor {
     /** Best-effort immediate reconstruction. Returns true when startup was requested. */
     fun recoverNow(context: Context, reason: String): Boolean {
         val app = context.applicationContext
-        if (!hasDurableWork(app)) return false
+        if (!isUserUnlocked(app) || !hasDurableWork(app)) return false
 
         val p = prefs(app)
         p.edit()
@@ -167,9 +178,11 @@ object BackgroundServiceSupervisor {
         // Re-register the periodic watchdog every time the service proves it is healthy. KEEP is
         // idempotent, so this also repairs scheduling state after OEM job cleanup without creating
         // duplicate watchdogs.
-        BackgroundServiceWatchdogWorker.schedulePeriodic(app)
+        if (isUserUnlocked(app)) {
+            BackgroundServiceWatchdogWorker.schedulePeriodic(app)
+            workManagerOrNull(app)?.cancelUniqueWork(RECOVERY_WORK)
+        }
         cancelAlarmOnly(app)
-        WorkManager.getInstance(app).cancelUniqueWork(RECOVERY_WORK)
     }
 
     fun recordFailure(context: Context, detail: String) {
@@ -192,7 +205,7 @@ object BackgroundServiceSupervisor {
 
     fun cancelPendingRecovery(context: Context) {
         cancelAlarmOnly(context)
-        WorkManager.getInstance(context.applicationContext).cancelUniqueWork(RECOVERY_WORK)
+        workManagerOrNull(context.applicationContext)?.cancelUniqueWork(RECOVERY_WORK)
     }
 
     private fun scheduleAlarm(context: Context, reason: String, delayMs: Long) {
@@ -227,6 +240,21 @@ object BackgroundServiceSupervisor {
     private fun cancelAlarmOnly(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
         runCatching { alarmManager.cancel(recoveryPendingIntent(context, "cancel")) }
+    }
+
+    private fun isUserUnlocked(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return true
+        val userManager = context.getSystemService(Context.USER_SERVICE) as? UserManager
+        return userManager?.isUserUnlocked != false
+    }
+
+    private fun workManagerOrNull(context: Context): WorkManager? {
+        if (!isUserUnlocked(context)) return null
+        return runCatching { WorkManager.getInstance(context.applicationContext) }
+            .onFailure { error ->
+                Log.w(TAG, "WorkManager unavailable; AlarmManager recovery remains active", error)
+            }
+            .getOrNull()
     }
 
     private fun isMainProcess(context: Context): Boolean {
