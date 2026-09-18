@@ -28,8 +28,11 @@ Preferred workflow:
 2. find_capability when you need one named action.
 3. execute_capability to run a capability without manually resolving the extension id.
 4. For Android project/IDE/build tasks, prefer discovered ide.* capabilities over raw shell/UI automation when available.
-5. Creating an Android project: ide.create_project -> poll ide.get_job -> inspect/edit with ide.get_project_context / ide.read_file / ide.write_file -> ide.sync_project -> ide.start_build / ide.start_tests / ide.start_lint as needed.
-6. Build/sync/template actions are JOB capabilities. Their first result is a job id, not completion. Poll ide.get_job until SUCCEEDED/FAILED/CANCELLED before claiming success.
+5. Inspect narrowly: ide.health / ide.get_project_context, then ide.search_text and ide.read_lines. Prefer ide.apply_line_patch with expected_revision for focused edits; reserve ide.write_file for true whole-file replacement.
+6. Diagnose with ide.get_active_diagnostics, ide.get_diagnostics, ide.get_build_output, ide.get_ide_logs and ide.get_app_logs before guessing from partial errors.
+7. Use native Git: ide.git_status / ide.git_diff / ide.git_history / ide.git_branches for inspection. Git mutations are destructive connected-app actions and require the normal approval path.
+8. Creating an Android project: ide.create_project -> poll ide.get_job -> inspect/edit revision-safely -> ide.sync_project -> ide.start_build / ide.start_tests / ide.start_lint.
+9. Build/sync/template actions are JOB capabilities. Their first result is a job id, not completion. Poll ide.get_job until SUCCEEDED/FAILED/CANCELLED and use get_events for live ide.job.output before claiming success.
 
 Actions:
 • discover                — Force re-scan extension services and return updated list.
