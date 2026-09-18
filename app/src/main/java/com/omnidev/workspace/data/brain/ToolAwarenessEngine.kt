@@ -400,14 +400,21 @@ class ToolAwarenessEngine(
         val be = backend?.lowercase().orEmpty()
         val lower = errorMessage.lowercase()
 
-        val termuxEvidence = be == "termux" ||
-            cls.startsWith("TERMUX_") ||
-            lower.contains("runcommandservice")
-        if (termuxEvidence) {
-            val healthy = success && cls !in setOf(
+        // Backend identity on a successful command is positive health evidence.
+        // On failure, only transport/availability signatures may change runtime health;
+        // a bad command, denied target operation, or non-zero exit does NOT mean the backend died.
+        val termuxSuccess = success && be == "termux"
+        val termuxTransportFailure =
+            cls in setOf(
                 "TERMUX_RUN_COMMAND_UNAVAILABLE",
-                "TERMUX_EXTERNAL_APPS_DISABLED"
-            )
+                "TERMUX_EXTERNAL_APPS_DISABLED",
+                "TERMUX_UNAVAILABLE"
+            ) ||
+                lower.contains("runcommandservice") ||
+                lower.contains("termux transport") && lower.contains("unavailable")
+
+        if (termuxSuccess || termuxTransportFailure) {
+            val healthy = termuxSuccess && !termuxTransportFailure
             val type = if (healthy) TYPE_ENVIRONMENT else TYPE_WARNING
             systemKnowledgeDao.invalidateOtherTypesForSubject(
                 subject = "termux",
@@ -430,17 +437,22 @@ class ToolAwarenessEngine(
             runtimeEnvironmentCache["termux_ready"] = healthy.toString()
         }
 
-        val shizukuEvidence = be == "shizuku-user-service" ||
-            cls.startsWith("SHIZUKU_") ||
-            lower.contains("shizuku userservice") ||
-            lower.contains("shizuku user service")
-        if (shizukuEvidence) {
-            val backendFailure = cls in setOf(
+        val shizukuSuccess = success && be == "shizuku-user-service"
+        val shizukuTransportFailure =
+            cls in setOf(
                 "SHIZUKU_PERMISSION_REQUIRED",
                 "SHIZUKU_UNAVAILABLE",
                 "SHIZUKU_CONNECTION_TIMEOUT"
-            ) || lower.contains("binder") || lower.contains("service disconnected")
-            val healthy = success && !backendFailure
+            ) ||
+                lower.contains("shizuku userservice error") ||
+                lower.contains("shizuku user service error") ||
+                lower.contains("deadobject") ||
+                lower.contains("remoteexception") ||
+                lower.contains("service disconnected") ||
+                lower.contains("binder") && lower.contains("shizuku")
+
+        if (shizukuSuccess || shizukuTransportFailure) {
+            val healthy = shizukuSuccess && !shizukuTransportFailure
             val type = if (healthy) TYPE_ENVIRONMENT else TYPE_WARNING
             systemKnowledgeDao.invalidateOtherTypesForSubject(
                 subject = "shizuku",
