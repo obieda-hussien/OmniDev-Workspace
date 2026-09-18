@@ -57,6 +57,7 @@ data class PendingConfirmation(
 enum class ConfirmationType {
     SHIZUKU_COMMAND,
     ANDROID_INTENT,
+    CONNECTED_APP_ACTION,
     GOD_MODE_FILE_WRITE,
     GOD_MODE_FILE_DELETE,
     /** File modification with a visual Git-style diff shown to the user. */
@@ -67,6 +68,7 @@ private val ConfirmationType.title: String
     get() = when (this) {
         ConfirmationType.SHIZUKU_COMMAND -> "⚡ Execute Shell Command?"
         ConfirmationType.ANDROID_INTENT -> "📱 Launch Android Intent?"
+        ConfirmationType.CONNECTED_APP_ACTION -> "🔌 Allow Connected App Action?"
         ConfirmationType.GOD_MODE_FILE_WRITE -> "🔓 God Mode — Write File?"
         ConfirmationType.GOD_MODE_FILE_DELETE -> "🔓 God Mode — Delete File?"
         ConfirmationType.GOD_MODE_FILE_PATCH -> "📝 Review File Change?"
@@ -78,6 +80,8 @@ private val ConfirmationType.subtitle: String
             "The AI agent wants to run the following ADB/shell command with elevated privileges."
         ConfirmationType.ANDROID_INTENT ->
             "The AI agent wants to fire the following Android Intent."
+        ConfirmationType.CONNECTED_APP_ACTION ->
+            "The AI agent wants to invoke a protected capability exposed by another connected application."
         ConfirmationType.GOD_MODE_FILE_WRITE ->
             "The AI agent wants to write to a file OUTSIDE the Target Context scope."
         ConfirmationType.GOD_MODE_FILE_DELETE ->
