@@ -21,6 +21,27 @@ object AndroidPrivilegedCommandRouter {
         val violation = ExecutionDomainGuard.findViolation(command) ?: return null
         val prepared = ExecutionDomainGuard.preparePrivilegedCommand(command)
 
+        // Preserve explicitly requested execution semantics. rish is an ADB-equivalent shell
+        // transport; su means root. Neither should be silently downgraded to Shizuku shell uid.
+        if (violation.commandFamily == "rish") {
+            return executeViaRish(prepared)
+        }
+        if (violation.commandFamily == "su") {
+            val innerDomain = ExecutionDomainGuard.findViolation(prepared.command)
+            if (innerDomain == null || innerDomain.commandFamily in setOf("su", "rish")) {
+                return ToolExecutionResult(
+                    output =
+                        "WRONG_EXECUTION_DOMAIN: su/root semantics cannot be silently replaced by " +
+                            "Shizuku shell uid. Use root_shell_tool for a genuinely root-only command. " +
+                            "For ordinary Android content/settings/pm/cmd work, call it directly without su.",
+                    isError = true,
+                    classification = "WRONG_EXECUTION_DOMAIN",
+                    backend = "android-domain-router",
+                    persistentFailure = true
+                )
+            }
+        }
+
         return when (val shizuku = ShizukuCommandTool.execute(prepared.command, timeoutMs)) {
             is ShizukuResult.Success -> ToolExecutionResult(
                 output = ExecutionDomainGuard.applyOutputCompatibility(shizuku.output, prepared),
@@ -61,6 +82,42 @@ object AndroidPrivilegedCommandRouter {
 
             is ShizukuResult.Unavailable -> fallbackWithoutShizuku(prepared, shizuku.message)
         }
+    }
+
+    private suspend fun executeViaRish(
+        prepared: ExecutionDomainGuard.PreparedPrivilegedCommand
+    ): ToolExecutionResult {
+        val rishManager = PrivilegedExecutionManager.getRishManager()
+            ?: return ToolExecutionResult(
+                output = "rish was explicitly requested, but no rish manager is initialized.",
+                isError = true,
+                classification = "RISH_UNAVAILABLE",
+                backend = "rish",
+                persistentFailure = true
+            )
+
+        return rishManager.execute(prepared.command).fold(
+            onSuccess = { output ->
+                ToolExecutionResult(
+                    output = ExecutionDomainGuard.applyOutputCompatibility(output, prepared),
+                    isError = false,
+                    classification = "SUCCESS",
+                    backend = "rish",
+                    verification = "explicit rish command completed through functional rish backend"
+                )
+            },
+            onFailure = { error ->
+                val message = error.message.orEmpty().ifBlank { "rish execution failed." }
+                ToolExecutionResult(
+                    output = message,
+                    isError = true,
+                    classification = ToolExecutionSemantics.classifyText(message)
+                        ?: "RISH_UNAVAILABLE",
+                    backend = "rish",
+                    persistentFailure = true
+                )
+            }
+        )
     }
 
     private suspend fun fallbackWithoutShizuku(
