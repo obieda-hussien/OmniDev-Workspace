@@ -65,6 +65,7 @@ class ExternalAgentGatewayService : Service() {
     private val sequences = ConcurrentHashMap<String, AtomicLong>()
     private val taskOwners = ConcurrentHashMap<String, String>()
     private val taskSlots = Semaphore(MAX_RUNNING_TASKS, true)
+    private val taskLifecycleLock = Any()
 
     private data class CallerIdentity(
         val uid: Int,
@@ -126,85 +127,87 @@ class ExternalAgentGatewayService : Service() {
                 )
                 return
             }
-            if (snapshots.containsKey(request.taskId)) {
-                emitBestEffort(
-                    callback,
-                    AgentTaskEvent.Error(
-                        request.taskId, 1, System.currentTimeMillis(),
-                        "task_id_already_used",
-                        "This task id already exists; use getTaskSnapshot or create a fresh id"
+            synchronized(taskLifecycleLock) {
+                if (snapshots.containsKey(request.taskId)) {
+                    emitBestEffort(
+                        callback,
+                        AgentTaskEvent.Error(
+                            request.taskId, 1, System.currentTimeMillis(),
+                            "task_id_already_used",
+                            "This task id already exists; use getTaskSnapshot or create a fresh id"
+                        )
                     )
-                )
-                return
-            }
-
-            val existingOwner = taskOwners.putIfAbsent(request.taskId, caller.packageName)
-            if (existingOwner != null) {
-                emitBestEffort(
-                    callback,
-                    AgentTaskEvent.Error(
-                        request.taskId, 1, System.currentTimeMillis(),
-                        "task_id_already_used",
-                        if (existingOwner != caller.packageName) {
-                            "This task id belongs to another connected application"
-                        } else {
-                            "This task id is already being started"
-                        }
-                    )
-                )
-                return
-            }
-
-            if (!taskSlots.tryAcquire()) {
-                taskOwners.remove(request.taskId, caller.packageName)
-                emitBestEffort(
-                    callback,
-                    AgentTaskEvent.Error(
-                        request.taskId,
-                        1,
-                        System.currentTimeMillis(),
-                        "gateway_busy",
-                        "Omni is already running $MAX_RUNNING_TASKS connected-app tasks. " +
-                            "Wait for one to finish or cancel an existing task."
-                    )
-                )
-                return
-            }
-
-            try {
-                callbacks[request.taskId] = callback
-                snapshots[request.taskId] = AgentTaskSnapshot(
-                    taskId = request.taskId,
-                    state = AgentTaskState.QUEUED
-                )
-                trimSnapshots()
-
-                val job = serviceScope.launch(start = CoroutineStart.LAZY) {
-                    runTask(caller, request, callback)
+                    return
                 }
-                jobs[request.taskId] = job
-                job.invokeOnCompletion {
-                    jobs.remove(request.taskId, job)
+    
+                val existingOwner = taskOwners.putIfAbsent(request.taskId, caller.packageName)
+                if (existingOwner != null) {
+                    emitBestEffort(
+                        callback,
+                        AgentTaskEvent.Error(
+                            request.taskId, 1, System.currentTimeMillis(),
+                            "task_id_already_used",
+                            if (existingOwner != caller.packageName) {
+                                "This task id belongs to another connected application"
+                            } else {
+                                "This task id is already being started"
+                            }
+                        )
+                    )
+                    return
+                }
+    
+                if (!taskSlots.tryAcquire()) {
+                    taskOwners.remove(request.taskId, caller.packageName)
+                    emitBestEffort(
+                        callback,
+                        AgentTaskEvent.Error(
+                            request.taskId,
+                            1,
+                            System.currentTimeMillis(),
+                            "gateway_busy",
+                            "Omni is already running $MAX_RUNNING_TASKS connected-app tasks. " +
+                                "Wait for one to finish or cancel an existing task."
+                        )
+                    )
+                    return
+                }
+    
+                try {
+                    callbacks[request.taskId] = callback
+                    snapshots[request.taskId] = AgentTaskSnapshot(
+                        taskId = request.taskId,
+                        state = AgentTaskState.QUEUED
+                    )
+                    trimSnapshots()
+    
+                    val job = serviceScope.launch(start = CoroutineStart.LAZY) {
+                        runTask(caller, request, callback)
+                    }
+                    jobs[request.taskId] = job
+                    job.invokeOnCompletion {
+                        jobs.remove(request.taskId, job)
+                        callbacks.remove(request.taskId)
+                        taskSlots.release()
+                    }
+                    job.start()
+                } catch (error: Exception) {
                     callbacks.remove(request.taskId)
+                    snapshots.remove(request.taskId)
+                    sequences.remove(request.taskId)
+                    taskOwners.remove(request.taskId, caller.packageName)
                     taskSlots.release()
-                }
-                job.start()
-            } catch (error: Exception) {
-                callbacks.remove(request.taskId)
-                snapshots.remove(request.taskId)
-                sequences.remove(request.taskId)
-                taskOwners.remove(request.taskId, caller.packageName)
-                taskSlots.release()
-                emitBestEffort(
-                    callback,
-                    AgentTaskEvent.Error(
-                        request.taskId,
-                        1,
-                        System.currentTimeMillis(),
-                        "gateway_start_failed",
-                        error.message ?: "Could not start connected-app task"
+                    emitBestEffort(
+                        callback,
+                        AgentTaskEvent.Error(
+                            request.taskId,
+                            1,
+                            System.currentTimeMillis(),
+                            "gateway_start_failed",
+                            error.message ?: "Could not start connected-app task"
+                        )
                     )
-                )
+                }
             }
         }
 
@@ -212,22 +215,40 @@ class ExternalAgentGatewayService : Service() {
             enforceGatewayPermission()
             val caller = resolveCallerIdentity()
             enforceTaskOwner(taskId, caller)
-            jobs.remove(taskId)?.cancel()
-            val previous = snapshots[taskId]
-            snapshots[taskId] = (previous ?: AgentTaskSnapshot(
-                taskId = taskId,
-                state = AgentTaskState.CANCELLED
-            )).copy(state = AgentTaskState.CANCELLED)
-            callbacks[taskId]?.let { callback ->
-                emitBestEffort(
-                    callback,
-                    AgentTaskEvent.Cancelled(
-                        taskId, nextSequence(taskId), System.currentTimeMillis()
-                    )
+
+            var jobToCancel: Job? = null
+            var callbackToNotify: IOmniAgentCallback? = null
+            var cancelledEvent: AgentTaskEvent.Cancelled? = null
+
+            synchronized(taskLifecycleLock) {
+                val previous = snapshots[taskId] ?: return
+                if (
+                    previous.state == AgentTaskState.COMPLETED ||
+                    previous.state == AgentTaskState.FAILED ||
+                    previous.state == AgentTaskState.CANCELLED
+                ) {
+                    return
+                }
+
+                val sequence = nextSequence(taskId)
+                snapshots[taskId] = previous.copy(
+                    state = AgentTaskState.CANCELLED,
+                    lastSequence = sequence
+                )
+                jobToCancel = jobs.remove(taskId)
+                callbackToNotify = callbacks[taskId]
+                cancelledEvent = AgentTaskEvent.Cancelled(
+                    taskId, sequence, System.currentTimeMillis()
                 )
             }
-        }
 
+            jobToCancel?.cancel()
+            val event = cancelledEvent
+            val callback = callbackToNotify
+            if (event != null && callback != null) {
+                emitBestEffort(callback, event)
+            }
+        }
         override fun getTaskSnapshot(protocolVersion: Int, taskId: String): String {
             enforceGatewayPermission()
             val caller = resolveCallerIdentity()
