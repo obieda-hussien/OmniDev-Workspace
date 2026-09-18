@@ -28,7 +28,8 @@ internal object TierToolGate {
     internal val SHIZUKU_DEPENDENT_TOOLS: Set<String> = setOf("shizuku_command")
 
     internal val HIDDEN_LEGACY_TOOL_ALIASES: Set<String> = setOf(
-        "direct_terminal", "termux_bridge", "advanced_terminal", "setup_build_environment"
+        "direct_terminal", "execute_terminal_command", "termux_bridge",
+        "advanced_terminal", "setup_build_environment"
     )
 
     private fun chatPolicy(): ChatCapabilityStore.Snapshot? = runCatching {
