@@ -131,7 +131,10 @@ object PermissionManagerTool {
             } else null
             "device_admin" -> {
                 withContext(Dispatchers.Main) { OmniDeviceAdminReceiver.requestAdminActivation(context) }
-                return ToolExecutionResult("Opened Device Admin activation. User approval is required by Android.")
+                return pendingUserAction(
+                    "Opened Device Admin activation. Android is waiting for user approval.",
+                    backend = "android-device-admin"
+                )
             }
             else -> null
         }
@@ -166,11 +169,14 @@ object PermissionManagerTool {
             RUNTIME_REQUEST_CODE
         )
         return if (requested) {
-            ToolExecutionResult("Requested runtime permission: $standardPermission. Android is waiting for user approval.")
+            pendingUserAction(
+                "Requested runtime permission: $standardPermission. Android is waiting for user approval.",
+                backend = "android-runtime-permission"
+            )
         } else {
-            ToolExecutionResult(
-                "USER_ACTION_REQUIRED: no foreground Activity is available to show the permission dialog for $standardPermission. Open OmniDev and retry.",
-                isError = true
+            pendingUserAction(
+                "No foreground Activity is available to show the permission dialog for $standardPermission. Open OmniDev and retry.",
+                backend = "android-runtime-permission"
             )
         }
     }
@@ -230,7 +236,14 @@ object PermissionManagerTool {
                 appendLine()
                 append("Signature/system-only permissions are not forgeable by a normal APK; they become available only through the OEM/system/root/Shizuku paths Android actually permits.")
             }.trimEnd(),
-            isError = remaining.isNotEmpty() && !dialogStarted
+            isError = remaining.isNotEmpty(),
+            classification = if (remaining.isNotEmpty()) "USER_ACTION_REQUIRED" else "SUCCESS",
+            backend = "android-runtime-permission",
+            retryable = false,
+            persistentFailure = remaining.isNotEmpty(),
+            verification = if (remaining.isEmpty()) {
+                "all requestable runtime permissions verified granted"
+            } else null
         )
     }
 
@@ -268,6 +281,18 @@ object PermissionManagerTool {
         append("• VPN consent: ${checkMark(VpnService.prepare(context) == null)}")
     }
 
+    private fun pendingUserAction(
+        message: String,
+        backend: String
+    ): ToolExecutionResult = ToolExecutionResult(
+        output = "USER_ACTION_REQUIRED: $message",
+        isError = true,
+        classification = "USER_ACTION_REQUIRED",
+        backend = backend,
+        retryable = false,
+        persistentFailure = true
+    )
+
     private fun checkMark(granted: Boolean): String = if (granted) "GRANTED" else "DENIED / USER ACTION"
 
     private fun standardStatus(context: Context, permission: String): String =
@@ -294,9 +319,18 @@ object PermissionManagerTool {
         runCatching {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
-            ToolExecutionResult("Opened Android settings/dialog for: $label. User approval is required where Android mandates it.")
+            pendingUserAction(
+                "Opened Android settings/dialog for: $label. User approval is required where Android mandates it.",
+                backend = "android-settings"
+            )
         }.getOrElse { error ->
-            ToolExecutionResult("Could not open settings for '$label': ${error.message}", isError = true)
+            ToolExecutionResult(
+                output = "Could not open settings for '$label': ${error.message}",
+                isError = true,
+                classification = "ANDROID_SETTINGS_LAUNCH_FAILED",
+                backend = "android-settings",
+                retryable = false
+            )
         }
     }
 
