@@ -84,9 +84,14 @@ object PrivilegedExecutionManager {
      * Executes [command] via the best available backend.
      *
      * ### Fallback Chain
-     * Shizuku → rish → Root → Failure (with clear diagnostics)
+     * Shizuku → rish → Failure by default.
+     * Root is opt-in only via [allowRootFallback] or [executeRootCommand]; it is never a silent
+     * privilege escalation for an ordinary Android-shell request.
      */
-    suspend fun executeCommand(command: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun executeCommand(
+        command: String,
+        allowRootFallback: Boolean = false
+    ): Result<String> = withContext(Dispatchers.IO) {
         if (command.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Command is empty."))
         }
@@ -154,16 +159,21 @@ object PrivilegedExecutionManager {
             Log.w(TAG, "rish failed: ${rishResult.exceptionOrNull()?.message}")
         }
 
-        // ── 3. Root/SU ──
+        // ── 3. Root/SU — explicit opt-in only ──
         val rootReady = isRootAvailable()
-        if (rootReady) {
-            Log.d(TAG, "Trying root: ${command.take(40)}")
+        if (allowRootFallback && rootReady) {
+            Log.d(TAG, "Trying explicitly allowed root fallback: ${command.take(40)}")
             return@withContext executeViaRoot(preparedCommand)
         }
 
         // ── Failure: Clear diagnostics ──
         Result.failure(
-            IllegalStateException(buildFailureMessage(rootReady = rootReady))
+            IllegalStateException(
+                buildFailureMessage(
+                    rootReady = rootReady,
+                    rootFallbackAllowed = allowRootFallback
+                )
+            )
         )
     }
 
@@ -203,7 +213,10 @@ object PrivilegedExecutionManager {
     /**
      * Builds a diagnostic failure message explaining why execution failed and the solution.
      */
-    private fun buildFailureMessage(rootReady: Boolean): String = buildString {
+    private fun buildFailureMessage(
+        rootReady: Boolean,
+        rootFallbackAllowed: Boolean
+    ): String = buildString {
         appendLine("❌ No execution backend available.")
         appendLine()
         val shizukuAvail = ShizukuCommandTool.isAvailable()
@@ -214,7 +227,13 @@ object PrivilegedExecutionManager {
             else          -> "⚠️ Available but execution failed"
         }}")
         appendLine("• rish: ${if (isRishReady()) "⚠️ Available but failed" else "❌ Unavailable"}")
-        appendLine("• root: ${if (rootReady) "✅ ready" else "❌ unavailable"}")
+        appendLine(
+            "• root: " + when {
+                !rootReady -> "❌ unavailable"
+                rootFallbackAllowed -> "✅ ready and explicitly allowed"
+                else -> "✅ ready but not used (root requires explicit root capability)"
+            }
+        )
         appendLine()
         appendLine("Solution:")
         if (!shizukuAvail) {
