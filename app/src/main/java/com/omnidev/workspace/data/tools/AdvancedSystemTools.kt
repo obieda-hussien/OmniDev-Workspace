@@ -380,19 +380,65 @@ object SystemSettingsTool {
         return@withContext when (action.lowercase()) {
             "get" -> {
                 val result = PrivilegedExecutionManager.executeCommand("settings get $safeNamespace $safeKey")
-                if (result.isSuccess) ToolExecutionResult("$safeNamespace/$safeKey = ${result.getOrDefault("").trim()}")
-                else ToolExecutionResult("Failed to get setting: ${result.exceptionOrNull()?.message}", isError = true)
+                if (result.isSuccess) {
+                    val actual = result.getOrDefault("").trim()
+                    ToolExecutionResult(
+                        output = "$safeNamespace/$safeKey = $actual",
+                        classification = "SUCCESS",
+                        verification = "read settings $safeNamespace/$safeKey"
+                    )
+                } else {
+                    ToolExecutionResult(
+                        output = "Failed to get setting: ${result.exceptionOrNull()?.message}",
+                        isError = true,
+                        classification = "SYSTEM_SETTING_READ_FAILED"
+                    )
+                }
             }
             "put" -> {
                 if (value.isNullOrBlank()) {
-                    ToolExecutionResult("Missing 'value' for put action.", isError = true)
+                    ToolExecutionResult(
+                        "Missing 'value' for put action.",
+                        isError = true,
+                        classification = "INVALID_ARGUMENT"
+                    )
                 } else {
-                    // FIX: Safe quoting allows URLs, colons, slashes, and spaces in values (e.g. accessibility services)
                     val cmd = "settings put $safeNamespace $safeKey ${shellQuote(value)}"
-                    val result = PrivilegedExecutionManager.executeCommand(cmd)
-                    
-                    if (result.isSuccess) ToolExecutionResult("✅ Set $safeNamespace/$safeKey = $value")
-                    else ToolExecutionResult("Failed to set setting: ${result.exceptionOrNull()?.message}", isError = true)
+                    val write = PrivilegedExecutionManager.executeCommand(cmd)
+                    if (write.isFailure) {
+                        ToolExecutionResult(
+                            output = "Failed to set setting: ${write.exceptionOrNull()?.message}",
+                            isError = true,
+                            classification = "SYSTEM_SETTING_WRITE_FAILED"
+                        )
+                    } else {
+                        val readBack = PrivilegedExecutionManager.executeCommand(
+                            "settings get $safeNamespace $safeKey"
+                        )
+                        val actual = readBack.getOrNull()?.trim()
+                        if (readBack.isSuccess && actual == value) {
+                            ToolExecutionResult(
+                                output = "✅ Set $safeNamespace/$safeKey = $value",
+                                classification = "SUCCESS",
+                                verification = "read-back verified $safeNamespace/$safeKey=$actual"
+                            )
+                        } else {
+                            ToolExecutionResult(
+                                output = buildString {
+                                    append("POSTCONDITION_FAILED: wrote $safeNamespace/$safeKey but ")
+                                    if (readBack.isFailure) {
+                                        append("read-back failed: ${readBack.exceptionOrNull()?.message}")
+                                    } else {
+                                        append("expected '$value', read back '${actual.orEmpty()}'")
+                                    }
+                                },
+                                isError = true,
+                                classification = "POSTCONDITION_FAILED",
+                                retryable = false,
+                                persistentFailure = false
+                            )
+                        }
+                    }
                 }
             }
             else -> ToolExecutionResult("Unknown action. Use get or put.", isError = true)
@@ -402,7 +448,7 @@ object SystemSettingsTool {
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "system_settings_tool",
-            description = "Read or modify Android system settings (system, secure, global). Requires Shizuku/Root.",
+            description = "Read or modify Android system settings with privileged-shell routing and mutation read-back verification. Prefer this over raw settings shell commands.",
             parameters = listOf(
                 ToolParameter("action", "string", "Action: 'get' or 'put'.", required = true),
                 ToolParameter("namespace", "string", "Namespace: 'system', 'secure', or 'global'.", required = true),
