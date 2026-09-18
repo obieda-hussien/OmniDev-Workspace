@@ -69,7 +69,7 @@ Never repair rish by copying `librish.so`, changing LD_LIBRARY_PATH, or adding
     private suspend fun fullCheck(): ToolExecutionResult {
         val runtime = EnvironmentSetupManager.probe(force = true)
 
-        val termuxHealth = if (TermuxRunCommandBridge.isTermuxInstalled()) {
+        val termuxHealth = if (EnvironmentSetupManager.isTermuxUsable()) {
             EnvironmentSetupManager.executeShell(
                 "printf 'termux_ok\\n'; id; printf 'prefix=%s\\n' \"\$PREFIX\""
             )
