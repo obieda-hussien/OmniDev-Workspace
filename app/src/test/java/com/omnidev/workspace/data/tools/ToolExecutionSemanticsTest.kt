@@ -93,4 +93,58 @@ class ToolExecutionSemanticsTest {
         assertTrue(result.output.startsWith("[omni-outcome]"))
         assertTrue(result.output.contains("observation compacted"))
     }
+    @Test
+    fun `run terminal exit zero with security exception is still failure`() {
+        val raw = ToolExecutionResult(
+            output = """
+                $ content query --uri content://sms
+                [exit_code: 0]
+                [stdout]
+                (empty)
+                [stderr]
+                Error while accessing provider:sms
+                java.lang.SecurityException: Permission Denial: requires android.permission.ACCESS_CONTENT_PROVIDERS_EXTERNALLY
+            """.trimIndent(),
+            exitCode = 0,
+            backend = "app-shell"
+        )
+
+        val result = ToolExecutionSemantics.normalize("run_terminal", raw)
+
+        assertTrue(result.isError)
+        assertEquals("ANDROID_PERMISSION_DENIED", result.classification)
+        assertEquals("app-shell", result.backend)
+        assertTrue(result.persistentFailure)
+    }
+
+    @Test
+    fun `unsupported Android shell argument is not reported as success`() {
+        val raw = ToolExecutionResult(
+            output = """
+                usage: adb shell content query --uri <URI>
+                [ERROR] Unsupported argument: --limit
+            """.trimIndent()
+        )
+
+        val result = ToolExecutionSemantics.normalize("shizuku_command", raw)
+
+        assertTrue(result.isError)
+        assertEquals("UNSUPPORTED_ARGUMENT", result.classification)
+    }
+
+    @Test
+    fun `Termux RunCommand transport failure gets stable persistent class`() {
+        val raw = ToolExecutionResult(
+            output = "[termux] Android could not resolve/start Termux RunCommandService.",
+            isError = true
+        )
+
+        val result = ToolExecutionSemantics.normalize("agent_runtime", raw)
+
+        assertTrue(result.isError)
+        assertEquals("TERMUX_RUN_COMMAND_UNAVAILABLE", result.classification)
+        assertTrue(ToolExecutionSemantics.isPersistentFailure(result))
+    }
+
+
 }
