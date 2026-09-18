@@ -115,6 +115,7 @@ object IntentClassifier {
         CORE,
         CODE_TERMINAL,
         DEVICE_CONTROL,
+        ROOT_CONTROL,
         MESSAGING,
         ANALYTICS,
         WEB_SEARCH,
@@ -335,6 +336,11 @@ object IntentClassifier {
             "http://", "https://", "www.", "website", "url", "google"
         )
         val hasDeviceControl = signals.deviceIntent >= 0.15f
+        val hasExplicitRoot = containsAny(
+            lower,
+            " root ", "rooted", "root access", "root-only", "su -c", "magisk",
+            "روت", "صلاحيات الروت", "ماجيسك"
+        ) || lower == "root" || lower.startsWith("root ")
         val hasCode = signals.codeIntent >= 0.14f
         val hasGeneralUtility = containsAny(
             lower,
@@ -346,12 +352,13 @@ object IntentClassifier {
             add(ToolDomain.CORE)
             if (hasCode) add(ToolDomain.CODE_TERMINAL)
             if (hasDeviceControl) add(ToolDomain.DEVICE_CONTROL)
+            if (hasExplicitRoot) add(ToolDomain.ROOT_CONTROL)
             if (hasMessaging) add(ToolDomain.MESSAGING)
             if (hasAnalytics) add(ToolDomain.ANALYTICS)
             if (hasWeb) add(ToolDomain.WEB_SEARCH)
 
             val hasSpecificDomain =
-                hasCode || hasDeviceControl || hasMessaging || hasAnalytics || hasWeb
+                hasCode || hasDeviceControl || hasExplicitRoot || hasMessaging || hasAnalytics || hasWeb
             if (
                 hasGeneralUtility ||
                 (mode == OmniMode.CHAT && !hasWeb) ||
@@ -381,10 +388,14 @@ object IntentClassifier {
             n.contains("script_runner") || n.contains("tool_downloader")
         ) return ToolDomain.CODE_TERMINAL
 
+        if (n in ROOT_TOOLS || n.contains("root_shell")) {
+            return ToolDomain.ROOT_CONTROL
+        }
+
         if (n in DEVICE_TOOLS ||
             n.startsWith("device_") || n.startsWith("system_") || n.startsWith("app_") ||
             n.startsWith("input_") || n.startsWith("launcher_") || n.startsWith("widget_") ||
-            n.contains("shizuku") || n.contains("root_shell") || n.contains("permission") ||
+            n.contains("shizuku") || n.contains("permission") ||
             n.contains("logcat") || n.contains("screenshot") || n.contains("hardware") ||
             n.contains("vpn") || n.contains("power") || n.contains("ui_automation") ||
             n.contains("semantic_ui")
@@ -461,8 +472,12 @@ object IntentClassifier {
         "package_installer", "quality_security", "execution_diagnostics", "skill_manager"
     )
 
+    private val ROOT_TOOLS = setOf(
+        "advanced_root_shell", "root_shell_tool"
+    )
+
     private val DEVICE_TOOLS = setOf(
-        "privileged_tool", "shizuku_command", "advanced_root_shell", "root_shell_tool",
+        "privileged_tool", "shizuku_command",
         "app_manager", "hardware_toggle", "device_info", "visual_inspector", "ui_replica_pipeline",
         "screenshot", "system_settings", "media_control", "device_admin", "clipboard",
         "notification_capture", "vpn_control", "system_power", "permission_manager"
