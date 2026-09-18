@@ -37,6 +37,52 @@ object ContextCompressor {
     }
 
     /**
+     * Zero-token rolling prompt compaction.
+     *
+     * The UI, journal and Agent Brain already receive the full ToolExecutionResult before this
+     * method runs. Only the model-facing conversation is shrunk: keep the newest tool-call group
+     * intact and compress older tool observations to high-signal head/tail evidence. This prevents
+     * long read-only dumps from making every subsequent ReAct iteration progressively more costly.
+     */
+    fun compactHistoricalToolEvidence(
+        messages: MutableList<ChatMessage>,
+        keepRecentToolGroups: Int = 1
+    ) {
+        val grouped = groups(messages)
+        val toolGroupIndices = grouped.indices.filter { index ->
+            grouped[index].any { it.role == MessageRole.TOOL }
+        }
+        if (toolGroupIndices.size <= keepRecentToolGroups.coerceAtLeast(0)) return
+
+        val keep = toolGroupIndices
+            .takeLast(keepRecentToolGroups.coerceAtLeast(0))
+            .toSet()
+
+        val compacted = grouped.flatMapIndexed { index, group ->
+            if (index in keep || index !in toolGroupIndices) {
+                group
+            } else {
+                group.map { message ->
+                    if (message.role != MessageRole.TOOL) {
+                        message
+                    } else {
+                        val hasError = message.toolResults.any { it.isError }
+                        message.copy(
+                            content = compactEvidence(message.content, hasError),
+                            toolResults = message.toolResults.map { result ->
+                                result.copy(output = compactEvidence(result.output, result.isError))
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        messages.clear()
+        messages.addAll(compacted)
+    }
+
+    /**
      * Compacts history and returns the hidden summarizer cost so callers can charge it against the
      * same run budget. When the run is near its budget, model summarization is skipped and a local
      * deterministic evidence digest is used instead of spending another completion.
