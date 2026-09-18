@@ -67,15 +67,15 @@ object AndroidPrivilegedCommandRouter {
         prepared: ExecutionDomainGuard.PreparedPrivilegedCommand,
         unavailableMessage: String
     ): ToolExecutionResult {
-        val canFallback = PrivilegedExecutionManager.isRishReady() ||
-            PrivilegedExecutionManager.isRootAvailable()
+        val canFallback = PrivilegedExecutionManager.isRishReady()
         if (!canFallback) {
             return ToolExecutionResult(
                 output = buildString {
                     appendLine(unavailableMessage)
                     append(
                         "Android command was not sent to Termux/app shell because that would run " +
-                            "under the wrong UID. Start/grant Shizuku or provide a working rish/root backend."
+                            "under the wrong UID. Start/grant Shizuku or provide a working rish backend. " +
+                            "Root is never used as an implicit fallback; use the explicit root tool when truly required."
                     )
                 }.trimEnd(),
                 isError = true,
@@ -92,7 +92,7 @@ object AndroidPrivilegedCommandRouter {
                     output = ExecutionDomainGuard.applyOutputCompatibility(output, prepared),
                     isError = false,
                     classification = "SUCCESS",
-                    backend = if (PrivilegedExecutionManager.isRishReady()) "rish" else "root"
+                    backend = "rish"
                 )
             },
             onFailure = { error ->
