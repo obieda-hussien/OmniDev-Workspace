@@ -236,23 +236,24 @@ object ExtensionConnectionManager {
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
+                // The binding itself remains active after a transient service-process death;
+                // Android will reconnect this ServiceConnection when the service comes back.
+                // Starting a second bind here leaks/duplicates connections.
                 handle.binder = null
-                serviceConnections.remove(handle.id)
-                Log.w(TAG, "Disconnected extension: " + handle.id)
-                bindById(handle.id)
+                Log.w(TAG, "Disconnected extension; awaiting system reconnect: " + handle.id)
             }
 
             override fun onBindingDied(name: ComponentName?) {
                 handle.binder = null
-                serviceConnections.remove(handle.id)
-                Log.w(TAG, "Binding died extension: " + handle.id)
+                Log.w(TAG, "Binding died extension; rebinding: " + handle.id)
+                unbindById(handle.id)
                 bindById(handle.id)
             }
 
             override fun onNullBinding(name: ComponentName?) {
                 handle.binder = null
-                serviceConnections.remove(handle.id)
                 Log.w(TAG, "Null binding extension: " + handle.id)
+                unbindById(handle.id)
             }
         }
 
