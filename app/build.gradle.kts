@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.owasp.dependencycheck)
     alias(libs.plugins.android.application)
@@ -7,9 +9,11 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
-val omniLocalProperties = java.util.Properties().apply {
+val omniLocalProperties = Properties().apply {
     val local = rootProject.file("local.properties")
-    if (local.isFile) local.inputStream().use(::load)
+    if (local.isFile) {
+        local.inputStream().use { stream -> load(stream) }
+    }
 }
 
 fun omniSigningValue(name: String): String? =
