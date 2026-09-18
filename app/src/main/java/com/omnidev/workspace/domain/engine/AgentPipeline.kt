@@ -388,19 +388,26 @@ Do not use tools. Do not rewrite merely for style.
             )
 
             val toolResults = mutableListOf<ToolCallResult>()
+            val modelSafeResults = mutableListOf<ToolExecutionResult>()
             for ((call, result) in response.toolCalls.zip(rawResults)) {
-                toolResults += ToolCallResult(call.id, call.name, result.output, result.isError)
+                // Keep the exact local UI observation, but never forward authentication secrets
+                // (OTP/PIN/password/token) into the next model prompt or persistent Agent Brain.
                 send(AgentEvent.ToolResult(call.name, result.output, result.isError, iteration))
+                val modelSafe = result.copy(
+                    output = SensitiveObservationRedactor.redact(result.output)
+                )
+                modelSafeResults += modelSafe
+                toolResults += ToolCallResult(call.id, call.name, modelSafe.output, modelSafe.isError)
                 brain?.onToolExecutionEnd(
                     toolName = call.name,
                     parameters = call.arguments,
-                    result = result,
+                    result = modelSafe,
                     agentContext = redact(userMessage.take(240)),
                     callId = call.id
                 )
             }
 
-            val stagnation = stagnationDetector.observe(response.toolCalls, rawResults)
+            val stagnation = stagnationDetector.observe(response.toolCalls, modelSafeResults)
             if (stagnation.shouldAbort) {
                 val outcome = if (stagnation.kind == AgentStagnationDetector.Kind.INFRASTRUCTURE_BLOCK) {
                     EpisodeOutcome.BLOCKED
