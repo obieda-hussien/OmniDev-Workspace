@@ -16,6 +16,7 @@ object ToolExecutionSemantics {
     private const val TELEMETRY_PREFIX = "[omni-outcome]"
 
     private val terminalLikeTools = setOf(
+        "run_terminal",
         "agent_runtime",
         "privileged_tool",
         "shizuku_command",
@@ -99,7 +100,11 @@ object ToolExecutionSemantics {
             "RISH_LAYOUT_BROKEN",
             "ROOT_UNAVAILABLE",
             "WRONG_EXECUTION_DOMAIN",
-            "ANDROID_PERMISSION_DENIED"
+            "ANDROID_PERMISSION_DENIED",
+            "TERMUX_RUN_COMMAND_UNAVAILABLE",
+            "TERMUX_EXTERNAL_APPS_DISABLED",
+            "SHIZUKU_PERMISSION_REQUIRED",
+            "SHIZUKU_UNAVAILABLE"
         )
 
     /**
@@ -154,6 +159,7 @@ object ToolExecutionSemantics {
             lower.contains("shizuku userservice") || toolName == "shizuku_command" -> "shizuku-user-service"
             toolName == "privileged_tool" && lower.contains("rish") -> "rish"
             toolName == "privileged_tool" -> "privileged-router"
+            toolName == "run_terminal" -> "app-shell"
             toolName in setOf("agent_runtime", "direct_terminal", "termux_bridge", "python_runtime", "setup_build_environment") -> "termux"
             toolName in setOf("root_shell_tool", "advanced_root_shell") -> "root"
             else -> null
@@ -175,8 +181,22 @@ object ToolExecutionSemantics {
                 lower.contains("\$prefix/bin/rish is a directory") ->
                 Match("RISH_LAYOUT_BROKEN", persistent = true)
 
-            lower.contains("no su program found") || lower.contains("su: not found") ->
+            lower.contains("no su program found") ||
+                lower.contains("su: not found") ||
+                lower.contains("su: inaccessible or not found") ->
                 Match("ROOT_UNAVAILABLE", persistent = true)
+
+            lower.contains("could not resolve/start termux runcommandservice") ||
+                lower.contains("android could not resolve/start termux runcommandservice") ->
+                Match("TERMUX_RUN_COMMAND_UNAVAILABLE", persistent = true)
+
+            lower.contains("allow-external-apps") &&
+                (lower.contains("runcommandservice") || lower.contains("termux")) ->
+                Match("TERMUX_EXTERNAL_APPS_DISABLED", persistent = true)
+
+            lower.contains("unsupported argument:") ||
+                lower.contains("[error] unsupported argument") ->
+                Match("UNSUPPORTED_ARGUMENT")
 
             lower.contains("securityexception") && lower.contains("permission denial") ->
                 Match("ANDROID_PERMISSION_DENIED", persistent = true)
