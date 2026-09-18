@@ -1,6 +1,12 @@
-name: Android CI/CD Pipeline (Manual Backup)
+name: Android CI
 
 on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       build_release:
@@ -10,7 +16,7 @@ on:
         type: boolean
 
 concurrency:
-  group: android-manual-${{ github.ref }}
+  group: android-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -21,10 +27,11 @@ env:
   ANDROID_API_LEVEL: "36"
   ANDROID_BUILD_TOOLS: "35.0.0"
   ANDROID_NDK_VERSION: "27.0.12077973"
+  CI_GRADLE_JVMARGS: "-Xmx5g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8 -XX:+HeapDumpOnOutOfMemoryError"
 
 jobs:
-  manual-android-ci:
-    name: Manual Android verification
+  android-verification:
+    name: Compile, test, lint, and debug APKs
     runs-on: ubuntu-latest
     timeout-minutes: 120
 
@@ -33,6 +40,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           submodules: recursive
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
@@ -45,7 +53,7 @@ jobs:
       - name: Set up Android SDK 36
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
-          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
 
       - name: Install and verify Android NDK
         run: bash .github/scripts/install-android-ndk.sh
@@ -56,6 +64,10 @@ jobs:
       - name: Compile, test, lint, and build debug flavors
         run: |
           ./gradlew --no-daemon --max-workers 1 \
+            -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            -Pkotlin.incremental=false \
+            -Dorg.gradle.vfs.watch=false \
             :app:lintLiteDebug \
             :app:lintNormDebug \
             :app:lintProDebug \
@@ -71,25 +83,76 @@ jobs:
             :app:assembleProDebug \
             :app:assembleOemDebug \
             :app:assembleAdminDebug \
-            --continue
+            --continue --stacktrace
+
+      - name: Upload debug APKs and reports
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: android-ci-${{ github.run_number }}-${{ github.sha }}
+          path: |
+            app/build/outputs/apk/**/debug/*.apk
+            app/build/reports/lint-results*.html
+            app/build/reports/lint-results*.xml
+            app/build/reports/tests/**
+            app/build/test-results/**
+          if-no-files-found: ignore
+          retention-days: 7
+
+  release-apks:
+    name: Release APKs
+    needs: android-verification
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.build_release) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Set up Android SDK 36
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
+
+      - name: Install and verify Android NDK
+        run: bash .github/scripts/install-android-ndk.sh
+
+      - name: Grant gradlew permission
+        run: chmod +x gradlew
 
       - name: Build release flavors
-        if: inputs.build_release == true
         run: |
           ./gradlew --no-daemon --max-workers 1 \
+            -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            -Pkotlin.incremental=false \
+            -Dorg.gradle.vfs.watch=false \
             :app:assembleLiteRelease \
             :app:assembleNormRelease \
             :app:assembleProRelease \
             :app:assembleOemRelease \
             :app:assembleAdminRelease \
-            --continue
+            --continue --stacktrace
 
-      - name: Upload APKs
+      - name: Upload release APKs
         if: always()
         continue-on-error: true
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: manual-apks-${{ github.run_number }}
-          path: app/build/outputs/apk/**/*.apk
+          name: release-apks-${{ github.run_number }}-${{ github.sha }}
+          path: app/build/outputs/apk/**/release/*.apk
           if-no-files-found: ignore
           retention-days: 7
