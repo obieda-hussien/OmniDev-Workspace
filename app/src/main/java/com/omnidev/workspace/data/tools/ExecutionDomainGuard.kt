@@ -115,7 +115,7 @@ object ExecutionDomainGuard {
             val match = contentQueryLimit.find(command)
             if (match != null) {
                 rowLimit = match.groupValues[1].toIntOrNull()?.coerceIn(1, 500)
-                command = contentQueryLimit.replace(command, "").replace(Regex("\\s+"), " ").trim()
+                command = contentQueryLimit.replace(command, "").trim()
                 if (rowLimit != null) {
                     notes += "implemented unsupported content-query --limit=$rowLimit in OmniDev output adapter"
                 }
