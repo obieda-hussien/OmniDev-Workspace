@@ -207,6 +207,8 @@ class SmartLearningBridge(
                 success = !result.isError,
                 errorMessage = if (result.isError) result.output else "",
                 executionTimeMs = executionTimeMs,
+                classification = result.classification,
+                backend = result.backend,
                 params = parameters
             )
         }
