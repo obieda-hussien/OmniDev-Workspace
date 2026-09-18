@@ -130,4 +130,79 @@ class AgentStagnationDetectorTest {
         name = name,
         arguments = arguments
     )
+    @Test
+    fun `successful content queries count as read only even through run terminal`() {
+        val detector = AgentStagnationDetector(abortThreshold = 0.76f)
+
+        val first = detector.observe(
+            toolCalls = listOf(
+                call(
+                    "run_terminal",
+                    mapOf("command" to "content query --uri content://sms --projection body,date")
+                )
+            ),
+            results = listOf(
+                ToolExecutionResult(
+                    output = "Row: 0 body=first",
+                    isError = false,
+                    classification = "SUCCESS",
+                    backend = "shizuku-user-service"
+                )
+            )
+        )
+        val second = detector.observe(
+            toolCalls = listOf(
+                call(
+                    "run_terminal",
+                    mapOf(
+                        "command" to
+                            "content query --uri content://sms --projection body,date --sort \"date DESC\""
+                    )
+                )
+            ),
+            results = listOf(
+                ToolExecutionResult(
+                    output = "Row: 0 body=second",
+                    isError = false,
+                    classification = "SUCCESS",
+                    backend = "shizuku-user-service"
+                )
+            )
+        )
+
+        assertEquals(1, first.noActionStreak)
+        assertEquals(2, second.noActionStreak)
+        assertEquals(1f, second.readOnlyRatio, 0.001f)
+        assertFalse(second.shouldAbort)
+    }
+
+    @Test
+    fun `permission mutation through terminal remains an action`() {
+        val detector = AgentStagnationDetector()
+
+        val snapshot = detector.observe(
+            toolCalls = listOf(
+                call(
+                    "run_terminal",
+                    mapOf(
+                        "command" to
+                            "pm grant com.omnidev.workspace android.permission.READ_SMS"
+                    )
+                )
+            ),
+            results = listOf(
+                ToolExecutionResult(
+                    output = "granted",
+                    isError = false,
+                    classification = "SUCCESS",
+                    backend = "shizuku-user-service"
+                )
+            )
+        )
+
+        assertEquals(0, snapshot.noActionStreak)
+        assertEquals(0f, snapshot.readOnlyRatio, 0.001f)
+    }
+
+
 }
