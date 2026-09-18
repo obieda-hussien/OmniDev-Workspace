@@ -34,21 +34,28 @@ class BootReceiver : BroadcastReceiver() {
 
                 OmniDevApp.ensureWorkManagerInitialized(app)
                 BackgroundServiceSupervisor.bootstrap(app)
-                val requested = runCatching {
-                    BackgroundServiceSupervisor.recoverNow(app, "boot:${action.substringAfterLast('.')}")
-                }.getOrElse { error ->
-                    BackgroundServiceSupervisor.recordFailure(
-                        app,
-                        "Boot recovery failed: ${error.javaClass.simpleName}: ${error.message}"
-                    )
-                    false
-                }
 
+                val requested = BackgroundServiceSupervisor.recoverNow(
+                    app,
+                    "boot:${action.substringAfterLast('.')}"
+                )
                 if (!requested && BackgroundServiceSupervisor.hasDurableWork(app)) {
                     BackgroundServiceSupervisor.scheduleRecovery(
                         app,
                         reason = "boot_deferred:${action.substringAfterLast('.')}",
                         delayMs = 5_000L
+                    )
+                }
+            } catch (error: Exception) {
+                // A boot/package-replaced broadcast must never take the whole process down.
+                // Direct-boot/storage/WorkManager races are recoverable and will be retried by the
+                // next unlock/package/boot signal or by the normal supervisor once the app opens.
+                Log.e(TAG, "Background recovery trigger failed: $action", error)
+                runCatching { DebugLogManager.appendError(TAG, error) }
+                runCatching {
+                    BackgroundServiceSupervisor.recordFailure(
+                        app,
+                        "Boot recovery failed: ${error.javaClass.simpleName}: ${error.message}"
                     )
                 }
             } finally {
