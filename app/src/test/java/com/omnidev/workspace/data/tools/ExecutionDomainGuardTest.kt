@@ -1,8 +1,10 @@
 package com.omnidev.workspace.data.tools
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ExecutionDomainGuardTest {
@@ -59,4 +61,58 @@ class ExecutionDomainGuardTest {
             )
         )
     }
+    @Test
+    fun `content provider command is recognized as Android privileged work`() {
+        val violation = ExecutionDomainGuard.findViolation(
+            "content query --uri content://sms --projection body,address,date"
+        )
+
+        assertNotNull(violation)
+        assertEquals("content", violation?.commandFamily)
+    }
+
+    @Test
+    fun `content query limit is implemented by compatibility adapter`() {
+        val prepared = ExecutionDomainGuard.preparePrivilegedCommand(
+            "content query --uri content://sms --sort \"date DESC\" --limit 10"
+        )
+
+        assertEquals(10, prepared.contentQueryRowLimit)
+        assertFalse(prepared.command.contains("--limit"))
+        assertTrue(prepared.command.contains("--sort \"date DESC\""))
+    }
+
+    @Test
+    fun `content row limiter preserves multiline rows`() {
+        val prepared = ExecutionDomainGuard.preparePrivilegedCommand(
+            "content query --uri content://sms --limit 2"
+        )
+        val output = """
+            Row: 0 body=first line
+            continuation of first
+            Row: 1 body=second line
+            continuation of second
+            Row: 2 body=third line
+        """.trimIndent()
+
+        val limited = ExecutionDomainGuard.applyOutputCompatibility(output, prepared)
+
+        assertTrue(limited.contains("Row: 0"))
+        assertTrue(limited.contains("continuation of first"))
+        assertTrue(limited.contains("Row: 1"))
+        assertFalse(limited.contains("Row: 2"))
+        assertTrue(limited.contains("limited content query"))
+    }
+
+    @Test
+    fun `simple su wrapper is removed before Shizuku execution`() {
+        val prepared = ExecutionDomainGuard.preparePrivilegedCommand(
+            "su -c \"content query --uri content://sms --projection body\""
+        )
+
+        assertFalse(prepared.command.startsWith("su "))
+        assertTrue(prepared.command.startsWith("content query"))
+    }
+
+
 }
