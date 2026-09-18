@@ -118,7 +118,8 @@ object ToolExecutionSemantics {
             "RISH_UNAVAILABLE",
             "ANDROID_BACKEND_UNAVAILABLE",
             "MUTATION_OUTCOME_UNKNOWN",
-            "TOOL_TRANSPORT_BLOCKED"
+            "TOOL_TRANSPORT_BLOCKED",
+            "USER_ACTION_REQUIRED"
         )
 
     /**
