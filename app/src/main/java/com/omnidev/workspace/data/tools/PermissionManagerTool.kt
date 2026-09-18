@@ -208,41 +208,60 @@ object PermissionManagerTool {
             }
         }
 
-        // Background location/sensors have staged Android flows and should never
-        // be mixed into the same dialog with foreground permissions.
-        val remaining = candidates
-            .filterNot { it in grantedByShizuku }
-            .filterNot { it == Manifest.permission.ACCESS_BACKGROUND_LOCATION || it == "android.permission.BODY_SENSORS_BACKGROUND" }
+        // Background location/sensors use staged Android flows and must not be mixed into
+        // the same dialog with foreground permissions. They are still unresolved work, though;
+        // excluding them from this batch must never turn the overall outcome into SUCCESS.
+        val unresolved = candidates.filterNot { it in grantedByShizuku }
+        val staged = unresolved.filter {
+            it == Manifest.permission.ACCESS_BACKGROUND_LOCATION ||
+                it == "android.permission.BODY_SENSORS_BACKGROUND"
+        }
+        val remainingForeground = unresolved.filterNot { it in staged }
 
-        val dialogStarted = if (remaining.isNotEmpty()) {
+        val dialogStarted = if (remainingForeground.isNotEmpty()) {
             PermissionRequestBridge.requestRuntimePermissions(
-                remaining.toTypedArray(),
+                remainingForeground.toTypedArray(),
                 RUNTIME_REQUEST_CODE
             )
-        } else true
+        } else false
+
+        val userActionPending = remainingForeground.isNotEmpty() || staged.isNotEmpty()
 
         return ToolExecutionResult(
             buildString {
-                appendLine("Maximum runtime-permission bootstrap started.")
+                appendLine("Maximum runtime-permission bootstrap evaluated.")
                 appendLine("• Declared runtime candidates: ${candidates.size}")
                 appendLine("• Granted through Shizuku this pass: ${grantedByShizuku.size}")
-                appendLine("• Remaining Android runtime prompts: ${remaining.size}")
-                if (remaining.isNotEmpty()) {
-                    if (dialogStarted) appendLine("• Android permission dialog opened; user approval is required for the remainder.")
-                    else appendLine("• USER_ACTION_REQUIRED: open OmniDev in foreground and retry to show the permission dialog.")
+                appendLine("• Remaining foreground Android prompts: ${remainingForeground.size}")
+                appendLine("• Remaining staged permissions: ${staged.size}")
+                if (remainingForeground.isNotEmpty()) {
+                    if (dialogStarted) {
+                        appendLine("• Android permission dialog opened; user approval is required for the foreground remainder.")
+                    } else {
+                        appendLine("• USER_ACTION_REQUIRED: open OmniDev in foreground and retry to show the permission dialog.")
+                    }
+                }
+                if (staged.isNotEmpty()) {
+                    appendLine(
+                        "• USER_ACTION_REQUIRED: staged Android permissions must be granted in their required follow-up flow: " +
+                            staged.joinToString()
+                    )
                 }
                 appendLine()
                 append(specialAccessSummary(context))
                 appendLine()
-                append("Signature/system-only permissions are not forgeable by a normal APK; they become available only through the OEM/system/root/Shizuku paths Android actually permits.")
+                append(
+                    "Signature/system-only permissions are not forgeable by a normal APK; " +
+                        "they become available only through Android-supported OEM/system/root/Shizuku paths."
+                )
             }.trimEnd(),
-            isError = remaining.isNotEmpty(),
-            classification = if (remaining.isNotEmpty()) "USER_ACTION_REQUIRED" else "SUCCESS",
+            isError = userActionPending,
+            classification = if (userActionPending) "USER_ACTION_REQUIRED" else "SUCCESS",
             backend = "android-runtime-permission",
             retryable = false,
-            persistentFailure = remaining.isNotEmpty(),
-            verification = if (remaining.isEmpty()) {
-                "all requestable runtime permissions verified granted"
+            persistentFailure = userActionPending,
+            verification = if (!userActionPending) {
+                "all currently requestable runtime permissions verified granted"
             } else null
         )
     }
