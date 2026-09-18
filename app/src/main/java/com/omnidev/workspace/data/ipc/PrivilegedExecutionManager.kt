@@ -5,6 +5,7 @@ import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.omnidev.workspace.data.tools.ExecutionRetryPolicy
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.data.tools.ShizukuResult
 
@@ -128,6 +129,7 @@ object PrivilegedExecutionManager {
         // Android shell/rish/root identities cannot reliably access OmniDev's app-private
         // filesDir. Never inject app-private PATH/JAR helpers into privileged commands.
         val preparedCommand = command
+        val crossBackendRetrySafe = ExecutionRetryPolicy.isSafeToRetry(command)
 
         // ── 1. Shizuku UserService (preferred Android shell domain) ──
         var allowBackendFallback = !ShizukuCommandTool.isAvailable()
@@ -160,7 +162,20 @@ object PrivilegedExecutionManager {
 
                 is ShizukuResult.Failure -> {
                     if (isShizukuBackendFailure(r.reason)) {
-                        Log.w(TAG, "Shizuku backend failed after retries → fallback allowed: ${r.reason}")
+                        if (!crossBackendRetrySafe) {
+                            return@withContext Result.failure(
+                                IllegalStateException(
+                                    "MUTATION_OUTCOME_UNKNOWN: Shizuku transport failed after an " +
+                                        "at-most-once command. Do not replay on rish/root until a " +
+                                        "read-only postcondition check proves the mutation did not happen. " +
+                                        "Backend detail: ${r.reason.take(1_000)}"
+                                )
+                            )
+                        }
+                        Log.w(
+                            TAG,
+                            "Shizuku backend failed after retries → safe read/idempotent fallback allowed: ${r.reason}"
+                        )
                         allowBackendFallback = true
                     } else {
                         // The UserService executed the command and rejected/failed it. Replaying the
@@ -180,7 +195,9 @@ object PrivilegedExecutionManager {
         }
 
         // ── 2. rish (full ADB-equivalent shell) ──
+        var rishAttempted = false
         if (isRishReady()) {
+            rishAttempted = true
             Log.d(TAG, "Trying rish: ${command.take(40)}")
             val rishResult = rishManager!!.execute(preparedCommand)
             if (rishResult.isSuccess) {
@@ -189,11 +206,22 @@ object PrivilegedExecutionManager {
                 return@withContext Result.success(out.take(MAX_OUTPUT))
             }
             Log.w(TAG, "rish failed: ${rishResult.exceptionOrNull()?.message}")
+            if (!crossBackendRetrySafe) {
+                return@withContext Result.failure(
+                    IllegalStateException(
+                        "MUTATION_OUTCOME_UNKNOWN: rish failed after an at-most-once command. " +
+                            "Do not replay it through root until a read-only postcondition check " +
+                            "proves the mutation did not happen. Backend detail: " +
+                            rishResult.exceptionOrNull()?.message.orEmpty().take(1_000)
+                    )
+                )
+            }
         }
 
         // ── 3. Root/SU — explicit opt-in only ──
-        val rootReady = if (allowRootFallback) isRootAvailable(forceProbe = true) else null
-        if (rootReady == true) {
+        val rootMayRun = allowRootFallback && (!rishAttempted || crossBackendRetrySafe)
+        val rootReady = if (rootMayRun) isRootAvailable(forceProbe = true) else null
+        if (rootMayRun && rootReady == true) {
             Log.d(TAG, "Trying explicitly allowed root fallback: ${command.take(40)}")
             return@withContext executeViaRoot(preparedCommand)
         }
