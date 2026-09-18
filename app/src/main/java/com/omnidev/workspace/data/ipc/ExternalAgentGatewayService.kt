@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -162,12 +163,15 @@ class ExternalAgentGatewayService : Service() {
             )
             trimSnapshots()
 
-            val job = serviceScope.launch { runTask(caller, request, callback) }
+            val job = serviceScope.launch(start = CoroutineStart.LAZY) {
+                runTask(caller, request, callback)
+            }
             jobs[request.taskId] = job
             job.invokeOnCompletion {
-                jobs.remove(request.taskId)
+                jobs.remove(request.taskId, job)
                 callbacks.remove(request.taskId)
             }
+            job.start()
         }
 
         override fun cancelAgentTask(taskId: String) {
