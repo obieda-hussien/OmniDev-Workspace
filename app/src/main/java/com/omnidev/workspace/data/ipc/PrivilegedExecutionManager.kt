@@ -160,8 +160,8 @@ object PrivilegedExecutionManager {
         }
 
         // ── 3. Root/SU — explicit opt-in only ──
-        val rootReady = isRootAvailable()
-        if (allowRootFallback && rootReady) {
+        val rootReady = if (allowRootFallback) isRootAvailable() else null
+        if (rootReady == true) {
             Log.d(TAG, "Trying explicitly allowed root fallback: ${command.take(40)}")
             return@withContext executeViaRoot(preparedCommand)
         }
@@ -214,7 +214,7 @@ object PrivilegedExecutionManager {
      * Builds a diagnostic failure message explaining why execution failed and the solution.
      */
     private fun buildFailureMessage(
-        rootReady: Boolean,
+        rootReady: Boolean?,
         rootFallbackAllowed: Boolean
     ): String = buildString {
         appendLine("❌ No execution backend available.")
@@ -229,9 +229,9 @@ object PrivilegedExecutionManager {
         appendLine("• rish: ${if (isRishReady()) "⚠️ Available but failed" else "❌ Unavailable"}")
         appendLine(
             "• root: " + when {
-                !rootReady -> "❌ unavailable"
-                rootFallbackAllowed -> "✅ ready and explicitly allowed"
-                else -> "✅ ready but not used (root requires explicit root capability)"
+                !rootFallbackAllowed -> "not probed (explicit root capability was not requested)"
+                rootReady == true -> "✅ ready and explicitly allowed"
+                else -> "❌ unavailable"
             }
         )
         appendLine()
