@@ -58,6 +58,9 @@ enum class ConfirmationKind {
     /** An Android Intent about to be fired. */
     ANDROID_INTENT,
 
+    /** A capability exposed by another OmniLink-connected application. */
+    CONNECTED_APP_ACTION,
+
     /** God-mode create-file outside the user's Target Context scope. */
     GOD_MODE_FILE_WRITE,
 
