@@ -25,6 +25,7 @@ import com.omnidev.workspace.domain.engine.SwarmEvent
 import com.omnidev.workspace.ui.chat.AgentConsoleEntry
 import com.omnidev.workspace.ui.chat.consoleEntry
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Semaphore
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -63,6 +64,7 @@ class ExternalAgentGatewayService : Service() {
     private val snapshots = ConcurrentHashMap<String, AgentTaskSnapshot>()
     private val sequences = ConcurrentHashMap<String, AtomicLong>()
     private val taskOwners = ConcurrentHashMap<String, String>()
+    private val taskSlots = Semaphore(MAX_RUNNING_TASKS, true)
 
     private data class CallerIdentity(
         val uid: Int,
@@ -124,7 +126,37 @@ class ExternalAgentGatewayService : Service() {
                 )
                 return
             }
-            if (jobs.size >= MAX_RUNNING_TASKS) {
+            if (snapshots.containsKey(request.taskId)) {
+                emitBestEffort(
+                    callback,
+                    AgentTaskEvent.Error(
+                        request.taskId, 1, System.currentTimeMillis(),
+                        "task_id_already_used",
+                        "This task id already exists; use getTaskSnapshot or create a fresh id"
+                    )
+                )
+                return
+            }
+
+            val existingOwner = taskOwners.putIfAbsent(request.taskId, caller.packageName)
+            if (existingOwner != null) {
+                emitBestEffort(
+                    callback,
+                    AgentTaskEvent.Error(
+                        request.taskId, 1, System.currentTimeMillis(),
+                        "task_id_already_used",
+                        if (existingOwner != caller.packageName) {
+                            "This task id belongs to another connected application"
+                        } else {
+                            "This task id is already being started"
+                        }
+                    )
+                )
+                return
+            }
+
+            if (!taskSlots.tryAcquire()) {
+                taskOwners.remove(request.taskId, caller.packageName)
                 emitBestEffort(
                     callback,
                     AgentTaskEvent.Error(
@@ -138,40 +170,42 @@ class ExternalAgentGatewayService : Service() {
                 )
                 return
             }
-            val existingOwner = taskOwners[request.taskId]
-            if (existingOwner != null || jobs.containsKey(request.taskId) || snapshots.containsKey(request.taskId)) {
+
+            try {
+                callbacks[request.taskId] = callback
+                snapshots[request.taskId] = AgentTaskSnapshot(
+                    taskId = request.taskId,
+                    state = AgentTaskState.QUEUED
+                )
+                trimSnapshots()
+
+                val job = serviceScope.launch(start = CoroutineStart.LAZY) {
+                    runTask(caller, request, callback)
+                }
+                jobs[request.taskId] = job
+                job.invokeOnCompletion {
+                    jobs.remove(request.taskId, job)
+                    callbacks.remove(request.taskId)
+                    taskSlots.release()
+                }
+                job.start()
+            } catch (error: Exception) {
+                callbacks.remove(request.taskId)
+                snapshots.remove(request.taskId)
+                sequences.remove(request.taskId)
+                taskOwners.remove(request.taskId, caller.packageName)
+                taskSlots.release()
                 emitBestEffort(
                     callback,
                     AgentTaskEvent.Error(
-                        request.taskId, nextSequence(request.taskId), System.currentTimeMillis(),
-                        "task_id_already_used",
-                        if (existingOwner != null && existingOwner != caller.packageName) {
-                            "This task id belongs to another connected application"
-                        } else {
-                            "This task id already exists; use getTaskSnapshot or create a fresh id"
-                        }
+                        request.taskId,
+                        1,
+                        System.currentTimeMillis(),
+                        "gateway_start_failed",
+                        error.message ?: "Could not start connected-app task"
                     )
                 )
-                return
             }
-
-            taskOwners[request.taskId] = caller.packageName
-            callbacks[request.taskId] = callback
-            snapshots[request.taskId] = AgentTaskSnapshot(
-                taskId = request.taskId,
-                state = AgentTaskState.QUEUED
-            )
-            trimSnapshots()
-
-            val job = serviceScope.launch(start = CoroutineStart.LAZY) {
-                runTask(caller, request, callback)
-            }
-            jobs[request.taskId] = job
-            job.invokeOnCompletion {
-                jobs.remove(request.taskId, job)
-                callbacks.remove(request.taskId)
-            }
-            job.start()
         }
 
         override fun cancelAgentTask(taskId: String) {
