@@ -228,7 +228,10 @@ object AdaptiveModeRouter {
                 "model not found", "provider cooldown", "insufficient quota", "quota exceeded",
                 "network timeout", "internet connection", "dns", "connection refused",
                 "service unavailable", "http 502", "http 503", "http 504",
-                "persistent infrastructure", "backend failure", "transport circuit breaker"
+                "persistent infrastructure", "backend failure", "transport circuit breaker",
+                "termux_run_command_unavailable", "shizuku_unavailable",
+                "shizuku_permission_required", "rish_unavailable",
+                "android_backend_unavailable", "root_unavailable"
             )
         ) return FailureClass.INFRASTRUCTURE
 
