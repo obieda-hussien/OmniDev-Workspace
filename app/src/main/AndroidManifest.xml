@@ -1,6 +1,13 @@
 <?xml version='1.0' encoding='utf-8'?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:ns0="http://schemas.android.com/tools" ns0:ignore="ProtectedPermissions,MockLocation,QueryAllPackagesPermission,Deprecated,ScopedStorage,ExportedContentProvider,HardcodedDebugMode,BatteryLife,UnrecognizedPermission,ForegroundServicePermission">
 
+    <queries>
+        <intent>
+            <action android:name="com.omnilink.sdk.action.EXTENSION_BIND" />
+        </intent>
+    </queries>
+
+    <uses-permission android:name="com.omnilink.sdk.permission.BIND_EXTENSION" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
@@ -280,6 +287,15 @@
         </service>
 
         <service android:name=".data.ipc.OmniCoreService" android:exported="true" android:process=":core_ipc" android:permission="com.omnidev.permission.CONTROL_CORE" />
+
+        <service
+            android:name=".data.ipc.ExternalAgentGatewayService"
+            android:exported="true"
+            android:permission="com.omnilink.sdk.permission.BIND_AGENT">
+            <intent-filter>
+                <action android:name="com.omnilink.sdk.action.AGENT_GATEWAY_BIND" />
+            </intent-filter>
+        </service>
 
         <receiver android:name=".data.admin.OmniDeviceAdminReceiver" android:exported="true" android:permission="android.permission.BIND_DEVICE_ADMIN">
             <meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin_config" />
