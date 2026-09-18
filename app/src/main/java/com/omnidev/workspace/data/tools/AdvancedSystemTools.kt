@@ -445,13 +445,13 @@ object AdvancedRootShellTool {
         val b64 = Base64.encodeToString(scriptContent.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
         
         val writeCmd = "echo ${shellQuote(b64)} | base64 -d > $tmpPath && chmod +x $tmpPath && echo WRITE_OK"
-        val writeResult = PrivilegedExecutionManager.executeCommand(writeCmd)
+        val writeResult = PrivilegedExecutionManager.executeRootCommand(writeCmd)
         
         if (writeResult.isFailure || !writeResult.getOrDefault("").contains("WRITE_OK")) {
             return@withContext ToolExecutionResult("Failed to inject root script.", isError = true)
         }
 
-        val result = PrivilegedExecutionManager.executeCommand("sh $tmpPath 2>&1; rm -f $tmpPath")
+        val result = PrivilegedExecutionManager.executeRootCommand("sh $tmpPath 2>&1; rm -f $tmpPath")
         
         result.fold(
             onSuccess = { output ->
@@ -459,7 +459,10 @@ object AdvancedRootShellTool {
                 val truncated = text.length > MAX_OUTPUT
                 ToolExecutionResult(
                     output = if (truncated) "...[TRUNCATED]...\n" + text.takeLast(MAX_OUTPUT) else text,
-                    truncated = truncated
+                    truncated = truncated,
+                    backend = "root",
+                    classification = "SUCCESS",
+                    verification = "executed through root-only su backend"
                 )
             },
             onFailure = { e -> ToolExecutionResult("Root command failed: ${e.message}", isError = true) }
@@ -469,7 +472,7 @@ object AdvancedRootShellTool {
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "root_shell_tool",
-            description = "Execute complex root-level shell commands. Supports pipes, redirects, and heavy awk/sed processing flawlessly using Base64 injection.",
+            description = "Execute a command through a verified uid=0 su backend only. Never falls back to Shizuku/rish. Supports pipes and redirects through a temporary root script.",
             parameters = listOf(
                 ToolParameter("command", "string", "Full shell command to execute.", required = true)
             )
