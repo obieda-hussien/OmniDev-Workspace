@@ -116,7 +116,9 @@ object ToolExecutionSemantics {
             "SHIZUKU_PERMISSION_REQUIRED",
             "SHIZUKU_UNAVAILABLE",
             "RISH_UNAVAILABLE",
-            "ANDROID_BACKEND_UNAVAILABLE"
+            "ANDROID_BACKEND_UNAVAILABLE",
+            "MUTATION_OUTCOME_UNKNOWN",
+            "TOOL_TRANSPORT_BLOCKED"
         )
 
     /**
