@@ -224,6 +224,11 @@ object ToolExecutionSemantics {
                 lower.contains("[error] unsupported argument") ->
                 Match("UNSUPPORTED_ARGUMENT")
 
+            lower.contains("user_action_required") ||
+                lower.contains("waiting for user approval") ||
+                lower.contains("user approval is required") ->
+                Match("USER_ACTION_REQUIRED", persistent = true)
+
             lower.contains("securityexception") && lower.contains("permission denial") ->
                 Match("ANDROID_PERMISSION_DENIED", persistent = true)
 
