@@ -74,14 +74,15 @@ class ChatRepository(
         packageName: String,
         appName: String,
         conversationId: String,
-        topicTitle: String
+        topicTitle: String,
+        replaceExistingTitle: Boolean = false
     ): Long {
         val existing = sessionDao.getByExternalConversation(packageName, conversationId)
         if (existing != null) {
             sessionDao.touchExternalSession(
                 id = existing.id,
                 appName = appName,
-                title = topicTitle.ifBlank { existing.title },
+                title = if (replaceExistingTitle && topicTitle.isNotBlank()) topicTitle else existing.title,
                 timestamp = System.currentTimeMillis()
             )
             return existing.id
