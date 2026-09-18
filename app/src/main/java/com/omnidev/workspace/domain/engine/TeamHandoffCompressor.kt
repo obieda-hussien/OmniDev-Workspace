@@ -15,18 +15,20 @@ object TeamHandoffCompressor {
         val seenEvidence = linkedSetOf<String>()
         val candidates = redacted.lineSequence()
             .mapIndexedNotNull { index, line ->
-                val clean = line.trim().replace(WHITESPACE, " ")
-                if (clean.isBlank()) return@mapIndexedNotNull null
+                val original = line.trimEnd()
+                val comparable = original.trim().replace(WHITESPACE, " ")
+                if (comparable.isBlank()) return@mapIndexedNotNull null
 
-                val lineScore = score(clean)
+                val lineScore = score(comparable)
                 // Deduplicate evidence on every handoff, even when the raw payload already fits
-                // inside maxChars. Comparison is normalized, while the first original line is kept.
+                // inside maxChars. Normalize only for comparison; preserve the first-seen
+                // redacted/original line and its formatting in the handoff output.
                 if (lineScore > 0) {
-                    val fingerprint = normalize(clean)
+                    val fingerprint = normalize(comparable)
                     if (!seenEvidence.add(fingerprint)) return@mapIndexedNotNull null
                 }
 
-                Line(index, clean.take(MAX_SINGLE_LINE), lineScore)
+                Line(index, original.take(MAX_SINGLE_LINE), lineScore)
             }
             .toList()
 
