@@ -361,7 +361,7 @@ After that, agent_runtime executes inside the real Termux process.
             }.trimEnd(),
             isError = !anySuccess,
             classification = if (anySuccess) {
-                if ((!developer.isError).compareTo(true) == 0 && shizukuSuccess && rishSuccess) {
+                if (!developer.isError && shizukuSuccess && rishSuccess) {
                     "SUCCESS"
                 } else {
                     "DEGRADED_COMMAND_ROUTE"
