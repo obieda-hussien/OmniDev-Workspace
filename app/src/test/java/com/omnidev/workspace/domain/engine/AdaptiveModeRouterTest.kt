@@ -105,4 +105,17 @@ class AdaptiveModeRouterTest {
             assertTrue(result.confidence >= 0.66f)
         }
     }
+    @Test
+    fun `pending Android permission consent never escalates to Team`() {
+        assertNull(
+            AdaptiveModeRouter.fromAgentFailure(
+                errorMessage =
+                    "USER_ACTION_REQUIRED: Android is waiting for user approval for READ_SMS.",
+                userRequest =
+                    "Read my SMS, database state, notifications, and verify everything in parallel"
+            )
+        )
+    }
+
+
 }
