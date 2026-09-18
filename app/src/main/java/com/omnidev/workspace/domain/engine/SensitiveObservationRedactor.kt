@@ -11,8 +11,17 @@ object SensitiveObservationRedactor {
 
     private val keyedSecret = Regex(
         "(?i)\\b(api[_ -]?key|access[_ -]?token|refresh[_ -]?token|token|secret|" +
-            "password|passwd|otp|one[- ]time(?: password)?|verification code|security code|pin|" +
-            "bearer)\\b\\s*[:=]?\\s+([^\\s,;]+)"
+            "password|passwd|otp|one[- ]time(?: password)?|verification code|security code|pin)\\b" +
+            "\\s*[:=]\\s*([^\\s,;]+)"
+    )
+
+    private val spacedSecret = Regex(
+        "(?i)\\b(otp|one[- ]time(?: password)?|verification code|security code|" +
+            "password|passwd|pin|bearer)\\b\\s+([A-Za-z0-9._~+/=-]{4,})"
+    )
+
+    private val longToken = Regex(
+        "(?i)\\b(token|bearer)\\b\\s+([A-Za-z0-9._~+/=-]{16,})"
     )
 
     private val bearerHeader = Regex(
@@ -32,6 +41,12 @@ object SensitiveObservationRedactor {
             .replace(bearerHeader, "Authorization: Bearer [REDACTED]")
             .replace(keyedSecret) { match ->
                 "${match.groupValues[1]}=[REDACTED]"
+            }
+            .replace(spacedSecret) { match ->
+                "${match.groupValues[1]} [REDACTED]"
+            }
+            .replace(longToken) { match ->
+                "${match.groupValues[1]} [REDACTED]"
             }
             .replace(arabicSecret) { match ->
                 "${match.groupValues[1]} [REDACTED]"
