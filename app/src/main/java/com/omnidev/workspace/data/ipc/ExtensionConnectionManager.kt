@@ -14,9 +14,11 @@ import androidx.core.content.ContextCompat
 import com.omnilink.sdk.ActionRequest
 import com.omnilink.sdk.CapabilityManifest
 import com.omnilink.sdk.IExtensionService
+import com.omnilink.sdk.IOmniEventCallback
 import com.omnilink.sdk.IOmniResultCallback
 import com.omnilink.sdk.OmniLinkConstants
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -45,6 +47,7 @@ object ExtensionConnectionManager {
     private const val ACTION_TIMEOUT_MS = 10 * 60 * 1000L
     private const val MAX_BINDER_REQUEST_CHARS = 300_000
     private const val LEGACY_PROTOCOL_VERSION = 1
+    private const val MAX_RECENT_EVENTS = 300
 
     const val ACTION_BIND_EXTENSION = OmniLinkConstants.ACTION_EXTENSION_BIND
 
@@ -63,13 +66,15 @@ object ExtensionConnectionManager {
     data class ExtensionHandle(
         val packageName: String,
         val serviceClassName: String,
-        @Volatile var binder: IExtensionService? = null
+        @Volatile var binder: IExtensionService? = null,
+        @Volatile var eventCallback: IOmniEventCallback? = null
     ) {
         val id: String get() = packageName + "/" + serviceClassName
     }
 
     private val handles = ConcurrentHashMap<String, ExtensionHandle>()
     private val serviceConnections = ConcurrentHashMap<String, ServiceConnection>()
+    private val eventQueues = ConcurrentHashMap<String, ConcurrentLinkedDeque<String>>()
 
     private val packageChangeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent?) {
@@ -91,6 +96,7 @@ object ExtensionConnectionManager {
             runCatching { context.unregisterReceiver(packageChangeReceiver) }
         }
         unbindAll()
+        eventQueues.clear()
         initialized.set(false)
     }
 
@@ -123,6 +129,7 @@ object ExtensionConnectionManager {
         handles.keys.filter { it !in discoveredIds }.forEach { id ->
             unbindById(id)
             handles.remove(id)
+            eventQueues.remove(id)
         }
         discoveredIds.forEach(::bindById)
     }
@@ -136,7 +143,14 @@ object ExtensionConnectionManager {
                     .put("package", handle.packageName)
                     .put("service", handle.serviceClassName)
                     .put("connected", handle.binder != null)
+                    .put("recent_event_count", eventQueues[handle.id]?.size ?: 0)
             }
+        }
+
+    suspend fun getRecentEvents(extensionId: String, limit: Int = 100): List<String> =
+        withContext(Dispatchers.IO) {
+            val queue = eventQueues[extensionId] ?: return@withContext emptyList()
+            queue.toList().takeLast(limit.coerceIn(1, MAX_RECENT_EVENTS))
         }
 
     suspend fun getExtensionManifest(extensionId: String): String = withContext(Dispatchers.IO) {
@@ -248,7 +262,9 @@ object ExtensionConnectionManager {
         }
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-                handle.binder = IExtensionService.Stub.asInterface(service)
+                val typed = IExtensionService.Stub.asInterface(service)
+                handle.binder = typed
+                if (typed != null) registerEventStream(handle, typed)
                 Log.i(TAG, "Connected extension: " + handle.id)
             }
 
@@ -284,6 +300,27 @@ object ExtensionConnectionManager {
         else handle.binder = null
     }
 
+    private fun registerEventStream(handle: ExtensionHandle, binder: IExtensionService) {
+        if (handle.eventCallback != null) return
+        val callback = object : IOmniEventCallback.Stub() {
+            override fun onEvent(eventJson: String) {
+                val queue = eventQueues.getOrPut(handle.id) { ConcurrentLinkedDeque() }
+                queue.addLast(eventJson.take(64_000))
+                while (queue.size > MAX_RECENT_EVENTS) {
+                    queue.pollFirst()
+                }
+            }
+        }
+        val registered = runCatching { binder.registerEventListener(callback) }
+            .getOrElse {
+                Log.w(TAG, "Failed registering extension event stream: " + handle.id, it)
+                false
+            }
+        if (registered) {
+            handle.eventCallback = callback
+        }
+    }
+
     private fun invalidateAndReconnect(handle: ExtensionHandle, cause: Throwable) {
         Log.w(TAG, "Remote call failed; rebinding " + handle.id, cause)
         handle.binder = null
@@ -293,9 +330,17 @@ object ExtensionConnectionManager {
 
     private fun unbindById(id: String) {
         val context = appContext ?: return
+        val handle = handles[id]
+        val callback = handle?.eventCallback
+        val binder = handle?.binder
+        if (callback != null && binder != null) {
+            runCatching { binder.unregisterEventListener(callback) }
+        }
+        if (handle != null) handle.eventCallback = null
+
         val conn = serviceConnections.remove(id) ?: return
         runCatching { context.unbindService(conn) }
-        handles[id]?.binder = null
+        handle?.binder = null
     }
 
     private fun unbindAll() {
