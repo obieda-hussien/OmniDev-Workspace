@@ -176,7 +176,9 @@ object IntentClassifier {
             lower,
             "android system", "shizuku", "rish", " adb", "adb ", "root", "device", "phone",
             "dumpsys", "getprop", "logcat", "permission", "wifi", "bluetooth", "screen",
-            "الموبايل", "الهاتف", "الجهاز", "شيزوكو", "روت", "صلاحيات"
+            "brightness", "settings", "apk", "package",
+            "الموبايل", "الهاتف", "الجهاز", "شيزوكو", "روت", "صلاحيات",
+            "الشاشة", "سطوع", "إعدادات", "اعدادات", "تطبيق"
         )
         val researchHits = countAny(
             lower,
@@ -316,8 +318,12 @@ object IntentClassifier {
 
         val hasMessaging = containsAny(
             lower,
-            "message", "whatsapp", "telegram", "discord", "email", "slack", "send",
-            "رسالة", "واتساب", "تليجرام", "ابعت", "ارسل"
+            "message", "messages", "sms", "text message", "inbox",
+            "whatsapp", "telegram", "discord", "email", "slack", "send",
+            "wallet", "orange cash", "vodafone cash",
+            "رسالة", "رسائل", "رسايل", "رساله", "اس ام اس",
+            "واتساب", "تليجرام", "ابعت", "ارسل", "محفظة",
+            "اورنج كاش", "أورنج كاش", "اورنچ كاش", "أورنچ كاش"
         )
         val hasAnalytics = containsAny(
             lower,
@@ -328,8 +334,9 @@ object IntentClassifier {
             lower,
             "http://", "https://", "www.", "website", "url", "google"
         )
-        val hasDeviceControl = signals.deviceIntent >= 0.35f
-        val hasCode = signals.codeIntent >= 0.30f || mode == OmniMode.AGENT || mode == OmniMode.SWARM
+        val hasDeviceControl = signals.deviceIntent >= 0.15f
+        val hasCode = signals.codeIntent >= 0.14f ||
+            ((mode == OmniMode.AGENT || mode == OmniMode.SWARM) && !hasMessaging && !hasDeviceControl)
         val hasGeneralUtility = containsAny(
             lower,
             "reminder", "schedule", "task", "calendar", "clipboard", "contact", "location",
