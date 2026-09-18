@@ -110,7 +110,7 @@ suspend fun ensurePermissionViaShizuku(permission: String, packageName: String, 
         return true
     }
     val result = ShizukuCommandTool.execute("pm grant $packageName $permission")
-    return result is ShizukuResult.Success || result is ShizukuResult.PartialSuccess
+    return result is ShizukuResult.Success
 }
 
 /**
@@ -169,8 +169,19 @@ object PlannerTool {
                         " --ez android.intent.extra.alarm.SKIP_UI true"
                         
                 return when (val r = ShizukuCommandTool.execute(adbCmd)) {
-                    is ShizukuResult.Success, is ShizukuResult.PartialSuccess ->
-                        ToolExecutionResult(output = "✅ Alarm set for %02d:%02d via ADB — \"%s\".".format(hour, minute, title))
+                    is ShizukuResult.Success ->
+                        ToolExecutionResult(
+                            output = "✅ Alarm set for %02d:%02d via Android shell — \"%s\".".format(hour, minute, title),
+                            classification = "SUCCESS",
+                            backend = "shizuku-user-service"
+                        )
+                    is ShizukuResult.PartialSuccess -> ToolExecutionResult(
+                        output = "Alarm command exited ${r.exitCode}: ${r.output}",
+                        isError = true,
+                        classification = "NON_ZERO_EXIT",
+                        exitCode = r.exitCode,
+                        backend = "shizuku-user-service"
+                    )
                     is ShizukuResult.Failure -> ToolExecutionResult(output = "Failed to set alarm: ${r.reason}", isError = true)
                     else -> ToolExecutionResult(output = "Could not set alarm — Intent failed and Shizuku is unavailable.", isError = true)
                 }
