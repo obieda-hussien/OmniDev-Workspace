@@ -18,12 +18,11 @@ import java.io.File
  * 3. **Root/SU** — `executeViaRoot()` — root shell
  *
  * ### Fixes / Improvements
- * 1. Proper handling of `ShizukuResult.PartialSuccess`:
- * - If output is useful (exit != 127) → success
- * - Empty or command not found → fallback
- * 2. Clearer diagnostic messages on failure
- * 3. `getTermuxBootstrapHints()` — Termux installation instructions without Termux
- * 4. `installTermuxViaShizuku()` — Download and install Termux APK via Shizuku
+ * 1. Non-zero privileged commands never become success merely because they printed output.
+ * 2. Backend fallback is allowed only when the backend itself is unavailable; a command-level
+ *    failure is authoritative and is never replayed automatically on rish/root.
+ * 3. Root readiness requires a real uid=0 smoke test, not path visibility.
+ * 4. Clear diagnostic messages and Termux bootstrap helpers are retained.
  */
 object PrivilegedExecutionManager {
 
@@ -59,8 +58,22 @@ object PrivilegedExecutionManager {
     fun isShizukuReady(): Boolean =
         ShizukuCommandTool.isAvailable() && ShizukuCommandTool.hasPermission()
     fun isRishReady(): Boolean = rishManager?.isAvailable() ?: false
+
+    /**
+     * File/path visibility is not root readiness. Some ROMs expose a su path that the app UID
+     * cannot execute. Require a bounded real `su -c id` smoke test and uid=0 evidence.
+     */
     fun isRootAvailable(): Boolean = runCatching {
-        Runtime.getRuntime().exec(arrayOf("which", "su")).waitFor() == 0
+        val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
+        val finished = process.waitFor(1_500, java.util.concurrent.TimeUnit.MILLISECONDS)
+        if (!finished) {
+            process.destroy()
+            false
+        } else {
+            val output = process.inputStream.bufferedReader().use { it.readText() } +
+                process.errorStream.bufferedReader().use { it.readText() }
+            process.exitValue() == 0 && Regex("""\buid=0(?:\(|\b)""").containsMatchIn(output)
+        }
     }.getOrDefault(false)
 
     // ──────────────────────────────────────────────────────────────
@@ -79,32 +92,54 @@ object PrivilegedExecutionManager {
         }
         val preparedCommand = enrichCommandWithOmniToolchain(command)
 
-        // ── 1. Shizuku.newProcess() (The best — shell UID) ──
+        // ── 1. Shizuku UserService (preferred Android shell domain) ──
+        var allowBackendFallback = !ShizukuCommandTool.isAvailable()
         if (ShizukuCommandTool.isAvailable()) {
             when (val r = ShizukuCommandTool.execute(preparedCommand)) {
                 is ShizukuResult.Success -> {
                     Log.d(TAG, "Shizuku ✅ exit=0: ${command.take(40)}")
                     return@withContext Result.success(r.output.trim().take(MAX_OUTPUT))
                 }
+
+                // Retained only for source compatibility; treat it as a real command failure.
                 is ShizukuResult.PartialSuccess -> {
-                    val output = r.output.trim()
-                    if (output.isNotBlank() && output != "(no output)" && r.exitCode != 127) {
-                        // Useful output exists even if exit != 0 (e.g., grep, diff, etc.)
-                        Log.d(TAG, "Shizuku ✅ exit=${r.exitCode} (partial OK): ${command.take(40)}")
-                        return@withContext Result.success(output.take(MAX_OUTPUT))
+                    return@withContext Result.failure(
+                        IllegalStateException(
+                            "Shizuku command failed (exit=${r.exitCode}): " +
+                                r.output.trim().ifBlank { "(no output)" }.take(2_000)
+                        )
+                    )
+                }
+
+                is ShizukuResult.PermissionRequired -> {
+                    Log.w(TAG, "Shizuku permission unavailable → backend fallback allowed: ${r.message}")
+                    allowBackendFallback = true
+                }
+
+                is ShizukuResult.Unavailable -> {
+                    Log.w(TAG, "Shizuku unavailable → backend fallback allowed: ${r.message}")
+                    allowBackendFallback = true
+                }
+
+                is ShizukuResult.Failure -> {
+                    if (isShizukuBackendFailure(r.reason)) {
+                        Log.w(TAG, "Shizuku backend failed after retries → fallback allowed: ${r.reason}")
+                        allowBackendFallback = true
                     } else {
-                        Log.w(TAG, "Shizuku PartialSuccess without output (exit=${r.exitCode}) → fallback: ${command.take(40)}")
+                        // The UserService executed the command and rejected/failed it. Replaying the
+                        // same mutation through rish/root risks duplicate side effects and hides truth.
+                        return@withContext Result.failure(
+                            IllegalStateException("Shizuku command failed: ${r.reason}")
+                        )
                     }
                 }
-                is ShizukuResult.PermissionRequired ->
-                    Log.w(TAG, "Shizuku without permission → fallback: ${r.message}")
-                is ShizukuResult.Unavailable ->
-                    Log.w(TAG, "Shizuku unavailable → fallback: ${r.message}")
-                is ShizukuResult.Failure ->
-                    Log.w(TAG, "Shizuku failed → fallback: ${r.reason}")
             }
-        } else {
-            Log.d(TAG, "Shizuku inactive → try rish/root")
+        }
+
+        if (!allowBackendFallback) {
+            return@withContext Result.failure(
+                IllegalStateException("Privileged command failed without a safe backend fallback.")
+            )
         }
 
         // ── 2. rish (full ADB-equivalent shell) ──
@@ -129,6 +164,23 @@ object PrivilegedExecutionManager {
         Result.failure(
             IllegalStateException(buildFailureMessage())
         )
+    }
+
+    /**
+     * ShizukuCommandTool already retries transient transport faults internally. Only failures that
+     * still describe transport/service availability may fall through to another backend.
+     */
+    private fun isShizukuBackendFailure(reason: String): Boolean {
+        val lower = reason.lowercase()
+        return lower.contains("userservice error") ||
+            lower.contains("user service error") ||
+            lower.contains("client is not initialized") ||
+            lower.contains("connection timeout") ||
+            lower.contains("deadobject") ||
+            lower.contains("remoteexception") ||
+            lower.contains("binder") ||
+            lower.contains("service disconnected") ||
+            lower.contains("transaction failed")
     }
 
     /**
