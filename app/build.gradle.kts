@@ -7,6 +7,30 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+val omniLocalProperties = java.util.Properties().apply {
+    val local = rootProject.file("local.properties")
+    if (local.isFile) local.inputStream().use(::load)
+}
+
+fun omniSigningValue(name: String): String? =
+    providers.gradleProperty(name).orNull
+        ?: providers.environmentVariable(name).orNull
+        ?: omniLocalProperties.getProperty(name)
+
+val omniSharedDebugSigning = listOf(
+    "OMNI_SHARED_DEBUG_STORE_FILE",
+    "OMNI_SHARED_DEBUG_STORE_PASSWORD",
+    "OMNI_SHARED_DEBUG_KEY_ALIAS",
+    "OMNI_SHARED_DEBUG_KEY_PASSWORD"
+).map(::omniSigningValue)
+
+val omniSharedReleaseSigning = listOf(
+    "OMNI_SHARED_RELEASE_STORE_FILE",
+    "OMNI_SHARED_RELEASE_STORE_PASSWORD",
+    "OMNI_SHARED_RELEASE_KEY_ALIAS",
+    "OMNI_SHARED_RELEASE_KEY_PASSWORD"
+).map(::omniSigningValue)
+
 android {
     namespace = "com.omnidev.workspace"
     compileSdk = 36
@@ -196,9 +220,33 @@ android {
         getByName("admin").java.srcDir("src/proOemAdmin/java")
     }
 
+    signingConfigs {
+        if (omniSharedDebugSigning.all { !it.isNullOrBlank() }) {
+            create("omniSharedDebug") {
+                storeFile = rootProject.file(omniSharedDebugSigning[0]!!)
+                storePassword = omniSharedDebugSigning[1]
+                keyAlias = omniSharedDebugSigning[2]
+                keyPassword = omniSharedDebugSigning[3]
+            }
+        }
+        if (omniSharedReleaseSigning.all { !it.isNullOrBlank() }) {
+            create("omniSharedRelease") {
+                storeFile = rootProject.file(omniSharedReleaseSigning[0]!!)
+                storePassword = omniSharedReleaseSigning[1]
+                keyAlias = omniSharedReleaseSigning[2]
+                keyPassword = omniSharedReleaseSigning[3]
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfigs.findByName("omniSharedDebug")?.let { signingConfig = it }
+        }
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("omniSharedRelease")
+                ?: signingConfigs.findByName("omniSharedDebug")
+                ?: signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true // لتقليل حجم التطبيق بعد الـ Proguard
             proguardFiles(
