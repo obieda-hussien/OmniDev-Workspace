@@ -194,13 +194,15 @@ object UIAutomationTool {
         )
         
         return when (dumpResult) {
-            is ShizukuResult.Success, is ShizukuResult.PartialSuccess -> {
-                val xml = dumpResult.outputOrNull()?.trim() ?: ""
+            is ShizukuResult.Success -> {
+                val xml = dumpResult.output.trim()
                 
                 if (xml.isBlank() || !xml.contains("<?xml")) {
                     ToolExecutionResult(
-                        "UI dump succeeded but returned invalid or empty content. The screen might be FLAG_SECURE protected.",
-                        isError = false
+                        output = "UI dump returned invalid or empty content. The screen may be FLAG_SECURE protected.",
+                        isError = true,
+                        classification = "UI_DUMP_INVALID",
+                        backend = "shizuku-user-service"
                     )
                 } else {
                     val truncated = xml.length > MAX_DUMP_LENGTH
@@ -214,7 +216,19 @@ object UIAutomationTool {
                     )
                 }
             }
-            is ShizukuResult.Failure -> ToolExecutionResult(dumpResult.reason, isError = true)
+            is ShizukuResult.PartialSuccess -> ToolExecutionResult(
+                output = "UI dump command exited ${dumpResult.exitCode}: ${dumpResult.output}",
+                isError = true,
+                classification = "NON_ZERO_EXIT",
+                exitCode = dumpResult.exitCode,
+                backend = "shizuku-user-service"
+            )
+            is ShizukuResult.Failure -> ToolExecutionResult(
+                dumpResult.reason,
+                isError = true,
+                classification = "ANDROID_COMMAND_FAILED",
+                backend = "shizuku-user-service"
+            )
             is ShizukuResult.PermissionRequired -> ToolExecutionResult(dumpResult.message, isError = true)
             is ShizukuResult.Unavailable -> ToolExecutionResult(dumpResult.message, isError = true)
         }
