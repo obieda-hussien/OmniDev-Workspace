@@ -667,7 +667,9 @@ class CompositeToolManager(
                         isError = true
                     )
                 } else {
-                    ToolExecutionResult(DirectTerminalTool.execute(org.json.JSONObject().put("command", arguments)))
+                    DirectTerminalTool.executeResult(
+                        org.json.JSONObject().put("command", arguments)
+                    )
                 }
             }
 
