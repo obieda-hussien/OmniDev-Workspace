@@ -8,29 +8,49 @@ import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.IBinder
+import android.os.RemoteException
 import android.util.Log
 import androidx.core.content.ContextCompat
-import com.omnidev.extension.ipc.IOmniExtensionInterface
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.json.JSONObject
+import com.omnilink.sdk.ActionRequest
+import com.omnilink.sdk.CapabilityManifest
+import com.omnilink.sdk.IExtensionService
+import com.omnilink.sdk.IOmniResultCallback
+import com.omnilink.sdk.OmniLinkConstants
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.buildJsonObject
+import org.json.JSONObject
 
 /**
- * Dynamic discovery and binding manager for Omni-Link extension services.
+ * Typed OmniLink extension discovery and execution.
  *
- * Discovery contract:
- * - Intent action: [ACTION_BIND_EXTENSION]
- * - Service must export an AIDL binder implementing [IOmniExtensionInterface]
+ * Heavy actions always use IExtensionService.executeActionAsync. Capability discovery remains
+ * synchronous because it is a small bounded metadata read. RemoteException and binder death both
+ * invalidate the same connection so the next operation rebinds instead of keeping a dead handle.
  */
 object ExtensionConnectionManager {
     private const val TAG = "ExtensionConnectionMgr"
     private const val MAX_BIND_RETRIES = 15
     private const val BIND_RETRY_DELAY_MS = 100L
+    private const val ACTION_TIMEOUT_MS = 10 * 60 * 1000L
 
-    const val ACTION_BIND_EXTENSION = "com.omnidev.action.BIND_EXTENSION"
+    const val ACTION_BIND_EXTENSION = OmniLinkConstants.ACTION_EXTENSION_BIND
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        classDiscriminator = "type"
+    }
 
     @Volatile
     private var appContext: Context? = null
@@ -41,9 +61,9 @@ object ExtensionConnectionManager {
     data class ExtensionHandle(
         val packageName: String,
         val serviceClassName: String,
-        @Volatile var binder: IOmniExtensionInterface? = null
+        @Volatile var binder: IExtensionService? = null
     ) {
-        val id: String get() = "$packageName/$serviceClassName"
+        val id: String get() = packageName + "/" + serviceClassName
     }
 
     private val handles = ConcurrentHashMap<String, ExtensionHandle>()
@@ -51,7 +71,7 @@ object ExtensionConnectionManager {
 
     private val packageChangeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent?) {
-            Log.i(TAG, "Package change detected: ${intent?.action}")
+            Log.i(TAG, "Package change detected: " + intent?.action)
             refreshDiscoveredExtensions()
         }
     }
@@ -59,9 +79,7 @@ object ExtensionConnectionManager {
     fun initialize(context: Context) {
         val localContext = context.applicationContext
         appContext = localContext
-        if (initialized.compareAndSet(false, true)) {
-            registerPackageReceiver(localContext)
-        }
+        if (initialized.compareAndSet(false, true)) registerPackageReceiver(localContext)
         refreshDiscoveredExtensions()
     }
 
@@ -95,50 +113,45 @@ object ExtensionConnectionManager {
             if (!serviceInfo.exported) return@mapNotNull null
             val pkg = serviceInfo.packageName ?: return@mapNotNull null
             val cls = serviceInfo.name ?: return@mapNotNull null
-            val id = "$pkg/$cls"
-            handles.putIfAbsent(id, ExtensionHandle(packageName = pkg, serviceClassName = cls))
+            val id = pkg + "/" + cls
+            handles.putIfAbsent(id, ExtensionHandle(pkg, cls))
             id
         }.toSet()
 
-        val stale = handles.keys.filter { it !in discoveredIds }
-        for (id in stale) {
+        handles.keys.filter { it !in discoveredIds }.forEach { id ->
             unbindById(id)
             handles.remove(id)
         }
-
-        discoveredIds.forEach { bindById(it) }
+        discoveredIds.forEach(::bindById)
     }
 
-    suspend fun listExtensions(forceRefresh: Boolean = true): List<JSONObject> = withContext(Dispatchers.IO) {
-        if (forceRefresh) refreshDiscoveredExtensions()
-        handles.values.sortedBy { it.id }.map { handle ->
-            JSONObject()
-                .put("id", handle.id)
-                .put("package", handle.packageName)
-                .put("service", handle.serviceClassName)
-                .put("connected", handle.binder != null)
+    suspend fun listExtensions(forceRefresh: Boolean = true): List<JSONObject> =
+        withContext(Dispatchers.IO) {
+            if (forceRefresh) refreshDiscoveredExtensions()
+            handles.values.sortedBy { it.id }.map { handle ->
+                JSONObject()
+                    .put("id", handle.id)
+                    .put("package", handle.packageName)
+                    .put("service", handle.serviceClassName)
+                    .put("connected", handle.binder != null)
+            }
         }
-    }
 
     suspend fun getExtensionManifest(extensionId: String): String = withContext(Dispatchers.IO) {
-        val handle = handles[extensionId]
-            ?: return@withContext JSONObject()
-                .put("ok", false)
-                .put("error", "Extension not found: $extensionId")
-                .toString()
-        val binder = ensureBound(handle)
-            ?: return@withContext JSONObject()
-                .put("ok", false)
-                .put("error", "Extension is not currently connected: $extensionId")
-                .toString()
-        runCatching { binder.getExtensionManifest() }
-            .map { it.ifBlank { "{}" } }
-            .getOrElse {
-                JSONObject()
-                    .put("ok", false)
-                    .put("error", "Failed to fetch manifest: ${it.message ?: "unknown"}")
-                    .toString()
-            }
+        val handle = handles[extensionId] ?: return@withContext errorJson(
+            "Extension not found: " + extensionId
+        )
+        val binder = ensureBound(handle) ?: return@withContext errorJson(
+            "Extension is not currently connected: " + extensionId
+        )
+        try {
+            binder.getCapabilityManifest().ifBlank { "{}" }
+        } catch (remote: RemoteException) {
+            invalidateAndReconnect(handle, remote)
+            errorJson("Failed to fetch manifest: " + (remote.message ?: "remote process died"))
+        } catch (error: Exception) {
+            errorJson("Failed to fetch manifest: " + (error.message ?: "unknown"))
+        }
     }
 
     suspend fun executeAction(
@@ -146,24 +159,65 @@ object ExtensionConnectionManager {
         actionName: String,
         jsonPayload: String
     ): String = withContext(Dispatchers.IO) {
-        val handle = handles[extensionId]
-            ?: return@withContext JSONObject()
-                .put("ok", false)
-                .put("error", "Extension not found: $extensionId")
-                .toString()
-        val binder = ensureBound(handle)
-            ?: return@withContext JSONObject()
-                .put("ok", false)
-                .put("error", "Extension is not currently connected: $extensionId")
-                .toString()
-        runCatching { binder.executeAction(actionName, jsonPayload) }
-            .map { it.ifBlank { "{}" } }
-            .getOrElse {
-                JSONObject()
-                    .put("ok", false)
-                    .put("error", "Action execution failed: ${it.message ?: "unknown"}")
-                    .toString()
+        val handle = handles[extensionId] ?: return@withContext errorJson(
+            "Extension not found: " + extensionId
+        )
+        val binder = ensureBound(handle) ?: return@withContext errorJson(
+            "Extension is not currently connected: " + extensionId
+        )
+
+        val payload: JsonElement = runCatching {
+            json.parseToJsonElement(jsonPayload.ifBlank { "{}" })
+        }.getOrElse { buildJsonObject {} }
+        val requestJson = json.encodeToString(ActionRequest(actionName, payload))
+
+        try {
+            val protocol = negotiateProtocol(binder)
+            withTimeout(ACTION_TIMEOUT_MS) {
+                executeAsync(binder, protocol, requestJson)
+            }.ifBlank { "{}" }
+        } catch (remote: RemoteException) {
+            invalidateAndReconnect(handle, remote)
+            errorJson("Action execution failed: " + (remote.message ?: "remote process died"))
+        } catch (error: Exception) {
+            errorJson("Action execution failed: " + (error.message ?: "unknown"))
+        }
+    }
+
+    private fun negotiateProtocol(binder: IExtensionService): Int {
+        val manifestJson = binder.getCapabilityManifest()
+        val manifest = json.decodeFromString<CapabilityManifest>(manifestJson)
+        val preferred = minOf(
+            OmniLinkConstants.CURRENT_PROTOCOL_VERSION,
+            manifest.maxSupportedVersion
+        )
+        if (preferred < manifest.minSupportedVersion) {
+            throw IllegalStateException(
+                "No compatible OmniLink protocol. Workspace=" +
+                    OmniLinkConstants.CURRENT_PROTOCOL_VERSION +
+                    ", extension=" + manifest.minSupportedVersion + ".." + manifest.maxSupportedVersion
+            )
+        }
+        return preferred
+    }
+
+    private suspend fun executeAsync(
+        binder: IExtensionService,
+        protocolVersion: Int,
+        requestJson: String
+    ): String = suspendCancellableCoroutine { continuation ->
+        val callback = object : IOmniResultCallback.Stub() {
+            override fun onResult(resultJson: String) {
+                if (continuation.isActive) continuation.resume(resultJson)
             }
+        }
+        try {
+            binder.executeActionAsync(protocolVersion, requestJson, callback)
+        } catch (error: RemoteException) {
+            if (continuation.isActive) continuation.resumeWithException(error)
+        } catch (error: Exception) {
+            if (continuation.isActive) continuation.resumeWithException(error)
+        }
     }
 
     private fun bindById(id: String) {
@@ -175,43 +229,48 @@ object ExtensionConnectionManager {
             component = ComponentName(handle.packageName, handle.serviceClassName)
             setPackage(handle.packageName)
         }
-
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-                handle.binder = IOmniExtensionInterface.Stub.asInterface(service)
-                Log.i(TAG, "Connected extension: ${handle.id}")
+                handle.binder = IExtensionService.Stub.asInterface(service)
+                Log.i(TAG, "Connected extension: " + handle.id)
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
                 handle.binder = null
-                Log.w(TAG, "Disconnected extension: ${handle.id}")
+                serviceConnections.remove(handle.id)
+                Log.w(TAG, "Disconnected extension: " + handle.id)
+                bindById(handle.id)
             }
 
             override fun onBindingDied(name: ComponentName?) {
                 handle.binder = null
-                Log.w(TAG, "Binding died extension: ${handle.id}")
                 serviceConnections.remove(handle.id)
+                Log.w(TAG, "Binding died extension: " + handle.id)
                 bindById(handle.id)
             }
 
             override fun onNullBinding(name: ComponentName?) {
                 handle.binder = null
-                Log.w(TAG, "Null binding extension: ${handle.id}")
+                serviceConnections.remove(handle.id)
+                Log.w(TAG, "Null binding extension: " + handle.id)
             }
         }
 
         val didBind = runCatching {
             context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
         }.getOrElse {
-            Log.w(TAG, "Failed binding extension: ${handle.id}", it)
+            Log.w(TAG, "Failed binding extension: " + handle.id, it)
             false
         }
+        if (didBind) serviceConnections[id] = connection
+        else handle.binder = null
+    }
 
-        if (didBind) {
-            serviceConnections[id] = connection
-        } else {
-            handle.binder = null
-        }
+    private fun invalidateAndReconnect(handle: ExtensionHandle, cause: Throwable) {
+        Log.w(TAG, "Remote call failed; rebinding " + handle.id, cause)
+        handle.binder = null
+        unbindById(handle.id)
+        bindById(handle.id)
     }
 
     private fun unbindById(id: String) {
@@ -222,10 +281,7 @@ object ExtensionConnectionManager {
     }
 
     private fun unbindAll() {
-        val ids = serviceConnections.keys.toList()
-        for (id in ids) {
-            unbindById(id)
-        }
+        serviceConnections.keys.toList().forEach(::unbindById)
     }
 
     private fun registerPackageReceiver(context: Context) {
@@ -245,8 +301,8 @@ object ExtensionConnectionManager {
         )
     }
 
-    private suspend fun ensureBound(handle: ExtensionHandle): IOmniExtensionInterface? {
-        if (handle.binder != null) return handle.binder
+    private suspend fun ensureBound(handle: ExtensionHandle): IExtensionService? {
+        handle.binder?.let { return it }
         bindById(handle.id)
         repeat(MAX_BIND_RETRIES) {
             handle.binder?.let { return it }
@@ -254,4 +310,7 @@ object ExtensionConnectionManager {
         }
         return null
     }
+
+    private fun errorJson(message: String): String =
+        JSONObject().put("ok", false).put("error", message).toString()
 }
