@@ -201,16 +201,17 @@ class ToolAwarenessEngine(
         val shizukuBinder = ShizukuCommandTool.isAvailable()
         val shizukuGranted = shizukuBinder && ShizukuCommandTool.hasPermission()
         val shizukuUid = if (shizukuGranted) ShizukuCommandTool.privilegedUidOrNull() else null
-        runtimeEnvironmentCache["shizuku"] = shizukuGranted.toString()
+        val shizukuFunctional = shizukuGranted && shizukuUid != null
+        runtimeEnvironmentCache["shizuku"] = shizukuFunctional.toString()
 
-        val shizukuKnowledgeType = if (shizukuGranted) TYPE_ENVIRONMENT else TYPE_WARNING
+        val shizukuKnowledgeType = if (shizukuFunctional) TYPE_ENVIRONMENT else TYPE_WARNING
         systemKnowledgeDao.invalidateOtherTypesForSubject(
             subject = "shizuku",
             source = "auto_discovery",
             keepType = shizukuKnowledgeType
         )
 
-        if (shizukuGranted) {
+        if (shizukuFunctional) {
             saveOrUpdateKnowledge(
                 TYPE_ENVIRONMENT,
                 "shizuku",
@@ -223,10 +224,10 @@ class ToolAwarenessEngine(
             saveOrUpdateKnowledge(
                 TYPE_WARNING,
                 "shizuku",
-                if (shizukuBinder) {
-                    "Shizuku is running but permission is not granted to OmniDev."
-                } else {
-                    "Shizuku binder is not available."
+                when {
+                    !shizukuBinder -> "Shizuku binder is not available."
+                    !shizukuGranted -> "Shizuku is running but permission is not granted to OmniDev."
+                    else -> "Shizuku binder/permission exist, but the UserService functional UID probe failed. Treat Shizuku as degraded until a real command succeeds."
                 },
                 confidence = 1.0f,
                 priority = 3,
