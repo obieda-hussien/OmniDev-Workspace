@@ -60,4 +60,33 @@ class IntentClassifierSignalsTest {
         assertTrue(!a.bucketKey().contains("Kotlin", ignoreCase = true))
         assertTrue(!b.bucketKey().contains("Java", ignoreCase = true))
     }
+    @Test
+    fun `sms wallet request exposes messaging without irrelevant terminal domain`() {
+        val domains = IntentClassifier.getRelevantDomains(
+            "اقرأ رسائل اورنچ كاش واعرف آخر رصيد من الـ SMS"
+        )
+
+        assertTrue(IntentClassifier.ToolDomain.MESSAGING in domains)
+        assertTrue(IntentClassifier.ToolDomain.CODE_TERMINAL !in domains)
+    }
+
+    @Test
+    fun `single device setting keyword exposes device tools`() {
+        val domains = IntentClassifier.getRelevantDomains(
+            "غيّر سطوع الشاشة"
+        )
+
+        assertTrue(IntentClassifier.ToolDomain.DEVICE_CONTROL in domains)
+    }
+
+    @Test
+    fun `focused code fix still exposes code terminal tools`() {
+        val domains = IntentClassifier.getRelevantDomains(
+            "Fix Kotlin build error in the project"
+        )
+
+        assertTrue(IntentClassifier.ToolDomain.CODE_TERMINAL in domains)
+    }
+
+
 }
