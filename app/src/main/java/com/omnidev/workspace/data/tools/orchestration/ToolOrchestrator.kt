@@ -203,6 +203,25 @@ class ToolOrchestrator {
                 }
 
                 Result.success(output)
+            } catch (timeout: TimeoutCancellationException) {
+                // The orchestrator's bounded tool timeout is an execution failure, not a user
+                // cancellation. Retry it only when this call was explicitly classified retry-safe.
+                breaker.recordFailure()
+                metrics.failureCount++
+                metrics.consecutiveFailures++
+                metrics.lastError = "Tool timeout after ${effectiveTimeoutMs}ms"
+                if (attempt >= effectiveMaxRetries) {
+                    Result.failure(timeout)
+                } else {
+                    val delayMs = baseRetryDelayMs * (1L shl attempt)
+                    delay(delayMs.coerceAtMost(10_000L))
+                    attempt++
+                    continue
+                }
+            } catch (cancelled: CancellationException) {
+                // User/session cancellation is control flow. Never convert it to a tool failure,
+                // never consume circuit-breaker budget, and never retry it.
+                throw cancelled
             } catch (e: Exception) {
                 // Only real transport/execution exceptions consume the broad retry/circuit budget.
                 breaker.recordFailure()
