@@ -390,12 +390,12 @@ Do not use tools. Do not rewrite merely for style.
             val toolResults = mutableListOf<ToolCallResult>()
             val modelSafeResults = mutableListOf<ToolExecutionResult>()
             for ((call, result) in response.toolCalls.zip(rawResults)) {
-                // Keep the exact local UI observation, but never forward authentication secrets
-                // (OTP/PIN/password/token) into the next model prompt or persistent Agent Brain.
-                send(AgentEvent.ToolResult(call.name, result.output, result.isError, iteration))
+                // Authentication secrets are transient by design. Do not persist them in model
+                // context, Agent Brain, checkpoints, or the user-visible execution console.
                 val modelSafe = result.copy(
                     output = SensitiveObservationRedactor.redact(result.output)
                 )
+                send(AgentEvent.ToolResult(call.name, modelSafe.output, modelSafe.isError, iteration))
                 modelSafeResults += modelSafe
                 toolResults += ToolCallResult(call.id, call.name, modelSafe.output, modelSafe.isError)
                 brain?.onToolExecutionEnd(
