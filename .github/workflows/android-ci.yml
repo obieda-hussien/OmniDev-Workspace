@@ -51,7 +51,18 @@ jobs:
         run: bash .github/scripts/install-android-ndk.sh
 
       - name: Grant gradlew permission
-        run: chmod +x gradlew
+        run: chmod +x gradlew .github/scripts/fetch-omnilink.sh
+
+      - name: Stage OmniLinkSDK with retry/backoff
+        run: bash .github/scripts/fetch-omnilink.sh
+
+      - name: Share OmniLinkSDK with downstream jobs
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: omnilink-maven-${{ github.run_id }}
+          path: ci-m2
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Fast quality compile gate
         run: |
@@ -91,6 +102,12 @@ jobs:
           submodules: recursive
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Restore staged OmniLinkSDK
+        uses: actions/download-artifact@v5
+        with:
+          name: omnilink-maven-${{ github.run_id }}
+          path: ci-m2
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
@@ -150,6 +167,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Restore staged OmniLinkSDK
+        uses: actions/download-artifact@v5
+        with:
+          name: omnilink-maven-${{ github.run_id }}
+          path: ci-m2
+
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
@@ -207,6 +230,12 @@ jobs:
           submodules: recursive
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Restore staged OmniLinkSDK
+        uses: actions/download-artifact@v5
+        with:
+          name: omnilink-maven-${{ github.run_id }}
+          path: ci-m2
 
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
