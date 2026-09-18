@@ -121,6 +121,7 @@ class ToolOrchestrator {
         timeoutMs: Long = 30_000L,
         maxRetries: Int = 2,
         baseRetryDelayMs: Long = 500L,
+        retrySafe: Boolean = false,
         execution: suspend () -> T
     ): Result<T> = withContext(Dispatchers.IO) {
         if (cacheKey != null) {
@@ -147,6 +148,7 @@ class ToolOrchestrator {
             maxOf(timeoutMs, LONG_RUNNING_TIMEOUT_MS)
         } else timeoutMs
 
+        val effectiveMaxRetries = if (retrySafe) maxRetries.coerceAtLeast(0) else 0
         var attempt = 0
         var result: Result<T>
         var semanticFailure = false
@@ -207,7 +209,7 @@ class ToolOrchestrator {
                 metrics.failureCount++
                 metrics.consecutiveFailures++
                 metrics.lastError = e.message
-                if (attempt >= maxRetries) {
+                if (attempt >= effectiveMaxRetries) {
                     Result.failure(e)
                 } else {
                     val delayMs = baseRetryDelayMs * (1L shl attempt)
@@ -251,27 +253,94 @@ class ToolOrchestrator {
     suspend fun executeParallel(
         tasks: List<ToolTask>
     ): Map<String, Result<Any>> = coroutineScope {
-        val results = ConcurrentHashMap<String, Result<Any>>()
-        buildDependencyGraph(tasks)
-        val executed = ConcurrentHashMap.newKeySet<String>()
-
-        suspend fun executeTask(task: ToolTask) {
-            task.dependencies.forEach { dep ->
-                while (!executed.contains(dep)) delay(50)
-            }
-
-            val result = executeTool(
-                toolName = task.name,
-                cacheKey = task.cacheKey,
-                cacheTTL = task.cacheTTL,
-                execution = task.execution
-            )
-
-            results[task.name] = result
-            executed.add(task.name)
+        require(tasks.map { it.name }.distinct().size == tasks.size) {
+            "ToolTask names must be unique inside executeParallel"
         }
 
-        tasks.map { task -> async { executeTask(task) } }.awaitAll()
+        val taskNames = tasks.mapTo(linkedSetOf()) { it.name }
+        val results = LinkedHashMap<String, Result<Any>>()
+        val pending = tasks.associateByTo(LinkedHashMap()) { it.name }
+
+        // Missing dependencies can never become ready. Fail them deterministically instead of
+        // polling forever.
+        pending.values.toList().forEach { task ->
+            val missing = task.dependencies.filterNot(taskNames::contains)
+            if (missing.isNotEmpty()) {
+                results[task.name] = Result.failure(
+                    IllegalStateException(
+                        "Skipped tool task '${task.name}': missing dependencies ${missing.joinToString()}"
+                    )
+                )
+                pending.remove(task.name)
+            }
+        }
+
+        fun dependencySucceeded(name: String): Boolean {
+            val result = results[name] ?: return false
+            if (result.isFailure) return false
+            val value = result.getOrNull()
+            return value !is ToolExecutionResult || !value.isError
+        }
+
+        while (pending.isNotEmpty()) {
+            // A task whose completed dependency failed must be skipped, not executed.
+            var skippedAny = false
+            pending.values.toList().forEach { task ->
+                val failed = task.dependencies.firstOrNull { dep ->
+                    dep in results && !dependencySucceeded(dep)
+                }
+                if (failed != null) {
+                    results[task.name] = Result.failure(
+                        IllegalStateException(
+                            "Skipped tool task '${task.name}': dependency '$failed' failed"
+                        )
+                    )
+                    pending.remove(task.name)
+                    skippedAny = true
+                }
+            }
+            if (pending.isEmpty()) break
+
+            val ready = pending.values.filter { task ->
+                task.dependencies.all { dep -> dep in results && dependencySucceeded(dep) }
+            }
+
+            if (ready.isEmpty()) {
+                // Remaining nodes depend on one another and no frontier can advance: cycle.
+                val blocked = pending.keys.toList()
+                blocked.forEach { name ->
+                    results[name] = Result.failure(
+                        IllegalStateException(
+                            "Skipped tool task '$name': cyclic or unresolved dependency graph"
+                        )
+                    )
+                    pending.remove(name)
+                }
+                break
+            }
+
+            val waveResults = ready.map { task ->
+                async {
+                    task.name to executeTool(
+                        toolName = task.name,
+                        cacheKey = task.cacheKey,
+                        cacheTTL = task.cacheTTL,
+                        retrySafe = task.retrySafe,
+                        execution = task.execution
+                    )
+                }
+            }.awaitAll()
+
+            waveResults.forEach { (name, result) ->
+                results[name] = result
+                pending.remove(name)
+            }
+
+            // Keeps the loop obviously progressive to future maintainers/static analyzers.
+            @Suppress("UNUSED_VARIABLE")
+            val progressMade = skippedAny || waveResults.isNotEmpty()
+        }
+
         results
     }
 
@@ -280,11 +349,9 @@ class ToolOrchestrator {
         val dependencies: List<String> = emptyList(),
         val cacheKey: String? = null,
         val cacheTTL: Duration = 5.minutes,
+        val retrySafe: Boolean = false,
         val execution: suspend () -> Any
     )
-
-    private fun buildDependencyGraph(tasks: List<ToolTask>): Map<String, List<String>> =
-        tasks.associate { it.name to it.dependencies }
 
     fun getToolMetrics(toolName: String): ToolMetrics? = executionMetrics[toolName]
 
