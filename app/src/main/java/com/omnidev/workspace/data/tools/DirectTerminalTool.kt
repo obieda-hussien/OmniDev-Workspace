@@ -41,6 +41,10 @@ object DirectTerminalTool {
             else -> params.optString("cwd").takeIf { it.isNotBlank() }
         }
 
+        AndroidPrivilegedCommandRouter.executeIfNeeded(command)?.let { routed ->
+            return routed.output
+        }
+
         val result = EnvironmentSetupManager.executeShell(command, cwd)
         return result.output
     }
