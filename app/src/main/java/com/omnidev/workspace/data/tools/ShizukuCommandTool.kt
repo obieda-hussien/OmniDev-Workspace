@@ -70,9 +70,15 @@ object ShizukuCommandTool {
             val result = executeOnce(command, timeoutMs)
             when (result) {
                 is ShizukuResult.Success,
-                is ShizukuResult.PartialSuccess,
                 is ShizukuResult.PermissionRequired,
                 is ShizukuResult.Unavailable -> return@withContext result
+
+                is ShizukuResult.PartialSuccess -> {
+                    return@withContext ShizukuResult.Failure(
+                        "Command failed (exit=${result.exitCode}): " +
+                            result.output.ifBlank { "(no output)" }.take(2_000)
+                    )
+                }
 
                 is ShizukuResult.Failure -> {
                     lastFailure = result
@@ -307,13 +313,13 @@ sealed class ShizukuResult {
 
     fun hasUsefulOutput(): Boolean = when (this) {
         is Success -> output.isNotBlank() && output != "(no output)"
-        is PartialSuccess -> output.isNotBlank() && output != "(no output)"
+        is PartialSuccess -> false
         else -> false
     }
 
     fun outputOrNull(): String? = when (this) {
         is Success -> output.takeIf { it.isNotBlank() && it != "(no output)" }
-        is PartialSuccess -> output.takeIf { it.isNotBlank() && it != "(no output)" }
+        is PartialSuccess -> null
         else -> null
     }
 }
