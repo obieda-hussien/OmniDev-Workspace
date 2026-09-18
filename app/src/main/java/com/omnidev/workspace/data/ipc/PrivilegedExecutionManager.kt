@@ -35,6 +35,11 @@ object PrivilegedExecutionManager {
     @Volatile private var appContext: Context? = null
     private val rishInitLock = Any()
 
+    private enum class RootHealth { UNKNOWN, READY, UNAVAILABLE }
+    private const val ROOT_HEALTH_TTL_MS = 15_000L
+    @Volatile private var rootHealth: RootHealth = RootHealth.UNKNOWN
+    @Volatile private var rootHealthCheckedAtMs: Long = 0L
+
     // ──────────────────────────────────────────────────────────────
     // Initialization
     // ──────────────────────────────────────────────────────────────
@@ -60,21 +65,49 @@ object PrivilegedExecutionManager {
     fun isRishReady(): Boolean = rishManager?.isAvailable() ?: false
 
     /**
-     * File/path visibility is not root readiness. Some ROMs expose a su path that the app UID
-     * cannot execute. Require a bounded real `su -c id` smoke test and uid=0 evidence.
+     * File/path visibility is not root readiness. Root probing may display a superuser prompt, so
+     * passive capability/status code must never trigger it.
+     *
+     * [forceProbe] is reserved for an explicit root operation. A short TTL prevents one logical
+     * root action from prompting/probing repeatedly while still allowing capability changes later.
      */
-    fun isRootAvailable(): Boolean = runCatching {
-        val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
-        val finished = process.waitFor(1_500, java.util.concurrent.TimeUnit.MILLISECONDS)
-        if (!finished) {
-            process.destroy()
-            false
-        } else {
-            val output = process.inputStream.bufferedReader().use { it.readText() } +
-                process.errorStream.bufferedReader().use { it.readText() }
-            process.exitValue() == 0 && Regex("""\buid=0(?:\(|\b)""").containsMatchIn(output)
+    fun isRootAvailable(forceProbe: Boolean = false): Boolean {
+        val now = System.currentTimeMillis()
+        val age = now - rootHealthCheckedAtMs
+        if (rootHealth != RootHealth.UNKNOWN && age in 0 until ROOT_HEALTH_TTL_MS) {
+            return rootHealth == RootHealth.READY
         }
-    }.getOrDefault(false)
+        if (!forceProbe) return rootHealth == RootHealth.READY
+
+        val ready = runCatching {
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
+            val finished = process.waitFor(1_500, java.util.concurrent.TimeUnit.MILLISECONDS)
+            if (!finished) {
+                process.destroy()
+                false
+            } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() } +
+                    process.errorStream.bufferedReader().use { it.readText() }
+                process.exitValue() == 0 &&
+                    Regex("""\buid=0(?:\(|\b)""").containsMatchIn(output)
+            }
+        }.getOrDefault(false)
+
+        rootHealth = if (ready) RootHealth.READY else RootHealth.UNAVAILABLE
+        rootHealthCheckedAtMs = System.currentTimeMillis()
+        return ready
+    }
+
+    fun cachedRootAvailable(): Boolean? {
+        val age = System.currentTimeMillis() - rootHealthCheckedAtMs
+        if (rootHealth == RootHealth.UNKNOWN || age !in 0 until ROOT_HEALTH_TTL_MS) return null
+        return rootHealth == RootHealth.READY
+    }
+
+    fun resetRootHealth() {
+        rootHealth = RootHealth.UNKNOWN
+        rootHealthCheckedAtMs = 0L
+    }
 
     // ──────────────────────────────────────────────────────────────
     // executeCommand — The core execution function
@@ -95,7 +128,9 @@ object PrivilegedExecutionManager {
         if (command.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Command is empty."))
         }
-        val preparedCommand = enrichCommandWithOmniToolchain(command)
+        // Android shell/rish/root identities cannot reliably access OmniDev's app-private
+        // filesDir. Never inject app-private PATH/JAR helpers into privileged commands.
+        val preparedCommand = command
 
         // ── 1. Shizuku UserService (preferred Android shell domain) ──
         var allowBackendFallback = !ShizukuCommandTool.isAvailable()
@@ -160,7 +195,7 @@ object PrivilegedExecutionManager {
         }
 
         // ── 3. Root/SU — explicit opt-in only ──
-        val rootReady = if (allowRootFallback) isRootAvailable() else null
+        val rootReady = if (allowRootFallback) isRootAvailable(forceProbe = true) else null
         if (rootReady == true) {
             Log.d(TAG, "Trying explicitly allowed root fallback: ${command.take(40)}")
             return@withContext executeViaRoot(preparedCommand)
@@ -202,7 +237,7 @@ object PrivilegedExecutionManager {
         if (command.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Root command is empty."))
         }
-        if (!isRootAvailable()) {
+        if (!isRootAvailable(forceProbe = true)) {
             return@withContext Result.failure(
                 IllegalStateException("Root backend is unavailable or su did not return uid=0.")
             )
@@ -244,35 +279,6 @@ object PrivilegedExecutionManager {
         appendLine("  2. Run: execution_diagnostics action=fix_shizuku")
     }
 
-    private fun enrichCommandWithOmniToolchain(command: String): String {
-        // If init(context) has not run yet, execute the command as-is.
-        val ctx = appContext ?: return command
-        val baseDir = runCatching { ctx.filesDir.canonicalFile }.getOrNull() ?: return command
-        val root = runCatching { File(baseDir, "omnidev_tools").canonicalFile }.getOrNull() ?: return command
-        if (!root.path.startsWith(baseDir.path + File.separator)) return command
-        if (!root.exists()) return command
-        val bin = File(root, "bin").absolutePath
-        val customBin = File(root, "custom/bin").absolutePath
-        val jadxJar = File(root, "jars/jadx-cli.jar").absolutePath
-        val apktoolJar = File(root, "jars/apktool.jar").absolutePath
-
-        val prelude = buildString {
-            val qRoot = shellQuote(root.absolutePath)
-            val qBin = shellQuote(bin)
-            val qCustomBin = shellQuote(customBin)
-            val qJadxJar = shellQuote(jadxJar)
-            val qApktoolJar = shellQuote(apktoolJar)
-            val qJadxMainClass = shellQuote(JADX_MAIN_CLASS)
-            val qApktoolMainClass = shellQuote(APKTOOL_MAIN_CLASS)
-
-            append("export OMNIDEV_TOOLS_ROOT=$qRoot; ")
-            append("export PATH=$qBin:$qCustomBin:\$PATH; ")
-            append("if [ -f $qJadxJar ]; then jadx(){ CLASSPATH=$qJadxJar app_process / $qJadxMainClass \"\$@\"; }; fi; ")
-            append("if [ -f $qApktoolJar ]; then apktool(){ CLASSPATH=$qApktoolJar app_process / $qApktoolMainClass \"\$@\"; }; fi; ")
-        }
-
-        return "$prelude $command"
-    }
 
     // POSIX-safe single-quote escaping:
     // close quote + escaped single quote + reopen quote => '\'' pattern.
@@ -295,7 +301,7 @@ object PrivilegedExecutionManager {
                 androidVersion    = Build.VERSION.RELEASE,
                 shizukuReady      = isShizukuReady(),
                 rishAvailable     = isRishReady(),
-                rootAvailable     = isRootAvailable(),
+                rootAvailable     = cachedRootAvailable() == true,
                 foregroundPackage = foregroundPkg,
                 batteryLevel      = batteryLevel,
                 totalRamMb        = totalRamMb
