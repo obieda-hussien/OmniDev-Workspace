@@ -437,6 +437,10 @@ Do not use tools. Do not rewrite merely for style.
                 }
             }
             messages += ChatMessage(MessageRole.TOOL, toolContent, toolResults = toolResults)
+
+            // Full observations have already been emitted to UI + learning. Keep only the latest
+            // tool group verbatim in the next model request; older evidence is compacted locally.
+            ContextCompressor.compactHistoricalToolEvidence(messages, keepRecentToolGroups = 1)
         }
 
         brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "max iterations reached after ${config.maxIterations} loops")
