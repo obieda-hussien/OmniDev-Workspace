@@ -479,7 +479,8 @@ Do not use tools. Do not rewrite merely for style.
                 cacheKey = null,
                 timeoutMs = config.toolExecutionTimeoutMs,
                 maxRetries = config.toolExecutionMaxRetries,
-                baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs
+                baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs,
+                retrySafe = ToolBatchPolicy.isReadOnly(call)
             ) {
                 val result = if (call.name.startsWith("mcp_")) {
                     val output = mcpRegistry?.executeMcpTool(call.name, call.arguments)
