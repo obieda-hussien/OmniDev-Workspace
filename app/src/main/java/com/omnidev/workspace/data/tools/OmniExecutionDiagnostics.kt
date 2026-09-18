@@ -314,7 +314,38 @@ After that, agent_runtime executes inside the real Termux process.
     )
 
     private suspend fun testCommand(command: String): ToolExecutionResult {
-        val developer = if (EnvironmentSetupManager.isTermuxUsable()) {
+        val androidViolation = ExecutionDomainGuard.findViolation(command)
+        val androidReadOnly = androidViolation != null &&
+            ExecutionDomainGuard.isReadOnlyPrivilegedCommand(command)
+
+        if (androidViolation != null && !androidReadOnly) {
+            return ToolExecutionResult(
+                output =
+                    "Diagnostic comparison refuses mutating Android command '${androidViolation.commandFamily}'. " +
+                        "Use run_terminal once; it will route the command to the correct privileged backend.",
+                isError = true,
+                classification = "DIAGNOSTIC_MUTATION_REFUSED",
+                backend = "execution-diagnostics",
+                persistentFailure = false
+            )
+        }
+
+        val prepared = androidViolation?.let {
+            ExecutionDomainGuard.preparePrivilegedCommand(command)
+        }
+        val privilegedCommand = prepared?.command ?: command
+
+        val developer = if (androidViolation != null) {
+            ToolExecutionResult(
+                output =
+                    "SKIPPED: Android '${androidViolation.commandFamily}' command does not belong in app/Termux UID. " +
+                        "The diagnostic did not execute it there.",
+                isError = true,
+                classification = "WRONG_EXECUTION_DOMAIN",
+                backend = "termux",
+                persistentFailure = false
+            )
+        } else if (EnvironmentSetupManager.isTermuxUsable()) {
             EnvironmentSetupManager.executeShell(command)
         } else {
             ToolExecutionResult(
@@ -327,18 +358,32 @@ After that, agent_runtime executes inside the real Termux process.
         }
 
         val shizukuResult = if (ShizukuCommandTool.isAvailable()) {
-            ShizukuCommandTool.execute(command, timeoutMs = 30_000L)
+            ShizukuCommandTool.execute(privilegedCommand, timeoutMs = 30_000L)
         } else null
         val shizukuSuccess = shizukuResult is ShizukuResult.Success
-        val shizukuText = shizukuResult?.toDisplayString() ?: "Shizuku binder unavailable"
+        val shizukuText = when (shizukuResult) {
+            is ShizukuResult.Success -> prepared?.let {
+                ExecutionDomainGuard.applyOutputCompatibility(shizukuResult.output, it)
+            } ?: shizukuResult.output
+            null -> "Shizuku binder unavailable"
+            else -> shizukuResult.toDisplayString()
+        }
 
         val rishManager = PrivilegedExecutionManager.getRishManager()
-        val rishExecution = if (rishManager != null) rishManager.execute(command) else null
+        val rishHealth = rishManager?.refreshHealth()
+        val rishExecution = if (rishManager != null && rishHealth?.ready == true) {
+            rishManager.execute(privilegedCommand)
+        } else null
         val rishSuccess = rishExecution?.isSuccess == true
         val rishText = when {
-            rishExecution == null -> "rish manager unavailable"
-            rishExecution.isSuccess -> rishExecution.getOrThrow()
-            else -> "Error: ${rishExecution.exceptionOrNull()?.message}"
+            rishManager == null -> "rish manager unavailable"
+            rishHealth?.ready != true ->
+                "SKIPPED: rish is not healthy (${rishHealth?.state ?: "UNKNOWN"})."
+            rishExecution?.isSuccess == true -> {
+                val output = rishExecution.getOrThrow()
+                prepared?.let { ExecutionDomainGuard.applyOutputCompatibility(output, it) } ?: output
+            }
+            else -> "Error: ${rishExecution?.exceptionOrNull()?.message}"
         }
 
         val anySuccess = !developer.isError || shizukuSuccess || rishSuccess
@@ -354,18 +399,20 @@ After that, agent_runtime executes inside the real Termux process.
                 appendLine("=== Command-domain comparison (diagnostic only) ===")
                 appendLine("Command: $command")
                 appendLine()
-                appendLine("[Termux / developer shell] ${if (developer.isError) "FAIL" else "PASS"}")
+                appendLine("[Termux / developer shell] ${if (developer.isError) "SKIP/FAIL" else "PASS"}")
                 appendLine(developer.output.take(4_000))
                 appendLine()
                 appendLine("[Shizuku UserService / Android privileged shell] ${if (shizukuSuccess) "PASS" else "FAIL"}")
                 appendLine(shizukuText.take(4_000))
                 appendLine()
-                appendLine("[rish / Termux ADB-equivalent shell] ${if (rishSuccess) "PASS" else "FAIL"}")
+                appendLine("[rish / Termux ADB-equivalent shell] ${if (rishSuccess) "PASS" else "SKIP/FAIL"}")
                 append(rishText.take(4_000))
             }.trimEnd(),
             isError = !anySuccess,
             classification = if (anySuccess) {
-                if (!developer.isError && shizukuSuccess && rishSuccess) {
+                if (androidViolation != null && shizukuSuccess) {
+                    "SUCCESS"
+                } else if (!developer.isError && shizukuSuccess && rishSuccess) {
                     "SUCCESS"
                 } else {
                     "DEGRADED_COMMAND_ROUTE"
