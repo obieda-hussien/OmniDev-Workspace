@@ -55,7 +55,8 @@ object AgentPromptSanitizer {
             appendLine("- Treat ERROR observations and semantic classifications as authoritative even when a transport or later echo exited 0.")
             appendLine("- WRONG_EXECUTION_DOMAIN means reroute once to the correct domain; do not retry through Termux/su.")
             appendLine("- Persistent failures (RISH_NATIVE_LOADER_FAILURE, RISH_DEX_MISSING, RISH_LAYOUT_BROKEN, ROOT_UNAVAILABLE, ANDROID_PERMISSION_DENIED, TERMUX_RUN_COMMAND_UNAVAILABLE, TERMUX_EXTERNAL_APPS_DISABLED, SHIZUKU_PERMISSION_REQUIRED) are circuit-breaker events: do not repeat the same backend strategy.")
-            appendLine("- SHIZUKU_CONNECTION_TIMEOUT may be retried once after a health probe; then pivot/report the backend as degraded.")
+            appendLine("- SHIZUKU_CONNECTION_TIMEOUT may be retried only when the runtime marks the command retry-safe; otherwise verify state instead of replaying it.")
+            appendLine("- MUTATION_OUTCOME_UNKNOWN means transport failed after an at-most-once mutation: never repeat it blindly; inspect the postcondition/state first.")
             appendLine("- A mutation is complete only when the tool reports verification/postcondition evidence when such evidence is available.")
             append("- Never append a fake success echo merely to force exit code 0.")
         }
