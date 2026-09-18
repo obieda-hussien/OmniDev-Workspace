@@ -1,6 +1,7 @@
 package com.omnidev.workspace.domain.engine
 
 import com.omnidev.workspace.data.model.ToolCall
+import com.omnidev.workspace.data.tools.ExecutionDomainGuard
 import com.omnidev.workspace.data.tools.ToolExecutionResult
 import kotlin.math.max
 
@@ -324,6 +325,31 @@ class AgentStagnationDetector(
             val action = call.arguments["action"]?.lowercase()
             return action == null || action in READ_ONLY_UI_ACTIONS
         }
+
+        // Generic terminal tool names look mutating, but the payload may be a pure Android query.
+        // Classify the command itself before falling back to name-based heuristics.
+        val privilegedCommand = when (name) {
+            "run_terminal", "shizuku_command", "privileged_tool",
+            "direct_terminal", "advanced_terminal" -> call.arguments["command"]
+            "agent_runtime" -> {
+                val action = call.arguments["action"]?.lowercase()
+                if (action == "shell_script" || action == "termux_run") {
+                    call.arguments["script"] ?: call.arguments["command"]
+                } else null
+            }
+            "execution_diagnostics" -> when (call.arguments["action"]?.lowercase()) {
+                "full_check" -> return true
+                "test_command" -> call.arguments["command"]
+                else -> null
+            }
+            else -> null
+        }
+        if (!privilegedCommand.isNullOrBlank() &&
+            ExecutionDomainGuard.isReadOnlyPrivilegedCommand(privilegedCommand)
+        ) {
+            return true
+        }
+
         if (name in EXPLICIT_ACTION_TOOLS) return false
         if (ACTION_NAME_HINTS.any(name::contains)) return false
         if (READ_ONLY_NAME_HINTS.any(name::contains)) return true
