@@ -43,6 +43,7 @@ object ExtensionConnectionManager {
     private const val MAX_BIND_RETRIES = 15
     private const val BIND_RETRY_DELAY_MS = 100L
     private const val ACTION_TIMEOUT_MS = 10 * 60 * 1000L
+    private const val LEGACY_PROTOCOL_VERSION = 1
 
     const val ACTION_BIND_EXTENSION = OmniLinkConstants.ACTION_EXTENSION_BIND
 
@@ -185,8 +186,16 @@ object ExtensionConnectionManager {
     }
 
     private fun negotiateProtocol(binder: IExtensionService): Int {
-        val manifestJson = binder.getCapabilityManifest()
-        val manifest = json.decodeFromString<CapabilityManifest>(manifestJson)
+        val manifest = runCatching {
+            json.decodeFromString<CapabilityManifest>(binder.getCapabilityManifest())
+        }.getOrElse { error ->
+            // Protocol-v1/v2 services predate getCapabilityManifest(). Because the new AIDL method
+            // is appended (never inserted), their existing executeAction transaction IDs remain
+            // compatible. Explicit legacy actions can therefore continue on protocol 1.
+            Log.i(TAG, "Extension has no v3 manifest; using legacy protocol 1", error)
+            return LEGACY_PROTOCOL_VERSION
+        }
+
         val preferred = minOf(
             OmniLinkConstants.CURRENT_PROTOCOL_VERSION,
             manifest.maxSupportedVersion
