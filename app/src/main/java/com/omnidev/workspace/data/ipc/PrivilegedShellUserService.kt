@@ -2,6 +2,7 @@ package com.omnidev.workspace.data.ipc
 
 import android.content.Context
 import android.os.Bundle
+import android.os.ParcelFileDescriptor
 import android.system.Os
 import androidx.annotation.Keep
 import com.omnidev.workspace.ipc.IPrivilegedShellService
@@ -33,6 +34,87 @@ class PrivilegedShellUserService @JvmOverloads constructor(
     override fun destroy() {
         // Reserved Shizuku UserService lifecycle transaction.
         System.exit(0)
+    }
+
+    override fun captureScreenshot(timeoutMs: Long): ParcelFileDescriptor? {
+        val effectiveTimeout = when {
+            timeoutMs <= 0L -> 5_000L
+            else -> timeoutMs.coerceIn(1_000L, 30_000L)
+        }
+
+        return try {
+            val pipe = ParcelFileDescriptor.createPipe()
+            val readSide = pipe[0]
+            val writeSide = pipe[1]
+
+            Thread({
+                ParcelFileDescriptor.AutoCloseOutputStream(writeSide).use { output ->
+                    var process: Process? = null
+                    try {
+                        process = ProcessBuilder("/system/bin/screencap", "-p")
+                            .redirectErrorStream(false)
+                            .start()
+
+                        val activeProcess = process
+                        val stderrDrainer = Thread({
+                            runCatching {
+                                activeProcess.errorStream.use { input ->
+                                    val buffer = ByteArray(2_048)
+                                    while (input.read(buffer) >= 0) {
+                                        // Drain only; screenshot data must stay binary-clean.
+                                    }
+                                }
+                            }
+                        }, "omni-screencap-stderr").apply {
+                            isDaemon = true
+                            start()
+                        }
+
+                        val watchdog = Thread({
+                            try {
+                                Thread.sleep(effectiveTimeout)
+                                if (activeProcess.isAlive) activeProcess.destroyForcibly()
+                            } catch (_: InterruptedException) {
+                                Thread.currentThread().interrupt()
+                            }
+                        }, "omni-screencap-watchdog").apply {
+                            isDaemon = true
+                            start()
+                        }
+
+                        activeProcess.inputStream.use { input ->
+                            val buffer = ByteArray(32 * 1024)
+                            var total = 0L
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                if (total > 16L * 1024L * 1024L) {
+                                    activeProcess.destroyForcibly()
+                                    break
+                                }
+                                output.write(buffer, 0, count)
+                            }
+                            output.flush()
+                        }
+
+                        runCatching { activeProcess.waitFor() }
+                        watchdog.interrupt()
+                        stderrDrainer.join(500L)
+                    } catch (_: Throwable) {
+                        runCatching { process?.destroyForcibly() }
+                        // Closing the pipe gives the app EOF; it will reject an empty/invalid PNG.
+                    }
+                }
+            }, "omni-screencap-pipe").apply {
+                isDaemon = true
+                start()
+            }
+
+            readSide
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     override fun execute(command: String?, timeoutMs: Long): Bundle {

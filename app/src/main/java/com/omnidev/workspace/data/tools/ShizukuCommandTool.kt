@@ -62,21 +62,43 @@ object ShizukuCommandTool {
             )
         }
 
+        val retrySafe = ExecutionRetryPolicy.isSafeToRetry(command)
+        val maxAttempts = if (retrySafe) 3 else 1
         var lastFailure: ShizukuResult = ShizukuResult.Failure("Execution did not start")
-        repeat(3) { attempt ->
+
+        repeat(maxAttempts) { attempt ->
             val result = executeOnce(command, timeoutMs)
             when (result) {
                 is ShizukuResult.Success,
-                is ShizukuResult.PartialSuccess,
                 is ShizukuResult.PermissionRequired,
                 is ShizukuResult.Unavailable -> return@withContext result
 
+                is ShizukuResult.PartialSuccess -> {
+                    return@withContext ShizukuResult.Failure(
+                        "Command failed (exit=${result.exitCode}): " +
+                            result.output.ifBlank { "(no output)" }.take(2_000)
+                    )
+                }
+
                 is ShizukuResult.Failure -> {
                     lastFailure = result
-                    if (!isRetryableError(result.reason) || attempt == 2) {
+                    val transportRetry = isRetryableError(result.reason)
+                    val hasNextAttempt = attempt + 1 < maxAttempts
+                    if (!transportRetry || !hasNextAttempt) {
+                        if (transportRetry && !retrySafe) {
+                            Log.w(
+                                TAG,
+                                "Transient backend error after at-most-once mutation; not retrying uncertain command: " +
+                                    command.take(80)
+                            )
+                        }
                         return@withContext result
                     }
-                    Log.w(TAG, "Transient Shizuku UserService error; retry=${attempt + 1}: ${result.reason}")
+                    Log.w(
+                        TAG,
+                        "Transient Shizuku UserService error; retry=${attempt + 1}/$maxAttempts " +
+                            "safe=$retrySafe: ${result.reason}"
+                    )
                     delay(400L * (1L shl attempt))
                 }
             }
@@ -291,13 +313,13 @@ sealed class ShizukuResult {
 
     fun hasUsefulOutput(): Boolean = when (this) {
         is Success -> output.isNotBlank() && output != "(no output)"
-        is PartialSuccess -> output.isNotBlank() && output != "(no output)"
+        is PartialSuccess -> false
         else -> false
     }
 
     fun outputOrNull(): String? = when (this) {
         is Success -> output.takeIf { it.isNotBlank() && it != "(no output)" }
-        is PartialSuccess -> output.takeIf { it.isNotBlank() && it != "(no output)" }
+        is PartialSuccess -> null
         else -> null
     }
 }

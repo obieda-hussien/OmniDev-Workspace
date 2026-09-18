@@ -29,7 +29,7 @@ Actions:
 • fix_python — install/repair Python in Termux.
 • fix_git — install/repair Git in Termux.
 • install_termux — explain official Termux setup requirements.
-• test_command — execute a command independently in developer, privileged and rish domains.
+• test_command — DIAGNOSTIC ONLY: compare one command across developer, privileged and rish domains. Do not use this as the normal command executor; run_terminal auto-routes Android commands.
 • repair_all — bootstrap Termux runtimes then probe Shizuku/rish.
 
 Never repair rish by copying `librish.so`, changing LD_LIBRARY_PATH, or adding
@@ -69,26 +69,30 @@ Never repair rish by copying `librish.so`, changing LD_LIBRARY_PATH, or adding
     private suspend fun fullCheck(): ToolExecutionResult {
         val runtime = EnvironmentSetupManager.probe(force = true)
 
-        val termuxHealth = if (TermuxRunCommandBridge.isTermuxInstalled()) {
+        val termuxHealth = if (EnvironmentSetupManager.isTermuxUsable()) {
             EnvironmentSetupManager.executeShell(
                 "printf 'termux_ok\\n'; id; printf 'prefix=%s\\n' \"\$PREFIX\""
             )
         } else null
+        val termuxFunctional = termuxHealth?.isError == false
 
         val shizukuAvailable = ShizukuCommandTool.isAvailable()
         val shizukuGranted = shizukuAvailable && ShizukuCommandTool.hasPermission()
         val shizukuHealth = if (shizukuGranted) {
             ShizukuCommandTool.execute("id; getprop ro.build.version.sdk", timeoutMs = 20_000L)
         } else null
+        val shizukuFunctional = shizukuHealth is ShizukuResult.Success
         val shizukuUid = if (shizukuGranted) ShizukuCommandTool.privilegedUidOrNull() else null
 
         val rishManager = PrivilegedExecutionManager.getRishManager()
         val rishHealth = rishManager?.refreshHealth()
             ?: RishRuntimeHealth(RishRuntimeHealth.State.UNKNOWN, "RishShellManager is not initialized")
+        val rishFunctional = rishHealth.ready
+        val anyFunctionalDomain = termuxFunctional || shizukuFunctional || rishFunctional
 
         val problems = buildList {
-            if (termuxHealth == null || termuxHealth.isError) {
-                add("Termux RunCommand transport is not healthy.")
+            if (!termuxFunctional) {
+                add("Termux developer-shell transport is not healthy.")
             }
             if (!runtime.runtime("python3").available && !runtime.runtime("python").available) {
                 add("Python is not installed in Termux.")
@@ -98,25 +102,38 @@ Never repair rish by copying `librish.so`, changing LD_LIBRARY_PATH, or adding
             when {
                 !shizukuAvailable -> add("Shizuku binder is not running.")
                 !shizukuGranted -> add("Shizuku permission is not granted to OmniDev.")
-                shizukuHealth !is ShizukuResult.Success ->
+                !shizukuFunctional ->
                     add("Shizuku UserService smoke-test failed: ${shizukuHealth?.toDisplayString()?.take(240)}")
             }
 
-            if (!rishHealth.ready) {
+            if (!rishFunctional) {
                 add("rish is ${rishHealth.state}: ${rishHealth.details.ifBlank { rishHealth.summary }}")
             }
         }
 
+        val stateLabel = when {
+            problems.isEmpty() -> "HEALTHY"
+            anyFunctionalDomain -> "DEGRADED_BUT_USABLE"
+            else -> "UNAVAILABLE"
+        }
+        val preferredBackend = when {
+            shizukuFunctional -> "shizuku-user-service"
+            termuxFunctional -> "termux"
+            rishFunctional -> "rish"
+            else -> "none"
+        }
+
         return ToolExecutionResult(
-            buildString {
+            output = buildString {
                 appendLine("╔══ OmniDev Execution Diagnostics ═══════════════════════════╗")
                 appendLine("║ Runtime phase : ${runtime.phase}")
-                appendLine("║ Privilege     : ${runtime.privilegeBackend}")
+                appendLine("║ Overall       : $stateLabel")
+                appendLine("║ Preferred now : $preferredBackend")
                 appendLine("║")
                 appendLine("║ TERMUX / DEVELOPER SHELL")
                 appendLine("║ Installed     : ${yesNo(TermuxRunCommandBridge.isTermuxInstalled())}")
                 appendLine("║ RUN_COMMAND   : ${yesNo(TermuxRunCommandBridge.hasRunCommandPermission())}")
-                appendLine("║ Functional    : ${yesNo(termuxHealth?.isError == false)}")
+                appendLine("║ Functional    : ${yesNo(termuxFunctional)}")
                 appendLine("║ Python        : ${runtime.runtime("python3").path ?: runtime.runtime("python").path ?: "❌ missing"}")
                 appendLine("║ Node          : ${runtime.runtime("node").path ?: "❌ missing"}")
                 appendLine("║ Git           : ${runtime.runtime("git").path ?: "❌ missing"}")
@@ -125,26 +142,34 @@ Never repair rish by copying `librish.so`, changing LD_LIBRARY_PATH, or adding
                 appendLine("║ SHIZUKU / PROGRAMMATIC PRIVILEGED SHELL")
                 appendLine("║ Binder        : ${yesNo(shizukuAvailable)}")
                 appendLine("║ Permission    : ${yesNo(shizukuGranted)}")
+                appendLine("║ Functional    : ${yesNo(shizukuFunctional)}")
                 appendLine("║ UserService UID: ${shizukuUid ?: "unknown"}")
                 appendLine("║ Smoke test    : ${shizukuHealth?.toDisplayString()?.take(240) ?: "not run"}")
                 appendLine("║")
                 appendLine("║ RISH / TERMUX ADB-EQUIVALENT SHELL")
                 appendLine("║ State         : ${rishHealth.state}")
-                appendLine("║ Ready         : ${yesNo(rishHealth.ready)}")
+                appendLine("║ Ready         : ${yesNo(rishFunctional)}")
                 appendLine("║ Smoke test    : ${rishHealth.smokeOutput.take(240).ifBlank { "not run" }}")
-                if (!rishHealth.ready) {
+                if (!rishFunctional) {
                     appendLine("║ Remediation   : ${rishHealth.details.ifBlank { RishFailureClassifier.remediation(rishHealth.state) }}")
                 }
                 appendLine("║")
                 if (problems.isEmpty()) {
                     appendLine("║ ✅ All execution domains passed functional probes.")
                 } else {
-                    appendLine("║ ISSUES")
+                    appendLine("║ WARNINGS")
                     problems.forEachIndexed { index, issue -> appendLine("║ ${index + 1}. $issue") }
+                    if (anyFunctionalDomain) {
+                        appendLine("║ ✅ At least one functional backend is available; do not treat warnings as total execution failure.")
+                    }
                 }
                 appendLine("╚════════════════════════════════════════════════════════════╝")
             }.trimEnd(),
-            isError = problems.isNotEmpty()
+            isError = !anyFunctionalDomain,
+            classification = stateLabel,
+            backend = preferredBackend.takeUnless { it == "none" },
+            verification = if (anyFunctionalDomain) "functional backend=$preferredBackend" else null,
+            persistentFailure = !anyFunctionalDomain
         )
     }
 
@@ -207,6 +232,10 @@ Never repair rish by copying `librish.so`, changing LD_LIBRARY_PATH, or adding
     }
 
     private suspend fun fixTermux(): ToolExecutionResult {
+        // This is the explicit user/agent repair action, so it is the one place allowed to clear
+        // a known-broken transport cache and perform a fresh RunCommandService probe.
+        TermuxRunCommandBridge.resetTransportHealth()
+        EnvironmentSetupManager.probe(force = true)
         val status = EnvironmentSetupManager.statusReport()
         if (!EnvironmentSetupManager.isTermuxUsable()) {
             return ToolExecutionResult(
@@ -285,44 +314,115 @@ After that, agent_runtime executes inside the real Termux process.
     )
 
     private suspend fun testCommand(command: String): ToolExecutionResult {
-        val developer = if (EnvironmentSetupManager.isTermuxUsable()) {
-            EnvironmentSetupManager.executeShell(command)
-        } else {
-            ToolExecutionResult("Termux RunCommand transport is not ready.", isError = true)
+        val androidViolation = ExecutionDomainGuard.findViolation(command)
+        val androidReadOnly = androidViolation != null &&
+            ExecutionDomainGuard.isReadOnlyPrivilegedCommand(command)
+
+        if (androidViolation != null && !androidReadOnly) {
+            return ToolExecutionResult(
+                output =
+                    "Diagnostic comparison refuses mutating Android command '${androidViolation.commandFamily}'. " +
+                        "Use run_terminal once; it will route the command to the correct privileged backend.",
+                isError = true,
+                classification = "DIAGNOSTIC_MUTATION_REFUSED",
+                backend = "execution-diagnostics",
+                persistentFailure = false
+            )
         }
 
-        val shizuku = if (ShizukuCommandTool.isAvailable()) {
-            ShizukuCommandTool.execute(command, timeoutMs = 30_000L).toDisplayString()
+        val prepared = androidViolation?.let {
+            ExecutionDomainGuard.preparePrivilegedCommand(command)
+        }
+        val privilegedCommand = prepared?.command ?: command
+
+        val developer = if (androidViolation != null) {
+            ToolExecutionResult(
+                output =
+                    "SKIPPED: Android '${androidViolation.commandFamily}' command does not belong in app/Termux UID. " +
+                        "The diagnostic did not execute it there.",
+                isError = true,
+                classification = "WRONG_EXECUTION_DOMAIN",
+                backend = "termux",
+                persistentFailure = false
+            )
+        } else if (EnvironmentSetupManager.isTermuxUsable()) {
+            EnvironmentSetupManager.executeShell(command)
         } else {
-            "Shizuku binder unavailable"
+            ToolExecutionResult(
+                "Termux RunCommand transport is not ready.",
+                isError = true,
+                classification = "TERMUX_RUN_COMMAND_UNAVAILABLE",
+                backend = "termux",
+                persistentFailure = true
+            )
+        }
+
+        val shizukuResult = if (ShizukuCommandTool.isAvailable()) {
+            ShizukuCommandTool.execute(privilegedCommand, timeoutMs = 30_000L)
+        } else null
+        val shizukuSuccess = shizukuResult is ShizukuResult.Success
+        val shizukuText = when (shizukuResult) {
+            is ShizukuResult.Success -> prepared?.let {
+                ExecutionDomainGuard.applyOutputCompatibility(shizukuResult.output, it)
+            } ?: shizukuResult.output
+            null -> "Shizuku binder unavailable"
+            else -> shizukuResult.toDisplayString()
         }
 
         val rishManager = PrivilegedExecutionManager.getRishManager()
-        val rish = if (rishManager != null) {
-            rishManager.execute(command).fold(
-                onSuccess = { it },
-                onFailure = { "Error: ${it.message}" }
-            )
-        } else {
-            "rish manager unavailable"
+        val rishHealth = rishManager?.refreshHealth()
+        val rishExecution = if (rishManager != null && rishHealth?.ready == true) {
+            rishManager.execute(privilegedCommand)
+        } else null
+        val rishSuccess = rishExecution?.isSuccess == true
+        val rishText = when {
+            rishManager == null -> "rish manager unavailable"
+            rishHealth?.ready != true ->
+                "SKIPPED: rish is not healthy (${rishHealth?.state ?: "UNKNOWN"})."
+            rishExecution?.isSuccess == true -> {
+                val output = rishExecution.getOrThrow()
+                prepared?.let { ExecutionDomainGuard.applyOutputCompatibility(output, it) } ?: output
+            }
+            else -> "Error: ${rishExecution?.exceptionOrNull()?.message}"
+        }
+
+        val anySuccess = !developer.isError || shizukuSuccess || rishSuccess
+        val successfulBackend = when {
+            shizukuSuccess -> "shizuku-user-service"
+            !developer.isError -> "termux"
+            rishSuccess -> "rish"
+            else -> null
         }
 
         return ToolExecutionResult(
-            buildString {
-                appendLine("=== Command-domain comparison ===")
+            output = buildString {
+                appendLine("=== Command-domain comparison (diagnostic only) ===")
                 appendLine("Command: $command")
                 appendLine()
-                appendLine("[Termux / developer shell]")
-                appendLine(developer.output.take(6_000))
+                appendLine("[Termux / developer shell] ${if (developer.isError) "SKIP/FAIL" else "PASS"}")
+                appendLine(developer.output.take(4_000))
                 appendLine()
-                appendLine("[Shizuku UserService / Android privileged shell]")
-                appendLine(shizuku.take(6_000))
+                appendLine("[Shizuku UserService / Android privileged shell] ${if (shizukuSuccess) "PASS" else "FAIL"}")
+                appendLine(shizukuText.take(4_000))
                 appendLine()
-                appendLine("[rish / Termux ADB-equivalent shell]")
-                append(rish.take(6_000))
+                appendLine("[rish / Termux ADB-equivalent shell] ${if (rishSuccess) "PASS" else "SKIP/FAIL"}")
+                append(rishText.take(4_000))
             }.trimEnd(),
-            isError = developer.isError && !PrivilegedExecutionManager.isShizukuReady() &&
-                (rishManager?.cachedHealth()?.ready != true)
+            isError = !anySuccess,
+            classification = if (anySuccess) {
+                if (androidViolation != null && shizukuSuccess) {
+                    "SUCCESS"
+                } else if (!developer.isError && shizukuSuccess && rishSuccess) {
+                    "SUCCESS"
+                } else {
+                    "DEGRADED_COMMAND_ROUTE"
+                }
+            } else {
+                "ALL_EXECUTION_DOMAINS_FAILED"
+            },
+            backend = successfulBackend,
+            verification = successfulBackend?.let { "command succeeded via $it" },
+            persistentFailure = !anySuccess
         )
     }
 

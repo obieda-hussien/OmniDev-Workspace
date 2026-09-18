@@ -3,8 +3,9 @@ package com.omnidev.workspace.core.privileged
 import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
 
 /**
- * PRO flavor: full privileged execution via the existing Shizuku →
- * rish → root fallback chain in [PrivilegedExecutionManager].
+ * PRO flavor: Android shell-level privileged execution through Shizuku → rish.
+ * Root is intentionally excluded from this generic facade and is available only through an
+ * explicit root capability/tool.
  *
  * The implementation here is a THIN ADAPTER — all runtime logic lives in
  * PrivilegedExecutionManager (which will move to :tools:advanced in the
@@ -17,8 +18,7 @@ object PrivilegedExecutionFacadeBootstrap {
             object : PrivilegedExecutionFacade {
                 override fun isAvailable(): Boolean =
                     PrivilegedExecutionManager.isShizukuReady() ||
-                        PrivilegedExecutionManager.isRishReady() ||
-                        PrivilegedExecutionManager.isRootAvailable()
+                        PrivilegedExecutionManager.isRishReady()
 
                 override suspend fun execute(command: String, timeoutMs: Long): PrivilegedResult {
                     val result = PrivilegedExecutionManager.executeCommand(command)

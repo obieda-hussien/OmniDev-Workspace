@@ -5,36 +5,38 @@ import android.os.Build
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.omnidev.workspace.data.tools.ExecutionRetryPolicy
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.data.tools.ShizukuResult
-import java.io.File
 
 /**
  * PrivilegedExecutionManager — The patched and improved version.
  *
- * ### Execution Backends (By Priority)
- * 1. **Shizuku.newProcess()** — `ShizukuCommandTool.execute()` — shell UID
- * 2. **rish via Shizuku** — `RishShellManager.execute()` — full ADB-equivalent
- * 3. **Root/SU** — `executeViaRoot()` — root shell
+ * ### Execution Backends
+ * 1. **Shizuku UserService** — preferred Android shell UID.
+ * 2. **rish** — fallback ADB-equivalent shell when Shizuku transport is unavailable.
+ * 3. **Root/SU** — explicit-only via `executeRootCommand()` or opt-in fallback; never implicit.
  *
  * ### Fixes / Improvements
- * 1. Proper handling of `ShizukuResult.PartialSuccess`:
- * - If output is useful (exit != 127) → success
- * - Empty or command not found → fallback
- * 2. Clearer diagnostic messages on failure
- * 3. `getTermuxBootstrapHints()` — Termux installation instructions without Termux
- * 4. `installTermuxViaShizuku()` — Download and install Termux APK via Shizuku
+ * 1. Non-zero privileged commands never become success merely because they printed output.
+ * 2. Backend fallback is allowed only when the backend itself is unavailable; a command-level
+ *    failure is authoritative and is never replayed automatically on rish/root.
+ * 3. Root readiness requires a real uid=0 smoke test, not path visibility.
+ * 4. Clear diagnostic messages and Termux bootstrap helpers are retained.
  */
 object PrivilegedExecutionManager {
 
     private const val TAG = "PrivMgr"
     private const val MAX_OUTPUT = 8_000
-    private const val JADX_MAIN_CLASS = "jadx.cli.JadxCLI"
-    private const val APKTOOL_MAIN_CLASS = "brut.apktool.Main"
 
     @Volatile private var rishManager: RishShellManager? = null
     @Volatile private var appContext: Context? = null
     private val rishInitLock = Any()
+
+    private enum class RootHealth { UNKNOWN, READY, UNAVAILABLE }
+    private const val ROOT_HEALTH_TTL_MS = 15_000L
+    @Volatile private var rootHealth: RootHealth = RootHealth.UNKNOWN
+    @Volatile private var rootHealthCheckedAtMs: Long = 0L
 
     // ──────────────────────────────────────────────────────────────
     // Initialization
@@ -59,9 +61,51 @@ object PrivilegedExecutionManager {
     fun isShizukuReady(): Boolean =
         ShizukuCommandTool.isAvailable() && ShizukuCommandTool.hasPermission()
     fun isRishReady(): Boolean = rishManager?.isAvailable() ?: false
-    fun isRootAvailable(): Boolean = runCatching {
-        Runtime.getRuntime().exec(arrayOf("which", "su")).waitFor() == 0
-    }.getOrDefault(false)
+
+    /**
+     * File/path visibility is not root readiness. Root probing may display a superuser prompt, so
+     * passive capability/status code must never trigger it.
+     *
+     * [forceProbe] is reserved for an explicit root operation. A short TTL prevents one logical
+     * root action from prompting/probing repeatedly while still allowing capability changes later.
+     */
+    fun isRootAvailable(forceProbe: Boolean = false): Boolean {
+        val now = System.currentTimeMillis()
+        val age = now - rootHealthCheckedAtMs
+        if (rootHealth != RootHealth.UNKNOWN && age in 0 until ROOT_HEALTH_TTL_MS) {
+            return rootHealth == RootHealth.READY
+        }
+        if (!forceProbe) return rootHealth == RootHealth.READY
+
+        val ready = runCatching {
+            val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
+            val finished = process.waitFor(1_500, java.util.concurrent.TimeUnit.MILLISECONDS)
+            if (!finished) {
+                process.destroy()
+                false
+            } else {
+                val output = process.inputStream.bufferedReader().use { it.readText() } +
+                    process.errorStream.bufferedReader().use { it.readText() }
+                process.exitValue() == 0 &&
+                    Regex("""\buid=0(?:\(|\b)""").containsMatchIn(output)
+            }
+        }.getOrDefault(false)
+
+        rootHealth = if (ready) RootHealth.READY else RootHealth.UNAVAILABLE
+        rootHealthCheckedAtMs = System.currentTimeMillis()
+        return ready
+    }
+
+    fun cachedRootAvailable(): Boolean? {
+        val age = System.currentTimeMillis() - rootHealthCheckedAtMs
+        if (rootHealth == RootHealth.UNKNOWN || age !in 0 until ROOT_HEALTH_TTL_MS) return null
+        return rootHealth == RootHealth.READY
+    }
+
+    fun resetRootHealth() {
+        rootHealth = RootHealth.UNKNOWN
+        rootHealthCheckedAtMs = 0L
+    }
 
     // ──────────────────────────────────────────────────────────────
     // executeCommand — The core execution function
@@ -71,44 +115,89 @@ object PrivilegedExecutionManager {
      * Executes [command] via the best available backend.
      *
      * ### Fallback Chain
-     * Shizuku → rish → Root → Failure (with clear diagnostics)
+     * Shizuku → rish → Failure by default.
+     * Root is opt-in only via [allowRootFallback] or [executeRootCommand]; it is never a silent
+     * privilege escalation for an ordinary Android-shell request.
      */
-    suspend fun executeCommand(command: String): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun executeCommand(
+        command: String,
+        allowRootFallback: Boolean = false
+    ): Result<String> = withContext(Dispatchers.IO) {
         if (command.isBlank()) {
             return@withContext Result.failure(IllegalArgumentException("Command is empty."))
         }
-        val preparedCommand = enrichCommandWithOmniToolchain(command)
+        // Android shell/rish/root identities cannot reliably access OmniDev's app-private
+        // filesDir. Never inject app-private PATH/JAR helpers into privileged commands.
+        val preparedCommand = command
+        val crossBackendRetrySafe = ExecutionRetryPolicy.isSafeToRetry(command)
 
-        // ── 1. Shizuku.newProcess() (The best — shell UID) ──
+        // ── 1. Shizuku UserService (preferred Android shell domain) ──
+        var allowBackendFallback = !ShizukuCommandTool.isAvailable()
         if (ShizukuCommandTool.isAvailable()) {
             when (val r = ShizukuCommandTool.execute(preparedCommand)) {
                 is ShizukuResult.Success -> {
                     Log.d(TAG, "Shizuku ✅ exit=0: ${command.take(40)}")
                     return@withContext Result.success(r.output.trim().take(MAX_OUTPUT))
                 }
+
+                // Retained only for source compatibility; treat it as a real command failure.
                 is ShizukuResult.PartialSuccess -> {
-                    val output = r.output.trim()
-                    if (output.isNotBlank() && output != "(no output)" && r.exitCode != 127) {
-                        // Useful output exists even if exit != 0 (e.g., grep, diff, etc.)
-                        Log.d(TAG, "Shizuku ✅ exit=${r.exitCode} (partial OK): ${command.take(40)}")
-                        return@withContext Result.success(output.take(MAX_OUTPUT))
+                    return@withContext Result.failure(
+                        IllegalStateException(
+                            "Shizuku command failed (exit=${r.exitCode}): " +
+                                r.output.trim().ifBlank { "(no output)" }.take(2_000)
+                        )
+                    )
+                }
+
+                is ShizukuResult.PermissionRequired -> {
+                    Log.w(TAG, "Shizuku permission unavailable → backend fallback allowed: ${r.message}")
+                    allowBackendFallback = true
+                }
+
+                is ShizukuResult.Unavailable -> {
+                    Log.w(TAG, "Shizuku unavailable → backend fallback allowed: ${r.message}")
+                    allowBackendFallback = true
+                }
+
+                is ShizukuResult.Failure -> {
+                    if (isShizukuBackendFailure(r.reason)) {
+                        if (!crossBackendRetrySafe) {
+                            return@withContext Result.failure(
+                                IllegalStateException(
+                                    "MUTATION_OUTCOME_UNKNOWN: Shizuku transport failed after an " +
+                                        "at-most-once command. Do not replay on rish/root until a " +
+                                        "read-only postcondition check proves the mutation did not happen. " +
+                                        "Backend detail: ${r.reason.take(1_000)}"
+                                )
+                            )
+                        }
+                        Log.w(
+                            TAG,
+                            "Shizuku backend failed after retries → safe read/idempotent fallback allowed: ${r.reason}"
+                        )
+                        allowBackendFallback = true
                     } else {
-                        Log.w(TAG, "Shizuku PartialSuccess without output (exit=${r.exitCode}) → fallback: ${command.take(40)}")
+                        // The UserService executed the command and rejected/failed it. Replaying the
+                        // same mutation through rish/root risks duplicate side effects and hides truth.
+                        return@withContext Result.failure(
+                            IllegalStateException("Shizuku command failed: ${r.reason}")
+                        )
                     }
                 }
-                is ShizukuResult.PermissionRequired ->
-                    Log.w(TAG, "Shizuku without permission → fallback: ${r.message}")
-                is ShizukuResult.Unavailable ->
-                    Log.w(TAG, "Shizuku unavailable → fallback: ${r.message}")
-                is ShizukuResult.Failure ->
-                    Log.w(TAG, "Shizuku failed → fallback: ${r.reason}")
             }
-        } else {
-            Log.d(TAG, "Shizuku inactive → try rish/root")
+        }
+
+        if (!allowBackendFallback) {
+            return@withContext Result.failure(
+                IllegalStateException("Privileged command failed without a safe backend fallback.")
+            )
         }
 
         // ── 2. rish (full ADB-equivalent shell) ──
+        var rishAttempted = false
         if (isRishReady()) {
+            rishAttempted = true
             Log.d(TAG, "Trying rish: ${command.take(40)}")
             val rishResult = rishManager!!.execute(preparedCommand)
             if (rishResult.isSuccess) {
@@ -117,24 +206,77 @@ object PrivilegedExecutionManager {
                 return@withContext Result.success(out.take(MAX_OUTPUT))
             }
             Log.w(TAG, "rish failed: ${rishResult.exceptionOrNull()?.message}")
+            if (!crossBackendRetrySafe) {
+                return@withContext Result.failure(
+                    IllegalStateException(
+                        "MUTATION_OUTCOME_UNKNOWN: rish failed after an at-most-once command. " +
+                            "Do not replay it through root until a read-only postcondition check " +
+                            "proves the mutation did not happen. Backend detail: " +
+                            rishResult.exceptionOrNull()?.message.orEmpty().take(1_000)
+                    )
+                )
+            }
         }
 
-        // ── 3. Root/SU ──
-        if (isRootAvailable()) {
-            Log.d(TAG, "Trying root: ${command.take(40)}")
+        // ── 3. Root/SU — explicit opt-in only ──
+        val rootMayRun = allowRootFallback && (!rishAttempted || crossBackendRetrySafe)
+        val rootReady = if (rootMayRun) isRootAvailable(forceProbe = true) else null
+        if (rootMayRun && rootReady == true) {
+            Log.d(TAG, "Trying explicitly allowed root fallback: ${command.take(40)}")
             return@withContext executeViaRoot(preparedCommand)
         }
 
         // ── Failure: Clear diagnostics ──
         Result.failure(
-            IllegalStateException(buildFailureMessage())
+            IllegalStateException(
+                buildFailureMessage(
+                    rootReady = rootReady,
+                    rootFallbackAllowed = allowRootFallback
+                )
+            )
         )
+    }
+
+    /**
+     * ShizukuCommandTool already retries transient transport faults internally. Only failures that
+     * still describe transport/service availability may fall through to another backend.
+     */
+    private fun isShizukuBackendFailure(reason: String): Boolean {
+        val lower = reason.lowercase()
+        return lower.contains("userservice error") ||
+            lower.contains("user service error") ||
+            lower.contains("client is not initialized") ||
+            lower.contains("connection timeout") ||
+            lower.contains("deadobject") ||
+            lower.contains("remoteexception") ||
+            lower.contains("binder") ||
+            lower.contains("service disconnected") ||
+            lower.contains("transaction failed")
+    }
+
+    /**
+     * Execute through real root only. This API intentionally never falls back to Shizuku/rish,
+     * so callers named/advertised as root cannot silently run as shell uid=2000.
+     */
+    suspend fun executeRootCommand(command: String): Result<String> = withContext(Dispatchers.IO) {
+        if (command.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("Root command is empty."))
+        }
+        if (!isRootAvailable(forceProbe = true)) {
+            return@withContext Result.failure(
+                IllegalStateException("Root backend is unavailable or su did not return uid=0.")
+            )
+        }
+        executeViaRoot(command)
     }
 
     /**
      * Builds a diagnostic failure message explaining why execution failed and the solution.
      */
-    private fun buildFailureMessage(): String = buildString {
+    private fun buildFailureMessage(
+        rootReady: Boolean?,
+        rootFallbackAllowed: Boolean
+    ): String = buildString {
         appendLine("❌ No execution backend available.")
         appendLine()
         val shizukuAvail = ShizukuCommandTool.isAvailable()
@@ -145,7 +287,13 @@ object PrivilegedExecutionManager {
             else          -> "⚠️ Available but execution failed"
         }}")
         appendLine("• rish: ${if (isRishReady()) "⚠️ Available but failed" else "❌ Unavailable"}")
-        appendLine("• root: ❌ Unavailable")
+        appendLine(
+            "• root: " + when {
+                !rootFallbackAllowed -> "not probed (explicit root capability was not requested)"
+                rootReady == true -> "✅ ready and explicitly allowed"
+                else -> "❌ unavailable"
+            }
+        )
         appendLine()
         appendLine("Solution:")
         if (!shizukuAvail) {
@@ -156,35 +304,6 @@ object PrivilegedExecutionManager {
         appendLine("  2. Run: execution_diagnostics action=fix_shizuku")
     }
 
-    private fun enrichCommandWithOmniToolchain(command: String): String {
-        // If init(context) has not run yet, execute the command as-is.
-        val ctx = appContext ?: return command
-        val baseDir = runCatching { ctx.filesDir.canonicalFile }.getOrNull() ?: return command
-        val root = runCatching { File(baseDir, "omnidev_tools").canonicalFile }.getOrNull() ?: return command
-        if (!root.path.startsWith(baseDir.path + File.separator)) return command
-        if (!root.exists()) return command
-        val bin = File(root, "bin").absolutePath
-        val customBin = File(root, "custom/bin").absolutePath
-        val jadxJar = File(root, "jars/jadx-cli.jar").absolutePath
-        val apktoolJar = File(root, "jars/apktool.jar").absolutePath
-
-        val prelude = buildString {
-            val qRoot = shellQuote(root.absolutePath)
-            val qBin = shellQuote(bin)
-            val qCustomBin = shellQuote(customBin)
-            val qJadxJar = shellQuote(jadxJar)
-            val qApktoolJar = shellQuote(apktoolJar)
-            val qJadxMainClass = shellQuote(JADX_MAIN_CLASS)
-            val qApktoolMainClass = shellQuote(APKTOOL_MAIN_CLASS)
-
-            append("export OMNIDEV_TOOLS_ROOT=$qRoot; ")
-            append("export PATH=$qBin:$qCustomBin:\$PATH; ")
-            append("if [ -f $qJadxJar ]; then jadx(){ CLASSPATH=$qJadxJar app_process / $qJadxMainClass \"\$@\"; }; fi; ")
-            append("if [ -f $qApktoolJar ]; then apktool(){ CLASSPATH=$qApktoolJar app_process / $qApktoolMainClass \"\$@\"; }; fi; ")
-        }
-
-        return "$prelude $command"
-    }
 
     // POSIX-safe single-quote escaping:
     // close quote + escaped single quote + reopen quote => '\'' pattern.
@@ -207,7 +326,7 @@ object PrivilegedExecutionManager {
                 androidVersion    = Build.VERSION.RELEASE,
                 shizukuReady      = isShizukuReady(),
                 rishAvailable     = isRishReady(),
-                rootAvailable     = isRootAvailable(),
+                rootAvailable     = cachedRootAvailable() == true,
                 foregroundPackage = foregroundPkg,
                 batteryLevel      = batteryLevel,
                 totalRamMb        = totalRamMb
@@ -480,8 +599,11 @@ object PrivilegedExecutionManager {
             else -> "(no output)"
         }
 
-        if (exit == 0 || stdout.isNotBlank()) output.trim().ifBlank { "(no output)" }
-        else throw RuntimeException("Root exited $exit:\n$output")
+        if (exit == 0) {
+            output.trim().ifBlank { "(no output)" }
+        } else {
+            throw RuntimeException("Root exited $exit:\n$output")
+        }
     }
 
     private suspend fun getForegroundPackage(): String = withContext(Dispatchers.IO) {

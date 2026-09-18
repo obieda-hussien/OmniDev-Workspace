@@ -157,7 +157,8 @@ object EnvironmentSetupManager {
         val context = appContext ?: return false
         return TermuxRunCommandBridge.isInitialized() &&
             TermuxRunCommandBridge.isTermuxInstalled(context) &&
-            TermuxRunCommandBridge.hasRunCommandPermission(context)
+            TermuxRunCommandBridge.hasRunCommandPermission(context) &&
+            !TermuxRunCommandBridge.isKnownUnusable()
     }
 
     /** Legacy compatibility; commands now execute inside the real Termux env. */
@@ -219,6 +220,9 @@ object EnvironmentSetupManager {
         )
         val context = appContext
         if (context == null || !TermuxRunCommandBridge.isInitialized()) {
+            return false to names.associateWith { RuntimeStatus(it, false, source = "termux") }
+        }
+        if (TermuxRunCommandBridge.isKnownUnusable()) {
             return false to names.associateWith { RuntimeStatus(it, false, source = "termux") }
         }
 

@@ -550,7 +550,9 @@ object AdvancedFileTools {
                 )
             }
 
-            val execResult = PrivilegedExecutionManager.executeCommand("sh $tmpPath 2>&1; rm -f $tmpPath")
+            val execResult = PrivilegedExecutionManager.executeCommand(
+                "sh $tmpPath 2>&1; rc=\$?; rm -f $tmpPath; exit \$rc"
+            )
 
             execResult.fold(
                 onSuccess = { rawOutput ->
@@ -565,7 +567,12 @@ object AdvancedFileTools {
                         }
                     } else output
 
-                    ToolExecutionResult(finalOutput, truncated = isTruncated)
+                    ToolExecutionResult(
+                        output = finalOutput,
+                        truncated = isTruncated,
+                        classification = "SUCCESS",
+                        backend = "privileged-router"
+                    )
                 },
                 onFailure = { ToolExecutionResult("Execution failed: ${it.message}", isError = true) }
             )

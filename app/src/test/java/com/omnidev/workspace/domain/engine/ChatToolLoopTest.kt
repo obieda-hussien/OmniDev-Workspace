@@ -34,6 +34,21 @@ class ChatToolLoopTest {
         assertNull(result.request)
     }
 
+    @Test fun `provider without usage metadata still consumes chat budget`() = runTest {
+        val usageEvents = mutableListOf<AgentEvent.TokenUsageUpdate>()
+        val result = ChatToolLoop(FakeTools()).run(request, emptySet(), "user", complete = {
+            CompletionResponse("A useful answer without native usage metadata")
+        }, event = { event ->
+            if (event is AgentEvent.TokenUsageUpdate) usageEvents += event
+        })
+
+        assertEquals("A useful answer without native usage metadata", result.content)
+        assertEquals(1, usageEvents.size)
+        assertTrue(usageEvents.single().iterationTokens > 0)
+        assertTrue(usageEvents.single().totalTokens > 0)
+        assertEquals(32_000, usageEvents.single().budget)
+    }
+
     @Test fun `mode tool proposes but never executes a worker`() = runTest {
         val tools = FakeTools()
         val result = ChatToolLoop(tools).run(request, emptySet(), "user", complete = {
@@ -79,4 +94,46 @@ class ChatToolLoopTest {
             fail("Cancellation must propagate")
         } catch (_: CancellationException) { }
     }
+    @Test fun `chat redacts transient secrets before model history and events`() = runTest {
+        val tools = object : ToolManager {
+            override fun getToolDefinitions() = listOf(ToolDefinition("web_search", "search"))
+            override suspend fun executeTool(
+                name: String,
+                arguments: Map<String, String>,
+                scopePath: String?
+            ): ToolExecutionResult =
+                ToolExecutionResult("otp=819204 result=useful")
+        }
+        val events = mutableListOf<AgentEvent.ToolResult>()
+        var round = 0
+
+        val result = ChatToolLoop(tools).run(
+            request,
+            emptySet(),
+            "user",
+            complete = { completion ->
+                if (round++ == 0) {
+                    CompletionResponse(
+                        "",
+                        listOf(ToolCall("secret-call", "web_search", mapOf("query" to "test")))
+                    )
+                } else {
+                    val observation = completion.messages.last().toolResults.single().output
+                    assertFalse(observation.contains("819204"))
+                    assertTrue(observation.contains("[REDACTED]"))
+                    CompletionResponse("safe answer")
+                }
+            },
+            event = { event ->
+                if (event is AgentEvent.ToolResult) events += event
+            }
+        )
+
+        assertEquals("safe answer", result.content)
+        assertTrue(events.isNotEmpty())
+        assertFalse(events.last().output.contains("819204"))
+        assertTrue(events.last().output.contains("[REDACTED]"))
+    }
+
+
 }

@@ -667,7 +667,9 @@ class CompositeToolManager(
                         isError = true
                     )
                 } else {
-                    ToolExecutionResult(DirectTerminalTool.execute(org.json.JSONObject().put("command", arguments)))
+                    DirectTerminalTool.executeResult(
+                        org.json.JSONObject().put("command", arguments)
+                    )
                 }
             }
 
@@ -759,7 +761,8 @@ class CompositeToolManager(
                     context = ctx,
                     action = arguments["action"] ?: return missingArg("action"),
                     query = arguments["query"],
-                    limit = arguments["limit"]?.toIntOrNull() ?: 30
+                    sender = arguments["sender"],
+                    limit = arguments["limit"]?.toIntOrNull() ?: 10
                 )
             }
 

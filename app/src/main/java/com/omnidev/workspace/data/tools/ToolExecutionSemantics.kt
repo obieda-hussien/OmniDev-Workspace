@@ -15,7 +15,15 @@ object ToolExecutionSemantics {
     private const val ERROR_MODEL_OUTPUT_LIMIT = 6_000
     private const val TELEMETRY_PREFIX = "[omni-outcome]"
 
+    private val successfulDiagnosticClasses = setOf(
+        "HEALTHY",
+        "DEGRADED_BUT_USABLE",
+        "DEGRADED_COMMAND_ROUTE",
+        "SUCCESS"
+    )
+
     private val terminalLikeTools = setOf(
+        "run_terminal",
         "agent_runtime",
         "privileged_tool",
         "shizuku_command",
@@ -49,6 +57,9 @@ object ToolExecutionSemantics {
             }
 
             toolName !in terminalLikeTools -> result
+
+            toolName == "execution_diagnostics" &&
+                result.classification?.uppercase()?.let(successfulDiagnosticClasses::contains) == true -> result
 
             else -> {
                 val text = result.output
@@ -99,7 +110,16 @@ object ToolExecutionSemantics {
             "RISH_LAYOUT_BROKEN",
             "ROOT_UNAVAILABLE",
             "WRONG_EXECUTION_DOMAIN",
-            "ANDROID_PERMISSION_DENIED"
+            "ANDROID_PERMISSION_DENIED",
+            "TERMUX_RUN_COMMAND_UNAVAILABLE",
+            "TERMUX_EXTERNAL_APPS_DISABLED",
+            "SHIZUKU_PERMISSION_REQUIRED",
+            "SHIZUKU_UNAVAILABLE",
+            "RISH_UNAVAILABLE",
+            "ANDROID_BACKEND_UNAVAILABLE",
+            "MUTATION_OUTCOME_UNKNOWN",
+            "TOOL_TRANSPORT_BLOCKED",
+            "USER_ACTION_REQUIRED"
         )
 
     /**
@@ -119,6 +139,14 @@ object ToolExecutionSemantics {
         val semanticMarker = "[semantic_failure]"
         val semanticIndex = lower.indexOf(semanticMarker)
         if (semanticIndex >= 0) return text.substring(semanticIndex)
+
+        // Android shell utilities sometimes print usage followed by an explicit [ERROR]
+        // line while still returning a misleading/zero process status. Treat only the
+        // runtime-owned marker as failure evidence; ordinary stdout mentioning "error"
+        // remains data.
+        Regex("(?im)^\\[error]\\s+").find(text)?.let { marker ->
+            return text.substring(marker.range.first)
+        }
 
         val trimmed = text.trimStart()
         if (trimmed.startsWith("❌") ||
@@ -154,6 +182,7 @@ object ToolExecutionSemantics {
             lower.contains("shizuku userservice") || toolName == "shizuku_command" -> "shizuku-user-service"
             toolName == "privileged_tool" && lower.contains("rish") -> "rish"
             toolName == "privileged_tool" -> "privileged-router"
+            toolName == "run_terminal" -> "app-shell"
             toolName in setOf("agent_runtime", "direct_terminal", "termux_bridge", "python_runtime", "setup_build_environment") -> "termux"
             toolName in setOf("root_shell_tool", "advanced_root_shell") -> "root"
             else -> null
@@ -175,8 +204,30 @@ object ToolExecutionSemantics {
                 lower.contains("\$prefix/bin/rish is a directory") ->
                 Match("RISH_LAYOUT_BROKEN", persistent = true)
 
-            lower.contains("no su program found") || lower.contains("su: not found") ->
+            lower.contains("no su program found") ||
+                lower.contains("su: not found") ||
+                lower.contains("su: inaccessible or not found") ||
+                lower.contains("root backend is unavailable") ||
+                lower.contains("su did not return uid=0") ->
                 Match("ROOT_UNAVAILABLE", persistent = true)
+
+            lower.contains("could not resolve/start termux runcommandservice") ||
+                lower.contains("android could not resolve/start termux runcommandservice") ||
+                lower.contains("runcommandservice is already known unavailable") ->
+                Match("TERMUX_RUN_COMMAND_UNAVAILABLE", persistent = true)
+
+            lower.contains("allow-external-apps") &&
+                (lower.contains("runcommandservice") || lower.contains("termux")) ->
+                Match("TERMUX_EXTERNAL_APPS_DISABLED", persistent = true)
+
+            lower.contains("unsupported argument:") ||
+                lower.contains("[error] unsupported argument") ->
+                Match("UNSUPPORTED_ARGUMENT")
+
+            lower.contains("user_action_required") ||
+                lower.contains("waiting for user approval") ||
+                lower.contains("user approval is required") ->
+                Match("USER_ACTION_REQUIRED", persistent = true)
 
             lower.contains("securityexception") && lower.contains("permission denial") ->
                 Match("ANDROID_PERMISSION_DENIED", persistent = true)
@@ -187,6 +238,23 @@ object ToolExecutionSemantics {
             lower.contains("requires android.permission.interact_across_users") ||
                 lower.contains("requires android.permission.clear_app_cache") ->
                 Match("ANDROID_PERMISSION_DENIED", persistent = true)
+
+            lower.contains("shizuku permission required") ||
+                lower.contains("shizuku denied permission") ->
+                Match("SHIZUKU_PERMISSION_REQUIRED", persistent = true)
+
+            lower.contains("shizuku is unavailable") ||
+                lower.contains("shizuku unavailable or unauthorized") ->
+                Match("SHIZUKU_UNAVAILABLE", persistent = true)
+
+            lower.contains("rish is not healthy") ||
+                lower.contains("rish manager unavailable") ||
+                lower.contains("no rish manager is initialized") ->
+                Match("RISH_UNAVAILABLE", persistent = true)
+
+            lower.contains("android backend unavailable") ||
+                lower.contains("no execution backend available") ->
+                Match("ANDROID_BACKEND_UNAVAILABLE", persistent = true)
 
             lower.contains("request timeout") && lower.contains("shizuku") ->
                 Match("SHIZUKU_CONNECTION_TIMEOUT", retryable = true)

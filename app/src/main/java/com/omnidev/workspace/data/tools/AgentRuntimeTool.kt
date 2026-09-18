@@ -210,7 +210,7 @@ Execute the full OmniDev autonomous runtime. Backed by Shizuku/Root + Termux.
 • install_git      — Install Git via Termux.
 
 ━━ CODE EXECUTION ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• shell_script     — Execute multi-line shell (param: 'script', optional: 'cwd', 'interpreter', 'env_profile').
+• shell_script     — Developer shell. Android system commands are auto-routed to Shizuku; never wrap them in su/rish (param: 'script', optional: 'cwd', 'interpreter', 'env_profile').
 • python_run       — Execute Python code (param: 'code', optional: 'args', 'cwd', 'venv_path', 'env_profile').
 • node_run         — Execute JavaScript (param: 'code', optional: 'cwd', 'env_profile').
 • run_script       — Run a named stored script (param: 'name', optional: 'args', 'cwd').
@@ -398,6 +398,13 @@ Execute the full OmniDev autonomous runtime. Backed by Shizuku/Root + Termux.
             "shell_script", "termux_run" -> {
                 val script = args["script"] ?: args["command"]
                     ?: return@withContext err("Requires 'script' or 'command'")
+
+                // A model may choose agent_runtime even for Android shell work. Correct the domain
+                // locally instead of wasting iterations on Termux -> su -> diagnostics fallbacks.
+                AndroidPrivilegedCommandRouter.executeIfNeeded(script)?.let {
+                    return@withContext it
+                }
+
                 val interpreter = args["interpreter"]?.lowercase()?.trim()
                     ?.takeIf { it in ALLOWED_INTERPRETERS } ?: "sh"
                 val envPfx = envProfile?.let { EnvVarRegistry.buildPrefix(it) } ?: ""
@@ -440,7 +447,8 @@ Execute the full OmniDev autonomous runtime. Backed by Shizuku/Root + Termux.
                 val script = args["script"] ?: return@withContext err("job_submit requires 'script'")
                 val desc = script.take(80)
                 val id = JobQueue.submit(desc) {
-                    EnvironmentSetupManager.executeShell(script, cwd)
+                    AndroidPrivilegedCommandRouter.executeIfNeeded(script)
+                        ?: EnvironmentSetupManager.executeShell(script, cwd)
                 }
                 ToolExecutionResult("✅ Job submitted: $id\nUse action=job_status job_id=$id to check progress.")
             }

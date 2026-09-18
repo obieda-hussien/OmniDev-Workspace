@@ -122,10 +122,19 @@ data class TokenUsage(
     val totalTokens: Int = 0
 )
 
+/**
+ * A user-visible request to move the same execution session to another mode.
+ *
+ * Extra fields have defaults so old persisted messages remain deserializable.
+ * The request never constitutes permission by itself; UI/policy approval is required.
+ */
 @Serializable
 data class ExecutionModeRequest(
     val mode: String,
     val reason: String,
     val originMessageId: String,
-    val status: String = "pending"
+    val status: String = "pending",
+    val sourceMode: String? = null,
+    val confidence: Float? = null,
+    val trigger: String? = null
 )

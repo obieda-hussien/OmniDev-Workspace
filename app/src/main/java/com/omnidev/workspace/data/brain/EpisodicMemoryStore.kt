@@ -3,6 +3,8 @@ package com.omnidev.workspace.data.brain
 import android.util.Log
 import com.omnidev.workspace.data.db.dao.EpisodicMemoryDao
 import com.omnidev.workspace.data.db.entities.EpisodicMemoryEntry
+import com.omnidev.workspace.domain.engine.ModeOutcomeLearner
+import com.omnidev.workspace.domain.engine.OmniMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -10,23 +12,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * ══════════════════════════════════════════════════════════════════════════════
- * EpisodicMemoryStore —    (Agent Brain 2.0)
- * ══════════════════════════════════════════════════════════════════════════════
+ * Episodic task memory for the local Agent Brain.
  *
- *  [ToolExecutionJournal]         Store
- * ** **  (episode) :
+ * Retrieval is deliberately more than nearest-neighbour search: successful, failed, abandoned,
+ * and externally-blocked episodes are sampled, scored by semantic relevance + recency + execution
+ * efficiency, then selected with Maximal Marginal Relevance (MMR).
  *
- *   "User asked X → Agent ran tools [A, B, C] → Result: Y"
- *
- *      1-2 episode
- * system prompt  "memory shots".   trial-and-error   .
- *
- * **Mobile-first** (  2-4 GB RAM):
- * - HashEmbedder (  0 RAM )
- * - candidates ≤ 80  cosine  JVM
- * -   2000  (~2-3 MB)
- * - Eviction
+ * Standalone Agent outcomes feed mode learning except BLOCKED. A provider/network/permission/backend
+ * block is useful operational memory, but it is not evidence that Agent mode itself was a bad fit.
+ * Team workers remain episodic memory only; Team is scored once by the orchestrator.
  */
 class EpisodicMemoryStore(
     private val dao: EpisodicMemoryDao,
@@ -36,13 +30,20 @@ class EpisodicMemoryStore(
 
     companion object {
         private const val TAG = "EpisodicMemoryStore"
-        private const val MIN_SIMILARITY = 0.20f
+        private const val MIN_SIMILARITY = 0.18f
         private const val DB_CANDIDATE_LIMIT = 80
         private const val MAX_SUMMARY_LENGTH = 500
         private const val MAX_TOOLS_STORED = 10
+        private const val MMR_LAMBDA = 0.78f
+        private const val TEAM_TASK_MARKER = "## Assigned Team Task"
     }
 
-    /**  episode     (  AgentPipeline). */
+    private data class Candidate(
+        val entry: EpisodicMemoryEntry,
+        val vector: FloatArray,
+        val relevance: Float
+    )
+
     fun recordEpisodeAsync(
         summary: String,
         userIntent: String,
@@ -55,8 +56,13 @@ class EpisodicMemoryStore(
         scope.launch(Dispatchers.IO) {
             try {
                 recordEpisode(
-                    summary, userIntent, finalOutcome, toolsUsed,
-                    iterationsCount, totalTimeMs, sessionId
+                    summary = summary,
+                    userIntent = userIntent,
+                    finalOutcome = finalOutcome,
+                    toolsUsed = toolsUsed,
+                    iterationsCount = iterationsCount,
+                    totalTimeMs = totalTimeMs,
+                    sessionId = sessionId
                 )
             } catch (t: Throwable) {
                 Log.w(TAG, "recordEpisode failed: ${t.message}")
@@ -78,8 +84,6 @@ class EpisodicMemoryStore(
         val truncatedSummary = summary.take(MAX_SUMMARY_LENGTH)
         val truncatedIntent = userIntent.take(200)
         val toolsCsv = toolsUsed.takeLast(MAX_TOOLS_STORED).joinToString(",")
-
-        // embedding  intent + summary
         val embedding = HashEmbedder.embed("$truncatedIntent $truncatedSummary")
 
         val entry = EpisodicMemoryEntry(
@@ -95,50 +99,119 @@ class EpisodicMemoryStore(
         )
 
         val id = dao.insert(entry)
+
+        if (!userIntent.contains(TEAM_TASK_MARKER, ignoreCase = true) &&
+            finalOutcome != EpisodeOutcome.BLOCKED
+        ) {
+            try {
+                val modeOutcome = when (finalOutcome) {
+                    EpisodeOutcome.SUCCESS -> ModeOutcomeLearner.Outcome.SUCCESS
+                    EpisodeOutcome.FAILURE -> ModeOutcomeLearner.Outcome.FAILURE
+                    EpisodeOutcome.ABANDONED -> ModeOutcomeLearner.Outcome.ABANDONED
+                    EpisodeOutcome.BLOCKED -> null
+                }
+                if (modeOutcome != null) {
+                    ModeOutcomeLearner.recordOutcome(
+                        userRequest = userIntent,
+                        mode = OmniMode.AGENT,
+                        outcome = modeOutcome,
+                        iterations = iterationsCount,
+                        durationMs = totalTimeMs,
+                        verified = false
+                    )
+                }
+            } catch (t: Throwable) {
+                Log.w(TAG, "mode outcome learning failed: ${t.message}")
+            }
+        }
+
         enforceQuota()
         id
     }
 
-    /**
-     *  episodes :
-     *   1) candidates  DB (   +   )
-     *   2) cosine ranking  JVM
-     *   3)   minSimilarity → topK = 2
-     */
     suspend fun retrieveSimilar(
         query: String,
         topK: Int = 2,
         preferSuccess: Boolean = true
     ): List<EpisodicMemoryEntry> = withContext(Dispatchers.IO) {
-        if (query.isBlank()) return@withContext emptyList()
+        if (query.isBlank() || topK <= 0) return@withContext emptyList()
 
         val queryVec = HashEmbedder.embed(query)
-
-        // candidates =   +   ()
-        val candidates = mutableListOf<EpisodicMemoryEntry>()
-        if (preferSuccess) {
-            candidates += dao.getByOutcome(EpisodeOutcome.SUCCESS.name, limit = 60)
-            if (candidates.size < DB_CANDIDATE_LIMIT) {
-                candidates += dao.getByOutcome(EpisodeOutcome.FAILURE.name, limit = 20)
+        val rawCandidates = if (preferSuccess) {
+            buildList {
+                addAll(dao.getByOutcome(EpisodeOutcome.SUCCESS.name, limit = 38))
+                addAll(dao.getByOutcome(EpisodeOutcome.FAILURE.name, limit = 18))
+                addAll(dao.getByOutcome(EpisodeOutcome.ABANDONED.name, limit = 14))
+                addAll(dao.getByOutcome(EpisodeOutcome.BLOCKED.name, limit = 10))
             }
         } else {
-            candidates += dao.getRecent(limit = DB_CANDIDATE_LIMIT)
+            dao.getRecent(limit = DB_CANDIDATE_LIMIT)
         }
 
-        if (candidates.isEmpty()) return@withContext emptyList()
+        if (rawCandidates.isEmpty()) return@withContext emptyList()
 
-        candidates
-            .map { entry ->
-                val sim = HashEmbedder.cosine(queryVec, HashEmbedder.fromBytes(entry.embedding))
-                entry to sim
+        val now = System.currentTimeMillis()
+        val candidates = rawCandidates
+            .distinctBy { it.id }
+            .take(DB_CANDIDATE_LIMIT)
+            .mapNotNull { entry ->
+                val vector = HashEmbedder.fromBytes(entry.embedding)
+                val similarity = HashEmbedder.cosine(queryVec, vector)
+                if (similarity < MIN_SIMILARITY) return@mapNotNull null
+
+                val recency = recencyScore(now, entry.createdAt)
+                val efficiency = efficiencyScore(entry.iterationsCount, entry.totalTimeMs)
+                val outcomePrior = when (entry.finalOutcome) {
+                    EpisodeOutcome.SUCCESS.name -> 0.08f
+                    EpisodeOutcome.FAILURE.name -> 0.045f
+                    EpisodeOutcome.ABANDONED.name -> 0.025f
+                    EpisodeOutcome.BLOCKED.name -> 0.04f
+                    else -> 0f
+                }
+                val relevance = (
+                    similarity * 0.79f +
+                        recency * 0.07f +
+                        efficiency * 0.06f +
+                        outcomePrior
+                    ).coerceIn(0f, 1f)
+
+                Candidate(entry, vector, relevance)
             }
-            .filter { it.second >= MIN_SIMILARITY }
-            .sortedByDescending { it.second }
-            .take(topK)
-            .map { it.first }
+
+        selectWithMmr(candidates, topK).map { it.entry }
     }
 
-    /**     system prompt  episodes . */
+    private fun selectWithMmr(candidates: List<Candidate>, topK: Int): List<Candidate> {
+        if (candidates.isEmpty()) return emptyList()
+        val remaining = candidates.toMutableList()
+        val selected = mutableListOf<Candidate>()
+
+        while (remaining.isNotEmpty() && selected.size < topK) {
+            val best = remaining.maxByOrNull { candidate ->
+                if (selected.isEmpty()) candidate.relevance else {
+                    val redundancy = selected.maxOf { chosen ->
+                        HashEmbedder.cosine(candidate.vector, chosen.vector)
+                    }.coerceIn(0f, 1f)
+                    MMR_LAMBDA * candidate.relevance - (1f - MMR_LAMBDA) * redundancy
+                }
+            } ?: break
+            selected += best
+            remaining.remove(best)
+        }
+        return selected
+    }
+
+    private fun recencyScore(now: Long, createdAt: Long): Float {
+        val ageDays = (now - createdAt).coerceAtLeast(0L).toFloat() / 86_400_000f
+        return (1f / (1f + ageDays / 30f)).coerceIn(0f, 1f)
+    }
+
+    private fun efficiencyScore(iterations: Int, totalTimeMs: Long): Float {
+        val iterationCost = iterations.coerceAtLeast(0) / 20f
+        val minuteCost = totalTimeMs.coerceAtLeast(0L).toFloat() / 600_000f
+        return (1f / (1f + iterationCost + minuteCost)).coerceIn(0f, 1f)
+    }
+
     suspend fun buildPromptInjection(
         query: String,
         topK: Int = 2,
@@ -148,17 +221,22 @@ class EpisodicMemoryStore(
         if (episodes.isEmpty()) return@withContext ""
 
         buildString {
-            appendLine("\n📚     (Episodic Memory):")
-            for (ep in episodes) {
-                val icon = when (ep.finalOutcome) {
-                    "SUCCESS" -> "✅"
-                    "FAILURE" -> "❌"
-                    else -> "⚠️"
+            appendLine("\nRelevant past task episodes:")
+            for (episode in episodes) {
+                val outcomeLabel = when (episode.finalOutcome) {
+                    EpisodeOutcome.SUCCESS.name -> "WORKED"
+                    EpisodeOutcome.FAILURE.name -> "FAILED"
+                    EpisodeOutcome.ABANDONED.name -> "STALLED"
+                    EpisodeOutcome.BLOCKED.name -> "BLOCKED_EXTERNALLY"
+                    else -> episode.finalOutcome
                 }
-                val tools = ep.toolsUsedCsv.split(',').take(5).joinToString(" → ")
-                val line = "$icon ${ep.summary.take(180)}"
-                val toolLine = if (tools.isNotBlank()) "   🔧 : $tools" else "English Text"
-                if (length + line.length + toolLine.length + 2 > maxChars) break
+                val tools = episode.toolsUsedCsv.split(',')
+                    .filter(String::isNotBlank)
+                    .take(5)
+                    .joinToString(" → ")
+                val line = "[$outcomeLabel] ${episode.summary.take(190)}"
+                val toolLine = if (tools.isNotBlank()) "Tools: $tools" else ""
+                if (length + line.length + toolLine.length + 3 > maxChars) break
                 appendLine(line)
                 if (toolLine.isNotBlank()) appendLine(toolLine)
             }
@@ -167,11 +245,11 @@ class EpisodicMemoryStore(
 
     private suspend fun enforceQuota() {
         try {
-            val cnt = dao.count()
-            if (cnt > maxEpisodes) {
-                val toEvict = (cnt - maxEpisodes).coerceAtLeast(50)
+            val count = dao.count()
+            if (count > maxEpisodes) {
+                val toEvict = (count - maxEpisodes).coerceAtLeast(50)
                 dao.evictOldest(toEvict)
-                Log.d(TAG, "🧹 evicted $toEvict old episodes (cnt=$cnt)")
+                Log.d(TAG, "Evicted $toEvict old episodes (count=$count)")
             }
         } catch (t: Throwable) {
             Log.w(TAG, "enforceQuota failed: ${t.message}")
@@ -179,5 +257,4 @@ class EpisodicMemoryStore(
     }
 }
 
-/**   . */
-enum class EpisodeOutcome { SUCCESS, FAILURE, ABANDONED }
+enum class EpisodeOutcome { SUCCESS, FAILURE, ABANDONED, BLOCKED }

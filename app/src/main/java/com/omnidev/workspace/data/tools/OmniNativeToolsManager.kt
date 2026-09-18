@@ -233,7 +233,7 @@ object OmniNativeToolsManager {
                         "chmod 755 '${dest.absolutePath}'",
                         timeoutMs = installTimeoutMs
                     )
-                    if (chmodResult !is ShizukuResult.Success && chmodResult !is ShizukuResult.PartialSuccess) {
+                    if (chmodResult !is ShizukuResult.Success) {
                         val chmodFallbackOk = dest.setExecutable(true, true)
                         if (!chmodFallbackOk) {
                             return@withTimeoutOrNull Result.failure<File>(
@@ -266,7 +266,8 @@ object OmniNativeToolsManager {
         val res = withTimeoutOrNull(timeoutMs) { ShizukuCommandTool.execute(cmd) }
         when (res) {
             is ShizukuResult.Success       -> ExecResult.Ok(res.output)
-            is ShizukuResult.PartialSuccess -> ExecResult.Ok(res.output)
+            is ShizukuResult.PartialSuccess ->
+                ExecResult.Err("Command exited ${res.exitCode}: ${res.output}")
             is ShizukuResult.Failure       -> ExecResult.Err(res.reason)
             null                           -> ExecResult.Err("Timed out after ${timeoutMs}ms")
             else                           -> ExecResult.Err("Shizuku unavailable")
@@ -444,7 +445,7 @@ object OmniNativeToolsManager {
                     // 4. chmod via Shizuku (handles SELinux context issues on some ROMs)
                     if (spec.executableRelPath.startsWith("bin/")) {
                         val r = ShizukuCommandTool.execute("chmod 755 '${destFile.absolutePath}'")
-                        if (r !is ShizukuResult.Success && r !is ShizukuResult.PartialSuccess) {
+                        if (r !is ShizukuResult.Success) {
                             // chmod without Shizuku as fallback
                             destFile.setExecutable(true, false)
                         }
@@ -554,7 +555,7 @@ object OmniNativeToolsManager {
             "tar -xzf '${source.absolutePath}' -C '${extractDir.absolutePath}' 2>&1",
             timeoutMs = installTimeoutMs
         )
-        if (tarResult !is ShizukuResult.Success && tarResult !is ShizukuResult.PartialSuccess) {
+        if (tarResult !is ShizukuResult.Success) {
             throw Exception("tar extraction failed: ${tarResult.toDisplayString()}")
         }
 

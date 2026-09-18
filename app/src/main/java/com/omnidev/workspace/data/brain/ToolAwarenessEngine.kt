@@ -146,11 +146,22 @@ class ToolAwarenessEngine(
         val state = runCatching { EnvironmentSetupManager.probe(force = true) }.getOrNull()
         val termuxInstalled = TermuxRunCommandBridge.isTermuxInstalled(context)
         val termuxPermission = TermuxRunCommandBridge.hasRunCommandPermission(context)
-        val termuxReady = state?.termuxPrefix != null
+        val termuxReady =
+            state?.termuxPrefix != null && !TermuxRunCommandBridge.isKnownUnusable()
 
         runtimeEnvironmentCache["termux_installed"] = termuxInstalled.toString()
         runtimeEnvironmentCache["termux_permission"] = termuxPermission.toString()
         runtimeEnvironmentCache["termux_ready"] = termuxReady.toString()
+
+        val termuxKnowledgeType = when {
+            termuxReady -> TYPE_ENVIRONMENT
+            else -> TYPE_WARNING
+        }
+        systemKnowledgeDao.invalidateOtherTypesForSubject(
+            subject = "termux",
+            source = "auto_discovery",
+            keepType = termuxKnowledgeType
+        )
 
         when {
             termuxReady -> saveOrUpdateKnowledge(
@@ -172,7 +183,7 @@ class ToolAwarenessEngine(
             termuxInstalled -> saveOrUpdateKnowledge(
                 TYPE_WARNING,
                 "termux",
-                "Termux is installed but its RunCommand transport is not healthy. Use agent_runtime action=env_check for exact diagnostics.",
+                "Termux is installed but its RunCommand transport is not healthy. Treat this as a circuit-breaker state: do not retry agent_runtime shell/package work until execution_diagnostics action=fix_termux succeeds.",
                 confidence = 1.0f,
                 priority = 2,
                 tags = "termux,runtime,warning"
@@ -190,13 +201,21 @@ class ToolAwarenessEngine(
         val shizukuBinder = ShizukuCommandTool.isAvailable()
         val shizukuGranted = shizukuBinder && ShizukuCommandTool.hasPermission()
         val shizukuUid = if (shizukuGranted) ShizukuCommandTool.privilegedUidOrNull() else null
-        runtimeEnvironmentCache["shizuku"] = shizukuGranted.toString()
+        val shizukuFunctional = shizukuGranted && shizukuUid != null
+        runtimeEnvironmentCache["shizuku"] = shizukuFunctional.toString()
 
-        if (shizukuGranted) {
+        val shizukuKnowledgeType = if (shizukuFunctional) TYPE_ENVIRONMENT else TYPE_WARNING
+        systemKnowledgeDao.invalidateOtherTypesForSubject(
+            subject = "shizuku",
+            source = "auto_discovery",
+            keepType = shizukuKnowledgeType
+        )
+
+        if (shizukuFunctional) {
             saveOrUpdateKnowledge(
                 TYPE_ENVIRONMENT,
                 "shizuku",
-                "Shizuku UserService is ready${shizukuUid?.let { " (uid=$it)" }.orEmpty()}. Use shizuku_command only for Android/system privileged commands; use agent_runtime for developer packages and Termux tools.",
+                "Shizuku UserService is ready${shizukuUid?.let { " (uid=$it)" }.orEmpty()}. Prefer specialized device tools first; generic Android content/settings/pm/cmd work can use run_terminal which auto-routes to Shizuku. Keep agent_runtime for developer/Termux work only.",
                 confidence = 1.0f,
                 priority = 2,
                 tags = "shizuku,user_service,adb,privileged"
@@ -205,10 +224,10 @@ class ToolAwarenessEngine(
             saveOrUpdateKnowledge(
                 TYPE_WARNING,
                 "shizuku",
-                if (shizukuBinder) {
-                    "Shizuku is running but permission is not granted to OmniDev."
-                } else {
-                    "Shizuku binder is not available."
+                when {
+                    !shizukuBinder -> "Shizuku binder is not available."
+                    !shizukuGranted -> "Shizuku is running but permission is not granted to OmniDev."
+                    else -> "Shizuku binder/permission exist, but the UserService functional UID probe failed. Treat Shizuku as degraded until a real command succeeds."
                 },
                 confidence = 1.0f,
                 priority = 3,
@@ -276,7 +295,7 @@ class ToolAwarenessEngine(
         val practices = listOf(
             Triple(
                 "terminal_runtime_routing",
-                "Use agent_runtime for developer shell/package/runtime work; shizuku_command for privileged Android commands; rish is the ADB-equivalent privileged shell backend. Never execute Termux private binaries through Shizuku PATH/LD_PRELOAD hacks.",
+                "Prefer specialized domain tools first. Use agent_runtime only for developer shell/package/runtime work; generic Android content/settings/pm/cmd commands use the Shizuku domain (run_terminal auto-routes them); rish is only the explicit ADB-equivalent terminal backend. Never execute Termux private binaries through Shizuku PATH/LD_PRELOAD hacks.",
                 "terminal,termux,shizuku,rish,routing"
             ),
             Triple(
@@ -318,8 +337,17 @@ class ToolAwarenessEngine(
         success: Boolean,
         errorMessage: String = "",
         executionTimeMs: Long = 0,
+        classification: String? = null,
+        backend: String? = null,
         @Suppress("UNUSED_PARAMETER") params: Map<String, Any?> = emptyMap()
     ) = withContext(Dispatchers.IO) {
+        updateRuntimeKnowledgeFromExecution(
+            success = success,
+            errorMessage = errorMessage,
+            classification = classification,
+            backend = backend
+        )
+
         when {
             !success && errorMessage.contains("permission", ignoreCase = true) ->
                 saveOrUpdateKnowledge(
@@ -360,6 +388,92 @@ class ToolAwarenessEngine(
                 priority = 7,
                 tags = "fast,performance,$toolName"
             )
+        }
+    }
+
+    private suspend fun updateRuntimeKnowledgeFromExecution(
+        success: Boolean,
+        errorMessage: String,
+        classification: String?,
+        backend: String?
+    ) {
+        val cls = classification?.uppercase().orEmpty()
+        val be = backend?.lowercase().orEmpty()
+        val lower = errorMessage.lowercase()
+
+        // Backend identity on a successful command is positive health evidence.
+        // On failure, only transport/availability signatures may change runtime health;
+        // a bad command, denied target operation, or non-zero exit does NOT mean the backend died.
+        val termuxSuccess = success && be == "termux"
+        val termuxTransportFailure =
+            cls in setOf(
+                "TERMUX_RUN_COMMAND_UNAVAILABLE",
+                "TERMUX_EXTERNAL_APPS_DISABLED",
+                "TERMUX_UNAVAILABLE"
+            ) ||
+                lower.contains("runcommandservice") ||
+                lower.contains("termux transport") && lower.contains("unavailable")
+
+        if (termuxSuccess || termuxTransportFailure) {
+            val healthy = termuxSuccess && !termuxTransportFailure
+            val type = if (healthy) TYPE_ENVIRONMENT else TYPE_WARNING
+            systemKnowledgeDao.invalidateOtherTypesForSubject(
+                subject = "termux",
+                source = "auto_discovery",
+                keepType = type
+            )
+            saveOrUpdateKnowledge(
+                type,
+                "termux",
+                if (healthy) {
+                    "Termux RunCommandService succeeded in the current session. Use agent_runtime only for developer/Linux package/runtime work."
+                } else {
+                    "Termux transport is currently unavailable in this session (${classification ?: "transport failure"}). Circuit-break it; do not retry agent_runtime shell/package work until fix_termux succeeds."
+                },
+                confidence = 1.0f,
+                priority = 1,
+                tags = "termux,runtime,current_state",
+                source = "auto_discovery"
+            )
+            runtimeEnvironmentCache["termux_ready"] = healthy.toString()
+        }
+
+        val shizukuSuccess = success && be == "shizuku-user-service"
+        val shizukuTransportFailure =
+            cls in setOf(
+                "SHIZUKU_PERMISSION_REQUIRED",
+                "SHIZUKU_UNAVAILABLE",
+                "SHIZUKU_CONNECTION_TIMEOUT"
+            ) ||
+                lower.contains("shizuku userservice error") ||
+                lower.contains("shizuku user service error") ||
+                lower.contains("deadobject") ||
+                lower.contains("remoteexception") ||
+                lower.contains("service disconnected") ||
+                lower.contains("binder") && lower.contains("shizuku")
+
+        if (shizukuSuccess || shizukuTransportFailure) {
+            val healthy = shizukuSuccess && !shizukuTransportFailure
+            val type = if (healthy) TYPE_ENVIRONMENT else TYPE_WARNING
+            systemKnowledgeDao.invalidateOtherTypesForSubject(
+                subject = "shizuku",
+                source = "auto_discovery",
+                keepType = type
+            )
+            saveOrUpdateKnowledge(
+                type,
+                "shizuku",
+                if (healthy) {
+                    "Shizuku UserService executed successfully in the current session. Prefer specialized device tools; generic Android shell work may use the Shizuku-routed path."
+                } else {
+                    "Shizuku is currently unavailable/degraded in this session (${classification ?: "backend failure"}). Do not repeat the same privileged strategy until the backend state changes."
+                },
+                confidence = 1.0f,
+                priority = 1,
+                tags = "shizuku,runtime,current_state",
+                source = "auto_discovery"
+            )
+            runtimeEnvironmentCache["shizuku"] = healthy.toString()
         }
     }
 

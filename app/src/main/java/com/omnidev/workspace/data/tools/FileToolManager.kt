@@ -222,10 +222,11 @@ class FileToolManager(
             ),
             ToolDefinition(
                 name = "run_terminal",
-                description = "Execute a shell command inside the project's Target Context directory. " +
-                    "Returns combined stdout and stderr with the exit code. " +
-                    "Use for builds (./gradlew assembleDebug), tests (./gradlew test), " +
-                    "file listing (ls -la), or git operations (git status, git log --oneline -5).",
+                description = "Execute a shell command with automatic execution-domain routing. " +
+                    "Project/build/git commands run in the Target Context app shell; Android system commands " +
+                    "(content, pm, settings, cmd, dumpsys, am, wm, svc, appops, getprop/setprop) are routed " +
+                    "directly through Shizuku when available. Do NOT wrap Android commands in su/rish. " +
+                    "For content query, OmniDev also accepts --limit N and applies it safely after execution.",
                 parameters = listOf(
                     ToolParameter(
                         name = "command",
@@ -1147,6 +1148,13 @@ class FileToolManager(
     private suspend fun runTerminal(args: Map<String, String>, scopePath: String): ToolExecutionResult {
         val command = requireArg(args, "command")
 
+        // Android shell commands must never run as OmniDev's app UID. Route them before touching
+        // ProcessBuilder so content/pm/settings/etc. use the already-authorized shell backend.
+        AndroidPrivilegedCommandRouter.executeIfNeeded(
+            command = command,
+            timeoutMs = TERMINAL_TIMEOUT_SECONDS * 1_000L
+        )?.let { return it }
+
         val workDir = if (godModeEnabled) {
             val requested = File(scopePath)
             if (requested.exists() && requested.isDirectory) requested
@@ -1236,7 +1244,12 @@ class FileToolManager(
                     if (stderrTruncated) appendLine("[STDERR TRUNCATED]")
                 }
 
-                ToolExecutionResult(output = resultText, isError = exitCode != 0)
+                ToolExecutionResult(
+                    output = resultText,
+                    isError = exitCode != 0,
+                    exitCode = exitCode,
+                    backend = "app-shell"
+                )
             }
         } catch (e: CancellationException) {
             throw e

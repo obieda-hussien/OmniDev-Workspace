@@ -50,11 +50,28 @@ object ToolSchemaCompactor {
         val selected = if (unique.size <= MAX_TOOLS) {
             unique.values.toList()
         } else {
-            unique.values
+            val matchedSpecializedNames = SPECIALIZED_INTENT_HINTS
+                .filterValues { hints -> hints.any(latestUser::contains) }
+                .keys
+
+            val pinned = unique.values.filter { indexed ->
+                indexed.value.name in matchedSpecializedNames
+            }
+            val pinnedNames = pinned.mapTo(mutableSetOf()) { it.value.name }
+
+            val remaining = unique.values
+                .asSequence()
+                .filterNot { it.value.name in pinnedNames }
                 .sortedWith(
-                    compareByDescending<IndexedValue<ToolDefinition>> { relevanceScore(it.value, queryTerms) }
-                        .thenBy { it.index }
+                    compareByDescending<IndexedValue<ToolDefinition>> {
+                        relevanceScore(it.value, queryTerms, latestUser)
+                    }.thenBy { it.index }
                 )
+                .take((MAX_TOOLS - pinned.size).coerceAtLeast(0))
+                .toList()
+
+            (pinned + remaining)
+                .distinctBy { it.value.name }
                 .take(MAX_TOOLS)
                 .sortedBy { it.index }
         }
@@ -74,7 +91,11 @@ object ToolSchemaCompactor {
         )
     }
 
-    private fun relevanceScore(tool: ToolDefinition, queryTerms: Set<String>): Int {
+    private fun relevanceScore(
+        tool: ToolDefinition,
+        queryTerms: Set<String>,
+        rawQuery: String
+    ): Int {
         var score = if (tool.name in MUST_KEEP) 1_000 else 0
         val nameTerms = tool.name.lowercase().split('_', '-', '.')
         score += nameTerms.count { it in queryTerms } * 80
@@ -82,6 +103,10 @@ object ToolSchemaCompactor {
         if (queryTerms.isNotEmpty()) {
             val haystack = (tool.name + " " + tool.description.take(1_000)).lowercase()
             score += queryTerms.count { haystack.contains(it) } * 8
+        }
+
+        SPECIALIZED_INTENT_HINTS[tool.name]?.let { hints ->
+            if (hints.any(rawQuery::contains)) score += 650
         }
         return score
     }
@@ -103,7 +128,30 @@ object ToolSchemaCompactor {
         return cleaned.take(headSize).trimEnd() + " … [trimmed] … " + cleaned.takeLast(tailSize).trimStart()
     }
 
-    private val WORD = Regex("[A-Za-z0-9_\\-]+")
+    private val SPECIALIZED_INTENT_HINTS = mapOf(
+        "sms_reader_tool" to listOf(
+            "sms", "text message", "inbox", "رسالة", "رسائل", "رسايل", "اس ام اس",
+            "orange cash", "اورنج كاش", "أورنج كاش", "اورنچ كاش", "أورنچ كاش"
+        ),
+        "call_log_tool" to listOf(
+            "call log", "calls", "phone calls", "سجل المكالمات", "مكالمات"
+        ),
+        "system_contacts" to listOf(
+            "contact", "contacts", "رقم", "جهات الاتصال", "كونتاكت"
+        ),
+        "system_settings_tool" to listOf(
+            "settings", "brightness", "timeout", "اعدادات", "إعدادات", "سطوع"
+        ),
+        "planner_tool" to listOf(
+            "alarm", "calendar", "reminder", "منبه", "تقويم", "تذكير", "موعد"
+        ),
+        "visual_inspector" to listOf(
+            "screen", "screenshot", "look at", "شاشة", "سكرين", "صورة الشاشة"
+        )
+    )
+
+    // Unicode-aware tokenization keeps Arabic/non-Latin requests relevant at schema-selection time.
+    private val WORD = Regex("[\\p{L}\\p{N}_\\-]+")
     private val WHITESPACE = Regex("\\s+")
     private val DECORATION_CHARS = setOf('━', '═', '─', '—', '-', '=', ' ', '│', '┈')
     private val STOP_WORDS = setOf(

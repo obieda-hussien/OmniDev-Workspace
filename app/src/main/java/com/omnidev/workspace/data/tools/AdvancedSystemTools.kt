@@ -137,50 +137,163 @@ object CallLogTool {
 object SmsReaderTool {
 
     private const val MAX_RESULTS = 30
+    private const val DEFAULT_RESULTS = 10
 
-    fun execute(
+    /**
+     * Prefer the normal Android ContentResolver when READ_SMS is granted. If Android denies that
+     * app-UID path but Shizuku is already authorized, transparently query the same provider through
+     * the shell UserService. The model should never need to reinvent this fallback with raw shell.
+     */
+    suspend fun execute(
         context: Context,
         action: String,
         query: String? = null,
-        limit: Int = MAX_RESULTS
+        sender: String? = null,
+        limit: Int = DEFAULT_RESULTS
     ): ToolExecutionResult {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) != PackageManager.PERMISSION_GRANTED) {
-            return ToolExecutionResult("READ_SMS permission not granted. Please grant it in Settings.", isError = true)
+        val normalizedAction = action.lowercase()
+        if (normalizedAction !in setOf("read_inbox", "read_sent", "search", "latest_search")) {
+            return ToolExecutionResult(
+                "Unknown sms action '$action'. Use read_inbox, read_sent, search, or latest_search.",
+                isError = true
+            )
         }
-        return runCatching {
-            when (action.lowercase()) {
-                "read_inbox" -> readMessages(context, Telephony.Sms.Inbox.CONTENT_URI, limit)
-                "read_sent" -> readMessages(context, Telephony.Sms.Sent.CONTENT_URI, limit)
-                "search" -> {
-                    if (query.isNullOrBlank()) return ToolExecutionResult("Missing 'query'.", isError = true)
-                    searchMessages(context, query, limit)
+        if (
+            normalizedAction in setOf("search", "latest_search") &&
+            query.isNullOrBlank() &&
+            sender.isNullOrBlank()
+        ) {
+            return ToolExecutionResult(
+                "search/latest_search requires at least 'query' or 'sender'.",
+                isError = true
+            )
+        }
+
+        val safeLimit = if (normalizedAction == "latest_search") {
+            1
+        } else {
+            limit.coerceIn(1, MAX_RESULTS)
+        }
+        val hasAppPermission =
+            ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
+                PackageManager.PERMISSION_GRANTED
+
+        if (hasAppPermission) {
+            try {
+                return when (normalizedAction) {
+                    "read_inbox" -> readMessages(context, Telephony.Sms.Inbox.CONTENT_URI, safeLimit)
+                    "read_sent" -> readMessages(context, Telephony.Sms.Sent.CONTENT_URI, safeLimit)
+                    "search", "latest_search" ->
+                        searchMessages(context, query, sender, safeLimit)
+                    else -> error("validated above")
                 }
-                else -> ToolExecutionResult("Unknown sms action '$action'.", isError = true)
+            } catch (_: SecurityException) {
+                // Permission/app-op state can disagree with checkSelfPermission on some ROMs.
+                // Fall through to the already-authorized Shizuku shell domain.
+            } catch (e: Exception) {
+                return ToolExecutionResult("SMS error: ${e.message}", isError = true)
             }
-        }.getOrElse { e -> ToolExecutionResult("SMS error: ${e.message}", isError = true) }
+        }
+
+        return executeViaShizuku(normalizedAction, query, sender, safeLimit)
     }
 
     private fun readMessages(context: Context, uri: Uri, limit: Int): ToolExecutionResult {
-        val safeLim = limit.coerceIn(1, MAX_RESULTS)
         val cursor = context.contentResolver.query(
-            uri, arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.READ),
-            null, null, "${Telephony.Sms.DATE} DESC"
+            uri,
+            arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.READ),
+            null,
+            null,
+            "${Telephony.Sms.DATE} DESC"
         )
-        return formatSmsCursor(cursor, safeLim)
+        return formatSmsCursor(cursor, limit)
     }
 
-    private fun searchMessages(context: Context, query: String, limit: Int): ToolExecutionResult {
-        val safeQuery = query.replace("%", "\\%").replace("_", "\\_")
-        val safeLim = limit.coerceIn(1, MAX_RESULTS)
+    private fun searchMessages(
+        context: Context,
+        query: String?,
+        sender: String?,
+        limit: Int
+    ): ToolExecutionResult {
+        val clauses = mutableListOf<String>()
+        val args = mutableListOf<String>()
+
+        sender?.takeIf(String::isNotBlank)?.let {
+            clauses += "${Telephony.Sms.ADDRESS} LIKE ? ESCAPE '\\'"
+            args += "%${escapeResolverLike(it)}%"
+        }
+        query?.takeIf(String::isNotBlank)?.let {
+            clauses += "${Telephony.Sms.BODY} LIKE ? ESCAPE '\\'"
+            args += "%${escapeResolverLike(it)}%"
+        }
+
         val cursor = context.contentResolver.query(
             Telephony.Sms.CONTENT_URI,
             arrayOf(Telephony.Sms.ADDRESS, Telephony.Sms.BODY, Telephony.Sms.DATE, Telephony.Sms.READ),
-            "${Telephony.Sms.ADDRESS} LIKE ? ESCAPE '\\' OR ${Telephony.Sms.BODY} LIKE ? ESCAPE '\\'",
-            arrayOf("%$safeQuery%", "%$safeQuery%"),
+            clauses.joinToString(" AND "),
+            args.toTypedArray(),
             "${Telephony.Sms.DATE} DESC"
         )
-        return formatSmsCursor(cursor, safeLim)
+        return formatSmsCursor(cursor, limit)
     }
+
+    private fun escapeResolverLike(value: String): String = value
+        .replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+
+    private suspend fun executeViaShizuku(
+        action: String,
+        query: String?,
+        sender: String?,
+        limit: Int
+    ): ToolExecutionResult {
+        val uri = when (action) {
+            "read_inbox" -> "content://sms/inbox"
+            "read_sent" -> "content://sms/sent"
+            else -> "content://sms"
+        }
+        val selection = if (action == "search" || action == "latest_search") {
+            buildList {
+                sender?.takeIf(String::isNotBlank)?.let {
+                    add("address LIKE '%${escapeSqlLike(it)}%' ESCAPE '\\'")
+                }
+                query?.takeIf(String::isNotBlank)?.let {
+                    add("body LIKE '%${escapeSqlLike(it)}%' ESCAPE '\\'")
+                }
+            }.joinToString(" AND ").takeIf(String::isNotBlank)
+        } else null
+
+        val command = buildString {
+            append("content query --uri ").append(shellQuote(uri))
+            append(" --projection address:body:date:read")
+            selection?.let { append(" --where ").append(shellQuote(it)) }
+            append(" --sort ").append(shellQuote("date DESC"))
+            // Android's content CLI has no native --limit. OmniDev's Android-domain adapter
+            // removes this flag before execution and limits complete Row blocks afterwards.
+            append(" --limit ").append(limit)
+        }
+
+        val result = AndroidPrivilegedCommandRouter.executeIfNeeded(command)
+            ?: return ToolExecutionResult(
+                "SMS Shizuku fallback could not route the content-provider command.",
+                isError = true,
+                classification = "SMS_BACKEND_UNAVAILABLE",
+                backend = "sms-reader"
+            )
+
+        return result.copy(
+            verification = if (!result.isError) {
+                "SMS provider queried through Shizuku fallback; max rows=$limit"
+            } else result.verification
+        )
+    }
+
+    private fun escapeSqlLike(value: String): String = value
+        .replace("\\", "\\\\")
+        .replace("%", "\\%")
+        .replace("_", "\\_")
+        .replace("'", "''")
 
     private fun formatSmsCursor(cursor: Cursor?, limit: Int): ToolExecutionResult {
         if (cursor == null) return ToolExecutionResult("Failed to query SMS.", isError = true)
@@ -194,8 +307,7 @@ object SmsReaderTool {
                 val address = it.getString(0) ?: "Unknown"
                 val body = it.getString(1) ?: ""
                 val isRead = it.getInt(3) == 1
-                
-                // Truncate body to prevent huge outputs, but give enough context (250 chars)
+
                 val truncBody = if (body.length > 250) body.take(250) + "…" else body
                 sb.appendLine("${if (isRead) "✅" else "🆕"} $address | ${df.format(Date(it.getLong(2)))}")
                 sb.appendLine("   $truncBody")
@@ -208,11 +320,16 @@ object SmsReaderTool {
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "sms_reader_tool",
-            description = "Read device SMS. Actions: 'read_inbox', 'read_sent', 'search'. Requires READ_SMS.",
+            description =
+                "Read/search device SMS with bounded results. Prefer this over raw content-query shell. " +
+                    "Use latest_search with sender + query when one newest matching message is enough " +
+                    "(for example sender=OrangeCash, query=رصيدك الحالي). " +
+                    "Uses READ_SMS when available and automatically falls back to authorized Shizuku.",
             parameters = listOf(
-                ToolParameter("action", "string", "Action: read_inbox, read_sent, search.", required = true),
-                ToolParameter("query", "string", "Search filter.", required = false),
-                ToolParameter("limit", "string", "Max entries (default 30).", required = false)
+                ToolParameter("action", "string", "Action: read_inbox, read_sent, search, latest_search.", required = true),
+                ToolParameter("query", "string", "Optional body-text filter for search/latest_search.", required = false),
+                ToolParameter("sender", "string", "Optional sender/address filter, e.g. OrangeCash. Combines with query using AND.", required = false),
+                ToolParameter("limit", "string", "Max entries, 1-30 (default 10; latest_search always returns 1).", required = false)
             )
         )
     )
@@ -263,19 +380,65 @@ object SystemSettingsTool {
         return@withContext when (action.lowercase()) {
             "get" -> {
                 val result = PrivilegedExecutionManager.executeCommand("settings get $safeNamespace $safeKey")
-                if (result.isSuccess) ToolExecutionResult("$safeNamespace/$safeKey = ${result.getOrDefault("").trim()}")
-                else ToolExecutionResult("Failed to get setting: ${result.exceptionOrNull()?.message}", isError = true)
+                if (result.isSuccess) {
+                    val actual = result.getOrDefault("").trim()
+                    ToolExecutionResult(
+                        output = "$safeNamespace/$safeKey = $actual",
+                        classification = "SUCCESS",
+                        verification = "read settings $safeNamespace/$safeKey"
+                    )
+                } else {
+                    ToolExecutionResult(
+                        output = "Failed to get setting: ${result.exceptionOrNull()?.message}",
+                        isError = true,
+                        classification = "SYSTEM_SETTING_READ_FAILED"
+                    )
+                }
             }
             "put" -> {
                 if (value.isNullOrBlank()) {
-                    ToolExecutionResult("Missing 'value' for put action.", isError = true)
+                    ToolExecutionResult(
+                        "Missing 'value' for put action.",
+                        isError = true,
+                        classification = "INVALID_ARGUMENT"
+                    )
                 } else {
-                    // FIX: Safe quoting allows URLs, colons, slashes, and spaces in values (e.g. accessibility services)
                     val cmd = "settings put $safeNamespace $safeKey ${shellQuote(value)}"
-                    val result = PrivilegedExecutionManager.executeCommand(cmd)
-                    
-                    if (result.isSuccess) ToolExecutionResult("✅ Set $safeNamespace/$safeKey = $value")
-                    else ToolExecutionResult("Failed to set setting: ${result.exceptionOrNull()?.message}", isError = true)
+                    val write = PrivilegedExecutionManager.executeCommand(cmd)
+                    if (write.isFailure) {
+                        ToolExecutionResult(
+                            output = "Failed to set setting: ${write.exceptionOrNull()?.message}",
+                            isError = true,
+                            classification = "SYSTEM_SETTING_WRITE_FAILED"
+                        )
+                    } else {
+                        val readBack = PrivilegedExecutionManager.executeCommand(
+                            "settings get $safeNamespace $safeKey"
+                        )
+                        val actual = readBack.getOrNull()?.trim()
+                        if (readBack.isSuccess && actual == value) {
+                            ToolExecutionResult(
+                                output = "✅ Set $safeNamespace/$safeKey = $value",
+                                classification = "SUCCESS",
+                                verification = "read-back verified $safeNamespace/$safeKey=$actual"
+                            )
+                        } else {
+                            ToolExecutionResult(
+                                output = buildString {
+                                    append("POSTCONDITION_FAILED: wrote $safeNamespace/$safeKey but ")
+                                    if (readBack.isFailure) {
+                                        append("read-back failed: ${readBack.exceptionOrNull()?.message}")
+                                    } else {
+                                        append("expected '$value', read back '${actual.orEmpty()}'")
+                                    }
+                                },
+                                isError = true,
+                                classification = "POSTCONDITION_FAILED",
+                                retryable = false,
+                                persistentFailure = false
+                            )
+                        }
+                    }
                 }
             }
             else -> ToolExecutionResult("Unknown action. Use get or put.", isError = true)
@@ -285,7 +448,7 @@ object SystemSettingsTool {
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "system_settings_tool",
-            description = "Read or modify Android system settings (system, secure, global). Requires Shizuku/Root.",
+            description = "Read or modify Android system settings with privileged-shell routing and mutation read-back verification. Prefer this over raw settings shell commands.",
             parameters = listOf(
                 ToolParameter("action", "string", "Action: 'get' or 'put'.", required = true),
                 ToolParameter("namespace", "string", "Namespace: 'system', 'secure', or 'global'.", required = true),
@@ -366,13 +529,15 @@ object AdvancedRootShellTool {
         val b64 = Base64.encodeToString(scriptContent.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
         
         val writeCmd = "echo ${shellQuote(b64)} | base64 -d > $tmpPath && chmod +x $tmpPath && echo WRITE_OK"
-        val writeResult = PrivilegedExecutionManager.executeCommand(writeCmd)
+        val writeResult = PrivilegedExecutionManager.executeRootCommand(writeCmd)
         
         if (writeResult.isFailure || !writeResult.getOrDefault("").contains("WRITE_OK")) {
             return@withContext ToolExecutionResult("Failed to inject root script.", isError = true)
         }
 
-        val result = PrivilegedExecutionManager.executeCommand("sh $tmpPath 2>&1; rm -f $tmpPath")
+        val result = PrivilegedExecutionManager.executeRootCommand(
+            "sh $tmpPath 2>&1; rc=\$?; rm -f $tmpPath; exit \$rc"
+        )
         
         result.fold(
             onSuccess = { output ->
@@ -380,7 +545,10 @@ object AdvancedRootShellTool {
                 val truncated = text.length > MAX_OUTPUT
                 ToolExecutionResult(
                     output = if (truncated) "...[TRUNCATED]...\n" + text.takeLast(MAX_OUTPUT) else text,
-                    truncated = truncated
+                    truncated = truncated,
+                    backend = "root",
+                    classification = "SUCCESS",
+                    verification = "executed through root-only su backend"
                 )
             },
             onFailure = { e -> ToolExecutionResult("Root command failed: ${e.message}", isError = true) }
@@ -390,7 +558,7 @@ object AdvancedRootShellTool {
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "root_shell_tool",
-            description = "Execute complex root-level shell commands. Supports pipes, redirects, and heavy awk/sed processing flawlessly using Base64 injection.",
+            description = "Execute a command through a verified uid=0 su backend only. Never falls back to Shizuku/rish. Supports pipes and redirects through a temporary root script.",
             parameters = listOf(
                 ToolParameter("command", "string", "Full shell command to execute.", required = true)
             )

@@ -1,48 +1,33 @@
 package com.omnidev.workspace.data.brain
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.BatteryManager
+import android.os.Build
 import android.util.Log
-import com.omnidev.workspace.data.db.dao.ToolExecutionDao
-import com.omnidev.workspace.data.db.dao.SystemKnowledgeDao
 import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.tools.ToolExecutionResult
-import com.omnidev.workspace.data.tools.orchestration.ToolIntelligenceEngine
 import com.omnidev.workspace.data.tools.ml.ToolMachineLearningEngine
 import com.omnidev.workspace.data.tools.monitoring.ToolMonitoringSystem
+import com.omnidev.workspace.data.tools.orchestration.ToolIntelligenceEngine
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * ══════════════════════════════════════════════════════════════════════════════
- * SmartLearningBridge —
- * ══════════════════════════════════════════════════════════════════════════════
+ * Local learning bridge for the Agent Brain.
  *
- *      :
- * - ToolExecutionJournal ( )
- * - ToolAwarenessEngine ( )
- * - ToolIntelligenceEngine (RL-based decision making)
- * - ToolMachineLearningEngine (ML prediction)
- * - ToolMonitoringSystem (real-time monitoring)
- *
- * :
- * 1.
- * 2.  System Prompt Context
- * 3.
- * 4.
- * 5.
- *
- *  :
- * - Claude Code: Self-improving context awareness
- * - GitHub Copilot: Contextual tool suggestion
- * - Gemini Assistant: Cross-session learning
+ * Persistent knowledge engines are shared across runs, while mutable task state (intent,
+ * tool history, timers, pending recovery attribution and active Reflexion lessons) is isolated
+ * by [forkForRun]. This prevents Team workers from contaminating one another's learning.
  */
 class SmartLearningBridge(
     private val context: Context,
@@ -51,38 +36,56 @@ class SmartLearningBridge(
     private val intelligenceEngine: ToolIntelligenceEngine?,
     private val mlEngine: ToolMachineLearningEngine?,
     private val monitoringSystem: ToolMonitoringSystem?,
-    /**
-     * Agent Brain 2.0 —  Reflexion (   ).
-     * :  null     .
-     */
-    private val reflexionEngine: com.omnidev.workspace.data.brain.ReflexionEngine? = null,
-    /**
-     * Agent Brain 2.0 —    (episodes ).
-     * :  null    episodes .
-     */
-    private val episodicMemoryStore: com.omnidev.workspace.data.brain.EpisodicMemoryStore? = null,
-    /**
-     * Progressive Trust Engine —     .
-     * :  null    trust tracking.
-     */
-    private val progressiveTrustEngine: com.omnidev.workspace.data.brain.ProgressiveTrustEngine? = null,
-    /**
-     * Causal Chain Planner Tool —       System Prompt.
-     * :  null   .
-     */
+    private val reflexionEngine: ReflexionEngine? = null,
+    private val episodicMemoryStore: EpisodicMemoryStore? = null,
+    private val progressiveTrustEngine: ProgressiveTrustEngine? = null,
     private val causalChainPlannerTool: com.omnidev.workspace.data.tools.CausalChainPlannerTool? = null,
+    private val userFeedbackLearningStore: UserFeedbackLearningStore? = null,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 ) {
 
-    /** Run-local intent, timing and tool history; learned knowledge remains shared. */
-    fun forkForRun() = SmartLearningBridge(context, journal.forkForRun(), awarenessEngine,
-        intelligenceEngine, mlEngine, monitoringSystem, reflexionEngine, episodicMemoryStore,
-        progressiveTrustEngine, causalChainPlannerTool, scope)
+    private data class PendingFailure(
+        val toolName: String,
+        val parameters: Map<String, Any?>,
+        val output: String,
+        val fingerprint: String
+    )
+
+    /** Persistent knowledge is shared; all run-local mutable attribution is forked. */
+    fun forkForRun() = SmartLearningBridge(
+        context = context,
+        journal = journal.forkForRun(),
+        awarenessEngine = awarenessEngine,
+        intelligenceEngine = intelligenceEngine,
+        mlEngine = mlEngine,
+        monitoringSystem = monitoringSystem,
+        reflexionEngine = reflexionEngine?.forkForRun(),
+        episodicMemoryStore = episodicMemoryStore,
+        progressiveTrustEngine = progressiveTrustEngine,
+        causalChainPlannerTool = causalChainPlannerTool,
+        userFeedbackLearningStore = userFeedbackLearningStore,
+        scope = scope
+    )
+
+    private val NON_PERFORMANCE_OUTCOMES = setOf(
+        "USER_ACTION_REQUIRED",
+        "SHIZUKU_PERMISSION_REQUIRED",
+        "SHIZUKU_UNAVAILABLE",
+        "TERMUX_RUN_COMMAND_UNAVAILABLE",
+        "TERMUX_EXTERNAL_APPS_DISABLED",
+        "RISH_UNAVAILABLE",
+        "ROOT_UNAVAILABLE",
+        "ANDROID_BACKEND_UNAVAILABLE",
+        "ANDROID_PERMISSION_DENIED",
+        "WRONG_EXECUTION_DOMAIN",
+        "TOOL_TRANSPORT_BLOCKED",
+        "TOOL_TRANSPORT_FAILURE",
+        "FILESYSTEM_PERMISSION_DENIED",
+        "MUTATION_OUTCOME_UNKNOWN"
+    )
 
     companion object {
         private const val TAG = "SmartLearning"
-
-        //     System Prompt —   2-4 GB RAM
         private const val MAX_CONTEXT_CHARS = 2000
         private const val MAX_TOOL_HISTORY_ITEMS = 5
         private const val PERSIST_INTERVAL_MS = 30_000L
@@ -91,82 +94,67 @@ class SmartLearningBridge(
         private const val MIN_RL_CONSENSUS_CONFIDENCE = 0.55
         private const val MIN_ML_ALTERNATIVE_CONFIDENCE = 0.4
         private const val MAX_RECOMMENDATION_CANDIDATES = 2
-
-        // Agent Brain 2.0 —   (    )
         private const val REFLEXION_MAX_CHARS = 500
         private const val EPISODIC_MAX_CHARS = 600
+        private const val USER_FEEDBACK_MAX_CHARS = 320
     }
-
-    // ───  ───────────────────────────────────────────────────────
 
     private val sessionToolHistory = mutableListOf<String>()
     private val toolExecutionStartTimes = ConcurrentHashMap<String, Long>()
     private val availableToolNamesSnapshot = AtomicReference<List<String>>(emptyList())
+    private val pendingFailure = AtomicReference<PendingFailure?>(null)
     private var sessionId: String = "session_${System.currentTimeMillis()}"
     private var persistenceJob: kotlinx.coroutines.Job? = null
 
-    // Agent Brain 2.0 —  user intent  + start time  episode logging
     @Volatile private var currentUserIntent: String = ""
     @Volatile private var currentTaskStartMs: Long = 0L
     @Volatile private var currentTaskIterations: Int = 0
 
-    // ───    ─────────────────────────────────────────────
-
-    /**
-     *   Agent  -
-     */
     suspend fun onSessionStart(agentMode: String = "ASSISTANT") = withContext(Dispatchers.IO) {
         sessionId = "session_${System.currentTimeMillis()}"
-        sessionToolHistory.clear()
+        synchronized(sessionToolHistory) { sessionToolHistory.clear() }
+        pendingFailure.set(null)
         currentUserIntent = ""
         currentTaskStartMs = System.currentTimeMillis()
         currentTaskIterations = 0
         journal.startNewSession(agentMode)
         intelligenceEngine?.restore()
         startPersistenceLoop()
-        Log.d(TAG, "🚀   : $sessionId | : $agentMode")
+        Log.d(TAG, "Session started: $sessionId | mode=$agentMode")
     }
 
-    /**
-     *   AgentPipeline      (user message).
-     *   user intent  episodes  +   episode .
-     */
     fun onTaskStart(userIntent: String) {
         synchronized(sessionToolHistory) { sessionToolHistory.clear() }
+        pendingFailure.set(null)
         currentUserIntent = userIntent.take(200)
         currentTaskStartMs = System.currentTimeMillis()
         currentTaskIterations = 0
     }
 
-    /**
-     *     (//). :
-     *   1) ReflexionEngine
-     *   2) EpisodicMemoryStore   episode
-     */
     fun onTaskEnd(
-        outcome: com.omnidev.workspace.data.brain.EpisodeOutcome,
+        outcome: EpisodeOutcome,
         finalSummary: String = ""
     ) {
         val toolsUsed = synchronized(sessionToolHistory) { sessionToolHistory.toList() }
-        val totalTime = System.currentTimeMillis() - currentTaskStartMs
+        val totalTime = (System.currentTimeMillis() - currentTaskStartMs).coerceAtLeast(0L)
+        pendingFailure.set(null)
 
-        // 1) Reflexion outcome feedback (background)
         scope.launch(Dispatchers.IO) {
             try {
-                reflexionEngine?.reportTaskOutcome(
-                    success = (outcome == com.omnidev.workspace.data.brain.EpisodeOutcome.SUCCESS)
-                )
+                reflexionEngine?.reportTaskOutcome(success = outcome == EpisodeOutcome.SUCCESS)
             } catch (t: Throwable) {
                 Log.w(TAG, "reflexion outcome feedback failed: ${t.message}")
             }
         }
 
-        // 2) Episodic memory record (async, non-blocking)
-        if (currentUserIntent.isNotBlank() && toolsUsed.isNotEmpty()) {
+        if (currentUserIntent.isNotBlank()) {
             val summary = if (finalSummary.isNotBlank()) {
                 finalSummary
             } else {
-                "intent: $currentUserIntent | tools: ${toolsUsed.takeLast(8).joinToString(",")} | outcome: $outcome"
+                buildString {
+                    append("intent: $currentUserIntent | outcome: $outcome")
+                    if (toolsUsed.isNotEmpty()) append(" | tools: ${toolsUsed.takeLast(8).joinToString(",")}")
+                }
             }
             episodicMemoryStore?.recordEpisodeAsync(
                 summary = summary,
@@ -180,7 +168,6 @@ class SmartLearningBridge(
         }
     }
 
-    /**    iterations  (  AgentPipeline). */
     fun onIterationStart() {
         currentTaskIterations++
     }
@@ -195,37 +182,21 @@ class SmartLearningBridge(
                 } catch (ce: CancellationException) {
                     throw ce
                 } catch (e: Exception) {
-                    Log.w(TAG, "⚠️ periodic persist failed: ${e.message}")
+                    Log.w(TAG, "periodic persist failed: ${e.message}")
                 }
             }
         }
     }
 
-    /**
-     *
-     *   AgentPipeline
-     */
     suspend fun registerTools(tools: List<ToolDefinition>) = withContext(Dispatchers.IO) {
         availableToolNamesSnapshot.set(tools.map { it.name })
         awarenessEngine.initialize(tools)
     }
 
-    /**
-     *
-     * @param toolName
-     * @param callId      (    )
-     */
     fun onToolExecutionStart(toolName: String, callId: String = toolName) {
         toolExecutionStartTimes[callId] = System.currentTimeMillis()
     }
 
-    /**
-     * ══════════════════════════════════════════════════════
-     * onToolExecutionEnd —
-     * ══════════════════════════════════════════════════════
-     *
-     * @param callId       onToolExecutionStart
-     */
     suspend fun onToolExecutionEnd(
         toolName: String,
         parameters: Map<String, Any?>,
@@ -234,9 +205,9 @@ class SmartLearningBridge(
         callId: String = toolName
     ) = withContext(Dispatchers.Default) {
         val startTime = toolExecutionStartTimes.remove(callId) ?: System.currentTimeMillis()
-        val executionTimeMs = System.currentTimeMillis() - startTime
+        val executionTimeMs = (System.currentTimeMillis() - startTime).coerceAtLeast(0L)
+        val recentBefore = synchronized(sessionToolHistory) { sessionToolHistory.takeLast(3) }
 
-        // ─── 1.     ─────────────────────────────
         scope.launch(Dispatchers.IO) {
             journal.recordToolExecution(
                 toolName = toolName,
@@ -247,47 +218,51 @@ class SmartLearningBridge(
             )
         }
 
-        // ─── 2.     ────────────────────────────────
         scope.launch(Dispatchers.IO) {
             awarenessEngine.learnFromExecution(
                 toolName = toolName,
                 success = !result.isError,
                 errorMessage = if (result.isError) result.output else "",
                 executionTimeMs = executionTimeMs,
+                classification = result.classification,
+                backend = result.backend,
                 params = parameters
             )
         }
 
-        // ─── 3.  ML Engine ─────────────────────────────────────
-        scope.launch {
-            mlEngine?.recordExecution(
-                toolName = toolName,
-                parameters = parameters.mapNotNull { (k, v) -> v?.let { k to it } }.toMap(),
-                result = result,
-                executionTimeMs = executionTimeMs,
-                contextualData = mapOf(
-                    "session_id" to sessionId,
-                    "recent_tools" to sessionToolHistory.takeLast(3).joinToString(","),
-                    "hour" to Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        val performanceLearningEligible =
+            result.classification
+                ?.uppercase()
+                ?.let(NON_PERFORMANCE_OUTCOMES::contains) != true
+
+        if (performanceLearningEligible) {
+            scope.launch {
+                mlEngine?.recordExecution(
+                    toolName = toolName,
+                    parameters = parameters.mapNotNull { (k, v) -> v?.let { k to it } }.toMap(),
+                    result = result,
+                    executionTimeMs = executionTimeMs,
+                    contextualData = mapOf(
+                        "session_id" to sessionId,
+                        "recent_tools" to recentBefore.joinToString(","),
+                        "hour" to Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+                    )
                 )
-            )
+            }
+
+            scope.launch {
+                intelligenceEngine?.recordExecution(
+                    toolName = toolName,
+                    parameters = parameters.mapValues { it.value?.toString() ?: "" },
+                    executionTimeMs = executionTimeMs,
+                    success = !result.isError,
+                    resultQuality = estimateQuality(result, executionTimeMs),
+                    context = buildExecutionContext()
+                )
+            }
         }
 
-        // ─── 4.  RL Intelligence Engine ───────────────────────
-        scope.launch {
-            intelligenceEngine?.recordExecution(
-                toolName = toolName,
-                parameters = parameters.mapValues { it.value?.toString() ?: "" },
-                executionTimeMs = executionTimeMs,
-                success = !result.isError,
-                resultQuality = estimateQuality(result, executionTimeMs),
-                context = buildExecutionContext()
-            )
-        }
-
-        // ─── 5.     ──────────────────────────────
         monitoringSystem?.let { monitor ->
-            //    (     )
             val traceId = monitor.startExecution(
                 toolName = toolName,
                 parameters = parameters.mapValues { it.value?.toString() ?: "" }
@@ -299,9 +274,6 @@ class SmartLearningBridge(
             )
         }
 
-        // ─── 5b. Agent Brain 2.0 — Reflexion learning   ───
-        //      (failures / slow / large output)
-        //       .
         reflexionEngine?.recordExperienceAsync(
             toolName = toolName,
             parameters = parameters,
@@ -310,200 +282,213 @@ class SmartLearningBridge(
             userIntent = currentUserIntent
         )
 
-        // ─── 5c. Progressive Trust —       ──
-        //  synchronously (< 1ms) —
-        if (!result.isError) {
-            progressiveTrustEngine?.onOperationSuccess(toolName)
-        } else {
-            progressiveTrustEngine?.onOperationFailure(toolName)
-        }
+        learnRecoveryTransition(toolName, parameters, result)
 
-        // ─── 6.     ─────────────────────────
-        synchronized(sessionToolHistory) {
-            sessionToolHistory.add(toolName)
-            if (sessionToolHistory.size > 50) sessionToolHistory.removeAt(0)
-        }
-
-        // ─── 7.    ─────────────────────────────
-        if (sessionToolHistory.size >= 2 && !result.isError) {
-            val prevTool = sessionToolHistory.getOrNull(sessionToolHistory.size - 2)
-            if (prevTool != null) {
-                scope.launch(Dispatchers.IO) {
-                    discoverAndRecordDependency(prevTool, toolName)
-                }
+        if (performanceLearningEligible) {
+            if (!result.isError) {
+                progressiveTrustEngine?.onOperationSuccess(toolName)
+            } else {
+                progressiveTrustEngine?.onOperationFailure(toolName)
             }
         }
 
-        Log.d(TAG, "🔄  : $toolName | : ${!result.isError} | : ${executionTimeMs}ms")
+        val dependencyPair = synchronized(sessionToolHistory) {
+            val previous = sessionToolHistory.lastOrNull()
+            sessionToolHistory.add(toolName)
+            if (sessionToolHistory.size > 50) sessionToolHistory.removeAt(0)
+            previous?.let { it to toolName }
+        }
+
+        if (!result.isError && dependencyPair != null) {
+            scope.launch(Dispatchers.IO) {
+                discoverAndRecordDependency(dependencyPair.first, dependencyPair.second)
+            }
+        }
+
+        Log.d(TAG, "tool=$toolName success=${!result.isError} duration=${executionTimeMs}ms")
     }
 
-    // ───  System Prompt Enrichment ───────────────────────────────
-
     /**
-     * ══════════════════════════════════════════════════════
-     * buildFullContextEnrichment —
-     * ══════════════════════════════════════════════════════
-     *     System Prompt    Agent
-     *   :
+     * Converts immediate failure -> alternative success transitions into positive Reflexion edges.
+     * Identical retries are intentionally ignored because a transient retry is not a strategy.
      */
+    private fun learnRecoveryTransition(
+        toolName: String,
+        parameters: Map<String, Any?>,
+        result: ToolExecutionResult
+    ) {
+        val fingerprint = toolFingerprint(toolName, parameters)
+        if (result.isError) {
+            pendingFailure.set(
+                PendingFailure(
+                    toolName = toolName,
+                    parameters = parameters.toMap(),
+                    output = result.output.take(1200),
+                    fingerprint = fingerprint
+                )
+            )
+            return
+        }
+
+        val failed = pendingFailure.getAndSet(null) ?: return
+        if (failed.fingerprint == fingerprint) return
+
+        reflexionEngine?.recordRecoveryAsync(
+            failedTool = failed.toolName,
+            failedParameters = failed.parameters,
+            failedOutput = failed.output,
+            recoveryTool = toolName,
+            recoveryParameters = parameters,
+            userIntent = currentUserIntent
+        )
+    }
+
+    private fun toolFingerprint(toolName: String, parameters: Map<String, Any?>): String =
+        buildString {
+            append(toolName)
+            parameters.entries.sortedBy { it.key }.forEach { (key, value) ->
+                append('|').append(key).append('=').append(value?.toString()?.take(80))
+            }
+        }
+
     suspend fun buildFullContextEnrichment(): String = withContext(Dispatchers.IO) {
         val parts = mutableListOf<String>()
 
-        // 1.
-        val awarenessCtx = awarenessEngine.buildSystemPromptContext()
-        if (awarenessCtx.isNotBlank()) parts.add(awarenessCtx)
-
-        // 2.
-        val memoryCtx = journal.buildMemoryContext()
-        if (memoryCtx != null) parts.add(memoryCtx)
-
-        // 3. Agent Brain 2.0 — Episodic Memory (  )
         if (currentUserIntent.isNotBlank()) {
             try {
-                val episodicCtx = episodicMemoryStore?.buildPromptInjection(
+                episodicMemoryStore?.buildPromptInjection(
                     query = currentUserIntent,
                     topK = 2,
                     maxChars = EPISODIC_MAX_CHARS
-                )
-                if (!episodicCtx.isNullOrBlank()) parts.add(episodicCtx)
+                )?.takeIf { it.isNotBlank() }?.let(parts::add)
             } catch (t: Throwable) {
                 Log.w(TAG, "episodic injection failed: ${t.message}")
             }
         }
 
-        // 4. Agent Brain 2.0 — Reflexion (   / )
         try {
             val lastTool = synchronized(sessionToolHistory) { sessionToolHistory.lastOrNull() }
-            val reflexCtx = reflexionEngine?.buildPromptInjection(
+            reflexionEngine?.buildPromptInjection(
                 contextQuery = currentUserIntent.ifBlank { lastTool.orEmpty() },
                 currentToolName = lastTool,
                 maxChars = REFLEXION_MAX_CHARS
-            )
-            if (!reflexCtx.isNullOrBlank()) parts.add(reflexCtx)
+            )?.takeIf { it.isNotBlank() }?.let(parts::add)
         } catch (t: Throwable) {
             Log.w(TAG, "reflexion injection failed: ${t.message}")
         }
 
-        // 4b. Progressive Trust —       prompt
         try {
-            val trustCtx = progressiveTrustEngine?.buildPromptInjection()
-            if (!trustCtx.isNullOrBlank()) parts.add(trustCtx)
+            userFeedbackLearningStore?.buildPromptInjection(USER_FEEDBACK_MAX_CHARS)
+                ?.takeIf { it.isNotBlank() }
+                ?.let(parts::add)
+        } catch (t: Throwable) {
+            Log.w(TAG, "user feedback injection failed: ${t.message}")
+        }
+
+        getToolRecommendation()?.let { parts.add("\nLocal next-tool signal: $it") }
+
+        try {
+            progressiveTrustEngine?.buildPromptInjection()
+                ?.takeIf { it.isNotBlank() }
+                ?.let(parts::add)
         } catch (t: Throwable) {
             Log.w(TAG, "trust injection failed: ${t.message}")
         }
 
-        // 4c. Causal Chain Planner — inject last plan's causal warnings if any
         try {
-            val causalCtx = causalChainPlannerTool?.getLastPlanInjection(maxChars = 400)
-            if (!causalCtx.isNullOrBlank()) parts.add(causalCtx)
+            causalChainPlannerTool?.getLastPlanInjection(maxChars = 320)
+                ?.takeIf { it.isNotBlank() }
+                ?.let(parts::add)
         } catch (t: Throwable) {
             Log.w(TAG, "causal injection failed: ${t.message}")
         }
 
-        // 5.    ( N )
+        awarenessEngine.buildSystemPromptContext()
+            .takeIf { it.isNotBlank() }
+            ?.let(parts::add)
+
+        journal.buildMemoryContext()
+            ?.takeIf { it.isNotBlank() }
+            ?.let(parts::add)
+
         val historySnapshot = synchronized(sessionToolHistory) { sessionToolHistory.toList() }
         if (historySnapshot.size > 2) {
-            val sessionCtx = buildString {
-                appendLine("\n🔗   :")
-                appendLine(" : ${historySnapshot.takeLast(MAX_TOOL_HISTORY_ITEMS).joinToString(" → ")}")
-            }
-            parts.add(sessionCtx)
+            parts.add("\nRecent tool path: ${historySnapshot.takeLast(MAX_TOOL_HISTORY_ITEMS).joinToString(" → ")}")
         }
 
-        // 6.    ( ML)
-        val recommendation = getToolRecommendation()
-        if (recommendation != null) {
-            parts.add("\n🎯 : $recommendation")
-        }
-
-        //
-        val combined = parts.joinToString("")
-        if (combined.length > MAX_CONTEXT_CHARS) {
-            combined.take(MAX_CONTEXT_CHARS) + "\n[...context truncated...]"
-        } else {
-            combined
-        }
+        packPriorityContext(parts, MAX_CONTEXT_CHARS)
     }
 
-    /**
-     *  System Prompt
-     */
+    private fun packPriorityContext(parts: List<String>, maxChars: Int): String {
+        if (parts.isEmpty() || maxChars <= 0) return ""
+        val out = StringBuilder(minOf(maxChars, parts.sumOf { it.length }))
+        for (part in parts) {
+            if (out.length >= maxChars) break
+            val remaining = maxChars - out.length
+            val clean = part.trim()
+            if (clean.isBlank()) continue
+            if (out.isNotEmpty()) out.append('\n')
+            out.append(clean.take(remaining.coerceAtLeast(0)))
+        }
+        return out.toString()
+    }
+
     suspend fun buildEnrichedSystemPrompt(baseSystemPrompt: String): String = withContext(Dispatchers.IO) {
         val enrichment = buildFullContextEnrichment()
         if (enrichment.isBlank()) return@withContext baseSystemPrompt
-
-        buildString {
-            append(baseSystemPrompt)
-            append("\n\n")
-            append(enrichment)
-        }
+        "$baseSystemPrompt\n\n$enrichment"
     }
 
-    // ───   ─────────────────────────────────────────────
-
-    /**
-     *
-     */
     suspend fun getToolRecommendation(): String? = withContext(Dispatchers.Default) {
-        if (sessionToolHistory.isEmpty()) return@withContext null
+        val history = synchronized(sessionToolHistory) { sessionToolHistory.toList() }
+        if (history.isEmpty()) return@withContext null
 
-        val lastTool = sessionToolHistory.lastOrNull() ?: return@withContext null
+        val lastTool = history.last()
         val context = buildExecutionContext()
         val availableTools = availableToolNamesSnapshot.get()
         if (availableTools.isEmpty()) return@withContext null
-        val recentToolsContext = sessionToolHistory.takeLast(3).joinToString(",")
+        val recentToolsContext = history.takeLast(3).joinToString(",")
 
-        //  RL Intelligence Engine
         val rlPrediction = intelligenceEngine?.predictBestTool(
             taskDescription = buildRecommendationTaskDescription(lastTool, recentToolsContext, context.timeOfDay),
             availableTools = availableTools,
             currentContext = context
         )
 
-        //  ML Engine
         val mlPrediction = mlEngine?.predictNextTool(
             currentTool = lastTool,
-            recentTools = sessionToolHistory.takeLast(3),
-            contextualData = mapOf(
-                "hour" to context.timeOfDay
-            )
+            recentTools = history.takeLast(3),
+            contextualData = mapOf("hour" to context.timeOfDay)
         )
 
-        //  :  RL + ML
         if (rlPrediction != null &&
             rlPrediction.confidence.toDouble() > MIN_RL_CONSENSUS_CONFIDENCE &&
-            mlPrediction != null &&
-            mlPrediction.confidence > MIN_ML_CONFIDENCE
+            mlPrediction != null && mlPrediction.confidence > MIN_ML_CONFIDENCE
         ) {
-            val topMlToolName = mlPrediction.suggestedTools.firstOrNull()?.first?.trim()
-            val recommendedRlTool = rlPrediction.recommendedTool.trim()
-            if (topMlToolName != null &&
-                topMlToolName == recommendedRlTool
-            ) {
-                return@withContext " $lastTool  : $topMlToolName ( RL+ML)"
+            val topMl = mlPrediction.suggestedTools.firstOrNull()?.first?.trim()
+            val topRl = rlPrediction.recommendedTool.trim()
+            if (topMl != null && topMl == topRl) {
+                return@withContext "$topMl after $lastTool (RL+ML consensus)"
             }
         }
 
-        // RL
         val rlConfidence = rlPrediction?.confidence?.toDouble()
         if (rlConfidence != null && rlConfidence > MIN_RL_CONFIDENCE) {
             val alternatives = rlPrediction.alternatives
                 .take(MAX_RECOMMENDATION_CANDIDATES)
-                .joinToString("  ") { "${it.name} (${(it.score * 100).toInt()}%)" }
-            return@withContext if (alternatives.isBlank()) {
-                " $lastTool  : ${rlPrediction.recommendedTool} (${(rlPrediction.confidence * 100).toInt()}%)"
-            } else {
-                " $lastTool  : ${rlPrediction.recommendedTool} (${(rlPrediction.confidence * 100).toInt()}%) — : $alternatives"
+                .joinToString(", ") { "${it.name} (${(it.score * 100).toInt()}%)" }
+            return@withContext buildString {
+                append("${rlPrediction.recommendedTool} after $lastTool (${(rlPrediction.confidence * 100).toInt()}%)")
+                if (alternatives.isNotBlank()) append("; alternatives: $alternatives")
             }
         }
 
         if (mlPrediction != null && mlPrediction.confidence > MIN_ML_CONFIDENCE) {
-            val suggested = mlPrediction.suggestedTools.take(MAX_RECOMMENDATION_CANDIDATES)
+            val suggested = mlPrediction.suggestedTools
+                .take(MAX_RECOMMENDATION_CANDIDATES)
                 .filter { it.second > MIN_ML_ALTERNATIVE_CONFIDENCE }
-                .joinToString("  ") { "${it.first} (${(it.second * 100).toInt()}%)" }
-            if (suggested.isNotBlank()) {
-                return@withContext " $lastTool  : $suggested"
-            }
+                .joinToString(", ") { "${it.first} (${(it.second * 100).toInt()}%)" }
+            if (suggested.isNotBlank()) return@withContext "$suggested after $lastTool"
         }
 
         null
@@ -513,47 +498,30 @@ class SmartLearningBridge(
         lastTool: String,
         recentToolsContext: String,
         hour: Int
-    ): String {
-        return "NextToolRecommendation(last=$lastTool,recent=[$recentToolsContext],hour=$hour)"
-    }
+    ): String = "NextToolRecommendation(last=$lastTool,recent=[$recentToolsContext],hour=$hour)"
 
-    /**
-     *
-     */
     suspend fun getContextForTool(toolName: String): String? = withContext(Dispatchers.IO) {
         val awarenessInfo = awarenessEngine.getToolKnowledge(toolName)
         val historyReport = journal.getToolHistory(toolName)
 
         buildString {
             awarenessInfo?.let { append(it) }
-
             if (historyReport.totalUses > 0) {
-                appendLine("\n📊  $toolName: ${historyReport.totalUses}  | : ${(historyReport.successRate * 100).toInt()}%")
-
+                appendLine("\n$toolName: ${historyReport.totalUses} uses | success ${(historyReport.successRate * 100).toInt()}%")
                 if (historyReport.commonErrors.isNotEmpty()) {
-                    appendLine("⚠️  : ${historyReport.commonErrors.first().take(80)}")
+                    appendLine("Common error: ${historyReport.commonErrors.first().take(80)}")
                 }
-
                 if (historyReport.commonNextTools.isNotEmpty()) {
-                    appendLine("🔗   : ${historyReport.commonNextTools.take(3).joinToString(", ")}")
+                    appendLine("Common next tools: ${historyReport.commonNextTools.take(3).joinToString(", ")}")
                 }
-
-                historyReport.learningNotes.firstOrNull()?.let {
-                    appendLine("💡 $it")
-                }
+                historyReport.learningNotes.firstOrNull()?.let { appendLine(it) }
             }
         }.takeIf { it.isNotBlank() }
     }
 
-    // ───   ────────────────────────────────────────────
-
-    /**
-     *
-     */
     suspend fun generatePerformanceReport(): PerformanceReport = withContext(Dispatchers.IO) {
         val journalSummary = journal.analyzeAllTools()
         val awarenessStats = awarenessEngine.getStats()
-
         PerformanceReport(
             totalToolExecutions = journalSummary.totalOperations,
             overallSuccessRate = journalSummary.overallSuccessRate,
@@ -562,79 +530,107 @@ class SmartLearningBridge(
             mostUsedTool = journalSummary.mostUsedTool,
             problematicTools = journalSummary.problematicTools,
             totalKnowledgeEntries = awarenessStats.totalKnowledge,
-            sessionToolCount = sessionToolHistory.size,
+            sessionToolCount = synchronized(sessionToolHistory) { sessionToolHistory.size },
             environmentStatus = buildEnvironmentStatus(awarenessStats)
         )
     }
 
-    /**
-     *
-     */
     suspend fun performMaintenance() = withContext(Dispatchers.IO) {
-        //
-        val threeMonthsAgo = System.currentTimeMillis() - (90L * 24 * 3600_000)
-        //
-
-        Log.d(TAG, "🧹   ")
+        Log.d(TAG, "Learning maintenance completed")
     }
-
-    // ───   ─────────────────────────────────────────────
 
     private fun estimateQuality(result: ToolExecutionResult, timeMs: Long): Float {
         if (result.isError) return 0f
-        return when {
-            timeMs < 500 && result.output.length > 10 -> 0.9f
-            timeMs < 3000 && result.output.length > 5 -> 0.75f
-            result.output.length > 0 -> 0.5f
-            else -> 0.3f
+        if (result.output.isBlank()) return 0.35f
+        val lower = result.output.take(500).lowercase()
+        var quality = when {
+            listOf("partial", "unverified", "warning", "not found", "unavailable").any(lower::contains) -> 0.52f
+            result.output.length in 20..4000 -> 0.72f
+            result.output.length > 4000 -> 0.64f
+            else -> 0.58f
         }
+        if (timeMs > 10_000L) quality -= 0.05f
+        return quality.coerceIn(0.3f, 0.8f)
     }
 
     private fun buildExecutionContext(): ToolIntelligenceEngine.ExecutionContext {
         val cal = Calendar.getInstance()
+        val previous = synchronized(sessionToolHistory) { sessionToolHistory.lastOrNull() }
         return ToolIntelligenceEngine.ExecutionContext(
-            previousTool = sessionToolHistory.lastOrNull(),
+            previousTool = previous,
             timeOfDay = cal.get(Calendar.HOUR_OF_DAY),
             dayOfWeek = cal.get(Calendar.DAY_OF_WEEK),
-            batteryLevel = 80, //
-            networkType = "wifi" //
+            batteryLevel = readBatteryLevel(),
+            networkType = readNetworkType()
         )
     }
 
-    private suspend fun discoverAndRecordDependency(toolA: String, toolB: String) {
-        //
-        val key = "$toolA→$toolB"
+    private fun readBatteryLevel(): Int = try {
+        val manager = context.getSystemService(Context.BATTERY_SERVICE) as? BatteryManager
+        manager?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+            ?.takeIf { it in 0..100 } ?: -1
+    } catch (_: Throwable) {
+        -1
+    }
 
-        //
-        val recentHistory = sessionToolHistory.takeLast(30)
+    private fun readNetworkType(): String {
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                ?: return "unknown"
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val network = cm.activeNetwork ?: return "none"
+                val caps = cm.getNetworkCapabilities(network) ?: return "unknown"
+                when {
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "wifi"
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "cellular"
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "ethernet"
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> "vpn"
+                    else -> "other"
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                val info = cm.activeNetworkInfo ?: return "none"
+                @Suppress("DEPRECATION")
+                when (info.type) {
+                    ConnectivityManager.TYPE_WIFI -> "wifi"
+                    ConnectivityManager.TYPE_MOBILE -> "cellular"
+                    ConnectivityManager.TYPE_ETHERNET -> "ethernet"
+                    else -> "other"
+                }
+            }
+        } catch (_: SecurityException) {
+            "unknown"
+        } catch (_: Throwable) {
+            "unknown"
+        }
+    }
+
+    private suspend fun discoverAndRecordDependency(toolA: String, toolB: String) {
+        val key = "$toolA→$toolB"
+        val recentHistory = synchronized(sessionToolHistory) { sessionToolHistory.takeLast(30) }
         var occurrences = 0
-        val safeSize = recentHistory.size
-        for (i in 0 until safeSize - 1) {
+        for (i in 0 until (recentHistory.size - 1).coerceAtLeast(0)) {
             if (recentHistory.getOrNull(i) == toolA && recentHistory.getOrNull(i + 1) == toolB) {
                 occurrences++
             }
         }
 
-        //     3
         if (occurrences >= 3) {
             awarenessEngine.recordPattern(
                 patternName = key,
-                description = " :  $toolA  $toolB  $occurrences ",
+                description = "$toolA was followed by $toolB $occurrences times",
                 confidence = (occurrences / 10f).coerceIn(0.5f, 1.0f)
             )
         }
     }
 
-    private fun buildEnvironmentStatus(stats: ToolAwarenessEngine.AwarenessStats): String {
-        return buildString {
-            stats.environmentCache.forEach { (env, available) ->
-                val icon = if (available == "true") "✅" else "❌"
-                append("$icon $env  ")
-            }
+    private fun buildEnvironmentStatus(stats: ToolAwarenessEngine.AwarenessStats): String = buildString {
+        stats.environmentCache.forEach { (env, available) ->
+            val icon = if (available == "true") "✅" else "❌"
+            append("$icon $env  ")
         }
     }
-
-    // ─── Data Classes ─────────────────────────────────────────────────
 
     data class PerformanceReport(
         val totalToolExecutions: Int,

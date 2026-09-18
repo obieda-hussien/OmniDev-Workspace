@@ -18,7 +18,7 @@ object DirectTerminalTool {
         )
     )
 
-    suspend fun execute(params: JSONObject): String {
+    suspend fun executeResult(params: JSONObject): ToolExecutionResult {
         val rawCommand = params.opt("command")
         val command = when (rawCommand) {
             is Map<*, *> -> rawCommand["command"]?.toString()
@@ -33,7 +33,14 @@ object DirectTerminalTool {
             else -> rawCommand.toString()
         }.trim()
 
-        if (command.isBlank()) return "Error: terminal command is empty"
+        if (command.isBlank()) {
+            return ToolExecutionResult(
+                output = "Error: terminal command is empty",
+                isError = true,
+                classification = "INVALID_ARGUMENT",
+                backend = "legacy-terminal"
+            )
+        }
 
         val cwd = when (rawCommand) {
             is Map<*, *> -> rawCommand["cwd"]?.toString()
@@ -41,7 +48,13 @@ object DirectTerminalTool {
             else -> params.optString("cwd").takeIf { it.isNotBlank() }
         }
 
-        val result = EnvironmentSetupManager.executeShell(command, cwd)
-        return result.output
+        AndroidPrivilegedCommandRouter.executeIfNeeded(command)?.let { routed ->
+            return routed
+        }
+
+        return EnvironmentSetupManager.executeShell(command, cwd)
     }
+
+    /** Source-compatible adapter for old persisted workflows that only stored text output. */
+    suspend fun execute(params: JSONObject): String = executeResult(params).output
 }

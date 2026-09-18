@@ -49,4 +49,61 @@ class ToolSchemaCompactorTest {
         assertTrue(result.any { it.name == "agent_runtime" })
         assertTrue(result.any { it.name == "search_knowledge" })
     }
+    @Test
+    fun `Arabic SMS intent keeps specialized reader in oversized catalog`() {
+        val tools = buildList {
+            repeat(100) { index ->
+                add(ToolDefinition("generic_tool_$index", "قدرة عامة رقم $index", emptyList()))
+            }
+            add(
+                ToolDefinition(
+                    "sms_reader_tool",
+                    "Read and search device SMS messages with latest_search.",
+                    emptyList()
+                )
+            )
+            add(ToolDefinition("communicate_tool", "Send messages and calls.", emptyList()))
+        }
+
+        val result = ToolSchemaCompactor.compact(
+            tools,
+            listOf(ChatMessage(MessageRole.USER, "هات آخر رسالة أورنچ كاش واعرف الرصيد"))
+        ).orEmpty()
+
+        assertTrue(result.size <= 80)
+        assertTrue(result.any { it.name == "sms_reader_tool" })
+    }
+
+
+    @Test
+    fun `matched SMS reader is pinned even against many highly relevant competitors`() {
+        val tools = buildList {
+            repeat(160) { index ->
+                add(
+                    ToolDefinition(
+                        "orange_cash_generic_$index",
+                        "Read SMS messages and Orange Cash wallet inbox balance transactions",
+                        emptyList()
+                    )
+                )
+            }
+            add(
+                ToolDefinition(
+                    "sms_reader_tool",
+                    "Read and search device SMS with bounded Shizuku fallback.",
+                    emptyList()
+                )
+            )
+        }
+
+        val result = ToolSchemaCompactor.compact(
+            tools,
+            listOf(ChatMessage(MessageRole.USER, "اقرأ رسائل اورنچ كاش واعرف آخر رصيد"))
+        ).orEmpty()
+
+        assertTrue(result.size <= 80)
+        assertTrue(result.any { it.name == "sms_reader_tool" })
+    }
+
+
 }

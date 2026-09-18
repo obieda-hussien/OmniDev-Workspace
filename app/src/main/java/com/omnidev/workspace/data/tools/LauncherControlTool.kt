@@ -136,8 +136,13 @@ object LauncherControlTool {
         val normalized = action.trim().lowercase()
         if (normalized == "go_home" && PrivilegedExecutionManager.isShizukuReady()) {
             val result = ShizukuCommandTool.execute("input keyevent $KEYEVENT_HOME")
-            if (result is ShizukuResult.Success || result is ShizukuResult.PartialSuccess) {
-                return ToolExecutionResult(successJson(normalized))
+            if (result is ShizukuResult.Success) {
+                return ToolExecutionResult(
+                    output = successJson(normalized),
+                    classification = "SUCCESS",
+                    backend = "shizuku-user-service",
+                    verification = "HOME keyevent accepted by Shizuku"
+                )
             }
             return ToolExecutionResult(
                 output = errorJson("Failed to execute home action via Shizuku fallback."),

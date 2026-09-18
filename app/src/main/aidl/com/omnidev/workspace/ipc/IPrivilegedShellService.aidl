@@ -1,6 +1,7 @@
 package com.omnidev.workspace.ipc;
 
 import android.os.Bundle;
+import android.os.ParcelFileDescriptor;
 
 /**
  * Binder contract implemented inside a Shizuku UserService process.
@@ -18,6 +19,9 @@ interface IPrivilegedShellService {
     Bundle execute(String command, long timeoutMs) = 1;
     int getUid() = 2;
     String ping() = 3;
+
+    // Binary screenshot stream avoids Binder Bundle size limits and cross-UID temp files.
+    ParcelFileDescriptor captureScreenshot(long timeoutMs) = 4;
 
     // Reserved Shizuku UserService destroy transaction. Shizuku invokes this
     // when a tagged service is replaced/removed so stale privileged processes die.

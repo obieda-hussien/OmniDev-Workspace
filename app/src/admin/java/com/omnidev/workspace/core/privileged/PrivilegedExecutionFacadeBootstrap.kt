@@ -15,7 +15,7 @@ import java.io.InputStreamReader
  * ADMIN flavor: the broadest privileged-execution facade in the project.
  *
  * Execution strategy (tried in order, first available wins):
- *   1. Shizuku / rish / root via [PrivilegedExecutionManager] (the normal PRO path).
+ *   1. Shizuku / rish via [PrivilegedExecutionManager] (the normal PRO path).
  *   2. Direct `Runtime.exec()` fallback (identical to the OEM path) — useful on a
  *      platform-signed admin install or on an emulator where `sh` already runs
  *      with elevated privilege.
@@ -39,10 +39,9 @@ object PrivilegedExecutionFacadeBootstrap {
                     // Admin is always considered "available": it will pick whatever
                     // path works at runtime. We still check the managers so tests
                     // can assert on the specific underlying backend.
-                    PrivilegedExecutionManager.isShizukuReady() ||
-                        PrivilegedExecutionManager.isRishReady() ||
-                        PrivilegedExecutionManager.isRootAvailable() ||
-                        true
+                    // ADMIN has its own direct platform-shell fallback below, so availability
+                    // does not require probing root or any external privilege backend.
+                    true
 
                 override suspend fun execute(command: String, timeoutMs: Long): PrivilegedResult {
                     val policy = TierPolicyHolder.current
@@ -55,16 +54,16 @@ object PrivilegedExecutionFacadeBootstrap {
                         preview = "[ADMIN master-key] $command"
                     )
 
-                    // 1) Preferred path — Shizuku / rish / root via the shared manager.
-                    if (PrivilegedExecutionManager.isShizukuReady() ||
-                        PrivilegedExecutionManager.isRishReady() ||
-                        PrivilegedExecutionManager.isRootAvailable()
+                    // 1) Preferred path — Shizuku / rish via the shared manager.
+                    if (
+                        PrivilegedExecutionManager.isShizukuReady() ||
+                        PrivilegedExecutionManager.isRishReady()
                     ) {
                         val viaManager = PrivilegedExecutionManager.executeCommand(command)
                         viaManager.fold(
                             onSuccess = { return PrivilegedResult.Success(it) },
                             onFailure = { t ->
-                                Log.w(TAG, "Shizuku/root chain failed, falling back to Runtime.exec: ${t.message}")
+                                Log.w(TAG, "Shizuku/rish chain failed, falling back to ADMIN Runtime.exec: ${t.message}")
                             }
                         )
                     }
