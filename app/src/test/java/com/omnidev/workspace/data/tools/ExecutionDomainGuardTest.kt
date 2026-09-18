@@ -115,4 +115,30 @@ class ExecutionDomainGuardTest {
     }
 
 
+    @Test
+    fun `read only privileged classifier recognizes content query but not pm grant`() {
+        assertTrue(
+            ExecutionDomainGuard.isReadOnlyPrivilegedCommand(
+                "content query --uri content://sms --projection body,address,date"
+            )
+        )
+        assertFalse(
+            ExecutionDomainGuard.isReadOnlyPrivilegedCommand(
+                "pm grant com.omnidev.workspace android.permission.READ_SMS"
+            )
+        )
+    }
+
+    @Test
+    fun `limit removal preserves quoted whitespace`() {
+        val prepared = ExecutionDomainGuard.preparePrivilegedCommand(
+            "content query --uri content://sms --where \"body LIKE '%Orange  Cash%'\" --limit 5"
+        )
+
+        assertEquals(5, prepared.contentQueryRowLimit)
+        assertTrue(prepared.command.contains("Orange  Cash"))
+        assertFalse(prepared.command.contains("--limit"))
+    }
+
+
 }
