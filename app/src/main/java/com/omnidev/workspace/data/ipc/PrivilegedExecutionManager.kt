@@ -7,15 +7,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.omnidev.workspace.data.tools.ShizukuCommandTool
 import com.omnidev.workspace.data.tools.ShizukuResult
-import java.io.File
 
 /**
  * PrivilegedExecutionManager — The patched and improved version.
  *
- * ### Execution Backends (By Priority)
- * 1. **Shizuku.newProcess()** — `ShizukuCommandTool.execute()` — shell UID
- * 2. **rish via Shizuku** — `RishShellManager.execute()` — full ADB-equivalent
- * 3. **Root/SU** — `executeViaRoot()` — root shell
+ * ### Execution Backends
+ * 1. **Shizuku UserService** — preferred Android shell UID.
+ * 2. **rish** — fallback ADB-equivalent shell when Shizuku transport is unavailable.
+ * 3. **Root/SU** — explicit-only via `executeRootCommand()` or opt-in fallback; never implicit.
  *
  * ### Fixes / Improvements
  * 1. Non-zero privileged commands never become success merely because they printed output.
@@ -28,8 +27,6 @@ object PrivilegedExecutionManager {
 
     private const val TAG = "PrivMgr"
     private const val MAX_OUTPUT = 8_000
-    private const val JADX_MAIN_CLASS = "jadx.cli.JadxCLI"
-    private const val APKTOOL_MAIN_CLASS = "brut.apktool.Main"
 
     @Volatile private var rishManager: RishShellManager? = null
     @Volatile private var appContext: Context? = null
