@@ -68,4 +68,42 @@ class ToolBatchPolicyTest {
             )
         )
     }
+    @Test
+    fun `content query through run terminal is read only but pm grant is not`() {
+        assertTrue(
+            ToolBatchPolicy.isReadOnly(
+                call(
+                    "run_terminal",
+                    mapOf("command" to "content query --uri content://sms --projection body,date")
+                )
+            )
+        )
+        assertFalse(
+            ToolBatchPolicy.isReadOnly(
+                call(
+                    "run_terminal",
+                    mapOf("command" to "pm grant com.example android.permission.READ_SMS")
+                )
+            )
+        )
+    }
+
+    @Test
+    fun `SMS reader is read only while screenshot stays at most once`() {
+        assertTrue(
+            ToolBatchPolicy.isReadOnly(
+                call("sms_reader_tool", mapOf("action" to "latest_search", "query" to "OrangeCash"))
+            )
+        )
+        assertFalse(ToolBatchPolicy.isReadOnly(call("screenshot_tool")))
+    }
+
+    @Test
+    fun `MCP mutation marker overrides read marker`() {
+        assertFalse(ToolBatchPolicy.isReadOnly(call("mcp_example_get_and_delete")))
+        assertFalse(ToolBatchPolicy.isReadOnly(call("mcp_github_create_pull_request")))
+        assertTrue(ToolBatchPolicy.isReadOnly(call("mcp_example_get_status")))
+    }
+
+
 }
