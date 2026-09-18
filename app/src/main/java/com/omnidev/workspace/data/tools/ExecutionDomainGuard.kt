@@ -184,11 +184,70 @@ object ExecutionDomainGuard {
         if (payload.length >= 2) {
             val first = payload.first()
             val last = payload.last()
-            if ((first == '\'' && last == '\'') || (first == '"' && last == '"')) {
+            if (first == '\'' && last == '\'') {
                 return payload.substring(1, payload.length - 1)
+            }
+            if (first == '"' && last == '"') {
+                return unescapeDoubleQuotedShellPayload(
+                    payload.substring(1, payload.length - 1)
+                )
             }
         }
         return payload.takeIf { it.isNotBlank() }
+    }
+
+    /**
+     * Approximate the shell's unescaping rules inside one outer double-quoted -c payload.
+     * Backslashes are special only before $, backtick, double quote, backslash, or newline.
+     */
+    private fun unescapeDoubleQuotedShellPayload(value: String): String {
+        val out = StringBuilder(value.length)
+        var index = 0
+        while (index < value.length) {
+            val c = value[index]
+            if (c == '\\' && index + 1 < value.length) {
+                val next = value[index + 1]
+                if (next == '"' || next == '\\' || next == '
+     * substitutions remain visible because they execute in the shell.
+     */
+    private fun stripCommentOutsideQuotes(line: String): String {
+        var single = false
+        var double = false
+        var escaped = false
+        line.forEachIndexed { index, c ->
+            if (escaped) {
+                escaped = false
+                return@forEachIndexed
+            }
+            if (c == '\\' && !single) {
+                escaped = true
+                return@forEachIndexed
+            }
+            when (c) {
+                '\'' -> if (!double) single = !single
+                '"' -> if (!single) double = !double
+                '#' -> if (!single && !double && (index == 0 || line[index - 1].isWhitespace())) {
+                    return line.substring(0, index)
+                }
+            }
+        }
+        return line
+    }
+}
+ || next == '`') {
+                    out.append(next)
+                    index += 2
+                    continue
+                }
+                if (next == '\n') {
+                    index += 2
+                    continue
+                }
+            }
+            out.append(c)
+            index++
+        }
+        return out.toString()
     }
 
     /**
