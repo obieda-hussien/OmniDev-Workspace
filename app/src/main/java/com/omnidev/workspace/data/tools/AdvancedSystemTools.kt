@@ -137,6 +137,7 @@ object CallLogTool {
 object SmsReaderTool {
 
     private const val MAX_RESULTS = 30
+    private const val DEFAULT_RESULTS = 10
 
     /**
      * Prefer the normal Android ContentResolver when READ_SMS is granted. If Android denies that
@@ -147,20 +148,24 @@ object SmsReaderTool {
         context: Context,
         action: String,
         query: String? = null,
-        limit: Int = MAX_RESULTS
+        limit: Int = DEFAULT_RESULTS
     ): ToolExecutionResult {
         val normalizedAction = action.lowercase()
-        if (normalizedAction !in setOf("read_inbox", "read_sent", "search")) {
+        if (normalizedAction !in setOf("read_inbox", "read_sent", "search", "latest_search")) {
             return ToolExecutionResult(
-                "Unknown sms action '$action'. Use read_inbox, read_sent, or search.",
+                "Unknown sms action '$action'. Use read_inbox, read_sent, search, or latest_search.",
                 isError = true
             )
         }
-        if (normalizedAction == "search" && query.isNullOrBlank()) {
+        if (normalizedAction in setOf("search", "latest_search") && query.isNullOrBlank()) {
             return ToolExecutionResult("Missing 'query'.", isError = true)
         }
 
-        val safeLimit = limit.coerceIn(1, MAX_RESULTS)
+        val safeLimit = if (normalizedAction == "latest_search") {
+            1
+        } else {
+            limit.coerceIn(1, MAX_RESULTS)
+        }
         val hasAppPermission =
             ContextCompat.checkSelfPermission(context, Manifest.permission.READ_SMS) ==
                 PackageManager.PERMISSION_GRANTED
@@ -170,7 +175,8 @@ object SmsReaderTool {
                 return when (normalizedAction) {
                     "read_inbox" -> readMessages(context, Telephony.Sms.Inbox.CONTENT_URI, safeLimit)
                     "read_sent" -> readMessages(context, Telephony.Sms.Sent.CONTENT_URI, safeLimit)
-                    "search" -> searchMessages(context, query.orEmpty(), safeLimit)
+                    "search", "latest_search" ->
+                        searchMessages(context, query.orEmpty(), safeLimit)
                     else -> error("validated above")
                 }
             } catch (_: SecurityException) {
@@ -217,7 +223,7 @@ object SmsReaderTool {
             "read_sent" -> "content://sms/sent"
             else -> "content://sms"
         }
-        val selection = if (action == "search") {
+        val selection = if (action == "search" || action == "latest_search") {
             val safe = escapeSqlLike(query.orEmpty())
             "address LIKE '%$safe%' ESCAPE '\\' OR body LIKE '%$safe%' ESCAPE '\\'"
         } else null
@@ -280,11 +286,12 @@ object SmsReaderTool {
             name = "sms_reader_tool",
             description =
                 "Read/search device SMS with bounded results. Prefer this over raw content-query shell. " +
+                    "Use latest_search when one newest matching message is enough (for example latest wallet/balance SMS). " +
                     "Uses READ_SMS when available and automatically falls back to authorized Shizuku.",
             parameters = listOf(
-                ToolParameter("action", "string", "Action: read_inbox, read_sent, search.", required = true),
+                ToolParameter("action", "string", "Action: read_inbox, read_sent, search, latest_search.", required = true),
                 ToolParameter("query", "string", "Search sender/body text for action=search.", required = false),
-                ToolParameter("limit", "string", "Max entries, 1-30 (default 30).", required = false)
+                ToolParameter("limit", "string", "Max entries, 1-30 (default 10; latest_search always returns 1).", required = false)
             )
         )
     )
