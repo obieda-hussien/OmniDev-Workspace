@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.omnidev.workspace.OmniDevApp
 import com.omnidev.workspace.data.background.BackgroundServiceSupervisor
 import com.omnidev.workspace.data.debug.DebugLogManager
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +32,7 @@ class BootReceiver : BroadcastReceiver() {
                 Log.i(TAG, "Background recovery trigger: $action")
                 DebugLogManager.appendInfo(TAG, "Background recovery trigger: $action")
 
+                OmniDevApp.ensureWorkManagerInitialized(app)
                 BackgroundServiceSupervisor.bootstrap(app)
                 val requested = runCatching {
                     BackgroundServiceSupervisor.recoverNow(app, "boot:${action.substringAfterLast('.')}")
