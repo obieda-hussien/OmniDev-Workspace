@@ -153,6 +153,16 @@ class ToolAwarenessEngine(
         runtimeEnvironmentCache["termux_permission"] = termuxPermission.toString()
         runtimeEnvironmentCache["termux_ready"] = termuxReady.toString()
 
+        val termuxKnowledgeType = when {
+            termuxReady -> TYPE_ENVIRONMENT
+            else -> TYPE_WARNING
+        }
+        systemKnowledgeDao.invalidateOtherTypesForSubject(
+            subject = "termux",
+            source = "auto_discovery",
+            keepType = termuxKnowledgeType
+        )
+
         when {
             termuxReady -> saveOrUpdateKnowledge(
                 TYPE_ENVIRONMENT,
@@ -192,6 +202,13 @@ class ToolAwarenessEngine(
         val shizukuGranted = shizukuBinder && ShizukuCommandTool.hasPermission()
         val shizukuUid = if (shizukuGranted) ShizukuCommandTool.privilegedUidOrNull() else null
         runtimeEnvironmentCache["shizuku"] = shizukuGranted.toString()
+
+        val shizukuKnowledgeType = if (shizukuGranted) TYPE_ENVIRONMENT else TYPE_WARNING
+        systemKnowledgeDao.invalidateOtherTypesForSubject(
+            subject = "shizuku",
+            source = "auto_discovery",
+            keepType = shizukuKnowledgeType
+        )
 
         if (shizukuGranted) {
             saveOrUpdateKnowledge(
