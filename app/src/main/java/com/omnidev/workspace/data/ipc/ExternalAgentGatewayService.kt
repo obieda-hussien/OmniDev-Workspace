@@ -30,10 +30,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -318,38 +320,110 @@ class ExternalAgentGatewayService : Service() {
         deepThinking: Boolean,
         userContext: String
     ) {
+        var assistant = ChatMessage(
+            role = MessageRole.ASSISTANT,
+            content = "Omni is working…"
+        )
+        val rowId = runtime.chatRepository.saveMessage(sessionId, assistant)
         val console = mutableListOf<AgentConsoleEntry>()
-        runtime.agentPipeline.execute(
-            userMessage = prompt,
-            conversationHistory = history,
-            modelId = modelId,
-            scopePath = scopePath,
-            enableDeepThinking = deepThinking,
-            userContext = userContext
-        ).collect { event ->
-            event.consoleEntry()?.let(console::add)
-            forwardAgentEvent(request.taskId, callback, event)
-            when (event) {
-                is AgentEvent.FinalAnswer -> {
-                    runtime.chatRepository.saveMessage(
-                        sessionId,
-                        ChatMessage(MessageRole.ASSISTANT, event.content),
-                        console
-                    )
-                    runtime.chatRepository.updateSessionRunStatus(sessionId, "Completed")
-                    completeSnapshot(request.taskId, sessionId, event.content)
+        var partial = ""
+        var lastPersistMs = 0L
+
+        suspend fun persist(status: String, force: Boolean = false) {
+            val now = System.currentTimeMillis()
+            if (!force && now - lastPersistMs < 700L) return
+            lastPersistMs = now
+            val display = partial.trim().ifBlank { status }
+            runtime.chatRepository.updateRun(
+                rowId,
+                assistant.copy(content = display.take(100_000)),
+                console.takeLast(500)
+            )
+        }
+
+        try {
+            runtime.agentPipeline.execute(
+                userMessage = prompt,
+                conversationHistory = history,
+                modelId = modelId,
+                scopePath = scopePath,
+                enableDeepThinking = deepThinking,
+                userContext = userContext
+            ).collect { event ->
+                event.consoleEntry()?.let(console::add)
+                when (event) {
+                    is AgentEvent.StreamChunk -> partial += event.delta
+                    is AgentEvent.FinalAnswer -> partial = event.content
+                    is AgentEvent.Error -> {
+                        partial = partial.ifBlank { "Run status: " + event.message }
+                    }
+                    else -> Unit
                 }
-                is AgentEvent.Error -> {
-                    runtime.chatRepository.saveMessage(
-                        sessionId,
-                        ChatMessage(MessageRole.ASSISTANT, "Run status: " + event.message),
-                        console
-                    )
-                    runtime.chatRepository.updateSessionRunStatus(sessionId, "Interrupted")
-                    failSnapshot(request.taskId, sessionId, event.message)
+
+                forwardAgentEvent(request.taskId, callback, event)
+                persist(
+                    status = when (event) {
+                        AgentEvent.Started -> "Started"
+                        is AgentEvent.Thinking -> "Thinking…"
+                        is AgentEvent.ThinkingBlock -> "Reasoning…"
+                        is AgentEvent.ToolExecution -> "Using " + event.toolName + "…"
+                        is AgentEvent.ToolResult -> "Processed " + event.toolName
+                        is AgentEvent.TokenUsageUpdate -> "Working…"
+                        is AgentEvent.PhaseChanged -> event.phase.name
+                        is AgentEvent.StreamChunk -> "Writing response…"
+                        is AgentEvent.FinalAnswer -> "Completed"
+                        is AgentEvent.Reflecting -> "Reviewing…"
+                        is AgentEvent.Error -> "Interrupted"
+                        is AgentEvent.ContextCompaction -> "Compacting context…"
+                    },
+                    force = event is AgentEvent.FinalAnswer || event is AgentEvent.Error
+                )
+
+                when (event) {
+                    is AgentEvent.FinalAnswer -> {
+                        if (console.lastOrNull() !is AgentConsoleEntry.ReplyEntry) {
+                            console += AgentConsoleEntry.ReplyEntry()
+                        }
+                        assistant = assistant.copy(content = event.content)
+                        runtime.chatRepository.updateRun(rowId, assistant, console.takeLast(500))
+                        runtime.chatRepository.updateSessionRunStatus(sessionId, "Completed")
+                        completeSnapshot(request.taskId, sessionId, event.content)
+                    }
+                    is AgentEvent.Error -> {
+                        assistant = assistant.copy(content = partial)
+                        runtime.chatRepository.updateRun(rowId, assistant, console.takeLast(500))
+                        runtime.chatRepository.updateSessionRunStatus(sessionId, "Interrupted")
+                        failSnapshot(request.taskId, sessionId, event.message)
+                    }
+                    else -> Unit
                 }
-                else -> Unit
             }
+        } catch (cancelled: CancellationException) {
+            withContext(NonCancellable) {
+                runtime.chatRepository.updateRun(
+                    rowId,
+                    assistant.copy(
+                        content = partial.ifBlank {
+                            "Run cancelled; the last Agent Console checkpoint was saved."
+                        }
+                    ),
+                    console.takeLast(500)
+                )
+                runtime.chatRepository.updateSessionRunStatus(sessionId, "Interrupted")
+            }
+            throw cancelled
+        } catch (failure: Exception) {
+            val message = failure.message ?: "External agent execution failed"
+            console += AgentConsoleEntry.ErrorEntry(message.take(500))
+            runtime.chatRepository.updateRun(
+                rowId,
+                assistant.copy(
+                    content = partial.ifBlank { "Run interrupted: " + message }
+                ),
+                console.takeLast(500)
+            )
+            runtime.chatRepository.updateSessionRunStatus(sessionId, "Interrupted")
+            throw failure
         }
     }
 
@@ -363,43 +437,113 @@ class ExternalAgentGatewayService : Service() {
         scopePath: String,
         deepThinking: Boolean
     ) {
+        var assistant = ChatMessage(
+            role = MessageRole.ASSISTANT,
+            content = "Omni Team is working…"
+        )
+        val rowId = runtime.chatRepository.saveMessage(sessionId, assistant)
         val console = mutableListOf<AgentConsoleEntry>()
+        var partial = ""
+        var lastPersistMs = 0L
+
+        suspend fun persist(status: String, force: Boolean = false) {
+            val now = System.currentTimeMillis()
+            if (!force && now - lastPersistMs < 700L) return
+            lastPersistMs = now
+            runtime.chatRepository.updateRun(
+                rowId,
+                assistant.copy(content = partial.trim().ifBlank { status }.take(100_000)),
+                console.takeLast(500)
+            )
+        }
+
         val prior = history.takeLast(16).joinToString("\n") { message ->
             "[" + message.role.name + "] " + message.content.take(2000)
         }
         val teamPrompt = if (prior.isBlank()) prompt
         else "Previous conversation context:\n" + prior + "\n\n" + prompt
 
-        runtime.swarmOrchestrator.execute(
-            userMessage = teamPrompt,
-            orchestratorModelId = modelId,
-            workerModelId = modelId,
-            scopePath = scopePath,
-            enableDeepThinking = deepThinking
-        ).collect { event ->
-            appendTeamConsole(console, event)
-            forwardSwarmEvent(request.taskId, callback, event)
-            when (event) {
-                is SwarmEvent.Completed -> {
-                    runtime.chatRepository.saveMessage(
-                        sessionId,
-                        ChatMessage(MessageRole.ASSISTANT, event.summary),
-                        console
-                    )
-                    runtime.chatRepository.updateSessionRunStatus(sessionId, "Completed")
-                    completeSnapshot(request.taskId, sessionId, event.summary)
+        try {
+            runtime.swarmOrchestrator.execute(
+                userMessage = teamPrompt,
+                orchestratorModelId = modelId,
+                workerModelId = modelId,
+                scopePath = scopePath,
+                enableDeepThinking = deepThinking
+            ).collect { event ->
+                appendTeamConsole(console, event)
+                when (event) {
+                    is SwarmEvent.WorkerStreamChunk -> partial += event.delta
+                    is SwarmEvent.Completed -> partial = event.summary
+                    is SwarmEvent.Error -> {
+                        partial = partial.ifBlank { "Run status: " + event.message }
+                    }
+                    else -> Unit
                 }
-                is SwarmEvent.Error -> {
-                    runtime.chatRepository.saveMessage(
-                        sessionId,
-                        ChatMessage(MessageRole.ASSISTANT, "Run status: " + event.message),
-                        console
-                    )
-                    runtime.chatRepository.updateSessionRunStatus(sessionId, "Interrupted")
-                    failSnapshot(request.taskId, sessionId, event.message)
+
+                forwardSwarmEvent(request.taskId, callback, event)
+                persist(
+                    status = when (event) {
+                        SwarmEvent.PlanningStarted -> "Team planning…"
+                        is SwarmEvent.PlanCompleted -> "Team plan ready"
+                        is SwarmEvent.TaskStarted -> "Worker: " + event.task.description.take(120)
+                        is SwarmEvent.TaskCompleted -> "Worker completed"
+                        is SwarmEvent.TaskFailed -> "Worker failed"
+                        is SwarmEvent.TaskSkipped -> "Worker skipped"
+                        is SwarmEvent.WorkerToolUse -> "Using " + event.toolName + "…"
+                        is SwarmEvent.WorkerToolResult -> "Processed " + event.toolName
+                        is SwarmEvent.WorkerThinking -> "Worker thinking…"
+                        is SwarmEvent.WorkerThinkingBlock -> "Worker reasoning…"
+                        is SwarmEvent.WorkerTokenUsage -> "Team working…"
+                        is SwarmEvent.WorkerPhaseChanged -> event.phase
+                        is SwarmEvent.WorkerStreamChunk -> "Writing response…"
+                        SwarmEvent.SynthesisStarted -> "Synthesizing…"
+                        is SwarmEvent.Completed -> "Completed"
+                        is SwarmEvent.Error -> "Interrupted"
+                    },
+                    force = event is SwarmEvent.Completed || event is SwarmEvent.Error
+                )
+
+                when (event) {
+                    is SwarmEvent.Completed -> {
+                        assistant = assistant.copy(content = event.summary)
+                        runtime.chatRepository.updateRun(rowId, assistant, console.takeLast(500))
+                        runtime.chatRepository.updateSessionRunStatus(sessionId, "Completed")
+                        completeSnapshot(request.taskId, sessionId, event.summary)
+                    }
+                    is SwarmEvent.Error -> {
+                        assistant = assistant.copy(content = partial)
+                        runtime.chatRepository.updateRun(rowId, assistant, console.takeLast(500))
+                        runtime.chatRepository.updateSessionRunStatus(sessionId, "Interrupted")
+                        failSnapshot(request.taskId, sessionId, event.message)
+                    }
+                    else -> Unit
                 }
-                else -> Unit
             }
+        } catch (cancelled: CancellationException) {
+            withContext(NonCancellable) {
+                runtime.chatRepository.updateRun(
+                    rowId,
+                    assistant.copy(
+                        content = partial.ifBlank {
+                            "Team run cancelled; the last Agent Console checkpoint was saved."
+                        }
+                    ),
+                    console.takeLast(500)
+                )
+                runtime.chatRepository.updateSessionRunStatus(sessionId, "Interrupted")
+            }
+            throw cancelled
+        } catch (failure: Exception) {
+            val message = failure.message ?: "External team execution failed"
+            console += AgentConsoleEntry.ErrorEntry(message.take(500))
+            runtime.chatRepository.updateRun(
+                rowId,
+                assistant.copy(content = partial.ifBlank { "Team run interrupted: " + message }),
+                console.takeLast(500)
+            )
+            runtime.chatRepository.updateSessionRunStatus(sessionId, "Interrupted")
+            throw failure
         }
     }
 
