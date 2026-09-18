@@ -44,5 +44,6 @@ data class ChatMessageEntity(
     val totalTokens: Int = 0,
     val costUSD: Double = 0.0,
     val modelId: String? = null,
-    @androidx.room.ColumnInfo(defaultValue = "''") val metadataJson: String = ""
+    @androidx.room.ColumnInfo(defaultValue = "''") val metadataJson: String = "",
+    @androidx.room.ColumnInfo(defaultValue = "''") val sourceContextJson: String = ""
 )
