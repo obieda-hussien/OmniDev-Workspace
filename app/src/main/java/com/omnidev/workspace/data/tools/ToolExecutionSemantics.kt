@@ -59,7 +59,7 @@ object ToolExecutionSemantics {
             toolName !in terminalLikeTools -> result
 
             toolName == "execution_diagnostics" &&
-                result.classification?.uppercase() in successfulDiagnosticClasses -> result
+                result.classification?.uppercase()?.let(successfulDiagnosticClasses::contains) == true -> result
 
             else -> {
                 val text = result.output
