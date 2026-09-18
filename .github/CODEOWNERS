@@ -1,0 +1,6 @@
+# Default owner for all repository changes
+* @obieda-hussien
+
+# Security-sensitive automation and guardrails
+/.github/workflows/ @obieda-hussien
+/scripts/public_repo_guard.py @obieda-hussien
