@@ -35,7 +35,7 @@ class AgentRuntime(context: Context) {
         // Room database — single instance per process
     val database = OmniDevDatabase.getInstance(applicationContext)
     val chatRepository = ChatRepository(database.chatSessionDao(), database.chatMessageDao())
-    val memoryManager = MemoryManager(database.knowledgeDao())
+    val memoryManager = MemoryManager(database.knowledgeDao(), database.sharedMemoryDao())
 
         // Composite tool manager: file tools + memory + system assistant + build environment
     val fileToolManager = FileToolManager()
