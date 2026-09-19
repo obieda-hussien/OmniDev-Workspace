@@ -193,10 +193,18 @@ object AdaptiveModeRouter {
             signals.mutationIntent >= 0.16f || signals.verificationIntent >= 0.18f
         if (signals.executionIntent < 0.34f && !hasExplicitExecution) return null
 
+        val explicitParallelExecution =
+            hasExplicitExecution &&
+                signals.parallelism >= 0.34f &&
+                signals.domainCount >= 2
+
         val target = if (
-            scores.swarm >= 0.66f &&
-            signals.parallelism >= 0.38f &&
-            scores.swarm >= scores.agent + 0.06f
+            explicitParallelExecution ||
+            (
+                scores.swarm >= 0.66f &&
+                    signals.parallelism >= 0.38f &&
+                    scores.swarm >= scores.agent + 0.06f
+                )
         ) OmniMode.SWARM else OmniMode.AGENT
 
         val outcomeSignal = ModeOutcomeLearner.signal(userRequest, target)
@@ -210,6 +218,15 @@ object AdaptiveModeRouter {
         var confidence = scores.score(target)
         confidence += preferenceAdjustment(OmniMode.CHAT, target)
         confidence += outcomeSignal.adjustment
+        // A concrete execution request should never disappear merely because the bounded
+        // heuristic score is conservative. This method is invoked specifically to decide
+        // whether Chat lacks the requested capability, so explicit mutation/verification
+        // evidence gets a deterministic floor. Parallel multi-domain execution gets the
+        // stronger Team floor expected by the router contract.
+        if (hasExplicitExecution) {
+            val floor = if (target == OmniMode.SWARM) 0.68f else 0.60f
+            if (confidence < floor) confidence = floor
+        }
         confidence = confidence.coerceIn(0f, 0.96f)
         if (confidence < 0.58f) return null
         if (isStronglyDisliked(OmniMode.CHAT, target) && confidence < 0.82f) return null

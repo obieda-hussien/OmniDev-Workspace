@@ -73,6 +73,36 @@ class ChatRepository(
      * [conversationId] is client-stable (for example one AndroidIDE project chat). Reusing it
      * continues the same Workspace history row, including Agent Console data.
      */
+    suspend fun listExternalSessions(
+        packageName: String,
+        search: String = "",
+        beforeUpdatedAt: Long? = null,
+        limit: Int = 50
+    ): List<ChatSessionEntity> =
+        sessionDao.listExternalSessions(
+            packageName = packageName,
+            beforeUpdatedAt = beforeUpdatedAt,
+            search = search.trim(),
+            limit = limit.coerceIn(1, 100)
+        )
+
+    suspend fun getExternalSession(
+        packageName: String,
+        conversationId: String
+    ): ChatSessionEntity? =
+        sessionDao.getByExternalConversation(packageName, conversationId)
+
+    suspend fun loadExternalMessagePage(
+        sessionId: Long,
+        beforeMessageId: Long? = null,
+        limit: Int = 100
+    ): List<ChatMessageEntity> =
+        messageDao.getPageBySession(
+            sessionId = sessionId,
+            beforeMessageId = beforeMessageId,
+            limit = limit.coerceIn(1, 200)
+        ).asReversed()
+
     suspend fun getOrCreateExternalSession(
         packageName: String,
         appName: String,
