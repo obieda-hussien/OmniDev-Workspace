@@ -62,7 +62,8 @@ class ExternalAgentGatewayService : Service() {
         private const val MAX_FINAL_ANSWER_CHARS = 160_000
         private const val MAX_RUNNING_TASKS = 6
         private const val MAX_SNAPSHOTS = 100
-        private const val MAX_REPLAY_EVENTS_PER_TASK = 1_200
+        private const val MAX_REPLAY_EVENTS_PER_TASK = 300
+        private const val MAX_REPLAY_SERIALIZED_CHARS_PER_TASK = 450_000
         private const val MIN_AGENT_PROTOCOL_VERSION = 3
         private const val HISTORY_PROTOCOL_VERSION = 4
         private const val MAX_HISTORY_BINDER_CHARS = 420_000
@@ -83,6 +84,7 @@ class ExternalAgentGatewayService : Service() {
     private val sequences = ConcurrentHashMap<String, AtomicLong>()
     private val taskOwners = ConcurrentHashMap<String, String>()
     private val eventHistory = ConcurrentHashMap<String, ArrayDeque<AgentTaskEvent>>()
+    private val eventHistoryChars = ConcurrentHashMap<String, Int>()
     private val taskSlots = Semaphore(MAX_RUNNING_TASKS, true)
     private val taskLifecycleLock = Any()
     private val historyRepository by lazy {
@@ -432,6 +434,7 @@ class ExternalAgentGatewayService : Service() {
         callbacks.clear()
         taskOwners.clear()
         eventHistory.clear()
+        eventHistoryChars.clear()
         super.onDestroy()
     }
 
@@ -1011,10 +1014,25 @@ class ExternalAgentGatewayService : Service() {
     private fun recordReplayEvent(event: AgentTaskEvent) {
         val queue = eventHistory.getOrPut(event.taskId) { ArrayDeque() }
         synchronized(queue) {
+            val eventChars = replayEventSerializedChars(event)
             queue.addLast(event)
-            while (queue.size > MAX_REPLAY_EVENTS_PER_TASK) queue.removeFirst()
+            var totalChars = (eventHistoryChars[event.taskId] ?: 0) + eventChars
+
+            while (
+                queue.size > MAX_REPLAY_EVENTS_PER_TASK ||
+                    totalChars > MAX_REPLAY_SERIALIZED_CHARS_PER_TASK
+            ) {
+                val removed = queue.removeFirstOrNull() ?: break
+                totalChars = (totalChars - replayEventSerializedChars(removed)).coerceAtLeast(0)
+            }
+            eventHistoryChars[event.taskId] = totalChars
         }
     }
+
+    private fun replayEventSerializedChars(event: AgentTaskEvent): Int =
+        runCatching { json.encodeToString<AgentTaskEvent>(event).length }
+            .getOrDefault(512)
+            .coerceAtLeast(64)
 
     private fun replayEvents(
         taskId: String,
@@ -1109,6 +1127,7 @@ class ExternalAgentGatewayService : Service() {
                 sequences.remove(it.key)
                 taskOwners.remove(it.key)
                 eventHistory.remove(it.key)
+                eventHistoryChars.remove(it.key)
             }
     }
 }
