@@ -235,6 +235,18 @@
 
         <profileable android:shell="true" />
 
+        <activity
+            android:name=".data.ipc.PublicOmniGatewayActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@style/Theme.OmniDevWorkspace">
+            <intent-filter>
+                <action android:name="com.omnilink.sdk.action.PUBLIC_OMNI_REQUEST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <activity android:name=".MainActivity" android:exported="true" android:label="@string/app_name" android:theme="@style/Theme.OmniDevWorkspace">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
