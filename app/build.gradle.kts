@@ -266,9 +266,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+
     buildFeatures {
         compose = true
         aidl = true
@@ -296,6 +294,12 @@ tasks.configureEach {
                 "Admin release requires explicit OMNI_SHARED_RELEASE_* signing credentials"
             }
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
