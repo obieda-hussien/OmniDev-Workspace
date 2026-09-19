@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 'feature/omnilink-v1.2-live-history']
   push:
     branches: [main]
   workflow_dispatch:
