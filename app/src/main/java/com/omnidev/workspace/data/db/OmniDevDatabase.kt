@@ -17,6 +17,7 @@ import com.omnidev.workspace.data.db.dao.RollbackDao
 import com.omnidev.workspace.data.db.dao.SystemKnowledgeDao
 import com.omnidev.workspace.data.db.dao.ToolExecutionDao
 import com.omnidev.workspace.data.db.dao.ScheduledTaskDao
+import com.omnidev.workspace.data.db.dao.SharedMemoryDao
 import com.omnidev.workspace.data.db.entities.BuildDiagnosticEntry
 import com.omnidev.workspace.data.db.entities.ChatMessageEntity
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
@@ -29,6 +30,7 @@ import com.omnidev.workspace.data.db.entities.RollbackSnapshotEntry
 import com.omnidev.workspace.data.db.entities.SystemKnowledgeEntry
 import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
 import com.omnidev.workspace.data.db.entities.ScheduledTaskEntity
+import com.omnidev.workspace.data.db.entities.SharedMemoryRecordEntity
 
 /**
  * Single Room database instance for all persisted OmniDev data:
@@ -68,8 +70,9 @@ import com.omnidev.workspace.data.db.entities.ScheduledTaskEntity
         RepoSymbolEntry::class,
         // ── Build Doctor Pro (v10) ────────────────────────
         BuildDiagnosticEntry::class
-    , ScheduledTaskEntity::class],
-    version = 16,
+    , ScheduledTaskEntity::class,
+        SharedMemoryRecordEntity::class],
+    version = 17,
     exportSchema = false
 )
 abstract class OmniDevDatabase : RoomDatabase() {
@@ -85,6 +88,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
     abstract fun rollbackDao(): RollbackDao
     abstract fun repoIndexDao(): RepoIndexDao
     abstract fun buildDiagnosticDao(): BuildDiagnosticDao
+    abstract fun sharedMemoryDao(): SharedMemoryDao
 
     companion object {
         @Volatile private var INSTANCE: OmniDevDatabase? = null
@@ -614,6 +618,39 @@ abstract class OmniDevDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_16_17 = object : Migration(16, 17) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS shared_memory_records (
+                        recordId TEXT PRIMARY KEY NOT NULL,
+                        namespace TEXT NOT NULL,
+                        kind TEXT NOT NULL,
+                        contentJson TEXT NOT NULL,
+                        metadataJson TEXT NOT NULL,
+                        sourcePackage TEXT NOT NULL,
+                        revision INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL,
+                        tombstone INTEGER NOT NULL,
+                        checksumSha256 TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_shared_memory_records_namespace_updatedAt " +
+                        "ON shared_memory_records(namespace, updatedAt)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_shared_memory_records_sourcePackage_updatedAt " +
+                        "ON shared_memory_records(sourcePackage, updatedAt)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_shared_memory_records_updatedAt " +
+                        "ON shared_memory_records(updatedAt)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): OmniDevDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -632,7 +669,7 @@ abstract class OmniDevDatabase : RoomDatabase() {
                         MIGRATION_8_9,
                         MIGRATION_9_10,
                         MIGRATION_10_11,
-                        MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16
+                        MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17
                     )
                     .build().also { INSTANCE = it }
             }
