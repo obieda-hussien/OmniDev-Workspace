@@ -51,6 +51,7 @@ class ExternalAgentGatewayService : Service() {
         private const val MAX_FINAL_ANSWER_CHARS = 160_000
         private const val MAX_RUNNING_TASKS = 6
         private const val MAX_SNAPSHOTS = 100
+        private const val MAX_REPLAY_EVENTS_PER_TASK = 1_200
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -64,6 +65,7 @@ class ExternalAgentGatewayService : Service() {
     private val snapshots = ConcurrentHashMap<String, AgentTaskSnapshot>()
     private val sequences = ConcurrentHashMap<String, AtomicLong>()
     private val taskOwners = ConcurrentHashMap<String, String>()
+    private val eventHistory = ConcurrentHashMap<String, ArrayDeque<AgentTaskEvent>>()
     private val taskSlots = Semaphore(MAX_RUNNING_TASKS, true)
     private val taskLifecycleLock = Any()
 
@@ -279,6 +281,7 @@ class ExternalAgentGatewayService : Service() {
         jobs.clear()
         callbacks.clear()
         taskOwners.clear()
+        eventHistory.clear()
         super.onDestroy()
     }
 
@@ -843,12 +846,34 @@ class ExternalAgentGatewayService : Service() {
         sequences.getOrPut(taskId) { AtomicLong(0) }.incrementAndGet()
 
     private fun emitBestEffort(callback: IOmniAgentCallback, event: AgentTaskEvent) {
+        recordReplayEvent(event)
         try {
             callback.onEvent(json.encodeToString<AgentTaskEvent>(event))
         } catch (_: RemoteException) {
             Log.w(TAG, "Agent callback died for task " + event.taskId)
         } catch (error: Exception) {
             Log.w(TAG, "Failed delivering agent event: " + error.message)
+        }
+    }
+
+    private fun recordReplayEvent(event: AgentTaskEvent) {
+        val queue = eventHistory.getOrPut(event.taskId) { ArrayDeque() }
+        synchronized(queue) {
+            queue.addLast(event)
+            while (queue.size > MAX_REPLAY_EVENTS_PER_TASK) queue.removeFirst()
+        }
+    }
+
+    private fun replayEvents(
+        taskId: String,
+        afterSequence: Long,
+        limit: Int
+    ): Pair<List<AgentTaskEvent>, Boolean> {
+        val queue = eventHistory[taskId] ?: return emptyList<AgentTaskEvent>() to false
+        val boundedLimit = limit.coerceIn(1, 500)
+        return synchronized(queue) {
+            val matching = queue.filter { it.sequence > afterSequence }
+            matching.take(boundedLimit) to (matching.size > boundedLimit)
         }
     }
 
@@ -902,6 +927,7 @@ class ExternalAgentGatewayService : Service() {
                 snapshots.remove(it.key)
                 sequences.remove(it.key)
                 taskOwners.remove(it.key)
+                eventHistory.remove(it.key)
             }
     }
 }
