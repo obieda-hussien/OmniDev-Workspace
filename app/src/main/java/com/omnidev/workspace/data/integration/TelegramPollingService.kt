@@ -197,7 +197,7 @@ class TelegramPollingService : Service() {
 
     private val toolManager: CompositeToolManager by lazy {
         val db = OmniDevDatabase.getInstance(applicationContext)
-        val memoryManager = MemoryManager(db.knowledgeDao())
+        val memoryManager = MemoryManager(db.knowledgeDao(), db.sharedMemoryDao())
         // ── Agent Brain 2.0: references to engines initialized in OmniDevApp ──
         val omniApp = com.omnidev.workspace.OmniDevApp.instance
         CompositeToolManager(
