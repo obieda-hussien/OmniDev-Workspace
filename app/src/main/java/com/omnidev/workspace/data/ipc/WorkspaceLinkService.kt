@@ -2,6 +2,7 @@ package com.omnidev.workspace.data.ipc
 
 import android.util.Log
 import com.omnilink.sdk.AccessController
+import com.omnilink.sdk.AndroidPayloadBroker
 import com.omnilink.sdk.AccessDecision
 import com.omnilink.sdk.ActionError
 import com.omnilink.sdk.ActionOutcome
@@ -15,7 +16,9 @@ import com.omnilink.sdk.CommunicationDirection
 import com.omnilink.sdk.DataScope
 import com.omnilink.sdk.ExtensionService
 import com.omnilink.sdk.IdempotencySemantics
+import com.omnilink.sdk.OmniJson
 import com.omnilink.sdk.OmniLinkConstants
+import com.omnilink.sdk.PayloadDescriptor
 import com.omnilink.sdk.TrustTier
 import com.omnidev.workspace.data.db.OmniDevDatabase
 import com.omnidev.workspace.data.db.entities.SharedMemoryMergePolicy
@@ -53,6 +56,7 @@ class WorkspaceLinkService : ExtensionService() {
 
     override val minSupportedVersion: Int = 4
     override val maxSupportedVersion: Int = OmniLinkConstants.CURRENT_PROTOCOL_VERSION
+    override val maxInlineRequestBytes: Int = MAX_RECORD_BYTES
 
     override val accessController: AccessController = object : AccessController {
         override fun decide(caller: CallerContext, request: ActionRequest): AccessDecision =
@@ -76,7 +80,8 @@ class WorkspaceLinkService : ExtensionService() {
         memoryCapability("workspace.memory.delta", "Read memory deltas since a timestamp"),
         memoryCapability("workspace.memory.recent", "Read recent shared-memory records"),
         memoryCapability("workspace.context.publish", "Publish IDE/project context into shared memory"),
-        memoryCapability("workspace.diagnostics.publish", "Publish IDE/build diagnostics into shared memory")
+        memoryCapability("workspace.diagnostics.publish", "Publish IDE/build diagnostics into shared memory"),
+        payloadCapability("workspace.payload.ingest", "Stream a large same-device payload into Workspace")
     )
 
     private val database by lazy { OmniDevDatabase.getInstance(applicationContext) }
@@ -92,6 +97,7 @@ class WorkspaceLinkService : ExtensionService() {
         "workspace.memory.search" -> search(request)
         "workspace.memory.delta" -> delta(request)
         "workspace.memory.recent" -> recent(request)
+        "workspace.payload.ingest" -> ingestPayload(caller, request)
         else -> ActionOutcome.Failure(
             ActionError("unknown_capability", "Unknown Workspace capability: " + request.name)
         )
@@ -198,6 +204,68 @@ class WorkspaceLinkService : ExtensionService() {
         return upsert(caller, request.copy(payload = normalized))
     }
 
+    private suspend fun ingestPayload(
+        caller: CallerContext,
+        request: ActionRequest
+    ): ActionOutcome {
+        val payload = request.payload.jsonObject
+        val descriptorElement = payload["descriptor"]
+            ?: return failure("missing_payload_descriptor")
+        val descriptor = runCatching {
+            OmniJson.instance.decodeFromString<PayloadDescriptor>(descriptorElement.toString())
+        }.getOrElse {
+            return ActionOutcome.Failure(
+                ActionError("invalid_payload_descriptor", it.message ?: "Invalid payload descriptor")
+            )
+        }
+
+        val recordId = (payload.string("recordId")
+            ?: "payload:" + caller.callingPackage + ":" +
+                (request.idempotencyKey ?: request.requestId ?: System.nanoTime().toString()))
+            .take(160)
+        if (!SAFE_RECORD_ID.matches(recordId)) return failure("invalid_record_id")
+
+        val safeName = descriptor.payloadId
+            .replace(Regex("[^A-Za-z0-9._-]"), "_")
+            .take(96)
+            .ifBlank { "payload" }
+        val destinationDir = java.io.File(filesDir, "omnilink-payloads")
+        val destination = java.io.File(destinationDir, safeName + ".bin")
+
+        val copied = runCatching {
+            AndroidPayloadBroker.copyContentUri(
+                context = applicationContext,
+                descriptor = descriptor,
+                destination = destination
+            )
+        }.getOrElse { error ->
+            return ActionOutcome.Failure(
+                ActionError("payload_copy_failed", error.message ?: "Payload streaming failed", retryable = true)
+            )
+        }
+
+        val memoryPayload = buildJsonObject {
+            put("recordId", recordId)
+            put("namespace", "ide_payload")
+            put("kind", payload.string("kind") ?: "payload")
+            put(
+                "content",
+                buildJsonObject {
+                    put("localPath", destination.absolutePath)
+                    put("payloadId", descriptor.payloadId)
+                    put("lengthBytes", copied)
+                    put("mimeType", descriptor.mimeType ?: "application/octet-stream")
+                    descriptor.sha256?.let { put("sha256", it) }
+                }
+            )
+            put("metadata", payload["metadata"] ?: JsonObject(emptyMap()))
+            put("revision", payload.long("revision") ?: 1L)
+            put("updatedAt", payload.long("updatedAt") ?: System.currentTimeMillis())
+            put("tombstone", false)
+        }
+        return upsert(caller, request.copy(payload = memoryPayload))
+    }
+
     private suspend fun search(request: ActionRequest): ActionOutcome {
         val payload = request.payload.jsonObject
         val query = payload.string("query")?.take(1000).orEmpty()
@@ -253,6 +321,22 @@ class WorkspaceLinkService : ExtensionService() {
             dao.evictOldest((count - MAX_LEDGER_RECORDS).coerceAtLeast(100))
         }
     }
+
+    private fun payloadCapability(name: String, description: String): CapabilityDescriptor =
+        CapabilityDescriptor(
+            name = name,
+            description = description,
+            executionMode = CapabilityExecutionMode.ASYNC,
+            supportsStreaming = true,
+            requiredTrustTier = TrustTier.FIRST_PARTY,
+            communicationDirection = CommunicationDirection.BIDIRECTIONAL,
+            risk = CapabilityRisk.MEDIUM,
+            idempotency = IdempotencySemantics.IDEMPOTENT_WITH_KEY,
+            supportsDryRun = false,
+            timeoutMillis = 10 * 60 * 1000L,
+            maxInlinePayloadBytes = 64 * 1024,
+            dataScopes = setOf(DataScope.OMNI_ECOSYSTEM)
+        )
 
     private fun memoryCapability(name: String, description: String): CapabilityDescriptor =
         CapabilityDescriptor(
