@@ -255,7 +255,8 @@ jobs:
       - name: Grant gradlew permission
         run: chmod +x gradlew
 
-      - name: Build release APKs
+      # ADMIN is a private developer flavor: never publish its APK as a public CI artifact.
+      - name: Build distributable release APKs
         run: |
           ./gradlew --no-daemon --max-workers 1 \
             -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
@@ -266,7 +267,6 @@ jobs:
             :app:assembleNormRelease \
             :app:assembleProRelease \
             :app:assembleOemRelease \
-            :app:assembleAdminRelease \
             --continue --stacktrace
 
       - name: Upload release APKs
