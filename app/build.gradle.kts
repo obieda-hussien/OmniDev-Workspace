@@ -188,6 +188,8 @@ android {
         // ──────────────────────────────────────────────────────────────────────
         create("admin") {
             dimension = "tier"
+            // Unique verified package identity; same signing key alone cannot identify Admin.
+            applicationIdSuffix = ".admin"
             // applicationIdSuffix = ".admin"
             versionNameSuffix   = "-admin"
             resValue("string", "app_name", "OmniDev Admin")
@@ -337,7 +339,7 @@ android.applicationVariants.configureEach {
 dependencies {
     // OmniLink typed IPC + embedded-agent gateway.
     // Stable tagged OmniLink protocol shared by Workspace and connected apps.
-    implementation("com.github.obieda-hussien:OmniLinkSDK:v1.2.0")
+    implementation("com.github.obieda-hussien:OmniLinkSDK:v2.0.0")
 
     implementation("androidx.webkit:webkit:1.17.0")
     implementation("org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r")
