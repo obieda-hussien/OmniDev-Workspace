@@ -335,9 +335,11 @@ android.applicationVariants.configureEach {
 }
 
 dependencies {
-    // OmniLink typed IPC + embedded-agent gateway.
-    // Stable tagged OmniLink protocol shared by Workspace and connected apps.
-    implementation("com.github.obieda-hussien:OmniLinkSDK:v1.1.0")
+    // OmniLink 2.0 split surfaces:
+    // - trusted Binder/provider verification for official same-signer Omni apps
+    // - bounded public Ask/Share/Open protocol for unknown third-party apps
+    implementation("com.github.obieda-hussien.OmniLinkSDK:omni-link-sdk:v2.0.0")
+    implementation("com.github.obieda-hussien.OmniLinkSDK:omni-link-public:v2.0.0")
 
     implementation("androidx.webkit:webkit:1.17.0")
     implementation("org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r")
