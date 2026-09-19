@@ -284,6 +284,21 @@ android {
     }
 }
 
+// Admin is a private developer identity. Never produce a release package signed using
+// the generic debug fallback when the dedicated Omni release signing config is absent.
+tasks.configureEach {
+    if (name == "packageAdminRelease" ||
+        name == "assembleAdminRelease" ||
+        name == "bundleAdminRelease"
+    ) {
+        doFirst {
+            check(omniSharedReleaseSigning.all { !it.isNullOrBlank() }) {
+                "Admin release requires explicit OMNI_SHARED_RELEASE_* signing credentials"
+            }
+        }
+    }
+}
+
 // ── Auto-initialise llama.cpp git submodule before native build ──────────────
 val initLlamaCppSubmodule by tasks.registering {
     val marker = file("src/main/cpp/llama.cpp/CMakeLists.txt")
