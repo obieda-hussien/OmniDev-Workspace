@@ -17,6 +17,9 @@ import com.omnilink.sdk.IExtensionService
 import com.omnilink.sdk.IOmniEventCallback
 import com.omnilink.sdk.IOmniResultCallback
 import com.omnilink.sdk.OmniLinkConstants
+import com.omnilink.sdk.trusted.ProviderIdentityMode
+import com.omnilink.sdk.trusted.TrustedServicePolicy
+import com.omnilink.sdk.trusted.TrustedServiceResolver
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.AtomicBoolean
@@ -102,27 +105,38 @@ object ExtensionConnectionManager {
 
     fun refreshDiscoveredExtensions() {
         val context = appContext ?: return
-        val pm = context.packageManager
-        val intent = Intent(ACTION_BIND_EXTENSION)
-        val resolveInfos = runCatching {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                pm.queryIntentServices(intent, PackageManager.ResolveInfoFlags.of(0))
-            } else {
-                @Suppress("DEPRECATION")
-                pm.queryIntentServices(intent, 0)
-            }
-        }.getOrElse {
-            Log.w(TAG, "Failed querying extension services", it)
-            emptyList()
+
+        val query = runCatching {
+            TrustedServiceResolver(context).query(
+                TrustedServicePolicy(
+                    action = ACTION_BIND_EXTENSION,
+                    requiredPermission = OmniLinkConstants.PERMISSION_BIND_EXTENSION,
+                    identityMode = ProviderIdentityMode.SAME_SIGNER
+                )
+            )
+        }.getOrElse { error ->
+            Log.w(TAG, "Failed verifying extension services", error)
+            return
         }
 
-        val discoveredIds = resolveInfos.mapNotNull { resolve ->
-            val serviceInfo = resolve.serviceInfo ?: return@mapNotNull null
-            if (!serviceInfo.exported) return@mapNotNull null
-            val pkg = serviceInfo.packageName ?: return@mapNotNull null
-            val cls = serviceInfo.name ?: return@mapNotNull null
-            val id = pkg + "/" + cls
-            handles.putIfAbsent(id, ExtensionHandle(pkg, cls))
+        query.rejected.forEach { rejected ->
+            Log.w(
+                TAG,
+                "Rejected OmniLink provider " +
+                    rejected.packageName + "/" + rejected.serviceClassName +
+                    " reason=" + rejected.reason
+            )
+        }
+
+        val discoveredIds = query.verified.map { service ->
+            val id = service.packageName + "/" + service.serviceClassName
+            handles.putIfAbsent(
+                id,
+                ExtensionHandle(
+                    packageName = service.packageName,
+                    serviceClassName = service.serviceClassName
+                )
+            )
             id
         }.toSet()
 
