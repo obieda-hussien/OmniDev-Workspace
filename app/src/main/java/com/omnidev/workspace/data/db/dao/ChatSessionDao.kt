@@ -60,6 +60,20 @@ interface ChatSessionDao {
     ): ChatSessionEntity?
 
     @Query(
+        "SELECT * FROM chat_sessions WHERE source = 'external_app' " +
+            "AND sourceAppPackage = :packageName " +
+            "AND (:beforeUpdatedAt IS NULL OR lastUpdated < :beforeUpdatedAt) " +
+            "AND (:search = '' OR title LIKE '%' || :search || '%') " +
+            "ORDER BY lastUpdated DESC LIMIT :limit"
+    )
+    suspend fun listExternalSessions(
+        packageName: String,
+        beforeUpdatedAt: Long?,
+        search: String,
+        limit: Int
+    ): List<ChatSessionEntity>
+
+    @Query(
         "UPDATE chat_sessions SET sourceAppName = :appName, title = :title, lastUpdated = :timestamp " +
             "WHERE id = :id"
     )
