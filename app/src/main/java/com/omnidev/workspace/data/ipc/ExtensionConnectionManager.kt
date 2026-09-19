@@ -17,6 +17,9 @@ import com.omnilink.sdk.IExtensionService
 import com.omnilink.sdk.IOmniEventCallback
 import com.omnilink.sdk.IOmniResultCallback
 import com.omnilink.sdk.OmniLinkConstants
+import com.omnilink.sdk.trusted.TrustedServiceResolver
+import com.omnilink.sdk.trusted.TrustedServicePolicy
+import com.omnilink.sdk.trusted.ProviderIdentityMode
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.AtomicBoolean
@@ -102,27 +105,21 @@ object ExtensionConnectionManager {
 
     fun refreshDiscoveredExtensions() {
         val context = appContext ?: return
-        val pm = context.packageManager
-        val intent = Intent(ACTION_BIND_EXTENSION)
-        val resolveInfos = runCatching {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                pm.queryIntentServices(intent, PackageManager.ResolveInfoFlags.of(0))
-            } else {
-                @Suppress("DEPRECATION")
-                pm.queryIntentServices(intent, 0)
-            }
-        }.getOrElse {
-            Log.w(TAG, "Failed querying extension services", it)
-            emptyList()
+        // No package/action-name trust: authenticate the provider before discovery and binding.
+        val verified = TrustedServiceResolver(context).query(
+            TrustedServicePolicy(
+                action = ACTION_BIND_EXTENSION,
+                requiredPermission = OmniLinkConstants.PERMISSION_BIND_EXTENSION,
+                identityMode = ProviderIdentityMode.SAME_SIGNER
+            )
+        )
+        verified.rejected.forEach {
+            Log.w(TAG, "Rejected unverified extension: " + it.packageName + "/" +
+                it.serviceClassName + " reason=" + it.reason)
         }
-
-        val discoveredIds = resolveInfos.mapNotNull { resolve ->
-            val serviceInfo = resolve.serviceInfo ?: return@mapNotNull null
-            if (!serviceInfo.exported) return@mapNotNull null
-            val pkg = serviceInfo.packageName ?: return@mapNotNull null
-            val cls = serviceInfo.name ?: return@mapNotNull null
-            val id = pkg + "/" + cls
-            handles.putIfAbsent(id, ExtensionHandle(pkg, cls))
+        val discoveredIds = verified.verified.map { service ->
+            val id = service.packageName + "/" + service.serviceClassName
+            handles.putIfAbsent(id, ExtensionHandle(service.packageName, service.serviceClassName))
             id
         }.toSet()
 
@@ -255,6 +252,10 @@ object ExtensionConnectionManager {
         val context = appContext ?: return
         val handle = handles[id] ?: return
         if (handle.binder != null || serviceConnections.containsKey(id)) return
+        if (!isVerifiedProvider(context, handle)) {
+            Log.w(TAG, "Refusing to bind unverified provider " + id)
+            return
+        }
 
         val intent = Intent(ACTION_BIND_EXTENSION).apply {
             component = ComponentName(handle.packageName, handle.serviceClassName)
@@ -262,6 +263,13 @@ object ExtensionConnectionManager {
         }
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+                if (name != ComponentName(handle.packageName, handle.serviceClassName) ||
+                    !isVerifiedProvider(context, handle)
+                ) {
+                    Log.w(TAG, "Provider identity changed before bind: " + handle.id)
+                    unbindById(handle.id)
+                    return
+                }
                 val typed = IExtensionService.Stub.asInterface(service)
                 handle.binder = typed
                 if (typed != null) registerEventStream(handle, typed)
@@ -299,6 +307,18 @@ object ExtensionConnectionManager {
         if (didBind) serviceConnections[id] = connection
         else handle.binder = null
     }
+
+    private fun isVerifiedProvider(context: Context, handle: ExtensionHandle): Boolean =
+        TrustedServiceResolver(context).query(
+            TrustedServicePolicy(
+                action = ACTION_BIND_EXTENSION,
+                requiredPermission = OmniLinkConstants.PERMISSION_BIND_EXTENSION,
+                identityMode = ProviderIdentityMode.SAME_SIGNER
+            )
+        ).verified.any {
+            it.packageName == handle.packageName &&
+                it.serviceClassName == handle.serviceClassName
+        }
 
     private fun registerEventStream(handle: ExtensionHandle, binder: IExtensionService) {
         if (handle.eventCallback != null) return
