@@ -44,9 +44,9 @@ class WorkspaceLinkService : ExtensionService() {
 
     companion object {
         private const val TAG = "WorkspaceLinkService"
-        private const val MAX_RECORD_BYTES = 512 * 1024
-        private const val MAX_QUERY_LIMIT = 100
-        private const val MAX_DELTA_LIMIT = 500
+        private const val MAX_RECORD_BYTES = 12 * 1024
+        private const val MAX_QUERY_LIMIT = 8
+        private const val MAX_DELTA_LIMIT = 8
         private const val MAX_LEDGER_RECORDS = 10_000
 
         private val SAFE_RECORD_ID = Regex("[A-Za-z0-9._:@/-]{1,160}")
@@ -108,7 +108,11 @@ class WorkspaceLinkService : ExtensionService() {
         request: ActionRequest
     ): ActionOutcome {
         val payload = request.payload.jsonObject
-        val recordId = payload.string("recordId")?.trim().orEmpty()
+        val clientRecordId = payload.string("recordId")?.trim().orEmpty()
+        if (!SAFE_RECORD_ID.matches(clientRecordId)) return failure("invalid_record_id")
+        // Namespace every key using the authenticated Binder caller; never trust client provenance.
+        val recordId = caller.callingPackage + ":" +
+            clientRecordId.removePrefix(caller.callingPackage + ":")
         val namespace = payload.string("namespace")?.trim().orEmpty()
         val kind = payload.string("kind")?.trim().orEmpty()
         val content = payload["content"] ?: JsonObject(emptyMap())
@@ -120,7 +124,9 @@ class WorkspaceLinkService : ExtensionService() {
         if (!SAFE_RECORD_ID.matches(recordId)) return failure("invalid_record_id")
         if (!SAFE_NAMESPACE.matches(namespace)) return failure("invalid_namespace")
         if (!SAFE_KIND.matches(kind)) return failure("invalid_kind")
-        if (revision < 0L || updatedAt < 0L) return failure("invalid_revision")
+        if (revision < 0L || updatedAt < 0L ||
+            updatedAt > System.currentTimeMillis() + 300_000L
+        ) return failure("invalid_revision")
 
         val contentJson = content.toString()
         val metadataJson = metadata.toString()
@@ -189,7 +195,8 @@ class WorkspaceLinkService : ExtensionService() {
         val payload = request.payload.jsonObject
         val fallbackId = caller.callingPackage + ":" + namespace + ":" +
             (request.idempotencyKey ?: request.requestId ?: System.nanoTime().toString())
-        val recordId = (payload.string("recordId") ?: fallbackId).take(160)
+        val recordId = (payload.string("recordId") ?: fallbackId)
+            .take(160 - caller.callingPackage.length - 1)
 
         val normalized = buildJsonObject {
             put("recordId", JsonPrimitive(recordId))
@@ -270,21 +277,21 @@ class WorkspaceLinkService : ExtensionService() {
         val payload = request.payload.jsonObject
         val query = payload.string("query")?.take(1000).orEmpty()
         val namespace = payload.string("namespace")?.take(96).orEmpty()
-        val limit = (payload.long("limit") ?: 30L).toInt().coerceIn(1, MAX_QUERY_LIMIT)
+        val limit = (payload.long("limit") ?: 8L).coerceIn(1L, MAX_QUERY_LIMIT.toLong()).toInt()
         return recordsOutcome(dao.search(query, namespace, limit))
     }
 
     private suspend fun delta(request: ActionRequest): ActionOutcome {
         val payload = request.payload.jsonObject
         val since = payload.long("sinceEpochMs") ?: 0L
-        val limit = (payload.long("limit") ?: 200L).toInt().coerceIn(1, MAX_DELTA_LIMIT)
+        val limit = (payload.long("limit") ?: 8L).coerceIn(1L, MAX_DELTA_LIMIT.toLong()).toInt()
         return recordsOutcome(dao.changedSince(since.coerceAtLeast(0L), limit))
     }
 
     private suspend fun recent(request: ActionRequest): ActionOutcome {
         val payload = request.payload.jsonObject
         val namespace = payload.string("namespace")?.take(96).orEmpty()
-        val limit = (payload.long("limit") ?: 100L).toInt().coerceIn(1, MAX_QUERY_LIMIT)
+        val limit = (payload.long("limit") ?: 8L).coerceIn(1L, MAX_QUERY_LIMIT.toLong()).toInt()
         return recordsOutcome(dao.recent(namespace, limit))
     }
 
