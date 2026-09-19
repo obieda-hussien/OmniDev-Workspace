@@ -8,14 +8,24 @@ import android.os.IBinder
 import android.os.RemoteException
 import android.util.Log
 import com.omnilink.sdk.AgentClientMode
+import com.omnilink.sdk.AgentConversationList
+import com.omnilink.sdk.AgentConversationMessage
+import com.omnilink.sdk.AgentConversationQuery
+import com.omnilink.sdk.AgentConversationReadQuery
+import com.omnilink.sdk.AgentConversationSnapshot
+import com.omnilink.sdk.AgentConversationSummary
 import com.omnilink.sdk.AgentGatewayManifest
 import com.omnilink.sdk.AgentTaskEvent
+import com.omnilink.sdk.AgentTaskEventPage
 import com.omnilink.sdk.AgentTaskRequest
 import com.omnilink.sdk.AgentTaskSnapshot
 import com.omnilink.sdk.AgentTaskState
 import com.omnilink.sdk.IAgentGatewayService
 import com.omnilink.sdk.IOmniAgentCallback
 import com.omnilink.sdk.OmniLinkConstants
+import com.omnidev.workspace.data.db.OmniDevDatabase
+import com.omnidev.workspace.data.db.entities.ChatSessionEntity
+import com.omnidev.workspace.data.repository.ChatRepository
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.ModelRole
@@ -38,6 +48,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -51,6 +62,13 @@ class ExternalAgentGatewayService : Service() {
         private const val MAX_FINAL_ANSWER_CHARS = 160_000
         private const val MAX_RUNNING_TASKS = 6
         private const val MAX_SNAPSHOTS = 100
+        private const val MAX_REPLAY_EVENTS_PER_TASK = 1_200
+        private const val MIN_AGENT_PROTOCOL_VERSION = 3
+        private const val HISTORY_PROTOCOL_VERSION = 4
+        private const val MAX_HISTORY_BINDER_CHARS = 420_000
+        private const val MAX_HISTORY_MESSAGE_CHARS = 80_000
+        private const val MAX_HISTORY_CONSOLE_CHARS = 80_000
+        private const val SESSION_STATUS_SEPARATOR = " • Status: "
     }
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -64,8 +82,13 @@ class ExternalAgentGatewayService : Service() {
     private val snapshots = ConcurrentHashMap<String, AgentTaskSnapshot>()
     private val sequences = ConcurrentHashMap<String, AtomicLong>()
     private val taskOwners = ConcurrentHashMap<String, String>()
+    private val eventHistory = ConcurrentHashMap<String, ArrayDeque<AgentTaskEvent>>()
     private val taskSlots = Semaphore(MAX_RUNNING_TASKS, true)
     private val taskLifecycleLock = Any()
+    private val historyRepository by lazy {
+        val database = OmniDevDatabase.getInstance(applicationContext)
+        ChatRepository(database.chatSessionDao(), database.chatMessageDao())
+    }
 
     private data class CallerIdentity(
         val uid: Int,
@@ -79,8 +102,10 @@ class ExternalAgentGatewayService : Service() {
             resolveCallerIdentity()
             return json.encodeToString(
                 AgentGatewayManifest(
-                    minSupportedVersion = OmniLinkConstants.CURRENT_PROTOCOL_VERSION,
-                    maxSupportedVersion = OmniLinkConstants.CURRENT_PROTOCOL_VERSION
+                    minSupportedVersion = MIN_AGENT_PROTOCOL_VERSION,
+                    maxSupportedVersion = OmniLinkConstants.CURRENT_PROTOCOL_VERSION,
+                    supportsHistoryRead = true,
+                    supportsEventReplay = true
                 )
             )
         }
@@ -105,14 +130,15 @@ class ExternalAgentGatewayService : Service() {
                 return
             }
 
-            if (protocolVersion != OmniLinkConstants.CURRENT_PROTOCOL_VERSION) {
+            if (!supportsBaseProtocol(protocolVersion)) {
                 emitBestEffort(
                     callback,
                     AgentTaskEvent.Error(
                         request.taskId, 1, System.currentTimeMillis(),
                         "version_mismatch",
                         "Unsupported protocol " + protocolVersion +
-                            "; expected " + OmniLinkConstants.CURRENT_PROTOCOL_VERSION
+                            "; supported " + MIN_AGENT_PROTOCOL_VERSION + ".." +
+                            OmniLinkConstants.CURRENT_PROTOCOL_VERSION
                     )
                 )
                 return
@@ -253,7 +279,7 @@ class ExternalAgentGatewayService : Service() {
             enforceGatewayPermission()
             val caller = resolveCallerIdentity()
             enforceTaskOwner(taskId, caller)
-            if (protocolVersion != OmniLinkConstants.CURRENT_PROTOCOL_VERSION) {
+            if (!supportsBaseProtocol(protocolVersion)) {
                 return json.encodeToString(
                     AgentTaskSnapshot(
                         taskId = taskId,
@@ -270,6 +296,132 @@ class ExternalAgentGatewayService : Service() {
                 )
             )
         }
+
+        override fun listAgentConversations(protocolVersion: Int, queryJson: String): String {
+            enforceGatewayPermission()
+            val caller = resolveCallerIdentity()
+            requireHistoryProtocol(protocolVersion)
+
+            val query = runCatching {
+                json.decodeFromString<AgentConversationQuery>(queryJson.ifBlank { "{}" })
+            }.getOrElse { AgentConversationQuery() }
+            val limit = query.limit.coerceIn(1, 100)
+            val search = query.search.orEmpty().trim().take(200)
+
+            val sessions = runBlocking(Dispatchers.IO) {
+                historyRepository.listExternalSessions(
+                    packageName = caller.packageName,
+                    search = search,
+                    beforeUpdatedAt = query.beforeUpdatedAt,
+                    limit = limit
+                )
+            }
+            return json.encodeToString(
+                AgentConversationList(
+                    conversations = sessions.map(::conversationSummary),
+                    nextBeforeUpdatedAt = if (sessions.size >= limit) {
+                        sessions.lastOrNull()?.lastUpdated
+                    } else {
+                        null
+                    }
+                )
+            )
+        }
+
+        override fun getAgentConversation(
+            protocolVersion: Int,
+            conversationId: String,
+            queryJson: String
+        ): String {
+            enforceGatewayPermission()
+            val caller = resolveCallerIdentity()
+            requireHistoryProtocol(protocolVersion)
+            require(conversationId.isNotBlank()) { "conversationId is required" }
+
+            val query = runCatching {
+                json.decodeFromString<AgentConversationReadQuery>(queryJson.ifBlank { "{}" })
+            }.getOrElse { AgentConversationReadQuery() }
+            val requestedLimit = query.limit.coerceIn(1, 100)
+
+            return runBlocking(Dispatchers.IO) {
+                val session = historyRepository.getExternalSession(
+                    packageName = caller.packageName,
+                    conversationId = conversationId
+                ) ?: return@runBlocking historyError("conversation_not_found")
+
+                val rawPage = historyRepository.loadExternalMessagePage(
+                    sessionId = session.id,
+                    beforeMessageId = query.beforeMessageId,
+                    limit = requestedLimit + 1
+                )
+                val hasOlderByCount = rawPage.size > requestedLimit
+                val candidatePage = if (hasOlderByCount) rawPage.drop(1) else rawPage
+
+                var budget = 0
+                val newestFirst = mutableListOf<AgentConversationMessage>()
+                for (entity in candidatePage.asReversed()) {
+                    val content = entity.content.take(MAX_HISTORY_MESSAGE_CHARS)
+                    val console = entity.consoleEntriesJson
+                        .takeIf(String::isNotBlank)
+                        ?.take(MAX_HISTORY_CONSOLE_CHARS)
+                    val estimated = content.length + (console?.length ?: 0) + 320
+                    if (newestFirst.isNotEmpty() && budget + estimated > MAX_HISTORY_BINDER_CHARS) {
+                        break
+                    }
+                    budget += estimated
+                    newestFirst += AgentConversationMessage(
+                        id = entity.id,
+                        role = entity.role,
+                        content = content,
+                        timestamp = entity.timestamp,
+                        consoleJson = console
+                    )
+                }
+
+                val messages = newestFirst.asReversed()
+                val truncatedByBudget = messages.size < candidatePage.size
+                json.encodeToString(
+                    AgentConversationSnapshot(
+                        conversation = conversationSummary(session),
+                        messages = messages,
+                        nextBeforeMessageId = if (hasOlderByCount || truncatedByBudget) {
+                            messages.firstOrNull()?.id
+                        } else {
+                            null
+                        }
+                    )
+                )
+            }
+        }
+
+        override fun getTaskEvents(
+            protocolVersion: Int,
+            taskId: String,
+            afterSequence: Long,
+            limit: Int
+        ): String {
+            enforceGatewayPermission()
+            val caller = resolveCallerIdentity()
+            requireHistoryProtocol(protocolVersion)
+            enforceTaskOwner(taskId, caller)
+
+            val (events, hasMore) = replayEvents(
+                taskId = taskId,
+                afterSequence = afterSequence.coerceAtLeast(0L),
+                limit = limit.coerceIn(1, 50)
+            )
+            val lastSequence = snapshots[taskId]?.lastSequence
+                ?: sequences[taskId]?.get()
+                ?: afterSequence.coerceAtLeast(0L)
+            return json.encodeToString(
+                AgentTaskEventPage(
+                    taskId = taskId,
+                    events = events,
+                    lastSequence = lastSequence,
+                    hasMore = hasMore
+                )
+            )
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -279,6 +431,7 @@ class ExternalAgentGatewayService : Service() {
         jobs.clear()
         callbacks.clear()
         taskOwners.clear()
+        eventHistory.clear()
         super.onDestroy()
     }
 
@@ -843,6 +996,9 @@ class ExternalAgentGatewayService : Service() {
         sequences.getOrPut(taskId) { AtomicLong(0) }.incrementAndGet()
 
     private fun emitBestEffort(callback: IOmniAgentCallback, event: AgentTaskEvent) {
+        if (taskOwners.containsKey(event.taskId) || snapshots.containsKey(event.taskId)) {
+            recordReplayEvent(event)
+        }
         try {
             callback.onEvent(json.encodeToString<AgentTaskEvent>(event))
         } catch (_: RemoteException) {
@@ -851,6 +1007,56 @@ class ExternalAgentGatewayService : Service() {
             Log.w(TAG, "Failed delivering agent event: " + error.message)
         }
     }
+
+    private fun recordReplayEvent(event: AgentTaskEvent) {
+        val queue = eventHistory.getOrPut(event.taskId) { ArrayDeque() }
+        synchronized(queue) {
+            queue.addLast(event)
+            while (queue.size > MAX_REPLAY_EVENTS_PER_TASK) queue.removeFirst()
+        }
+    }
+
+    private fun replayEvents(
+        taskId: String,
+        afterSequence: Long,
+        limit: Int
+    ): Pair<List<AgentTaskEvent>, Boolean> {
+        val queue = eventHistory[taskId] ?: return emptyList<AgentTaskEvent>() to false
+        val boundedLimit = limit.coerceIn(1, 50)
+        return synchronized(queue) {
+            val matching = queue.filter { it.sequence > afterSequence }
+            matching.take(boundedLimit) to (matching.size > boundedLimit)
+        }
+    }
+
+    private fun supportsBaseProtocol(protocolVersion: Int): Boolean =
+        protocolVersion in MIN_AGENT_PROTOCOL_VERSION..OmniLinkConstants.CURRENT_PROTOCOL_VERSION
+
+    private fun requireHistoryProtocol(protocolVersion: Int) {
+        require(protocolVersion in HISTORY_PROTOCOL_VERSION..OmniLinkConstants.CURRENT_PROTOCOL_VERSION) {
+            "Agent history/replay requires protocol " + HISTORY_PROTOCOL_VERSION +
+                "+; caller=" + protocolVersion
+        }
+    }
+
+    private fun conversationSummary(session: ChatSessionEntity): AgentConversationSummary {
+        val baseTitle = session.title.substringBefore(SESSION_STATUS_SEPARATOR).trim()
+        val status = session.title.substringAfter(SESSION_STATUS_SEPARATOR, "")
+            .trim()
+            .takeIf(String::isNotEmpty)
+        return AgentConversationSummary(
+            clientConversationId = session.externalConversationId,
+            workspaceSessionId = session.id,
+            title = baseTitle.ifBlank { "Connected app conversation" },
+            sourceAppPackage = session.sourceAppPackage,
+            sourceAppName = session.sourceAppName,
+            lastUpdated = session.lastUpdated,
+            status = status
+        )
+    }
+
+    private fun historyError(code: String): String =
+        """{"error":"$code"}"""
 
     private fun enforceTaskOwner(taskId: String, caller: CallerIdentity) {
         val owner = taskOwners[taskId]
@@ -902,6 +1108,7 @@ class ExternalAgentGatewayService : Service() {
                 snapshots.remove(it.key)
                 sequences.remove(it.key)
                 taskOwners.remove(it.key)
+                eventHistory.remove(it.key)
             }
     }
 }
