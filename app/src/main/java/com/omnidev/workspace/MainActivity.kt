@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
 
         val database = OmniDevDatabase.getInstance(applicationContext)
         val chatRepository = ChatRepository(database.chatSessionDao(), database.chatMessageDao())
-        val memoryManager = MemoryManager(database.knowledgeDao())
+        val memoryManager = MemoryManager(database.knowledgeDao(), database.sharedMemoryDao())
 
         val fileToolManager = FileToolManager()
         val environmentSetupManager = EnvironmentSetupManager
