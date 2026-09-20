@@ -149,6 +149,54 @@ def scan_current_files() -> list[str]:
     return findings
 
 
+
+def trusted_admin_telegram_secrets_only(rel: str, text: str) -> bool:
+    """Narrow exception for the main-only, environment-gated private Admin delivery job.
+
+    This does not allow arbitrary secrets in public CI. Any new secret-bearing job,
+    non-main trigger, changed environment or undeclared secret returns False.
+    """
+    if rel != ".github/workflows/android-ci.yml":
+        return False
+    start = re.search(r"(?m)^  admin-release-telegram:\\s*$", text)
+    if start is None:
+        return False
+    remaining = text[start.end():]
+    next_job = re.search(r"(?m)^  [A-Za-z][A-Za-z0-9_-]*:\\s*$", remaining)
+    end = start.end() + next_job.start() if next_job else len(text)
+    job_text = text[start.start():end]
+    outside = text[:start.start()] + text[end:]
+
+    if "${{ secrets." in outside:
+        return False
+    header = job_text.split("\\n    steps:", 1)[0]
+    expected_header_lines = (
+        "    if: github.repository == 'obieda-hussien/OmniDev-Workspace' && "
+        "github.ref == 'refs/heads/main' && "
+        "(github.event_name == 'push' || github.event_name == 'workflow_dispatch')",
+        "    needs: [run-quality, lint, tests, release-apk]",
+        "    environment: copilot",
+    )
+    if not all(line in header.splitlines() for line in expected_header_lines):
+        return False
+
+    allowed_names = {
+        "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_CHAT_ID",
+        "OMNI_SHARED_RELEASE_KEYSTORE_BASE64",
+        "OMNI_SHARED_RELEASE_STORE_PASSWORD",
+        "OMNI_SHARED_RELEASE_KEY_ALIAS",
+        "OMNI_SHARED_RELEASE_KEY_PASSWORD",
+        "OMNI_SHARED_RELEASE_CERT_SHA256",
+    }
+    refs = re.findall(r"\\$\\{\\{\\s*secrets\\.([A-Z0-9_]+)\\s*\\}\\}", job_text)
+    if not refs or any(name not in allowed_names for name in refs):
+        return False
+    return "${{ secrets." not in re.sub(
+        r"\\$\\{\\{\\s*secrets\\.[A-Z0-9_]+\\s*\\}\\}", "", job_text
+    )
+
+
 def scan_workflows() -> list[str]:
     findings: list[str] = []
     workflow_dir = ROOT / ".github" / "workflows"
@@ -174,8 +222,8 @@ def scan_workflows() -> list[str]:
             findings.append(f"workflow uses pull_request_target: {rel}")
         if re.search(r"(?im)^\s*persist-credentials\s*:\s*true\s*$", text):
             findings.append(f"workflow persists checkout credentials: {rel}")
-        if "${{ secrets." in text:
-            findings.append(f"workflow consumes repository secrets: {rel}")
+        if "${{ secrets." in text and not trusted_admin_telegram_secrets_only(rel, text):
+            findings.append(f"workflow consumes repository secrets outside trusted private Admin delivery: {rel}")
 
         for match in WORKFLOW_USES.finditer(text):
             ref = match.group(1)
