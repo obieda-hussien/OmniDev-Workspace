@@ -188,6 +188,8 @@ android {
         // ──────────────────────────────────────────────────────────────────────
         create("admin") {
             dimension = "tier"
+            // Unique verified package identity; same signing key alone cannot identify Admin.
+            applicationIdSuffix = ".admin"
             // applicationIdSuffix = ".admin"
             versionNameSuffix   = "-admin"
             resValue("string", "app_name", "OmniDev Admin")
@@ -264,9 +266,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+
     buildFeatures {
         compose = true
         aidl = true
@@ -279,6 +279,27 @@ android {
             // (AGP 7.1+ preferred location for this flag)
             useLegacyPackaging = false
         }
+    }
+}
+
+// Admin is a private developer identity. Never produce a release package signed using
+// the generic debug fallback when the dedicated Omni release signing config is absent.
+tasks.configureEach {
+    if (name == "packageAdminRelease" ||
+        name == "assembleAdminRelease" ||
+        name == "bundleAdminRelease"
+    ) {
+        doFirst {
+            check(omniSharedReleaseSigning.all { !it.isNullOrBlank() }) {
+                "Admin release requires explicit OMNI_SHARED_RELEASE_* signing credentials"
+            }
+        }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
@@ -337,7 +358,7 @@ android.applicationVariants.configureEach {
 dependencies {
     // OmniLink typed IPC + embedded-agent gateway.
     // Stable tagged OmniLink protocol shared by Workspace and connected apps.
-    implementation("com.github.obieda-hussien:OmniLinkSDK:v1.2.0")
+    implementation("com.github.obieda-hussien.OmniLinkSDK:omni-link-sdk:v2.0.0")
 
     implementation("androidx.webkit:webkit:1.17.0")
     implementation("org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r")
