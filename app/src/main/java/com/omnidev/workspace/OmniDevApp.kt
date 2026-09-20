@@ -1,6 +1,12 @@
 package com.omnidev.workspace
 
 import android.app.Application
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
+import android.os.UserManager
 import android.util.Log
 import androidx.work.Configuration
 import androidx.work.WorkManager
@@ -42,6 +48,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * OmniDev Workspace Application class.
@@ -54,6 +61,25 @@ import kotlinx.coroutines.launch
 class OmniDevApp : Application(), Configuration.Provider {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val postUnlockInitializationStarted = AtomicBoolean(false)
+    private var unlockReceiverRegistered = false
+
+    private val unlockReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent?) {
+            if (intent?.action != Intent.ACTION_USER_UNLOCKED || !isUserUnlocked()) return
+            try {
+                initializeAfterUnlock()
+            } catch (error: Exception) {
+                // Keep the process alive so another unlocked entry point can retry startup.
+                // The normal startup path still reports its failure to AndroidRuntime.
+                Log.e("OmniDevApp", "Deferred post-unlock initialization failed", error)
+            }
+        }
+    }
+
+    private fun isUserUnlocked(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.N ||
+            (getSystemService(UserManager::class.java)?.isUserUnlocked == true)
 
     /**
      * Enables WorkManager on-demand initialization. This is critical when the process is first
@@ -109,6 +135,39 @@ class OmniDevApp : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        // Direct-boot-aware services can create the Application before first unlock. Most of
+        // OmniDev's preferences, Room, DataStore and WorkManager use credential-encrypted
+        // storage and must not be touched in that state.
+        if (!isUserUnlocked()) {
+            Log.i("OmniDevApp", "User locked; deferring credential-protected initialization")
+            registerReceiver(unlockReceiver, IntentFilter(Intent.ACTION_USER_UNLOCKED))
+            unlockReceiverRegistered = true
+            // Handle unlock racing with receiver registration.
+            if (isUserUnlocked()) initializeAfterUnlock()
+            return
+        }
+
+        initializeAfterUnlock()
+    }
+
+    /** Also safe to invoke from an existing post-unlock entry point. */
+    fun initializeAfterUnlock() {
+        if (!isUserUnlocked()) return
+        if (!postUnlockInitializationStarted.compareAndSet(false, true)) return
+        try {
+            initializeCredentialProtectedComponents()
+            if (unlockReceiverRegistered) {
+                unregisterReceiver(unlockReceiver)
+                unlockReceiverRegistered = false
+            }
+        } catch (error: Exception) {
+            postUnlockInitializationStarted.set(false)
+            throw error
+        }
+    }
+
+    private fun initializeCredentialProtectedComponents() {
         ensureWorkManagerInitialized(this)
 
         TierPolicyBootstrap.install()
