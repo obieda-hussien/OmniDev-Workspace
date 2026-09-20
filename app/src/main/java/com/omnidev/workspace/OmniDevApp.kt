@@ -48,7 +48,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * OmniDev Workspace Application class.
@@ -61,7 +60,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 class OmniDevApp : Application(), Configuration.Provider {
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val postUnlockInitializationStarted = AtomicBoolean(false)
+    private val credentialStorageGate = CredentialStorageInitGate()
     private var unlockReceiverRegistered = false
 
     private val unlockReceiver = object : BroadcastReceiver() {
@@ -154,7 +153,7 @@ class OmniDevApp : Application(), Configuration.Provider {
     /** Also safe to invoke from an existing post-unlock entry point. */
     fun initializeAfterUnlock() {
         if (!isUserUnlocked()) return
-        if (!postUnlockInitializationStarted.compareAndSet(false, true)) return
+        if (!credentialStorageGate.tryBegin(userUnlocked = true)) return
         try {
             initializeCredentialProtectedComponents()
             if (unlockReceiverRegistered) {
@@ -162,7 +161,7 @@ class OmniDevApp : Application(), Configuration.Provider {
                 unlockReceiverRegistered = false
             }
         } catch (error: Exception) {
-            postUnlockInitializationStarted.set(false)
+            credentialStorageGate.resetAfterFailure()
             throw error
         }
     }
