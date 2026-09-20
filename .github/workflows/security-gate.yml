@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - main
+      - 'feature/omnilink-v1.2-live-history'
   workflow_dispatch:
 
 permissions:

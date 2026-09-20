@@ -42,6 +42,17 @@ interface ChatMessageDao {
     @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     suspend fun getBySession(sessionId: Long): List<ChatMessageEntity>
 
+    @Query(
+        "SELECT * FROM chat_messages WHERE sessionId = :sessionId " +
+            "AND (:beforeMessageId IS NULL OR id < :beforeMessageId) " +
+            "ORDER BY id DESC LIMIT :limit"
+    )
+    suspend fun getPageBySession(
+        sessionId: Long,
+        beforeMessageId: Long?,
+        limit: Int
+    ): List<ChatMessageEntity>
+
     @Query("SELECT * FROM chat_messages WHERE messageId = :messageId LIMIT 1")
     suspend fun getByMessageId(messageId: String): ChatMessageEntity?
 

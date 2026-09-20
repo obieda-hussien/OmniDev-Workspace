@@ -7,6 +7,12 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.net.Uri
+import com.omnilink.sdk.AndroidPayloadBroker
+import com.omnilink.sdk.PayloadDescriptor
+import com.omnilink.sdk.PayloadTransport
+import java.io.File
+import java.util.UUID
 import android.os.IBinder
 import android.os.RemoteException
 import android.util.Log
@@ -17,6 +23,9 @@ import com.omnilink.sdk.IExtensionService
 import com.omnilink.sdk.IOmniEventCallback
 import com.omnilink.sdk.IOmniResultCallback
 import com.omnilink.sdk.OmniLinkConstants
+import com.omnilink.sdk.trusted.TrustedServiceResolver
+import com.omnilink.sdk.trusted.TrustedServicePolicy
+import com.omnilink.sdk.trusted.ProviderIdentityMode
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.AtomicBoolean
@@ -102,27 +111,21 @@ object ExtensionConnectionManager {
 
     fun refreshDiscoveredExtensions() {
         val context = appContext ?: return
-        val pm = context.packageManager
-        val intent = Intent(ACTION_BIND_EXTENSION)
-        val resolveInfos = runCatching {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-                pm.queryIntentServices(intent, PackageManager.ResolveInfoFlags.of(0))
-            } else {
-                @Suppress("DEPRECATION")
-                pm.queryIntentServices(intent, 0)
-            }
-        }.getOrElse {
-            Log.w(TAG, "Failed querying extension services", it)
-            emptyList()
+        // No package/action-name trust: authenticate the provider before discovery and binding.
+        val verified = TrustedServiceResolver(context).query(
+            TrustedServicePolicy(
+                action = ACTION_BIND_EXTENSION,
+                requiredPermission = OmniLinkConstants.PERMISSION_BIND_EXTENSION,
+                identityMode = ProviderIdentityMode.SAME_SIGNER
+            )
+        )
+        verified.rejected.forEach {
+            Log.w(TAG, "Rejected unverified extension: " + it.packageName + "/" +
+                it.serviceClassName + " reason=" + it.reason)
         }
-
-        val discoveredIds = resolveInfos.mapNotNull { resolve ->
-            val serviceInfo = resolve.serviceInfo ?: return@mapNotNull null
-            if (!serviceInfo.exported) return@mapNotNull null
-            val pkg = serviceInfo.packageName ?: return@mapNotNull null
-            val cls = serviceInfo.name ?: return@mapNotNull null
-            val id = pkg + "/" + cls
-            handles.putIfAbsent(id, ExtensionHandle(pkg, cls))
+        val discoveredIds = verified.verified.map { service ->
+            val id = service.packageName + "/" + service.serviceClassName
+            handles.putIfAbsent(id, ExtensionHandle(service.packageName, service.serviceClassName))
             id
         }.toSet()
 
@@ -207,6 +210,72 @@ object ExtensionConnectionManager {
         }
     }
 
+    /**
+     * Receive a previously approved IDE file without transporting its bytes through Binder.
+     * The source service and the URI provider are checked independently for signer consistency.
+     * Only the ADMIN outbound policy exposes this method through OmniLinkTool.
+     */
+    suspend fun receiveIdePayload(
+        extensionId: String,
+        descriptorJson: String
+    ): JSONObject = withContext(Dispatchers.IO) {
+        val context = appContext ?: error("OmniLink is not initialized")
+        val handle = handles[extensionId] ?: error("Unknown extension")
+        check(handle.packageName == "dev.mutwakil.androidide" &&
+            isVerifiedProvider(context, handle)
+        ) { "Payload source is not a verified AndroidIDE provider" }
+        require(descriptorJson.toByteArray(Charsets.UTF_8).size <= 32 * 1024) {
+            "Payload descriptor exceeds Binder metadata budget"
+        }
+        val original = JSONObject(descriptorJson)
+        val data = original.optJSONObject("data") ?: original
+        val uriString = data.optString("uri")
+        val uri = Uri.parse(uriString)
+        val authority = handle.packageName + ".omnilink.payloads"
+        require(uri.scheme == "content" && uri.authority == authority) {
+            "Payload URI does not belong to the verified IDE provider"
+        }
+        val provider = context.packageManager.resolveContentProvider(authority, 0)
+        require(provider != null && provider.packageName == handle.packageName) {
+            "Payload content provider is unavailable or impersonated"
+        }
+        require(context.packageManager.checkSignatures(
+            context.packageName, provider.packageName
+        ) == PackageManager.SIGNATURE_MATCH) {
+            "Payload provider signer is not trusted"
+        }
+        val bytes = data.optLong("lengthBytes", -1L)
+        require(bytes in 0..MAX_RECEIVED_FILE_BYTES) {
+            "Payload exceeds configured transfer quota"
+        }
+        val sha = data.optString("sha256")
+        require(sha.matches(Regex("[a-fA-F0-9]{64}"))) { "Invalid payload checksum" }
+        val descriptor = PayloadDescriptor(
+            payloadId = data.optString("payloadId").ifBlank { UUID.randomUUID().toString() },
+            transport = PayloadTransport.CONTENT_URI,
+            lengthBytes = bytes,
+            mimeType = data.optString("mimeType"),
+            sha256 = sha,
+            uri = uriString
+        )
+        val dir = File(context.filesDir, "omnilink-inbox")
+        check(dir.exists() || dir.mkdirs()) { "Cannot create OmniLink inbox" }
+        require(dir.usableSpace > bytes + 32L * 1024 * 1024) {
+            "Insufficient storage for incoming payload"
+        }
+        val destination = File(dir, UUID.randomUUID().toString() + ".payload")
+        val copied = AndroidPayloadBroker.copyContentUri(
+            context, descriptor, destination, maxBytes = MAX_RECEIVED_FILE_BYTES
+        )
+        JSONObject()
+            .put("ok", true)
+            .put("stored_path", destination.absolutePath)
+            .put("bytes", copied)
+            .put("sha256", sha.lowercase())
+    }
+
+    private const val MAX_RECEIVED_FILE_BYTES = 8L * 1024 * 1024 * 1024
+
     private fun negotiateProtocol(binder: IExtensionService): Int {
         val manifest = runCatching {
             json.decodeFromString<CapabilityManifest>(binder.getCapabilityManifest())
@@ -255,6 +324,10 @@ object ExtensionConnectionManager {
         val context = appContext ?: return
         val handle = handles[id] ?: return
         if (handle.binder != null || serviceConnections.containsKey(id)) return
+        if (!isVerifiedProvider(context, handle)) {
+            Log.w(TAG, "Refusing to bind unverified provider " + id)
+            return
+        }
 
         val intent = Intent(ACTION_BIND_EXTENSION).apply {
             component = ComponentName(handle.packageName, handle.serviceClassName)
@@ -262,6 +335,13 @@ object ExtensionConnectionManager {
         }
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+                if (name != ComponentName(handle.packageName, handle.serviceClassName) ||
+                    !isVerifiedProvider(context, handle)
+                ) {
+                    Log.w(TAG, "Provider identity changed before bind: " + handle.id)
+                    unbindById(handle.id)
+                    return
+                }
                 val typed = IExtensionService.Stub.asInterface(service)
                 handle.binder = typed
                 if (typed != null) registerEventStream(handle, typed)
@@ -299,6 +379,18 @@ object ExtensionConnectionManager {
         if (didBind) serviceConnections[id] = connection
         else handle.binder = null
     }
+
+    private fun isVerifiedProvider(context: Context, handle: ExtensionHandle): Boolean =
+        TrustedServiceResolver(context).query(
+            TrustedServicePolicy(
+                action = ACTION_BIND_EXTENSION,
+                requiredPermission = OmniLinkConstants.PERMISSION_BIND_EXTENSION,
+                identityMode = ProviderIdentityMode.SAME_SIGNER
+            )
+        ).verified.any {
+            it.packageName == handle.packageName &&
+                it.serviceClassName == handle.serviceClassName
+        }
 
     private fun registerEventStream(handle: ExtensionHandle, binder: IExtensionService) {
         if (handle.eventCallback != null) return
