@@ -158,18 +158,18 @@ def trusted_admin_telegram_secrets_only(rel: str, text: str) -> bool:
     """
     if rel != ".github/workflows/android-ci.yml":
         return False
-    start = re.search(r"(?m)^  admin-release-telegram:\\s*$", text)
+    start = re.search(r"(?m)^  admin-release-telegram:\s*$", text)
     if start is None:
         return False
     remaining = text[start.end():]
-    next_job = re.search(r"(?m)^  [A-Za-z][A-Za-z0-9_-]*:\\s*$", remaining)
+    next_job = re.search(r"(?m)^  [A-Za-z][A-Za-z0-9_-]*:\s*$", remaining)
     end = start.end() + next_job.start() if next_job else len(text)
     job_text = text[start.start():end]
     outside = text[:start.start()] + text[end:]
 
     if "${{ secrets." in outside:
         return False
-    header = job_text.split("\\n    steps:", 1)[0]
+    header = job_text.split("\n    steps:", 1)[0]
     expected_header_lines = (
         "    if: github.repository == 'obieda-hussien/OmniDev-Workspace' && "
         "github.ref == 'refs/heads/main' && "
@@ -189,11 +189,11 @@ def trusted_admin_telegram_secrets_only(rel: str, text: str) -> bool:
         "OMNI_SHARED_RELEASE_KEY_PASSWORD",
         "OMNI_SHARED_RELEASE_CERT_SHA256",
     }
-    refs = re.findall(r"\\$\\{\\{\\s*secrets\\.([A-Z0-9_]+)\\s*\\}\\}", job_text)
+    refs = re.findall(r"\$\{\{\s*secrets\.([A-Z0-9_]+)\s*\}\}", job_text)
     if not refs or any(name not in allowed_names for name in refs):
         return False
     return "${{ secrets." not in re.sub(
-        r"\\$\\{\\{\\s*secrets\\.[A-Z0-9_]+\\s*\\}\\}", "", job_text
+        r"\$\{\{\s*secrets\.[A-Z0-9_]+\s*\}\}", "", job_text
     )
 
 
