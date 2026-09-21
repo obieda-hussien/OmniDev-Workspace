@@ -30,7 +30,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4.4.3
       - name: Compile and run regression tests
         run: bash ./gradlew :app:compileNormDebugKotlin :app:testNormDebugUnitTest :app:compileAdminDebugKotlin :app:compileNormDebugAndroidTestKotlin --no-daemon --max-workers=2
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: repair-test-results
