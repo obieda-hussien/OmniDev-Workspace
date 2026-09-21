@@ -324,7 +324,7 @@ jobs:
       - name: Install and verify Android NDK
         run: bash .github/scripts/install-android-ndk.sh
 
-      - name: Restore private release keystore
+      - name: Prepare Admin signing mode
         shell: bash
         env:
           OMNI_SHARED_RELEASE_KEYSTORE_BASE64: ${{ secrets.OMNI_SHARED_RELEASE_KEYSTORE_BASE64 }}
@@ -335,30 +335,62 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           set -euo pipefail
-          for required in OMNI_SHARED_RELEASE_KEYSTORE_BASE64 OMNI_SHARED_RELEASE_STORE_PASSWORD OMNI_SHARED_RELEASE_KEY_ALIAS OMNI_SHARED_RELEASE_KEY_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID; do
-            if [[ -z "${!required}" ]]; then
-              echo "::error::Missing $required in the copilot environment secrets; Admin APK will not be built or delivered."
+
+          for required in TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID; do
+            if [[ -z "${!required:-}" ]]; then
+              echo "::error::Missing $required in the copilot environment secrets; Admin APK cannot be delivered privately."
               exit 1
             fi
           done
-          bash .github/scripts/restore-release-keystore.sh "$RUNNER_TEMP/omni-admin-release.keystore"
 
-      - name: Build signed Admin release only
+          signing_complete=true
+          for optional in OMNI_SHARED_RELEASE_KEYSTORE_BASE64 OMNI_SHARED_RELEASE_STORE_PASSWORD OMNI_SHARED_RELEASE_KEY_ALIAS OMNI_SHARED_RELEASE_KEY_PASSWORD; do
+            if [[ -z "${!optional:-}" ]]; then
+              signing_complete=false
+            fi
+          done
+
+          mode="unsigned"
+          if [[ "$signing_complete" == "true" ]]; then
+            if restore_output="$(bash .github/scripts/restore-release-keystore.sh "$RUNNER_TEMP/omni-admin-release.keystore" 2>&1)"; then
+              mode="signed"
+              echo "Release signing credentials validated; CI will deliver a signed Admin APK."
+            else
+              while IFS= read -r line; do
+                echo "${line/::error::/::warning::}"
+              done <<< "$restore_output"
+              echo "::warning::Release signing credentials are unusable; falling back to an unsigned Admin APK for local signing."
+            fi
+          else
+            echo "::warning::Release signing credentials are incomplete; building an unsigned Admin APK for local signing."
+          fi
+
+          echo "ADMIN_SIGNING_MODE=$mode" >> "$GITHUB_ENV"
+
+      - name: Build Admin release
         shell: bash
         env:
           OMNI_SHARED_RELEASE_STORE_PASSWORD: ${{ secrets.OMNI_SHARED_RELEASE_STORE_PASSWORD }}
           OMNI_SHARED_RELEASE_KEY_ALIAS: ${{ secrets.OMNI_SHARED_RELEASE_KEY_ALIAS }}
           OMNI_SHARED_RELEASE_KEY_PASSWORD: ${{ secrets.OMNI_SHARED_RELEASE_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           chmod +x gradlew
+
+          unsigned_arg=()
+          if [[ "$ADMIN_SIGNING_MODE" == "unsigned" ]]; then
+            unsigned_arg+=("-POMNI_ADMIN_UNSIGNED_RELEASE=true")
+          fi
+
           ./gradlew --no-daemon --max-workers 1 \
             -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
             -Pkotlin.compiler.execution.strategy=in-process \
             -Pkotlin.incremental=false \
             -Dorg.gradle.vfs.watch=false \
+            "${unsigned_arg[@]}" \
             :app:assembleAdminRelease --stacktrace
 
-      - name: Verify exact Admin APK and signer
+      - name: Verify Admin APK output
         shell: bash
         env:
           OMNI_SHARED_RELEASE_CERT_SHA256: ${{ secrets.OMNI_SHARED_RELEASE_CERT_SHA256 }}
@@ -369,30 +401,48 @@ jobs:
             echo "::error::Expected exactly one Admin release APK; found ${#apks[@]}."
             exit 1
           fi
+
           apk="${apks[0]}"
-          if [[ "$apk" == *unsigned* ]]; then
-            echo "::error::Refusing to deliver an unsigned Admin APK."
-            exit 1
-          fi
           apksigner="$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/apksigner"
-          "$apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/admin-signature.txt" || {
-            echo "::error::Admin APK signature verification failed."
-            exit 1
-          }
-          if [[ -n "$OMNI_SHARED_RELEASE_CERT_SHA256" ]]; then
-            actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/admin-signature.txt" | head -n 1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
-            expected="$(printf '%s' "$OMNI_SHARED_RELEASE_CERT_SHA256" | tr -d ':' | tr '[:upper:]' '[:lower:]')"
-            if [[ -z "$actual" || "$actual" != "$expected" ]]; then
-              echo "::error::Admin APK signer differs from the expected shared Omni release certificate."
+
+          if [[ "$ADMIN_SIGNING_MODE" == "signed" ]]; then
+            if [[ "$apk" == *unsigned* ]]; then
+              echo "::error::CI expected a signed Admin APK but Gradle produced an unsigned file."
               exit 1
             fi
+            "$apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/admin-signature.txt" || {
+              echo "::error::Admin APK signature verification failed."
+              exit 1
+            }
+            if [[ -n "$OMNI_SHARED_RELEASE_CERT_SHA256" ]]; then
+              actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/admin-signature.txt" | head -n 1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+              expected="$(printf '%s' "$OMNI_SHARED_RELEASE_CERT_SHA256" | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+              if [[ -z "$actual" || "$actual" != "$expected" ]]; then
+                echo "::error::Admin APK signer differs from the expected shared Omni release certificate."
+                exit 1
+              fi
+            fi
+            delivery_name="OmniDev-admin-release.apk"
+            delivery_note="SIGNED"
+          else
+            if "$apksigner" verify "$apk" >/dev/null 2>&1; then
+              echo "::error::CI requested an unsigned Admin APK but the output is already signed."
+              exit 1
+            fi
+            delivery_name="OmniDev-admin-release-unsigned.apk"
+            delivery_note="UNSIGNED - sign locally before installation"
+            echo "::warning::Admin APK is intentionally unsigned. Sign it locally with the shared Omni release keystore before installing or updating."
           fi
+
           bytes="$(stat -c '%s' "$apk")"
           if (( bytes > 50000000 )); then
             echo "::error::Admin APK exceeds Telegram cloud Bot API's 50 MB upload limit; refusing partial delivery."
             exit 1
           fi
+
           echo "ADMIN_APK=$apk" >> "$GITHUB_ENV"
+          echo "ADMIN_APK_FILENAME=$delivery_name" >> "$GITHUB_ENV"
+          echo "ADMIN_DELIVERY_NOTE=$delivery_note" >> "$GITHUB_ENV"
           echo "ADMIN_APK_SHA256=$(sha256sum "$apk" | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
 
       - name: Send Admin APK to configured Telegram chat
@@ -407,8 +457,8 @@ jobs:
           if ! curl --silent --show-error --fail --connect-timeout 20 --max-time 180 \
             --output "$response" \
             --form "chat_id=$TELEGRAM_CHAT_ID" \
-            --form "document=@${ADMIN_APK};filename=OmniDev-admin-release.apk;type=application/vnd.android.package-archive" \
-            --form "caption=OmniDev Admin • run #${GITHUB_RUN_NUMBER} • ${sha_short} • SHA-256: ${ADMIN_APK_SHA256}" \
+            --form "document=${ADMIN_APK};filename=${ADMIN_APK_FILENAME};type=application/vnd.android.package-archive" \
+            --form "caption=OmniDev Admin • $ADMIN_DELIVERY_NOTE • run #${GITHUB_RUN_NUMBER} • ${sha_short} • SHA-256: ${ADMIN_APK_SHA256}" \
             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument"; then
             echo "::error::Telegram document upload failed; Admin APK was not published as a GitHub artifact."
             exit 1
@@ -417,7 +467,8 @@ jobs:
             echo "::error::Telegram API rejected the Admin APK; verify bot permissions, private chat ID and file-size limits."
             exit 1
           fi
-          echo "Signed Admin APK delivered to the configured Telegram chat; no Admin APK artifact was uploaded."
+          echo "Admin APK delivered privately via Telegram in $ADMIN_SIGNING_MODE mode; no Admin APK artifact was uploaded."
+
 
   pipeline-summary:
     name: Pipeline Summary

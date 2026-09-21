@@ -35,6 +35,14 @@ val omniSharedReleaseSigning = listOf(
     "OMNI_SHARED_RELEASE_KEY_PASSWORD"
 ).map(::omniSigningValue)
 
+// The private CI may intentionally build Admin unsigned when the protected
+// release keystore is unavailable or invalid. This is opt-in and is only used
+// by the dedicated Admin job; normal release builds keep their existing signer.
+val omniAdminUnsignedRelease =
+    omniSigningValue("OMNI_ADMIN_UNSIGNED_RELEASE")
+        ?.toBooleanStrictOrNull()
+        ?: false
+
 android {
     namespace = "com.omnidev.workspace"
     compileSdk = 36
@@ -250,9 +258,13 @@ android {
             signingConfigs.findByName("omniSharedDebug")?.let { signingConfig = it }
         }
         release {
-            signingConfig = signingConfigs.findByName("omniSharedRelease")
-                ?: signingConfigs.findByName("omniSharedDebug")
-                ?: signingConfigs.getByName("debug")
+            signingConfig = if (omniAdminUnsignedRelease) {
+                null
+            } else {
+                signingConfigs.findByName("omniSharedRelease")
+                    ?: signingConfigs.findByName("omniSharedDebug")
+                    ?: signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = true
             isShrinkResources = true // لتقليل حجم التطبيق بعد الـ Proguard
             proguardFiles(
@@ -282,17 +294,32 @@ android {
     }
 }
 
-// Admin is a private developer identity. Never produce a release package signed using
-// the generic debug fallback when the dedicated Omni release signing config is absent.
+// Admin is a private developer identity. By default it must use the dedicated
+// shared Omni release signer and must never silently fall back to the debug key.
+// The private CI can explicitly request an unsigned Admin package for local
+// offline signing by setting OMNI_ADMIN_UNSIGNED_RELEASE=true.
 tasks.configureEach {
-    if (name == "packageAdminRelease" ||
-        name == "assembleAdminRelease" ||
-        name == "bundleAdminRelease"
+    val isAdminReleasePackagingTask =
+        name == "packageAdminRelease" ||
+            name == "assembleAdminRelease" ||
+            name == "bundleAdminRelease"
+
+    if (isAdminReleasePackagingTask) {
+        doFirst {
+            if (!omniAdminUnsignedRelease) {
+                check(omniSharedReleaseSigning.all { !it.isNullOrBlank() }) {
+                    "Admin release requires explicit OMNI_SHARED_RELEASE_* signing credentials, " +
+                        "or OMNI_ADMIN_UNSIGNED_RELEASE=true for a deliberately unsigned package"
+                }
+            }
+        }
+    }
+
+    if (omniAdminUnsignedRelease &&
+        Regex("^(assemble|package|bundle)(Lite|Norm|Pro|Oem)Release$").matches(name)
     ) {
         doFirst {
-            check(omniSharedReleaseSigning.all { !it.isNullOrBlank() }) {
-                "Admin release requires explicit OMNI_SHARED_RELEASE_* signing credentials"
-            }
+            error("OMNI_ADMIN_UNSIGNED_RELEASE is restricted to Admin release tasks")
         }
     }
 }
