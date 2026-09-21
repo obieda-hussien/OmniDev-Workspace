@@ -454,20 +454,35 @@ jobs:
           set -euo pipefail
           response="$RUNNER_TEMP/telegram-send-document.json"
           sha_short="${GITHUB_SHA:0:12}"
-          if ! curl --silent --show-error --fail --connect-timeout 20 --max-time 180 \
+          local_size="$(stat -c '%s' "$ADMIN_APK")"
+
+          echo "Uploading Admin APK: $ADMIN_APK"
+          echo "Local size: $local_size bytes"
+          echo "SHA-256: $ADMIN_APK_SHA256"
+
+          if ! curl --silent --show-error --fail --connect-timeout 20 --max-time 300 \
             --output "$response" \
-            --form "chat_id=$TELEGRAM_CHAT_ID" \
-            --form "document=${ADMIN_APK};filename=${ADMIN_APK_FILENAME};type=application/vnd.android.package-archive" \
-            --form "caption=OmniDev Admin • $ADMIN_DELIVERY_NOTE • run #${GITHUB_RUN_NUMBER} • ${sha_short} • SHA-256: ${ADMIN_APK_SHA256}" \
+            --form-string "chat_id=$TELEGRAM_CHAT_ID" \
+            --form "document=@${ADMIN_APK};filename=${ADMIN_APK_FILENAME};type=application/vnd.android.package-archive" \
+            --form-string "caption=OmniDev Admin • $ADMIN_DELIVERY_NOTE • run #${GITHUB_RUN_NUMBER} • ${sha_short} • SHA-256: ${ADMIN_APK_SHA256}" \
             "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument"; then
             echo "::error::Telegram document upload failed; Admin APK was not published as a GitHub artifact."
             exit 1
           fi
+
           if ! jq -e '.ok == true' "$response" >/dev/null; then
             echo "::error::Telegram API rejected the Admin APK; verify bot permissions, private chat ID and file-size limits."
+            jq -c '{ok, error_code, description}' "$response" >&2 || true
             exit 1
           fi
-          echo "Admin APK delivered privately via Telegram in $ADMIN_SIGNING_MODE mode; no Admin APK artifact was uploaded."
+
+          remote_size="$(jq -r '.result.document.file_size // 0' "$response")"
+          if [[ "$remote_size" != "$local_size" ]]; then
+            echo "::error::Telegram uploaded file size mismatch: local=$local_size remote=$remote_size"
+            exit 1
+          fi
+
+          echo "Admin APK delivered privately via Telegram in $ADMIN_SIGNING_MODE mode; verified $remote_size bytes; no Admin APK artifact was uploaded."
 
 
   pipeline-summary:
