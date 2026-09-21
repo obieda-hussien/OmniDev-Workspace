@@ -42,6 +42,9 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           cache: gradle
 
+      - name: Self-test private keystore restoration
+        run: bash .github/scripts/test-restore-release-keystore.sh
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
@@ -338,11 +341,7 @@ jobs:
               exit 1
             fi
           done
-          umask 077
-          keystore="$RUNNER_TEMP/omni-admin-release.jks"
-          printf '%s' "$OMNI_SHARED_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$keystore"
-          test -s "$keystore" || { echo "::error::Decoded release keystore is empty."; exit 1; }
-          echo "OMNI_SHARED_RELEASE_STORE_FILE=$keystore" >> "$GITHUB_ENV"
+          bash .github/scripts/restore-release-keystore.sh "$RUNNER_TEMP/omni-admin-release.keystore"
 
       - name: Build signed Admin release only
         shell: bash
