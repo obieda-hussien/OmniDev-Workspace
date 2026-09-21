@@ -6,7 +6,7 @@ die() {
   exit 1
 }
 
-for required in   OMNI_SHARED_RELEASE_KEYSTORE_BASE64   OMNI_SHARED_RELEASE_STORE_PASSWORD   OMNI_SHARED_RELEASE_KEY_ALIAS; do
+for required in   OMNI_SHARED_RELEASE_KEYSTORE_BASE64   OMNI_SHARED_RELEASE_STORE_PASSWORD   OMNI_SHARED_RELEASE_KEY_ALIAS   OMNI_SHARED_RELEASE_KEY_PASSWORD; do
   [[ -n "${!required:-}" ]] || die "Missing $required in the protected environment."
 done
 
@@ -61,6 +61,18 @@ chmod 600 "$tmp"
 if ! keytool -list   -keystore "$tmp"   -storepass "$OMNI_SHARED_RELEASE_STORE_PASSWORD"   -alias "$OMNI_SHARED_RELEASE_KEY_ALIAS"   >/dev/null 2>&1; then
   die "Decoded data is not a readable keystore with the configured store password and alias. Verify OMNI_SHARED_RELEASE_KEYSTORE_BASE64, OMNI_SHARED_RELEASE_STORE_PASSWORD, and OMNI_SHARED_RELEASE_KEY_ALIAS."
 fi
+
+# Verify the private-key password too. A keystore can be readable while the
+# private key is still inaccessible, which would otherwise fail late in Gradle.
+probe_dir="$(mktemp -d)"
+probe_jar="$probe_dir/probe.jar"
+mkdir -p "$probe_dir/empty"
+jar --create --file "$probe_jar" -C "$probe_dir/empty" . >/dev/null 2>&1
+if ! jarsigner   -keystore "$tmp"   -storepass "$OMNI_SHARED_RELEASE_STORE_PASSWORD"   -keypass "$OMNI_SHARED_RELEASE_KEY_PASSWORD"   "$probe_jar"   "$OMNI_SHARED_RELEASE_KEY_ALIAS"   >/dev/null 2>&1; then
+  rm -rf "$probe_dir"
+  die "The release keystore is readable, but the configured key password cannot sign with the requested alias. Verify OMNI_SHARED_RELEASE_KEY_PASSWORD."
+fi
+rm -rf "$probe_dir"
 
 mv "$tmp" "$dest"
 trap - EXIT
