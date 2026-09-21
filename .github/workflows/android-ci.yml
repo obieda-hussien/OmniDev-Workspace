@@ -24,7 +24,7 @@ env:
 jobs:
   run-quality:
     name: Run Quality
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
@@ -92,7 +92,7 @@ jobs:
   lint:
     name: Lint
     needs: run-quality
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
 
     steps:
@@ -104,7 +104,7 @@ jobs:
           persist-credentials: false
 
       - name: Restore staged OmniLinkSDK
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: omnilink-maven-${{ github.run_id }}
           path: ci-m2
@@ -156,7 +156,7 @@ jobs:
   tests:
     name: Tests
     needs: run-quality
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
 
     steps:
@@ -168,7 +168,7 @@ jobs:
           persist-credentials: false
 
       - name: Restore staged OmniLinkSDK
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: omnilink-maven-${{ github.run_id }}
           path: ci-m2
@@ -220,7 +220,7 @@ jobs:
   release-apk:
     name: Release APK
     needs: run-quality
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
 
     steps:
@@ -232,7 +232,7 @@ jobs:
           persist-credentials: false
 
       - name: Restore staged OmniLinkSDK
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           name: omnilink-maven-${{ github.run_id }}
           path: ci-m2
@@ -275,15 +275,156 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: release-apks-${{ github.run_number }}
-          path: app/build/outputs/apk/*/release/*.apk
+          path: |
+            app/build/outputs/apk/lite/release/*.apk
+            app/build/outputs/apk/norm/release/*.apk
+            app/build/outputs/apk/pro/release/*.apk
+            app/build/outputs/apk/oem/release/*.apk
           if-no-files-found: ignore
           retention-days: 30
+
+  admin-release-telegram:
+    name: Private Admin Release (Telegram)
+    # Never use environment secrets on PR or on a non-main manual dispatch.
+    if: github.repository == 'obieda-hussien/OmniDev-Workspace' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [run-quality, lint, tests, release-apk]
+    environment: copilot
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Restore staged OmniLinkSDK
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: omnilink-maven-${{ github.run_id }}
+          path: ci-m2
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
+
+      - name: Install and verify Android NDK
+        run: bash .github/scripts/install-android-ndk.sh
+
+      - name: Restore private release keystore
+        shell: bash
+        env:
+          OMNI_SHARED_RELEASE_KEYSTORE_BASE64: ${{ secrets.OMNI_SHARED_RELEASE_KEYSTORE_BASE64 }}
+          OMNI_SHARED_RELEASE_STORE_PASSWORD: ${{ secrets.OMNI_SHARED_RELEASE_STORE_PASSWORD }}
+          OMNI_SHARED_RELEASE_KEY_ALIAS: ${{ secrets.OMNI_SHARED_RELEASE_KEY_ALIAS }}
+          OMNI_SHARED_RELEASE_KEY_PASSWORD: ${{ secrets.OMNI_SHARED_RELEASE_KEY_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -euo pipefail
+          for required in OMNI_SHARED_RELEASE_KEYSTORE_BASE64 OMNI_SHARED_RELEASE_STORE_PASSWORD OMNI_SHARED_RELEASE_KEY_ALIAS OMNI_SHARED_RELEASE_KEY_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_CHAT_ID; do
+            if [[ -z "${!required}" ]]; then
+              echo "::error::Missing $required in the copilot environment secrets; Admin APK will not be built or delivered."
+              exit 1
+            fi
+          done
+          umask 077
+          keystore="$RUNNER_TEMP/omni-admin-release.jks"
+          printf '%s' "$OMNI_SHARED_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          test -s "$keystore" || { echo "::error::Decoded release keystore is empty."; exit 1; }
+          echo "OMNI_SHARED_RELEASE_STORE_FILE=$keystore" >> "$GITHUB_ENV"
+
+      - name: Build signed Admin release only
+        shell: bash
+        env:
+          OMNI_SHARED_RELEASE_STORE_PASSWORD: ${{ secrets.OMNI_SHARED_RELEASE_STORE_PASSWORD }}
+          OMNI_SHARED_RELEASE_KEY_ALIAS: ${{ secrets.OMNI_SHARED_RELEASE_KEY_ALIAS }}
+          OMNI_SHARED_RELEASE_KEY_PASSWORD: ${{ secrets.OMNI_SHARED_RELEASE_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --max-workers 1 \
+            -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
+            -Pkotlin.compiler.execution.strategy=in-process \
+            -Pkotlin.incremental=false \
+            -Dorg.gradle.vfs.watch=false \
+            :app:assembleAdminRelease --stacktrace
+
+      - name: Verify exact Admin APK and signer
+        shell: bash
+        env:
+          OMNI_SHARED_RELEASE_CERT_SHA256: ${{ secrets.OMNI_SHARED_RELEASE_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          mapfile -d '' apks < <(find app/build/outputs/apk/admin/release -maxdepth 1 -type f -name '*.apk' -print0)
+          if [[ "${#apks[@]}" -ne 1 ]]; then
+            echo "::error::Expected exactly one Admin release APK; found ${#apks[@]}."
+            exit 1
+          fi
+          apk="${apks[0]}"
+          if [[ "$apk" == *unsigned* ]]; then
+            echo "::error::Refusing to deliver an unsigned Admin APK."
+            exit 1
+          fi
+          apksigner="$ANDROID_HOME/build-tools/$ANDROID_BUILD_TOOLS/apksigner"
+          "$apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/admin-signature.txt" || {
+            echo "::error::Admin APK signature verification failed."
+            exit 1
+          }
+          if [[ -n "$OMNI_SHARED_RELEASE_CERT_SHA256" ]]; then
+            actual="$(sed -n 's/^Signer #1 certificate SHA-256 digest: //p' "$RUNNER_TEMP/admin-signature.txt" | head -n 1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+            expected="$(printf '%s' "$OMNI_SHARED_RELEASE_CERT_SHA256" | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+            if [[ -z "$actual" || "$actual" != "$expected" ]]; then
+              echo "::error::Admin APK signer differs from the expected shared Omni release certificate."
+              exit 1
+            fi
+          fi
+          bytes="$(stat -c '%s' "$apk")"
+          if (( bytes > 50000000 )); then
+            echo "::error::Admin APK exceeds Telegram cloud Bot API's 50 MB upload limit; refusing partial delivery."
+            exit 1
+          fi
+          echo "ADMIN_APK=$apk" >> "$GITHUB_ENV"
+          echo "ADMIN_APK_SHA256=$(sha256sum "$apk" | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
+
+      - name: Send Admin APK to configured Telegram chat
+        shell: bash
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          set -euo pipefail
+          response="$RUNNER_TEMP/telegram-send-document.json"
+          sha_short="${GITHUB_SHA:0:12}"
+          if ! curl --silent --show-error --fail --connect-timeout 20 --max-time 180 \
+            --output "$response" \
+            --form "chat_id=$TELEGRAM_CHAT_ID" \
+            --form "document=@${ADMIN_APK};filename=OmniDev-admin-release.apk;type=application/vnd.android.package-archive" \
+            --form "caption=OmniDev Admin • run #${GITHUB_RUN_NUMBER} • ${sha_short} • SHA-256: ${ADMIN_APK_SHA256}" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument"; then
+            echo "::error::Telegram document upload failed; Admin APK was not published as a GitHub artifact."
+            exit 1
+          fi
+          if ! jq -e '.ok == true' "$response" >/dev/null; then
+            echo "::error::Telegram API rejected the Admin APK; verify bot permissions, private chat ID and file-size limits."
+            exit 1
+          fi
+          echo "Signed Admin APK delivered to the configured Telegram chat; no Admin APK artifact was uploaded."
 
   pipeline-summary:
     name: Pipeline Summary
     if: always()
-    needs: [run-quality, lint, tests, release-apk]
-    runs-on: ubuntu-latest
+    needs: [run-quality, lint, tests, release-apk, admin-release-telegram]
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Write summary
@@ -297,4 +438,5 @@ jobs:
             echo "| Lint | ${{ needs.lint.result }} |"
             echo "| Tests | ${{ needs.tests.result }} |"
             echo "| Release APK | ${{ needs.release-apk.result }} |"
+            echo "| Private Admin Telegram | ${{ needs.admin-release-telegram.result }} |"
           } >> "$GITHUB_STEP_SUMMARY"
