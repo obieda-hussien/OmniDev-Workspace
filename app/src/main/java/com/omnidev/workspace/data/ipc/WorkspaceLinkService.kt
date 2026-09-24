@@ -34,7 +34,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 /**
- * Workspace-side OmniLink v2 bridge.
+ * Workspace-side OmniLink v3 bridge.
  *
  * AndroidIDE is intentionally untouched in this phase. This service defines the stable same-signer
  * contract AndroidIDE can consume later for shared memory/context/diagnostics without sharing Room

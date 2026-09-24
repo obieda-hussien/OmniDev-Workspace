@@ -18,7 +18,9 @@ import android.os.RemoteException
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.omnilink.sdk.ActionRequest
+import com.omnilink.sdk.CapabilityCatalogResult
 import com.omnilink.sdk.CapabilityManifest
+import com.omnilink.sdk.TrustedCapabilityCatalog
 import com.omnilink.sdk.IExtensionService
 import com.omnilink.sdk.IOmniEventCallback
 import com.omnilink.sdk.IOmniResultCallback
@@ -164,7 +166,26 @@ object ExtensionConnectionManager {
             "Extension is not currently connected: " + extensionId
         )
         try {
-            binder.getCapabilityManifest().ifBlank { "{}" }
+            val raw = binder.getCapabilityManifest()
+            val context = appContext ?: return@withContext errorJson("OmniLink is not initialized")
+            // Re-resolve after the Binder reply: a cached handle and manifest cannot establish
+            // provider identity, especially if the package changed while the call was in flight.
+            val provider = TrustedServiceResolver(context).query(
+                TrustedServicePolicy(
+                    action = ACTION_BIND_EXTENSION,
+                    requiredPermission = OmniLinkConstants.PERMISSION_BIND_EXTENSION,
+                    identityMode = ProviderIdentityMode.SAME_SIGNER
+                )
+            ).verified.firstOrNull {
+                it.packageName == handle.packageName &&
+                    it.serviceClassName == handle.serviceClassName
+            } ?: return@withContext errorJson("Provider identity changed during manifest discovery")
+            when (val catalog = TrustedCapabilityCatalog.ingest(provider, raw)) {
+                is CapabilityCatalogResult.Accepted -> raw
+                is CapabilityCatalogResult.Rejected -> errorJson(
+                    "Rejected capability manifest: " + catalog.reason
+                )
+            }
         } catch (remote: RemoteException) {
             invalidateAndReconnect(handle, remote)
             errorJson("Failed to fetch manifest: " + (remote.message ?: "remote process died"))
