@@ -41,6 +41,10 @@ class TierToolGateTest {
         ToolDefinition("search_knowledge", "", emptyList()),
         ToolDefinition("update_memory", "", emptyList()),
         ToolDefinition("delete_memory", "", emptyList()),
+        ToolDefinition("list_chat_sessions", "", emptyList()),
+        ToolDefinition("search_messages", "", emptyList()),
+        ToolDefinition("read_chat_session", "", emptyList()),
+        ToolDefinition("read_chat_message", "", emptyList()),
         ToolDefinition("vector_store", "", emptyList()),
         ToolDefinition("vector_search", "", emptyList()),
         ToolDefinition("vector_similar", "", emptyList()),
@@ -70,7 +74,7 @@ class TierToolGateTest {
     )
 
     @Test
-    fun `lite tier exposes only the 4 approved tools plus scrape_multiple companion`() {
+    fun `lite tier exposes approved browsing memory and read-only recall tools`() {
         TierPolicyHolder.install(stubPolicy("LITE"))
         val filtered = TierToolGate.filter(fullDefs).map { it.name }.toSet()
         assertEquals(TierToolGate.LITE_TOOLS, filtered)
@@ -81,6 +85,7 @@ class TierToolGateTest {
         TierPolicyHolder.install(stubPolicy("LITE"))
         assertNull("web_search should pass", TierToolGate.denyReason("web_search"))
         assertNull("read_file should pass",  TierToolGate.denyReason("read_file"))
+        assertNull("chat recall should pass", TierToolGate.denyReason("search_messages"))
         assertNotNull("shizuku_command must be denied",         TierToolGate.denyReason("shizuku_command"))
         assertNotNull("terminal_command must be denied",        TierToolGate.denyReason("terminal_command"))
         assertNotNull("semantic_ui_action must be denied",      TierToolGate.denyReason("semantic_ui_action"))

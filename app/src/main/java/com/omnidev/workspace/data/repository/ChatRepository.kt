@@ -27,6 +27,26 @@ class ChatRepository(
     private val sessionDao: ChatSessionDao,
     private val messageDao: ChatMessageDao
 ) {
+    private val groundedRecall = GroundedChatRecall(sessionDao, messageDao)
+
+    suspend fun recallHistory(query: String, limit: Int = 8, sessionId: Long? = null) =
+        groundedRecall.search(query, limit, sessionId)
+
+    suspend fun readHistoryPage(sessionId: Long, beforeId: Long? = null, limit: Int = 20) =
+        groundedRecall.page(sessionId, beforeId, limit)
+
+    suspend fun readHistoryChunk(sessionId: Long, rowId: Long, offset: Int = 0) =
+        groundedRecall.chunk(sessionId, rowId, offset)
+
+    /** Connected-app and messaging runs must not browse another conversation's archive. */
+    suspend fun isExternalHistoryScope(activeSessionId: Long?): Boolean =
+        activeSessionId?.let { sessionDao.getById(it)?.source != ChatSessionEntity.SOURCE_APP } ?: false
+
+    suspend fun listHistorySessions(query: String, limit: Int, offset: Int) =
+        sessionDao.listHistorySessions(query.take(100), limit.coerceIn(1, 30), offset.coerceIn(0, 10_000))
+
+    suspend fun getHistorySession(sessionId: Long) = sessionDao.getById(sessionId)
+
     companion object {
         /**
          * Maximum number of characters stored per message. Truncation prevents unbounded

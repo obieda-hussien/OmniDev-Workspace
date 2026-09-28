@@ -27,7 +27,8 @@ object ToolSchemaCompactor {
         "agent_runtime", "privileged_tool", "execution_diagnostics",
         "read_file", "read_file_lines", "search_codebase", "patch_file", "patch_file_content",
         "create_file", "git_manager", "search_knowledge", "remember_fact", "planner",
-        "web_search", "github_manager"
+        "web_search", "github_manager", "list_chat_sessions", "search_messages", "read_chat_session",
+        "read_chat_message"
     )
 
     fun compact(
@@ -143,7 +144,10 @@ object ToolSchemaCompactor {
             "settings", "brightness", "timeout", "اعدادات", "إعدادات", "سطوع"
         ),
         "planner_tool" to listOf(
-            "alarm", "calendar", "reminder", "منبه", "تقويم", "تذكير", "موعد"
+            "alarm", "alarms", "next alarm", "calendar", "reminder", "منبه", "المنبه", "المنبهات", "تقويم", "تذكير", "موعد"
+        ),
+        "read_notifications" to listOf(
+            "notification", "notifications", "alerts", "إشعار", "إشعارات", "الاشعارات", "تنبيهات"
         ),
         "visual_inspector" to listOf(
             "screen", "screenshot", "look at", "شاشة", "سكرين", "صورة الشاشة"

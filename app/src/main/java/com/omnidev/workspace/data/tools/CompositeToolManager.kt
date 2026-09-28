@@ -110,8 +110,8 @@ class CompositeToolManager(
     private val clipboardTool: ClipboardTool? = if (context != null) ClipboardTool(context) else null
 
     /**
-     * Current session ID used by the [search_messages] tool to scope message searches.
-     * Set by the ViewModel each time a session is opened or created.
+     * Current session ID used for the active chat. History search is global unless the caller
+     * explicitly supplies a session ID.
      */
     @Volatile
     var currentSessionId: Long? = null
@@ -487,10 +487,19 @@ class CompositeToolManager(
             }
 
             // ── Chat message search tool ──
+            "list_chat_sessions" -> MessageSearchTool.listSessions(
+                arguments["query"], arguments["offset"]?.toIntOrNull(),
+                arguments["limit"]?.toIntOrNull(), chatRepository, currentSessionId)
             "search_messages" -> MessageSearchTool.execute(
                 arguments["query"] ?: return missingArg("query"),
                 arguments["limit"]?.toIntOrNull(),
-                arguments["sessionId"] ?: currentSessionId?.toString(), chatRepository)
+                arguments["sessionId"], chatRepository, currentSessionId)
+            "read_chat_session" -> MessageSearchTool.readSession(
+                arguments["sessionId"], arguments["beforeId"],
+                arguments["limit"]?.toIntOrNull(), chatRepository, currentSessionId)
+            "read_chat_message" -> MessageSearchTool.readMessage(
+                arguments["sessionId"], arguments["messageId"],
+                arguments["offset"]?.toIntOrNull(), chatRepository, currentSessionId)
 
             // ── Memory tools ──
             "remember_fact", "search_knowledge", "update_memory", "delete_memory" ->

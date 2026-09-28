@@ -53,6 +53,18 @@ interface ChatMessageDao {
         limit: Int
     ): List<ChatMessageEntity>
 
+    @Query(
+        "SELECT id, sessionId, role, substr(content, 1, 4000) AS content, timestamp FROM chat_messages WHERE sessionId = :sessionId " +
+            "AND role IN ('USER', 'ASSISTANT') " +
+            "AND (:beforeMessageId IS NULL OR id < :beforeMessageId) " +
+            "ORDER BY id DESC LIMIT :limit"
+    )
+    suspend fun getHistoryPageBySession(
+        sessionId: Long,
+        beforeMessageId: Long?,
+        limit: Int
+    ): List<ChatMessageSource>
+
     @Query("SELECT * FROM chat_messages WHERE messageId = :messageId LIMIT 1")
     suspend fun getByMessageId(messageId: String): ChatMessageEntity?
 
@@ -65,6 +77,20 @@ interface ChatMessageDao {
         "SELECT * FROM chat_messages WHERE content LIKE '%' || :query || '%' ORDER BY timestamp DESC LIMIT :limit"
     )
     suspend fun searchAllByContent(query: String, limit: Int): List<ChatMessageEntity>
+
+    /** Bounded source-message candidates for cross-session recall. Excludes tool/system output. */
+    @Query(
+        "SELECT id, sessionId, role, substr(content, 1, 4000) AS content, timestamp FROM chat_messages WHERE role IN ('USER', 'ASSISTANT') " +
+            "AND content LIKE '%' || :term || '%' ORDER BY timestamp DESC, id DESC LIMIT :limit"
+    )
+    suspend fun searchHistoryCandidates(term: String, limit: Int): List<ChatMessageSource>
+
+    @Query(
+        "SELECT id, sessionId, role, substr(content, :offset + 1, 4000) AS content, " +
+            "timestamp, length(content) AS totalChars FROM chat_messages " +
+            "WHERE id = :rowId AND sessionId = :sessionId AND role IN ('USER', 'ASSISTANT') LIMIT 1"
+    )
+    suspend fun readHistoryChunk(sessionId: Long, rowId: Long, offset: Int): ChatMessageChunk?
 
 
     @Query("DELETE FROM chat_messages WHERE sessionId = :sessionId")

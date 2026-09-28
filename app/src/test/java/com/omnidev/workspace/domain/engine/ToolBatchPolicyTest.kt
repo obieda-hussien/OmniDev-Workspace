@@ -99,6 +99,21 @@ class ToolBatchPolicyTest {
     }
 
     @Test
+    fun `notification reads can overlap but posting and clearing are serialized`() {
+        assertTrue(ToolBatchPolicy.isReadOnly(call("read_notifications")))
+        assertTrue(ToolBatchPolicy.isReadOnly(call("read_notifications", mapOf("operation" to "status"))))
+        assertTrue(ToolBatchPolicy.isReadOnly(call("read_notifications", mapOf("operation" to "summary"))))
+        assertFalse(ToolBatchPolicy.isReadOnly(call("read_notifications", mapOf("operation" to "post"))))
+        assertFalse(ToolBatchPolicy.isReadOnly(call("read_notifications", mapOf("operation" to "clear_own"))))
+    }
+
+    @Test
+    fun `next alarm is a read but requesting alarm creation is serialized`() {
+        assertTrue(ToolBatchPolicy.isReadOnly(call("planner_tool", mapOf("action" to "next_alarm"))))
+        assertFalse(ToolBatchPolicy.isReadOnly(call("planner_tool", mapOf("action" to "alarm"))))
+    }
+
+    @Test
     fun `MCP mutation marker overrides read marker`() {
         assertFalse(ToolBatchPolicy.isReadOnly(call("mcp_example_get_and_delete")))
         assertFalse(ToolBatchPolicy.isReadOnly(call("mcp_github_create_pull_request")))

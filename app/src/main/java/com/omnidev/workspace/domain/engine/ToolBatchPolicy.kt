@@ -16,6 +16,11 @@ object ToolBatchPolicy {
         if (name.startsWith("mcp_")) return isKnownReadMcp(name)
 
         when (name) {
+            "read_notifications" -> return call.arguments["operation"]?.trim()?.lowercase()
+                .orEmpty().ifBlank { "read" } in setOf("read", "summary", "status")
+
+            "planner_tool" -> return call.arguments["action"]?.trim()?.lowercase() == "next_alarm"
+
             "semantic_ui" -> {
                 val action = call.arguments["action"]?.lowercase().orEmpty()
                 return action in setOf("dump_tree", "get_node", "find_node", "list_nodes")
