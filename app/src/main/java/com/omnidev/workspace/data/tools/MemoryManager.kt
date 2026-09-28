@@ -274,6 +274,7 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
             val hits = GroundedChatRecall(db.chatSessionDao(), db.chatMessageDao())
                 .search(query.take(256), limit = 12)
                 .filter { it.session.id != activeSessionId }
+                .filter { terms.size < 3 || it.score >= 20 }
                 .take(3)
             if (hits.isEmpty()) return@withContext null
             buildString {
