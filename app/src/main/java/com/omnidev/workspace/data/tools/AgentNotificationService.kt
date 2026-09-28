@@ -27,6 +27,8 @@ class AgentNotificationService : NotificationListenerService() {
      */
     override fun onListenerConnected() {
         super.onListenerConnected()
+        NotificationCaptureTool.initialize(this)
+        NotificationCaptureTool.setListenerConnected(true)
         Log.i(TAG, "Notification Listener Connected! AI Agent is now listening.")
         
         // Catch-up: Grab all currently active notifications on the device
@@ -47,8 +49,14 @@ class AgentNotificationService : NotificationListenerService() {
      * Fired if the system kills the listener or permission is revoked.
      */
     override fun onListenerDisconnected() {
+        NotificationCaptureTool.setListenerConnected(false)
         super.onListenerDisconnected()
         Log.w(TAG, "Notification Listener Disconnected. AI Agent is now deaf.")
+    }
+
+    override fun onDestroy() {
+        NotificationCaptureTool.setListenerConnected(false)
+        super.onDestroy()
     }
 
     /**

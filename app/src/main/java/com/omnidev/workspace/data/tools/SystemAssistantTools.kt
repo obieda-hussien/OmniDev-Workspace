@@ -1,6 +1,7 @@
 package com.omnidev.workspace.data.tools
 
 import android.Manifest
+import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -18,6 +19,8 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Calendar
+import java.util.Date
+import java.text.DateFormat
 
 // ─────────────────────────────────────────────────────────────────
 //  System Assistant Tools
@@ -117,12 +120,14 @@ suspend fun ensurePermissionViaShizuku(permission: String, packageName: String, 
  * Creates alarms and calendar events on behalf of the user.
  */
 object PlannerTool {
-
-    private const val PACKAGE_NAME = "com.omnidev.workspace"
-    private const val PERMISSION_SET_ALARM = "com.android.alarm.permission.SET_ALARM"
-
-    private fun shellEscape(value: String): String =
-        value.replace("\\", "\\\\").replace("\"", "\\\"").replace("$", "\\$").replace("`", "\\`")
+    // The platform alarm Intent accepts a clock time, not an exact calendar date.
+    // Refuse unsupported distant timestamps instead of silently setting the wrong day.
+    internal fun alarmTimeError(timeMillis: Long, nowMillis: Long): String? = when {
+        timeMillis <= nowMillis -> "Alarm time must be in the future (epoch milliseconds)."
+        timeMillis - nowMillis > 24L * 60 * 60 * 1_000 ->
+            "Android's alarm app Intent only accepts hour and minute, not a calendar date. Choose a time within the next 24 hours."
+        else -> null
+    }
 
     suspend fun execute(
         context: Context,
@@ -131,13 +136,28 @@ object PlannerTool {
         timeMillis: Long
     ): ToolExecutionResult {
         when (action.lowercase()) {
+            "next_alarm" -> {
+                val manager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
+                    ?: return ToolExecutionResult("Alarm service unavailable.", isError = true)
+                val next = manager.nextAlarmClock
+                    ?: return ToolExecutionResult("No upcoming alarm clock reported by Android. Other reminders may not appear here.")
+                val localTime = DateFormat.getDateTimeInstance(DateFormat.FULL, DateFormat.SHORT)
+                    .format(Date(next.triggerTime))
+                return ToolExecutionResult("Next Android alarm clock: $localTime (epochMillis=${next.triggerTime}). This is only the next alarm, not a full alarm list.")
+            }
+            "show_alarms" -> return runCatching {
+                context.startActivity(Intent(AlarmClock.ACTION_SHOW_ALARMS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                ToolExecutionResult("Opened the clock app's alarms page. OmniDev cannot read or verify the clock app's alarm list.")
+            }.getOrElse { ToolExecutionResult("Could not open an alarms app: ${it.message}", isError = true) }
             "alarm" -> {
+                alarmTimeError(timeMillis, System.currentTimeMillis())?.let {
+                    return ToolExecutionResult(it, isError = true)
+                }
                 val cal = Calendar.getInstance().apply { this.timeInMillis = timeMillis }
                 val hour = cal.get(Calendar.HOUR_OF_DAY)
                 val minute = cal.get(Calendar.MINUTE)
 
-                ensurePermissionViaShizuku(PERMISSION_SET_ALARM, PACKAGE_NAME, context)
-                val canSkipUi = ContextCompat.checkSelfPermission(context, PERMISSION_SET_ALARM) == PackageManager.PERMISSION_GRANTED
+                val canSkipUi = ContextCompat.checkSelfPermission(context, android.Manifest.permission.SET_ALARM) == PackageManager.PERMISSION_GRANTED
 
                 fun tryLaunchAlarmIntent(skipUi: Boolean): Boolean = runCatching {
                     val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
@@ -156,40 +176,15 @@ object PlannerTool {
 
                 if (intentUiFallbackResult) {
                     return ToolExecutionResult(
-                        output = if (intentResult) "✅ Alarm set for %02d:%02d — \"%s\"." else "✅ Opened alarm app with pre-filled time %02d:%02d — \"%s\".".format(hour, minute, title)
+                        output = if (intentResult)
+                            "Alarm request sent for %02d:%02d — \"%s\". Verify it in the clock app; the alarm provider does not confirm creation.".format(hour, minute, title)
+                        else
+                            "Opened the alarm app with %02d:%02d — \"%s\" pre-filled. USER_ACTION_REQUIRED: confirm and save the alarm there.".format(hour, minute, title)
                     )
                 }
-
-                // Fallback: ADB shell
-                val safeTitle = shellEscape(title)
-                val adbCmd = "am start -a android.intent.action.SET_ALARM" +
-                        " --ei android.intent.extra.alarm.HOUR $hour" +
-                        " --ei android.intent.extra.alarm.MINUTES $minute" +
-                        " --es android.intent.extra.alarm.MESSAGE \"$safeTitle\"" +
-                        " --ez android.intent.extra.alarm.SKIP_UI true"
-                        
-                return when (val r = ShizukuCommandTool.execute(adbCmd)) {
-                    is ShizukuResult.Success ->
-                        ToolExecutionResult(
-                            output = "✅ Alarm set for %02d:%02d via Android shell — \"%s\".".format(hour, minute, title),
-                            classification = "SUCCESS",
-                            backend = "shizuku-user-service"
-                        )
-                    is ShizukuResult.PartialSuccess -> ToolExecutionResult(
-                        output = "Alarm command exited ${r.exitCode}: ${r.output}",
-                        isError = true,
-                        classification = "NON_ZERO_EXIT",
-                        exitCode = r.exitCode,
-                        backend = "shizuku-user-service"
-                    )
-                    is ShizukuResult.Failure -> ToolExecutionResult(output = "Failed to set alarm: ${r.reason}", isError = true)
-                    else -> ToolExecutionResult(output = "Could not set alarm — Intent failed and Shizuku is unavailable.", isError = true)
-                }
+                return ToolExecutionResult("Could not open an alarm app. No alarm was confirmed or created by OmniDev.", isError = true)
             }
             "calendar" -> {
-                ensurePermissionViaShizuku(android.Manifest.permission.READ_CALENDAR, PACKAGE_NAME, context)
-                ensurePermissionViaShizuku(android.Manifest.permission.WRITE_CALENDAR, PACKAGE_NAME, context)
-
                 val intentResult = runCatching {
                     val intent = Intent(Intent.ACTION_INSERT).apply {
                         data = CalendarContract.Events.CONTENT_URI
@@ -202,23 +197,23 @@ object PlannerTool {
                 }.getOrDefault(false)
 
                 return if (intentResult) {
-                    ToolExecutionResult(output = "✅ Calendar event created: \"$title\".")
+                    ToolExecutionResult(output = "Opened calendar editor for \"$title\". USER_ACTION_REQUIRED: review and save the event.")
                 } else {
                     ToolExecutionResult("Failed to open calendar. Ensure a calendar app is installed.", isError = true)
                 }
             }
-            else -> return ToolExecutionResult("Unknown planner action '$action'. Use 'alarm' or 'calendar'.", isError = true)
+            else -> return ToolExecutionResult("Unknown planner action '$action'. Use alarm, next_alarm, show_alarms, or calendar.", isError = true)
         }
     }
 
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "planner_tool",
-            description = "Set an alarm or create a calendar event.",
+            description = "Request an alarm in the system clock, read Android's next alarm, open the alarms page, or open a calendar editor. Clock alarm creation accepts only an hour and minute; never claim creation until the user verifies it. A full list is unavailable through the public API.",
             parameters = listOf(
-                ToolParameter("action", "string", "Planner action: 'alarm' or 'calendar'.", required = true),
-                ToolParameter("title", "string", "Label for the alarm or title of the calendar event.", required = true),
-                ToolParameter("timeMillis", "string", "Target time as epoch milliseconds (string-encoded long).", required = true)
+                ToolParameter("action", "string", "alarm | next_alarm | show_alarms | calendar", required = true),
+                ToolParameter("title", "string", "Alarm label or calendar event title; unused when reading/opening alarms.", required = false),
+                ToolParameter("timeMillis", "string", "Future epoch milliseconds; alarm must be within 24 hours; unused when reading/opening alarms.", required = false)
             )
         )
     )

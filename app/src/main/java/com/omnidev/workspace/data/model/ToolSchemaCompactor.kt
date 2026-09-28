@@ -143,7 +143,10 @@ object ToolSchemaCompactor {
             "settings", "brightness", "timeout", "اعدادات", "إعدادات", "سطوع"
         ),
         "planner_tool" to listOf(
-            "alarm", "calendar", "reminder", "منبه", "تقويم", "تذكير", "موعد"
+            "alarm", "alarms", "next alarm", "calendar", "reminder", "منبه", "المنبه", "المنبهات", "تقويم", "تذكير", "موعد"
+        ),
+        "read_notifications" to listOf(
+            "notification", "notifications", "alerts", "إشعار", "إشعارات", "الاشعارات", "تنبيهات"
         ),
         "visual_inspector" to listOf(
             "screen", "screenshot", "look at", "شاشة", "سكرين", "صورة الشاشة"
