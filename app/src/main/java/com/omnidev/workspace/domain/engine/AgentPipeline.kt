@@ -11,6 +11,7 @@ import com.omnidev.workspace.data.model.ToolCall
 import com.omnidev.workspace.data.model.ToolCallResult
 import com.omnidev.workspace.data.model.ToolSchemaCompactor
 import com.omnidev.workspace.data.tools.ToolExecutionResult
+import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.ToolManager
 import com.omnidev.workspace.data.tools.orchestration.ToolOrchestrator
 import com.omnidev.workspace.registry.ModelRegistry
@@ -184,7 +185,17 @@ Do not use tools. Do not rewrite merely for style.
         ).orEmpty().take(MAX_TOOLS_PER_REQUEST)
         brain?.registerTools(toolDefs)
 
-        val memoryContext = try { memoryManager?.buildKnowledgeContext() } catch (_: Exception) { null }
+        val memoryContext = try {
+            listOfNotNull(
+                memoryManager?.buildHistoryContext(
+                    routingObjective,
+                    (toolManager as? CompositeToolManager)?.currentSessionId
+                ),
+                memoryManager?.buildKnowledgeContext()
+            ).joinToString("\n\n").ifBlank { null }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) { null }
         val brainContext = try { brain?.buildFullContextEnrichment() } catch (_: Exception) { null }
         val systemPrompt = AgentPromptCompiler.compile(
             tier = model.tier,
