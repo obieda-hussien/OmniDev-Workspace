@@ -528,6 +528,7 @@ object IntentClassifier {
 
     private val CORE_TOOLS = setOf(
         "remember_fact", "search_knowledge", "update_memory", "delete_memory",
+        "list_chat_sessions", "search_messages", "read_chat_session", "read_chat_message",
         "omni_link",
         "planner", "eval_expression", "request_execution_mode",
         "get_trust_profile", "list_earned_capabilities"
