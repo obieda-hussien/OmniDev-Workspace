@@ -238,11 +238,16 @@ class RepoIndexer(
     private fun collectFiles(root: File): List<File> {
         val out = ArrayList<File>(1024)
         val stack = ArrayDeque<File>()
+        val canonicalRoot = root.canonicalFile.path.trimEnd(File.separatorChar) + File.separator
         stack.addLast(root)
         while (stack.isNotEmpty()) {
             val dir = stack.removeLast()
             val children = dir.listFiles() ?: continue
             for (c in children) {
+                // Do not index source reached through links outside the selected project.
+                if (!runCatching {
+                        c.canonicalPath == c.absolutePath && c.canonicalPath.startsWith(canonicalRoot)
+                    }.getOrDefault(false)) continue
                 if (c.isDirectory) {
                     if (c.name !in IGNORED_DIRS && !c.name.startsWith(".")) {
                         stack.addLast(c)

@@ -191,6 +191,24 @@ object ModeOutcomeLearner {
     fun confidenceAdjustment(userRequest: String, target: OmniMode): Float =
         signal(userRequest, target).adjustment
 
+    /** Predict the cheaper reliable execution mode only after both alternatives have evidence. */
+    fun recommendExecutionMode(userRequest: String, baseline: OmniMode): OmniMode {
+        if (baseline != OmniMode.AGENT && baseline != OmniMode.SWARM) return baseline
+        val signals = IntentClassifier.analyze(userRequest)
+        if (!IntentClassifier.hasIndependentWork(userRequest, signals)) return OmniMode.AGENT
+        val agent = statsFor(userRequest, OmniMode.AGENT)
+        val team = statsFor(userRequest, OmniMode.SWARM)
+        if (agent.observations < 6 || team.observations < 6) return baseline
+        // Cost may choose between comparable successes; it must not buy savings by failing.
+        val agentCost = agent.averageTokens.takeIf { it > 0 } ?: return baseline
+        val teamCost = team.averageTokens.takeIf { it > 0 } ?: return baseline
+        if (agent.posteriorSuccess >= team.posteriorSuccess - 0.06f &&
+            agentCost.toDouble() * 1.20 < teamCost.toDouble()) return OmniMode.AGENT
+        if (team.posteriorSuccess >= agent.posteriorSuccess + 0.12f &&
+            teamCost.toDouble() <= agentCost.toDouble() * 1.50) return OmniMode.SWARM
+        return baseline
+    }
+
     fun statsFor(userRequest: String, mode: OmniMode): Stats {
         if (userRequest.isBlank() || mode == OmniMode.AUTO) return emptyStats()
         val bucket = IntentClassifier.analyze(normalizeRequest(userRequest)).bucketKey()

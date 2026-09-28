@@ -506,7 +506,10 @@ class ChatViewModel(
         }
     }
 
-    internal fun classifyTaskComplexity(input: String): OmniMode = IntentClassifier.classify(input)
+    internal fun classifyTaskComplexity(input: String): OmniMode =
+        com.omnidev.workspace.domain.engine.ModeOutcomeLearner.recommendExecutionMode(
+            input, IntentClassifier.classify(input)
+        )
 
     private suspend fun executeChatMode(
         input: String,
