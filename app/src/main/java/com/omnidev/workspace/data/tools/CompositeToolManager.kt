@@ -487,6 +487,9 @@ class CompositeToolManager(
             }
 
             // ── Chat message search tool ──
+            "list_chat_sessions" -> MessageSearchTool.listSessions(
+                arguments["query"], arguments["offset"]?.toIntOrNull(),
+                arguments["limit"]?.toIntOrNull(), chatRepository, currentSessionId)
             "search_messages" -> MessageSearchTool.execute(
                 arguments["query"] ?: return missingArg("query"),
                 arguments["limit"]?.toIntOrNull(),

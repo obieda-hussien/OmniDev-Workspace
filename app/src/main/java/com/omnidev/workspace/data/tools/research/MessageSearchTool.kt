@@ -10,6 +10,16 @@ import kotlinx.coroutines.CancellationException
 object MessageSearchTool {
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
+            name = "list_chat_sessions",
+            description = "List saved conversations by title and date to find a session before reading or summarizing it. " +
+                "Page with offset; returns only sessions accessible to this chat.",
+            parameters = listOf(
+                ToolParameter("query", "string", "Optional title filter.", required = false),
+                ToolParameter("offset", "number", "Page offset (default 0).", required = false),
+                ToolParameter("limit", "number", "Sessions, 1–30 (default 20).", required = false)
+            )
+        ),
+        ToolDefinition(
             name = "search_messages",
             description = "Search original USER/ASSISTANT messages across ALL saved sessions by default. " +
                 "Results include session and row IDs. Verify old claims with read_chat_session; " +
@@ -42,6 +52,33 @@ object MessageSearchTool {
             )
         )
     )
+
+    suspend fun listSessions(
+        query: String?, offset: Int?, limit: Int?, chatRepository: ChatRepository?,
+        activeSessionId: Long? = null
+    ): ToolExecutionResult {
+        if (chatRepository == null) return ToolExecutionResult("Chat history unavailable.", isError = true)
+        return try {
+            val sessions = if (chatRepository.isExternalHistoryScope(activeSessionId)) {
+                listOfNotNull(activeSessionId?.let { chatRepository.getHistorySession(it) })
+                    .filter { query.isNullOrBlank() || it.title.contains(query, ignoreCase = true) }
+            } else {
+                chatRepository.listHistorySessions(query.orEmpty(), limit ?: 20, offset ?: 0)
+            }
+            ToolExecutionResult(buildString {
+                appendLine("SAVED CHAT SESSIONS (newest-first, ${sessions.size}):")
+                sessions.forEach {
+                    appendLine("[session:${it.id}] ${it.title.take(120)} created=${it.createdAt} updated=${it.lastUpdated}")
+                }
+                if (sessions.isEmpty()) appendLine("No saved sessions found. Do not invent missing history.")
+                else appendLine("Use read_chat_session(sessionId) to inspect original messages.")
+            }.trimEnd())
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            ToolExecutionResult("Listing sessions failed: ${error.message}", isError = true)
+        }
+    }
 
     suspend fun execute(
         query: String, limit: Int?, sessionIdStr: String?, chatRepository: ChatRepository?,

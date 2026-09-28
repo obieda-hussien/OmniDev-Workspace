@@ -13,7 +13,7 @@ internal object TierToolGate {
     internal val LITE_TOOLS: Set<String> = setOf(
         "web_search", "web_search_deep", "web_scraper", "scrape_multiple", "read_file",
         "remember_fact", "search_knowledge", "update_memory", "delete_memory",
-        "search_messages", "read_chat_session", "read_chat_message",
+        "list_chat_sessions", "search_messages", "read_chat_session", "read_chat_message",
         "vector_store", "vector_search", "vector_similar", "brain_reflexion_search",
         "brain_episode_search", "brain_recent_episodes", "brain_stats",
         "causal_plan_analyze", "causal_plan_simulate", "causal_plan_what_if",

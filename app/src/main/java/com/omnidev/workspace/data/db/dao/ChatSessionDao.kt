@@ -38,6 +38,12 @@ interface ChatSessionDao {
     @Query("SELECT * FROM chat_sessions WHERE title LIKE '%' || :term || '%' ORDER BY lastUpdated DESC LIMIT :limit")
     suspend fun searchTitles(term: String, limit: Int): List<ChatSessionEntity>
 
+    @Query(
+        "SELECT * FROM chat_sessions WHERE (:query = '' OR title LIKE '%' || :query || '%') " +
+            "ORDER BY lastUpdated DESC, id DESC LIMIT :limit OFFSET :offset"
+    )
+    suspend fun listHistorySessions(query: String, limit: Int, offset: Int): List<ChatSessionEntity>
+
     @Query("UPDATE chat_sessions SET lastUpdated = :timestamp, title = :title WHERE id = :id")
     suspend fun updateTitleAndTimestamp(id: Long, title: String, timestamp: Long)
 

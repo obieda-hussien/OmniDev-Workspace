@@ -27,7 +27,7 @@ object ToolSchemaCompactor {
         "agent_runtime", "privileged_tool", "execution_diagnostics",
         "read_file", "read_file_lines", "search_codebase", "patch_file", "patch_file_content",
         "create_file", "git_manager", "search_knowledge", "remember_fact", "planner",
-        "web_search", "github_manager", "search_messages", "read_chat_session",
+        "web_search", "github_manager", "list_chat_sessions", "search_messages", "read_chat_session",
         "read_chat_message"
     )
 

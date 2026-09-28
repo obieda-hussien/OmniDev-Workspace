@@ -42,6 +42,11 @@ class ChatRepository(
     suspend fun isExternalHistoryScope(activeSessionId: Long?): Boolean =
         activeSessionId?.let { sessionDao.getById(it)?.source != ChatSessionEntity.SOURCE_APP } ?: false
 
+    suspend fun listHistorySessions(query: String, limit: Int, offset: Int) =
+        sessionDao.listHistorySessions(query.take(100), limit.coerceIn(1, 30), offset.coerceIn(0, 10_000))
+
+    suspend fun getHistorySession(sessionId: Long) = sessionDao.getById(sessionId)
+
     companion object {
         /**
          * Maximum number of characters stored per message. Truncation prevents unbounded
