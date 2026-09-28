@@ -130,6 +130,10 @@ object ToolSchemaCompactor {
     }
 
     private val SPECIALIZED_INTENT_HINTS = mapOf(
+        "repo_find_context" to listOf(
+            "codebase", "repository", "which file", "code path", "implementation",
+            "الكود", "الريبو", "المشروع", "فين الدالة"
+        ),
         "sms_reader_tool" to listOf(
             "sms", "text message", "inbox", "رسالة", "رسائل", "رسايل", "اس ام اس",
             "orange cash", "اورنج كاش", "أورنج كاش", "اورنچ كاش", "أورنچ كاش"

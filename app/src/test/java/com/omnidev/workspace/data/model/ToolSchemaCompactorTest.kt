@@ -9,6 +9,18 @@ import org.junit.Test
 class ToolSchemaCompactorTest {
 
     @Test
+    fun `repository question retains local evidence tool in oversized catalog`() {
+        val tools = buildList {
+            repeat(120) { index -> add(ToolDefinition("generic_$index", "generic capability", emptyList())) }
+            add(ToolDefinition("repo_find_context", "Find verbatim source evidence", emptyList()))
+        }
+        val selected = ToolSchemaCompactor.compact(
+            tools, listOf(ChatMessage(MessageRole.USER, "فين الكود المسؤول عن صلاحيات المشروع؟"))
+        ).orEmpty()
+        assertTrue(selected.any { it.name == "repo_find_context" })
+    }
+
+    @Test
     fun `deduplicates tools and compacts verbose descriptions`() {
         val verbose = "This is an extremely verbose tool description. ".repeat(100)
         val tools = listOf(
