@@ -259,12 +259,15 @@ fun AgentLiveConsole(
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(1.dp)
                 ) {
-                    items(entries, key = { it.id }) { entry ->
+                    items(entries.size, key = { entries[it].id }) { index ->
+                        val entry = entries[index]
                         AnimatedVisibility(
                             visible = true,
                             enter = fadeIn(tween(120)) + expandVertically(tween(120))
                         ) {
-                            ConsoleLogLine(entry, startTs, clipboard)
+                            ConsoleLogLine(entry, startTs, clipboard,
+                                if (entry is AgentConsoleEntry.ThinkingEntry)
+                                    thinkingActivity(entries, index, isRunning) else null)
                         }
                     }
                 }
@@ -294,7 +297,8 @@ private fun StatChip(text: String, color: Color, contentDescription: String) {
 private fun ConsoleLogLine(
     entry: AgentConsoleEntry,
     startTs: Long,
-    clipboard: androidx.compose.ui.platform.ClipboardManager
+    clipboard: androidx.compose.ui.platform.ClipboardManager,
+    activity: String? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
     val elapsedMs = entry.timestamp - startTs
@@ -303,8 +307,8 @@ private fun ConsoleLogLine(
     val (icon, label, labelColor, shortText, fullText, extraDetail) = when (entry) {
         is AgentConsoleEntry.ThinkingEntry ->
             ConsoleRowData("🧠", "THINK", TerminalCyan,
-                "Reasoning... (iteration ${entry.iteration})",
-                "Reasoning... (iteration ${entry.iteration})", null)
+                "Thinking · iteration ${entry.iteration} · tap for activity",
+                "Iteration ${entry.iteration} · observed activity", activity)
 
         is AgentConsoleEntry.DeepThinkingEntry ->
             ConsoleRowData("💭", "DEEP ", TerminalPurple,
@@ -429,6 +433,41 @@ private fun ConsoleLogLine(
             }
         }
     }
+}
+
+/** Build an honest, live trace from observable events for this iteration only. */
+internal fun thinkingActivity(
+    entries: List<AgentConsoleEntry>,
+    index: Int,
+    isRunning: Boolean
+): String {
+    val previousPhase = entries.subList(0, index).lastOrNull { it is AgentConsoleEntry.PhaseEntry }
+        as? AgentConsoleEntry.PhaseEntry
+    val current = entries.drop(index + 1).takeWhile {
+        it !is AgentConsoleEntry.ThinkingEntry && it !is AgentConsoleEntry.ReplyEntry
+    }
+    return buildString {
+        appendLine("Public action update and observed events (not private reasoning):")
+        previousPhase?.takeIf { it.phase.equals("Analyze", ignoreCase = true) }?.let {
+            appendLine("Phase: ${it.phase}${it.detail?.let { detail -> " — $detail" }.orEmpty()}")
+        }
+        var count = 0
+        current.forEach { event ->
+            val line = when (event) {
+                is AgentConsoleEntry.PhaseEntry -> if (event.phase.equals("Implement", ignoreCase = true) && !event.detail.isNullOrBlank())
+                    "Before tool execution: ${event.detail}" else
+                    "Phase: ${event.phase}${event.detail?.let { " — $it" }.orEmpty()}"
+                is AgentConsoleEntry.ToolEntry -> "Running ${event.toolName}: ${event.params}"
+                is AgentConsoleEntry.ResultEntry -> "${if (event.isError) "Error" else "Completed"} ${event.toolName}: ${event.snippet}"
+                is AgentConsoleEntry.ContextSummaryEntry -> "Compressed context"
+                is AgentConsoleEntry.ErrorEntry -> "Error: ${event.message}"
+                else -> null // Never expose provider thinking blocks or infer their contents.
+            }
+            if (line != null) { appendLine(line); count++ }
+        }
+        if (count == 0) appendLine(if (isRunning && index == entries.indexOfLast { it is AgentConsoleEntry.ThinkingEntry })
+            "Waiting for the next observable action…" else "No observable actions in this iteration.")
+    }.trimEnd()
 }
 
 // ── Helper data holder ──────────────────────────────────────────────────────
