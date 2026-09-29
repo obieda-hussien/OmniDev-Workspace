@@ -133,17 +133,16 @@ object ModeOutcomeLearner {
             writeStats(prefs, bucket, mode, next)
             touchBucket(prefs, bucket)
             if (outcome != Outcome.ABANDONED) {
-                // A reported success without verification is too weak to teach the predictor.
-                if (verified || outcome == Outcome.FAILURE) {
-                    val key = "model_${mode.name.lowercase()}"
-                    val features = ModeDecisionModel.features(IntentClassifier.analyze(normalizedRequest))
-                    val weights = ModeDecisionModel.decode(prefs.getString(key, null))
-                    val updated = ModeDecisionModel.updated(
-                        weights, features, outcome == Outcome.SUCCESS,
-                        if (verified) 1f else 0.35f
-                    )
-                    prefs.edit().putString(key, ModeDecisionModel.encode(updated)).apply()
-                }
+                // Unverified success is weak evidence; an infrastructure failure may not reflect
+                // mode quality either. Neither can dominate one verified result.
+                val key = "model_${mode.name.lowercase()}"
+                val features = ModeDecisionModel.features(IntentClassifier.analyze(normalizedRequest))
+                val weights = ModeDecisionModel.decode(prefs.getString(key, null))
+                val updated = ModeDecisionModel.updated(
+                    weights, features, outcome == Outcome.SUCCESS,
+                    if (verified) 1f else if (outcome == Outcome.FAILURE) 0.35f else 0.20f
+                )
+                prefs.edit().putString(key, ModeDecisionModel.encode(updated)).apply()
             }
             appendDecision(prefs, "$bucket|${mode.name}|${outcome.name}|${if (verified) 1 else 0}|${boundedTokens ?: 0}|${durationMs.coerceAtLeast(0)}|${iterations.coerceAtLeast(0)}")
         }
@@ -256,15 +255,16 @@ object ModeOutcomeLearner {
         val learnedTeam = prefs?.getString("model_swarm", null)?.let {
             ModeDecisionModel.probability(ModeDecisionModel.decode(it), features)
         }
-        // The predictor is advisory and only compares modes with verified wins on this bucket.
-        if (agent.verifiedSuccesses >= 2 && team.verifiedSuccesses >= 2 &&
+        // Sparse, biased feedback is advisory only. Require a mature bucket, a meaningful
+        // prediction margin, non-inferior observed success and non-inferior token cost.
+        if (agent.observations >= 12 && team.observations >= 12 &&
             learnedAgent != null && learnedTeam != null) {
-            if (learnedAgent > learnedTeam + 0.08f &&
+            if (learnedAgent > learnedTeam + 0.12f &&
                 agent.posteriorSuccess >= team.posteriorSuccess - 0.06f &&
-                agentCost.toDouble() <= teamCost.toDouble() * 1.20) return OmniMode.AGENT
-            if (learnedTeam > learnedAgent + 0.08f &&
+                agentCost.toDouble() <= teamCost.toDouble()) return OmniMode.AGENT
+            if (learnedTeam > learnedAgent + 0.12f &&
                 team.posteriorSuccess >= agent.posteriorSuccess - 0.06f &&
-                teamCost.toDouble() <= agentCost.toDouble() * 1.20) return OmniMode.SWARM
+                teamCost.toDouble() <= agentCost.toDouble()) return OmniMode.SWARM
         }
         if (agent.posteriorSuccess >= team.posteriorSuccess - 0.06f &&
             agentCost.toDouble() * 1.20 < teamCost.toDouble()) return OmniMode.AGENT
