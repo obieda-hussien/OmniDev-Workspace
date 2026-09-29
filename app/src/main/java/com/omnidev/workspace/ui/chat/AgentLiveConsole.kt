@@ -447,12 +447,16 @@ internal fun thinkingActivity(
         it !is AgentConsoleEntry.ThinkingEntry && it !is AgentConsoleEntry.ReplyEntry
     }
     return buildString {
-        appendLine("Observable actions and results (not the model's private reasoning):")
-        previousPhase?.let { appendLine("Phase: ${it.phase}${it.detail?.let { detail -> " — $detail" }.orEmpty()}") }
+        appendLine("Public action update and observed events (not private reasoning):")
+        previousPhase?.takeIf { it.phase == "ANALYZE" }?.let {
+            appendLine("Phase: ${it.phase}${it.detail?.let { detail -> " — $detail" }.orEmpty()}")
+        }
         var count = 0
         current.forEach { event ->
             val line = when (event) {
-                is AgentConsoleEntry.PhaseEntry -> "Phase: ${event.phase}${event.detail?.let { " — $it" }.orEmpty()}"
+                is AgentConsoleEntry.PhaseEntry -> if (event.phase == "IMPLEMENT" && !event.detail.isNullOrBlank())
+                    "Before tool execution: ${event.detail}" else
+                    "Phase: ${event.phase}${event.detail?.let { " — $it" }.orEmpty()}"
                 is AgentConsoleEntry.ToolEntry -> "Running ${event.toolName}: ${event.params}"
                 is AgentConsoleEntry.ResultEntry -> "${if (event.isError) "Error" else "Completed"} ${event.toolName}: ${event.snippet}"
                 is AgentConsoleEntry.ContextSummaryEntry -> "Compressed context"
