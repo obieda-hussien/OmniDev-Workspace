@@ -163,6 +163,12 @@ private fun GitHubAgentAccessPanel(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        Text(
+            "This connection also powers Git Manager fetch/pull and, with Write enabled, push. " +
+                "Git Manager accepts only an HTTPS github.com remote from the selected repository root.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         if (connected) {
             Text(
@@ -179,7 +185,7 @@ private fun GitHubAgentAccessPanel(
 
         PermissionSwitchRow(
             title = "Allow agent GitHub access",
-            subtitle = "Lets Omni use the separately authorized account token for GitHub API operations.",
+            subtitle = "Lets Omni use the separate account token for GitHub API and Git Manager remote operations.",
             checked = enabled,
             onCheckedChange = {
                 enabled = it
@@ -189,7 +195,7 @@ private fun GitHubAgentAccessPanel(
 
         PermissionSwitchRow(
             title = "Allow write operations",
-            subtitle = "Create/update repositories, files, branches, issues, PRs, workflows, gists, projects, packages, Codespaces and other resources allowed by the connected token.",
+            subtitle = "Allows Git Manager push and GitHub API writes, within the connected token's permissions.",
             checked = writeEnabled,
             enabled = enabled,
             onCheckedChange = {
