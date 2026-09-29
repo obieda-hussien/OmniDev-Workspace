@@ -1,5 +1,8 @@
 # Omni Ecosystem Integration — Prompt Index
 
+> Historical integration and prompt index. For the current application inventory, five flavors, Room v17, and the local decision engine on PR #119, read [README.md](README.md), [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md), and [DECISION_ENGINE.md](DECISION_ENGINE.md). The prompts below describe design intent and must be reconciled with code before implementation.
+
+
 The coding agent (Jules / Claude Code) only ever works inside **one repo per session**. Each file below is a self-contained prompt for one repo. Feed them **in this order**:
 
 | Order | File | Repo | Phases | Depends on |

@@ -1,4 +1,7 @@
 # OmniDev-Workspace — Integration Prompt
+
+> **Document status (29 September 2026):** Historical integration specification for the Omni ecosystem. Phases and verification notes below reflect their original time and repositories; they are not a current inventory of this Workspace branch. Check [README.md](README.md), [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md), and the relevant external repository before acting on them.
+
 ### Repo: obieda-hussien/OmniDev-Workspace · 8 phases, this repo only
 
 > Fed second, after `01_OmniLinkSDK_PROMPT.md` has shipped a tagged release. This repo consumes that SDK via JitPack (transitional — see the SDK repo's migration note toward GitHub Packages) — it does not build the shared module itself anymore. **Guardrail for every phase below:** Workspace stays a pure orchestrator. It calls typed actions on each satellite app; it never re-implements a satellite app's business logic locally. The moment Workspace starts holding its own copy of note-search logic or photo-filtering logic, that's duplicated business logic waiting to drift out of sync — route around it, don't recreate it.

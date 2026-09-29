@@ -1,4 +1,7 @@
 # OmniPriceWatch — Integration Prompt
+
+> **Document status (29 September 2026):** Historical integration specification for the Omni ecosystem. Phases and verification notes below reflect their original time and repositories; they are not a current inventory of this Workspace branch. Check [README.md](README.md), [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md), and the relevant external repository before acting on them.
+
 ### New repo: obieda-hussien/OmniPriceWatch · 5 phases, this repo only
 
 > Personal-use price/stock tracker, runs entirely on the user's own device (no shared backend, no "deals channel" — every install tracks only its own user's links). Prerequisite: `01_OmniLinkSDK_PROMPT.md` shipped a tag, and `02_OmniDev-Workspace_PROMPT.md` Phase 6 (heartbeat) is live so this app has something to subscribe to.
