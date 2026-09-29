@@ -26,6 +26,7 @@ import com.omnidev.workspace.data.auth.CopilotSessionManager
 import com.omnidev.workspace.data.auth.GitHubDeviceFlowManager
 import com.omnidev.workspace.data.integration.DiscordPollingService
 import com.omnidev.workspace.data.integration.TelegramPollingService
+import com.omnidev.workspace.data.integration.TelegramOwnerLinkStore
 import com.omnidev.workspace.data.integration.WhatsAppBridgeService
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.repository.ApiKeyRepository
@@ -82,6 +83,20 @@ fun IntegrationsScreen(
     // Telegram
     var telegramToken by remember { mutableStateOf("") }
     var telegramChatId by remember { mutableStateOf("") }
+    val telegramLinkStore = remember(context) { TelegramOwnerLinkStore(context) }
+    var telegramOwner by remember { mutableStateOf<TelegramOwnerLinkStore.Owner?>(null) }
+    var telegramPairCode by remember { mutableStateOf<String?>(null) }
+    var telegramLinkStatus by remember { mutableStateOf<String?>(null) }
+    var telegramBotRunning by remember { mutableStateOf(TelegramPollingService.isRunning) }
+
+    fun stopTelegramListener() {
+        if (telegramBotRunning || TelegramPollingService.isRunning) {
+            context.startService(Intent(context, TelegramPollingService::class.java).apply {
+                action = TelegramPollingService.ACTION_STOP
+            })
+            telegramBotRunning = false
+        }
+    }
 
     // Discord Webhook (legacy)
     var discordWebhookUrl by remember { mutableStateOf("") }
@@ -132,6 +147,7 @@ fun IntegrationsScreen(
         githubModelsPat = repo.getApiKey(ModelProvider.GITHUB_MODELS) ?: ""
         telegramToken = settingsRepository.observeTelegramBotToken().first() ?: ""
         telegramChatId = settingsRepository.observeTelegramChatId().first() ?: ""
+        telegramOwner = telegramLinkStore.owner(telegramToken)
         discordWebhookUrl = settingsRepository.observeDiscordWebhookUrl().first() ?: ""
         discordBotToken = settingsRepository.observeDiscordBotToken().first() ?: ""
         discordListenerChannelId = settingsRepository.observeDiscordListenerChannelId().first() ?: ""
@@ -539,8 +555,49 @@ fun IntegrationsScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
+            Text(
+                "Remote Agent/Swarm access is private and requires linking your personal Telegram chat. " +
+                    "The Chat ID above is for outgoing messages and does not grant agent access.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                telegramOwner?.let { "Linked owner: user ${it.userId} · chat ${it.chatId}" }
+                    ?: "No owner linked. The listener will ignore commands until pairing is complete.",
+                style = MaterialTheme.typography.bodySmall
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    scope.launch {
+                        val savedToken = settingsRepository.observeTelegramBotToken().first()
+                        if (savedToken.isNullOrBlank() || savedToken != telegramToken) {
+                            telegramLinkStatus = "Save the Bot Token before creating a pairing code."
+                        } else runCatching { telegramLinkStore.createPairingCode(savedToken) }
+                            .onSuccess { telegramPairCode = it; telegramLinkStatus = null }
+                            .onFailure { telegramLinkStatus = "Secure pairing storage is unavailable." }
+                    }
+                }) { Text("Create pairing code") }
+                OutlinedButton(onClick = {
+                    telegramOwner = telegramLinkStore.owner(telegramToken)
+                }) { Text("Refresh link") }
+            }
+            telegramPairCode?.let { code ->
+                Text("Send /pair $code to your bot in a private chat within 10 minutes. " +
+                    "The code works once and expires after five incorrect attempts.",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace)
+            }
+            if (telegramOwner != null) {
+                OutlinedButton(onClick = {
+                    telegramLinkStore.revoke()
+                    stopTelegramListener()
+                    telegramOwner = null
+                    telegramPairCode = null
+                }) { Text("Revoke Telegram owner") }
+            }
+            telegramLinkStatus?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
             // Telegram Bot Listener toggle (OpenClaw-style polling)
-            var telegramBotRunning by remember { mutableStateOf(TelegramPollingService.isRunning) }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -965,6 +1022,13 @@ fun IntegrationsScreen(
                 onClick = {
                     scope.launch {
                         try {
+                            val priorToken = settingsRepository.observeTelegramBotToken().first()
+                            if (priorToken != telegramToken.ifBlank { null }) {
+                                stopTelegramListener()
+                                telegramLinkStore.revoke()
+                                telegramOwner = null
+                                telegramPairCode = null
+                            }
                             settingsRepository.setTelegramBotToken(telegramToken.ifBlank { null })
                             settingsRepository.setTelegramChatId(telegramChatId.ifBlank { null })
                             settingsRepository.setDiscordWebhookUrl(discordWebhookUrl.ifBlank { null })
@@ -991,4 +1055,3 @@ fun IntegrationsScreen(
         }
     }
 }
-
