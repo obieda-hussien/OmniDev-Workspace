@@ -93,6 +93,7 @@ class SettingsRepository(private val context: Context) {
         // WhatsApp Baileys Bridge (self-hosted Node.js bridge using Baileys library)
         val WHATSAPP_BRIDGE_URL = stringPreferencesKey("whatsapp_bridge_url")
         val WHATSAPP_BRIDGE_PHONE = stringPreferencesKey("whatsapp_bridge_phone")
+        val WHATSAPP_BRIDGE_API_KEY = stringPreferencesKey("whatsapp_bridge_api_key")
         val WHATSAPP_BRIDGE_ENABLED = booleanPreferencesKey("whatsapp_bridge_enabled")
         val NOTION_API_KEY = stringPreferencesKey("notion_api_key")
         val NOTION_DATABASE_ID = stringPreferencesKey("notion_database_id")
@@ -405,6 +406,16 @@ class SettingsRepository(private val context: Context) {
         context.settingsDataStore.edit { prefs ->
             if (phone.isNullOrBlank()) prefs.remove(Keys.WHATSAPP_BRIDGE_PHONE)
             else prefs[Keys.WHATSAPP_BRIDGE_PHONE] = phone
+        }
+    }
+
+    fun observeWhatsAppBridgeApiKey(): Flow<String?> =
+        context.settingsDataStore.data.map { it[Keys.WHATSAPP_BRIDGE_API_KEY] }
+
+    suspend fun setWhatsAppBridgeApiKey(key: String?) {
+        context.settingsDataStore.edit { prefs ->
+            if (key.isNullOrBlank()) prefs.remove(Keys.WHATSAPP_BRIDGE_API_KEY)
+            else prefs[Keys.WHATSAPP_BRIDGE_API_KEY] = key
         }
     }
 

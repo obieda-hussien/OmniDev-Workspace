@@ -51,6 +51,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 import java.util.Collections
 import java.util.LinkedHashMap
 
@@ -66,12 +67,11 @@ import java.util.LinkedHashMap
  * - **SWARM** — Multi-agent orchestration (SwarmOrchestrator → workers).
  *
  * ## Conversation mirroring
- * All Telegram conversations are mirrored to [telegramMessages] — a static [StateFlow] that
+ * Authorized Telegram conversations are mirrored to [telegramMessages] — a static [StateFlow] that
  * any screen in the app can collect to display an in-app Telegram conversation view.
  *
  * ## Tool commands
- * On startup the service calls `setMyCommands` to register every available tool as a `/command`
- * in Telegram, so users can type `/` and see the full list of capabilities.
+ * On startup the service calls `setMyCommands` to register the supported commands.
  *
  * Requires `TELEGRAM_BOT_TOKEN` to be configured in Settings → Integrations.
  */
@@ -185,6 +185,26 @@ class TelegramPollingService : Service() {
     private val settingsRepository: SettingsRepository by lazy {
         SettingsRepository(applicationContext)
     }
+    private val ownerLinkStore by lazy { TelegramOwnerLinkStore(applicationContext) }
+    private val offsetPrefs by lazy { getSharedPreferences("telegram_poll_cursor_v1", MODE_PRIVATE) }
+
+    private fun tokenFingerprint(token: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(token.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+
+    private fun restoreOffset(token: String) {
+        nextOffset = if (offsetPrefs.getString("token_hash", null) == tokenFingerprint(token))
+            offsetPrefs.getLong("next_offset", 0L) else 0L
+    }
+
+    private fun advanceOffset(token: String, updateId: Long) {
+        if (updateId < nextOffset) return
+        nextOffset = updateId + 1
+        if (!offsetPrefs.edit().putString("token_hash", tokenFingerprint(token))
+                .putLong("next_offset", nextOffset).commit()) {
+            android.util.Log.w("TelegramPolling", "Unable to persist Telegram update offset")
+        }
+    }
     private val apiKeyRepository: ApiKeyRepository by lazy {
         ApiKeyRepository(applicationContext)
     }
@@ -283,23 +303,46 @@ class TelegramPollingService : Service() {
                 stopSelf()
                 return@launch
             }
+            restoreOffset(token)
 
             val botUsername = fetchBotUsername(token) ?: "OmniBot"
             updateNotification("✅ $botUsername listening — use /mode_agent or /mode_swarm to upgrade a chat")
 
-            // Register all tool definitions as Telegram slash commands
+            // Telegram commands are hints, never a substitute for authorization.
             launch { registerBotCommands(token) }
 
             while (isActive) {
                 try {
+                    if (settingsRepository.observeTelegramBotToken().first() != token) {
+                        stopSelf()
+                        return@launch
+                    }
                     val updates = fetchUpdates(token, nextOffset)
                     for (update in updates) {
                         val updateId = update.optLong("update_id")
-                        if (updateId >= nextOffset) nextOffset = updateId + 1
-
-                        val msg = update.optJSONObject("message")
-                            ?: update.optJSONObject("edited_message")
-                            ?: continue
+                        if (updateId < nextOffset) continue
+                        try {
+                        // Edits must never re-execute an earlier command or tool call.
+                        val msg = update.optJSONObject("message") ?: continue
+                        val chatObj = msg.optJSONObject("chat") ?: continue
+                        val chatId = chatObj.optLong("id")
+                        val messageId = msg.optLong("message_id")
+                        val fromObj = msg.optJSONObject("from") ?: continue
+                        if (fromObj.optBoolean("is_bot")) continue
+                        val userId = fromObj.optLong("id")
+                        val chatType = chatObj.optString("type")
+                        val rawText = msg.optString("text", "").trim()
+                        if (rawText.substringBefore(' ').substringBefore('@').equals("/pair", ignoreCase = true)) {
+                            if (TelegramOwnerLinkStore.isPrivateOwnerChat(chatId, userId, chatType)) {
+                                val code = rawText.substringAfter(' ', "").trim()
+                                val linked = ownerLinkStore.pair(token, chatId, userId, chatType, code)
+                                sendReply(token, chatId, messageId, if (linked)
+                                    "✅ This private chat is linked to OmniDev. Use /help to get started."
+                                else "⚠️ Pairing code is invalid or expired. Generate a new code in OmniDev settings.")
+                            }
+                            continue
+                        }
+                        if (!ownerLinkStore.isAuthorized(token, chatId, userId, chatType)) continue
 
                         // Extract text or a human-readable description of media content
                         val text: String = when {
@@ -358,15 +401,11 @@ class TelegramPollingService : Service() {
                         }
                         if (text.isBlank()) continue
 
-                        val chatObj = msg.optJSONObject("chat") ?: continue
-                        val chatId = chatObj.optLong("id")
-                        val messageId = msg.optLong("message_id")
-                        val fromObj = msg.optJSONObject("from")
-                        val senderName = fromObj?.let {
+                        val senderName = fromObj.let {
                             val fn = it.optString("first_name", "")
                             val un = it.optString("username", "")
                             if (un.isNotBlank()) "@$un" else fn
-                        } ?: "User"
+                        }.ifBlank { "User" }
 
                         // Cache chat display name for mirroring
                         val chatTitle = chatObj.optString("title")
@@ -386,9 +425,14 @@ class TelegramPollingService : Service() {
                             )
                         )
 
-                        launch { handleIncoming(token, chatId, messageId, senderName, text) }
+                        handleIncoming(token, chatId, messageId, senderName, text)
+                        } finally {
+                            // Commit after handling, including ignored updates, to prevent replays on restart.
+                            advanceOffset(token, updateId)
+                        }
                     }
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    android.util.Log.w("TelegramPolling", "Polling failed: ${e.message}")
                     delay(5_000)
                 }
                 delay(POLL_INTERVAL_MS)
@@ -442,9 +486,6 @@ class TelegramPollingService : Service() {
             }
 
             "/help" -> {
-                val toolList = toolManager.getToolDefinitions()
-                    .take(20)
-                    .joinToString("\n") { "  • `${it.name}` — ${it.description?.take(60) ?: ""}" }
                 sendReply(token, chatId, messageId,
                     "*Omni — available commands:*\n\n" +
                     "🎛️ *Modes:*\n" +
@@ -456,8 +497,7 @@ class TelegramPollingService : Service() {
                     "/new\\_session [name] — start a new session and save the current one\n" +
                     "/sessions — show saved sessions\n" +
                     "/clear — clear the current conversation context\n\n" +
-                    "🛠️ *Examples of available tools:*\n$toolList\n\n" +
-                    "_Type / to see the complete command list_")
+                    "Agent and Swarm modes use the Target Context configured in OmniDev settings.")
                 return
             }
 
@@ -470,6 +510,11 @@ class TelegramPollingService : Service() {
             }
 
             "/mode_agent" -> {
+                if (configuredScope() == null) {
+                    sendReply(token, chatId, messageId,
+                        "⚠️ Set a specific Target Context in OmniDev settings before enabling Agent mode.")
+                    return
+                }
                 chatModes[chatId] = OmniMode.AGENT
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
@@ -480,6 +525,11 @@ class TelegramPollingService : Service() {
             }
 
             "/mode_swarm" -> {
+                if (configuredScope() == null) {
+                    sendReply(token, chatId, messageId,
+                        "⚠️ Set a specific Target Context in OmniDev settings before enabling Swarm mode.")
+                    return
+                }
                 chatModes[chatId] = OmniMode.SWARM
                 sessionHistory.remove(chatId)
                 sendReply(token, chatId, messageId,
@@ -643,6 +693,9 @@ class TelegramPollingService : Service() {
 
     // ── Agent mode (ReAct loop with tools) ────────────────────────────────
 
+    private suspend fun configuredScope(): String? = settingsRepository.observeTargetContext().first()
+        ?.takeIf { it.isNotBlank() && it != "/" }
+
     /**
      * Runs [block] while periodically refreshing the Telegram typing indicator.
      * Cancels the typing coroutine when done.
@@ -668,11 +721,13 @@ class TelegramPollingService : Service() {
         text: String
     ): String {
         return try {
+            val scope = configuredScope() ?: return "⚠️ Set a specific Target Context in OmniDev settings."
             val modelId = settingsRepository.observeModelIdForRole(ModelRole.AGENT).first()
             val persona = settingsRepository.observeUserPersona().first()
             val history = sessionHistory.getOrPut(chatId) { mutableListOf() }
 
             val replyBuilder = StringBuilder()
+            val streamBuilder = StringBuilder()
             val toolLog = StringBuilder()
 
             val result = withTypingIndicator(token, chatId) {
@@ -681,15 +736,19 @@ class TelegramPollingService : Service() {
                         userMessage = text,
                         conversationHistory = history.toList(),
                         modelId = modelId,
-                        scopePath = "/",
+                        scopePath = scope,
                         userContext = if (!persona.isNullOrBlank()) persona else null
                     ).collect { event ->
                         when (event) {
-                            is AgentEvent.FinalAnswer -> replyBuilder.append(event.content)
+                            is AgentEvent.FinalAnswer -> {
+                                replyBuilder.clear()
+                                replyBuilder.append(event.content)
+                            }
                             is AgentEvent.ToolExecution ->
                                 toolLog.append("\n🛠 `${event.toolName}` — iteration ${event.iteration}")
                             is AgentEvent.Error -> replyBuilder.append("\n⚠️ ${event.message}")
-                            is AgentEvent.StreamChunk -> replyBuilder.append(event.delta)
+                            is AgentEvent.StreamChunk -> if (streamBuilder.length < 30_000)
+                                streamBuilder.append(event.delta)
                             else -> Unit
                         }
                     }
@@ -703,20 +762,21 @@ class TelegramPollingService : Service() {
             }
 
             // Store the exchange in session history
-            if (replyBuilder.isNotBlank()) {
+            val answer = replyBuilder.toString().ifBlank { streamBuilder.toString() }
+            if (answer.isNotBlank()) {
                 while (history.size > MAX_HISTORY_MSGS) {
                     history.removeAt(0)
                     if (history.isNotEmpty()) history.removeAt(0)
                 }
                 history.add(ChatMessage(role = MessageRole.USER, content = "$senderName: $text"))
-                history.add(ChatMessage(role = MessageRole.ASSISTANT, content = replyBuilder.toString()))
+                history.add(ChatMessage(role = MessageRole.ASSISTANT, content = answer))
             }
 
             val suffix = if (toolLog.isNotEmpty())
                 "\n\n_⚙️ Tools used:${toolLog}_"
             else ""
 
-            (replyBuilder.toString().trim() + suffix).ifBlank {
+            (answer.trim() + suffix).ifBlank {
                 "✅ Task completed. (The agent did not produce a text response.)"
             }
         } catch (e: Exception) {
@@ -728,6 +788,7 @@ class TelegramPollingService : Service() {
 
     private suspend fun handleSwarmMode(token: String, chatId: Long, text: String): String {
         return try {
+            val scope = configuredScope() ?: return "⚠️ Set a specific Target Context in OmniDev settings."
             val orchestratorModelId = settingsRepository
                 .observeModelIdForRole(ModelRole.SWARM_ORCHESTRATOR).first()
             val workerModelId = settingsRepository
@@ -741,7 +802,7 @@ class TelegramPollingService : Service() {
                         userMessage = text,
                         orchestratorModelId = orchestratorModelId,
                         workerModelId = workerModelId,
-                        scopePath = "/"
+                        scopePath = scope
                     ).collect { event ->
                         when (event) {
                             is com.omnidev.workspace.domain.engine.SwarmEvent.Completed ->
@@ -773,14 +834,14 @@ class TelegramPollingService : Service() {
     // ── Register bot commands via setMyCommands ────────────────────────────
 
     /**
-     * Registers all available tool definitions as Telegram slash-commands so the
-     * user can type `/` in Telegram and see the full tool list.
-     * Built-in utility commands are listed first, then all agent tools.
+     * Registers supported commands. Tool definitions are invoked through Agent mode,
+     * and are not standalone Telegram slash commands.
      */
     private suspend fun registerBotCommands(token: String) = withContext(Dispatchers.IO) {
         try {
             val builtIn = listOf(
                 "start" to "Start a conversation with Omni",
+                "pair" to "Link this private chat with a code from OmniDev",
                 "help" to "Show available commands and tools",
                 "clear" to "Clear conversation history",
                 "status" to "Show mode and statistics",
@@ -791,25 +852,8 @@ class TelegramPollingService : Service() {
                 "mode_swarm" to "Enable multi-agent Swarm mode 🐝"
             )
 
-            // Sanitize tool names to valid Telegram command format (a-z, 0-9, underscore only)
-            val toolCommands = toolManager.getToolDefinitions()
-                .map { tool ->
-                    val safeName = tool.name
-                        .lowercase()
-                        .replace(Regex("[^a-z0-9_]"), "_")
-                        .take(32)
-                    val safeDesc = (tool.description ?: "Run ${tool.name}").take(255)
-                    safeName to safeDesc
-                }
-                .filter { (name, _) -> name.isNotBlank() }
-
-            // Merge built-in first, then tools; keep first occurrence on name collision
-            val allCommands = (builtIn + toolCommands)
-                .distinctBy { it.first }
-                .take(100)  // Telegram hard limit: 100 commands
-
             val arr = JSONArray()
-            allCommands.forEach { (cmd, desc) ->
+            builtIn.forEach { (cmd, desc) ->
                 arr.put(JSONObject().apply {
                     put("command", cmd)
                     put("description", desc)
@@ -829,7 +873,7 @@ class TelegramPollingService : Service() {
             conn.disconnect()
             if (responseCode !in 200..299) {
                 android.util.Log.w("TelegramPolling",
-                    "setMyCommands returned HTTP $responseCode for ${allCommands.size} commands")
+                    "setMyCommands returned HTTP $responseCode")
             }
         } catch (e: Exception) {
             android.util.Log.e("TelegramPolling", "Failed to register bot commands: ${e.message}", e)
@@ -842,8 +886,8 @@ class TelegramPollingService : Service() {
         withContext(Dispatchers.IO) {
             val urlStr = "https://api.telegram.org/bot$token/getUpdates" +
                 "?offset=$offset&limit=50&timeout=$LONG_POLL_TIMEOUT_SEC"
+            val conn = URL(urlStr).openConnection() as HttpURLConnection
             try {
-                val conn = URL(urlStr).openConnection() as HttpURLConnection
                 conn.requestMethod = "GET"
                 conn.connectTimeout = (LONG_POLL_TIMEOUT_SEC + 10) * 1_000
                 conn.readTimeout = (LONG_POLL_TIMEOUT_SEC + 15) * 1_000
@@ -851,14 +895,13 @@ class TelegramPollingService : Service() {
                 val body = if (code in 200..299)
                     conn.inputStream.bufferedReader().readText()
                 else conn.errorStream?.bufferedReader()?.readText() ?: ""
-                conn.disconnect()
-                if (code !in 200..299) return@withContext emptyList()
+                if (code !in 200..299) throw java.io.IOException("getUpdates returned HTTP $code: ${body.take(200)}")
                 val json = JSONObject(body)
-                if (!json.optBoolean("ok", false)) return@withContext emptyList()
+                if (!json.optBoolean("ok", false)) throw java.io.IOException("getUpdates rejected request")
                 val arr = json.optJSONArray("result") ?: return@withContext emptyList()
                 (0 until arr.length()).map { arr.getJSONObject(it) }
-            } catch (_: Exception) {
-                emptyList()
+            } finally {
+                conn.disconnect()
             }
         }
 
@@ -869,22 +912,37 @@ class TelegramPollingService : Service() {
                     val body = JSONObject().apply {
                         put("chat_id", chatId)
                         put("text", chunk)
-                        put("parse_mode", "Markdown")
                         if (idx == 0) put("reply_to_message_id", replyToId)
                     }
-                    val conn = URL("https://api.telegram.org/bot$token/sendMessage")
-                        .openConnection() as HttpURLConnection
-                    conn.requestMethod = "POST"
-                    conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-                    conn.doOutput = true
-                    conn.connectTimeout = 15_000
-                    conn.readTimeout = 15_000
-                    conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
-                    conn.responseCode
-                    conn.disconnect()
+                    val firstCode = postTelegramMessage(token, body)
+                    if (firstCode !in 200..299 && idx == 0) {
+                        body.remove("reply_to_message_id")
+                        val retryCode = postTelegramMessage(token, body)
+                        if (retryCode !in 200..299) throw java.io.IOException("sendMessage HTTP $retryCode")
+                    } else if (firstCode !in 200..299) {
+                        throw java.io.IOException("sendMessage HTTP $firstCode")
+                    }
                 }
-            } catch (_: Exception) { /* best effort */ }
+            } catch (e: Exception) {
+                android.util.Log.w("TelegramPolling", "Unable to send Telegram reply: ${e.message}")
+            }
         }
+
+    private fun postTelegramMessage(token: String, body: JSONObject): Int {
+        val conn = URL("https://api.telegram.org/bot$token/sendMessage")
+            .openConnection() as HttpURLConnection
+        try {
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+            conn.doOutput = true
+            conn.connectTimeout = 15_000
+            conn.readTimeout = 15_000
+            conn.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            return conn.responseCode
+        } finally {
+            conn.disconnect()
+        }
+    }
 
     private suspend fun sendTypingAction(token: String, chatId: Long) =
         withContext(Dispatchers.IO) {
