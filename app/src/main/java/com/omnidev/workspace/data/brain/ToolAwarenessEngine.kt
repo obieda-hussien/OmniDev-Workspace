@@ -263,7 +263,7 @@ class ToolAwarenessEngine(
             saveOrUpdateKnowledge(
                 TYPE_ENVIRONMENT,
                 "git",
-                "Git is available through Termux at ${runtime.path}. Prefer git_manager for structured repository operations and agent_runtime for raw git CLI work.",
+                "Git CLI is available through Termux at ${runtime.path}. git_manager uses embedded JGit for structured local and GitHub operations; use agent_runtime only for raw CLI work.",
                 confidence = 1.0f,
                 priority = 3,
                 tags = "git,termux,vcs"
