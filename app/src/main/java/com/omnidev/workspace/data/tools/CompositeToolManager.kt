@@ -687,7 +687,8 @@ class CompositeToolManager(
                 val phoneNumberId = settingsRepository?.observeWhatsAppPhoneNumberId()?.first()
                 val accessToken   = settingsRepository?.observeWhatsAppAccessToken()?.first()
                 val bridgeUrl = settingsRepository?.observeWhatsAppBridgeUrl()?.first()
-                WhatsAppTool.execute(phoneNumberId, accessToken, bridgeUrl, arguments)
+                val bridgeKey = settingsRepository?.observeWhatsAppBridgeApiKey()?.first()
+                WhatsAppTool.execute(phoneNumberId, accessToken, bridgeUrl, bridgeKey, arguments)
             }
 
             // ── Slack tool ──
