@@ -6,6 +6,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import com.omnidev.workspace.data.integration.WhatsAppBridgeClient
 
 /**
  * AI-callable WhatsApp Business Cloud API tool.
@@ -30,7 +31,7 @@ object WhatsAppTool {
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "whatsapp",
-            description = "WhatsApp Business Cloud API integration. Actions: send_message, " +
+            description = "WhatsApp Business Cloud API or local Termux Baileys bridge. Actions: send_message, " +
                 "send_image, send_document, send_location, send_contact, send_template, " +
                 "send_reaction, mark_read, get_profile. " +
                 "Requires WhatsApp Phone Number ID and Access Token in Settings → Integrations.",
@@ -41,6 +42,7 @@ object WhatsAppTool {
                         "send_contact, send_template, send_reaction, mark_read, get_profile.",
                     required = true
                 ),
+                ToolParameter("transport", "string", "auto, cloud or bridge. Bridge supports own-chat send_message only.", required = false),
                 ToolParameter("to", "string", "Recipient's WhatsApp number in international format e.g. 201012345678.", required = false),
                 ToolParameter("message", "string", "Text body for send_message.", required = false),
                 ToolParameter("message_id", "string", "Message ID for mark_read / send_reaction.", required = false),
@@ -63,23 +65,22 @@ object WhatsAppTool {
         )
     )
 
-    suspend fun execute(phoneNumberId: String?, accessToken: String?, bridgeUrl: String?, args: Map<String, String>): ToolExecutionResult = withContext(Dispatchers.IO) {
+    suspend fun execute(phoneNumberId: String?, accessToken: String?, bridgeUrl: String?, bridgeApiKey: String?, args: Map<String, String>): ToolExecutionResult = withContext(Dispatchers.IO) {
         val action = args["action"] ?: return@withContext ToolExecutionResult("action is required.", isError = true)
+        val transport = args["transport"] ?: "auto"
+        if (transport !in setOf("auto", "cloud", "bridge")) return@withContext ToolExecutionResult("Unknown transport.", isError = true)
 
         // 1. Primary Path: Cloud API
-        if (!phoneNumberId.isNullOrBlank() && !accessToken.isNullOrBlank()) {
-            val res = executeCloud(phoneNumberId, accessToken, action, args)
-            if (!res.isError) return@withContext res
-            // Fall through if error
+        if (transport != "bridge" && !phoneNumberId.isNullOrBlank() && !accessToken.isNullOrBlank()) {
+            return@withContext executeCloud(phoneNumberId, accessToken, action, args)
         }
 
         // 2. Fallback 1: WhatsAppBridgeService IPC
-        if (com.omnidev.workspace.data.integration.WhatsAppBridgeService.isRunning) {
-            val bridgeUrlFinal = bridgeUrl ?: "http://localhost:3000"
-            val res = executeBridge(bridgeUrlFinal, action, args)
-            if (!res.isError) return@withContext res
-            // Fall through if error
+        if (transport != "cloud" && !bridgeUrl.isNullOrBlank() && !bridgeApiKey.isNullOrBlank()) {
+            return@withContext executeBridge(bridgeUrl, bridgeApiKey, action, args)
         }
+
+        if (transport != "auto") return@withContext ToolExecutionResult("$transport transport is not configured.", isError = true)
 
         // 3. Fallback 2: OmniAccessibilityService UI Automation
         return@withContext executeAccessibility(action, args)
@@ -137,9 +138,24 @@ object WhatsAppTool {
 
 
     // ── Bridge UI Fallback (Partial via API if bridging) ──
-    private suspend fun executeBridge(bridgeUrl: String, action: String, args: Map<String, String>): ToolExecutionResult {
-        // Simple bridge stub for fallback
-        return ToolExecutionResult("Fallback bridge currently only routes. Use UI automation if needed.", isError = true)
+    private fun executeBridge(bridgeUrl: String, apiKey: String, action: String, args: Map<String, String>): ToolExecutionResult {
+        if (action != "send_message") return ToolExecutionResult(
+            "The local Baileys bridge supports send_message only; configure Cloud API for $action.", isError = true)
+        val to = args["to"]?.filter(Char::isDigit)
+            ?: return ToolExecutionResult("to is required.", isError = true)
+        val message = args["message"]?.takeIf { it.isNotBlank() }
+            ?: return ToolExecutionResult("message is required.", isError = true)
+        return try {
+            val client = WhatsAppBridgeClient(bridgeUrl, apiKey)
+            val owner = client.status().getString("ownerJid")
+            if ("$to@s.whatsapp.net" != owner) return ToolExecutionResult(
+                "The local bridge only allows sending to the linked owner's own chat.", isError = true)
+            val id = java.util.UUID.randomUUID().toString()
+            val result = client.send(owner, message, id)
+            ToolExecutionResult("✅ Message sent via Termux bridge. ID: ${result.optString("id")}")
+        } catch (e: Exception) {
+            ToolExecutionResult("Baileys bridge error: ${e.message}", isError = true)
+        }
     }
 
     private fun sendMessage(phoneNumberId: String, token: String, args: Map<String, String>): ToolExecutionResult {
