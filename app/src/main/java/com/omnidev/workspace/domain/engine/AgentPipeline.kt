@@ -236,6 +236,7 @@ Do not use tools. Do not rewrite merely for style.
             minIterationsBeforeAbort = 3,
             abortThreshold = 0.76f
         )
+        var lastToolObservation: String? = null
 
         while (iteration < config.maxIterations) {
             iteration++
@@ -391,7 +392,6 @@ Do not use tools. Do not rewrite merely for style.
                 return@channelFlow
             }
 
-            phase(AgentExecutionPhase.IMPLEMENT, "Executing planned tool operations")
             messages += ChatMessage(
                 role = MessageRole.ASSISTANT,
                 content = response.content,
@@ -410,6 +410,22 @@ Do not use tools. Do not rewrite merely for style.
                     return@channelFlow
                 }
             }
+
+            // Public assistant content accompanying tool calls is a status update, not
+            // provider-private reasoning. Some providers send no such text, so use a
+            // factual fallback based on the previous result and selected tool names.
+            val publicNote = response.content.trim()
+                .takeUnless { it.contains("<think", ignoreCase = true) ||
+                    it.contains("chain of thought", ignoreCase = true) }
+                ?.takeIf(String::isNotBlank)
+                ?.let { SensitiveObservationRedactor.redact(it).take(900) }
+            val nextActions = response.toolCalls.joinToString(", ") { it.name }.take(180)
+            val actionUpdate = publicNote ?: buildString {
+                lastToolObservation?.let { append("Previous result: ").append(it).append(". ") }
+                append("Next action: ").append(nextActions)
+            }
+            activePhase = AgentExecutionPhase.IMPLEMENT
+            send(AgentEvent.PhaseChanged(AgentExecutionPhase.IMPLEMENT, actionUpdate))
 
             response.toolCalls.forEach { call ->
                 send(AgentEvent.ToolExecution(call.name, call.arguments, iteration))
@@ -431,6 +447,9 @@ Do not use tools. Do not rewrite merely for style.
                     output = SensitiveObservationRedactor.redact(result.output)
                 )
                 send(AgentEvent.ToolResult(call.name, modelSafe.output, modelSafe.isError, iteration))
+                lastToolObservation = "${call.name} ${if (modelSafe.isError) "failed" else "returned"}: " +
+                    SensitiveObservationRedactor.redact(modelSafe.output.lineSequence().firstOrNull().orEmpty())
+                        .take(160)
                 modelSafeResults += modelSafe
                 toolResults += ToolCallResult(call.id, call.name, modelSafe.output, modelSafe.isError)
                 brain?.onToolExecutionEnd(

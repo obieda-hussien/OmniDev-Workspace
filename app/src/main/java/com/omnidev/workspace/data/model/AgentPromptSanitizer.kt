@@ -41,6 +41,7 @@ object AgentPromptSanitizer {
             appendLine("## OBSERVABLE AGENT POLICY")
             appendLine("Keep private chain-of-thought internal. Do not print hidden reasoning or <thinking> blocks.")
             appendLine("Expose only concise operational telemetry: objective, selected capability/domain, tool action, verification result, and blockers.")
+            appendLine("When calling a tool, if the provider supports assistant text alongside the tool call, include one brief PUBLIC action update in the assistant content: relevant prior observation and the next action. Keep private reasoning internal; never invent a result.")
             appendLine("Prefer deterministic tool evidence over narrated reasoning.")
             appendLine()
             appendLine("Execution domains are strict:")
