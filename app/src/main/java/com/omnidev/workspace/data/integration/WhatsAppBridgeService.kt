@@ -33,6 +33,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,9 +43,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
+import java.security.MessageDigest
 import java.util.Collections
 import java.util.LinkedHashMap
 
@@ -172,7 +171,10 @@ class WhatsAppBridgeService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var pollingJob: Job? = null
     private var bridgeUrl: String = ""
-    private var lastMessageTimestamp: Long = System.currentTimeMillis()
+    private lateinit var bridgeClient: WhatsAppBridgeClient
+    private val cursorPrefs by lazy { getSharedPreferences("whatsapp_bridge_cursor_v1", MODE_PRIVATE) }
+    private var lastMessageId = 0L
+    private var activeMessageId = 0L
 
     private val chatModes: MutableMap<String, OmniMode> = Collections.synchronizedMap(
         object : LinkedHashMap<String, OmniMode>(MAX_SESSIONS, 0.75f, true) {
@@ -205,15 +207,46 @@ class WhatsAppBridgeService : Service() {
         startForeground(NOTIFICATION_ID, buildNotification("📱 WhatsApp Bridge connecting…"))
         isRunning = true
 
-        serviceScope.launch {
+        pollingJob?.cancel()
+        pollingJob = serviceScope.launch {
+            try {
             bridgeUrl = settingsRepository.observeWhatsAppBridgeUrl().first()?.trimEnd('/') ?: ""
-            if (bridgeUrl.isBlank()) {
-                updateNotification("⚠️ WhatsApp Bridge URL not configured. Open Settings → Integrations.")
-                stopSelf()
-                return@launch
+            val key = settingsRepository.observeWhatsAppBridgeApiKey().first().orEmpty()
+            bridgeClient = WhatsAppBridgeClient(bridgeUrl, key)
+            val identity = MessageDigest.getInstance("SHA-256")
+                .digest("$bridgeUrl:$key".toByteArray(Charsets.UTF_8))
+                .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+            lastMessageId = if (cursorPrefs.getString("identity", null) == identity)
+                cursorPrefs.getLong("cursor", 0L) else 0L
+            updateNotification("WhatsApp Bridge listener active — checking connection")
+            while (isActive) {
+                try {
+                    pollMessages(identity)
+                    delay(POLL_INTERVAL_MS)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: WhatsAppBridgeClient.BridgeException) {
+                    if (e.status == 410) {
+                        val oldest = bridgeClient.messages(0).optJSONArray("messages")?.optJSONObject(0)?.optLong("id") ?: 1L
+                        lastMessageId = oldest - 1
+                        cursorPrefs.edit().putString("identity", identity).putLong("cursor", lastMessageId).commit()
+                    }
+                    android.util.Log.w("WhatsAppBridge", "Bridge HTTP ${e.status}: ${e.message}")
+                    delay(5_000)
+                } catch (e: Exception) {
+                    android.util.Log.w("WhatsAppBridge", "Listener error: ${e.message}")
+                    updateNotification("⚠️ WhatsApp Bridge unreachable; retrying")
+                    delay(5_000)
+                }
             }
-            updateNotification("✅ WhatsApp Bridge listening — !mode_agent / !mode_swarm per chat")
-            startPolling()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                android.util.Log.e("WhatsAppBridge", "Cannot start bridge listener: ${e.message}")
+                updateNotification("⚠️ Configure a local Bridge URL and API key in Integrations")
+                settingsRepository.setWhatsAppBridgeEnabled(false)
+                stopSelf()
+            }
         }
         return START_STICKY
     }
@@ -227,41 +260,33 @@ class WhatsAppBridgeService : Service() {
 
     // ── Polling ────────────────────────────────────────────────────────────
 
-    private fun startPolling() {
-        pollingJob?.cancel()
-        pollingJob = serviceScope.launch {
-            while (isActive) {
-                try {
-                    pollMessages()
-                } catch (_: Exception) { }
-                delay(POLL_INTERVAL_MS)
-            }
-        }
-    }
-
-    private suspend fun pollMessages() {
-        val msgs = fetchMessages(since = lastMessageTimestamp) ?: return
-        for (msg in msgs) {
-            val ts = msg.optLong("timestamp", 0L)
-            if (ts > lastMessageTimestamp) lastMessageTimestamp = ts
+    private suspend fun pollMessages(identity: String) {
+        val response = bridgeClient.messages(lastMessageId)
+        val msgs = response.optJSONArray("messages") ?: return
+        val ownerJid = bridgeClient.status().optString("ownerJid")
+        for (index in 0 until msgs.length()) {
+            val msg = msgs.getJSONObject(index)
+            val id = msg.optLong("id")
+            if (id <= lastMessageId) continue
 
             val jid      = msg.optString("from", "")
-            if (jid.isBlank()) continue
             val body     = msg.optString("body", "")
-            if (body.isBlank()) continue
             val isFromMe = msg.optBoolean("fromMe", false)
-            if (isFromMe) continue
+            if (jid == ownerJid && body.isNotBlank()) {
+                activeMessageId = id
+                val senderName = msg.optString("senderName", jid.substringBefore("@"))
+                val waMsg = WhatsAppMessage(jid, senderName, body, isFromMe)
+                _whatsappMessages.value =
+                    (_whatsappMessages.value + waMsg).takeLast(MAX_MIRROR_MESSAGES)
 
-            val senderName = msg.optString("senderName", jid.substringBefore("@"))
-
-            val waMsg = WhatsAppMessage(jid, senderName, body, isFromMe)
-            _whatsappMessages.value =
-                (_whatsappMessages.value + waMsg).takeLast(MAX_MIRROR_MESSAGES)
-
-            val sessionId = chatRepository.findOrCreateWhatsAppBridgeSession(jid, senderName)
-            chatRepository.saveMessage(sessionId, ChatMessage(role = MessageRole.USER, content = body))
-
-            processIncomingMessage(jid, senderName, body, sessionId)
+                val sessionId = chatRepository.findOrCreateWhatsAppBridgeSession(jid, senderName)
+                chatRepository.saveMessage(sessionId, ChatMessage(role = MessageRole.USER, content = body))
+                processIncomingMessage(jid, senderName, body, sessionId)
+            }
+            lastMessageId = id
+            check(cursorPrefs.edit().putString("identity", identity).putLong("cursor", id).commit()) {
+                "Could not persist WhatsApp cursor"
+            }
         }
     }
 
@@ -281,11 +306,19 @@ class WhatsAppBridgeService : Service() {
                 return
             }
             cmd == "!mode_agent" -> {
+                if (configuredScope() == null) {
+                    sendWhatsApp(jid, "⚠️ Set a specific Target Context in OmniDev before Agent mode.")
+                    return
+                }
                 chatModes[jid] = OmniMode.AGENT
                 sendWhatsApp(jid, "🤖 Switched to Agent mode — full ReAct loop with all tools.")
                 return
             }
             cmd == "!mode_swarm" -> {
+                if (configuredScope() == null) {
+                    sendWhatsApp(jid, "⚠️ Set a specific Target Context in OmniDev before Swarm mode.")
+                    return
+                }
                 chatModes[jid] = OmniMode.SWARM
                 sendWhatsApp(jid, "🐝 Switched to Swarm mode — multi-agent orchestration.")
                 return
@@ -337,30 +370,40 @@ class WhatsAppBridgeService : Service() {
                     )
                     runCatching {
                         completionService.invoke(request).content ?: "No response."
-                    }.getOrElse { e -> "Error: ${e.message}" }
+                    }.getOrElse { e ->
+                        if (e is CancellationException) throw e
+                        "Error: ${e.message}"
+                    }
                 }
                 OmniMode.AGENT -> {
+                    val scope = configuredScope() ?: return@withTimeoutOrNull "⚠️ Set a specific Target Context in OmniDev."
                     val modelId = settingsRepository.observeModelIdForRole(ModelRole.AGENT).first()
                         ?: ModelRegistry.getDefaultModelForRole(ModelRole.AGENT).id
                     val replyBuilder = StringBuilder()
+                    val streamBuilder = StringBuilder()
                     runCatching {
                         agentPipeline.execute(
                             userMessage = body,
                             conversationHistory = history.takeLast(MAX_HISTORY_MSGS),
                             modelId = modelId,
-                            scopePath = "/"
+                            scopePath = scope
                         ).collect { event ->
                             when (event) {
-                                is AgentEvent.FinalAnswer  -> replyBuilder.append(event.content)
-                                is AgentEvent.StreamChunk  -> replyBuilder.append(event.delta)
+                                is AgentEvent.FinalAnswer  -> { replyBuilder.clear(); replyBuilder.append(event.content) }
+                                is AgentEvent.StreamChunk  -> if (streamBuilder.length < 30_000) streamBuilder.append(event.delta)
                                 is AgentEvent.Error        -> replyBuilder.append("\n⚠️ ${event.message}")
                                 else -> Unit
                             }
                         }
-                    }.getOrElse { e -> replyBuilder.append("⚠️ Agent error: ${e.message}") }
-                    replyBuilder.toString().trim().ifBlank { "✅ Task completed." }
+                    }.getOrElse { e ->
+                        if (e is CancellationException) throw e
+                        replyBuilder.append("⚠️ Agent error: ${e.message}")
+                    }
+                    replyBuilder.toString().ifBlank { streamBuilder.toString() }.trim()
+                        .ifBlank { "✅ Task completed." }
                 }
                 OmniMode.SWARM -> {
+                    val scope = configuredScope() ?: return@withTimeoutOrNull "⚠️ Set a specific Target Context in OmniDev."
                     val orchestratorModelId = settingsRepository.observeModelIdForRole(ModelRole.SWARM_ORCHESTRATOR).first()
                         ?: ModelRegistry.getDefaultModelForRole(ModelRole.SWARM_ORCHESTRATOR).id
                     val workerModelId = settingsRepository.observeModelIdForRole(ModelRole.SWARM_WORKER).first()
@@ -371,7 +414,7 @@ class WhatsAppBridgeService : Service() {
                             userMessage = body,
                             orchestratorModelId = orchestratorModelId,
                             workerModelId = workerModelId,
-                            scopePath = "/"
+                            scopePath = scope
                         ).collect { event ->
                             when (event) {
                                 is SwarmEvent.Completed -> replyBuilder.append(event.summary)
@@ -379,7 +422,10 @@ class WhatsAppBridgeService : Service() {
                                 else -> Unit
                             }
                         }
-                    }.getOrElse { e -> replyBuilder.append("⚠️ Swarm error: ${e.message}") }
+                    }.getOrElse { e ->
+                        if (e is CancellationException) throw e
+                        replyBuilder.append("⚠️ Swarm error: ${e.message}")
+                    }
                     replyBuilder.toString().trim().ifBlank { "✅ Swarm task completed." }
                 }
             }
@@ -396,44 +442,18 @@ class WhatsAppBridgeService : Service() {
 
         val replyChunks = reply.chunked(4000)
         replyChunks.forEachIndexed { i, chunk ->
-            sendWhatsApp(jid, chunk)
+            sendWhatsApp(jid, chunk, i)
             if (i < replyChunks.size - 1) delay(300)
         }
     }
 
+    private suspend fun configuredScope(): String? = settingsRepository.observeTargetContext().first()
+        ?.takeIf { it.isNotBlank() && it != "/" }
+
     // ── Bridge REST helpers ────────────────────────────────────────────────
 
-    private fun fetchMessages(since: Long): List<JSONObject>? {
-        return try {
-            val conn = URL("$bridgeUrl/messages?since=$since&limit=50").openConnection() as HttpURLConnection
-            conn.requestMethod = "GET"
-            conn.setRequestProperty("Accept", "application/json")
-            conn.connectTimeout = 5_000
-            conn.readTimeout = 5_000
-            conn.connect()
-            if (conn.responseCode != 200) { conn.disconnect(); return null }
-            val text = conn.inputStream.bufferedReader().readText()
-            conn.disconnect()
-            val obj = JSONObject(text)
-            val arr = obj.optJSONArray("messages") ?: return null
-            (0 until arr.length()).map { arr.getJSONObject(it) }
-        } catch (_: Exception) { null }
-    }
-
-    private fun sendWhatsApp(jid: String, message: String) {
-        try {
-            val conn = URL("$bridgeUrl/send").openConnection() as HttpURLConnection
-            conn.requestMethod = "POST"
-            conn.setRequestProperty("Content-Type", "application/json")
-            conn.doOutput = true
-            conn.connectTimeout = 8_000
-            conn.readTimeout = 8_000
-            conn.connect()
-            val body = JSONObject().apply { put("to", jid); put("message", message) }
-            OutputStreamWriter(conn.outputStream).use { it.write(body.toString()) }
-            conn.inputStream.close()
-            conn.disconnect()
-        } catch (_: Exception) { }
+    private fun sendWhatsApp(jid: String, message: String, part: Int = 0) {
+        bridgeClient.send(jid, message, "$activeMessageId:$part")
     }
 
     // ── Notification helpers ───────────────────────────────────────────────
