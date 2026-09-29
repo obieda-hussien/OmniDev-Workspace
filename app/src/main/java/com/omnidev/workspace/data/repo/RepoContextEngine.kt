@@ -4,6 +4,7 @@ import com.omnidev.workspace.data.db.dao.RepoIndexDao
 import com.omnidev.workspace.data.db.entities.RepoSymbolEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
@@ -23,6 +24,24 @@ class RepoContextEngine(
     private val dao: RepoIndexDao,
     private val indexer: RepoIndexer
 ) {
+
+    /** Bounded local question-to-source retrieval; returns verbatim lines, never inferred answers. */
+    suspend fun findContext(scopePath: String, question: String, limit: Int = 6): List<LocalCodeRetriever.Hit> =
+        withContext(Dispatchers.IO) {
+            val root = File(scopePath).canonicalFile
+            if (!root.isDirectory || question.isBlank()) return@withContext emptyList()
+            val files = dao.getAllFiles(scopePath)
+            val words = Regex("[\\p{L}\\p{N}_]{3,}").findAll(question)
+                .map { it.value }.distinct().take(8).toList()
+            val symbols = words.flatMap { word ->
+                dao.fuzzySearch(scopePath, "%${word.replace("%", "").replace("_", "")}%", word, 12)
+            }.groupBy { it.filePath }
+            val candidates = files.map { file ->
+                LocalCodeRetriever.Candidate(file.filePath,
+                    symbols[file.filePath].orEmpty().joinToString(" ") { it.symbolName })
+            }
+            LocalCodeRetriever.retrieve(question, root, candidates, limit)
+        }
 
     // ──────────────────────────────────────────────────────────────────
     // Indexing operations (proxied)

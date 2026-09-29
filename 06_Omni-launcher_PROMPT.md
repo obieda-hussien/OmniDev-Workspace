@@ -1,4 +1,7 @@
 # Omni Launcher — Integration Prompt
+
+> **Document status (29 September 2026):** Historical integration specification for the Omni ecosystem. Phases and verification notes below reflect their original time and repositories; they are not a current inventory of this Workspace branch. Check [README.md](README.md), [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md), and the relevant external repository before acting on them.
+
 ### Repo: obieda-hussien/Omni-launcher (Lawnchair 15 fork) · 5 phases, this repo only
 
 > This is the largest and riskiest repo — a full AOSP-adjacent Launcher3/Lawnchair fork (quickstep, systemUI, wmshell modules), not a small custom app. The `IOmniLauncherInterface` AIDL is defined in the `OmniLinkSDK` repo (`01_OmniLinkSDK_PROMPT.md` Phase 8) as the single source of truth for its text, but this app deliberately does **not** take a JitPack dependency on the whole SDK — pulling a new Gradle dependency into a build this large and fragile is its own risk. Instead, copy just the one `.aidl` file's contents directly into the new package below. This app also uses its own, self-owned permission namespace (`com.omnidev.launcher.*`) rather than the SDK's `com.omnilink.sdk.*` namespace, since it doesn't depend on the SDK as a library and shouldn't imply that it does. **Prioritize the smallest possible diff at every phase** — do not refactor existing Launcher3/Lawnchair internals to "fit" this integration; wrap them instead.

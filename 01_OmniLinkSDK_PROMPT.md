@@ -1,4 +1,7 @@
 # OmniLinkSDK — Integration Prompt
+
+> **Document status (29 September 2026):** Historical integration specification for the Omni ecosystem. Phases and verification notes below reflect their original time and repositories; they are not a current inventory of this Workspace branch. Check [README.md](README.md), [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md), and the relevant external repository before acting on them.
+
 ### New standalone repo: obieda-hussien/OmniLinkSDK · 11 phases, all complete
 
 > This is now its own GitHub repo, not a folder copied between projects. Every satellite app (and Workspace itself) consumes it via JitPack + a version tag.

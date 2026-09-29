@@ -106,9 +106,9 @@ object AdaptiveModeRouter {
         confidence += outcomeSignal.adjustment
         confidence = confidence.coerceIn(0f, 0.97f)
 
-        val enoughDecomposition = signals.parallelism >= 0.30f || signals.breadth >= 0.58f
+        val enoughDecomposition = IntentClassifier.hasIndependentWork(userRequest, signals)
         val criticalStall = failureClass == FailureClass.STAGNATION && confidence >= 0.76f
-        if (!enoughDecomposition && !criticalStall) return null
+        if (!enoughDecomposition) return null
         if (confidence < 0.68f) return null
         if (isStronglyDisliked(OmniMode.AGENT, OmniMode.SWARM) && !criticalStall) return null
 
@@ -194,15 +194,14 @@ object AdaptiveModeRouter {
         if (signals.executionIntent < 0.34f && !hasExplicitExecution) return null
 
         val explicitParallelExecution =
-            hasExplicitExecution &&
-                signals.parallelism >= 0.34f &&
-                signals.domainCount >= 2
+            hasExplicitExecution && IntentClassifier.hasIndependentWork(userRequest, signals)
 
         val target = if (
             explicitParallelExecution ||
             (
                 scores.swarm >= 0.66f &&
                     signals.parallelism >= 0.38f &&
+                    IntentClassifier.hasIndependentWork(userRequest, signals) &&
                     scores.swarm >= scores.agent + 0.06f
                 )
         ) OmniMode.SWARM else OmniMode.AGENT

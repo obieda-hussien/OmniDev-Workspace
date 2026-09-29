@@ -79,6 +79,12 @@ class AdaptiveModeRouterTest {
         )
     }
 
+    @Test fun `one long coding task does not fan out because it mentions several concerns`() {
+        val request = "Fix the authentication screen that uses a database, displays an error, and has a test"
+        assertTrue(IntentClassifier.classify(request) != OmniMode.SWARM)
+        assertNull(AdaptiveModeRouter.fromAgentFailure("maximum iterations without completing", request))
+    }
+
     @Test
     fun `repeated rejection suppresses noncritical team nagging`() {
         AdaptiveModeRouter.installPreferenceSource(object : ModePreferenceSource {

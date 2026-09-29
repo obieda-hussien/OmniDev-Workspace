@@ -1,4 +1,7 @@
 # OmniDev-Workspace — Payment Vault & Autonomous Checkout Addendum
+
+> **Document status (29 September 2026):** Historical integration specification for the Omni ecosystem. Phases and verification notes below reflect their original time and repositories; they are not a current inventory of this Workspace branch. Check [README.md](README.md), [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md), and the relevant external repository before acting on them.
+
 ### Repo: obieda-hussien/OmniDev-Workspace · 8 phases, this repo only
 
 > This is a built-in tool inside Workspace itself — deliberately **not** exposed through the Omni-Link extension protocol (`01_OmniLinkSDK_PROMPT.md`). No other app, satellite or otherwise, should ever be able to reach this surface via IPC. It doesn't get an `ext_` tool prefix; it's a native Workspace tool like Shizuku shell execution.

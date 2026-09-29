@@ -1,4 +1,7 @@
 # OmniEqualizer — Integration Prompt
+
+> **Document status (29 September 2026):** Historical integration specification for the Omni ecosystem. Phases and verification notes below reflect their original time and repositories; they are not a current inventory of this Workspace branch. Check [README.md](README.md), [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md), and the relevant external repository before acting on them.
+
 ### Repo: obieda-hussien/OmniEqualizer · 3 phases, this repo only
 
 > Prerequisite: `01_OmniLinkSDK_PROMPT.md` has shipped a tagged release. This is the smallest of the four satellite apps — treat it as the proof-of-concept.

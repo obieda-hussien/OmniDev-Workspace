@@ -296,6 +296,25 @@ object IntentClassifier {
         return ModeScores(chat = chat, agent = agent, swarm = swarm)
     }
 
+    /** A long list of topics does not by itself justify paying for multiple workers. */
+    fun hasIndependentWork(input: String, signals: TaskSignals = analyze(input)): Boolean {
+        val explicit = Regex("(?i)\\b(in parallel|independently|separate tasks|multiple agents)\\b|بالتوازي|بشكل مستقل|وكلاء متعددين")
+            .containsMatchIn(input)
+        val distinctParts = listOf(
+            "\\b(?:ui|frontend|screen)\\b|واجهة|شاشة",
+            "\\b(?:database|backend|migration)\\b|قاعدة بيانات",
+            "\\b(?:tests?|verification)\\b|اختبارات|تحقق",
+            "\\b(?:security|permissions?)\\b|أمان|صلاحيات",
+            "\\b(?:performance|profiling)\\b|أداء"
+        ).count { Regex(it, RegexOption.IGNORE_CASE).containsMatchIn(input) }
+        val execution = signals.executionIntent >= 0.35f ||
+            signals.mutationIntent >= 0.16f || signals.verificationIntent >= 0.18f
+        return execution &&
+            ((explicit && signals.domainCount >= 2) ||
+                (distinctParts >= 3 && signals.parallelism >= 0.48f &&
+                    signals.mutationIntent >= 0.16f))
+    }
+
     /**
      * Hysteresis margins prevent unstable Agent <-> Team flipping on borderline prompts.
      */
@@ -318,7 +337,8 @@ object IntentClassifier {
         return when {
             scores.swarm >= 0.62f &&
                 scores.swarm >= scores.agent + 0.07f &&
-                signals.parallelism >= 0.34f -> OmniMode.SWARM
+                signals.parallelism >= 0.34f &&
+                hasIndependentWork(input, signals) -> OmniMode.SWARM
 
             scores.agent >= 0.48f &&
                 scores.agent >= scores.chat + 0.03f -> OmniMode.AGENT

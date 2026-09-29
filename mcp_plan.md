@@ -1,3 +1,5 @@
+> Planning document. Check the current `data/mcp/` implementation and [README.md](README.md) before treating proposed capabilities as shipped.
+
 1. **Create MCP Configuration Schema and Manager:**
    - Check if `app/src/main/java/com/omnidev/workspace/domain/mcp` and `app/src/main/java/com/omnidev/workspace/data/mcp` directories exist, create them if not.
    - Create `app/src/main/java/com/omnidev/workspace/domain/mcp/McpConfig.kt` to hold data classes: `McpServerConfig` (type, url, tools, env) and `McpConfig` (map of server names to configs).

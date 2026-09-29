@@ -9,6 +9,31 @@ import org.junit.Test
 class ToolSchemaCompactorTest {
 
     @Test
+    fun `tool history cannot displace a requested specialized tool`() {
+        val tools = buildList {
+            repeat(120) { add(ToolDefinition("generic_$it", "generic capability", emptyList())) }
+            add(ToolDefinition("repo_find_context", "Find source evidence", emptyList()))
+        }
+        val selected = ToolSchemaCompactor.compact(
+            tools, listOf(ChatMessage(MessageRole.USER, "فين الكود في المشروع؟")),
+            toolQuality = (0 until 120).associate { "generic_$it" to 1f }
+        ).orEmpty()
+        assertTrue(selected.any { it.name == "repo_find_context" })
+    }
+
+    @Test
+    fun `repository question retains local evidence tool in oversized catalog`() {
+        val tools = buildList {
+            repeat(120) { index -> add(ToolDefinition("generic_$index", "generic capability", emptyList())) }
+            add(ToolDefinition("repo_find_context", "Find verbatim source evidence", emptyList()))
+        }
+        val selected = ToolSchemaCompactor.compact(
+            tools, listOf(ChatMessage(MessageRole.USER, "فين الكود المسؤول عن صلاحيات المشروع؟"))
+        ).orEmpty()
+        assertTrue(selected.any { it.name == "repo_find_context" })
+    }
+
+    @Test
     fun `deduplicates tools and compacts verbose descriptions`() {
         val verbose = "This is an extremely verbose tool description. ".repeat(100)
         val tools = listOf(

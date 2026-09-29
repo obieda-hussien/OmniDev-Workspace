@@ -42,6 +42,15 @@ class RepoContextTools(
             )
         ),
         ToolDefinition(
+            name = "repo_find_context",
+            description = "Find local source evidence for a natural-language question about repository behavior. Returns bounded verbatim excerpts with line numbers; an empty result does not prove absence.",
+            parameters = listOf(
+                ToolParameter("question", "string", "What behavior or code path are you trying to find?"),
+                ToolParameter("scope_path", "string", "Absolute project root"),
+                ToolParameter("limit", "integer", "Number of excerpts (1-12, default 6)", required = false)
+            )
+        ),
+        ToolDefinition(
             name = "repo_symbols_by_kind",
             description = "استرجاع كل الرموز من نوع معين (class/function/interface/property...). " +
                 "مفيد لاستكشاف بنية المشروع.",
@@ -96,6 +105,21 @@ class RepoContextTools(
                     if (results.isEmpty()) ToolExecutionResult("لم يُعثر على رموز تطابق '$q'.")
                     else ToolExecutionResult(formatSymbols(results, "🔍 نتائج '$q' (${results.size}):"))
                 }
+                "repo_find_context" -> {
+                    val question = args["question"]?.trim().orEmpty()
+                    if (question.isBlank()) return ToolExecutionResult("question مطلوب", isError = true)
+                    val limit = args["limit"]?.toIntOrNull()?.coerceIn(1, 12) ?: 6
+                    val hits = engine.findContext(scope, question, limit)
+                    ToolExecutionResult(if (hits.isEmpty()) {
+                        "No indexed source excerpts matched. The index may be incomplete; use search_codebase or read files directly."
+                    } else buildString {
+                        appendLine("Local source evidence (${hits.size}); inspect surrounding code before editing:")
+                        hits.forEach { hit ->
+                            appendLine("\n${hit.path}:${hit.startLine}-${hit.endLine}")
+                            appendLine(hit.excerpt)
+                        }
+                    })
+                }
                 "repo_symbols_by_kind" -> {
                     val kind = args["kind"]?.trim()?.lowercase()
                         ?: return ToolExecutionResult("kind مطلوب", isError = true)
@@ -149,6 +173,7 @@ class RepoContextTools(
         val HANDLED = setOf(
             "repo_index_scope",
             "repo_search_symbols",
+            "repo_find_context",
             "repo_symbols_by_kind",
             "repo_file_symbols",
             "repo_stats"
