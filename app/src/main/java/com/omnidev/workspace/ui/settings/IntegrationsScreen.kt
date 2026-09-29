@@ -28,6 +28,7 @@ import com.omnidev.workspace.data.integration.DiscordPollingService
 import com.omnidev.workspace.data.integration.TelegramPollingService
 import com.omnidev.workspace.data.integration.TelegramOwnerLinkStore
 import com.omnidev.workspace.data.integration.WhatsAppBridgeService
+import com.omnidev.workspace.data.integration.WhatsAppBridgeClient
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
@@ -113,6 +114,7 @@ fun IntegrationsScreen(
     // WhatsApp Baileys Bridge
     var whatsappBridgeUrl by remember { mutableStateOf("") }
     var whatsappBridgePhone by remember { mutableStateOf("") }
+    var whatsappBridgeApiKey by remember { mutableStateOf("") }
     var whatsappBridgeEnabled by remember { mutableStateOf(false) }
     var whatsappBridgePairingCode by remember { mutableStateOf<String?>(null) }
     var whatsappBridgePairingLoading by remember { mutableStateOf(false) }
@@ -156,6 +158,7 @@ fun IntegrationsScreen(
         whatsappAccessToken = settingsRepository.observeWhatsAppAccessToken().first() ?: ""
         whatsappBridgeUrl = settingsRepository.observeWhatsAppBridgeUrl().first() ?: ""
         whatsappBridgePhone = settingsRepository.observeWhatsAppBridgePhone().first() ?: ""
+        whatsappBridgeApiKey = settingsRepository.observeWhatsAppBridgeApiKey().first() ?: ""
         whatsappBridgeEnabled = settingsRepository.observeWhatsAppBridgeEnabled().first()
         notionApiKey = settingsRepository.observeNotionApiKey().first() ?: ""
         notionDatabaseId = settingsRepository.observeNotionDatabaseId().first() ?: ""
@@ -744,13 +747,9 @@ fun IntegrationsScreen(
                 color = MaterialTheme.colorScheme.primary
             )
             Text(
-                text = "Link your personal WhatsApp account via a self-hosted Baileys bridge server.\n\n" +
-                    "Setup:\n" +
-                    "1. Host the companion Node.js bridge server (Baileys)\n" +
-                    "2. Enter the bridge URL and your phone number below\n" +
-                    "3. Tap 'Request Pairing Code'\n" +
-                    "4. Open WhatsApp → Linked Devices → Link with phone number → enter the code\n" +
-                    "5. Enable the listener toggle",
+                text = "Run the companion package in Termux on this phone. Enter its local URL, your " +
+                    "WhatsApp number and the generated API key. Only your own chat is accepted. " +
+                    "Request a pairing code, then use WhatsApp → Linked Devices → Link with phone number.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -758,7 +757,7 @@ fun IntegrationsScreen(
                 value = whatsappBridgeUrl,
                 onValueChange = { whatsappBridgeUrl = it; saved = false },
                 label = { Text("Bridge Server URL") },
-                placeholder = { Text("http://192.168.1.100:3000") },
+                placeholder = { Text("http://127.0.0.1:3000") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -767,6 +766,14 @@ fun IntegrationsScreen(
                 onValueChange = { whatsappBridgePhone = it; saved = false },
                 label = { Text("Phone Number (international format)") },
                 placeholder = { Text("201012345678") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = whatsappBridgeApiKey,
+                onValueChange = { whatsappBridgeApiKey = it; saved = false },
+                label = { Text("Termux Bridge API Key") },
+                visualTransformation = PasswordVisualTransformation(),
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -784,31 +791,13 @@ fun IntegrationsScreen(
                         whatsappBridgeStatus = null
                         scope.launch {
                             try {
+                                val pairingCode = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                    WhatsAppBridgeClient(whatsappBridgeUrl, whatsappBridgeApiKey)
+                                        .pair(whatsappBridgePhone).getString("code")
+                                }
                                 settingsRepository.setWhatsAppBridgeUrl(whatsappBridgeUrl.trimEnd('/'))
                                 settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone)
-                                val pairingCode = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                    val url = java.net.URL("${whatsappBridgeUrl.trimEnd('/')}/pair")
-                                    val conn = url.openConnection() as java.net.HttpURLConnection
-                                    conn.requestMethod = "POST"
-                                    conn.setRequestProperty("Content-Type", "application/json")
-                                    conn.doOutput = true
-                                    conn.connectTimeout = 10_000
-                                    conn.readTimeout = 15_000
-                                    conn.connect()
-                                    val body = org.json.JSONObject().apply { put("phone", whatsappBridgePhone) }
-                                    java.io.OutputStreamWriter(conn.outputStream).use { it.write(body.toString()) }
-                                    conn.outputStream.flush()
-                                    val responseCode = conn.responseCode
-                                    val text = if (responseCode in 200..299) {
-                                        conn.inputStream.bufferedReader().readText()
-                                    } else {
-                                        conn.errorStream?.bufferedReader()?.readText() ?: "Error $responseCode"
-                                    }
-                                    conn.disconnect()
-                                    val json = org.json.JSONObject(text)
-                                    val code = json.optString("code", "").ifBlank { json.optString("pairingCode", "") }
-                                    code.ifBlank { "Error: ${json.optString("error", text)}" }
-                                }
+                                settingsRepository.setWhatsAppBridgeApiKey(whatsappBridgeApiKey)
                                 whatsappBridgePairingCode = pairingCode
                             } catch (e: Exception) {
                                 whatsappBridgePairingCode = "Error: ${e.message}"
@@ -817,7 +806,7 @@ fun IntegrationsScreen(
                             }
                         }
                     },
-                    enabled = !whatsappBridgePairingLoading && whatsappBridgeUrl.isNotBlank() && whatsappBridgePhone.isNotBlank(),
+                    enabled = !whatsappBridgePairingLoading && whatsappBridgeUrl.isNotBlank() && whatsappBridgePhone.isNotBlank() && whatsappBridgeApiKey.isNotBlank(),
                     modifier = Modifier.weight(1f)
                 ) {
                     if (whatsappBridgePairingLoading) {
@@ -833,20 +822,12 @@ fun IntegrationsScreen(
                         scope.launch {
                             try {
                                 val status = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                    val url = java.net.URL("${whatsappBridgeUrl.trimEnd('/')}/status")
-                                    val conn = url.openConnection() as java.net.HttpURLConnection
-                                    conn.requestMethod = "GET"
-                                    conn.connectTimeout = 5_000
-                                    conn.readTimeout = 5_000
-                                    conn.connect()
-                                    val text = conn.inputStream.bufferedReader().readText()
-                                    conn.disconnect()
-                                    val json = org.json.JSONObject(text)
-                                    json.optString("status", "unknown")
+                                    WhatsAppBridgeClient(whatsappBridgeUrl, whatsappBridgeApiKey)
+                                        .status().optString("status", "unknown")
                                 }
                                 whatsappBridgeStatus = status
                             } catch (e: Exception) {
-                                whatsappBridgeStatus = "unreachable"
+                                whatsappBridgeStatus = "Error: ${e.message}"
                             }
                         }
                     }
@@ -915,26 +896,32 @@ fun IntegrationsScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = if (whatsappBridgeEnabled) "✅ WhatsApp Bridge Listener — Running" else "WhatsApp Bridge Listener",
+                    text = if (whatsappBridgeEnabled) "WhatsApp Bridge Listener — Enabled" else "WhatsApp Bridge Listener",
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.weight(1f)
                 )
                 Switch(
                     checked = whatsappBridgeEnabled,
                     onCheckedChange = { enabled ->
-                        whatsappBridgeEnabled = enabled
                         scope.launch {
-                            settingsRepository.setWhatsAppBridgeEnabled(enabled)
-                            settingsRepository.setWhatsAppBridgeUrl(whatsappBridgeUrl.trimEnd('/'))
-                            settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone)
-                        }
-                        if (enabled) {
-                            ContextCompat.startForegroundService(context, Intent(context, WhatsAppBridgeService::class.java))
-                        } else {
-                            context.startService(
-                                Intent(context, WhatsAppBridgeService::class.java)
-                                    .apply { action = WhatsAppBridgeService.ACTION_STOP }
-                            )
+                            try {
+                                if (enabled) WhatsAppBridgeClient(whatsappBridgeUrl, whatsappBridgeApiKey)
+                                settingsRepository.setWhatsAppBridgeUrl(whatsappBridgeUrl.trimEnd('/'))
+                                settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone)
+                                settingsRepository.setWhatsAppBridgeApiKey(whatsappBridgeApiKey)
+                                settingsRepository.setWhatsAppBridgeEnabled(enabled)
+                                if (enabled) {
+                                    ContextCompat.startForegroundService(context, Intent(context, WhatsAppBridgeService::class.java))
+                                } else {
+                                    context.startService(Intent(context, WhatsAppBridgeService::class.java)
+                                        .apply { action = WhatsAppBridgeService.ACTION_STOP })
+                                }
+                                whatsappBridgeEnabled = enabled
+                            } catch (e: Exception) {
+                                whatsappBridgeStatus = "Error: ${e.message}"
+                                whatsappBridgeEnabled = false
+                                settingsRepository.setWhatsAppBridgeEnabled(false)
+                            }
                         }
                     }
                 )
@@ -1036,8 +1023,17 @@ fun IntegrationsScreen(
                             settingsRepository.setDiscordListenerChannelId(discordListenerChannelId.ifBlank { null })
                             settingsRepository.setWhatsAppPhoneNumberId(whatsappPhoneNumberId.ifBlank { null })
                             settingsRepository.setWhatsAppAccessToken(whatsappAccessToken.ifBlank { null })
+                            val previousBridgeUrl = settingsRepository.observeWhatsAppBridgeUrl().first()
+                            val previousBridgeKey = settingsRepository.observeWhatsAppBridgeApiKey().first()
                             settingsRepository.setWhatsAppBridgeUrl(whatsappBridgeUrl.ifBlank { null })
                             settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone.ifBlank { null })
+                            settingsRepository.setWhatsAppBridgeApiKey(whatsappBridgeApiKey.ifBlank { null })
+                            if (whatsappBridgeEnabled &&
+                                (previousBridgeUrl != whatsappBridgeUrl.ifBlank { null } ||
+                                    previousBridgeKey != whatsappBridgeApiKey.ifBlank { null })) {
+                                ContextCompat.startForegroundService(context,
+                                    Intent(context, WhatsAppBridgeService::class.java))
+                            }
                             settingsRepository.setNotionApiKey(notionApiKey.ifBlank { null })
                             settingsRepository.setNotionDatabaseId(notionDatabaseId.ifBlank { null })
                             settingsRepository.setSlackBotToken(slackBotToken.ifBlank { null })
