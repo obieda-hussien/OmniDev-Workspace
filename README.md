@@ -91,6 +91,27 @@ flowchart TD
 
 هيكل Gradle الحالي **وحدة `:app` واحدة بخمس نسخ**؛ الرسم المستهدف لوحدات `:core:*` و`:tools:*` في [خطة التفكيك](MODULARIZATION_ROADMAP.md) لم يُنفذ بعد. [المعمارية التفصيلية](PROJECT_ARCHITECTURE.md) تربط المسارات ببعضها.
 
+### دليل التنقل في شجرة المشروع
+
+| المسار من الجذر | ماذا ستجد | سؤال شائع |
+|---|---|---|
+| `app/src/main/java/com/omnidev/workspace/ui/chat/` | الشاشة، ViewModel، أحداث وكشف الوكيل | كيف ظهرت نتيجة الأداة للمستخدم؟ |
+| `app/src/main/java/com/omnidev/workspace/domain/engine/` | القرار، Agent/Team، ميزانية التوكنز، الضغط | لماذا اختير الوضع أو توقف الدور؟ |
+| `app/src/main/java/com/omnidev/workspace/data/tools/` | مدير الأدوات وعائلاتها وسياسة الإتاحة | لماذا لم تظهر أداة أو فشل تنفيذها؟ |
+| `app/src/main/java/com/omnidev/workspace/data/repo/` | فهرسة المشروع واسترجاع مقاطع الكود | من أين جاءت مقتطفات `repo_find_context`؟ |
+| `app/src/main/java/com/omnidev/workspace/data/db/` | Room، entities، DAOs، migrations | أين يخزن الحدث أو كيف يهاجر الجدول؟ |
+| `app/src/main/java/com/omnidev/workspace/data/ipc/` | خدمات واجهات الربط والامتيازات | من يتصل بخدمة أو تطبيق خارجي؟ |
+| `app/src/main/java/com/omnidev/workspace/data/mcp/` | اتصالات وتهيئة MCP | أين تعرّف نقطة MCP؟ |
+| `app/src/main/java/com/omnidev/workspace/data/network/` | مزود الاستكمال وتهيئة endpoints | من أين يصل الرد للنموذج؟ |
+| `app/src/main/java/com/omnidev/workspace/core/` | عقود الأدوات والسياسات والتجريد المميز | أين حارس حدود النسخة؟ |
+| `app/src/test/java/` | اختبارات JVM | أين اختبار الانتقال أو الاسترجاع؟ |
+| `app/src/main/aidl/` | عقود Binder | هل التوقيع متوافق مع الطرف الآخر؟ |
+| `app/src/main/assets/agent-skills/` | مهارات مرفقة | أي تعليمات تخصصية محملة؟ |
+| `.github/workflows/` | مهام CI | ما الذي يتحقق في PR؟ |
+| `scripts/` | فحص المستودع والبيانات وإحصاء المصادر | كيف أكرر الرقم في README؟ |
+
+طبقات `data/` و`domain/` و`core/` هنا أسماء حزم داخل `:app` وليست وحدات Gradle منفصلة. هذا الفارق مهم عند إضافة اعتماد جديد أو توقع وجود `:core:shared` في البناء.
+
 ## الأوضاع وقرارات الوكيل
 
 | الوضع | معناه في الكود | متى يفيد |
@@ -151,6 +172,26 @@ flowchart TD
 - **واجهات Compose:** الشاشة الرئيسية والمحادثة، الموفرون، إعدادات الذكاء الاصطناعي والمهارات، متصفح، شاشة الذاكرة والتحليلات؛ راجع شجرة `ui/` للحالة الفعلية لكل شاشة.
 - **OmniLink/AIDL:** راجع [البروتوكول](LINK_PROTOCOL.md) و[تكامل v3](OMNILINK_V3_INTEGRATION.md). [وثيقة v2](OMNILINK_V2_INTEGRATION.md) تاريخية للمقارنة، وليست مرجع تنفيذ جديد.
 
+### دليل البيانات في Room
+
+| المجال | Entity أو DAO حالي | ما يلزم عند تعديل الشكل |
+|---|---|---|
+| الجلسات والرسائل | `ChatSessionEntity`, `ChatMessageEntity`, `ChatSessionDao`, `ChatMessageDao` | اختبر البحث والتصفح وحذف الجلسة ومفاتيح المصدر |
+| التنفيذ والمعرفة | `ToolExecutionEntry`, `SystemKnowledgeEntry`, `ToolExecutionDao` | راجع احتفاظ البيانات وعرض الأدلة للوكيل |
+| فهرس المستودع | `RepoFileIndexEntry`, `RepoSymbolEntry`, `RepoIndexDao` | تحقق من نطاق المشروع وتغيير الملفات |
+| ذاكرة الوكيل | `EpisodicMemoryEntry`, `ReflexionLessonEntry` | تجنب ترقية استنتاجات سابقة إلى حقائق مؤكدة |
+| الرجوع وتشخيص البناء | `RollbackSnapshotEntry`, `BuildDiagnosticEntry` | افحص حجم التخزين وفشل استعادة النسخة |
+| الجدولة والذاكرة المشتركة | `ScheduledTaskEntity`, `SharedMemoryRecordEntity` | راجع أثر الهجرة وتناسق البيانات |
+
+كل entity مذكور مسجل في `OmniDevDatabase.kt`، والإصدار المعلن **17**. وجود هجرة من v6 إلى v7 يشرح النص التاريخي “Agent Brain v7”، لكنه لا يجعل v7 الإصدار الحالي. سلسلة `MIGRATION_*` في الملف وقائمة `addMigrations(...)` هما مرجع تغيير المخطط؛ حدّثهما مع أي تعديل schema، ثم اختبر فتح قاعدة بيانات مستخدم قديم.
+
+### الربط والنماذج
+
+- `CompletionService.kt` نقطة مهمة لاستدعاءات الاستكمال؛ `ProviderEndpoint.kt` و`ProviderModelFetcher.kt` يتعاملان مع إعدادات endpoint ومعلومات النماذج. `ModelRegistry.kt` يعرض سجل النماذج. توفر نموذج بعينه يعود للمزود والإعداد وليس لاسم الوضع.
+- `data/ipc/` يتضمن خدمات مثل `OmniCoreService`, `WorkspaceLinkService`, `ExtensionConnectionManager`, `LauncherConnectionManager` ومسار Shell المميز؛ AIDL يحدد العقد البيني. مراجعة هوية التوقيع والصلاحية لازمة عند تغيير الربط.
+- `data/mcp/` يحتوي إعدادات واتصالات MCP. نجاح اتصال واحد لا يعني إتاحة جميع الأدوات؛ تخضع الأسماء للتسجيل والتصفية وحدود السياسة والسياق.
+- خدمة VPN أو Accessibility قد تتطلب تفعيل Android منفصلًا؛ لا يعطي flag في Gradle هذه الأذونات وحده.
+
 ## نسخ البناء والتشغيل
 
 | النسخة | الهدف | مصدر الضبط |
@@ -200,6 +241,20 @@ python3 scripts/repo_metrics.py
 ```
 
 أي ادعاء بتحسن الدقة أو توفير التوكنز يحتاج تجربة ممثلة مع نتائج قابلة للمقارنة، خصوصًا على المهام العربية، الملفات الكبيرة، الطلبات الغامضة، وحالات فشل الأدوات. تفاصيل توقعات السلوك في [وثيقة المحرك](DECISION_ENGINE.md).
+
+### دليل تغيير آمن وسريع
+
+| إذا غيّرت | افحص بالتبعية | تحقق مناسب |
+|---|---|---|
+| إشارات أو عتبات AUTO | `IntentClassifier`, `AdaptiveModeRouter`, `ModeOutcomeLearner`, `ChatViewModel` | حالات عربية/إنجليزية، اختيار المستخدم، فشل البنية، المهمة الذرية |
+| ترتيب أدوات النموذج | `ToolSchemaCompactor`, `CompositeToolManager`, `TierToolGate` | جودة الأدوات المعروضة وحدود schema ورفض النسخة |
+| استرجاع المشروع | `RepoIndexer`, `RepoContextEngine`, `LocalCodeRetriever` | ربط symlink ونطاق المشروع، تحديث ملف، مقتطفات وأرقام سطور |
+| محادثة قديمة | DAOs والبحث في السجل و`ChatViewModel` | مرجع الجلسة/الرسالة، حذفها، النص الطويل وعزل المصدر |
+| Service أو صلاحية | `AndroidManifest.xml` لكل flavor والسياسات | الـmerged manifest، رفض الإذن، تجربة جهاز |
+| Entity أو schema | `OmniDevDatabase.kt`, DAO, migration | فتح قاعدة قديمة وحفظ بياناتها |
+| بروتوكول OmniLink | ملفات AIDL وخدمات `data/ipc/` | ABI، الهوية، انقطاع Binder، خطأ الطرف المقابل |
+
+نتائج اختبار وحدة معزولة لا تغطي سلوك جهاز فعلي أو manifest merger أو مشكلة إصدار سابق. لهذا يقسم CI إلى جودة وlint واختبارات وتجميع. نجاح build لا يثبت جودة قرارات الوكيل؛ هذه تقاس على مهام بنواتج متحققة.
 
 ## خريطة الملفات والوثائق
 
