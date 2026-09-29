@@ -448,13 +448,13 @@ internal fun thinkingActivity(
     }
     return buildString {
         appendLine("Public action update and observed events (not private reasoning):")
-        previousPhase?.takeIf { it.phase == "ANALYZE" }?.let {
+        previousPhase?.takeIf { it.phase.equals("Analyze", ignoreCase = true) }?.let {
             appendLine("Phase: ${it.phase}${it.detail?.let { detail -> " — $detail" }.orEmpty()}")
         }
         var count = 0
         current.forEach { event ->
             val line = when (event) {
-                is AgentConsoleEntry.PhaseEntry -> if (event.phase == "IMPLEMENT" && !event.detail.isNullOrBlank())
+                is AgentConsoleEntry.PhaseEntry -> if (event.phase.equals("Implement", ignoreCase = true) && !event.detail.isNullOrBlank())
                     "Before tool execution: ${event.detail}" else
                     "Phase: ${event.phase}${event.detail?.let { " — $it" }.orEmpty()}"
                 is AgentConsoleEntry.ToolEntry -> "Running ${event.toolName}: ${event.params}"
