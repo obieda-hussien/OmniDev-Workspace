@@ -7,7 +7,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.MergeCommand
-import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.lib.PersonIdent
 import org.eclipse.jgit.treewalk.filter.PathFilterGroup
 import org.eclipse.jgit.transport.CredentialItem
@@ -209,12 +208,11 @@ object GitManagerTool {
                     ?: return ToolExecutionResult("Invalid diff file path.", isError = true)
                 val command = git.diff()
                 if (paths.isNotEmpty()) command.setPathFilter(PathFilterGroup.createFromStrings(paths))
-                val changes = command.call()
                 val stream = ByteArrayOutputStream()
-                DiffFormatter(stream).use { formatter ->
-                    formatter.setRepository(repository)
-                    changes.forEach(formatter::format)
-                }
+                // DiffCommand retains the working-tree content source. Reformatting its
+                // entries with a new repository-only DiffFormatter can request a blob
+                // that exists only in the working tree (Missing blob on unstaged edits).
+                command.setOutputStream(stream).call()
                 output(stream.toString("UTF-8").ifBlank { "No unstaged changes." })
             }
             "log" -> output(git.log().setMaxCount(20).call().joinToString("\n") {
