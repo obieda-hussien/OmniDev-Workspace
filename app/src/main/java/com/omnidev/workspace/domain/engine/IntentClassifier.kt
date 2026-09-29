@@ -307,7 +307,9 @@ object IntentClassifier {
             "\\b(?:security|permissions?)\\b|أمان|صلاحيات",
             "\\b(?:performance|profiling)\\b|أداء"
         ).count { Regex(it, RegexOption.IGNORE_CASE).containsMatchIn(input) }
-        return signals.executionIntent >= 0.35f &&
+        val execution = signals.executionIntent >= 0.35f ||
+            signals.mutationIntent >= 0.16f || signals.verificationIntent >= 0.18f
+        return execution &&
             ((explicit && signals.domainCount >= 2) ||
                 (distinctParts >= 3 && signals.parallelism >= 0.48f &&
                     signals.mutationIntent >= 0.16f))
