@@ -33,7 +33,8 @@ object ToolSchemaCompactor {
 
     fun compact(
         tools: List<ToolDefinition>?,
-        messages: List<ChatMessage>
+        messages: List<ChatMessage>,
+        toolQuality: Map<String, Float> = emptyMap()
     ): List<ToolDefinition>? {
         if (tools.isNullOrEmpty()) return tools
 
@@ -65,7 +66,8 @@ object ToolSchemaCompactor {
                 .filterNot { it.value.name in pinnedNames }
                 .sortedWith(
                     compareByDescending<IndexedValue<ToolDefinition>> {
-                        relevanceScore(it.value, queryTerms, latestUser)
+                        relevanceScore(it.value, queryTerms, latestUser) +
+                            ((toolQuality[it.value.name] ?: 0f).coerceIn(-1f, 1f) * 12).toInt()
                     }.thenBy { it.index }
                 )
                 .take((MAX_TOOLS - pinned.size).coerceAtLeast(0))

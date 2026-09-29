@@ -166,6 +166,7 @@ Do not use tools. Do not rewrite merely for style.
             if (recentUserIntent.isNotBlank()) append(recentUserIntent).appendLine()
             append(routingObjective)
         }.takeLast(2_400)
+        val taskSignals = IntentClassifier.analyze(routingObjective)
         val relevantDomains = IntentClassifier.getRelevantDomains(routingContext)
         val localTools = toolManager.getToolDefinitions()
             .asSequence()
@@ -179,9 +180,20 @@ Do not use tools. Do not rewrite merely for style.
             emptyList()
         }
         val rawToolDefs = (localTools + mcpTools).distinctBy { it.name }
+        val toolQuality = try {
+            analyticsRepository?.getStats()?.toolUsageCount.orEmpty().mapNotNull { (name, stats) ->
+                if (stats.executionCount < 10) null else {
+                    val smoothed = (stats.successCount + 2.0) / (stats.executionCount + 4.0)
+                    name to ((smoothed - 0.5) * 2.0).toFloat()
+                }
+            }.toMap()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) { emptyMap() }
         val toolDefs = ToolSchemaCompactor.compact(
             tools = rawToolDefs,
-            messages = listOf(ChatMessage(MessageRole.USER, routingContext))
+            messages = listOf(ChatMessage(MessageRole.USER, routingContext)),
+            toolQuality = toolQuality
         ).orEmpty().take(MAX_TOOLS_PER_REQUEST)
         brain?.registerTools(toolDefs)
 
@@ -247,10 +259,9 @@ Do not use tools. Do not rewrite merely for style.
             if (iteration > 1) delay(interCallDelayFor(model.tier))
             send(AgentEvent.Thinking(iteration))
 
-            val desiredOutputBudget = minOf(
-                model.maxOutputTokens,
-                8_192,
-                remainingAtStart?.coerceAtLeast(MIN_COMPLETION_OUTPUT_RESERVE) ?: 8_192
+            val desiredOutputBudget = AgentDecisionPolicy.outputCap(
+                taskSignals, model.maxOutputTokens,
+                remainingAtStart?.coerceAtLeast(MIN_COMPLETION_OUTPUT_RESERVE)
             )
             // Tool definitions are already compacted to the exact set sent to the provider.
             val schemaEstimate = (toolDefs.sumOf { it.toString().length } / 3).coerceAtLeast(0)
@@ -270,9 +281,9 @@ Do not use tools. Do not rewrite merely for style.
                     completionProvider = completionProvider,
                     apiKey = resolvedApiKey,
                     remainingTokenBudget = config.tokenBudget?.minus(totalTokensUsed),
-                    allowModelSummary = config.tokenBudget?.let { budget ->
-                        totalTokensUsed < (budget * 0.70f).toInt()
-                    } ?: true
+                    allowModelSummary = AgentDecisionPolicy.useModelCompaction(
+                        totalTokensUsed, config.tokenBudget, config.tokenBudget?.minus(totalTokensUsed)
+                    )
                 ) { send(it) }
                 if (report.tokensUsed > 0) {
                     totalTokensUsed += report.tokensUsed

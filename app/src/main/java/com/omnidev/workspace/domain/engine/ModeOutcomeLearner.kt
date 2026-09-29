@@ -86,6 +86,8 @@ object ModeOutcomeLearner {
     private const val MAX_ADJUSTMENT = 0.12f
     private const val MAX_BUCKETS = 96
     private const val INDEX_KEY = "bucket_index"
+    private const val DECISION_LOG_KEY = "recent_decisions_v1"
+    private const val MAX_DECISIONS = 96
     private const val FIELD_SEPARATOR = '|'
 
     private val lock = Any()
@@ -130,7 +132,51 @@ object ModeOutcomeLearner {
             )
             writeStats(prefs, bucket, mode, next)
             touchBucket(prefs, bucket)
+            if (outcome != Outcome.ABANDONED) {
+                // A reported success without verification is too weak to teach the predictor.
+                if (verified || outcome == Outcome.FAILURE) {
+                    val key = "model_${mode.name.lowercase()}"
+                    val features = ModeDecisionModel.features(IntentClassifier.analyze(normalizedRequest))
+                    val weights = ModeDecisionModel.decode(prefs.getString(key, null))
+                    val updated = ModeDecisionModel.updated(
+                        weights, features, outcome == Outcome.SUCCESS,
+                        if (verified) 1f else 0.35f
+                    )
+                    prefs.edit().putString(key, ModeDecisionModel.encode(updated)).apply()
+                }
+            }
+            appendDecision(prefs, "$bucket|${mode.name}|${outcome.name}|${if (verified) 1 else 0}|${boundedTokens ?: 0}|${durationMs.coerceAtLeast(0)}|${iterations.coerceAtLeast(0)}")
         }
+    }
+
+    /** No raw prompt, source, tool argument, or credential is stored in this bounded audit trail. */
+    fun recordAutoDecision(userRequest: String, baseline: OmniMode, selected: OmniMode) {
+        val prefs = prefs() ?: return
+        val bucket = IntentClassifier.analyze(normalizeRequest(userRequest)).bucketKey()
+        synchronized(lock) { appendDecision(prefs, "$bucket|AUTO|${baseline.name}>${selected.name}|0|0") }
+    }
+
+    fun recentDecisionLog(limit: Int = 30): List<String> {
+        val prefs = prefs() ?: return emptyList()
+        return synchronized(lock) {
+            prefs.getString(DECISION_LOG_KEY, "").orEmpty().lineSequence()
+                .filter(String::isNotBlank).toList().takeLast(limit.coerceIn(1, MAX_DECISIONS))
+        }
+    }
+
+    fun clearDecisionLearning() {
+        val prefs = prefs() ?: return
+        synchronized(lock) {
+            prefs.edit().remove(DECISION_LOG_KEY).remove("model_agent").remove("model_swarm")
+                .remove("model_chat").apply()
+        }
+    }
+
+    private fun appendDecision(prefs: android.content.SharedPreferences, entry: String) {
+        val previous = prefs.getString(DECISION_LOG_KEY, "").orEmpty().lineSequence()
+            .filter(String::isNotBlank).toList().takeLast(MAX_DECISIONS - 1)
+        val timestamp = System.currentTimeMillis() / 60_000L
+        prefs.edit().putString(DECISION_LOG_KEY, (previous + "$timestamp|$entry").joinToString("\n")).apply()
     }
 
     /**
@@ -202,6 +248,24 @@ object ModeOutcomeLearner {
         // Cost may choose between comparable successes; it must not buy savings by failing.
         val agentCost = agent.averageTokens.takeIf { it > 0 } ?: return baseline
         val teamCost = team.averageTokens.takeIf { it > 0 } ?: return baseline
+        val prefs = prefs()
+        val features = ModeDecisionModel.features(signals)
+        val learnedAgent = prefs?.getString("model_agent", null)?.let {
+            ModeDecisionModel.probability(ModeDecisionModel.decode(it), features)
+        }
+        val learnedTeam = prefs?.getString("model_swarm", null)?.let {
+            ModeDecisionModel.probability(ModeDecisionModel.decode(it), features)
+        }
+        // The predictor is advisory and only compares modes with verified wins on this bucket.
+        if (agent.verifiedSuccesses >= 2 && team.verifiedSuccesses >= 2 &&
+            learnedAgent != null && learnedTeam != null) {
+            if (learnedAgent > learnedTeam + 0.08f &&
+                agent.posteriorSuccess >= team.posteriorSuccess - 0.06f &&
+                agentCost.toDouble() <= teamCost.toDouble() * 1.20) return OmniMode.AGENT
+            if (learnedTeam > learnedAgent + 0.08f &&
+                team.posteriorSuccess >= agent.posteriorSuccess - 0.06f &&
+                teamCost.toDouble() <= agentCost.toDouble() * 1.20) return OmniMode.SWARM
+        }
         if (agent.posteriorSuccess >= team.posteriorSuccess - 0.06f &&
             agentCost.toDouble() * 1.20 < teamCost.toDouble()) return OmniMode.AGENT
         if (team.posteriorSuccess >= agent.posteriorSuccess + 0.12f &&

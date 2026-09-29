@@ -442,7 +442,9 @@ class ChatViewModel(
             val scope = scopePath ?: if (_uiState.value.isGodModeEnabled) "/" else ""
             when (mode) {
                 OmniMode.AUTO -> {
+                    val baseline = IntentClassifier.classify(input)
                     val resolved = classifyTaskComplexity(input)
+                    com.omnidev.workspace.domain.engine.ModeOutcomeLearner.recordAutoDecision(input, baseline, resolved)
                     _uiState.update { it.copy(agentStatus = "🧠 Auto-routed → ${resolved.label}") }
                     when (resolved) {
                         OmniMode.CHAT, OmniMode.AUTO -> executeChatMode(input, imageAttachments, sessionId, runId)
