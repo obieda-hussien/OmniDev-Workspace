@@ -1,7 +1,7 @@
 package com.omnidev.workspace.ui.settings
 
+import android.content.Intent
 import androidx.compose.foundation.background
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -21,18 +21,19 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import android.content.Intent
+import androidx.core.content.ContextCompat
 import com.omnidev.workspace.data.auth.CopilotSessionManager
 import com.omnidev.workspace.data.auth.GitHubDeviceFlowManager
 import com.omnidev.workspace.data.integration.DiscordPollingService
-import com.omnidev.workspace.data.integration.TelegramPollingService
 import com.omnidev.workspace.data.integration.TelegramOwnerLinkStore
-import com.omnidev.workspace.data.integration.WhatsAppBridgeService
+import com.omnidev.workspace.data.integration.TelegramPollingService
 import com.omnidev.workspace.data.integration.WhatsAppBridgeClient
+import com.omnidev.workspace.data.integration.WhatsAppBridgeService
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.registry.ModelRegistry
+import com.omnidev.workspace.ui.motion.OmniIconButton
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -171,7 +172,7 @@ fun IntegrationsScreen(
             TopAppBar(
                 title = { Text("Integrations & Linked Accounts") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    OmniIconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 }
@@ -816,9 +817,9 @@ fun IntegrationsScreen(
                     Text("Request Pairing Code")
                 }
                 // Check status button
-                IconButton(
+                OmniIconButton(
                     onClick = {
-                        if (whatsappBridgeUrl.isBlank()) return@IconButton
+                        if (whatsappBridgeUrl.isBlank()) return@OmniIconButton
                         scope.launch {
                             try {
                                 val status = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {

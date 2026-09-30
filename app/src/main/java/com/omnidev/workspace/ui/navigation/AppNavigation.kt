@@ -1,16 +1,27 @@
 package com.omnidev.workspace.ui.navigation
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.omnidev.workspace.OmniDevApp
-import com.omnidev.workspace.data.debug.DebugLogManager
 import com.omnidev.workspace.data.db.OmniDevDatabase
+import com.omnidev.workspace.data.debug.DebugLogManager
 import com.omnidev.workspace.data.mcp.McpConfigManager
 import com.omnidev.workspace.data.repository.AnalyticsRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
@@ -25,15 +36,17 @@ import com.omnidev.workspace.ui.chat.ChatScreen
 import com.omnidev.workspace.ui.chat.ChatViewModel
 import com.omnidev.workspace.ui.debug.DebugScreen
 import com.omnidev.workspace.ui.debug.DebugViewModel
+import com.omnidev.workspace.ui.motion.LocalOmniMotion
+import com.omnidev.workspace.ui.motion.OmniEasing
 import com.omnidev.workspace.ui.providers.ProvidersScreen
 import com.omnidev.workspace.ui.providers.ProvidersViewModel
 import com.omnidev.workspace.ui.settings.AISettingsScreen
 import com.omnidev.workspace.ui.settings.AISettingsViewModel
 import com.omnidev.workspace.ui.settings.IntegrationsLinkedAccountsScreen
 import com.omnidev.workspace.ui.settings.LocalModelManagerScreen
-import com.omnidev.workspace.ui.settings.MemoryExplorerScreen
 import com.omnidev.workspace.ui.settings.McpSettingsScreen
 import com.omnidev.workspace.ui.settings.McpSettingsViewModel
+import com.omnidev.workspace.ui.settings.MemoryExplorerScreen
 import com.omnidev.workspace.ui.settings.ScheduledTasksScreen
 import com.omnidev.workspace.ui.settings.ToolRegistryScreen
 import com.omnidev.workspace.ui.settings.UserProfileScreen
@@ -65,6 +78,8 @@ fun AppNavigation(
     database: OmniDevDatabase
 ) {
     val navController = rememberNavController()
+    val motion = LocalOmniMotion.current
+    val direction = if (LocalLayoutDirection.current == LayoutDirection.Rtl) -1 else 1
 
     LaunchedEffect(Unit) {
         com.omnidev.workspace.MainActivity.pendingChatSession.collect { sessionId ->
@@ -98,13 +113,33 @@ fun AppNavigation(
 
     NavHost(
         navController = navController,
-        startDestination = startDestination
+        startDestination = startDestination,
+        enterTransition = {
+            if (motion.reduced) EnterTransition.None else
+                slideInHorizontally(tween(motion.navigationMillis, easing = OmniEasing)) { direction * it } +
+                    fadeIn(tween(motion.responseMillis))
+        },
+        exitTransition = {
+            if (motion.reduced) ExitTransition.None else
+                slideOutHorizontally(tween(motion.navigationMillis, easing = OmniEasing)) { -direction * it / 5 } +
+                    fadeOut(tween(motion.responseMillis))
+        },
+        popEnterTransition = {
+            if (motion.reduced) EnterTransition.None else
+                slideInHorizontally(tween(motion.navigationMillis, easing = OmniEasing)) { -direction * it / 5 } +
+                    fadeIn(tween(motion.responseMillis))
+        },
+        popExitTransition = {
+            if (motion.reduced) ExitTransition.None else
+                slideOutHorizontally(tween(motion.navigationMillis, easing = OmniEasing)) { direction * it } +
+                    fadeOut(tween(motion.responseMillis))
+        }
     ) {
         composable(Routes.CHAT) {
             ChatScreen(
                 viewModel = chatViewModel,
-                onNavigateToSettings = { navController.navigate(Routes.SETTINGS) },
-                onOpenBrowser = { navController.navigate(Routes.BROWSER_VIEWER) }
+                onNavigateToSettings = { navController.navigate(Routes.SETTINGS) { launchSingleTop = true } },
+                onOpenBrowser = { navController.navigate(Routes.BROWSER_VIEWER) { launchSingleTop = true } }
             )
         }
 
@@ -113,17 +148,17 @@ fun AppNavigation(
                 viewModel = settingsViewModel,
                 onNavigateBack = { navController.popBackStack() },
                 providersViewModel = providersViewModel,
-                onNavigateToProviders = { navController.navigate(Routes.PROVIDERS) },
-                onNavigateToDebug = { navController.navigate(Routes.DEBUG) },
-                onNavigateToMemoryExplorer = { navController.navigate(Routes.MEMORY_EXPLORER) },
-                onNavigateToIntegrations = { navController.navigate(Routes.INTEGRATIONS) },
-                onNavigateToLocalModels = { navController.navigate(Routes.LOCAL_MODELS) },
-                onNavigateToScheduledTasks = { navController.navigate(Routes.SCHEDULED_TASKS) },
-                onNavigateToToolRegistry = { navController.navigate(Routes.TOOL_REGISTRY) },
-                onNavigateToMcpSettings = { navController.navigate(Routes.MCP_SETTINGS) },
-                onNavigateToProfile = { navController.navigate(Routes.PROFILE) },
-                onNavigateToAnalytics = { navController.navigate(Routes.ANALYTICS) },
-                onNavigateToAgentBrain = { navController.navigate(Routes.AGENT_BRAIN) }
+                onNavigateToProviders = { navController.navigate(Routes.PROVIDERS) { launchSingleTop = true } },
+                onNavigateToDebug = { navController.navigate(Routes.DEBUG) { launchSingleTop = true } },
+                onNavigateToMemoryExplorer = { navController.navigate(Routes.MEMORY_EXPLORER) { launchSingleTop = true } },
+                onNavigateToIntegrations = { navController.navigate(Routes.INTEGRATIONS) { launchSingleTop = true } },
+                onNavigateToLocalModels = { navController.navigate(Routes.LOCAL_MODELS) { launchSingleTop = true } },
+                onNavigateToScheduledTasks = { navController.navigate(Routes.SCHEDULED_TASKS) { launchSingleTop = true } },
+                onNavigateToToolRegistry = { navController.navigate(Routes.TOOL_REGISTRY) { launchSingleTop = true } },
+                onNavigateToMcpSettings = { navController.navigate(Routes.MCP_SETTINGS) { launchSingleTop = true } },
+                onNavigateToProfile = { navController.navigate(Routes.PROFILE) { launchSingleTop = true } },
+                onNavigateToAnalytics = { navController.navigate(Routes.ANALYTICS) { launchSingleTop = true } },
+                onNavigateToAgentBrain = { navController.navigate(Routes.AGENT_BRAIN) { launchSingleTop = true } }
             )
         }
 
@@ -207,8 +242,11 @@ fun AppNavigation(
         }
 
         composable(Routes.ANALYTICS) {
-            val analyticsViewModel = AnalyticsDashboardViewModel(
-                AnalyticsRepository(navController.context)
+            val context = LocalContext.current.applicationContext
+            val analyticsViewModel: AnalyticsDashboardViewModel = viewModel(
+                factory = remember(context) {
+                    viewModelFactory { initializer { AnalyticsDashboardViewModel(AnalyticsRepository(context)) } }
+                }
             )
             AnalyticsDashboardScreen(
                 viewModel = analyticsViewModel,

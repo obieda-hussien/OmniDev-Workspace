@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
@@ -23,9 +24,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.omnidev.workspace.data.brain.ToolAwarenessEngine
 import com.omnidev.workspace.data.db.entities.SystemKnowledgeEntry
 import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
+import com.omnidev.workspace.ui.motion.LocalOmniMotion
+import com.omnidev.workspace.ui.motion.OmniIconButton
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -55,7 +59,7 @@ fun AgentBrainDashboard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AgentBrainDashboardContent(viewModel: AgentBrainViewModel, onNavigateBack: () -> Unit) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedTab by remember { mutableStateOf(0) }
     var clearKnowledge by remember { mutableStateOf<Boolean?>(null) }
 
@@ -97,12 +101,12 @@ private fun AgentBrainDashboardContent(viewModel: AgentBrainViewModel, onNavigat
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    OmniIconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.refresh() }) {
+                    OmniIconButton(onClick = { viewModel.refresh() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Refresh")
                     }
                 },
@@ -415,7 +419,7 @@ private fun ExecutionEntryCard(
                     fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                 )
-                IconButton(
+                OmniIconButton(
                     onClick = { onDeleteEntry(entry.id) },
                     modifier = Modifier.size(20.dp)
                 ) {
@@ -545,7 +549,7 @@ private fun KnowledgeEntryCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    IconButton(
+                    OmniIconButton(
                         onClick = { showEditDialog = true },
                         modifier = Modifier.size(24.dp)
                     ) {
@@ -556,7 +560,7 @@ private fun KnowledgeEntryCard(
                             modifier = Modifier.size(15.dp)
                         )
                     }
-                    IconButton(
+                    OmniIconButton(
                         onClick = { onDeleteEntry(entry.id) },
                         modifier = Modifier.size(24.dp)
                     ) {
@@ -635,14 +639,15 @@ private fun KnowledgeTypeFilters(
     entries: List<SystemKnowledgeEntry>,
     onTypeSelected: (String) -> Unit
 ) {
-    val types = listOf("ALL") + entries.map { it.knowledgeType }.distinct().sorted()
+    val counts = remember(entries) { entries.groupingBy { it.knowledgeType }.eachCount() }
+    val types = remember(counts) { listOf("ALL") + counts.keys.sorted() }
     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         items(types) { type ->
             FilterChip(
                 selected = selectedType == type,
                 onClick = { onTypeSelected(type) },
                 label = {
-                    val count = if (type == "ALL") entries.size else entries.count { it.knowledgeType == type }
+                    val count = if (type == "ALL") entries.size else counts[type] ?: 0
                     Text("${knowledgeTypeLabel(type)} ($count)")
                 }
             )
@@ -908,8 +913,13 @@ private fun EmptyState(message: String) {
 
 @Composable
 private fun PulsingDot() {
+    val motion = LocalOmniMotion.current
+    if (!motion.ambientMotion) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF4CAF50)))
+        return
+    }
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val alpha by infiniteTransition.animateFloat(
+    val alpha = infiniteTransition.animateFloat(
         initialValue = 0.3f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
@@ -923,7 +933,8 @@ private fun PulsingDot() {
         modifier = Modifier
             .size(8.dp)
             .clip(CircleShape)
-            .background(Color(0xFF4CAF50).copy(alpha = alpha))
+            .graphicsLayer { this.alpha = alpha.value }
+            .background(Color(0xFF4CAF50))
     )
 }
 

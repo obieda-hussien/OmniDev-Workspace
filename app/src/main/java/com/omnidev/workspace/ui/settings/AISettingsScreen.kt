@@ -4,8 +4,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -27,8 +25,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.BubbleChart
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Hub
@@ -46,7 +44,6 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
@@ -60,9 +57,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import com.omnidev.workspace.ui.providers.ProvidersViewModel
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -76,10 +71,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.omnidev.workspace.data.model.AIModel
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.registry.ModelRegistry
+import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility as AnimatedVisibility
+import com.omnidev.workspace.ui.motion.OmniIconButton
+import com.omnidev.workspace.ui.motion.omniAnimateContentSize
+import com.omnidev.workspace.ui.providers.ProvidersViewModel
 
 /**
  * AI Preferences Dashboard — Material 3 Expressive settings screen.
@@ -110,11 +110,11 @@ fun AISettingsScreen(
     onNavigateToAnalytics: () -> Unit = {},
     onNavigateToAgentBrain: () -> Unit = {}
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val providersUiState by providersViewModel?.uiState?.collectAsState() ?: remember { mutableStateOf(null) }
+    val providersUiState by providersViewModel?.uiState?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
 
     // Fetch catalogs for configured providers
     LaunchedEffect(providersUiState?.configuredProviders) {
@@ -153,7 +153,7 @@ fun AISettingsScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    OmniIconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -375,7 +375,7 @@ private fun ModelRoleCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .animateContentSize(),
+            .omniAnimateContentSize(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(16.dp)
     ) {
@@ -721,7 +721,7 @@ private fun GodModeCard(
 private fun AccessibilityServiceCard() {
     val context = LocalContext.current
     val isConnected by com.omnidev.workspace.data.accessibility.AccessibilityStateManager
-        .isServiceConnected.collectAsState()
+        .isServiceConnected.collectAsStateWithLifecycle()
 
     Card(
         modifier = Modifier.fillMaxWidth(),

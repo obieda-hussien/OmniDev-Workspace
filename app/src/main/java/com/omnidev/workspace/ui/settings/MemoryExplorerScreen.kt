@@ -1,6 +1,5 @@
 package com.omnidev.workspace.ui.settings
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,7 +29,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -39,7 +37,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,8 +47,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.omnidev.workspace.data.db.dao.KnowledgeDao
 import com.omnidev.workspace.data.db.entities.KnowledgeSnippet
+import com.omnidev.workspace.ui.motion.OmniIconButton
+import com.omnidev.workspace.ui.motion.omniAnimateContentSize
 import kotlinx.coroutines.launch
 
 /**
@@ -69,7 +69,8 @@ fun MemoryExplorerScreen(
     val scope = rememberCoroutineScope()
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
-    val allSnippets by knowledgeDao.observeAll().collectAsState(initial = emptyList())
+    val snippetsFlow = remember(knowledgeDao) { knowledgeDao.observeAll() }
+    val allSnippets by snippetsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf<String?>(null) }
     var editTarget by remember { mutableStateOf<KnowledgeSnippet?>(null) }
@@ -167,7 +168,7 @@ fun MemoryExplorerScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    OmniIconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -195,7 +196,7 @@ fun MemoryExplorerScreen(
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }) {
+                        OmniIconButton(onClick = { searchQuery = "" }) {
                             Icon(Icons.Filled.Close, contentDescription = "Clear")
                         }
                     }
@@ -275,7 +276,7 @@ private fun MemoryCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .animateContentSize(),
+            .omniAnimateContentSize(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
@@ -308,14 +309,14 @@ private fun MemoryCard(
                 }
 
                 Row {
-                    IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
+                    OmniIconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
                         Icon(
                             Icons.Filled.Edit,
                             contentDescription = "Edit memory",
                             modifier = Modifier.size(18.dp)
                         )
                     }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                    OmniIconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
                         Icon(
                             Icons.Filled.Delete,
                             contentDescription = "Delete memory",

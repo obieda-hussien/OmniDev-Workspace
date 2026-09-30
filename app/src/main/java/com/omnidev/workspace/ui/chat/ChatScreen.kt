@@ -6,7 +6,8 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -20,9 +21,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,6 +48,7 @@ import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SmartToy
@@ -57,13 +61,13 @@ import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -71,7 +75,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,15 +87,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.domain.engine.ModeSwitchPermissionStore
 import com.omnidev.workspace.domain.engine.OmniMode
+import com.omnidev.workspace.ui.motion.LocalOmniMotion
+import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility as AnimatedVisibility
+import com.omnidev.workspace.ui.motion.OmniEasing
+import com.omnidev.workspace.ui.motion.OmniIconButton
 import kotlinx.coroutines.launch
 
 private const val REPLY_PREVIEW_MAX_CHARS = 120
@@ -105,7 +115,7 @@ fun ChatScreen(
     onNavigateToSettings: () -> Unit = {},
     onOpenBrowser: () -> Unit = {}
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val drawerState = rememberDrawerState(
         initialValue = if (uiState.isDrawerOpen) DrawerValue.Open else DrawerValue.Closed
@@ -160,12 +170,13 @@ fun ChatScreen(
     }
 
     val listState = rememberLazyListState()
-    LaunchedEffect(uiState.messages.size, uiState.streamingContent) {
-        if (uiState.messages.isNotEmpty() || uiState.streamingContent != null) {
-            val lastIndex = if (uiState.streamingContent != null) uiState.messages.size else uiState.messages.lastIndex
-            if (lastIndex >= 0) listState.animateScrollToItem(lastIndex)
-        }
-    }
+    val messagesById = remember(uiState.messages) { uiState.messages.associateBy { it.messageId } }
+    val tailFollow = rememberTailFollowState(
+        listState = listState,
+        sessionKey = uiState.currentSessionId,
+        contentRevision = Triple(uiState.messages.size, uiState.streamingContent, uiState.isProcessing),
+        forceFollowKey = uiState.messages.lastOrNull { it.role == MessageRole.USER }?.messageId
+    )
 
     DismissibleNavigationDrawer(
         drawerState = drawerState,
@@ -234,17 +245,17 @@ fun ChatScreen(
                         }
                     },
                     navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        OmniIconButton(onClick = { scope.launch { drawerState.open() } }) {
                             Icon(Icons.Filled.History, contentDescription = "Chat History")
                         }
                     },
                     actions = {
                         if (!uiState.isGodModeEnabled) {
-                            IconButton(onClick = { directoryPickerLauncher.launch(null) }) {
+                            OmniIconButton(onClick = { directoryPickerLauncher.launch(null) }) {
                                 Icon(Icons.Filled.FolderOpen, contentDescription = "Set Target Context")
                             }
                         }
-                        IconButton(onClick = onNavigateToSettings) {
+                        OmniIconButton(onClick = onNavigateToSettings) {
                             Icon(Icons.Filled.Settings, contentDescription = "AI Settings")
                         }
                     },
@@ -252,7 +263,7 @@ fun ChatScreen(
                 )
             }
         ) { padding ->
-            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
                 AnimatedVisibility(visible = uiState.isProcessing) {
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
@@ -267,62 +278,76 @@ fun ChatScreen(
 
                 AnimatedVisibility(visible = uiState.isProcessing && uiState.consoleEntries.isNotEmpty()) {
                     AgentLiveConsole(
-                        entries = AgentConsoleSerializer.compact(uiState.consoleEntries.map(ConsoleRedactor::entry)),
+                        entries = remember(uiState.consoleEntries) {
+                            AgentConsoleSerializer.compact(uiState.consoleEntries.map(ConsoleRedactor::entry))
+                        },
                         isRunning = uiState.isProcessing,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                         onOpenBrowser = onOpenBrowser
                     )
                 }
 
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    if (uiState.messages.isEmpty()) item { EmptyStateContent() }
-                    items(uiState.messages, key = { it.messageId }) { message ->
-                        val replyToMessage = message.replyToMessageId?.let { id ->
-                            uiState.messages.find { it.messageId == id }
-                        }
-                        MessageBubble(
-                            message = message,
-                            consoleEntries = uiState.messageConsoleEntries[message.timestamp],
-                            replyToMessage = replyToMessage,
-                            onReply = { viewModel.setReplyingTo(it) },
-                            onOpenBrowser = onOpenBrowser
-                        )
-                        message.executionRequest?.let { request ->
-                            if (message.role == MessageRole.ASSISTANT) {
-                                ModeSwitchRequestCard(
-                                    request = request,
-                                    enabled = !uiState.isProcessing,
-                                    onOnce = {
-                                        viewModel.acceptExecutionMode(
-                                            message.messageId,
-                                            ModeSwitchPermissionStore.Approval.ONCE
-                                        )
-                                    },
-                                    onAlwaysTransition = {
-                                        viewModel.acceptExecutionMode(
-                                            message.messageId,
-                                            ModeSwitchPermissionStore.Approval.ALWAYS_THIS_TRANSITION
-                                        )
-                                    },
-                                    onAllSession = {
-                                        viewModel.acceptExecutionMode(
-                                            message.messageId,
-                                            ModeSwitchPermissionStore.Approval.ALL_THIS_SESSION
-                                        )
-                                    },
-                                    onDeny = { viewModel.denyExecutionMode(message.messageId) }
-                                )
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (uiState.messages.isEmpty()) item { EmptyStateContent() }
+                        items(uiState.messages, key = { it.messageId }, contentType = { it.role }) { message ->
+                            val replyToMessage = message.replyToMessageId?.let { id ->
+                                messagesById[id]
+                            }
+                            MessageBubble(
+                                message = message,
+                                consoleEntries = uiState.messageConsoleEntries[message.timestamp],
+                                replyToMessage = replyToMessage,
+                                onReply = { viewModel.setReplyingTo(it) },
+                                onOpenBrowser = onOpenBrowser
+                            )
+                            message.executionRequest?.let { request ->
+                                if (message.role == MessageRole.ASSISTANT) {
+                                    ModeSwitchRequestCard(
+                                        request = request,
+                                        enabled = !uiState.isProcessing,
+                                        onOnce = {
+                                            viewModel.acceptExecutionMode(
+                                                message.messageId,
+                                                ModeSwitchPermissionStore.Approval.ONCE
+                                            )
+                                        },
+                                        onAlwaysTransition = {
+                                            viewModel.acceptExecutionMode(
+                                                message.messageId,
+                                                ModeSwitchPermissionStore.Approval.ALWAYS_THIS_TRANSITION
+                                            )
+                                        },
+                                        onAllSession = {
+                                            viewModel.acceptExecutionMode(
+                                                message.messageId,
+                                                ModeSwitchPermissionStore.Approval.ALL_THIS_SESSION
+                                            )
+                                        },
+                                        onDeny = { viewModel.denyExecutionMode(message.messageId) }
+                                    )
+                                }
                             }
                         }
+                        val streamingContent = uiState.streamingContent
+                        if (uiState.isProcessing && streamingContent != null) {
+                            item(key = "streaming", contentType = "streaming") { StreamingMessageBubble(content = streamingContent) }
+                        }
                     }
-                    val streamingContent = uiState.streamingContent
-                    if (uiState.isProcessing && streamingContent != null) {
-                        item { StreamingMessageBubble(content = streamingContent) }
+
+                    if (!tailFollow.following) {
+                        SmallFloatingActionButton(
+                            onClick = { tailFollow.resume() },
+                            modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Jump to latest message")
+                        }
                     }
                 }
 
@@ -418,7 +443,8 @@ private fun ModeSelector(
     onModeSelected: (OmniMode) -> Unit,
     enabled: Boolean = true
 ) {
-    val manualModes = listOf(OmniMode.CHAT, OmniMode.AGENT, OmniMode.SWARM)
+    val manualModes = remember { listOf(OmniMode.CHAT, OmniMode.AGENT, OmniMode.SWARM) }
+    val motion = LocalOmniMotion.current
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(0.dp)
@@ -430,10 +456,14 @@ private fun ModeSelector(
                 manualModes.lastIndex -> RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp)
                 else -> RoundedCornerShape(0.dp)
             }
+            val containerColor by animateColorAsState(
+                targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                animationSpec = tween(motion.responseMillis, easing = OmniEasing), label = "mode"
+            )
             Surface(
-                modifier = Modifier.weight(1f).height(38.dp),
+                modifier = Modifier.weight(1f).height(44.dp).semantics { selected = isSelected },
                 shape = shape,
-                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                color = containerColor,
                 onClick = { if (enabled) onModeSelected(mode) }
             ) {
                 Box(contentAlignment = Alignment.Center) {
@@ -462,7 +492,9 @@ private fun MessageBubble(
     val alignment = if (isUser) Alignment.End else Alignment.Start
     val backgroundColor = if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
     val icon = if (isUser) Icons.Filled.Person else Icons.Filled.SmartToy
-    val parsed = if (!isUser) MessageFormatter.parse(message.content) else null
+    val parsed = remember(message.content, isUser) {
+        if (!isUser) MessageFormatter.parse(message.content) else null
+    }
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val copyText = parsed?.cleanText?.ifBlank { null } ?: message.content
@@ -470,7 +502,7 @@ private fun MessageBubble(
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = alignment) {
         if (!isUser && !consoleEntries.isNullOrEmpty()) {
             AgentLiveConsole(
-                entries = consoleEntries.map(ConsoleRedactor::entry),
+                entries = remember(consoleEntries) { consoleEntries.map(ConsoleRedactor::entry) },
                 isRunning = false,
                 modifier = Modifier.padding(bottom = 4.dp),
                 onOpenBrowser = onOpenBrowser
@@ -602,7 +634,7 @@ private fun MessageBubble(
                                 )
                             }
                         }
-                        IconButton(
+                        OmniIconButton(
                             onClick = {
                                 val clipboard = context.getSystemService(ClipboardManager::class.java)
                                 clipboard?.setPrimaryClip(ClipData.newPlainText("OmniDev", copyText))
@@ -744,7 +776,7 @@ private fun ChatInputBar(
                             color = MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
-                    IconButton(onClick = onDismissReply, modifier = Modifier.size(32.dp)) {
+                    OmniIconButton(onClick = onDismissReply, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Filled.Close, contentDescription = "Cancel reply", modifier = Modifier.size(16.dp))
                     }
                 }
@@ -769,7 +801,7 @@ private fun ChatInputBar(
                             )
                         },
                         trailingIcon = {
-                            IconButton(onClick = { onRemoveAttachment(attachment.uri) }, modifier = Modifier.size(18.dp)) {
+                            OmniIconButton(onClick = { onRemoveAttachment(attachment.uri) }, modifier = Modifier.size(18.dp)) {
                                 Icon(Icons.Filled.Close, contentDescription = "Remove attachment", modifier = Modifier.size(14.dp))
                             }
                         }
@@ -782,10 +814,10 @@ private fun ChatInputBar(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom
         ) {
-            IconButton(onClick = { showSettingsSheet = true }, enabled = !isProcessing, modifier = Modifier.size(48.dp)) {
+            OmniIconButton(onClick = { showSettingsSheet = true }, enabled = !isProcessing, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Filled.Add, contentDescription = "Add to chat", tint = MaterialTheme.colorScheme.primary)
             }
-            IconButton(onClick = onAttachClick, enabled = !isProcessing, modifier = Modifier.size(48.dp)) {
+            OmniIconButton(onClick = onAttachClick, enabled = !isProcessing, modifier = Modifier.size(48.dp)) {
                 Icon(Icons.Filled.AttachFile, contentDescription = "Attach files", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             OutlinedTextField(

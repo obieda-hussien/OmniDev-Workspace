@@ -5,8 +5,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -45,7 +43,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -55,7 +52,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,7 +68,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.omnidev.workspace.data.debug.DebugEntry
+import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility as AnimatedVisibility
+import com.omnidev.workspace.ui.motion.OmniIconButton
 
 // ── Color palette for log levels ──────────────────────────────────────────
 private val CrashColor  = Color(0xFFFF4444)
@@ -88,7 +87,7 @@ fun DebugScreen(
     viewModel: DebugViewModel,
     onNavigateBack: () -> Unit
 ) {
-    val state by viewModel.uiState.collectAsState()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var showConfirmClear by remember { mutableStateOf(false) }
@@ -138,24 +137,24 @@ fun DebugScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    OmniIconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
                     // Refresh
-                    IconButton(onClick = { viewModel.loadLogs() }) {
+                    OmniIconButton(onClick = { viewModel.loadLogs() }) {
                         Icon(Icons.Filled.Refresh, contentDescription = "Refresh logs")
                     }
                     // Share all
-                    IconButton(
+                    OmniIconButton(
                         onClick = { viewModel.requestExport() },
                         enabled = state.entries.isNotEmpty()
                     ) {
                         Icon(Icons.Filled.Share, contentDescription = "Share all logs")
                     }
                     // Clear all
-                    IconButton(
+                    OmniIconButton(
                         onClick = { showConfirmClear = true },
                         enabled = state.entries.isNotEmpty()
                     ) {
@@ -261,7 +260,7 @@ private fun DeviceInfoCard(
         colors = CardDefaults.cardColors(containerColor = CodeBackground),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Column(Modifier.animateContentSize()) {
+        Column {
             // Header row
             Row(
                 modifier = Modifier
@@ -285,7 +284,7 @@ private fun DeviceInfoCard(
                     modifier = Modifier.weight(1f)
                 )
                 // Copy
-                IconButton(
+                OmniIconButton(
                     onClick = {
                         copyToClipboard(context, "Device Info", deviceInfo)
                     },
@@ -299,7 +298,7 @@ private fun DeviceInfoCard(
                     )
                 }
                 // Expand
-                IconButton(
+                OmniIconButton(
                     onClick = onToggle,
                     modifier = Modifier.size(32.dp)
                 ) {
@@ -349,7 +348,7 @@ private fun DebugEntryCard(entry: DebugEntry, context: Context) {
         colors = CardDefaults.cardColors(containerColor = CodeBackground),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Column(Modifier.animateContentSize()) {
+        Column {
             // Header
             Row(
                 modifier = Modifier
@@ -387,7 +386,7 @@ private fun DebugEntryCard(entry: DebugEntry, context: Context) {
                     )
                 }
                 // Copy full body
-                IconButton(
+                OmniIconButton(
                     onClick = {
                         copyToClipboard(context, entry.title, entry.body)
                     },
@@ -401,7 +400,7 @@ private fun DebugEntryCard(entry: DebugEntry, context: Context) {
                     )
                 }
                 // Expand/collapse
-                IconButton(
+                OmniIconButton(
                     onClick = { expanded = !expanded },
                     modifier = Modifier.size(32.dp)
                 ) {

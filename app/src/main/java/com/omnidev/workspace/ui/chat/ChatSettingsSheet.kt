@@ -26,7 +26,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
@@ -48,6 +47,7 @@ import com.omnidev.workspace.data.skills.SkillManager
 import com.omnidev.workspace.domain.model.ChatSettings
 import com.omnidev.workspace.domain.model.SkillAccessMode
 import com.omnidev.workspace.domain.model.ToolAccessMode
+import com.omnidev.workspace.ui.motion.OmniIconButton
 
 /**
  * Per-chat capability picker opened from the composer `+` button.
@@ -262,7 +262,7 @@ private fun SheetHeader(onDismiss: () -> Unit) {
             fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f)
         )
-        IconButton(onClick = onDismiss) {
+        OmniIconButton(onClick = onDismiss) {
             Icon(Icons.Filled.Close, contentDescription = "Close")
         }
     }

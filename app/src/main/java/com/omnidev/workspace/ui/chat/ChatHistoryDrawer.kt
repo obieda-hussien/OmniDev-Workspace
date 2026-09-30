@@ -34,7 +34,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -55,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
+import com.omnidev.workspace.ui.motion.OmniIconButton
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -115,28 +115,41 @@ internal fun ChatHistoryDrawer(
 
     val listState = rememberLazyListState()
 
-    val searched = sessions.filter { session ->
-        searchQuery.isBlank() ||
-            session.title.contains(searchQuery, ignoreCase = true) ||
-            sessionSourceLabel(session).contains(searchQuery, ignoreCase = true)
-    }
-    val filtered = searched.filter { session ->
-        when (activeFilter) {
-            HistoryFilter.ALL -> true
-            HistoryFilter.PINNED -> session.isPinned
-            HistoryFilter.APP -> session.source == ChatSessionEntity.SOURCE_APP
-            HistoryFilter.TELEGRAM -> session.source == ChatSessionEntity.SOURCE_TELEGRAM
-            HistoryFilter.DISCORD -> session.source == ChatSessionEntity.SOURCE_DISCORD
-            HistoryFilter.WHATSAPP -> session.source == ChatSessionEntity.SOURCE_WHATSAPP_BRIDGE
-            HistoryFilter.EXTERNAL -> session.source == ChatSessionEntity.SOURCE_EXTERNAL_APP
+    val locale = Locale.getDefault()
+    val visibleSessions = remember(sessions, searchQuery, activeFilter, activeSort, locale) {
+        val searched = sessions.filter { session ->
+            searchQuery.isBlank() ||
+                session.title.contains(searchQuery, ignoreCase = true) ||
+                sessionSourceLabel(session).contains(searchQuery, ignoreCase = true)
+        }
+        val filtered = searched.filter { session ->
+            when (activeFilter) {
+                HistoryFilter.ALL -> true
+                HistoryFilter.PINNED -> session.isPinned
+                HistoryFilter.APP -> session.source == ChatSessionEntity.SOURCE_APP
+                HistoryFilter.TELEGRAM -> session.source == ChatSessionEntity.SOURCE_TELEGRAM
+                HistoryFilter.DISCORD -> session.source == ChatSessionEntity.SOURCE_DISCORD
+                HistoryFilter.WHATSAPP -> session.source == ChatSessionEntity.SOURCE_WHATSAPP_BRIDGE
+                HistoryFilter.EXTERNAL -> session.source == ChatSessionEntity.SOURCE_EXTERNAL_APP
+            }
+        }
+        when (activeSort) {
+            HistorySort.RECENT -> filtered.sortedByDescending { it.lastUpdated }
+            HistorySort.OLDEST -> filtered.sortedBy { it.lastUpdated }
+            HistorySort.TITLE -> filtered.sortedBy { it.title.lowercase(locale) }
         }
     }
-    val visibleSessions = when (activeSort) {
-        HistorySort.RECENT -> filtered.sortedByDescending { it.lastUpdated }
-        HistorySort.OLDEST -> filtered.sortedBy { it.lastUpdated }
-        HistorySort.TITLE -> filtered.sortedBy { it.title.lowercase(Locale.getDefault()) }
+    val visibleIds = remember(visibleSessions) { visibleSessions.mapTo(linkedSetOf()) { it.id } }
+    val partition = remember(visibleSessions) { visibleSessions.partition { it.isPinned } }
+    val pinned = partition.first
+    val regular = partition.second
+    // Refresh date labels on the next composition after midnight or a timezone change.
+    val date = Calendar.getInstance()
+    val dateKey = Triple(date.get(Calendar.YEAR), date.get(Calendar.DAY_OF_YEAR), date.timeZone.id)
+    val grouped = remember(regular, activeSort, dateKey, locale) {
+        if (activeSort == HistorySort.RECENT) groupHistorySessionsByDate(regular)
+        else linkedMapOf("Conversations" to regular)
     }
-    val visibleIds = visibleSessions.mapTo(linkedSetOf()) { it.id }
     val allVisibleSelected = visibleIds.isNotEmpty() && selectedIds.containsAll(visibleIds)
 
     renameTarget?.let { target ->
@@ -265,7 +278,7 @@ internal fun ChatHistoryDrawer(
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
+                            OmniIconButton(onClick = { searchQuery = "" }) {
                                 Icon(Icons.Filled.Close, contentDescription = "Clear search")
                             }
                         }
@@ -336,7 +349,7 @@ internal fun ChatHistoryDrawer(
                         ) { Text("Select") }
 
                         Box {
-                            IconButton(onClick = { showOverflowMenu = true }) {
+                            OmniIconButton(onClick = { showOverflowMenu = true }) {
                                 Icon(Icons.Filled.MoreVert, contentDescription = "History options")
                             }
                             DropdownMenu(
@@ -403,14 +416,11 @@ internal fun ChatHistoryDrawer(
                 )
             }
         } else {
-            val pinned = visibleSessions.filter { it.isPinned }
-            val regular = visibleSessions.filterNot { it.isPinned }
-
             if (pinned.isNotEmpty()) {
                 item(key = "section_pinned") {
                     HistorySectionHeader("Pinned", pinned.size)
                 }
-                items(pinned, key = { "pinned_${it.id}" }) { session ->
+                items(pinned, key = { "pinned_${it.id}" }, contentType = { "session" }) { session ->
                     HistorySessionItem(
                         session = session,
                         isActive = session.id == currentSessionId,
@@ -440,18 +450,12 @@ internal fun ChatHistoryDrawer(
                 }
             }
 
-            val grouped = if (activeSort == HistorySort.RECENT) {
-                groupHistorySessionsByDate(regular)
-            } else {
-                linkedMapOf("Conversations" to regular)
-            }
-
             grouped.forEach { (label, sessionsInSection) ->
                 if (sessionsInSection.isNotEmpty()) {
                     item(key = "section_$label") {
                         HistorySectionHeader(label, sessionsInSection.size)
                     }
-                    items(sessionsInSection, key = { "session_${it.id}" }) { session ->
+                    items(sessionsInSection, key = { "session_${it.id}" }, contentType = { "session" }) { session ->
                         HistorySessionItem(
                             session = session,
                             isActive = session.id == currentSessionId,
@@ -540,7 +544,7 @@ private fun HistoryTopBar(
             }
 
             if (isSelectionMode) {
-                IconButton(onClick = onDeleteSelected, enabled = canDeleteSelected) {
+                OmniIconButton(onClick = onDeleteSelected, enabled = canDeleteSelected) {
                     Icon(
                         Icons.Filled.Delete,
                         contentDescription = "Delete selected conversations",
@@ -548,14 +552,14 @@ private fun HistoryTopBar(
                         else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                     )
                 }
-                IconButton(onClick = onCancelSelection) {
+                OmniIconButton(onClick = onCancelSelection) {
                     Icon(Icons.Filled.Close, contentDescription = "Cancel selection")
                 }
             } else {
-                IconButton(onClick = onNewSession) {
+                OmniIconButton(onClick = onNewSession) {
                     Icon(Icons.Filled.Add, contentDescription = "New conversation")
                 }
-                IconButton(onClick = onCloseDrawer) {
+                OmniIconButton(onClick = onCloseDrawer) {
                     Icon(Icons.Filled.Close, contentDescription = "Close chat history")
                 }
             }
@@ -681,7 +685,7 @@ private fun HistorySessionItem(
             }
 
             if (!isSelectionMode) {
-                IconButton(
+                OmniIconButton(
                     onClick = { showMenu = true },
                     modifier = Modifier.size(34.dp)
                 ) {

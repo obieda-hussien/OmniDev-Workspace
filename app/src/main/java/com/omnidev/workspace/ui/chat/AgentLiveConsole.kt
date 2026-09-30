@@ -1,7 +1,5 @@
 package com.omnidev.workspace.ui.chat
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -45,11 +43,9 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,6 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -65,6 +62,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility as AnimatedVisibility
+import com.omnidev.workspace.ui.motion.OmniIconButton
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -108,14 +107,6 @@ fun AgentLiveConsole(
     val listState   = rememberLazyListState()
     val clipboard   = LocalClipboardManager.current
 
-    // Running cursor blink animation
-    val infiniteTransition = rememberInfiniteTransition(label = "cursor")
-    val cursorAlpha by infiniteTransition.animateFloat(
-        initialValue = 1f, targetValue = 0f,
-        animationSpec = infiniteRepeatable(tween(500, easing = LinearEasing), RepeatMode.Reverse),
-        label = "blink"
-    )
-
     // Derived stats
     val startTs    = entries.firstOrNull()?.timestamp ?: System.currentTimeMillis()
     val iterations = entries.filterIsInstance<AgentConsoleEntry.ThinkingEntry>().size
@@ -127,10 +118,12 @@ fun AgentLiveConsole(
         it is AgentConsoleEntry.ToolEntry && it.toolName == "headless_browser"
     }
 
-    // Auto-scroll to latest entry
-    LaunchedEffect(entries.size) {
-        if (entries.isNotEmpty()) listState.animateScrollToItem(entries.lastIndex)
-    }
+    rememberTailFollowState(
+        listState = listState,
+        sessionKey = startTs,
+        contentRevision = entries.lastOrNull(),
+        enabled = expanded
+    )
 
     // Build plain-text export of the full log
     fun buildPlainLog(): String = buildString {
@@ -152,7 +145,7 @@ fun AgentLiveConsole(
     }
 
     Card(
-        modifier = modifier.fillMaxWidth().animateContentSize(),
+        modifier = modifier.fillMaxWidth(),
         shape    = RoundedCornerShape(12.dp),
         colors   = CardDefaults.cardColors(containerColor = TerminalBg),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -179,8 +172,7 @@ fun AgentLiveConsole(
                     Text("RUNNING", color = TerminalCyan, fontFamily = FontFamily.Monospace,
                         fontSize = 9.sp, letterSpacing = 1.sp)
                     // Blinking cursor
-                    Text("█", color = TerminalCyan.copy(alpha = cursorAlpha),
-                        fontFamily = FontFamily.Monospace, fontSize = 9.sp)
+                    RunningCursor()
                 } else if (entries.any { it is AgentConsoleEntry.ErrorEntry }) {
                     Text("FAILED", color = TerminalRed, fontFamily = FontFamily.Monospace,
                         fontSize = 9.sp, letterSpacing = 1.sp)
@@ -194,7 +186,7 @@ fun AgentLiveConsole(
                 Spacer(Modifier.width(6.dp))
                 // Copy all log button
                 if (entries.isNotEmpty()) {
-                    IconButton(onClick = { clipboard.setText(AnnotatedString(buildPlainLog())) },
+                    OmniIconButton(onClick = { clipboard.setText(AnnotatedString(buildPlainLog())) },
                         modifier = Modifier.size(20.dp)) {
                         Icon(Icons.Filled.ContentCopy, "Copy log", tint = TerminalGray,
                             modifier = Modifier.size(13.dp))
@@ -203,7 +195,7 @@ fun AgentLiveConsole(
                 // Browser viewer eye button — always visible so user can open the live browser
                 // viewer anytime; icon is cyan when the agent actively used the browser this run.
                 if (onOpenBrowser != null) {
-                    IconButton(onClick = onOpenBrowser, modifier = Modifier.size(20.dp)) {
+                    OmniIconButton(onClick = onOpenBrowser, modifier = Modifier.size(20.dp)) {
                         Icon(Icons.Filled.Visibility, "Open Browser Viewer",
                             tint = if (hasBrowserEntries) TerminalCyan else TerminalGray,
                             modifier = Modifier.size(13.dp))
@@ -211,14 +203,14 @@ fun AgentLiveConsole(
                 }
                 // Fullscreen toggle (only when expanded)
                 if (expanded) {
-                    IconButton(onClick = { fullscreen = !fullscreen },
+                    OmniIconButton(onClick = { fullscreen = !fullscreen },
                         modifier = Modifier.size(20.dp)) {
                         Icon(
                             if (fullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
                             "Toggle fullscreen", tint = TerminalGray, modifier = Modifier.size(13.dp))
                     }
                 }
-                IconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(20.dp)) {
+                OmniIconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(20.dp)) {
                     Icon(
                         if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                         if (expanded) "Collapse" else "Expand", tint = TerminalGray,
@@ -261,14 +253,9 @@ fun AgentLiveConsole(
                 ) {
                     items(entries.size, key = { entries[it].id }) { index ->
                         val entry = entries[index]
-                        AnimatedVisibility(
-                            visible = true,
-                            enter = fadeIn(tween(120)) + expandVertically(tween(120))
-                        ) {
-                            ConsoleLogLine(entry, startTs, clipboard,
-                                if (entry is AgentConsoleEntry.ThinkingEntry)
-                                    thinkingActivity(entries, index, isRunning) else null)
-                        }
+                        ConsoleLogLine(entry, startTs, clipboard,
+                            if (entry is AgentConsoleEntry.ThinkingEntry)
+                                remember(entries, index, isRunning) { thinkingActivity(entries, index, isRunning) } else null)
                     }
                 }
             }
@@ -493,4 +480,22 @@ private fun formatElapsedShort(ms: Long): String = when {
     ms < 1_000  -> "${ms}ms"
     ms < 60_000 -> "${"%.1f".format(Locale.US, ms / 1000.0)}s"
     else        -> "${ms / 60000}m${(ms % 60000) / 1000}s"
+}
+
+/** Keep frame-by-frame alpha reads in drawing, outside the entire console's composition. */
+@Composable
+private fun RunningCursor() {
+    val motion = com.omnidev.workspace.ui.motion.LocalOmniMotion.current
+    if (!motion.ambientMotion) {
+        Text("█", color = TerminalCyan, fontFamily = FontFamily.Monospace, fontSize = 9.sp)
+        return
+    }
+    val transition = rememberInfiniteTransition(label = "cursor")
+    val alpha = transition.animateFloat(
+        initialValue = 1f, targetValue = 0.25f,
+        animationSpec = infiniteRepeatable(tween(600, easing = LinearEasing), RepeatMode.Reverse),
+        label = "blink"
+    )
+    Text("█", color = TerminalCyan, fontFamily = FontFamily.Monospace, fontSize = 9.sp,
+        modifier = Modifier.graphicsLayer { this.alpha = alpha.value })
 }
