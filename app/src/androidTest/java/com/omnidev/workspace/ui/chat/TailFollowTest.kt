@@ -61,4 +61,52 @@ class TailFollowTest {
             assertEquals(84, list.layoutInfo.visibleItemsInfo.last().index)
         }
     }
+
+    @Test fun growingReplyKeepsItsActualBottomVisible() {
+        val replyHeight = mutableStateOf(120.dp)
+        lateinit var list: LazyListState
+        compose.setContent {
+            list = rememberLazyListState()
+            rememberTailFollowState(list, "session", replyHeight.value)
+            LazyColumn(Modifier.fillMaxSize(), state = list) {
+                items(20) { Box(Modifier.height(80.dp)) }
+                item(key = "streaming") { Box(Modifier.height(replyHeight.value)) }
+            }
+        }
+        fun bottomIsVisible(): Boolean {
+            val layout = list.layoutInfo
+            val last = layout.visibleItemsInfo.lastOrNull() ?: return false
+            return last.index == 20 && last.offset + last.size <= layout.viewportEndOffset
+        }
+        compose.waitUntil(5_000) { bottomIsVisible() }
+        for (height in listOf(900.dp, 1_800.dp, 2_400.dp)) {
+            compose.runOnIdle { replyHeight.value = height }
+            compose.waitUntil(5_000) { bottomIsVisible() && list.layoutInfo.visibleItemsInfo.last().size > 0 }
+            compose.runOnIdle {
+                val last = list.layoutInfo.visibleItemsInfo.last()
+                assertEquals(list.layoutInfo.viewportEndOffset, last.offset + last.size)
+            }
+        }
+    }
+
+    @Test fun populatedSessionAndReopenedConsoleAlignToLatestRow() {
+        val count = mutableStateOf(0)
+        val enabled = mutableStateOf(false)
+        lateinit var list: LazyListState
+        compose.setContent {
+            list = rememberLazyListState()
+            rememberTailFollowState(list, "session", count.value, enabled = enabled.value)
+            LazyColumn(Modifier.fillMaxSize(), state = list) {
+                items(count.value) { Box(Modifier.height(80.dp)) }
+            }
+        }
+        compose.runOnIdle { count.value = 80 }
+        compose.waitForIdle()
+        compose.runOnIdle {
+            assertEquals(0, list.firstVisibleItemIndex)
+            enabled.value = true
+        }
+        compose.waitUntil(5_000) { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index == 79 }
+    }
+
 }

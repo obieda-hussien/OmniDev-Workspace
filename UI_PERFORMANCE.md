@@ -22,9 +22,9 @@ Implemented on `feature/fluid-ui-performance`, based on main `ea959c6373b2`.
 
 No FPS, startup-time, memory, or battery improvement has been measured yet. This change is shared motion and identified hot-path work, not a claim that every runtime bottleneck is eliminated. Streaming Markdown still parses when its text changes; very large messages need on-device profiling before adding a background/incremental renderer.
 
-Local Gradle compilation was attempted but cannot download Gradle 8.11.1: network unreachable. The Android SDK is also unavailable locally. Build/unit/instrumentation results are **unverified**, and no APK has been produced. `TailFollowTest` covers history reading during incoming rows and explicit resume; it needs an emulator/device. Existing CI covers compilation and unit tests but does not run this device test.
+Local Gradle compilation was attempted but cannot download Gradle 8.11.1: network unreachable. The Android SDK is also unavailable locally. Initial GitHub compile verification failed because McpSettingsScreen was missing imports for lifecycle collection and OmniIconButton. These imports were repaired; follow-up compile, unit and emulator checks are pending. No APK has been verified. `TailFollowTest` covers history reading during incoming rows and explicit resume; it needs an emulator/device. CI now includes an API 30 emulator job covering history reading, growing replies, reopening the console, reduced-motion disclosure and button click semantics.
 
-Optional validation commands (the user requested publication without running or checking builds):
+Validation commands (verification subsequently requested by the user):
 
 ```sh
 ./gradlew :app:compileLiteDebugKotlin :app:testLiteDebugUnitTest :app:lintLiteDebug

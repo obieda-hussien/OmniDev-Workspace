@@ -286,6 +286,51 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
+  ui-instrumentation:
+    name: UI regression tests (API 30)
+    needs: run-quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Restore staged OmniLinkSDK
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: omnilink-maven-${{ github.run_id }}
+          path: ci-m2
+      - name: Set up JDK
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: gradle
+      - name: Set up Android SDK and emulator
+        uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1 emulator system-images;android-30;google_apis;x86_64'
+      - name: Install and verify Android NDK
+        run: bash .github/scripts/install-android-ndk.sh
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run UI regression tests
+        run: bash .github/scripts/run-ui-regressions.sh
+      - name: Upload UI test reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ui-regression-reports-${{ github.run_number }}
+          path: |
+            app/build/reports/androidTests/**
+            app/build/outputs/androidTest-results/**
+          if-no-files-found: ignore
+          retention-days: 14
+
   admin-release-telegram:
     name: Private Admin Release (Telegram)
     # Never use environment secrets on PR or on a non-main manual dispatch.
@@ -488,7 +533,7 @@ jobs:
   pipeline-summary:
     name: Pipeline Summary
     if: always()
-    needs: [run-quality, lint, tests, release-apk, admin-release-telegram]
+    needs: [run-quality, lint, tests, release-apk, ui-instrumentation, admin-release-telegram]
     runs-on: ubuntu-24.04
 
     steps:
@@ -502,6 +547,7 @@ jobs:
             echo "| Run Quality | ${{ needs.run-quality.result }} |"
             echo "| Lint | ${{ needs.lint.result }} |"
             echo "| Tests | ${{ needs.tests.result }} |"
+            echo "| UI regression tests | ${{ needs.ui-instrumentation.result }} |"
             echo "| Release APK | ${{ needs.release-apk.result }} |"
             echo "| Private Admin Telegram | ${{ needs.admin-release-telegram.result }} |"
           } >> "$GITHUB_STEP_SUMMARY"
