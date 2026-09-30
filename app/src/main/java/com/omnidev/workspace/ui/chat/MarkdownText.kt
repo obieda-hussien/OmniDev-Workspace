@@ -14,22 +14,22 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -42,6 +42,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.omnidev.workspace.ui.motion.OmniIconButton
 
 // ──────────────────────────────────────────────
 //  Theme / Color Constants
@@ -147,7 +148,7 @@ fun MarkdownText(
     style: TextStyle = MaterialTheme.typography.bodyMedium
 ) {
     Column(modifier = modifier) {
-        val segments = parseMarkdownSegments(text)
+        val segments = remember(text) { parseMarkdownSegments(text) }
         segments.forEach { segment ->
             when (segment) {
                 is MarkdownSegment.Code -> {
@@ -205,8 +206,9 @@ fun MarkdownText(
 @Composable
 private fun CodeBlock(code: String, language: String?) {
     val clipboard = LocalClipboardManager.current
-    val lines = code.split('\n')
+    val lines = remember(code) { code.split('\n') }
     val showLineNumbers = lines.size > 1
+    val highlighted = remember(code, language) { buildSyntaxHighlightedAnnotatedString(code, language) }
 
     Column(
         modifier = Modifier
@@ -228,7 +230,7 @@ private fun CodeBlock(code: String, language: String?) {
                 color = CommentColor,
                 modifier = Modifier.weight(1f)
             )
-            IconButton(
+            OmniIconButton(
                 onClick = { clipboard.setText(AnnotatedString(code)) },
                 modifier = Modifier.size(32.dp)
             ) {
@@ -263,7 +265,7 @@ private fun CodeBlock(code: String, language: String?) {
                     }
                     // Code column
                     Text(
-                        text = buildSyntaxHighlightedAnnotatedString(code, language),
+                        text = highlighted,
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp,
                         lineHeight = 20.sp,
@@ -272,7 +274,7 @@ private fun CodeBlock(code: String, language: String?) {
                 }
             } else {
                 Text(
-                    text = buildSyntaxHighlightedAnnotatedString(code, language),
+                    text = highlighted,
                     fontFamily = FontFamily.Monospace,
                     fontSize = 12.sp,
                     lineHeight = 20.sp,
@@ -286,7 +288,7 @@ private fun CodeBlock(code: String, language: String?) {
 /** Blockquote with a coloured vertical bar; bar on left for LTR, right for RTL. */
 @Composable
 private fun BlockQuoteBlock(content: String, isRtl: Boolean, baseStyle: TextStyle) {
-    val annotated = parseInlineMarkdown(content)
+    val annotated = remember(content) { parseInlineMarkdown(content) }
     Row(
         modifier = Modifier
             .fillMaxWidth()

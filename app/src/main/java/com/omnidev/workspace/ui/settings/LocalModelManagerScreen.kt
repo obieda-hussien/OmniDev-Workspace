@@ -16,23 +16,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.omnidev.workspace.data.localllm.LlamaCppInferenceEngine
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.ui.motion.OmniIconButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocalModelManagerScreen(settingsRepository: SettingsRepository, onNavigateBack: () -> Unit) {
     val context = LocalContext.current
     val model: LocalModelViewModel = viewModel(factory = LocalModelViewModel.factory(context, settingsRepository))
-    val state by model.state.collectAsState()
+    val state by model.state.collectAsStateWithLifecycle()
     var advanced by rememberSaveable { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(model::select) }
     val enabled = !state.busy && !state.initializing
     val nativeAvailable = LlamaCppInferenceEngine.isNativeAvailable
     Scaffold(topBar = {
         TopAppBar(title = { Text("Local Edge Model") }, navigationIcon = {
-            IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+            OmniIconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
         })
     }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp),

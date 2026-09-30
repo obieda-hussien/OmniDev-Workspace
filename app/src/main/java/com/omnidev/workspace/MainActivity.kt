@@ -6,7 +6,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.omnidev.workspace.data.auth.OAuthManager
 import com.omnidev.workspace.data.db.OmniDevDatabase
 import com.omnidev.workspace.data.network.CompletionService
@@ -146,25 +149,33 @@ class MainActivity : ComponentActivity() {
             toolManager = toolManager
         )
 
-        val settingsViewModel = AISettingsViewModel(settingsRepository)
-        val attachmentProcessor = AttachmentProcessor(contentResolver)
-        val chatViewModel = ChatViewModel(
-            settingsRepository = settingsRepository,
-            agentPipeline = agentPipeline,
-            chatRepository = chatRepository,
-            attachmentProcessor = attachmentProcessor,
-            completionProvider = completionProvider,
-            streamingCompletionProvider = { request, onChunk ->
-                completionService.stream(request, onChunk)
-            },
-            swarmOrchestrator = swarmOrchestrator,
-            apiKeyRepository = apiKeyRepository,
-            fileToolManager = fileToolManager,
-            autoHealBuildUseCase = autoHealBuildUseCase,
-            analyticsRepository = analyticsRepository,
-            compositeToolManager = toolManager
-        )
-        val providersViewModel = ProvidersViewModel(apiKeyRepository, settingsRepository)
+        val settingsViewModel = ViewModelProvider(this, viewModelFactory {
+            initializer { AISettingsViewModel(settingsRepository) }
+        })[AISettingsViewModel::class.java]
+        val attachmentProcessor = AttachmentProcessor(applicationContext.contentResolver)
+        val chatViewModel = ViewModelProvider(this, viewModelFactory {
+            initializer {
+                ChatViewModel(
+                    settingsRepository = settingsRepository,
+                    agentPipeline = agentPipeline,
+                    chatRepository = chatRepository,
+                    attachmentProcessor = attachmentProcessor,
+                    completionProvider = completionProvider,
+                    streamingCompletionProvider = { request, onChunk ->
+                        completionService.stream(request, onChunk)
+                    },
+                    swarmOrchestrator = swarmOrchestrator,
+                    apiKeyRepository = apiKeyRepository,
+                    fileToolManager = fileToolManager,
+                    autoHealBuildUseCase = autoHealBuildUseCase,
+                    analyticsRepository = analyticsRepository,
+                    compositeToolManager = toolManager
+                )
+            }
+        })[ChatViewModel::class.java]
+        val providersViewModel = ViewModelProvider(this, viewModelFactory {
+            initializer { ProvidersViewModel(apiKeyRepository, settingsRepository) }
+        })[ProvidersViewModel::class.java]
 
         setContent {
             OmniDevTheme {

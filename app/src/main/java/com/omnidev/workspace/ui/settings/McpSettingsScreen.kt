@@ -1,5 +1,7 @@
 package com.omnidev.workspace.ui.settings
-import androidx.compose.animation.AnimatedVisibility
+
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.omnidev.workspace.ui.motion.OmniIconButton
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -26,6 +28,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility as AnimatedVisibility
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -35,9 +38,9 @@ fun McpSettingsScreen(
     viewModel: McpSettingsViewModel,
     onNavigateBack: () -> Unit
 ) {
-    val jsonConfigState by viewModel.jsonConfigState.collectAsState()
-    val errorMessage by viewModel.errorMessage.collectAsState()
-    val isSaved by viewModel.isSaved.collectAsState()
+    val jsonConfigState by viewModel.jsonConfigState.collectAsStateWithLifecycle()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    val isSaved by viewModel.isSaved.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
     // Auto-hide success message after a delay
@@ -68,7 +71,7 @@ fun McpSettingsScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    OmniIconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back"
@@ -76,7 +79,7 @@ fun McpSettingsScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.loadConfig() }) {
+                    OmniIconButton(onClick = { viewModel.loadConfig() }) {
                         Icon(Icons.Default.Refresh, contentDescription = "Reload")
                     }
                 },

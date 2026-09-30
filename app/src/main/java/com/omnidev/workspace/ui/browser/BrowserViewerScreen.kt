@@ -1,8 +1,6 @@
 package com.omnidev.workspace.ui.browser
 
 import android.webkit.WebView
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
@@ -49,7 +47,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -62,7 +59,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -81,6 +77,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility as AnimatedVisibility
+import com.omnidev.workspace.ui.motion.OmniIconButton
 
 // ── Terminal colors reused from AgentLiveConsole ──────────────────────────────
 private val BrowserBg       = Color(0xFF0D1117)
@@ -111,8 +110,8 @@ fun BrowserViewerScreen(
     viewModel: BrowserViewerViewModel,
     onNavigateBack: () -> Unit
 ) {
-    val sessions by viewModel.sessions.collectAsState()
-    val browserError by viewModel.browserError.collectAsState()
+    val sessions by viewModel.sessions.collectAsStateWithLifecycle()
+    val browserError by viewModel.browserError.collectAsStateWithLifecycle()
     var autofillHelp by remember { mutableStateOf(false) }
     if (browserError != null) {
         AlertDialog(onDismissRequest = { viewModel.clearBrowserError() },
@@ -142,17 +141,10 @@ fun BrowserViewerScreen(
     // before the Activity context was available (e.g., by the background agent).
     val ctx = LocalContext.current
 
-    // Run immediately on first composition to make the Activity context
-    // available to the manager before Compose tries to embed any WebView.
-    LaunchedEffect(Unit) {
-        viewModel.updateActivityContext(ctx)
-        viewModel.refreshWebViewsForDisplay()
-    }
-
-    // Also refresh when the session snapshots change (e.g., new sessions created
-    // while the viewer is open). Keeping this ensures replacement WebViews are
-    // re-created with Activity context when needed.
-    LaunchedEffect(sessions) {
+    // Refresh on viewer/context changes, new tabs or active-tab switches.
+    // Title/URL/loading updates do not require reattaching every WebView or persisting tabs again.
+    val sessionStructure = remember(sessions) { sessions.map { it.id to it.isActive } }
+    LaunchedEffect(viewModel, ctx, sessionStructure) {
         viewModel.updateActivityContext(ctx)
         viewModel.refreshWebViewsForDisplay()
     }
@@ -179,7 +171,7 @@ fun BrowserViewerScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    OmniIconButton(onClick = onNavigateBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
@@ -308,7 +300,7 @@ private fun SessionTabBar(
             )
         }
         // Normal new tab button
-        IconButton(
+        OmniIconButton(
             onClick = onNewSession,
             modifier = Modifier.size(32.dp)
         ) {
@@ -316,7 +308,7 @@ private fun SessionTabBar(
                 tint = BrowserGray, modifier = Modifier.size(16.dp))
         }
         // Incognito new tab button
-        IconButton(
+        OmniIconButton(
             onClick = onNewIncognitoSession,
             modifier = Modifier.size(32.dp)
         ) {
@@ -415,13 +407,13 @@ private fun AddressBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        IconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
+        OmniIconButton(onClick = onBack, modifier = Modifier.size(32.dp)) {
             Icon(Icons.Filled.ArrowBack, "Back", tint = BrowserGray, modifier = Modifier.size(18.dp))
         }
-        IconButton(onClick = onForward, modifier = Modifier.size(32.dp)) {
+        OmniIconButton(onClick = onForward, modifier = Modifier.size(32.dp)) {
             Icon(Icons.Filled.ArrowForward, "Forward", tint = BrowserGray, modifier = Modifier.size(18.dp))
         }
-        IconButton(onClick = onReload, modifier = Modifier.size(32.dp)) {
+        OmniIconButton(onClick = onReload, modifier = Modifier.size(32.dp)) {
             Icon(Icons.Filled.Refresh, "Reload", tint = BrowserGray, modifier = Modifier.size(18.dp))
         }
         OutlinedTextField(
@@ -505,7 +497,7 @@ private fun BrowserToolsPanel(
     var panelExpanded by remember { mutableStateOf(false) }
     var selectedTab by remember { mutableStateOf(0) }
 
-    Column(modifier = Modifier.fillMaxWidth().animateContentSize()) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         // Panel header
         Row(
             modifier = Modifier

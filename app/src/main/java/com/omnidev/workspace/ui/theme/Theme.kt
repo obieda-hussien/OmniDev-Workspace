@@ -1,6 +1,5 @@
 package com.omnidev.workspace.ui.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -9,7 +8,11 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import com.omnidev.workspace.ui.motion.LocalOmniMotion
+import com.omnidev.workspace.ui.motion.rememberMotionPolicy
 
 private val DarkColorScheme = darkColorScheme(
     primary = OmniPrimary,
@@ -39,18 +42,24 @@ fun OmniDevTheme(
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    val context = LocalContext.current
+    val motionPolicy = rememberMotionPolicy()
+    val colorScheme = remember(context, darkTheme, dynamicColor) {
+        when {
+            dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            }
+            darkTheme -> DarkColorScheme
+            else -> LightColorScheme
         }
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    CompositionLocalProvider(LocalOmniMotion provides motionPolicy) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            shapes = OmniShapes,
+            content = content
+        )
+    }
 }
