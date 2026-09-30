@@ -2,6 +2,8 @@ package com.omnidev.workspace.ui.motion
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.material3.IconButton
@@ -24,8 +26,11 @@ fun OmniIconButton(
     content: @Composable () -> Unit
 ) {
     val source = interactionSource ?: remember { MutableInteractionSource() }
-    IconButton(onClick = onClick, modifier = modifier.pressResponse(source),
-        enabled = enabled, colors = colors, interactionSource = source, content = content)
+    IconButton(onClick = onClick, modifier = modifier,
+        enabled = enabled, colors = colors, interactionSource = source) {
+        // Animate the visual content, keeping the ripple, hit target and semantics bounds fixed.
+        Box(modifier = Modifier.pressResponse(source), contentAlignment = Alignment.Center) { content() }
+    }
 }
 
 @Composable
