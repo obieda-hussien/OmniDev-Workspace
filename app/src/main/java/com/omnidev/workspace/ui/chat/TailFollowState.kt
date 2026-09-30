@@ -1,5 +1,6 @@
 package com.omnidev.workspace.ui.chat
 
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
@@ -62,8 +63,19 @@ fun rememberTailFollowState(
                 delay(64L)
                 withFrameNanos { } // Wait for the latest rows to be measured.
                 if (follow.following && active.value && !listState.isScrollInProgress) {
-                    val lastIndex = listState.layoutInfo.totalItemsCount - 1
-                    if (lastIndex >= 0) listState.scrollToItem(lastIndex, Int.MAX_VALUE)
+                    val layout = listState.layoutInfo
+                    val lastIndex = layout.totalItemsCount - 1
+                    if (lastIndex >= 0) {
+                        val last = layout.visibleItemsInfo.lastOrNull { it.index == lastIndex }
+                        if (last == null) {
+                            // Bring the row into view; its measured geometry triggers the next pass.
+                            listState.scrollToItem(lastIndex)
+                        } else {
+                            // Use the actual remaining distance, never a sentinel-sized offset.
+                            val remaining = last.offset.toLong() + last.size - layout.viewportEndOffset + layout.afterContentPadding
+                            if (remaining > 0L) listState.scrollBy(remaining.toFloat())
+                        }
+                    }
                 }
             }
     }
