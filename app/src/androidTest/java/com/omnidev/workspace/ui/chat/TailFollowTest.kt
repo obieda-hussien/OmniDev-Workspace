@@ -80,8 +80,11 @@ class TailFollowTest {
         }
         compose.waitUntil(5_000) { bottomIsVisible() }
         for (height in listOf(900.dp, 1_800.dp, 2_400.dp)) {
+            val expectedHeight = with(compose.density) { height.roundToPx() }
             compose.runOnIdle { replyHeight.value = height }
-            compose.waitUntil(5_000) { bottomIsVisible() && list.layoutInfo.visibleItemsInfo.last().size > 0 }
+            compose.waitUntil(5_000) {
+                bottomIsVisible() && list.layoutInfo.visibleItemsInfo.last().size == expectedHeight
+            }
             compose.runOnIdle {
                 val last = list.layoutInfo.visibleItemsInfo.last()
                 assertEquals(list.layoutInfo.viewportEndOffset, last.offset + last.size)
