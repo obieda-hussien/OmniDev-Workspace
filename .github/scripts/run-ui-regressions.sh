@@ -51,4 +51,5 @@ bash ./gradlew --no-daemon --max-workers 1 \
   -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
   -Pkotlin.compiler.execution.strategy=in-process \
   :app:connectedLiteDebugAndroidTest \
+  -Pkotlin.incremental=false \
   -Pandroid.testInstrumentationRunnerArguments.package=com.omnidev.workspace.ui

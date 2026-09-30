@@ -11,7 +11,6 @@ import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateContentSize
@@ -21,6 +20,7 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
@@ -87,19 +87,24 @@ fun OmniAnimatedVisibility(
     modifier: Modifier = Modifier,
     enter: EnterTransition? = null,
     exit: ExitTransition? = null,
-    content: @Composable AnimatedVisibilityScope.() -> Unit
+    content: @Composable () -> Unit
 ) {
     val policy = LocalOmniMotion.current
+    if (policy.reduced) {
+        // Even None transitions keep AnimatedVisibility's exit lifecycle for extra frames.
+        // Reduced motion must add/remove content directly without retaining hidden nodes.
+        if (visible) Box(modifier) { content() }
+        return
+    }
     val duration = policy.responseMillis
     AnimatedVisibility(
         visible = visible,
         modifier = modifier,
-        enter = if (policy.reduced) EnterTransition.None else enter
+        enter = enter
             ?: (fadeIn(tween(duration, easing = OmniEasing)) + expandVertically(tween(duration, easing = OmniEasing))),
-        exit = if (policy.reduced) ExitTransition.None else exit
+        exit = exit
             ?: (fadeOut(tween(duration / 2)) + shrinkVertically(tween(duration, easing = OmniEasing))),
-        content = content
-    )
+    ) { content() }
 }
 
 @Composable
