@@ -49,7 +49,14 @@ fun rememberTailFollowState(
         if (forceFollowKey != null) follow.resume()
     }
     LaunchedEffect(follow, listState) {
-        snapshotFlow { Triple(revision.value to listState.layoutInfo.viewportEndOffset, follow.following, active.value) }
+        snapshotFlow {
+            val layout = listState.layoutInfo
+            val last = layout.visibleItemsInfo.lastOrNull()
+            // Layout can finish after the content emission. Observe measured size/count too,
+            // and retry after a fling ends, rather than losing a one-shot follow request.
+            val measured = Triple(layout.totalItemsCount, layout.viewportEndOffset, last?.let { it.index to it.size })
+            Triple(revision.value to measured, follow.following, active.value && !listState.isScrollInProgress)
+        }
             .conflate()
             .collect {
                 delay(64L)

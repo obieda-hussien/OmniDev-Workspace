@@ -112,4 +112,19 @@ class TailFollowTest {
         compose.waitUntil(5_000) { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index == 79 }
     }
 
+
+    @Test fun sessionLoadedAfterAnEmptyFrameStillFollowsLatestRow() {
+        val count = mutableStateOf(0)
+        lateinit var list: LazyListState
+        compose.setContent {
+            list = rememberLazyListState()
+            rememberTailFollowState(list, "session", count.value)
+            LazyColumn(Modifier.fillMaxSize(), state = list) {
+                items(count.value) { Box(Modifier.height(80.dp)) }
+            }
+        }
+        compose.runOnIdle { count.value = 80 }
+        compose.waitUntil(5_000) { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index == 79 }
+    }
+
 }
