@@ -328,6 +328,7 @@ jobs:
           path: |
             app/build/reports/androidTests/**
             app/build/outputs/androidTest-results/**
+            ${{ runner.temp }}/omni-emulator.log
           if-no-files-found: ignore
           retention-days: 14
 

@@ -11,15 +11,22 @@ bash ./gradlew --no-daemon --max-workers 1 \
   -Pkotlin.incremental=false \
   :app:assembleLiteDebug :app:assembleLiteDebugAndroidTest
 
+# Use one explicit AVD location for both SDK tools and the emulator.
+export ANDROID_AVD_HOME="$RUNNER_TEMP/omni-avd"
+mkdir -p "$ANDROID_AVD_HOME"
 printf 'no\n' | avdmanager create avd --force --name omni-ui-api30 \
   --package 'system-images;android-30;google_apis;x86_64' --device pixel_2
 "$ANDROID_HOME/emulator/emulator" -avd omni-ui-api30 -no-window -no-audio \
-  -no-boot-anim -no-snapshot -gpu swiftshader_indirect -memory 2048 \
+  -no-boot-anim -no-snapshot -gpu swiftshader -memory 2048 \
   > "$RUNNER_TEMP/omni-emulator.log" 2>&1 &
 emulator_pid=$!
 trap 'kill "$emulator_pid" 2>/dev/null || true' EXIT
 
-timeout 180 adb wait-for-device
+if ! timeout 180 adb wait-for-device; then
+  cat "$RUNNER_TEMP/omni-emulator.log"
+  echo '::error::Emulator did not connect to adb'
+  exit 1
+fi
 for attempt in $(seq 1 90); do
   if [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then
     break
