@@ -22,7 +22,23 @@ object OmniLinkTierCapabilityPolicy {
         "ide.sync_project", "ide.start_build", "ide.start_tests", "ide.start_lint"
     )
 
+    private val launcherPackages = setOf(
+        "app.lawnchair", "app.lawnchair.debug", "app.lawnchair.nightly",
+        "app.lawnchair.nightly.debug", "app.lawnchair.play", "app.lawnchair.play.debug"
+    )
+    private val launcherRead = setOf("launcher.health", "launcher.get_settings", "launcher.list_apps")
+    private val launcherControl = setOf("launcher.set_preference", "launcher.open_app", "launcher.open_drawer")
+
     fun allowed(tier: String, extensionId: String, capability: String): Boolean {
+        if (capability.startsWith("launcher.")) {
+            if (extensionId.substringBefore('/') !in launcherPackages) return false
+            return when (tier.uppercase()) {
+                "ADMIN", "PRO", "OEM" -> capability in launcherRead || capability in launcherControl
+                "NORM" -> capability in launcherRead || capability == "launcher.open_app" || capability == "launcher.open_drawer"
+                "LITE" -> capability == "launcher.health"
+                else -> false
+            }
+        }
         if (!capability.startsWith("ide.")) return true
         // The SDK also verifies the actual service signer and permission; package is an
         // additional scope constraint, never sufficient evidence on its own.

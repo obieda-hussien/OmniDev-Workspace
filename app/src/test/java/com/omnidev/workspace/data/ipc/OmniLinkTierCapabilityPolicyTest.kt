@@ -32,4 +32,18 @@ class OmniLinkTierCapabilityPolicyTest {
     fun unknownTierIsNotPrivileged() {
         assertFalse(OmniLinkTierCapabilityPolicy.allowed("UNKNOWN", ide, "ide.health"))
     }
+    @Test
+    fun launcherControlIsScopedByPackageTierAndKnownCapability() {
+        val launcher = "app.lawnchair.debug/app.lawnchair.omni.OmniLauncherService"
+        listOf("ADMIN", "PRO", "OEM").forEach { tier ->
+            assertTrue(OmniLinkTierCapabilityPolicy.allowed(tier, launcher, "launcher.set_preference"))
+        }
+        assertFalse(OmniLinkTierCapabilityPolicy.allowed("NORM", launcher, "launcher.set_preference"))
+        assertTrue(OmniLinkTierCapabilityPolicy.allowed("NORM", launcher, "launcher.open_app"))
+        assertFalse(OmniLinkTierCapabilityPolicy.allowed("LITE", launcher, "launcher.list_apps"))
+        assertTrue(OmniLinkTierCapabilityPolicy.allowed("LITE", launcher, "launcher.health"))
+        assertFalse(OmniLinkTierCapabilityPolicy.allowed("ADMIN", "evil.app/Service", "launcher.health"))
+        assertFalse(OmniLinkTierCapabilityPolicy.allowed("ADMIN", launcher, "launcher.clear_home"))
+        assertFalse(OmniLinkTierCapabilityPolicy.allowed("UNKNOWN", launcher, "launcher.health"))
+    }
 }
