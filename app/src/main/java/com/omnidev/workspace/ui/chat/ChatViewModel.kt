@@ -347,6 +347,18 @@ class ChatViewModel(
         }
     }
 
+    /** Keep an active run and any existing draft intact; public requests never auto-submit. */
+    fun acceptExternalSearchDraft(prompt: String) {
+        _uiState.update { state ->
+            val existing = state.inputText
+            state.copy(inputText = when {
+                existing.isBlank() -> prompt
+                existing.trim() == prompt -> existing
+                else -> existing + "\n\n" + prompt
+            })
+        }
+    }
+
     fun onInputChanged(text: String) {
         _uiState.update { it.copy(inputText = text) }
     }

@@ -82,6 +82,16 @@ fun AppNavigation(
     val direction = if (LocalLayoutDirection.current == LayoutDirection.Rtl) -1 else 1
 
     LaunchedEffect(Unit) {
+        com.omnidev.workspace.MainActivity.pendingOmniSearch.collect { request ->
+            if (request != null) {
+                request.prompt?.let(chatViewModel::acceptExternalSearchDraft)
+                navController.navigate(Routes.CHAT) { launchSingleTop = true }
+                com.omnidev.workspace.MainActivity.pendingOmniSearch.compareAndSet(request, null)
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
         com.omnidev.workspace.MainActivity.pendingChatSession.collect { sessionId ->
             if (sessionId != null) {
                 chatViewModel.loadSession(sessionId)

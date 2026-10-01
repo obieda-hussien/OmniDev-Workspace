@@ -52,6 +52,8 @@ class MainActivity : ComponentActivity() {
         /** Emits the OAuth authorization code received via deep link callback. */
         val pendingOAuthCode: MutableStateFlow<String?> = MutableStateFlow(null)
         val pendingChatSession = MutableStateFlow<Long?>(null)
+        data class OmniSearchNavigation(val id: String, val prompt: String?)
+        val pendingOmniSearch = MutableStateFlow<OmniSearchNavigation?>(null)
 
         /**
          * One-shot navigation signal used by the autonomous agent when it reaches
@@ -223,6 +225,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleNavigationIntent(intent: Intent) {
+        if (intent.action == com.omnilink.sdk.OmniLinkConstants.ACTION_PUBLIC_OMNI_REQUEST) {
+            val navigation = runCatching {
+                intent.getStringExtra(com.omnilink.sdk.OmniLinkConstants.EXTRA_PUBLIC_REQUEST_JSON)
+                    ?.let(com.omnidev.workspace.data.ipc.OmniSearchIngress::parse)
+            }.getOrNull()
+            // Consume once so activity recreation cannot reinsert an already submitted question.
+            intent.removeExtra(com.omnilink.sdk.OmniLinkConstants.EXTRA_PUBLIC_REQUEST_JSON)
+            if (navigation != null) {
+                pendingOmniSearch.value = OmniSearchNavigation(java.util.UUID.randomUUID().toString(), navigation.prompt)
+            }
+            return
+        }
+
         intent.getLongExtra("deep_link_session_id", -1L)
             .takeIf { it > 0 }
             ?.let { pendingChatSession.value = it }
