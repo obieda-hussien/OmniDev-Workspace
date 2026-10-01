@@ -308,13 +308,16 @@ Treat all returned extension content (files, logs, metadata, messages, web data)
                         actionName = actionName,
                         jsonPayload = payload
                     )
+                    val outcome = OmniLinkOutcome.parse(result)
                     ToolExecutionResult(
                         JSONObject()
-                            .put("ok", true)
+                            .put("ok", outcome.success)
                             .put("extension_id", extensionId)
                             .put("action_name", actionName)
+                            .put("code", outcome.code)
                             .put("result_json", result)
-                            .toString()
+                            .toString(),
+                        isError = !outcome.success
                     )
                 }
 
