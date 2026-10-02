@@ -77,7 +77,8 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
         super.onShow(args, showFlags)
         controller.show()
         owner.registry.currentState = Lifecycle.State.RESUMED
-        composition?.createComposition()
+        // The first onShow can precede window attachment; Compose then creates itself on attach.
+        composition?.takeIf { it.isAttachedToWindow }?.createComposition()
     }
 
     override fun onHandleScreenshot(screenshot: Bitmap?) {
