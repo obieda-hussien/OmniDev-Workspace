@@ -407,6 +407,22 @@ class ChatViewModel(
         }
     }
 
+    /** Submit an overlay request without sending or overwriting the workspace's unsent draft. */
+    fun sendAssistantMessage(text: String, image: PendingAttachment? = null): Boolean {
+        val draft = _uiState.value
+        if (text.isBlank() || draft.isProcessing) return false
+        _uiState.update {
+            it.copy(inputText = text, pendingAttachments = listOfNotNull(image), activeMode = OmniMode.AUTO,
+                replyingTo = null)
+        }
+        sendMessage()
+        _uiState.update {
+            it.copy(inputText = draft.inputText, pendingAttachments = draft.pendingAttachments,
+                activeMode = draft.activeMode, replyingTo = draft.replyingTo)
+        }
+        return true
+    }
+
     fun sendMessage() {
         val state = _uiState.value
         val input = state.inputText.trim()
@@ -455,7 +471,10 @@ class ChatViewModel(
             when (mode) {
                 OmniMode.AUTO -> {
                     val baseline = IntentClassifier.classify(input)
-                    val resolved = classifyTaskComplexity(input)
+                    // Team mode is text-only; keep screen questions on a vision-capable path.
+                    val classified = classifyTaskComplexity(input)
+                    val resolved = if (imageAttachments.isNotEmpty() && classified == OmniMode.SWARM)
+                        OmniMode.AGENT else classified
                     com.omnidev.workspace.domain.engine.ModeOutcomeLearner.recordAutoDecision(input, baseline, resolved)
                     _uiState.update { it.copy(agentStatus = "🧠 Auto-routed → ${resolved.label}") }
                     when (resolved) {
