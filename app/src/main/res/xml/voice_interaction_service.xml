@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="com.omnidev.workspace.data.assistant.OmniVoiceSessionService"
+    android:recognitionService="com.omnidev.workspace.data.assistant.OmniRecognitionService"
+    android:settingsActivity="com.omnidev.workspace.MainActivity"
+    android:supportsAssist="true"
+    android:supportsLaunchVoiceAssistFromKeyguard="false"
+    android:supportsLocalInteraction="false" />

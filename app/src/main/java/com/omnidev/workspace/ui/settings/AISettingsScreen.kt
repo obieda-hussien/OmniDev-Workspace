@@ -239,6 +239,9 @@ fun AISettingsScreen(
             AccessibilityServiceCard()
 
             Spacer(modifier = Modifier.height(8.dp))
+            com.omnidev.workspace.ui.assistant.AssistantSettingsCard()
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             // ── Section: AI Identity & Context Studio ──
             SectionHeader(
