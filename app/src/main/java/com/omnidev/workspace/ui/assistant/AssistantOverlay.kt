@@ -75,7 +75,8 @@ fun AssistantOverlay(
     onSetup: () -> Unit,
     onMicrophone: () -> Unit,
     onMinimize: () -> Unit,
-    onAttach: () -> Unit
+    onAttach: () -> Unit,
+    onSystemVoice: () -> Unit
 ) {
     val screen by controller.state.collectAsStateWithLifecycle()
     val chat by controller.chat.uiState.collectAsStateWithLifecycle()
@@ -150,7 +151,7 @@ fun AssistantOverlay(
                             Text("Ask about your screen, attach a file, or tell me what to do.", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                         }
                         items(chat.messages, key = { it.messageId }) { message ->
-                            MessageBubble(message = message,
+                            MessageBubble(message = message, consoleEntries = chat.messageConsoleEntries[message.timestamp],
                                 replyToMessage = chat.messages.firstOrNull { it.messageId == message.replyToMessageId },
                                 onReply = controller.chat::setReplyingTo)
                             message.executionRequest?.let { request ->
@@ -162,7 +163,7 @@ fun AssistantOverlay(
                             }
                         }
                         chat.streamingContent?.takeIf { it.isNotBlank() }?.let { content -> item { StreamingMessageBubble(content) } }
-                        if (chat.consoleEntries.isNotEmpty()) item {
+                        if (chat.consoleEntries.isNotEmpty() && (chat.isProcessing || chat.messageConsoleEntries.values.none { saved -> saved.any { it.id == chat.consoleEntries.first().id } })) item {
                             AgentLiveConsole(chat.consoleEntries.map(ConsoleRedactor::entry), chat.isProcessing)
                         }
                         if (entries.isNotEmpty()) item {
@@ -211,6 +212,7 @@ fun AssistantOverlay(
                             IconButton(onClick = { attachMenu = true }, enabled = !busy) { Icon(Icons.Default.Add, "Attachments and capabilities") }
                             DropdownMenu(expanded = attachMenu, onDismissRequest = { attachMenu = false }) {
                                 DropdownMenuItem(text = { Text("Files, photos & videos") }, onClick = { attachMenu = false; onAttach() })
+                                DropdownMenuItem(text = { Text("System voice input") }, onClick = { attachMenu = false; onSystemVoice() })
                                 DropdownMenuItem(text = { Text("File path") }, onClick = { attachMenu = false; pathDialog = true })
                                 DropdownMenuItem(text = { Text("Assistant capabilities") }, onClick = { attachMenu = false; onSetup() })
                             }

@@ -37,7 +37,7 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
     val state = mutable.asStateFlow()
     private var generation = 0
 
-    fun show() { mutable.update { it.copy(visible = true, message = null) } }
+    fun show() { mutable.update { it.copy(visible = true) } }
     fun hide() { mutable.update { it.copy(visible = false, selecting = false, listening = false) } }
     /** Cancels the active run but preserves its persisted messages in ordinary chat history. */
     fun close() {

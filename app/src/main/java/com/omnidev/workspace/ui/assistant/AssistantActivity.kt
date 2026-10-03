@@ -39,7 +39,7 @@ class AssistantActivity : ComponentActivity() {
                         finish()
                     }
                 }, onSetup = { handoff(AssistantInputActivity.SETTINGS) },
-                    onAttach = { handoff(AssistantInputActivity.FILES) }, onMinimize = { handoff(AssistantInputActivity.BUBBLE) },
+                    onAttach = { handoff(AssistantInputActivity.FILES) }, onSystemVoice = { handoff(AssistantInputActivity.VOICE) }, onMinimize = { handoff(AssistantInputActivity.BUBBLE) },
                     onMicrophone = { speech.toggle({ handoff(AssistantInputActivity.MICROPHONE) }, { handoff(AssistantInputActivity.VOICE) }) })
             }
         }

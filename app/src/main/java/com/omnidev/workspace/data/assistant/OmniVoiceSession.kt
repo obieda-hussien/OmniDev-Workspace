@@ -73,6 +73,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
                     }
                 }, onSetup = { handoff(AssistantInputActivity.SETTINGS) },
                     onAttach = { handoff(AssistantInputActivity.FILES) },
+                    onSystemVoice = { handoff(AssistantInputActivity.VOICE) },
                     onMinimize = { handoff(AssistantInputActivity.BUBBLE) },
                     onMicrophone = {
                         speech.toggle({ handoff(AssistantInputActivity.MICROPHONE) }, { handoff(AssistantInputActivity.VOICE) })
