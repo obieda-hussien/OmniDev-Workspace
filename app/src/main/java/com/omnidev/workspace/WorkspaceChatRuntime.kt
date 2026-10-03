@@ -30,14 +30,22 @@ import com.omnidev.workspace.domain.engine.AgentPipeline
 import com.omnidev.workspace.domain.engine.SwarmOrchestrator
 import com.omnidev.workspace.ui.chat.ChatViewModel
 
-/** One process-owned runtime shared by the workspace and the system assistant. */
+/** Independent composers share repositories and the established agent/tool stack. */
 object WorkspaceChatRuntime {
     private val store = ViewModelStore()
     private var model: ChatViewModel? = null
+    private val assistantStore = ViewModelStore()
+    private var assistantModel: ChatViewModel? = null
+
+    @Synchronized
+    fun assistant(context: Context): ChatViewModel = assistantModel ?: create(context, assistantStore, true).also { assistantModel = it }
 
     @Synchronized
     fun get(context: Context): ChatViewModel {
-        model?.let { return it }
+        return model ?: create(context, store, false).also { model = it }
+    }
+
+    private fun create(context: Context, store: ViewModelStore, assistant: Boolean): ChatViewModel {
         val applicationContext = context.applicationContext
         val settingsRepository = SettingsRepository(applicationContext)
         val apiKeyRepository = ApiKeyRepository(applicationContext)
@@ -93,11 +101,13 @@ object WorkspaceChatRuntime {
             streamingCompletionProvider = { request, onChunk ->
                 completionService.stream(request, onChunk)
             },
-            config = AgentConfig.THOROUGH,
+            config = if (assistant) AgentConfig(maxIterations = 24, maxRetries = 2,
+                enableParallelToolExecution = false, enableSelfReflection = false, toolExecutionTimeoutMs = 120_000L) else AgentConfig.THOROUGH,
             apiKeyRepository = apiKeyRepository,
             memoryManager = memoryManager,
             smartLearningBridge = app.smartLearningBridge,
-            analyticsRepository = analyticsRepository
+            analyticsRepository = analyticsRepository,
+            toolEligibility = if (assistant) com.omnidev.workspace.data.tools.TierToolGate::denyReason else null
         )
 
         val swarmOrchestrator = SwarmOrchestrator(
@@ -136,9 +146,10 @@ object WorkspaceChatRuntime {
                     fileToolManager = fileToolManager,
                     autoHealBuildUseCase = autoHealBuildUseCase,
                     analyticsRepository = analyticsRepository,
-                    compositeToolManager = toolManager
+                    compositeToolManager = toolManager,
+                    assistantWorkspace = if (assistant) java.io.File(applicationContext.filesDir, "assistant_workspace").apply { mkdirs() }.absolutePath else null
                 )
             }
-        })[ChatViewModel::class.java].also { model = it }
+        })[ChatViewModel::class.java]
     }
 }

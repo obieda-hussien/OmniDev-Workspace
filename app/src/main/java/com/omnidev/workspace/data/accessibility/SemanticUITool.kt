@@ -308,6 +308,7 @@ object SemanticUITool {
                     results.add("⚠️ $nodeId: عقدة غير موجودة")
                     continue
                 }
+                if (node.isPassword) { results.add("Protected input: user handoff required for $nodeId"); continue }
                 if (!node.isEditable) {
                     results.add("⚠️ $nodeId: غير قابل للتحرير")
                     continue
@@ -486,6 +487,7 @@ object SemanticUITool {
         val service = OmniAccessibilityService.instance
             ?: return ToolExecutionResult("خدمة الـ accessibility غير نشطة.", isError = true)
 
+        if (node.isPassword) return ToolExecutionResult("Protected input: user handoff required.", isError = true)
         if (!node.isEditable) {
             return ToolExecutionResult("[$nodeId] غير قابل للتحرير. استخدم force_type بدلاً من ذلك.", isError = true)
         }
@@ -608,6 +610,8 @@ object SemanticUITool {
     private suspend fun forceType(text: String?, nodeId: String?): ToolExecutionResult {
         if (text.isNullOrBlank()) return ToolExecutionResult("يجب تحديد 'text'.", isError = true)
         val fallbackNode = nodeId?.let { resolveNode(it) }
+        if (com.omnidev.workspace.data.assistant.AssistantRuntime.targetingScreen && (fallbackNode == null || fallbackNode.isPassword))
+            return ToolExecutionResult("A non-protected target node is required; hand protected inputs to the user.", isError = true)
         val result = withContext(Dispatchers.IO) { GodModeAccessibility.hybridType(text, fallbackNode) }
         return ToolExecutionResult(result, isError = result.startsWith("❌"))
     }

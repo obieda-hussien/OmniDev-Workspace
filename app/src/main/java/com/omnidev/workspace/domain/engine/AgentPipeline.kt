@@ -74,7 +74,8 @@ class AgentPipeline(
     private val memoryManager: com.omnidev.workspace.data.tools.MemoryManager? = null,
     private val smartLearningBridge: com.omnidev.workspace.data.brain.SmartLearningBridge? = null,
     private val toolOrchestrator: ToolOrchestrator = ToolOrchestrator(),
-    private val analyticsRepository: com.omnidev.workspace.data.repository.AnalyticsRepository? = null
+    private val analyticsRepository: com.omnidev.workspace.data.repository.AnalyticsRepository? = null,
+    private val toolEligibility: ((String) -> String?)? = null
 ) {
 
     companion object {
@@ -113,7 +114,9 @@ Do not use tools. Do not rewrite merely for style.
         workerPersona: String? = null,
         userContext: String? = null,
         disabledToolNames: Set<String> = emptySet(),
-        toolAccessMode: String = "AUTO"
+        toolAccessMode: String = "AUTO",
+        additionalToolDomains: Set<IntentClassifier.ToolDomain> = emptySet(),
+        preferredToolNames: Set<String> = emptySet()
     ): Flow<AgentEvent> = channelFlow {
         val brain = smartLearningBridge?.forkForRun()
         val startedAt = System.currentTimeMillis()
@@ -167,7 +170,7 @@ Do not use tools. Do not rewrite merely for style.
             append(routingObjective)
         }.takeLast(2_400)
         val taskSignals = IntentClassifier.analyze(routingObjective)
-        val relevantDomains = IntentClassifier.getRelevantDomains(routingContext)
+        val relevantDomains = IntentClassifier.getRelevantDomains(routingContext) + additionalToolDomains
         val localTools = toolManager.getToolDefinitions()
             .asSequence()
             .filter { it.name !in disabledToolNames }
@@ -180,6 +183,7 @@ Do not use tools. Do not rewrite merely for style.
             emptyList()
         }
         val rawToolDefs = (localTools + mcpTools).distinctBy { it.name }
+            .filter { toolEligibility?.invoke(it.name) == null }
         val toolQuality = try {
             analyticsRepository?.getStats()?.toolUsageCount.orEmpty().mapNotNull { (name, stats) ->
                 if (stats.executionCount < 10) null else {
@@ -190,11 +194,18 @@ Do not use tools. Do not rewrite merely for style.
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) { emptyMap() }
-        val toolDefs = ToolSchemaCompactor.compact(
+        val compactedTools = ToolSchemaCompactor.compact(
             tools = rawToolDefs,
             messages = listOf(ChatMessage(MessageRole.USER, routingContext)),
             toolQuality = toolQuality
-        ).orEmpty().take(MAX_TOOLS_PER_REQUEST)
+        ).orEmpty()
+        // Keep assistant interaction tools callable even for a short "what goes here?" question.
+        // Disabled/tier-filtered tools are absent from rawToolDefs and cannot be resurrected.
+        val preferredTools = ToolSchemaCompactor.compact(
+            rawToolDefs.filter { it.name in preferredToolNames },
+            listOf(ChatMessage(MessageRole.USER, routingContext))
+        ).orEmpty()
+        val toolDefs = (preferredTools + compactedTools).distinctBy { it.name }.take(MAX_TOOLS_PER_REQUEST)
         brain?.registerTools(toolDefs)
 
         val memoryContext = try {
@@ -532,6 +543,11 @@ Do not use tools. Do not rewrite merely for style.
         allowParallel: Boolean
     ): List<ToolExecutionResult> {
         suspend fun executeOne(call: ToolCall): ToolExecutionResult {
+            // Recheck at execution: also covers forged/unadvertised calls and MCP dispatch.
+            toolEligibility?.invoke(call.name)?.let { reason ->
+                return ToolExecutionResult("Flavor policy denied ${call.name}: $reason", isError = true,
+                    classification = "TIER_DENIED", retryable = false)
+            }
             val started = System.nanoTime()
             val retrySafe = ToolBatchPolicy.isReadOnly(call)
             val orchestrated = toolOrchestrator.executeTool(

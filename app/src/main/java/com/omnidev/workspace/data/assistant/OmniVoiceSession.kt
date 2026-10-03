@@ -21,16 +21,24 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.omnidev.workspace.MainActivity
 import com.omnidev.workspace.R
 import com.omnidev.workspace.WorkspaceChatRuntime
-import com.omnidev.workspace.ui.assistant.AssistantActivity
+import com.omnidev.workspace.ui.assistant.AssistantInputActivity
+import android.app.assist.AssistContent
+import android.app.assist.AssistStructure
 import com.omnidev.workspace.ui.assistant.AssistantOverlay
 import com.omnidev.workspace.ui.assistant.AssistantSettings
 import com.omnidev.workspace.ui.theme.OmniDevTheme
 
 class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
     private val owner = SessionOwner()
-    private val controller by lazy { AssistantController(context.applicationContext, WorkspaceChatRuntime.get(context)) }
+    private val controller by lazy { AssistantRuntime.get(context) }
     private val speech by lazy { AssistantSpeechInput(context, controller) }
     private var composition: ComposeView? = null
+    private var preserveOnHide = false
+    private fun handoff(action: String) {
+        preserveOnHide = true
+        startAssistantActivity(AssistantInputActivity.intent(context, action))
+        hide()
+    }
 
     init { setTheme(R.style.Theme_OmniDevWorkspace_Assistant) }
 
@@ -55,30 +63,44 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
         }
         view.setContent {
             OmniDevTheme(dynamicColor = false) {
-                AssistantOverlay(controller, onDismiss = ::hide, onExpand = {
+                AssistantOverlay(controller, onDismiss = { preserveOnHide = false; hide() }, onExpand = {
                     controller.openConversation {
+                        preserveOnHide = true
                         startAssistantActivity(Intent(context, MainActivity::class.java)
-                            .putExtra("open_assistant_conversation", true))
+                            .putExtra("open_assistant_conversation", true)
+                            .putExtra("assistant_session_id", controller.chat.uiState.value.currentSessionId ?: -1L))
                         hide()
                     }
-                }, onSetup = {
-                    startAssistantActivity(AssistantSettings.intent(context)); hide()
-                }, onMicrophone = {
-                    speech.toggle {
-                        startAssistantActivity(Intent(context, AssistantActivity::class.java)
-                            .putExtra(AssistantActivity.REQUEST_MICROPHONE, true))
+                }, onSetup = { handoff(AssistantInputActivity.SETTINGS) },
+                    onAttach = { handoff(AssistantInputActivity.FILES) },
+                    onSystemVoice = { handoff(AssistantInputActivity.VOICE) },
+                    onMinimize = { handoff(AssistantInputActivity.BUBBLE) },
+                    onMicrophone = {
+                        speech.toggle({ handoff(AssistantInputActivity.MICROPHONE) }, { handoff(AssistantInputActivity.VOICE) })
                     }
-                })
+                )
             }
         }
     }
 
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
-        controller.show()
+        preserveOnHide = false
+        AssistantRuntime.begin(context, args?.getBoolean(OmniVoiceInteractionService.RESUME) == true, native = true)
+        AssistantRuntime.minimizeForAction = {
+            preserveOnHide = true
+            AssistantBubbleService.show(context)
+            hide()
+        }
         owner.registry.currentState = Lifecycle.State.RESUMED
         // The first onShow can precede window attachment; Compose then creates itself on attach.
         composition?.takeIf { it.isAttachedToWindow }?.createComposition()
+    }
+
+    @Suppress("DEPRECATION")
+    override fun onHandleAssist(data: Bundle?, structure: AssistStructure?, content: AssistContent?) {
+        super.onHandleAssist(data, structure, content)
+        structure?.activityComponent?.packageName?.takeIf { it != context.packageName }?.let { AssistantRuntime.targetPackage = it }
     }
 
     override fun onHandleScreenshot(screenshot: Bitmap?) {
@@ -88,7 +110,8 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
 
     override fun onHide() {
         speech.stop()
-        controller.hide()
+        AssistantRuntime.minimizeForAction = null
+        if (preserveOnHide) controller.hide() else AssistantRuntime.close(context)
         composition?.disposeComposition()
         owner.registry.currentState = Lifecycle.State.CREATED
         super.onHide()
@@ -96,7 +119,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
 
     override fun onDestroy() {
         speech.stop()
-        controller.destroy()
+        if (!preserveOnHide) AssistantRuntime.close(context)
         owner.registry.currentState = Lifecycle.State.DESTROYED
         composition?.disposeComposition()
         super.onDestroy()

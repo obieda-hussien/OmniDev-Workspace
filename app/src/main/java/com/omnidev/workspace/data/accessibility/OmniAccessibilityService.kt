@@ -10,6 +10,8 @@ import android.os.Bundle
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
+import com.omnidev.workspace.data.assistant.AssistantRuntime
 import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -61,7 +63,7 @@ class OmniAccessibilityService : AccessibilityService() {
 
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                AccessibilityStateManager.updateActiveWindow(
+                if (!(AssistantRuntime.targetingScreen && event.packageName?.toString() == packageName)) AccessibilityStateManager.updateActiveWindow(
                     packageName = event.packageName?.toString(),
                     activityName = event.className?.toString()
                 )
@@ -91,11 +93,26 @@ class OmniAccessibilityService : AccessibilityService() {
      */
     private fun refreshRootNode() {
         try {
-            val root = rootInActiveWindow ?: return
+            val root = assistantTargetRoot() ?: return
             // AccessibilityStateManager.updateRootNode() recycles any previously held root node.
+            if (AssistantRuntime.targetingScreen) AccessibilityStateManager.updateActiveWindow(root.packageName?.toString(), null)
             AccessibilityStateManager.updateRootNode(root)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to refresh root node: ${e.message}")
+        }
+    }
+
+    /** Retrieve the application underneath our assistant window, which owns foreground focus. */
+    private fun assistantTargetRoot(): AccessibilityNodeInfo? {
+        if (!AssistantRuntime.targetingScreen) return rootInActiveWindow
+        for (window in windows.sortedByDescending { it.layer }) {
+            if (window.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
+            val root = window.root ?: continue
+            if (root.packageName?.toString() != packageName || AssistantRuntime.nativeHost) return root
+            root.recycle()
+        }
+        return rootInActiveWindow?.let { root ->
+            if (AssistantRuntime.get(this).state.value.visible && root.packageName?.toString() == packageName) { root.recycle(); null } else root
         }
     }
 
@@ -117,6 +134,7 @@ class OmniAccessibilityService : AccessibilityService() {
         }
         
         // Fallback to coordinate-based click if semantic click fails
+        if (AssistantRuntime.targetingScreen && AssistantRuntime.get(this).state.value.visible) return false
         val bounds = Rect()
         nodeInfo.getBoundsInScreen(bounds)
         return if (!bounds.isEmpty) {
@@ -158,6 +176,7 @@ class OmniAccessibilityService : AccessibilityService() {
      * Focuses the node first, then sets the text.
      */
     fun typeIntoNode(nodeInfo: AccessibilityNodeInfo, text: String): Boolean {
+        if (nodeInfo.isPassword) return false
         nodeInfo.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
         val args = Bundle().apply {
             putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
@@ -175,11 +194,11 @@ class OmniAccessibilityService : AccessibilityService() {
      * Returns `false` when no focused node is available or when underlying ACTION_SET_TEXT fails.
      */
     fun typeIntoFocusedNode(text: String): Boolean {
-        val root = rootInActiveWindow ?: return false
+        val root = assistantTargetRoot() ?: return false
         val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
             ?: root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
-            ?: return false
-            
+            ?: run { root.recycle(); return false }
+
         val success = typeIntoNode(focused, text)
         focused.recycle() // Prevent memory leak
         root.recycle()
