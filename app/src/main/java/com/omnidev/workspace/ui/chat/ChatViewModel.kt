@@ -266,6 +266,7 @@ class ChatViewModel(
     }
 
     fun newSession() {
+        compositeToolManager?.assistantActionGuard = null
         _uiState.value.pendingConfirmation?.onDeny?.invoke()
         clearConfirmation()
         modePermissionStore.clearSession(_uiState.value.currentSessionId)
@@ -429,7 +430,7 @@ class ChatViewModel(
                     preview, onApprove = { decision.complete(true) }, onDeny = { decision.complete(false) }))
                 try {
                     if (decision.await()) com.omnidev.workspace.data.assistant.AssistantRuntime.prepareAction(com.omnidev.workspace.OmniDevApp.instance, name, args) else com.omnidev.workspace.data.tools.ToolExecutionResult(
-                        "User declined this action. Do not retry or use another tool to bypass the decision.", isError = true)
+                        "User declined this action. Do not retry or use another tool to bypass the decision.", isError = true, classification = "USER_DENIED")
                 } finally { clearConfirmation() }
             }
         }
@@ -822,9 +823,9 @@ class ChatViewModel(
         if (assistantWorkspace != null) {
             val original = _uiState.value.messages.lastOrNull { it.role == MessageRole.USER }
             if (original != null) {
-                val withAttachments = original.copy(attachments = imageAttachments.map { it.copy(base64Data = null) })
+                val withAttachments = original.copy(attachments = imageAttachments)
                 _uiState.update { state -> state.copy(messages = state.messages.map { if (it.messageId == original.messageId) withAttachments else it }) }
-                chatRepository?.updateMetadata(sessionId, withAttachments)
+                chatRepository?.updateMetadata(sessionId, withAttachments.copy(attachments = imageAttachments.map { it.copy(base64Data = null) }))
             }
         }
         val deepThinking = settingsRepository.observeDeepThinking().first()
@@ -853,7 +854,9 @@ class ChatViewModel(
             disabledToolNames = chatSettings.disabledToolNames(),
             toolAccessMode = chatSettings.toolAccessMode.name,
             additionalToolDomains = if (assistantWorkspace == null) emptySet() else setOf(
-                IntentClassifier.ToolDomain.DEVICE_CONTROL, IntentClassifier.ToolDomain.WEB_SEARCH)
+                IntentClassifier.ToolDomain.DEVICE_CONTROL, IntentClassifier.ToolDomain.WEB_SEARCH,
+                IntentClassifier.ToolDomain.GENERAL, IntentClassifier.ToolDomain.CODE_TERMINAL),
+            preferredToolNames = if (assistantWorkspace == null) emptySet() else setOf("semantic_ui", "autofill_assist", "ui_automation")
         ).collect { event ->
             handleAgentEvent(event, sessionId, runId)
             if (event is AgentEvent.Error) {

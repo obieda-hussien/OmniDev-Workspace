@@ -54,7 +54,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.ui.res.painterResource
 import com.omnidev.workspace.R
 import com.omnidev.workspace.ui.chat.ModeSwitchRequestCard
-import com.omnidev.workspace.ui.chat.ModeSwitchPermissionStore
+import com.omnidev.workspace.domain.engine.ModeSwitchPermissionStore
 import com.omnidev.workspace.ui.chat.MessageBubble
 import com.omnidev.workspace.ui.chat.StreamingMessageBubble
 import com.omnidev.workspace.ui.chat.AgentLiveConsole

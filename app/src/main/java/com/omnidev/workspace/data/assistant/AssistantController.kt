@@ -42,13 +42,19 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
     /** Cancels the active run but preserves its persisted messages in ordinary chat history. */
     fun close() {
         generation++
+        val unsent = mutable.value.files
+        scope.launch(Dispatchers.IO) { unsent.forEach { File(it.uri.path.orEmpty()).delete() } }
         chat.uiState.value.pendingConfirmation?.onDeny?.invoke()
         chat.clearConfirmation()
         chat.cancelCurrentRun()
         chat.newSession()
         mutable.value = AssistantScreenState()
     }
-    fun removeFile(uri: Uri) { mutable.update { it.copy(files = it.files.filterNot { file -> file.uri == uri }) } }
+    fun removeFile(uri: Uri) {
+        val staged = mutable.value.files.any { it.uri == uri }
+        mutable.update { it.copy(files = it.files.filterNot { file -> file.uri == uri }) }
+        if (staged) scope.launch(Dispatchers.IO) { File(uri.path.orEmpty()).delete() }
+    }
     fun addFiles(uris: List<Uri>) {
         val epoch = generation
         mutable.update { it.copy(saving = true) }
@@ -164,7 +170,9 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
                     file = persistImage(bitmap)
                     PendingAttachment(Uri.fromFile(file!!), "Selected screen.png")
                 }
-                if (epoch != generation || !chat.sendAssistantMessage(prompt, current.files + listOfNotNull(image), AssistantRuntime.targetPackage?.let { "Foreground app package: $it." }.orEmpty())) {
+                val attachments = current.files + listOfNotNull(image)
+                require(attachments.size <= 5 && attachments.sumOf { File(it.uri.path.orEmpty()).length() } <= 15L * 1024 * 1024 && attachments.all { File(it.uri.path.orEmpty()).length() <= 10L * 1024 * 1024 }) { "Attach up to five files, at most 10 MB each and 15 MB combined." }
+                if (epoch != generation || !chat.sendAssistantMessage(prompt, attachments, AssistantRuntime.targetPackage?.let { "Foreground app package: $it." }.orEmpty())) {
                     file?.delete()
                 } else {
                     mutable.update { it.copy(input = "", attachment = null, files = emptyList()) }
@@ -174,7 +182,7 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
                 throw error
             } catch (error: Exception) {
                 file?.delete()
-                message("Could not attach the screen image. Please try again.")
+                message(error.message ?: "Could not attach the screen image. Please try again.")
             } finally {
                 if (epoch == generation) mutable.update { it.copy(saving = false) }
             }

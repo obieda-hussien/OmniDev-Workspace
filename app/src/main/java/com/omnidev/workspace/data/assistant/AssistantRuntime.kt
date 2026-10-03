@@ -15,7 +15,7 @@ object AssistantRuntime {
     }
     var minimizeForAction: (() -> Unit)? = null
     suspend fun prepareAction(context: Context, tool: String, args: Map<String, String>): com.omnidev.workspace.data.tools.ToolExecutionResult? {
-        if (tool !in setOf("semantic_ui", "ui_automation", "autofill_assist", "app_manager") ||
+        if (tool !in setOf("semantic_ui", "ui_automation", "autofill_assist", "app_manager", "ime_tool") ||
             AssistantActionPolicy.isReadOnly(tool, args) || !get(context).state.value.visible) return null
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main.immediate) {
             if (android.provider.Settings.canDrawOverlays(context) && minimizeForAction != null) {

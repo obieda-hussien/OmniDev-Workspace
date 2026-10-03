@@ -114,7 +114,8 @@ Do not use tools. Do not rewrite merely for style.
         userContext: String? = null,
         disabledToolNames: Set<String> = emptySet(),
         toolAccessMode: String = "AUTO",
-        additionalToolDomains: Set<IntentClassifier.ToolDomain> = emptySet()
+        additionalToolDomains: Set<IntentClassifier.ToolDomain> = emptySet(),
+        preferredToolNames: Set<String> = emptySet()
     ): Flow<AgentEvent> = channelFlow {
         val brain = smartLearningBridge?.forkForRun()
         val startedAt = System.currentTimeMillis()
@@ -191,11 +192,18 @@ Do not use tools. Do not rewrite merely for style.
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) { emptyMap() }
-        val toolDefs = ToolSchemaCompactor.compact(
+        val compactedTools = ToolSchemaCompactor.compact(
             tools = rawToolDefs,
             messages = listOf(ChatMessage(MessageRole.USER, routingContext)),
             toolQuality = toolQuality
-        ).orEmpty().take(MAX_TOOLS_PER_REQUEST)
+        ).orEmpty()
+        // Keep assistant interaction tools callable even for a short "what goes here?" question.
+        // Disabled/tier-filtered tools are absent from rawToolDefs and cannot be resurrected.
+        val preferredTools = ToolSchemaCompactor.compact(
+            rawToolDefs.filter { it.name in preferredToolNames },
+            listOf(ChatMessage(MessageRole.USER, routingContext))
+        ).orEmpty()
+        val toolDefs = (preferredTools + compactedTools).distinctBy { it.name }.take(MAX_TOOLS_PER_REQUEST)
         brain?.registerTools(toolDefs)
 
         val memoryContext = try {
