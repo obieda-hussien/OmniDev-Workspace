@@ -13,7 +13,7 @@ object AssistantRuntime {
     suspend fun restoreForConfirmation(context: Context) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main.immediate) {
         if (targetingScreen && !get(context).state.value.visible) OmniVoiceInteractionService.resume(context)
     }
-    var minimizeForAction: (() -> Unit)? = null
+    var minimizeForAction: (() -> Boolean)? = null
     suspend fun prepareAction(context: Context, tool: String, args: Map<String, String>): com.omnidev.workspace.data.tools.ToolExecutionResult? {
         if (tool !in setOf("semantic_ui", "ui_automation", "autofill_assist", "app_manager", "ime_tool") ||
             AssistantActionPolicy.isReadOnly(tool, args) || !get(context).state.value.visible) return null
@@ -21,9 +21,11 @@ object AssistantRuntime {
             "Live device actions are unavailable in this flavor.", isError = true, classification = "TIER_DENIED")
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main.immediate) {
             if (android.provider.Settings.canDrawOverlays(context) && minimizeForAction != null) {
-                minimizeForAction?.invoke()
-                kotlinx.coroutines.delay(200)
-                null
+                if (minimizeForAction?.invoke() == true) {
+                    kotlinx.coroutines.delay(200)
+                    null
+                } else com.omnidev.workspace.data.tools.ToolExecutionResult(
+                    "Could not minimize the assistant safely. No gesture was executed; retry after minimizing.", isError = true)
             } else if (tool == "ui_automation" || args["action"] in setOf("tap_xy", "swipe", "force_click", "force_long_click", "force_type", "chain", "macro_play", "back", "home", "recents")) {
                 com.omnidev.workspace.data.tools.ToolExecutionResult("Minimize the assistant with the minus button and allow display over other apps before gesture actions. Then retry.", isError = true)
             } else null

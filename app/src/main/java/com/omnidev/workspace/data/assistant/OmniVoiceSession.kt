@@ -35,9 +35,10 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
     private var composition: ComposeView? = null
     private var preserveOnHide = false
     private fun handoff(action: String) {
-        preserveOnHide = true
-        startAssistantActivity(AssistantInputActivity.intent(context, action))
-        hide()
+        speech.stop()
+        runCatching { startAssistantActivity(AssistantInputActivity.intent(context, action)) }
+            .onSuccess { preserveOnHide = true; hide() }
+            .onFailure { controller.message("Could not open the system picker. Try again or use File path.") }
     }
 
     init { setTheme(R.style.Theme_OmniDevWorkspace_Assistant) }
@@ -88,9 +89,9 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
         preserveOnHide = false
         AssistantRuntime.begin(context, args?.getBoolean(OmniVoiceInteractionService.RESUME) == true, native = true)
         AssistantRuntime.minimizeForAction = {
-            preserveOnHide = true
-            AssistantBubbleService.show(context)
-            hide()
+            AssistantBubbleService.show(context).also { started ->
+                if (started) { preserveOnHide = true; hide() }
+            }
         }
         owner.registry.currentState = Lifecycle.State.RESUMED
         // The first onShow can precede window attachment; Compose then creates itself on attach.

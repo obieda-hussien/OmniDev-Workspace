@@ -81,9 +81,14 @@ class AssistantBubbleService : Service() {
         private const val CHANNEL = "assistant_bubble"
         private const val CLOSE = "assistant_bubble_close"
         private const val RESUME = "assistant_bubble_resume"
-        fun show(context: Context) {
-            if (AssistantFlavorPolicy(com.omnidev.workspace.core.policy.TierPolicyHolder.current).allowBubble)
+        fun show(context: Context): Boolean {
+            if (!AssistantFlavorPolicy(com.omnidev.workspace.core.policy.TierPolicyHolder.current).allowBubble) return false
+            return runCatching {
+                check(Settings.canDrawOverlays(context))
                 ContextCompat.startForegroundService(context, Intent(context, AssistantBubbleService::class.java))
+            }.getOrNull().let { it != null }.also { started ->
+                if (!started) AssistantRuntime.get(context).message("The floating bubble could not start. Keep the assistant open and try again.")
+            }
         }
         fun remove(context: Context) { context.stopService(Intent(context, AssistantBubbleService::class.java)) }
     }

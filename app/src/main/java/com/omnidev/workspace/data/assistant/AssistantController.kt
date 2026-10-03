@@ -37,6 +37,7 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
     val state = mutable.asStateFlow()
     val flavor get() = AssistantFlavorPolicy(com.omnidev.workspace.core.policy.TierPolicyHolder.current)
     private var generation = 0
+    val sessionGeneration get() = generation
 
     fun show() { mutable.update { it.copy(visible = true) } }
     fun hide() { mutable.update { it.copy(visible = false, selecting = false, listening = false) } }

@@ -43,7 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.omnidev.workspace.data.assistant.AssistantController
 import com.omnidev.workspace.data.model.MessageRole
-import com.omnidev.workspace.ui.chat.ConfirmationGateDialog
+import com.omnidev.workspace.ui.chat.ConfirmationGateCard
 import com.omnidev.workspace.ui.motion.LocalOmniMotion
 import kotlin.math.max
 import kotlin.math.min
@@ -88,8 +88,7 @@ fun AssistantOverlay(
     val scope = rememberCoroutineScope()
     val list = rememberLazyListState()
     var tracks by remember { mutableStateOf(false) }
-    var attachMenu by remember { mutableStateOf(false) }
-    var pathDialog by remember { mutableStateOf(false) }
+    var panel by remember { mutableStateOf(AssistantPanel.NONE) }
     var filePath by remember { mutableStateOf("") }
     val entries = remember(chat.messageConsoleEntries, chat.consoleEntries) {
         (chat.messageConsoleEntries.values.flatten() + chat.consoleEntries).distinctBy { it.id }
@@ -106,20 +105,6 @@ fun AssistantOverlay(
             if (count > 0) list.animateScrollToItem(count - 1)
         }
     }
-    chat.pendingConfirmation?.let { confirmation ->
-        ConfirmationGateDialog(confirmation.copy(
-            onApprove = { confirmation.onApprove(); controller.chat.clearConfirmation() },
-            onDeny = { confirmation.onDeny(); controller.chat.clearConfirmation() }
-        ))
-    }
-    if (pathDialog) AlertDialog(onDismissRequest = { pathDialog = false }, title = { Text("File path") },
-        text = { Column {
-            Text("Add an accessible path. Omni will use its file tools when direct media input is unavailable.", style = MaterialTheme.typography.bodySmall)
-            OutlinedTextField(filePath, { filePath = it }, placeholder = { Text("/storage/emulated/0/…") }, maxLines = 3)
-        } }, confirmButton = { TextButton(onClick = {
-            controller.input(screen.input + "\n[User-provided file path: ${filePath.trim()}]")
-            filePath = ""; pathDialog = false
-        }, enabled = filePath.isNotBlank()) { Text("Add path") } }, dismissButton = { TextButton(onClick = { pathDialog = false }) { Text("Cancel") } })
     if (screen.selecting && screen.screenshot != null) {
         ScreenRegionPicker(screen.screenshot!!, controller::select, controller::cancelSelection)
         return
@@ -146,82 +131,99 @@ fun AssistantOverlay(
                         IconButton(onClick = onExpand, enabled = !screen.saving) { Icon(Icons.Default.OpenInFull, "Open full conversation") }
                         IconButton(onClick = { leave(onDismiss) }) { Icon(Icons.Default.Close, "Close and save conversation") }
                     }
-                    LazyColumn(Modifier.weight(1f, fill = false), state = list, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (chat.messages.isEmpty() && !busy) item {
-                            Text("What can I help you with?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 12.dp))
-                            Text("Ask about your screen, attach a file, or tell me what to do.", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                        }
-                        items(chat.messages, key = { it.messageId }) { message ->
-                            MessageBubble(message = message, consoleEntries = chat.messageConsoleEntries[message.timestamp],
-                                replyToMessage = chat.messages.firstOrNull { it.messageId == message.replyToMessageId },
-                                onReply = controller.chat::setReplyingTo)
-                            message.executionRequest?.let { request ->
-                                ModeSwitchRequestCard(request, !busy,
-                                    onOnce = { controller.chat.acceptExecutionMode(message.messageId, ModeSwitchPermissionStore.Approval.ONCE) },
-                                    onAlwaysTransition = { controller.chat.acceptExecutionMode(message.messageId, ModeSwitchPermissionStore.Approval.ALWAYS_THIS_TRANSITION) },
-                                    onAllSession = { controller.chat.acceptExecutionMode(message.messageId, ModeSwitchPermissionStore.Approval.ALL_THIS_SESSION) },
-                                    onDeny = { controller.chat.denyExecutionMode(message.messageId) })
+                    val confirmation = chat.pendingConfirmation
+                    if (confirmation != null) {
+                        ConfirmationGateCard(confirmation.copy(
+                            onApprove = { confirmation.onApprove(); controller.chat.clearConfirmation() },
+                            onDeny = { confirmation.onDeny(); controller.chat.clearConfirmation() }
+                        ), Modifier.heightIn(max = availableHeight * .7f))
+                    } else {
+                        if (panel == AssistantPanel.NONE || busy) {
+                            LazyColumn(Modifier.weight(1f, fill = false), state = list, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (chat.messages.isEmpty() && !busy) item {
+                                    Text("What can I help you with?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 12.dp))
+                                    Text("Ask about your screen, attach a file, or tell me what to do.", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                                }
+                                items(chat.messages, key = { it.messageId }) { message ->
+                                    MessageBubble(message = message, consoleEntries = chat.messageConsoleEntries[message.timestamp],
+                                        replyToMessage = chat.messages.firstOrNull { it.messageId == message.replyToMessageId },
+                                        onReply = controller.chat::setReplyingTo)
+                                    message.executionRequest?.let { request ->
+                                        ModeSwitchRequestCard(request, !busy,
+                                            onOnce = { controller.chat.acceptExecutionMode(message.messageId, ModeSwitchPermissionStore.Approval.ONCE) },
+                                            onAlwaysTransition = { controller.chat.acceptExecutionMode(message.messageId, ModeSwitchPermissionStore.Approval.ALWAYS_THIS_TRANSITION) },
+                                            onAllSession = { controller.chat.acceptExecutionMode(message.messageId, ModeSwitchPermissionStore.Approval.ALL_THIS_SESSION) },
+                                            onDeny = { controller.chat.denyExecutionMode(message.messageId) })
+                                    }
+                                }
+                                chat.streamingContent?.takeIf { it.isNotBlank() }?.let { content -> item { StreamingMessageBubble(content) } }
+                                if (chat.consoleEntries.isNotEmpty() && (chat.isProcessing || chat.messageConsoleEntries.values.none { saved -> saved.any { it.id == chat.consoleEntries.first().id } })) item {
+                                    AgentLiveConsole(chat.consoleEntries.map(ConsoleRedactor::entry), chat.isProcessing)
+                                }
+                                if (entries.isNotEmpty()) item {
+                                    TextButton(onClick = { tracks = !tracks }) {
+                                        Icon(Icons.Default.Timeline, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
+                                        Text(if (tracks) "Hide activity" else "Activity · ${entries.size} events")
+                                    }
+                                }
+                                if (tracks) items(entries, key = { "track_${it.id}" }) { entry -> AssistantTrack(entry) }
+                                if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                                (screen.message ?: chat.errorMessage)?.let { message -> item {
+                                    Text(message, style = MaterialTheme.typography.bodySmall, color = colors.error)
+                                    if (screen.screenshot == null && message.contains("screen", ignoreCase = true)) {
+                                        TextButton(onClick = onSetup) { Text("Screen access settings") }
+                                    }
+                                } }
+                                screen.attachment?.let { image -> item {
+                                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.surfaceContainerHigh).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Image(image.asImageBitmap(), "Screen image ready to send", Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
+                                        Text("Screen attached", Modifier.weight(1f).padding(horizontal = 8.dp), style = MaterialTheme.typography.labelLarge)
+                                        IconButton(onClick = controller::removeImage, enabled = !busy) { Icon(Icons.Default.Close, "Remove screen image") }
+                                    }
+                                } }
+                                items(screen.files, key = { it.uri.toString() }) { file ->
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.AttachFile, null, Modifier.size(18.dp))
+                                        Text(file.displayName, Modifier.weight(1f).padding(horizontal = 6.dp), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                                        IconButton(onClick = { controller.removeFile(file.uri) }, enabled = !busy) { Icon(Icons.Default.Close, "Remove ${file.displayName}") }
+                                    }
+                                }
                             }
                         }
-                        chat.streamingContent?.takeIf { it.isNotBlank() }?.let { content -> item { StreamingMessageBubble(content) } }
-                        if (chat.consoleEntries.isNotEmpty() && (chat.isProcessing || chat.messageConsoleEntries.values.none { saved -> saved.any { it.id == chat.consoleEntries.first().id } })) item {
-                            AgentLiveConsole(chat.consoleEntries.map(ConsoleRedactor::entry), chat.isProcessing)
-                        }
-                        if (entries.isNotEmpty()) item {
-                            TextButton(onClick = { tracks = !tracks }) {
-                                Icon(Icons.Default.Timeline, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
-                                Text(if (tracks) "Hide activity" else "Activity · ${entries.size} events")
+                        if (!busy) AssistantInlinePanel(panel, filePath, { filePath = it },
+                            onAddPath = {
+                                controller.input(screen.input + "\n[User-provided file path: ${filePath.trim()}]")
+                                filePath = ""; panel = AssistantPanel.NONE
+                            }, onChoosePath = { panel = AssistantPanel.FILE_PATH },
+                            onAttach = { panel = AssistantPanel.NONE; onAttach() },
+                            onSystemVoice = { panel = AssistantPanel.NONE; onSystemVoice() },
+                            onClose = { panel = AssistantPanel.NONE },
+                            modifier = Modifier.heightIn(max = availableHeight * .45f))
+                        if (panel == AssistantPanel.NONE || busy) {
+                            chat.replyingTo?.let { reply ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Reply: ${reply.content.take(70)}", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
+                                    IconButton(onClick = controller.chat::clearReplyingTo) { Icon(Icons.Default.Close, "Cancel reply") }
+                                }
+                            }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { controller.useScreen(false) }, enabled = !busy, modifier = Modifier.weight(1f), contentPadding = PaddingValues(8.dp)) {
+                                    Icon(Icons.Default.Screenshot, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Screen")
+                                }
+                                OutlinedButton(onClick = { controller.useScreen(true) }, enabled = !busy, modifier = Modifier.weight(1f), contentPadding = PaddingValues(8.dp)) {
+                                    Icon(Icons.Default.CropFree, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Select area")
+                                }
                             }
                         }
-                        if (tracks) items(entries, key = { "track_${it.id}" }) { entry -> AssistantTrack(entry) }
-                        if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-                        (screen.message ?: chat.errorMessage)?.let { message -> item {
-                            Text(message, style = MaterialTheme.typography.bodySmall, color = colors.error)
-                            TextButton(onClick = onSetup) { Text("Assistant capabilities") }
-                        } }
-                        screen.attachment?.let { image -> item {
-                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.surfaceContainerHigh).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Image(image.asImageBitmap(), "Screen image ready to send", Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
-                                Text("Screen attached", Modifier.weight(1f).padding(horizontal = 8.dp), style = MaterialTheme.typography.labelLarge)
-                                IconButton(onClick = controller::removeImage, enabled = !busy) { Icon(Icons.Default.Close, "Remove screen image") }
-                            }
-                        } }
-                        items(screen.files, key = { it.uri.toString() }) { file ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.AttachFile, null, Modifier.size(18.dp))
-                                Text(file.displayName, Modifier.weight(1f).padding(horizontal = 6.dp), style = MaterialTheme.typography.labelMedium, maxLines = 1)
-                                IconButton(onClick = { controller.removeFile(file.uri) }, enabled = !busy) { Icon(Icons.Default.Close, "Remove ${file.displayName}") }
-                            }
-                        }
-                    }
-                    chat.replyingTo?.let { reply ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Reply: ${reply.content.take(70)}", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
-                            IconButton(onClick = controller.chat::clearReplyingTo) { Icon(Icons.Default.Close, "Cancel reply") }
-                        }
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { controller.useScreen(false) }, enabled = !busy, modifier = Modifier.weight(1f), contentPadding = PaddingValues(8.dp)) {
-                            Icon(Icons.Default.Screenshot, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Screen")
-                        }
-                        OutlinedButton(onClick = { controller.useScreen(true) }, enabled = !busy, modifier = Modifier.weight(1f), contentPadding = PaddingValues(8.dp)) {
-                            Icon(Icons.Default.CropFree, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Select area")
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box {
-                            IconButton(onClick = { attachMenu = true }, enabled = !busy) { Icon(Icons.Default.Add, "Attachments and capabilities") }
-                            DropdownMenu(expanded = attachMenu, onDismissRequest = { attachMenu = false }) {
-                                DropdownMenuItem(text = { Text("Files, photos & videos") }, onClick = { attachMenu = false; onAttach() })
-                                DropdownMenuItem(text = { Text("System voice input") }, onClick = { attachMenu = false; onSystemVoice() })
-                                DropdownMenuItem(text = { Text("File path") }, onClick = { attachMenu = false; pathDialog = true })
-                                DropdownMenuItem(text = { Text("Assistant capabilities") }, onClick = { attachMenu = false; onSetup() })
+                            IconButton(onClick = { panel = if (panel == AssistantPanel.NONE) AssistantPanel.ATTACHMENTS else AssistantPanel.NONE }, enabled = !busy) {
+                                Icon(Icons.Default.Add, "Add attachment")
                             }
-                        }
-                        OutlinedTextField(screen.input, controller::input, placeholder = { Text("Ask Omni…") }, shape = RoundedCornerShape(22.dp), modifier = Modifier.weight(1f), maxLines = 3, enabled = !busy)
-                        IconButton(onClick = onMicrophone, enabled = !busy) { Icon(if (screen.listening) Icons.Default.MicOff else Icons.Default.Mic, if (screen.listening) "Stop listening" else "Speak your question") }
-                        FilledIconButton(onClick = { if (busy) controller.chat.cancelCurrentRun() else controller.send() }, enabled = !screen.saving && (busy || screen.input.isNotBlank())) {
-                            Icon(if (busy) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send, if (busy) "Stop request" else "Send question")
+                            OutlinedTextField(screen.input, controller::input, placeholder = { Text("Ask Omni…") }, shape = RoundedCornerShape(22.dp), modifier = Modifier.weight(1f), maxLines = 3, enabled = !busy)
+                            IconButton(onClick = onMicrophone, enabled = !busy) { Icon(if (screen.listening) Icons.Default.MicOff else Icons.Default.Mic, if (screen.listening) "Stop listening" else "Speak your question") }
+                            FilledIconButton(onClick = { if (busy) controller.chat.cancelCurrentRun() else controller.send() }, enabled = !screen.saving && (busy || screen.input.isNotBlank())) {
+                                Icon(if (busy) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send, if (busy) "Stop request" else "Send question")
+                            }
                         }
                     }
                 }
