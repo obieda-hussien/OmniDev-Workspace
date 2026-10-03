@@ -278,6 +278,8 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".ui.assistant.AssistantSetupActivity" android:exported="false"
+            android:theme="@style/Theme.OmniDevWorkspace.Assistant" android:excludeFromRecents="true" android:taskAffinity="" />
         <activity android:name=".ui.assistant.AssistantInputActivity" android:exported="false"
             android:theme="@style/Theme.OmniDevWorkspace.Assistant" android:excludeFromRecents="true" android:taskAffinity="" />
         <service android:name=".data.assistant.AssistantBubbleService" android:exported="false"
