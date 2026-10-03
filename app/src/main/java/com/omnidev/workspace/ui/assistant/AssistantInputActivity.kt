@@ -45,16 +45,17 @@ class AssistantInputActivity : ComponentActivity() {
                 OmniDevTheme(dynamicColor = false) {
                     AlertDialog(onDismissRequest = ::resume, title = { Text("Assistant capabilities") }, text = {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Android controls access. Enable the capabilities you want to use.", style = MaterialTheme.typography.bodySmall)
+                            Text(controller.flavor.promptContext, style = MaterialTheme.typography.bodySmall)
                             TextButton(onClick = { settings.launch(AssistantSettings.intent(this@AssistantInputActivity)) }) { Text("Default assistant & screen access") }
-                            TextButton(onClick = { settings.launch(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }) { Text("Read & interact with apps") }
-                            TextButton(onClick = { settings.launch(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }) { Text("Floating bubble") }
+                            if (controller.flavor.allowScreenActions) TextButton(onClick = { settings.launch(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }) { Text("Read & interact with apps") }
+                            if (controller.flavor.allowBubble) TextButton(onClick = { settings.launch(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))) }) { Text("Floating bubble") }
                             TextButton(onClick = { settings.launch(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }) { Text("Microphone & app permissions") }
                         }
                     }, confirmButton = { TextButton(onClick = ::resume) { Text("Done") } })
                 }
             }
             BUBBLE -> {
+                if (!controller.flavor.allowBubble) { controller.message("Floating bubbles are unavailable in this build."); resume(); return }
                 if (Settings.canDrawOverlays(this)) { AssistantBubbleService.show(this); finish() }
                 else overlays.launch(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
             }

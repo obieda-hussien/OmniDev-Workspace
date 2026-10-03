@@ -74,7 +74,8 @@ class AgentPipeline(
     private val memoryManager: com.omnidev.workspace.data.tools.MemoryManager? = null,
     private val smartLearningBridge: com.omnidev.workspace.data.brain.SmartLearningBridge? = null,
     private val toolOrchestrator: ToolOrchestrator = ToolOrchestrator(),
-    private val analyticsRepository: com.omnidev.workspace.data.repository.AnalyticsRepository? = null
+    private val analyticsRepository: com.omnidev.workspace.data.repository.AnalyticsRepository? = null,
+    private val toolEligibility: ((String) -> String?)? = null
 ) {
 
     companion object {
@@ -182,6 +183,7 @@ Do not use tools. Do not rewrite merely for style.
             emptyList()
         }
         val rawToolDefs = (localTools + mcpTools).distinctBy { it.name }
+            .filter { toolEligibility?.invoke(it.name) == null }
         val toolQuality = try {
             analyticsRepository?.getStats()?.toolUsageCount.orEmpty().mapNotNull { (name, stats) ->
                 if (stats.executionCount < 10) null else {
@@ -541,6 +543,11 @@ Do not use tools. Do not rewrite merely for style.
         allowParallel: Boolean
     ): List<ToolExecutionResult> {
         suspend fun executeOne(call: ToolCall): ToolExecutionResult {
+            // Recheck at execution: also covers forged/unadvertised calls and MCP dispatch.
+            toolEligibility?.invoke(call.name)?.let { reason ->
+                return ToolExecutionResult("Flavor policy denied ${call.name}: $reason", isError = true,
+                    classification = "TIER_DENIED", retryable = false)
+            }
             val started = System.nanoTime()
             val retrySafe = ToolBatchPolicy.isReadOnly(call)
             val orchestrated = toolOrchestrator.executeTool(

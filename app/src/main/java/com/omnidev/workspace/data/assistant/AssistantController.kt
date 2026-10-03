@@ -35,6 +35,7 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val mutable = MutableStateFlow(AssistantScreenState())
     val state = mutable.asStateFlow()
+    val flavor get() = AssistantFlavorPolicy(com.omnidev.workspace.core.policy.TierPolicyHolder.current)
     private var generation = 0
 
     fun show() { mutable.update { it.copy(visible = true) } }

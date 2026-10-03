@@ -17,6 +17,8 @@ object AssistantRuntime {
     suspend fun prepareAction(context: Context, tool: String, args: Map<String, String>): com.omnidev.workspace.data.tools.ToolExecutionResult? {
         if (tool !in setOf("semantic_ui", "ui_automation", "autofill_assist", "app_manager", "ime_tool") ||
             AssistantActionPolicy.isReadOnly(tool, args) || !get(context).state.value.visible) return null
+        if (!get(context).flavor.allowScreenActions) return com.omnidev.workspace.data.tools.ToolExecutionResult(
+            "Live device actions are unavailable in this flavor.", isError = true, classification = "TIER_DENIED")
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main.immediate) {
             if (android.provider.Settings.canDrawOverlays(context) && minimizeForAction != null) {
                 minimizeForAction?.invoke()

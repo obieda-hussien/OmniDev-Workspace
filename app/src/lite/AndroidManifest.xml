@@ -271,6 +271,9 @@
         android:persistent="false"
         tools:replace="android:persistent">
 
+        <!-- This service requires overlay/special-use FGS permissions stripped above. -->
+        <service android:name=".data.assistant.AssistantBubbleService" tools:node="remove" />
+
         <!-- No Shizuku provider in Play Store build -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

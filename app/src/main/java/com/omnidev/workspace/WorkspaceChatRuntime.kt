@@ -106,7 +106,8 @@ object WorkspaceChatRuntime {
             apiKeyRepository = apiKeyRepository,
             memoryManager = memoryManager,
             smartLearningBridge = app.smartLearningBridge,
-            analyticsRepository = analyticsRepository
+            analyticsRepository = analyticsRepository,
+            toolEligibility = if (assistant) com.omnidev.workspace.data.tools.TierToolGate::denyReason else null
         )
 
         val swarmOrchestrator = SwarmOrchestrator(

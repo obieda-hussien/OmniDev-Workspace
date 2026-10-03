@@ -23,7 +23,7 @@ class AssistantBubbleService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == CLOSE) { AssistantRuntime.close(this); stopSelf(); return START_NOT_STICKY }
         if (intent?.action == RESUME) { OmniVoiceInteractionService.resume(this); stopSelf(); return START_NOT_STICKY }
-        if (!Settings.canDrawOverlays(this)) { stopSelf(); return START_NOT_STICKY }
+        if (!AssistantFlavorPolicy(com.omnidev.workspace.core.policy.TierPolicyHolder.current).allowBubble || !Settings.canDrawOverlays(this)) { stopSelf(); return START_NOT_STICKY }
         if (Build.VERSION.SDK_INT >= 26) (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
             .createNotificationChannel(NotificationChannel(CHANNEL, "Floating assistant", NotificationManager.IMPORTANCE_LOW))
         fun action(value: String) = PendingIntent.getService(this, value.hashCode(), Intent(this, AssistantBubbleService::class.java).setAction(value), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -81,7 +81,10 @@ class AssistantBubbleService : Service() {
         private const val CHANNEL = "assistant_bubble"
         private const val CLOSE = "assistant_bubble_close"
         private const val RESUME = "assistant_bubble_resume"
-        fun show(context: Context) = ContextCompat.startForegroundService(context, Intent(context, AssistantBubbleService::class.java))
+        fun show(context: Context) {
+            if (AssistantFlavorPolicy(com.omnidev.workspace.core.policy.TierPolicyHolder.current).allowBubble)
+                ContextCompat.startForegroundService(context, Intent(context, AssistantBubbleService::class.java))
+        }
         fun remove(context: Context) { context.stopService(Intent(context, AssistantBubbleService::class.java)) }
     }
 }

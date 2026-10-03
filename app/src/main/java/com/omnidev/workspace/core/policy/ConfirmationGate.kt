@@ -52,6 +52,9 @@ fun interface ConfirmationGate {
  * share it across layers because the policy layer MUST NOT depend on Compose.
  */
 enum class ConfirmationKind {
+    /** A proposed screen-assistant action; the active flavor supplies the gate. */
+    ASSISTANT_ACTION,
+
     /** A Shizuku-issued shell command about to run with shell UID. */
     SHIZUKU_COMMAND,
 

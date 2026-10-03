@@ -83,6 +83,7 @@ fun AssistantOverlay(
     val colors = MaterialTheme.colorScheme
     val motion = LocalOmniMotion.current
     val busy = chat.isProcessing || screen.saving
+    val flavor = controller.flavor
     val reveal = remember { MutableTransitionState(false) }.apply { targetState = screen.visible }
     val scope = rememberCoroutineScope()
     val list = rememberLazyListState()
@@ -138,10 +139,10 @@ fun AssistantOverlay(
                         Image(painterResource(R.drawable.ic_launcher_foreground), "OmniDev", Modifier.size(40.dp).clip(CircleShape).background(colors.primaryContainer))
                         Column(Modifier.weight(1f).padding(start = 8.dp)) {
                             Text("OmniDev", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text(if (screen.listening) "Listening…" else if (busy) chat.agentStatus ?: "Working…" else "Agent · Here, with you",
+                            Text(if (screen.listening) "Listening…" else if (busy) chat.agentStatus ?: "Working…" else "Agent · ${flavor.tier}",
                                 style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, maxLines = 1)
                         }
-                        IconButton(onClick = { leave(onMinimize) }, enabled = !screen.saving) { Icon(Icons.Default.Remove, "Minimize to floating bubble") }
+                        if (flavor.allowBubble) IconButton(onClick = { leave(onMinimize) }, enabled = !screen.saving) { Icon(Icons.Default.Remove, "Minimize to floating bubble") }
                         IconButton(onClick = onExpand, enabled = !screen.saving) { Icon(Icons.Default.OpenInFull, "Open full conversation") }
                         IconButton(onClick = { leave(onDismiss) }) { Icon(Icons.Default.Close, "Close and save conversation") }
                     }

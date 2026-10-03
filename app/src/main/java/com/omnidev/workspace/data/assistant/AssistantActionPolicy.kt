@@ -15,7 +15,12 @@ object AssistantActionPolicy {
 
     fun requiresConsent(tool: String, args: Map<String, String>, request: String): Boolean {
         if (tool !in guardedTools) return false // Other tools retain the application's existing gates.
-        val action = if (tool == "browser_type") "type" else args["action"].orEmpty().lowercase()
+        val action = when (tool) {
+            "browser_type" -> "type"
+            "browser_click" -> "click"
+            "browser_execute_js" -> "execute_js"
+            else -> args["action"].orEmpty().lowercase()
+        }
         if (isReadOnly(tool, args)) return false
         val text = request.trim()
         if (Regex("مش عارف|مش عارفه|مش عارفة|لا أعرف|don.t know|what (do|should|can) i|how (do|can) i|اكتب (اي|إيه|ايه)|ازاي|كيف", RegexOption.IGNORE_CASE).containsMatchIn(text)) return true

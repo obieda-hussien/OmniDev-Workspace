@@ -41,6 +41,19 @@ class AssistantActionPolicyTest {
         assertTrue(consent("Type Hello here", tool = "browser_click"))
         assertTrue(consent("explain", tool = "browser_execute_js"))
     }
+    @Test fun browserAliasCannotForgeReadOnlyAction() {
+        listOf("browser_type", "browser_click", "browser_execute_js").forEach { tool ->
+            val arguments = mapOf("action" to "get_text", "text" to "Hello")
+            assertFalse(AssistantActionPolicy.isReadOnly(tool, arguments))
+            assertTrue(AssistantActionPolicy.requiresConsent(tool, arguments, "explain this form"))
+        }
+    }
+    @Test fun browserClickCannotBorrowTypingOrNavigationPermission() {
+        listOf("type", "fill", "navigate", "open", "get_text").forEach { action ->
+            assertTrue(consent("Type Hello here", action, "browser_click"))
+            assertTrue(consent("Open this app", action, "browser_execute_js"))
+        }
+    }
     @Test fun otherToolsKeepTheirExistingPolicy() {
         assertFalse(consent("explain", "search", "web_search"))
     }
