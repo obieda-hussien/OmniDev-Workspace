@@ -3,6 +3,9 @@ package com.omnidev.workspace.ui.assistant
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
@@ -45,105 +48,154 @@ import com.omnidev.workspace.ui.motion.LocalOmniMotion
 import kotlin.math.max
 import kotlin.math.min
 
-/** The same compact surface is hosted by Android's assistant window and the ASSIST fallback. */
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.res.painterResource
+import com.omnidev.workspace.R
+import com.omnidev.workspace.ui.chat.ModeSwitchRequestCard
+import com.omnidev.workspace.ui.chat.ModeSwitchPermissionStore
+import com.omnidev.workspace.ui.chat.MessageBubble
+import com.omnidev.workspace.ui.chat.StreamingMessageBubble
+import com.omnidev.workspace.ui.chat.AgentLiveConsole
+import com.omnidev.workspace.ui.chat.AgentConsoleEntry
+import com.omnidev.workspace.ui.chat.ConsoleRedactor
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+/** Native assistant and Activity fallback use the same chat renderer and agent console. */
 @Composable
 fun AssistantOverlay(
     controller: AssistantController,
     onDismiss: () -> Unit,
     onExpand: () -> Unit,
     onSetup: () -> Unit,
-    onMicrophone: () -> Unit
+    onMicrophone: () -> Unit,
+    onMinimize: () -> Unit,
+    onAttach: () -> Unit
 ) {
     val screen by controller.state.collectAsStateWithLifecycle()
     val chat by controller.chat.uiState.collectAsStateWithLifecycle()
     val colors = MaterialTheme.colorScheme
     val motion = LocalOmniMotion.current
-    val clipboard = LocalClipboardManager.current
-    val response = chat.streamingContent ?: chat.messages.lastOrNull { it.role == MessageRole.ASSISTANT }?.content
-    val modeRequest = chat.messages.lastOrNull { it.role == MessageRole.ASSISTANT }?.takeIf { it.executionRequest?.status == "pending" }
     val busy = chat.isProcessing || screen.saving
     val reveal = remember { MutableTransitionState(false) }.apply { targetState = screen.visible }
-
+    val scope = rememberCoroutineScope()
+    val list = rememberLazyListState()
+    var tracks by remember { mutableStateOf(false) }
+    var attachMenu by remember { mutableStateOf(false) }
+    var pathDialog by remember { mutableStateOf(false) }
+    var filePath by remember { mutableStateOf("") }
+    val entries = remember(chat.messageConsoleEntries, chat.consoleEntries) {
+        (chat.messageConsoleEntries.values.flatten() + chat.consoleEntries).distinctBy { it.id }
+            .sortedWith(compareBy<AgentConsoleEntry> { it.timestamp }.thenBy { it.id })
+            .filter { it is AgentConsoleEntry.ToolEntry || it is AgentConsoleEntry.ResultEntry || it is AgentConsoleEntry.PhaseEntry || it is AgentConsoleEntry.ErrorEntry }
+            .map(ConsoleRedactor::entry)
+    }
+    fun leave(action: () -> Unit) {
+        scope.launch { controller.hide(); delay(motion.navigationMillis.toLong()); action() }
+    }
+    LaunchedEffect(chat.messages.size, chat.streamingContent, chat.consoleEntries.size) {
+        if (list.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.let { it >= list.layoutInfo.totalItemsCount - 2 } != false) {
+            val count = list.layoutInfo.totalItemsCount
+            if (count > 0) list.animateScrollToItem(count - 1)
+        }
+    }
     chat.pendingConfirmation?.let { confirmation ->
         ConfirmationGateDialog(confirmation.copy(
             onApprove = { confirmation.onApprove(); controller.chat.clearConfirmation() },
             onDeny = { confirmation.onDeny(); controller.chat.clearConfirmation() }
         ))
     }
-
+    if (pathDialog) AlertDialog(onDismissRequest = { pathDialog = false }, title = { Text("File path") },
+        text = { Column {
+            Text("Add an accessible path. Omni will use its file tools when direct media input is unavailable.", style = MaterialTheme.typography.bodySmall)
+            OutlinedTextField(filePath, { filePath = it }, placeholder = { Text("/storage/emulated/0/…") }, maxLines = 3)
+        } }, confirmButton = { TextButton(onClick = {
+            controller.input(screen.input + "\n[User-provided file path: ${filePath.trim()}]")
+            filePath = ""; pathDialog = false
+        }, enabled = filePath.isNotBlank()) { Text("Add path") } }, dismissButton = { TextButton(onClick = { pathDialog = false }) { Text("Cancel") } })
     if (screen.selecting && screen.screenshot != null) {
         ScreenRegionPicker(screen.screenshot!!, controller::select, controller::cancelSelection)
         return
     }
-
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .12f)).clickable(onClick = onDismiss))
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = .12f)).clickable { leave(onDismiss) })
         val availableHeight = maxHeight
-        AnimatedVisibility(
-            visibleState = reveal,
+        AnimatedVisibility(visibleState = reveal,
             enter = fadeIn(tween(motion.responseMillis)) + slideInVertically(tween(motion.navigationMillis)) { it / 3 },
-            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().imePadding().padding(12.dp)
-        ) {
-            Surface(
-                modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().heightIn(max = availableHeight * .86f),
-                shape = RoundedCornerShape(30.dp), color = colors.surface,
-                tonalElevation = 4.dp, shadowElevation = 10.dp
-            ) {
-                Column(Modifier.padding(horizontal = 18.dp, vertical = 10.dp)) {
-                    Box(Modifier.align(Alignment.CenterHorizontally).padding(bottom = 6.dp)
-                        .size(30.dp, 3.dp).clip(CircleShape).background(colors.outlineVariant))
+            exit = fadeOut(tween(motion.responseMillis)) + slideOutVertically(tween(motion.navigationMillis)) { it / 3 },
+            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().imePadding().padding(12.dp)) {
+            Surface(Modifier.widthIn(max = 560.dp).fillMaxWidth().heightIn(max = availableHeight * .86f).animateContentSize(animationSpec = tween(motion.navigationMillis)),
+                shape = RoundedCornerShape(30.dp), color = colors.surface, tonalElevation = 4.dp, shadowElevation = 10.dp) {
+                Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                    Box(Modifier.align(Alignment.CenterHorizontally).padding(bottom = 6.dp).size(30.dp, 3.dp).clip(CircleShape).background(colors.outlineVariant))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Canvas(Modifier.size(32.dp)) {
-                            drawCircle(Brush.linearGradient(listOf(Color(0xFF8E8DE5), Color(0xFF58D6D0))))
-                            drawCircle(Color.White.copy(alpha = .9f), radius = size.minDimension * .16f)
-                        }
-                        Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                            Text("Omni", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text(if (screen.listening) "Listening…" else if (busy) chat.agentStatus ?: "Working…" else "Here, with you",
+                        Image(painterResource(R.drawable.ic_launcher_foreground), "OmniDev", Modifier.size(40.dp).clip(CircleShape).background(colors.primaryContainer))
+                        Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                            Text("OmniDev", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text(if (screen.listening) "Listening…" else if (busy) chat.agentStatus ?: "Working…" else "Agent · Here, with you",
                                 style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, maxLines = 1)
                         }
+                        IconButton(onClick = { leave(onMinimize) }, enabled = !screen.saving) { Icon(Icons.Default.Remove, "Minimize to floating bubble") }
                         IconButton(onClick = onExpand, enabled = !screen.saving) { Icon(Icons.Default.OpenInFull, "Open full conversation") }
-                        IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Dismiss assistant") }
+                        IconButton(onClick = { leave(onDismiss) }) { Icon(Icons.Default.Close, "Close and save conversation") }
                     }
-                    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (response.isNullOrBlank() && !busy) {
-                            Text("What can I help you with?", style = MaterialTheme.typography.titleLarge,
-                                modifier = Modifier.padding(vertical = 10.dp))
+                    LazyColumn(Modifier.weight(1f, fill = false), state = list, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (chat.messages.isEmpty() && !busy) item {
+                            Text("What can I help you with?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 12.dp))
+                            Text("Ask about your screen, attach a file, or tell me what to do.", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                         }
-                        if (!response.isNullOrBlank()) {
-                            SelectionContainerCompat(response)
-                            TextButton(onClick = { clipboard.setText(AnnotatedString(response)) }) {
-                                Icon(Icons.Default.ContentCopy, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("Copy answer")
+                        items(chat.messages, key = { it.messageId }) { message ->
+                            MessageBubble(message = message,
+                                replyToMessage = chat.messages.firstOrNull { it.messageId == message.replyToMessageId },
+                                onReply = controller.chat::setReplyingTo)
+                            message.executionRequest?.let { request ->
+                                ModeSwitchRequestCard(request, !busy,
+                                    onOnce = { controller.chat.acceptExecutionMode(message.messageId, ModeSwitchPermissionStore.Approval.ONCE) },
+                                    onAlwaysTransition = { controller.chat.acceptExecutionMode(message.messageId, ModeSwitchPermissionStore.Approval.ALWAYS_THIS_TRANSITION) },
+                                    onAllSession = { controller.chat.acceptExecutionMode(message.messageId, ModeSwitchPermissionStore.Approval.ALL_THIS_SESSION) },
+                                    onDeny = { controller.chat.denyExecutionMode(message.messageId) })
                             }
                         }
-                        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                        modeRequest?.let { message ->
-                            Text("Omni needs permission to switch modes for this request.", style = MaterialTheme.typography.bodySmall)
-                            Row {
-                                TextButton(onClick = { controller.chat.acceptExecutionMode(message.messageId) }, enabled = !busy) { Text("Allow once") }
-                                TextButton(onClick = { controller.chat.denyExecutionMode(message.messageId) }, enabled = !busy) { Text("Decline") }
+                        chat.streamingContent?.takeIf { it.isNotBlank() }?.let { content -> item { StreamingMessageBubble(content) } }
+                        if (chat.consoleEntries.isNotEmpty()) item {
+                            AgentLiveConsole(chat.consoleEntries.map(ConsoleRedactor::entry), chat.isProcessing)
+                        }
+                        if (entries.isNotEmpty()) item {
+                            TextButton(onClick = { tracks = !tracks }) {
+                                Icon(Icons.Default.Timeline, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
+                                Text(if (tracks) "Hide activity" else "Activity · ${entries.size} events")
                             }
                         }
-                        (screen.message ?: chat.errorMessage)?.let {
-                            Text(it, style = MaterialTheme.typography.bodySmall, color = colors.error)
-                            TextButton(onClick = onSetup) { Text("Assistant settings") }
-                        }
-                        screen.attachment?.let { image ->
-                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.surfaceContainerHigh)
-                                .padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Image(image.asImageBitmap(), "Screen image ready to send", Modifier.size(52.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
-                                Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-                                    Text("Screen attached", style = MaterialTheme.typography.labelLarge)
-                                    Text("Sent only when you ask", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
-                                }
+                        if (tracks) items(entries, key = { "track_${it.id}" }) { entry -> AssistantTrack(entry) }
+                        if (busy) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+                        (screen.message ?: chat.errorMessage)?.let { message -> item {
+                            Text(message, style = MaterialTheme.typography.bodySmall, color = colors.error)
+                            TextButton(onClick = onSetup) { Text("Assistant capabilities") }
+                        } }
+                        screen.attachment?.let { image -> item {
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.surfaceContainerHigh).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Image(image.asImageBitmap(), "Screen image ready to send", Modifier.size(48.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
+                                Text("Screen attached", Modifier.weight(1f).padding(horizontal = 8.dp), style = MaterialTheme.typography.labelLarge)
                                 IconButton(onClick = controller::removeImage, enabled = !busy) { Icon(Icons.Default.Close, "Remove screen image") }
                             }
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                listOf("Explain", "Translate", "Summarize").forEach { action ->
-                                    TextButton(onClick = { controller.input("$action this screen image.") }, enabled = !busy) { Text(action) }
-                                }
+                        } }
+                        items(screen.files, key = { it.uri.toString() }) { file ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AttachFile, null, Modifier.size(18.dp))
+                                Text(file.displayName, Modifier.weight(1f).padding(horizontal = 6.dp), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+                                IconButton(onClick = { controller.removeFile(file.uri) }, enabled = !busy) { Icon(Icons.Default.Close, "Remove ${file.displayName}") }
                             }
+                        }
+                    }
+                    chat.replyingTo?.let { reply ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Reply: ${reply.content.take(70)}", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
+                            IconButton(onClick = controller.chat::clearReplyingTo) { Icon(Icons.Default.Close, "Cancel reply") }
                         }
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -155,16 +207,17 @@ fun AssistantOverlay(
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(
-                            value = screen.input, onValueChange = controller::input,
-                            placeholder = { Text("Ask Omni…") }, shape = RoundedCornerShape(22.dp),
-                            modifier = Modifier.weight(1f), maxLines = 3, enabled = !busy
-                        )
-                        IconButton(onClick = onMicrophone, enabled = !busy) {
-                            Icon(if (screen.listening) Icons.Default.MicOff else Icons.Default.Mic, if (screen.listening) "Stop listening" else "Speak your question")
+                        Box {
+                            IconButton(onClick = { attachMenu = true }, enabled = !busy) { Icon(Icons.Default.Add, "Attachments and capabilities") }
+                            DropdownMenu(expanded = attachMenu, onDismissRequest = { attachMenu = false }) {
+                                DropdownMenuItem(text = { Text("Files, photos & videos") }, onClick = { attachMenu = false; onAttach() })
+                                DropdownMenuItem(text = { Text("File path") }, onClick = { attachMenu = false; pathDialog = true })
+                                DropdownMenuItem(text = { Text("Assistant capabilities") }, onClick = { attachMenu = false; onSetup() })
+                            }
                         }
-                        FilledIconButton(onClick = { if (busy) controller.chat.cancelCurrentRun() else controller.send() },
-                            enabled = !screen.saving && (busy || screen.input.isNotBlank())) {
+                        OutlinedTextField(screen.input, controller::input, placeholder = { Text("Ask Omni…") }, shape = RoundedCornerShape(22.dp), modifier = Modifier.weight(1f), maxLines = 3, enabled = !busy)
+                        IconButton(onClick = onMicrophone, enabled = !busy) { Icon(if (screen.listening) Icons.Default.MicOff else Icons.Default.Mic, if (screen.listening) "Stop listening" else "Speak your question") }
+                        FilledIconButton(onClick = { if (busy) controller.chat.cancelCurrentRun() else controller.send() }, enabled = !screen.saving && (busy || screen.input.isNotBlank())) {
                             Icon(if (busy) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send, if (busy) "Stop request" else "Send question")
                         }
                     }
@@ -174,10 +227,22 @@ fun AssistantOverlay(
     }
 }
 
+/** Only real operational events are shown here; no generated reasoning or invented progress. */
 @Composable
-private fun SelectionContainerCompat(text: String) {
-    androidx.compose.foundation.text.selection.SelectionContainer {
-        Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 8.dp))
+private fun AssistantTrack(entry: AgentConsoleEntry) {
+    val title = when (entry) {
+        is AgentConsoleEntry.ToolEntry -> "Started · ${entry.toolName}"
+        is AgentConsoleEntry.ResultEntry -> "${if (entry.isError) "Failed" else "Completed"} · ${entry.toolName} · ${entry.durationMs} ms"
+        is AgentConsoleEntry.PhaseEntry -> entry.phase
+        is AgentConsoleEntry.ErrorEntry -> "Error · ${entry.message}"
+        else -> return
+    }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(2.dp).height(28.dp).background(MaterialTheme.colorScheme.primary))
+        Column(Modifier.weight(1f).padding(start = 10.dp)) {
+            Text(title, style = MaterialTheme.typography.labelMedium)
+            Text(remember(entry.timestamp) { SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(entry.timestamp)) }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

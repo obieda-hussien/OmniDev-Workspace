@@ -115,6 +115,8 @@ class CompositeToolManager(
      */
     @Volatile
     var currentSessionId: Long? = null
+    /** Assistant-only consent is checked before routing any device side effect. */
+    var assistantActionGuard: (suspend (String, Map<String, String>) -> ToolExecutionResult?)? = null
 
     override fun getToolDefinitions(): List<ToolDefinition> {
         val allDefs = buildAllToolDefinitions()
@@ -466,6 +468,8 @@ class CompositeToolManager(
                 isError = true
             )
         }
+
+        assistantActionGuard?.invoke(name, arguments)?.let { return it }
 
         // ── Early routing: Agent Brain 2.0 / Rollback / Repo Context / Build Doctor ──
         // Each helper returns null when it doesn't own the tool name, allowing

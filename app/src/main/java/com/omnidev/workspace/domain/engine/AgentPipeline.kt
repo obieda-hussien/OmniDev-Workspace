@@ -113,7 +113,8 @@ Do not use tools. Do not rewrite merely for style.
         workerPersona: String? = null,
         userContext: String? = null,
         disabledToolNames: Set<String> = emptySet(),
-        toolAccessMode: String = "AUTO"
+        toolAccessMode: String = "AUTO",
+        additionalToolDomains: Set<IntentClassifier.ToolDomain> = emptySet()
     ): Flow<AgentEvent> = channelFlow {
         val brain = smartLearningBridge?.forkForRun()
         val startedAt = System.currentTimeMillis()
@@ -167,7 +168,7 @@ Do not use tools. Do not rewrite merely for style.
             append(routingObjective)
         }.takeLast(2_400)
         val taskSignals = IntentClassifier.analyze(routingObjective)
-        val relevantDomains = IntentClassifier.getRelevantDomains(routingContext)
+        val relevantDomains = IntentClassifier.getRelevantDomains(routingContext) + additionalToolDomains
         val localTools = toolManager.getToolDefinitions()
             .asSequence()
             .filter { it.name !in disabledToolNames }

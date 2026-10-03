@@ -1,38 +1,34 @@
 # Omni screen assistant
 
-Omni now has a native Android assistant session: a compact floating Compose card above the current app, with the same chat and tool runtime as the workspace. It uses Omni's purple identity, short entrance motion, reduced-motion settings, and a width cap for tablets and landscape. It does not run a hotword listener.
+Hold Home or use Android's assistant gesture to open a compact OmniDev card over the foreground application. The card uses the **agent model and AgentPipeline**, existing tools, Markdown message renderer, reply/copy controls and Agent Live Console. It never auto-routes to text-only chat because a workspace folder was not selected.
 
 ## Set up and use
 
-1. Open **AI Settings → Omni on your screen → Set up assistant**.
-2. Select OmniDev Workspace as the default digital assistant. In Android's assistant settings, allow screen content and screenshots.
-3. Hold Home, or use the device's configured assistant gesture. The exact gesture is controlled by Android and the launcher.
-4. Type a question, or tap the microphone. Microphone access is requested only when needed. Voice recognition uses an installed external recognition provider and requests offline recognition where supported.
-5. Tap **Screen** to attach the full visible display, or **Select area** to open a frozen screen preview. Drag in either direction, then confirm **Use selection**. Portrait, landscape, letterboxing, and RTL use the same source-pixel mapping.
-6. Review the image thumbnail, type a question, and send. **Explain / Translate / Summarize** insert an editable prompt; they do not submit it automatically.
-7. Read the streaming answer in the card, copy it, stop the request, or open the full conversation. Expanding carries an unsent question and its chosen image to the full composer. A running request uses the same process-owned `ChatViewModel` in both surfaces.
+1. In **AI Settings → Omni on your screen**, choose OmniDev as the default digital assistant. Allow screen content and screenshots in Android's assistant settings.
+2. Enable OmniDev Accessibility to inspect and interact with application UI. The card's **+ → Assistant capabilities** opens relevant settings. Tool availability still follows app flavor, configured tool switches and Android permissions.
+3. Invoke Omni. Type or tap the microphone; recording never starts automatically. Recognition uses the device language, partial transcription, an external recognizer excluding Omni's own bridge, bounded provider fallback and system voice input when the embedded service fails. Offline recognition is not forced. Permission, network, recording, language and no-speech failures have distinct messages.
+4. **Screen** attaches the screen supplied at invocation. **Select area** opens a frozen preview and supports reverse drags, portrait, landscape, letterboxing and RTL. Pixels stay in memory until an explicit send or expansion.
+5. **+ → Files, photos & videos** uses Android's document picker. Up to five files, 10 MB each and 15 MB combined, are copied to private storage with their actual accessible paths. Images go to vision-capable agent models. Other files, including video, are supplied as paths for tools: attaching a video does not imply that every frame or its audio was analyzed. **File path** adds an explicit path for existing accessible files. Existing storage, scope and tier policies continue to apply.
+6. The transcript reuses the normal chat's Markdown and message components. **Activity** expands a timestamped track of actual phases, tool starts, completed/failed results and errors across the current session. Detailed parameters and output remain in the existing collapsible console, with credential redaction.
+7. An explicit ordinary field-fill request can execute directly. An explanatory request such as “I don't know what to write here” cannot authorize typing. Ambiguous mutations, clicks, chains and submissions show an exact **Allow this action?** button; declining does not execute the action. Existing privileged-action confirmations remain in force. Protected inputs use the existing user handoff.
+8. The **minus** button minimizes to a draggable OmniDev bubble. Tap to restore the same conversation; long press or use the notification's Close action to end it. Android's display-over-other-apps permission is needed only for the optional bubble. A foreground notification remains while minimized; no audio capture continues.
+9. With bubble permission, device mutations temporarily minimize the assistant before interacting so it cannot intercept taps on the target app. Without that permission, semantic node actions remain available, while coordinate/force gestures explain how to minimize first.
+10. **Close** stops the current run and resets the floating composer. Saved messages, partial checkpoints and execution traces remain in the application's normal chat history. Every fresh Home/assistant invocation starts a new conversation. Returning from the bubble, picker, voice input or capability settings resumes the current one. **Expand** opens its saved session in the full application and carries an unsent draft and attachments.
 
-The **Try it** button and the `ACTION_ASSIST` activity fallback preview the same card. A plain activity invocation does not receive the system's screenshot; screen actions explain how to enable the native assistant session. Screen capture requires the native service, Android's screen-sharing settings, and a vision-capable selected model. Protected apps can return no screenshot. This is a screenshot of the visible display, not a scrolling screenshot of an entire page.
+## Runtime
 
-## Runtime and image handling
+`WorkspaceChatRuntime` creates independent process-owned view models for the workspace and assistant, backed by the same Room chat repository. Starting a floating conversation cannot send or replace the main composer's draft. The assistant receives an app-private file scope and device/web tool domains, respects configured tool disable switches, uses a bounded agent loop, and avoids self-reflection passes and forced deep thinking for short screen tasks.
 
-- `WorkspaceChatRuntime` builds the existing dependencies once and supplies the same runtime to the activity and the assistant session. UI state and active requests survive switching between those surfaces.
-- `OmniVoiceInteractionService` and `OmniVoiceSessionService` are bound only through Android's `BIND_VOICE_INTERACTION` permission.
-- Android requires a recognition service in assistant metadata. `OmniRecognitionService` delegates to an installed external provider, excluding Omni itself to prevent recursive recognition when Android selects Omni as the default recognizer.
-- `onHandleScreenshot` receives the foreground app's image from Android. No MediaProjection service or draw-over-other-apps permission is needed for this entry point. Screen pixels are not attached or submitted automatically.
-- Full screenshots stay in memory. Only the selected crop or explicitly attached screen is persisted privately when the user sends it or transfers it to the full composer. Sent image files support chat-history references and remain in app-private storage.
-- Hiding the session clears screenshot and attachment state, disposes its composition, and stops microphone recognition. The submitted chat request continues in the shared runtime; tool confirmations and mode-switch requests remain explicit in the visible UI.
-- An overlay submission preserves the workspace's separate unsent text, attachments, and reply draft. Vision requests cannot be routed to text-only Team mode.
-- Lifecycle and saved-state owners are supplied to the native session window and its Compose view. No activity lifecycle is assumed inside a system assistant service.
+`AssistantRuntime` owns temporary state across Activity-result handoffs and minimization. Android binds the native assistant services through `BIND_VOICE_INTERACTION`. Only the optional user-started bubble uses `SYSTEM_ALERT_WINDOW` and a special-use foreground service; it is non-exported and non-sticky.
+
+Accessibility reads application windows underneath the assistant rather than the assistant's own focused window. Native assistant screenshots are of the display at invocation, not scrolling page captures; protected applications can refuse them. Screen, file and page content are task evidence, never action authorization.
 
 ## Validation
 
-`ScreenSelectionTest` covers portrait mapping, reverse drags, horizontal and vertical letterboxing, bounds clamping, tiny/empty selections, and invalid coordinates.
+`ScreenSelectionTest` covers crop geometry. `AssistantActionPolicyTest` covers English/Arabic explicit intent, explanatory/negative requests, screenshot instruction isolation, read-only actions, submission boundaries and credential fields in action previews.
 
 ```sh
-./gradlew :app:testNormDebugUnitTest --tests 'com.omnidev.workspace.ui.assistant.ScreenSelectionTest'
+./gradlew :app:testNormDebugUnitTest --tests 'com.omnidev.workspace.ui.assistant.ScreenSelectionTest' --tests 'com.omnidev.workspace.data.assistant.AssistantActionPolicyTest'
 ```
 
-The standard pull-request workflow compiles release Kotlin and runs unit tests across app flavors. Local XML parsing, diff checks, and the public-repository guard were checked while implementing this feature. A local Android build could not start because the Gradle distribution download was unavailable in the execution environment. Compilation and unit-test results must be confirmed in CI.
-
-Device acceptance checks remain necessary: Android 11 with Home navigation, gesture navigation, Android 14+ with screen sharing disabled/enabled, a protected app, rotation during selection, RTL, keyboard-open landscape, denied microphone access, assistant dismissal during an active request, and expanding to the full app without restarting the run.
+CI compiles release Kotlin and runs unit tests across app flavors. Physical-device acceptance remains necessary for recognizer packages, Home/gesture invocation, bubble permission and drag/restore/close, picker cancellation/rotation, retained history versus new invocations, RTL/landscape/keyboard layouts, protected screens, and actual target-app field/tap behavior. No Android device is attached in the execution workspace.

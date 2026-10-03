@@ -278,6 +278,14 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".ui.assistant.AssistantInputActivity" android:exported="false"
+            android:theme="@style/Theme.OmniDevWorkspace.Assistant" android:excludeFromRecents="true" android:taskAffinity="" />
+        <service android:name=".data.assistant.AssistantBubbleService" android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-minimized assistant bubble; restores the active conversation" />
+        </service>
+
         <service android:name=".data.assistant.OmniVoiceInteractionService" android:exported="true"
             android:permission="android.permission.BIND_VOICE_INTERACTION">
             <intent-filter>

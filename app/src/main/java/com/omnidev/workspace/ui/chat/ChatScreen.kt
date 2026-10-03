@@ -386,7 +386,7 @@ fun ChatScreen(
 }
 
 @Composable
-private fun ModeSwitchRequestCard(
+internal fun ModeSwitchRequestCard(
     request: com.omnidev.workspace.data.model.ExecutionModeRequest,
     enabled: Boolean,
     onOnce: () -> Unit,
@@ -481,7 +481,7 @@ private fun ModeSelector(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(
+internal fun MessageBubble(
     message: ChatMessage,
     consoleEntries: List<AgentConsoleEntry>? = null,
     replyToMessage: ChatMessage? = null,
@@ -667,7 +667,7 @@ private fun MessageBubble(
 }
 
 @Composable
-private fun StreamingMessageBubble(content: String) {
+internal fun StreamingMessageBubble(content: String) {
     Row(
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.Start,

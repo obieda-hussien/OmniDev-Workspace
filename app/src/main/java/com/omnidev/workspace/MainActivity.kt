@@ -108,6 +108,8 @@ class MainActivity : ComponentActivity() {
     private fun handleNavigationIntent(intent: Intent) {
         if (intent.getBooleanExtra("open_assistant_conversation", false)) {
             intent.removeExtra("open_assistant_conversation")
+            val assistantSession = intent.getLongExtra("assistant_session_id", -1L)
+            if (assistantSession >= 0) WorkspaceChatRuntime.get(this).loadSession(assistantSession)
             pendingOmniSearch.value = OmniSearchNavigation(java.util.UUID.randomUUID().toString(), null)
             return
         }

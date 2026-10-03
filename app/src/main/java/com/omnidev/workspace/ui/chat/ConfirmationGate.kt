@@ -55,6 +55,7 @@ data class PendingConfirmation(
 )
 
 enum class ConfirmationType {
+    ASSISTANT_ACTION,
     SHIZUKU_COMMAND,
     ANDROID_INTENT,
     CONNECTED_APP_ACTION,
@@ -66,6 +67,7 @@ enum class ConfirmationType {
 
 private val ConfirmationType.title: String
     get() = when (this) {
+        ConfirmationType.ASSISTANT_ACTION -> "Allow this action?"
         ConfirmationType.SHIZUKU_COMMAND -> "⚡ Execute Shell Command?"
         ConfirmationType.ANDROID_INTENT -> "📱 Launch Android Intent?"
         ConfirmationType.CONNECTED_APP_ACTION -> "🔌 Allow Connected App Action?"
@@ -76,6 +78,8 @@ private val ConfirmationType.title: String
 
 private val ConfirmationType.subtitle: String
     get() = when (this) {
+        ConfirmationType.ASSISTANT_ACTION ->
+            "Omni wants to act on your behalf. Review the action before allowing it."
         ConfirmationType.SHIZUKU_COMMAND ->
             "The AI agent wants to run the following ADB/shell command with elevated privileges."
         ConfirmationType.ANDROID_INTENT ->
