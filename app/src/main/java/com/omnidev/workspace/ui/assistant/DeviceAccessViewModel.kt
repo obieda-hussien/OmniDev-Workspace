@@ -187,6 +187,11 @@ internal class DeviceAccessViewModel(application: Application) : AndroidViewMode
                     pending(DeviceAccessSetupPlan.Step(specialKey, access.title), RequestKind.SETTINGS)
                 }
                 else -> {
+                    if (selectedBackend == "android") {
+                        mutableState.value = mutableState.value.copy(busy = false,
+                            message = "This permission requires a privileged backend. Select Shizuku, System or Root if available in this edition.")
+                        return@runSetup
+                    }
                     val result = PermissionManagerTool.requestPermission(context, key, if (selectedBackend == "root") "root" else "auto")
                     snapshot()
                     mutableState.value = mutableState.value.copy(busy = false, message = result.output)
