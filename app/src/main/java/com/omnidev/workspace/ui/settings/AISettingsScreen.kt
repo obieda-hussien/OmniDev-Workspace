@@ -1,16 +1,15 @@
 package com.omnidev.workspace.ui.settings
 
 import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,49 +24,49 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.BubbleChart
-import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,22 +75,12 @@ import com.omnidev.workspace.data.model.AIModel
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.model.ModelRole
 import com.omnidev.workspace.registry.ModelRegistry
-import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility as AnimatedVisibility
 import com.omnidev.workspace.ui.motion.OmniIconButton
 import com.omnidev.workspace.ui.motion.omniAnimateContentSize
 import com.omnidev.workspace.ui.providers.ProvidersViewModel
+import kotlinx.coroutines.launch
 
-/**
- * AI Preferences Dashboard — Material 3 Expressive settings screen.
- *
- * Features:
- * - Granular model routing for 4 distinct roles (Chat, Agent, Orchestrator, Worker)
- * - ExposedDropdownMenus grouped by Provider
- * - Deep Thinking mode toggle
- * - "Manage API Keys" button navigating to ProvidersScreen
- * - Elevated cards with smooth transitions
- * - Large typography following M3 Expressive guidelines
- */
+/** Settings hub: one searchable directory, with focused pages for inline preferences. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AISettingsScreen(
@@ -111,22 +100,42 @@ fun AISettingsScreen(
     onNavigateToAgentBrain: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val providersUiState by providersViewModel?.uiState?.collectAsStateWithLifecycle()
+        ?: remember { mutableStateOf(null) }
     val snackbarHostState = remember { SnackbarHostState() }
+    var query by rememberSaveable { mutableStateOf("") }
+    var activePage by rememberSaveable { mutableStateOf<SettingsDestination?>(null) }
+    val homeListState = rememberLazyListState()
+    val searchListState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val keyboard = LocalSoftwareKeyboardController.current
+    val context = LocalContext.current
+    val allowVoice = com.omnidev.workspace.core.policy.TierPolicyHolder.current.allowAccessibility
+    val entries = remember(allowVoice) {
+        SettingsCatalog.entries.filter { allowVoice || it.destination != SettingsDestination.VOICE }
+    }
+    val accessibilityConnected by com.omnidev.workspace.data.accessibility.AccessibilityStateManager
+        .isServiceConnected.collectAsStateWithLifecycle()
 
-    val providersUiState by providersViewModel?.uiState?.collectAsStateWithLifecycle() ?: remember { mutableStateOf(null) }
+    fun backToHub() {
+        viewModel.dismissDropdown()
+        activePage = null
+    }
+    BackHandler(enabled = activePage != null) { backToHub() }
 
-    // Fetch catalogs for configured providers
-    LaunchedEffect(providersUiState?.configuredProviders) {
-        providersUiState?.configuredProviders?.forEach { entry ->
-            if (entry.provider != ModelProvider.GITHUB_COPILOT && providersUiState?.catalogs?.get(entry.provider)?.isFetching != true && providersUiState?.catalogs?.get(entry.provider)?.models?.isEmpty() != false) {
-                providersViewModel?.refreshModels(entry.provider)
+    // Fetch only when model selection is opened; browsing settings needs no catalogs.
+    LaunchedEffect(activePage, providersUiState?.configuredProviders) {
+        if (activePage == SettingsDestination.MODELS) {
+            providersUiState?.configuredProviders?.forEach { entry ->
+                if (entry.provider != ModelProvider.GITHUB_COPILOT &&
+                    providersUiState?.catalogs?.get(entry.provider)?.isFetching != true &&
+                    providersUiState?.catalogs?.get(entry.provider)?.models?.isEmpty() != false
+                ) {
+                    providersViewModel?.refreshModels(entry.provider)
+                }
             }
         }
     }
-
-
-    // Show status messages as snackbar
     LaunchedEffect(uiState.statusMessage) {
         uiState.statusMessage?.let { message ->
             snackbarHostState.showSnackbar(message)
@@ -134,216 +143,122 @@ fun AISettingsScreen(
         }
     }
 
-    Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = {
-            LargeTopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = "AI Preferences",
-                            style = MaterialTheme.typography.headlineLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Configure model routing & behavior",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                navigationIcon = {
-                    OmniIconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                scrollBehavior = scrollBehavior
-            )
-        },
-        snackbarHost = {
-            SnackbarHost(snackbarHostState) { data ->
-                Snackbar(snackbarData = data)
+    fun open(destination: SettingsDestination) {
+        keyboard?.hide()
+        when (destination) {
+            SettingsDestination.PROVIDERS -> onNavigateToProviders()
+            SettingsDestination.LOCAL_MODELS -> onNavigateToLocalModels()
+            SettingsDestination.PROFILE -> onNavigateToProfile()
+            SettingsDestination.MEMORY -> onNavigateToMemoryExplorer()
+            SettingsDestination.INTEGRATIONS -> onNavigateToIntegrations()
+            SettingsDestination.MCP -> onNavigateToMcpSettings()
+            SettingsDestination.SCHEDULE -> onNavigateToScheduledTasks()
+            SettingsDestination.SKILLS -> onNavigateToToolRegistry()
+            SettingsDestination.ANALYTICS -> onNavigateToAnalytics()
+            SettingsDestination.BRAIN -> onNavigateToAgentBrain()
+            SettingsDestination.DEBUG -> onNavigateToDebug()
+            SettingsDestination.DEVICE_ACCESS, SettingsDestination.VOICE -> {
+                val activity = if (destination == SettingsDestination.DEVICE_ACCESS)
+                    com.omnidev.workspace.ui.assistant.DeviceAccessActivity::class.java
+                else com.omnidev.workspace.ui.assistant.VoiceWakeActivity::class.java
+                runCatching { context.startActivity(Intent(context, activity)) }
+                    .onFailure { viewModel.showStatusMessage("Could not open ${entries.first { it.destination == destination }.title}.") }
             }
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ── Section: Model Routing ──
-            SectionHeader(
-                icon = Icons.Filled.Hub,
-                title = "Granular Model Routing",
-                subtitle = "Assign specific models to each functional role"
-            )
-
-            // Model role cards
-            ModelRole.entries.forEach { role ->
-                ModelRoleCard(
-                    catalogs = providersUiState?.catalogs ?: emptyMap(),
-                    configuredProviders = providersUiState?.configuredProviders ?: emptyList(),
-                    role = role,
-                    selectedModelId = uiState.modelAssignments[role] ?: "",
-                    isExpanded = uiState.expandedDropdownRole == role,
-                    onExpandToggle = { viewModel.toggleDropdown(role) },
-                    onModelSelected = { modelId -> viewModel.selectModelForRole(role, modelId) },
-                    onDismiss = { viewModel.dismissDropdown() }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ── Section: Providers & API Keys ──
-            SectionHeader(
-                icon = Icons.Filled.Key,
-                title = "API Keys",
-                subtitle = "Manage credentials for each AI provider"
-            )
-
-            ApiKeysCard(onNavigateToProviders = onNavigateToProviders)
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ── Section: Advanced ──
-            SectionHeader(
-                icon = Icons.Filled.Psychology,
-                title = "Advanced",
-                subtitle = "Deep reasoning and thinking capabilities"
-            )
-
-            // Deep Thinking toggle card
-            DeepThinkingCard(
-                enabled = uiState.deepThinkingEnabled,
-                onToggle = { viewModel.toggleDeepThinking(it) }
-            )
-
-            // God Mode toggle card
-            GodModeCard(
-                enabled = uiState.godModeEnabled,
-                onToggle = { viewModel.toggleGodMode(it) }
-            )
-
-            // Debug console card
-            DebugConsoleCard(onNavigateToDebug = onNavigateToDebug)
-
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Accessibility Service card (Semantic UI)
-            AccessibilityServiceCard()
-
-            Spacer(modifier = Modifier.height(8.dp))
-            com.omnidev.workspace.ui.assistant.AssistantSettingsCard()
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ── Section: AI Identity & Context Studio ──
-            SectionHeader(
-                icon = Icons.Filled.AutoAwesome,
-                title = "AI Identity & Context",
-                subtitle = "Customize system prompts and manage the knowledge base"
-            )
-
-            SettingsNavCard(
-                title = "👤 User Profile",
-                subtitle = "Your name and details — Omni will adapt to your style.",
-                onClick = onNavigateToProfile
-            )
-
-            SettingsNavCard(
-                title = "Knowledge Base Explorer",
-                subtitle = "Browse, search, edit, and add permanent AI memories",
-                onClick = onNavigateToMemoryExplorer
-            )
-
-            SettingsNavCard(
-                title = "Integrations & Linked Accounts",
-                subtitle = "Connect Telegram, GitHub, and other platforms",
-                onClick = onNavigateToIntegrations
-            )
-
-            SettingsNavCard(
-                title = "MCP Server Configurations",
-                subtitle = "Manage Model Context Protocol external servers via JSON",
-                onClick = onNavigateToMcpSettings
-            )
-
-
-            SettingsNavCard(
-                title = "Local Edge Model (BYOM)",
-                subtitle = "Run a quantized GGUF model on-device — no API key or internet required",
-                onClick = onNavigateToLocalModels
-            )
-
-            SettingsNavCard(
-                title = "Scheduler Dashboard",
-                subtitle = "View, cancel, and manually create autonomous background AI tasks",
-                onClick = onNavigateToScheduledTasks
-            )
-
-            SettingsNavCard(
-                title = "Agent Skills",
-                subtitle = "Import, create, enable, and manage reusable Agent Skills",
-                onClick = onNavigateToToolRegistry
-            )
-
-            SettingsNavCard(
-                title = "📊 Analytics Dashboard",
-                subtitle = "View token usage, cost breakdown, tool statistics, and agent run history",
-                onClick = onNavigateToAnalytics
-            )
-
-            // ═══════════════════════════════════════════════════════════════
-            // 🧠 Agent Brain Dashboard —
-            // ═══════════════════════════════════════════════════════════════
-            SettingsNavCard(
-                title = "🧠 Agent Brain",
-                subtitle = "Memory and tool awareness — Execution log, learned patterns, and status.",
-                onClick = onNavigateToAgentBrain
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
+            else -> activePage = destination
         }
     }
-}
 
-/**
- * Section header with icon, title, and subtitle.
- */
-@Composable
-private fun SectionHeader(
-    icon: ImageVector,
-    title: String,
-    subtitle: String
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(vertical = 8.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(28.dp)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        activePage?.let { page -> entries.first { it.destination == page }.title } ?: "Settings",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                navigationIcon = {
+                    OmniIconButton(onClick = { if (activePage != null) backToHub() else onNavigateBack() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = if (activePage != null) "Back to settings" else "Back")
+                    }
+                }
+            )
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
+    ) { padding ->
+        val summaries = mapOf(
+            SettingsDestination.REASONING to if (uiState.deepThinkingEnabled) "Enabled" else "Off · use more reasoning when needed",
+            SettingsDestination.FILE_ACCESS to if (uiState.godModeEnabled) "Enabled · Android access rules still apply" else "Limited to the selected project",
+            SettingsDestination.ACCESSIBILITY to if (accessibilityConnected) "Connected · screen control available" else "Not connected · set up screen control"
         )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        val pageContent: @Composable (SettingsDestination?) -> Unit = { page ->
+            if (page == null) {
+                SettingsHome(
+                    query = query,
+                    onQueryChange = {
+                        query = it
+                        scope.launch { searchListState.scrollToItem(0) }
+                    },
+                    entries = entries,
+                    summaries = summaries,
+                    listState = if (query.isBlank()) homeListState else searchListState,
+                    onOpen = ::open,
+                    modifier = Modifier.padding(padding)
+                )
+            } else {
+                key(page) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(padding)
+                            .verticalScroll(rememberScrollState())
+                            .padding(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text(
+                            entries.first { it.destination == page }.description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                        when (page) {
+                            SettingsDestination.MODELS -> {
+                                ModelRole.entries.forEach { role ->
+                                    ModelRoleCard(
+                                        catalogs = providersUiState?.catalogs ?: emptyMap(),
+                                        configuredProviders = providersUiState?.configuredProviders ?: emptyList(),
+                                        role = role,
+                                        selectedModelId = uiState.modelAssignments[role] ?: "",
+                                        isExpanded = uiState.expandedDropdownRole == role,
+                                        onExpandToggle = { viewModel.toggleDropdown(role) },
+                                        onModelSelected = { viewModel.selectModelForRole(role, it) },
+                                        onDismiss = { viewModel.dismissDropdown() }
+                                    )
+                                }
+                                TextButton(onClick = onNavigateToProviders, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Manage providers & API keys")
+                                }
+                            }
+                            SettingsDestination.REASONING -> DeepThinkingCard(uiState.deepThinkingEnabled, viewModel::toggleDeepThinking)
+                            SettingsDestination.FILE_ACCESS -> GodModeCard(uiState.godModeEnabled, viewModel::toggleGodMode)
+                            SettingsDestination.ACCESSIBILITY -> AccessibilityServiceCard(viewModel::showStatusMessage)
+                            SettingsDestination.ASSISTANT -> com.omnidev.workspace.ui.assistant.AssistantSettingsCard(showAccessLinks = false)
+                            else -> Unit
+                        }
+                    }
+                }
+            }
+        }
+        val motion = com.omnidev.workspace.ui.motion.LocalOmniMotion.current
+        if (motion.reduced) {
+            pageContent(activePage)
+        } else {
+            androidx.compose.animation.Crossfade(
+                targetState = activePage,
+                animationSpec = androidx.compose.animation.core.tween(motion.navigationMillis),
+                label = "Settings navigation"
+            ) { pageContent(it) }
         }
     }
 }
@@ -351,7 +266,7 @@ private fun SectionHeader(
 /**
  * Elevated card for a single model role with an ExposedDropdownMenu grouped by provider.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun ModelRoleCard(
     catalogs: Map<ModelProvider, com.omnidev.workspace.ui.providers.ProviderModelCatalog>,
@@ -379,7 +294,7 @@ private fun ModelRoleCard(
         modifier = Modifier
             .fillMaxWidth()
             .omniAnimateContentSize(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(
@@ -534,8 +449,9 @@ private fun ModelRoleCard(
             // Model capability badges
             selectedModel?.let { model ->
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(
+                FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     // Tier badge
@@ -547,8 +463,9 @@ private fun ModelRoleCard(
                     if (model.isLatest) CapabilityBadge("✨ Latest")
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     if (model.supportsVision) CapabilityBadge("👁 Vision")
                     if (model.supportsVideo) CapabilityBadge("🎥 Video")
@@ -601,240 +518,94 @@ private fun CapabilityBadge(text: String, containerAlpha: Float = 0.5f) {
     }
 }
 
-/**
- * Deep Thinking mode toggle card with explanation.
- */
 @Composable
-private fun DeepThinkingCard(
+private fun DeepThinkingCard(enabled: Boolean, onToggle: (Boolean) -> Unit) {
+    SettingsToggleCard(
+        icon = Icons.Filled.AutoAwesome,
+        title = "Deep thinking",
+        description = "Spend more time reasoning before answering or acting.",
+        enabled = enabled,
+        onToggle = onToggle
+    )
+    Text(
+        "Available on supported models. Extended reasoning can increase response time and token use.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+@Composable
+private fun GodModeCard(enabled: Boolean, onToggle: (Boolean) -> Unit) {
+    SettingsToggleCard(
+        icon = Icons.Filled.FolderOpen,
+        title = "Extended file access",
+        description = "Allow file tools outside the selected project.",
+        enabled = enabled,
+        onToggle = onToggle
+    )
+    Text(
+        "Android permissions still apply. Protected paths need a supported Shizuku or root backend; this setting does not grant root access.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+@Composable
+private fun SettingsToggleCard(
+    icon: ImageVector,
+    title: String,
+    description: String,
     enabled: Boolean,
     onToggle: (Boolean) -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
+    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
+            modifier = Modifier.fillMaxWidth()
+                .toggleable(value = enabled, role = Role.Switch, onValueChange = onToggle)
                 .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(
-                imageVector = Icons.Filled.AutoAwesome,
-                contentDescription = null,
-                tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Deep Thinking Mode",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Enable extended chain-of-thought reasoning. Uses <thinking> blocks for step-by-step analysis before acting.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Switch(
-                checked = enabled,
-                onCheckedChange = onToggle,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.primary,
-                    checkedTrackColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            )
+            Switch(checked = enabled, onCheckedChange = null)
         }
     }
 }
 
-/**
- * God Mode toggle card — enables unrestricted filesystem access (bypass Target Context scope).
- * All actions still require explicit user confirmation via the ConfirmationGate.
- */
 @Composable
-private fun GodModeCard(
-    enabled: Boolean,
-    onToggle: (Boolean) -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (enabled)
-                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f)
-            else
-                MaterialTheme.colorScheme.surface
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "🔓",
-                style = MaterialTheme.typography.headlineSmall,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "God Mode (Extended File Access)",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (enabled) MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = if (enabled)
-                        "Extended file tools are enabled. Android permissions and the connected Shizuku or root backend still determine which paths are accessible."
-                    else
-                        "Allow file tools outside the selected project. Protected Android paths need a supported privileged backend; this setting does not grant root access.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (enabled) MaterialTheme.colorScheme.error
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Switch(
-                checked = enabled,
-                onCheckedChange = onToggle,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = MaterialTheme.colorScheme.error,
-                    checkedTrackColor = MaterialTheme.colorScheme.errorContainer
-                )
-            )
-        }
-    }
-}
-
-
-/**
- * Accessibility Service card — shows whether the OmniAccessibilityService is enabled
- * and provides a button to open Android's Accessibility Settings to toggle it.
- */
-@Composable
-private fun AccessibilityServiceCard() {
+private fun AccessibilityServiceCard(onError: (String) -> Unit) {
     val context = LocalContext.current
     val isConnected by com.omnidev.workspace.data.accessibility.AccessibilityStateManager
         .isServiceConnected.collectAsStateWithLifecycle()
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Psychology,
-                contentDescription = null,
-                tint = if (isConnected) MaterialTheme.colorScheme.primary
-                       else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
+    Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(Icons.Filled.Psychology, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                 Text(
-                    text = "Semantic UI Engine",
-                    style = MaterialTheme.typography.titleMedium,
+                    if (isConnected) "Connected" else "Not connected",
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold
                 )
-                Text(
-                    text = if (isConnected)
-                        "Active — AI can read and interact with any app's UI semantically."
-                    else
-                        "Disabled — Enable Accessibility Service for semantic UI control.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (isConnected) MaterialTheme.colorScheme.primary
-                           else MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            if (isConnected) {
-                Icon(
-                    imageVector = Icons.Filled.Check,
-                    contentDescription = "Active",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
-            } else {
-                Card(
-                    onClick = {
-                        val intent = Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        context.startActivity(intent)
-                    },
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                ) {
-                    Text(
-                        text = "Enable",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
- * Card that navigates to the API key management screen.
- */
-@Composable
-private fun ApiKeysCard(onNavigateToProviders: () -> Unit) {
-    Card(
-        onClick = onNavigateToProviders,
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Key,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(28.dp)
+            Text(
+                "Enable OmniDev in Android's accessibility settings to read and interact with app screens.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Manage API Keys",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Add keys for Anthropic, OpenAI, Gemini, and GitHub Copilot.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            androidx.compose.material3.FilledTonalIconButton(
-                onClick = onNavigateToProviders
+            androidx.compose.material3.FilledTonalButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }.onFailure { onError("Could not open Android accessibility settings.") }
+                },
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(
-                    imageVector = Icons.Filled.Key,
-                    contentDescription = "Open API Keys"
-                )
+                Text(if (isConnected) "Manage in Android settings" else "Open Android settings")
             }
         }
     }
@@ -859,55 +630,6 @@ private fun formatContextWindow(tokens: Int): String = when {
 }
 
 /**
- * Card that navigates to the Debug Console screen.
- */
-@Composable
-private fun DebugConsoleCard(onNavigateToDebug: () -> Unit) {
-    Card(
-        onClick = onNavigateToDebug,
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Filled.BugReport,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Debug Console",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "View crash reports, error logs, and device diagnostics.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            androidx.compose.material3.FilledTonalIconButton(
-                onClick = onNavigateToDebug
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.BugReport,
-                    contentDescription = "Open Debug Console",
-                    tint = MaterialTheme.colorScheme.error
-                )
-            }
-        }
-    }
-}
-
-/**
  * Builds a capability summary string for a model (used in dropdown items).
  */
 private fun buildModelCapabilityString(model: AIModel): String = buildString {
@@ -917,37 +639,4 @@ private fun buildModelCapabilityString(model: AIModel): String = buildString {
     if (model.supportsThinking) append(" · Thinking")
     model.speedTokensPerSecond?.let { append(" · ${it}t/s") }
     model.costPer1MInputTokens?.let { append(" · \$${formatCost(it)}/M") }
-}
-
-/**
- * Generic navigation card for settings sections.
- */
-@Composable
-private fun SettingsNavCard(title: String, subtitle: String, onClick: () -> Unit) {
-    Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
 }

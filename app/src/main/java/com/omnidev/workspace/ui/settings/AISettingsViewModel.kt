@@ -135,9 +135,12 @@ class AISettingsViewModel(
         _uiState.update { it.copy(expandedDropdownRole = null) }
     }
 
-    /**
-     * Clears the transient status message.
-     */
+    /** Surface a recoverable settings action failure. */
+    fun showStatusMessage(message: String) {
+        _uiState.update { it.copy(statusMessage = message) }
+    }
+
+    /** Clears the transient status message. */
     fun clearStatusMessage() {
         _uiState.update { it.copy(statusMessage = null) }
     }
