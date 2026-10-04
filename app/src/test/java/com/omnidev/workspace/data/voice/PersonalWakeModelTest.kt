@@ -3,6 +3,7 @@ package com.omnidev.workspace.data.voice
 import org.junit.Assert.*
 import org.junit.Test
 import kotlin.math.*
+import java.nio.ByteBuffer
 
 class PersonalWakeModelTest {
     private fun sample(length: Int = 60, frequency: Int = 1, speaker: Float = 0f): WakeFeatures.Sample = WakeFeatures.Sample(
@@ -10,6 +11,24 @@ class PersonalWakeModelTest {
         FloatArray(12) { it * .1f + speaker },
     )
     private fun model() = PersonalWakeModel.train(List(5) { sample(58 + it) }, listOf(sample(frequency = 3), sample(frequency = 4)))
+    private fun shifted(offset: Float) = sample().let { s ->
+        WakeFeatures.Sample(Array(s.frames.size) { n -> FloatArray(24) { c -> s.frames[n][c] + offset } }, s.voice)
+    }
+
+    @Test fun separableExamplesAboveTheOldFixedDistanceCapCanTrain() {
+        val model = PersonalWakeModel.train(List(5) { shifted(it * .4f) }, listOf(shifted(8f), shifted(10f)))
+        assertTrue(model.threshold > .5f)
+        assertTrue(model.match(shifted(.65f)).accepted)
+        assertFalse(model.match(shifted(8f)).accepted)
+        assertTrue(PersonalWakeModel.decode(model.encode()).match(shifted(.65f)).accepted)
+    }
+    @Test fun validSeparationIsNotRejectedBecauseExtraHeadroomOverlapsContrasts() {
+        val positives = listOf(-.06f, -.03f, 0f, .03f, .06f).map(::shifted)
+        val model = PersonalWakeModel.train(positives, listOf(shifted(.14f), shifted(-.14f)))
+        assertTrue(model.match(shifted(.015f)).accepted)
+        assertFalse(model.match(shifted(.14f)).accepted)
+        assertFalse(model.match(shifted(-.14f)).accepted)
+    }
 
     @Test fun freshPhraseAndTimeWarpMatchButOtherWordsDoNot() {
         val model = model()
@@ -27,6 +46,41 @@ class PersonalWakeModelTest {
         assertThrows(IllegalArgumentException::class.java) {
             PersonalWakeModel.train(List(5) { sample() }, listOf(sample(), sample()))
         }
+    }
+    @Test fun oneInconsistentWakeRecordingIsIdentifiedByIndex() {
+        val positives = List(5) { if (it == 2) sample(frequency = 5) else sample() }
+        val error = assertThrows(PersonalWakeModel.TrainingException::class.java) {
+            PersonalWakeModel.train(positives, listOf(sample(frequency = 3), sample(frequency = 4)))
+        }
+        assertEquals(PersonalWakeModel.TrainingIssue.INCONSISTENT_WAKE, error.issue)
+        assertEquals(2, error.exampleIndex)
+    }
+    @Test fun overlappingContrastRecordingIsIdentifiedByIndex() {
+        val error = assertThrows(PersonalWakeModel.TrainingException::class.java) {
+            PersonalWakeModel.train(List(5) { sample() }, listOf(sample(frequency = 3), sample()))
+        }
+        assertEquals(PersonalWakeModel.TrainingIssue.CONTRAST_TOO_SIMILAR, error.issue)
+        assertEquals(6, error.exampleIndex)
+    }
+    @Test fun legacyProfilesKeepTheirSavedThresholdAndFormat() {
+        val bytes = model().encode()
+        val header = ByteBuffer.wrap(bytes)
+        header.putInt(0, 0x4F574D31)
+        header.putFloat(4, .025f)
+        val legacy = PersonalWakeModel.decode(bytes)
+        assertEquals(.025f, legacy.threshold, 0f)
+        assertTrue(legacy.match(sample()).accepted)
+        assertFalse(legacy.match(sample(frequency = 3)).accepted)
+        assertArrayEquals(bytes, legacy.encode())
+    }
+    @Test fun newProfilesRejectInvalidCalibratedThresholds() {
+        val bytes = model().encode()
+        for (threshold in listOf(0f, -1f, Float.NaN, Float.POSITIVE_INFINITY, 401f)) {
+            val altered = bytes.clone().also { ByteBuffer.wrap(it).putFloat(4, threshold) }
+            assertThrows(IllegalArgumentException::class.java) { PersonalWakeModel.decode(altered) }
+        }
+        val legacyWithTooHighThreshold = bytes.clone().also { ByteBuffer.wrap(it).putInt(0, 0x4F574D31).putFloat(4, .6f) }
+        assertThrows(IllegalArgumentException::class.java) { PersonalWakeModel.decode(legacyWithTooHighThreshold) }
     }
     @Test fun persistencePreservesDecisionAndRejectsMalformedProfiles() {
         val bytes = model().encode()
