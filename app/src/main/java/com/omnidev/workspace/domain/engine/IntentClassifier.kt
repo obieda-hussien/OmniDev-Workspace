@@ -439,7 +439,7 @@ object IntentClassifier {
             n.contains("shizuku") || n.contains("permission") ||
             n.contains("logcat") || n.contains("screenshot") || n.contains("hardware") ||
             n.contains("vpn") || n.contains("power") || n.contains("ui_automation") ||
-            n.contains("semantic_ui")
+            n.contains("learned_routine") || n.contains("semantic_ui")
         ) return ToolDomain.DEVICE_CONTROL
 
         if (n in MESSAGING_TOOLS ||

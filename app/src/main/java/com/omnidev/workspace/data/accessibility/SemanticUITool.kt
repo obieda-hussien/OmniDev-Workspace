@@ -45,6 +45,9 @@ object SemanticUITool {
     @Volatile
     private var lastParseResult: SemanticTreeParser.ParseResult? = null
 
+    fun recordedSelector(nodeId: String?): com.omnidev.workspace.data.routines.UiSelector? =
+        lastParseResult?.nodeMap?.get(nodeId?.uppercase())?.let(com.omnidev.workspace.data.routines.RoutineUi::selector)
+
     fun getToolDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "semantic_ui",
@@ -131,6 +134,8 @@ object SemanticUITool {
                     )
                 }
             }
+
+            if (action.startsWith("routine_")) return@withContext com.omnidev.workspace.data.routines.RoutineUi.execute(action, params)
 
             when (action.lowercase()) {
                 "dump_tree"    -> dumpTree()

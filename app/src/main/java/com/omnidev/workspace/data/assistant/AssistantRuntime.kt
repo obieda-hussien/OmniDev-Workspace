@@ -16,7 +16,7 @@ object AssistantRuntime {
     var openAccessCenter: (() -> Boolean)? = null
     var minimizeForAction: (suspend () -> Boolean)? = null
     suspend fun prepareAction(context: Context, tool: String, args: Map<String, String>): com.omnidev.workspace.data.tools.ToolExecutionResult? {
-        if (tool !in setOf("semantic_ui", "ui_automation", "autofill_assist", "app_manager", "ime_tool") ||
+        if (tool !in setOf("semantic_ui", "ui_automation", "autofill_assist", "app_manager", "app_manager_tool", "ime_tool") ||
             AssistantActionPolicy.isReadOnly(tool, args)) return null
         if (!get(context).flavor.allowScreenActions) return com.omnidev.workspace.data.tools.ToolExecutionResult(
             "Live device actions are unavailable in this flavor.", isError = true, classification = "TIER_DENIED")
@@ -40,7 +40,7 @@ object AssistantRuntime {
                     } else null
                 } else com.omnidev.workspace.data.tools.ToolExecutionResult(
                     "Could not minimize the assistant safely. No gesture was executed; retry after minimizing.", isError = true)
-            } else if (tool == "ui_automation" || args["action"] in setOf("tap_xy", "swipe", "force_click", "force_long_click", "force_type", "chain", "macro_play", "back", "home", "recents")) {
+            } else if (tool == "ui_automation" || args["action"] in setOf("routine_click", "routine_long_click", "routine_scroll", "tap_xy", "swipe", "force_click", "force_long_click", "force_type", "chain", "macro_play", "back", "home", "recents")) {
                 com.omnidev.workspace.data.tools.ToolExecutionResult("Minimize the assistant with the minus button and allow display over other apps before gesture actions. Then retry.", isError = true)
             } else null
         }

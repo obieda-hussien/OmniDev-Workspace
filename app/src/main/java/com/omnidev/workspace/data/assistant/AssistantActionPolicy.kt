@@ -2,8 +2,8 @@ package com.omnidev.workspace.data.assistant
 
 /** Authorization is derived solely from the user's typed/spoken request, never screen content. */
 object AssistantActionPolicy {
-    private val readers = setOf("dump_tree", "dump_screen", "get_summary", "find_element", "describe", "verify", "macro_list", "get_tree", "get_ui", "inspect", "find", "find_node", "find_nodes", "get_screen", "screenshot", "status", "get_profile", "list", "list_apps", "get_current_app", "get_focused", "get_text", "wait", "wait_for", "read", "get_windows")
-    private val guardedTools = setOf("semantic_ui", "ui_automation", "autofill_assist", "headless_browser", "app_manager", "browser_type", "browser_click", "browser_execute_js", "ime_tool")
+    private val readers = setOf("routine_wait", "dump_tree", "dump_screen", "get_summary", "find_element", "describe", "verify", "macro_list", "get_tree", "get_ui", "inspect", "find", "find_node", "find_nodes", "get_screen", "screenshot", "status", "get_profile", "list", "list_apps", "get_current_app", "get_focused", "get_text", "wait", "wait_for", "read", "get_windows")
+    private val guardedTools = setOf("semantic_ui", "ui_automation", "autofill_assist", "headless_browser", "app_manager", "app_manager_tool", "browser_type", "browser_click", "browser_execute_js", "ime_tool")
     private val fill = Regex("^(?:(?:please|can you|could you|عايزك|ممكن|من فضلك|لو سمحت)\\s+)?(?:type|fill|enter|write in|اكتب|املا|املأ|ادخل|دخل|حط)(?:\\s|$)", RegexOption.IGNORE_CASE)
     private val navigate = Regex("^(?:(?:please|can you|عايزك|ممكن|لو سمحت)\\s+)?(?:open|launch|go to|scroll|افتح|روح|انزل|اطلع)(?:\\s|$)", RegexOption.IGNORE_CASE)
 
