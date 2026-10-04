@@ -11,6 +11,7 @@
     <cloud-backup>
         <exclude domain="sharedpref" path="device-user-consent.xml"/>
         <exclude domain="sharedpref" path="local-wake-consent.xml"/>
+        <exclude domain="sharedpref" path="offline-voice-settings.xml"/>
         <!-- TODO: Use <include> and <exclude> tags to control what is backed up.
         <include .../>
         <exclude .../>
@@ -19,6 +20,7 @@
     <device-transfer>
         <exclude domain="sharedpref" path="device-user-consent.xml"/>
         <exclude domain="sharedpref" path="local-wake-consent.xml"/>
+        <exclude domain="sharedpref" path="offline-voice-settings.xml"/>
     </device-transfer>
     <!--
     <device-transfer>
