@@ -82,11 +82,15 @@ class LocalVoiceSessionService : Service() {
         .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
         .setContentIntent(PendingIntent.getActivity(this, 0, Intent(this, VoiceWakeActivity::class.java), IMMUTABLE))
         .addAction(0, "Stop", PendingIntent.getService(this, 1, Intent(this, LocalVoiceSessionService::class.java).setAction(STOP), IMMUTABLE)).build()
-    private suspend fun say(english: String, arabic: String = english) {
+    private suspend fun say(english: String, arabic: String = english, requireUnlocked: Boolean = false) {
         check(allowed())
-        update(english)
+        check(!requireUnlocked || !DeviceConsentStore(this).locked())
+        update(if (requireUnlocked) "Speaking reply…" else english)
         val spoken = if (output?.language == "ar") arabic else english
-        check(output?.say(spoken) == true) { "Offline speech output unavailable. Install an offline voice in Android settings." }
+        val completed = withContext(Dispatchers.Main.immediate) {
+            if (requireUnlocked && DeviceConsentStore(this@LocalVoiceSessionService).locked()) false else output?.say(spoken) == true
+        }
+        check(completed) { "Offline speech output unavailable. Install an offline voice in Android settings." }
         delay(180) // Speaker tail; the recorder is closed throughout TTS.
     }
     private suspend fun runSession() {
@@ -149,7 +153,7 @@ class LocalVoiceSessionService : Service() {
             if (chat.isProcessing) started = true
             val answer = chat.messages.lastOrNull { it.role == MessageRole.ASSISTANT && it.messageId !in known }
             if (!chat.isProcessing && (started || answer != null)) {
-                if (answer != null && !DeviceConsentStore(this).locked()) say(answer.content.take(1500))
+                if (answer != null && !DeviceConsentStore(this).locked()) say(answer.content.take(1500), requireUnlocked = true)
                 return
             }
         }
@@ -164,7 +168,7 @@ class LocalVoiceSessionService : Service() {
         privatePhase = true; handingOff = true
         val nativePrompt = scope.async { DeviceUnlockActivity.request(this@LocalVoiceSessionService, true, voiceSession = true) }
         try {
-            hideForCredential?.invoke()
+            withContext(Dispatchers.Main.immediate) { hideForCredential?.invoke() }
             repeat(20) { if (!consent.locked() || LocalSpokenUnlock.visibleKind() != null) return@repeat; delay(150) }
             if (!consent.locked()) { privatePhase = false; say("Unlocked.", "تم فتح القفل."); return true }
             val kind = LocalSpokenUnlock.visibleKind()
@@ -188,15 +192,19 @@ class LocalVoiceSessionService : Service() {
             if (confirm == null || confirm.confidence < .9 || !VoiceSessionPolicy.confirmed(confirm.text)) return false
             // Hide the panel before any gesture; only the actual native lock UI is targeted.
             attempted = true
-            val success = LocalSpokenUnlock.attempt(this, credential!!)
+            val success = LocalSpokenUnlock.attempt(this, credential!!) || !consent.locked()
             credential = null
             privatePhase = false
             say(if (success) "Unlocked." else "Android did not unlock. No automatic retry. Unlock manually.",
                 if (success) "تم فتح القفل." else "التليفون ما اتفتحش. مش هكرر المحاولة. افتحه يدويًا.")
             return success
+        } catch (error: IllegalStateException) {
+            // A manual/biometric unlock stops private capture; the waiting task can now resume.
+            if (!consent.locked()) return true
+            throw error
         } finally {
             credential?.close(); credential = null; privatePhase = false; handingOff = false; nativePrompt.cancel()
-            if (!consent.locked()) OmniVoiceInteractionService.resume(this)
+            if (!consent.locked()) withContext(Dispatchers.Main.immediate) { OmniVoiceInteractionService.resume(this@LocalVoiceSessionService) }
         }
     }
     private fun finishRequest(success: Boolean) {
