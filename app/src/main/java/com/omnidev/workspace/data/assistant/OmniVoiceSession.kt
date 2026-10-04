@@ -99,6 +99,21 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
         }) { hide(); return }
         preserveOnHide = false
         AssistantRuntime.begin(context, args?.getBoolean(OmniVoiceInteractionService.RESUME) == true, native = true)
+        val wake = args?.getBoolean(OmniVoiceInteractionService.WAKE_INVOCATION) == true
+        val deviceConsent = com.omnidev.workspace.data.admin.DeviceConsentStore(context)
+        if (wake && deviceConsent.enabled(com.omnidev.workspace.data.admin.DeviceConsentPolicy.Scope.WAKE)) {
+            window?.window?.addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+        } else window?.window?.clearFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+        if (wake && com.omnidev.workspace.data.voice.WakePreferences(context).autoDictation && !deviceConsent.locked()) {
+            uiScope.launch {
+                delay(400)
+                if (controller.state.value.visible && com.omnidev.workspace.data.voice.WakePreferences(context).autoDictation &&
+                    !com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) {
+                    speech.toggle({ controller.message("Allow microphone permission to dictate a request.") },
+                        { controller.message("Tap the mic to select a speech service.") })
+                }
+            }
+        }
         AssistantRuntime.openAccessCenter = { handoff(AssistantInputActivity.ACCESS) }
         AssistantRuntime.minimizeForAction = {
             AssistantBubbleService.show(context).also { started ->

@@ -52,6 +52,7 @@ object AssistantRuntime {
         val controller = get(context)
         if (!resume) { controller.close(); targetPackage = null }
         targetingScreen = true
+        com.omnidev.workspace.data.voice.LocalWakeService.pauseCapture()
         controller.show()
         AssistantBubbleService.remove(context)
     }

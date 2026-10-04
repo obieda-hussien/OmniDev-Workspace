@@ -15,6 +15,7 @@
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="device-user-consent.xml"/>
+    <exclude domain="sharedpref" path="local-wake-consent.xml"/>
     <!--
     <include domain="sharedpref" path="."/>
     <exclude domain="sharedpref" path="device.xml"/>

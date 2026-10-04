@@ -13,7 +13,7 @@ object DeviceAccessGuard {
     fun check(context: Context, pkg: String? = currentPackage(), screenshot: Boolean = false, mutation: Boolean = false): String? {
         if (LocalPinUnlock.entering) return "Local credential entry is in progress. Observation and other interaction are paused."
         if (pkg == context.packageName && AccessibilityStateManager.activeActivity.value?.let {
-                it.endsWith("DeviceAccessActivity") || it.endsWith("DeviceUnlockActivity")
+                it.endsWith("DeviceAccessActivity") || it.endsWith("DeviceUnlockActivity") || it.endsWith("VoiceWakeActivity")
             } == true) return "USER_ACTION_REQUIRED: device consent and authentication screens are user-operated."
         val consent = DeviceConsentStore(context)
         consent.denial(pkg, screenshot, mutation)?.let { return it }

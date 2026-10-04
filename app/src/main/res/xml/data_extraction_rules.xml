@@ -10,6 +10,7 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="device-user-consent.xml"/>
+        <exclude domain="sharedpref" path="local-wake-consent.xml"/>
         <!-- TODO: Use <include> and <exclude> tags to control what is backed up.
         <include .../>
         <exclude .../>
@@ -17,6 +18,7 @@
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="device-user-consent.xml"/>
+        <exclude domain="sharedpref" path="local-wake-consent.xml"/>
     </device-transfer>
     <!--
     <device-transfer>

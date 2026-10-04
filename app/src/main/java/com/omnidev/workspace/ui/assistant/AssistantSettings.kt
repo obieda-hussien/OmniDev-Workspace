@@ -60,6 +60,9 @@ fun AssistantSettingsCard() {
             Text("Hold Home or use your device's assistant gesture. Ask a question, attach the screen, or select just one area.", style = MaterialTheme.typography.bodyMedium)
             Text("Choose Omni as the default digital assistant and allow screen content and screenshots in Android's assistant settings.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             TextButton(onClick = { context.startActivity(Intent(context, DeviceAccessActivity::class.java)) }) { Text("Device access and permissions") }
+            if (com.omnidev.workspace.core.policy.TierPolicyHolder.current.allowAccessibility) {
+                TextButton(onClick = { context.startActivity(Intent(context, VoiceWakeActivity::class.java)) }) { Text("Hi Omni · local voice wake") }
+            }
             setupError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = {
