@@ -60,6 +60,8 @@ class OmniAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
+        runCatching { com.omnidev.workspace.data.routines.RoutineLearningHub.get(this).onAccessibilityEvent(event) }
+            .onFailure { Log.w(TAG, "Teaching event could not be recorded") }
 
         when (event.eventType) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
@@ -115,6 +117,9 @@ class OmniAccessibilityService : AccessibilityService() {
             if (AssistantRuntime.get(this).state.value.visible && root.packageName?.toString() == packageName) { root.recycle(); null } else root
         }
     }
+
+    /** Caller owns and recycles the fresh foreground root. */
+    fun routineRoot(): AccessibilityNodeInfo? = assistantTargetRoot()
 
     // ── Public API for SemanticUITool ──
 

@@ -68,6 +68,7 @@ fun ToolRegistryScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Spacer(Modifier.height(4.dp))
+            LearnedTasksPanel(onAskOmni = onCreateSkillWithOmni)
             SkillsSettingsPanel(onCreateWithOmni = onCreateSkillWithOmni)
             Spacer(Modifier.height(24.dp))
         }

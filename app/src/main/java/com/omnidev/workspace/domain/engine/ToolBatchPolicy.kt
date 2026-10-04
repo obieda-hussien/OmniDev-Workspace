@@ -23,7 +23,8 @@ object ToolBatchPolicy {
 
             "semantic_ui" -> {
                 val action = call.arguments["action"]?.lowercase().orEmpty()
-                return action in setOf("dump_tree", "get_node", "find_node", "list_nodes")
+                return action in setOf("routine_wait", "dump_tree", "get_node", "find_node", "list_nodes",
+                    "get_summary", "find_element", "get_text", "describe", "verify", "wait_for", "macro_list")
             }
 
             "sms_reader_tool", "call_log_tool" -> return true

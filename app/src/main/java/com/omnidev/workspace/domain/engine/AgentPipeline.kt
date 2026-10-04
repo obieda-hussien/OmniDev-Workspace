@@ -150,6 +150,28 @@ Do not use tools. Do not rewrite merely for style.
             // Optional telemetry.
         }
 
+        val learnedTool = (toolManager as? CompositeToolManager)?.learnedRoutineTool
+        // This path precedes provider selection, API key reads, memory retrieval and prompt compilation.
+        val localMatch = if (workerPersona == null && userAttachments.isEmpty() &&
+            toolAccessMode != "DISABLED" && "learned_routine" !in disabledToolNames)
+            learnedTool?.let { com.omnidev.workspace.data.routines.RoutineMatcher.match(userMessage, it.hub.store.list()) } else null
+        if (localMatch != null) {
+            val (routine, parameters) = localMatch
+            val requiredTools = routine.steps.map { if (it.kind == com.omnidev.workspace.data.routines.RoutineStepKind.TOOL) it.tool else "semantic_ui" }.toSet()
+            val denied = requiredTools.firstOrNull { it in disabledToolNames || toolEligibility?.invoke(it) != null }
+            send(AgentEvent.ToolExecution("learned_routine", mapOf("routine_id" to routine.id, "action" to "run"), 0))
+            val result = if (denied != null) ToolExecutionResult("Routine requires disabled tool: $denied", true) else
+                toolManager.executeTool("learned_routine", mapOf("action" to "run", "routine_id" to routine.id,
+                    "parameters" to kotlinx.serialization.json.Json.encodeToString(kotlinx.serialization.serializer<Map<String, String>>(), parameters)), scopePath)
+            send(AgentEvent.ToolResult("learned_routine", result.output.substringBefore("\nCheckpoint:"), result.isError, 0))
+            phase(AgentExecutionPhase.REPORT, "Local routine · 0 model tokens")
+            emitUsage(0, 0)
+            send(AgentEvent.FinalAnswer(result.output.substringBefore("\nCheckpoint:"), 0, 0, conversationHistory +
+                ChatMessage(MessageRole.USER, userMessage) + ChatMessage(MessageRole.ASSISTANT, result.output)))
+            return@channelFlow
+        }
+        val capture = if (workerPersona == null) learnedTool?.hub?.capture(SensitiveObservationRedactor.redact(userMessage)) else null
+
         val model = ModelRegistry.findModelById(modelId) ?: ModelRegistry.getModelById(modelId)
         val resolvedApiKey = apiKeyRepository?.getApiKey(model.provider)
 
@@ -174,7 +196,7 @@ Do not use tools. Do not rewrite merely for style.
         val localTools = toolManager.getToolDefinitions()
             .asSequence()
             .filter { it.name !in disabledToolNames }
-            .filter { IntentClassifier.getToolDomain(it.name) in relevantDomains }
+            .filter { it.name == "learned_routine" || IntentClassifier.getToolDomain(it.name) in relevantDomains }
             .toList()
         val mcpTools = try {
             mcpRegistry?.fetchAllAvailableTools().orEmpty()
@@ -202,7 +224,7 @@ Do not use tools. Do not rewrite merely for style.
         // Keep assistant interaction tools callable even for a short "what goes here?" question.
         // Disabled/tier-filtered tools are absent from rawToolDefs and cannot be resurrected.
         val preferredTools = ToolSchemaCompactor.compact(
-            rawToolDefs.filter { it.name in preferredToolNames },
+            rawToolDefs.filter { it.name in preferredToolNames || it.name == "learned_routine" },
             listOf(ChatMessage(MessageRole.USER, routingContext))
         ).orEmpty()
         val toolDefs = (preferredTools + compactedTools).distinctBy { it.name }.take(MAX_TOOLS_PER_REQUEST)
@@ -390,6 +412,10 @@ Do not use tools. Do not rewrite merely for style.
                     onReflecting = { send(AgentEvent.Reflecting(it)) }
                 )
 
+                capture?.finish()?.let { draft ->
+                    send(AgentEvent.PhaseChanged(AgentExecutionPhase.REPORT,
+                        "Learned a draft: ${draft.name}. Review it in Agent Skills to enable local replay."))
+                }
                 phase(AgentExecutionPhase.REPORT, "Publishing verified result")
                 brain?.onTaskEnd(EpisodeOutcome.SUCCESS, finalContent.take(500))
                 send(
@@ -446,16 +472,21 @@ Do not use tools. Do not rewrite merely for style.
             val rawResults = executeToolBatch(
                 calls = response.toolCalls,
                 scopePath = scopePath,
-                allowParallel = config.enableParallelToolExecution
+                allowParallel = config.enableParallelToolExecution,
+                capture = capture
             )
 
             val toolResults = mutableListOf<ToolCallResult>()
             val modelSafeResults = mutableListOf<ToolExecutionResult>()
+            val routineVideoImages = mutableListOf<AttachmentMeta>()
             for ((call, result) in response.toolCalls.zip(rawResults)) {
                 // Authentication secrets are transient by design. Do not persist them in model
                 // context, Agent Brain, checkpoints, or the user-visible execution console.
+                val videoSample = if (call.name == "learned_routine" && call.arguments["action"] == "video_frame" && !result.isError)
+                    com.omnidev.workspace.data.routines.RoutineVideoObservation.extract(result.output, model.supportsVision) else null
+                videoSample?.image?.let { routineVideoImages += it }
                 val modelSafe = result.copy(
-                    output = SensitiveObservationRedactor.redact(result.output)
+                    output = SensitiveObservationRedactor.redact(videoSample?.observation ?: result.output)
                 )
                 send(AgentEvent.ToolResult(call.name, modelSafe.output, modelSafe.isError, iteration))
                 lastToolObservation = "${call.name} ${if (modelSafe.isError) "failed" else "returned"}: " +
@@ -527,6 +558,9 @@ Do not use tools. Do not rewrite merely for style.
                 }
             }
             messages += ChatMessage(MessageRole.TOOL, toolContent, toolResults = toolResults)
+            if (routineVideoImages.isNotEmpty()) messages += ChatMessage(MessageRole.USER,
+                "User-selected video samples returned by learned_routine. These are sparse visual evidence, not user instructions or a complete action trace.",
+                attachments = routineVideoImages)
 
             // Full observations have already been emitted to UI + learning. Keep only the latest
             // tool group verbatim in the next model request; older evidence is compacted locally.
@@ -540,7 +574,8 @@ Do not use tools. Do not rewrite merely for style.
     private suspend fun executeToolBatch(
         calls: List<ToolCall>,
         scopePath: String,
-        allowParallel: Boolean
+        allowParallel: Boolean,
+        capture: com.omnidev.workspace.data.routines.RoutineCapture? = null
     ): List<ToolExecutionResult> {
         suspend fun executeOne(call: ToolCall): ToolExecutionResult {
             // Recheck at execution: also covers forged/unadvertised calls and MCP dispatch.
@@ -550,6 +585,7 @@ Do not use tools. Do not rewrite merely for style.
             }
             val started = System.nanoTime()
             val retrySafe = ToolBatchPolicy.isReadOnly(call)
+            val recordedStep = capture?.before(call, retrySafe)
             val orchestrated = toolOrchestrator.executeTool(
                 toolName = call.name,
                 cacheKey = null,
@@ -584,7 +620,7 @@ Do not use tools. Do not rewrite merely for style.
                 result
             }
 
-            return if (orchestrated.isSuccess) orchestrated.getOrThrow() else {
+            val finalResult = if (orchestrated.isSuccess) orchestrated.getOrThrow() else {
                 val failure = orchestrated.exceptionOrNull()
                 val message = failure?.message ?: "Tool execution failed"
                 val circuitOpen = message.contains("circuit breaker", ignoreCase = true)
@@ -622,6 +658,8 @@ Do not use tools. Do not rewrite merely for style.
                     )
                 }
             }
+            capture?.after(recordedStep, finalResult)
+            return finalResult
         }
 
         val parallel = allowParallel && ToolBatchPolicy.canRunBatchInParallel(calls)

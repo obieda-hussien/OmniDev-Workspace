@@ -453,8 +453,12 @@ class ChatViewModel(
         val runId = activeRunId.incrementAndGet()
         currentAgentJob?.cancel()
         val mode = state.activeMode
+        val matchingRoutine = if (mode != OmniMode.CHAT && state.pendingAttachments.isEmpty())
+            compositeToolManager?.learnedRoutineTool?.let {
+                com.omnidev.workspace.data.routines.RoutineMatcher.match(input, it.hub.store.list())
+            } else null
         val scopePath = assistantWorkspace ?: state.targetContext
-        if (mode != OmniMode.CHAT && mode != OmniMode.AUTO && scopePath == null && !state.isGodModeEnabled) {
+        if (mode != OmniMode.CHAT && mode != OmniMode.AUTO && scopePath == null && !state.isGodModeEnabled && matchingRoutine == null && !isLearnedTaskRequest(input)) {
             _uiState.update { it.copy(errorMessage = "Please set a Target Context before sending messages.") }
             return
         }
@@ -491,6 +495,10 @@ class ChatViewModel(
             val imageAttachments = resolveImageAttachments(attachments)
             val executionInput = if (assistantWorkspace == null) input else input + assistantAttachmentContext(attachments)
             val scope = scopePath ?: if (_uiState.value.isGodModeEnabled) "/" else ""
+            if (matchingRoutine != null) {
+                executeAgentMode(input, emptyList(), sessionId, scope, runId = runId)
+                return@launch
+            }
             when (mode) {
                 OmniMode.AUTO -> {
                     val baseline = IntentClassifier.classify(input)
@@ -539,6 +547,37 @@ class ChatViewModel(
             )
         }
     }
+
+    private fun isLearnedTaskRequest(input: String): Boolean =
+        listOf("Help teach learned task ", "Help with one paused learned task ", "Help with paused learned task ")
+            .any { input.startsWith(it) }
+
+    /** Explicit local task buttons use the same tool stack and never invoke completionProvider. */
+    fun runLocalRoutine(routineId: String, parameters: Map<String, String> = emptyMap(),
+        resumeRunId: String? = null, userCompletedStep: Boolean = false) {
+        if (_uiState.value.isProcessing) return
+        val manager = compositeToolManager ?: return
+        if (manager.getToolDefinitions().none { it.name == "learned_routine" }) {
+            _uiState.update { it.copy(errorMessage = "Local tasks are unavailable under the current tool policy") }; return
+        }
+        val runId = activeRunId.incrementAndGet()
+        _uiState.update { it.copy(isProcessing = true, agentStatus = "Running local task · 0 model tokens", errorMessage = null) }
+        currentAgentJob = viewModelScope.launch {
+            try {
+                val sessionId = ensureSession("Learned task")
+                val result = if (resumeRunId != null) manager.learnedRoutineTool!!.result(
+                    manager.learnedRoutineTool!!.runner.resume(resumeRunId, parameters, userCompletedStep)) else
+                    manager.executeTool("learned_routine", mapOf("action" to "run", "routine_id" to routineId,
+                        "parameters" to kotlinx.serialization.json.Json.encodeToString(kotlinx.serialization.serializer<Map<String, String>>(), parameters)),
+                        _uiState.value.targetContext)
+                handleAgentEvent(AgentEvent.FinalAnswer(result.output.substringBefore("\nCheckpoint:"), 0, 0, emptyList()), sessionId, runId)
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+              catch (error: Exception) { _uiState.update { it.copy(errorMessage = error.message) } }
+            finally { if (activeRunId.get() == runId) _uiState.update { it.copy(isProcessing = false, agentStatus = null) } }
+        }
+    }
+
+    fun pauseLocalRoutine() { compositeToolManager?.learnedRoutineTool?.runner?.pause() }
 
     fun cancelCurrentRun() {
         if (!_uiState.value.isProcessing) return
@@ -866,7 +905,8 @@ class ChatViewModel(
                 "Use attachment paths with file tools if the model cannot directly read their media type.").joinToString("\n"),
             disabledToolNames = chatSettings.disabledToolNames(),
             toolAccessMode = chatSettings.toolAccessMode.name,
-            additionalToolDomains = if (assistantWorkspace == null) emptySet() else flavor.toolDomains,
+            additionalToolDomains = if (assistantWorkspace != null) flavor.toolDomains
+                else if (isLearnedTaskRequest(input)) setOf(IntentClassifier.ToolDomain.DEVICE_CONTROL) else emptySet(),
             preferredToolNames = if (assistantWorkspace == null) emptySet() else flavor.preferredToolNames
         ).collect { event ->
             handleAgentEvent(event, sessionId, runId)

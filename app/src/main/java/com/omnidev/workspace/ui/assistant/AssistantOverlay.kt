@@ -79,6 +79,10 @@ fun AssistantOverlay(
     onSystemVoice: () -> Unit,
     onAccess: () -> Unit = onSetup
 ) {
+    val taskContext = androidx.compose.ui.platform.LocalContext.current
+    val taskHub = remember(taskContext) { com.omnidev.workspace.data.routines.RoutineLearningHub.get(taskContext) }
+    val localTask by taskHub.latestRun.collectAsStateWithLifecycle()
+    val lesson by taskHub.teaching.collectAsStateWithLifecycle()
     val screen by controller.state.collectAsStateWithLifecycle()
     val chat by controller.chat.uiState.collectAsStateWithLifecycle()
     val colors = MaterialTheme.colorScheme
@@ -132,6 +136,30 @@ fun AssistantOverlay(
                         if (flavor.allowBubble) IconButton(onClick = onMinimize, enabled = !screen.saving && !screen.minimizing) { Icon(Icons.Default.Remove, "Minimize to floating bubble") }
                         AssistantExpandButton(screen.saving, screen.minimizing, chat.isProcessing, chat.pendingConfirmation != null, onExpand)
                         IconButton(onClick = { leave(onDismiss) }) { Icon(Icons.Default.Close, "Close and save conversation") }
+                    }
+                    lesson?.let { title ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
+                            TextButton(onClick = { taskHub.decision() }) { Text("Decision") }
+                            TextButton(onClick = { taskHub.stopTeaching() }) { Text("Save lesson") }
+                        }
+                    }
+                    localTask?.let { run ->
+                        if (run.status == com.omnidev.workspace.data.routines.RoutineRunStatus.RUNNING) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text("Local task · step ${run.nextStep + 1}", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
+                                TextButton(onClick = { controller.chat.pauseLocalRoutine() }) { Text("Pause / take over") }
+                            }
+                        } else if (run.status == com.omnidev.workspace.data.routines.RoutineRunStatus.PAUSED) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text("Task paused · step ${run.nextStep + 1}", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall)
+                                TextButton(enabled = !busy, onClick = {
+                                    controller.input("Help with paused learned task ${run.routineId}, run ${run.id}, step ${run.nextStep}. " +
+                                        "Inspect current state and solve only this step. Do not repeat earlier actions. " +
+                                        "Use learned_routine inspect/status; resume only after its expected result is verified.")
+                                }) { Text("Help with step") }
+                            }
+                        }
                     }
                     val confirmation = chat.pendingConfirmation
                     if (confirmation != null) {

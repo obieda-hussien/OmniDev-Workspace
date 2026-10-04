@@ -118,6 +118,13 @@ class CompositeToolManager(
     /** Assistant-only consent is checked before routing any device side effect. */
     var assistantActionGuard: (suspend (String, Map<String, String>) -> ToolExecutionResult?)? = null
 
+    val learnedRoutineTool = context?.let { ctx ->
+        com.omnidev.workspace.data.routines.LearnedRoutineTool(ctx,
+            execute = { name, args, scope -> executeTool(name, args, scope) },
+            confirmTeaching = { preview -> confirmationGate?.request(
+                com.omnidev.workspace.core.policy.ConfirmationKind.ASSISTANT_ACTION, preview, null) == true })
+    }
+
     override fun getToolDefinitions(): List<ToolDefinition> {
         val allDefs = buildAllToolDefinitions()
         // ── Tier filter ───────────────────────────────────────────────────────
@@ -162,6 +169,7 @@ class CompositeToolManager(
         addAll(NotificationCaptureTool.getToolDefinitions())
         addAll(TaskSchedulerTool.getToolDefinitions())
         addAll(TaskManagerTool.getToolDefinitions())
+        learnedRoutineTool?.let { addAll(it.definitions()) }
         addAll(N8nAutomationTool.getToolDefinitions())
         addAll(VisualInspectorTool.getToolDefinitions())
         addAll(UIReplicaPipelineTool.getToolDefinitions())
@@ -470,6 +478,9 @@ class CompositeToolManager(
         }
 
         assistantActionGuard?.invoke(name, arguments)?.let { return it }
+
+        if (name == "learned_routine") return learnedRoutineTool?.execute(arguments, scopePath)
+            ?: ToolExecutionResult("Local routines unavailable", true)
 
         // ── Early routing: Agent Brain 2.0 / Rollback / Repo Context / Build Doctor ──
         // Each helper returns null when it doesn't own the tool name, allowing
