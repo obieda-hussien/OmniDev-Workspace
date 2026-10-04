@@ -1,427 +1,327 @@
 package com.omnidev.workspace.data.tools
 
 import android.Manifest
-import android.app.AlarmManager
 import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.ComponentName
+import android.content.pm.PermissionInfo
 import android.net.Uri
-import android.net.VpnService
 import android.os.Build
-import android.os.Environment
-import android.os.PowerManager
 import android.provider.Settings
 import androidx.core.content.ContextCompat
-import com.omnidev.workspace.data.accessibility.AccessibilityStateManager
-import com.omnidev.workspace.data.accessibility.OmniAccessibilityService
-import com.omnidev.workspace.data.admin.OmniDeviceAdminReceiver
+import com.omnidev.workspace.core.policy.TierPolicyHolder
+import com.omnidev.workspace.core.privileged.PrivilegedExecutionFacadeHolder
+import com.omnidev.workspace.core.privileged.PrivilegedResult
+import com.omnidev.workspace.data.ipc.PrivilegedExecutionManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/**
- * PermissionManagerTool — capability bootstrap and audit layer for the agent.
- *
- * The ADMIN/PRO tiers can attempt grantable runtime permissions through Shizuku
- * first. Android signature/privileged permissions are still enforced by Android:
- * they require a system/OEM install (or an appropriate privileged/root path) and
- * are never falsely reported as granted just because a feature flag is enabled.
- */
+/** Discover the permissions in the merged APK and on this device, including companion apps. */
 object PermissionManagerTool {
-
-    private const val RUNTIME_REQUEST_CODE = 0x4F60
-
-    /** Common dangerous/runtime permissions declared by OmniDev. */
-    private val runtimePermissionCandidates = listOf(
-        Manifest.permission.CAMERA,
-        Manifest.permission.RECORD_AUDIO,
-        Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.ACCESS_COARSE_LOCATION,
-        Manifest.permission.READ_CONTACTS,
-        Manifest.permission.WRITE_CONTACTS,
-        Manifest.permission.READ_CALENDAR,
-        Manifest.permission.WRITE_CALENDAR,
-        Manifest.permission.CALL_PHONE,
-        Manifest.permission.READ_PHONE_STATE,
-        Manifest.permission.READ_CALL_LOG,
-        Manifest.permission.WRITE_CALL_LOG,
-        Manifest.permission.SEND_SMS,
-        Manifest.permission.READ_SMS,
-        Manifest.permission.RECEIVE_SMS,
-        Manifest.permission.BODY_SENSORS,
-        "android.permission.ACTIVITY_RECOGNITION",
-        "android.permission.POST_NOTIFICATIONS",
-        "android.permission.BLUETOOTH_SCAN",
-        "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.BLUETOOTH_ADVERTISE",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_MEDIA_VIDEO",
-        "android.permission.READ_MEDIA_AUDIO",
-        "android.permission.NEARBY_WIFI_DEVICES"
-    )
-
-    /** Aliases make it practical for a model to request common capabilities. */
+    private const val REQUEST_CODE = 0x4F60
     private val aliases = mapOf(
-        "camera" to Manifest.permission.CAMERA,
-        "microphone" to Manifest.permission.RECORD_AUDIO,
-        "mic" to Manifest.permission.RECORD_AUDIO,
-        "fine_location" to Manifest.permission.ACCESS_FINE_LOCATION,
-        "coarse_location" to Manifest.permission.ACCESS_COARSE_LOCATION,
-        "contacts" to Manifest.permission.READ_CONTACTS,
-        "calendar" to Manifest.permission.READ_CALENDAR,
-        "phone" to Manifest.permission.CALL_PHONE,
-        "sms" to Manifest.permission.READ_SMS,
-        "notifications" to "android.permission.POST_NOTIFICATIONS"
+        "camera" to Manifest.permission.CAMERA, "microphone" to Manifest.permission.RECORD_AUDIO,
+        "mic" to Manifest.permission.RECORD_AUDIO, "location" to Manifest.permission.ACCESS_FINE_LOCATION,
+        "fine_location" to Manifest.permission.ACCESS_FINE_LOCATION, "coarse_location" to Manifest.permission.ACCESS_COARSE_LOCATION,
+        "background_location" to PermissionRequestPlan.BACKGROUND_LOCATION,
+        "background_sensors" to PermissionRequestPlan.BACKGROUND_SENSORS,
+        "background_health" to PermissionRequestPlan.BACKGROUND_HEALTH,
+        "contacts" to Manifest.permission.READ_CONTACTS, "calendar" to Manifest.permission.READ_CALENDAR,
+        "phone" to Manifest.permission.CALL_PHONE, "sms" to Manifest.permission.READ_SMS,
+        "notifications" to "android.permission.POST_NOTIFICATIONS", "termux" to "com.termux.permission.RUN_COMMAND",
+        "secure_settings" to "android.permission.WRITE_SECURE_SETTINGS", "logs" to "android.permission.READ_LOGS",
+        "dump" to "android.permission.DUMP", "battery_stats" to "android.permission.BATTERY_STATS",
+        "configuration" to "android.permission.CHANGE_CONFIGURATION", "app_ops_stats" to "android.permission.GET_APP_OPS_STATS",
+        "cross_user" to "android.permission.INTERACT_ACROSS_USERS", "cross_profile" to "android.permission.INTERACT_ACROSS_PROFILES"
     )
+    private val developmentKeys = listOf("secure_settings", "logs", "dump", "battery_stats", "configuration", "app_ops_stats", "cross_user")
+    private fun resolve(key: String) = aliases[key.lowercase().trim()] ?: key.trim()
+    private fun granted(context: Context, name: String) = ContextCompat.checkSelfPermission(context, name) == PackageManager.PERMISSION_GRANTED
 
-    /** Checks one permission, one special access, or the complete capability matrix. */
+    internal fun declaredPermissions(context: Context): Set<String> = runCatching {
+        @Suppress("DEPRECATION")
+        context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS).requestedPermissions?.toSet().orEmpty()
+    }.getOrDefault(emptySet())
+
+    internal fun permissionInfo(context: Context, name: String): PermissionInfo? = runCatching {
+        @Suppress("DEPRECATION")
+        context.packageManager.getPermissionInfo(name, 0)
+    }.getOrNull()
+
+    internal fun runtimePermissions(context: Context): List<String> = declaredPermissions(context).filter { name ->
+        val info = permissionInfo(context, name)
+        info != null && (info.protectionLevel and PermissionInfo.PROTECTION_MASK_BASE) == PermissionInfo.PROTECTION_DANGEROUS &&
+            PermissionRequestPlan.supported(name, Build.VERSION.SDK_INT)
+    }.sorted()
+
     fun checkPermission(context: Context, permission: String): String {
         val key = permission.lowercase().trim()
         if (key in setOf("all", "audit_all", "capabilities")) return auditAll(context)
-
-        return when (key) {
-            "vpn" -> if (VpnService.prepare(context) == null) "GRANTED" else "DENIED"
-            "accessibility" -> if (isAccessibilityServiceEnabled(context)) "GRANTED" else "DENIED"
-            "notification_listener" -> if (isNotificationListenerEnabled(context)) "GRANTED" else "DENIED"
-            "usage_stats" -> if (hasUsageStatsPermission(context)) "GRANTED" else "DENIED"
-            "overlay" -> if (Settings.canDrawOverlays(context)) "GRANTED" else "DENIED"
-            "write_settings" -> if (Settings.System.canWrite(context)) "GRANTED" else "DENIED"
-            "all_files" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && Environment.isExternalStorageManager()) "GRANTED" else "DENIED"
-            "battery_optimization" -> if (isIgnoringBatteryOptimizations(context)) "GRANTED" else "DENIED"
-            "exact_alarms" -> if (canScheduleExactAlarms(context)) "GRANTED" else "DENIED"
-            "install_unknown_apps" -> if (canRequestPackageInstalls(context)) "GRANTED" else "DENIED"
-            "device_admin" -> if (OmniDeviceAdminReceiver.isAdminActive(context)) "GRANTED" else "DENIED"
-            "background_location" -> standardStatus(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-            else -> standardStatus(context, aliases[key] ?: permission)
+        AppOpAccessPlan.entry(key)?.let { return appOpStatus(context, it) }
+        if (key in DeviceAccessCatalog.entries.map { it.key } || key in setOf("root", "shizuku", "rish", "system", "device_owner", "profile_owner")) {
+            return DeviceAccessCatalog.status(context, key)
         }
+        val name = resolve(permission)
+        if (name !in declaredPermissions(context)) return "NOT_DECLARED"
+        if (permissionInfo(context, name) == null || !PermissionRequestPlan.supported(name, Build.VERSION.SDK_INT)) return "NOT_SUPPORTED"
+        return if (granted(context, name)) "GRANTED" else "DENIED"
     }
 
-    /**
-     * Requests one capability or performs the maximum practical runtime bootstrap.
-     * `permission=all`/`all_runtime`/`bootstrap_max` attempts Shizuku grants, then
-     * asks Android for all still-missing declared runtime permissions in one batch.
-     */
-    suspend fun requestPermission(context: Context, permission: String): ToolExecutionResult {
+    internal fun requiresPrivilegedApproval(context: Context, permission: String, backend: String): Boolean =
+        backend == "root" || AppOpAccessPlan.entry(permission.lowercase().trim()) != null ||
+            permission.lowercase().trim() in setOf("root", "privileged_bootstrap", "appop_bootstrap") ||
+            permissionInfo(context, resolve(permission))?.let { (it.protectionLevel and PermissionInfo.PROTECTION_FLAG_DEVELOPMENT) != 0 } == true
+
+    internal fun approvalPreview(context: Context, permission: String, backend: String): String {
         val key = permission.lowercase().trim()
+        val operation = AppOpAccessPlan.entry(key)
+        if (operation != null) return "Set OmniDev's ${operation.specialKey} AppOp to ${AppOpAccessPlan.mode(key)} via $backend; package ${context.packageName}, user ${android.os.Process.myUid() / 100000}. Other applications are unchanged."
+        if (key == "appop_bootstrap") return "Allow OmniDev's own overlay, usage statistics, settings, shared-file and media AppOps where supported, via $backend; package ${context.packageName}, user ${android.os.Process.myUid() / 100000}."
+        if (key == "privileged_bootstrap") return "Request ${developmentKeys.joinToString { resolve(it) }} for OmniDev via $backend; verify each grant."
+        return "Request access: $permission; backend: $backend; target: OmniDev only."
+    }
 
-        if (key in setOf("all", "all_runtime", "bootstrap_max")) {
-            return requestAllRuntime(context)
+    /** root is used only when the caller explicitly chooses backend=root. */
+    suspend fun requestPermission(context: Context, permission: String, backend: String = "auto"): ToolExecutionResult {
+        if (backend !in setOf("auto", "root")) return failure("Unknown backend: $backend", "INVALID_ARGUMENT")
+        val key = permission.lowercase().trim()
+        AppOpAccessPlan.entry(key)?.let { return requestAppOp(context, key, backend) }
+        if (key == "appop_bootstrap") {
+            val eligible = AppOpAccessPlan.entries.filter { Build.VERSION.SDK_INT >= it.minSdk && it.permission in declaredPermissions(context) }
+            val results = eligible.map { requestAppOp(context, it.key, backend) }
+            val verified = eligible.isNotEmpty() && results.all { !it.isError }
+            return ToolExecutionResult(results.joinToString("\n") { it.output }.ifBlank { "No eligible special-access declarations in this build." },
+                isError = !verified, classification = if (verified) "SUCCESS" else "PRIVILEGE_NOT_GRANTED", backend = backend)
         }
-
-        val intent = when (key) {
-            "vpn" -> VpnService.prepare(context)
-            "accessibility" -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-            "notification_listener" -> Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
-            "usage_stats" -> Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
-            "overlay" -> Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}"))
-            "write_settings" -> Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS, Uri.parse("package:${context.packageName}"))
-            "all_files" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}"))
-            } else null
-            "battery_optimization" -> Intent(
-                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                Uri.parse("package:${context.packageName}")
-            )
-            "exact_alarms" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}"))
-            } else null
-            "install_unknown_apps" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}"))
-            } else null
-            "device_admin" -> {
-                withContext(Dispatchers.Main) { OmniDeviceAdminReceiver.requestAdminActivation(context) }
-                return pendingUserAction(
-                    "Opened Device Admin activation. Android is waiting for user approval.",
-                    backend = "android-device-admin"
-                )
+        if (key == "access_center") {
+            val handedOff = withContext(Dispatchers.Main) {
+                com.omnidev.workspace.data.assistant.AssistantRuntime.openAccessCenter?.invoke() == true
             }
-            else -> null
+            if (handedOff) return pending("Device access opened; finish setup to return to the assistant conversation.")
+            return launchIntent(context, Intent(context, com.omnidev.workspace.ui.assistant.DeviceAccessActivity::class.java), key)
         }
-
-        if (intent != null) {
+        if (key in setOf("all", "all_runtime", "bootstrap_max")) return requestAllRuntime(context, backend)
+        if (key == "privileged_bootstrap") {
+            val results = developmentKeys.map { "$it: ${requestPermission(context, it, backend).output}" }
+            val verified = developmentKeys.all { granted(context, resolve(it)) }
+            return ToolExecutionResult(results.joinToString("\n"), isError = !verified,
+                classification = if (verified) "SUCCESS" else "PRIVILEGE_NOT_GRANTED", backend = backend)
+        }
+        if (key == "root") {
+            if (!TierPolicyHolder.current.allowRoot) return failure("Root is unavailable in this build.", "TIER_BLOCKED")
+            val ready = withContext(Dispatchers.IO) { PrivilegedExecutionManager.isRootAvailable(forceProbe = true) }
+            return ToolExecutionResult(if (ready) "Root uid=0 verified." else "Root unavailable or superuser approval is pending. Allow OmniDev in your root manager and retry.",
+                isError = !ready, classification = if (ready) "SUCCESS" else "USER_ACTION_REQUIRED", backend = "root")
+        }
+        if (key == "shizuku") {
+            if (!TierPolicyHolder.current.allowShizuku) return failure("Shizuku is unavailable in this build.", "TIER_BLOCKED")
+            if (!ShizukuCommandTool.isAvailable()) return pending("Start Shizuku via wireless debugging, ADB or root, then return.")
+            if (ShizukuCommandTool.hasPermission()) return ToolExecutionResult("Shizuku grant verified.")
+            return withContext(Dispatchers.Main) {
+                runCatching { rikka.shizuku.Shizuku.requestPermission(0x4F61) }.fold(
+                    onSuccess = { pending("Approve OmniDev in the Shizuku permission dialog, then recheck.") },
+                    onFailure = { failure("Shizuku request failed: ${it.message}", "SHIZUKU_PERMISSION_REQUIRED") })
+            }
+        }
+        if (key in setOf("device_owner", "profile_owner", "system", "rish") && DeviceAccessCatalog.status(context, key) == "GRANTED") return ToolExecutionResult("$key authority verified.")
+        if (key in setOf("device_owner", "profile_owner", "system", "rish")) return pending(
+            when (key) {
+                "device_owner", "profile_owner" -> "Owner authority requires Android managed-device provisioning; Device Admin activation does not grant it. Current: ${DeviceAccessCatalog.status(context, key)}"
+                "system" -> "System authority requires a genuine platform-signed/privileged installation and ROM entitlements. Current: ${DeviceAccessCatalog.status(context, key)}"
+                else -> "Configure rish in OmniDev's execution settings. Current: ${DeviceAccessCatalog.status(context, key)}"
+            })
+        val entry = DeviceAccessCatalog.entries.firstOrNull { it.key == key }
+        if (entry != null) {
+            val status = DeviceAccessCatalog.status(context, key)
+            if (status == "GRANTED") return ToolExecutionResult("$key verified granted.")
+            if (status in setOf("TIER_BLOCKED", "NOT_SUPPORTED", "NOT_DECLARED")) return failure("$key: $status", status)
+            val intent = runCatching { DeviceAccessCatalog.intent(context, key) }.getOrNull()
+                ?: return failure(if (key == "cross_profile") "Android requires an eligible managed profile, the same app in both profiles, and administrator authorization before it can show cross-profile consent."
+                    else "No request flow for $key.", "NOT_SUPPORTED")
             return launchIntent(context, intent, key)
         }
-
-        val standardPermission = when (key) {
-            "background_location" -> Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            else -> aliases[key] ?: permission
+        val name = resolve(permission)
+        if (name !in declaredPermissions(context)) return failure("$name is absent from this build's merged manifest.", "NOT_DECLARED")
+        val info = permissionInfo(context, name) ?: return failure("$name is not defined on this device. Install the companion app first if it defines the permission.", "NOT_SUPPORTED")
+        if (!PermissionRequestPlan.supported(name, Build.VERSION.SDK_INT)) return failure("$name is not applicable on Android ${Build.VERSION.SDK_INT}.", "NOT_SUPPORTED")
+        DeviceAccessCatalog.setupKey(name)?.let { specialKey ->
+            if (backend == "root") AppOpAccessPlan.entries.firstOrNull { it.permission == name }?.let { return requestAppOp(context, it.key, backend) }
+            return requestPermission(context, specialKey, backend)
         }
+        if (granted(context, name)) return ToolExecutionResult("$name verified granted.")
+        val dangerous = (info.protectionLevel and PermissionInfo.PROTECTION_MASK_BASE) == PermissionInfo.PROTECTION_DANGEROUS
+        val development = (info.protectionLevel and PermissionInfo.PROTECTION_FLAG_DEVELOPMENT) != 0
+        if (!dangerous && !development) return failure("$name requires its Android protection-level entitlement (signature, privileged install, role or normal install grant); a runtime dialog or pm grant cannot provide it.", "ENTITLEMENT_REQUIRED")
 
-        if (ContextCompat.checkSelfPermission(context, standardPermission) == PackageManager.PERMISSION_GRANTED) {
-            return ToolExecutionResult("✅ Permission already granted: $standardPermission")
-        }
+        val prerequisites = PermissionRequestPlan.prerequisites(name)
+        if (prerequisites.isNotEmpty() && prerequisites.none { granted(context, it) }) return pending("Grant a foreground prerequisite first: ${prerequisites.joinToString()}")
 
-        // On a Shizuku-enabled tier this can eliminate many runtime dialogs.
-        val shizukuGranted = runCatching {
-            ensurePermissionViaShizuku(standardPermission, context.packageName, context)
-        }.getOrDefault(false)
-        if (shizukuGranted && ContextCompat.checkSelfPermission(
-                context,
-                standardPermission
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
-            return ToolExecutionResult("✅ Granted via Shizuku: $standardPermission")
-        }
+        // Do not issue implicit Shizuku approval dialogs repeatedly inside a bulk request.
+        if (backend == "root" || privilegedBackendReady()) {
+            val result = grantPrivileged(context, name, backend)
+            if (granted(context, name)) return result
+            if (!dangerous || backend == "root") return result
+        } else if (development) return pending("$name needs authorized Shizuku/rish, system UID, or an explicitly selected root backend.")
 
-        val requested = PermissionRequestBridge.requestRuntimePermissions(
-            arrayOf(standardPermission),
-            RUNTIME_REQUEST_CODE
-        )
-        return if (requested) {
-            pendingUserAction(
-                "Requested runtime permission: $standardPermission. Android is waiting for user approval.",
-                backend = "android-runtime-permission"
-            )
-        } else {
-            pendingUserAction(
-                "No foreground Activity is available to show the permission dialog for $standardPermission. Open OmniDev and retry.",
-                backend = "android-runtime-permission"
-            )
-        }
+        // Android 11+ background location is chosen on the app permission page.
+        if (PermissionRequestPlan.usesAppDetails(name, Build.VERSION.SDK_INT)) return appSettings(context, "Choose Permissions → Location → Allow all the time.")
+        // The runtime request routes health permissions to Android's Health Connect controller.
+        val batch = if (name in PermissionRequestPlan.staged) listOf(name) else PermissionRequestPlan.foregroundBatch(listOf(name), Build.VERSION.SDK_INT)
+        val started = PermissionRequestBridge.requestRuntimePermissions(batch.filter { it in declaredPermissions(context) }.toTypedArray(), REQUEST_CODE)
+        return pending(if (started) "Android permission dialog requested for ${batch.joinToString()}. Recheck after user approval. If Android no longer prompts, use the Access center's App permissions button."
+            else "Open the Access center in OmniDev to request ${batch.joinToString()} from a foreground Activity.")
     }
 
-    private suspend fun requestAllRuntime(context: Context): ToolExecutionResult {
-        val declared = declaredPermissions(context)
-        val candidates = runtimePermissionCandidates
-            .filter { it in declared }
-            .filterNot { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
-            .distinct()
+    private fun privilegedBackendReady(): Boolean {
+        val policy = TierPolicyHolder.current
+        return (policy.allowShizuku && (PrivilegedExecutionManager.isShizukuReady() || PrivilegedExecutionManager.isRishReady())) ||
+            (policy.allowSystemIntegration && android.os.Process.myUid() % 100000 == 1000)
+    }
+    private suspend fun grantPrivileged(context: Context, name: String, backend: String): ToolExecutionResult {
+        // Neither packageName nor permission names are interpolated as unquoted shell code.
+        fun quote(value: String) = "'${value.replace("'", "'\\''")}'"
+        val command = "pm grant --user ${android.os.Process.myUid() / 100000} ${quote(context.packageName)} ${quote(name)}"
+        com.omnidev.workspace.core.policy.OmniAuditLog.record(
+            tier = TierPolicyHolder.current.tier,
+            autoApproved = TierPolicyHolder.current.autoApproveConfirmations,
+            kind = com.omnidev.workspace.core.policy.ConfirmationKind.SHIZUKU_COMMAND,
+            preview = "Permission grant via $backend: $command"
+        )
+        val outcome = executePrivilegedCommand(command, backend)
+        val verified = granted(context, name)
+        return ToolExecutionResult(if (verified) "$name granted and verified through $backend." else "$name remains denied. ${outcome.take(1200)}",
+            isError = !verified, classification = if (verified) "SUCCESS" else "PRIVILEGE_NOT_GRANTED", backend = backend,
+            verification = if (verified) "PackageManager permission read-back" else null)
+    }
 
-        if (candidates.isEmpty()) {
-            return ToolExecutionResult(
-                "✅ All currently requestable runtime permissions are granted.\n${specialAccessSummary(context)}"
-            )
-        }
-
-        val grantedByShizuku = mutableListOf<String>()
-        for (permission in candidates) {
-            val granted = runCatching {
-                ensurePermissionViaShizuku(permission, context.packageName, context)
-            }.getOrDefault(false)
-            if (granted && ContextCompat.checkSelfPermission(
-                    context,
-                    permission
-                ) == PackageManager.PERMISSION_GRANTED
-            ) {
-                grantedByShizuku += permission
+    private suspend fun executePrivilegedCommand(command: String, backend: String): String = withContext(Dispatchers.IO) {
+        try {
+            if (backend == "root") {
+                if (!TierPolicyHolder.current.allowRoot) return@withContext "Root is unavailable in this tier."
+                PrivilegedExecutionManager.executeRootCommand(command).fold({ it }, { it.message.orEmpty() })
+            } else if (TierPolicyHolder.current.allowShizuku &&
+                (PrivilegedExecutionManager.isShizukuReady() || PrivilegedExecutionManager.isRishReady())) {
+                PrivilegedExecutionManager.executeCommand(command).fold({ it }, { it.message.orEmpty() })
+            } else when (val result = PrivilegedExecutionFacadeHolder.current.execute(command)) {
+                is PrivilegedResult.Success -> result.output
+                is PrivilegedResult.Partial -> "${result.error} (exit ${result.exitCode})"
+                is PrivilegedResult.Denied -> result.reason
+                is PrivilegedResult.Failure -> result.error
             }
-        }
-
-        // Background location/sensors use staged Android flows and must not be mixed into
-        // the same dialog with foreground permissions. They are still unresolved work, though;
-        // excluding them from this batch must never turn the overall outcome into SUCCESS.
-        val unresolved = candidates.filterNot { it in grantedByShizuku }
-        val staged = unresolved.filter {
-            it == Manifest.permission.ACCESS_BACKGROUND_LOCATION ||
-                it == "android.permission.BODY_SENSORS_BACKGROUND"
-        }
-        val remainingForeground = unresolved.filterNot { it in staged }
-
-        val dialogStarted = if (remainingForeground.isNotEmpty()) {
-            PermissionRequestBridge.requestRuntimePermissions(
-                remainingForeground.toTypedArray(),
-                RUNTIME_REQUEST_CODE
-            )
-        } else false
-
-        val userActionPending = remainingForeground.isNotEmpty() || staged.isNotEmpty()
-
-        return ToolExecutionResult(
-            buildString {
-                appendLine("Maximum runtime-permission bootstrap evaluated.")
-                appendLine("• Declared runtime candidates: ${candidates.size}")
-                appendLine("• Granted through Shizuku this pass: ${grantedByShizuku.size}")
-                appendLine("• Remaining foreground Android prompts: ${remainingForeground.size}")
-                appendLine("• Remaining staged permissions: ${staged.size}")
-                if (remainingForeground.isNotEmpty()) {
-                    if (dialogStarted) {
-                        appendLine("• Android permission dialog opened; user approval is required for the foreground remainder.")
-                    } else {
-                        appendLine("• USER_ACTION_REQUIRED: open OmniDev in foreground and retry to show the permission dialog.")
-                    }
-                }
-                if (staged.isNotEmpty()) {
-                    appendLine(
-                        "• USER_ACTION_REQUIRED: staged Android permissions must be granted in their required follow-up flow: " +
-                            staged.joinToString()
-                    )
-                }
-                appendLine()
-                append(specialAccessSummary(context))
-                appendLine()
-                append(
-                    "Signature/system-only permissions are not forgeable by a normal APK; " +
-                        "they become available only through Android-supported OEM/system/root/Shizuku paths."
-                )
-            }.trimEnd(),
-            isError = userActionPending,
-            classification = if (userActionPending) "USER_ACTION_REQUIRED" else "SUCCESS",
-            backend = "android-runtime-permission",
-            retryable = false,
-            persistentFailure = userActionPending,
-            verification = if (!userActionPending) {
-                "all currently requestable runtime permissions verified granted"
-            } else null
-        )
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (error: Exception) { error.message.orEmpty() }
     }
 
-    private fun auditAll(context: Context): String {
-        val declared = declaredPermissions(context)
-        val granted = declared.count {
-            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-        }
-        val denied = declared.size - granted
+    private fun appOpMode(context: Context, entry: AppOpAccessPlan.Entry): Int? = runCatching {
+        if (Build.VERSION.SDK_INT < entry.minSdk) return null
+        val ops = context.getSystemService(AppOpsManager::class.java) ?: return null
+        val operation = "android:${entry.operation.lowercase(java.util.Locale.ROOT)}"
+        @Suppress("DEPRECATION")
+        if (Build.VERSION.SDK_INT >= 36) ops.checkOpRawNoThrow(operation, android.os.Process.myUid(), context.packageName, null)
+        else if (Build.VERSION.SDK_INT >= 29) ops.unsafeCheckOpRawNoThrow(operation, android.os.Process.myUid(), context.packageName)
+        else ops.checkOpNoThrow(operation, android.os.Process.myUid(), context.packageName)
+    }.getOrNull()
 
-        return buildString {
-            appendLine("OmniDev permission/capability audit")
-            appendLine("• Declared manifest permissions: ${declared.size}")
-            appendLine("• Currently granted/checkable: $granted")
-            appendLine("• Not currently granted: $denied")
-            appendLine()
-            appendLine(specialAccessSummary(context))
-            appendLine()
-            append("Use request_permission(permission='bootstrap_max') to attempt Shizuku grants and request all remaining runtime permissions. Special/system privileges still follow Android's mandatory user/OEM/root rules.")
-        }.trimEnd()
+    internal fun appOpStatus(context: Context, entry: AppOpAccessPlan.Entry): String {
+        val mode = when (appOpMode(context, entry)) {
+            AppOpsManager.MODE_ALLOWED -> "allowed"
+            AppOpsManager.MODE_IGNORED -> "ignored"
+            AppOpsManager.MODE_ERRORED -> "errored"
+            AppOpsManager.MODE_DEFAULT -> "default"
+            AppOpsManager.MODE_FOREGROUND -> "foreground"
+            else -> "unavailable"
+        }
+        return "${DeviceAccessCatalog.status(context, entry.specialKey)}; appop=$mode"
     }
 
-    private fun specialAccessSummary(context: Context): String = buildString {
-        appendLine("Special access:")
-        appendLine("• Accessibility: ${checkMark(isAccessibilityServiceEnabled(context))}")
-        appendLine("• Notification listener: ${checkMark(isNotificationListenerEnabled(context))}")
-        appendLine("• Usage stats: ${checkMark(hasUsageStatsPermission(context))}")
-        appendLine("• Overlay: ${checkMark(Settings.canDrawOverlays(context))}")
-        appendLine("• Write settings: ${checkMark(Settings.System.canWrite(context))}")
-        appendLine("• All-files access: ${checkMark(Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager())}")
-        appendLine("• Ignore battery optimizations: ${checkMark(isIgnoringBatteryOptimizations(context))}")
-        appendLine("• Exact alarms: ${checkMark(canScheduleExactAlarms(context))}")
-        appendLine("• Install unknown apps: ${checkMark(canRequestPackageInstalls(context))}")
-        appendLine("• Device Admin: ${checkMark(OmniDeviceAdminReceiver.isAdminActive(context))}")
-        append("• VPN consent: ${checkMark(VpnService.prepare(context) == null)}")
+    private suspend fun requestAppOp(context: Context, key: String, backend: String): ToolExecutionResult {
+        val entry = AppOpAccessPlan.entry(key) ?: return failure("Unknown AppOp.", "INVALID_ARGUMENT")
+        if (backend == "root" && !TierPolicyHolder.current.allowRoot) return failure("Root is unavailable in this build.", "TIER_BLOCKED")
+        if (backend != "root" && !privilegedBackendReady()) return pending("Authorize Shizuku/rish or use a genuine system UID; root must be explicitly selected. You can also use Android's ${entry.specialKey} setup screen.")
+        val command = runCatching { AppOpAccessPlan.command(key, context.packageName, android.os.Process.myUid() / 100000,
+            Build.VERSION.SDK_INT, declaredPermissions(context)) }.getOrElse { return failure(it.message.orEmpty(), "NOT_SUPPORTED") }
+        com.omnidev.workspace.core.policy.OmniAuditLog.record(tier = TierPolicyHolder.current.tier,
+            autoApproved = TierPolicyHolder.current.autoApproveConfirmations,
+            kind = com.omnidev.workspace.core.policy.ConfirmationKind.SHIZUKU_COMMAND, preview = "Own-app special access via $backend: $command")
+        val outcome = executePrivilegedCommand(command, backend)
+        val mode = appOpMode(context, entry)
+        val reset = AppOpAccessPlan.mode(key) == "default"
+        val verified = AppOpAccessPlan.verified(key, mode, DeviceAccessCatalog.status(context, entry.specialKey) == "GRANTED")
+        return ToolExecutionResult("$key: ${appOpStatus(context, entry)}. " +
+            if (verified) "${if (reset) "Default mode restored" else "Special access granted"} and verified for OmniDev only."
+            else "Requested mode was not verified. ${outcome.take(1000)}", isError = !verified,
+            classification = if (verified) "SUCCESS" else "PRIVILEGE_NOT_GRANTED", backend = backend,
+            verification = if (verified) "AppOps mode and effective special-access read-back" else null)
     }
 
-    private fun pendingUserAction(
-        message: String,
-        backend: String
-    ): ToolExecutionResult = ToolExecutionResult(
-        output = "USER_ACTION_REQUIRED: $message",
-        isError = true,
-        classification = "USER_ACTION_REQUIRED",
-        backend = backend,
-        retryable = false,
-        persistentFailure = true
-    )
+    private suspend fun requestAllRuntime(context: Context, backend: String): ToolExecutionResult {
+        if (backend == "root" && !TierPolicyHolder.current.allowRoot) return failure("Root is unavailable in this build.", "TIER_BLOCKED")
+        val missing = runtimePermissions(context).filterNot { granted(context, it) }
+        if (missing.isEmpty()) return ToolExecutionResult("All supported declared runtime permissions verified granted.\n${DeviceAccessCatalog.summary(context)}")
+        if (backend == "root" || privilegedBackendReady()) for (name in missing.filterNot { it in PermissionRequestPlan.staged }) grantPrivileged(context, name, backend)
+        val unresolved = missing.filterNot { granted(context, it) }
+        val foreground = PermissionRequestPlan.foregroundBatch(unresolved, Build.VERSION.SDK_INT).filter { it in declaredPermissions(context) }
+        val staged = unresolved.filter { it in PermissionRequestPlan.staged }
+        val started = foreground.isNotEmpty() && PermissionRequestBridge.requestRuntimePermissions(foreground.toTypedArray(), REQUEST_CODE)
+        return ToolExecutionResult(buildString {
+            appendLine("Runtime bootstrap: ${missing.size - unresolved.size}/${missing.size} missing grants verified this pass.")
+            if (foreground.isNotEmpty()) appendLine(if (started) "Android dialog requested; ${foreground.size} permissions still require read-back after approval." else "Open the Access center to show the runtime dialog.")
+            if (staged.isNotEmpty()) appendLine("Separate background steps still required: ${staged.joinToString()}. Grant foreground access first, then request each background permission individually.")
+            appendLine("Special access and protected permissions are separate; open request_permission(permission='access_center').")
+            append(DeviceAccessCatalog.summary(context))
+        }, isError = unresolved.isNotEmpty(), classification = if (unresolved.isEmpty()) "SUCCESS" else "USER_ACTION_REQUIRED", backend = backend)
+    }
 
-    private fun checkMark(granted: Boolean): String = if (granted) "GRANTED" else "DENIED / USER ACTION"
-
-    private fun standardStatus(context: Context, permission: String): String =
-        if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) "GRANTED" else "DENIED"
-
-    private fun declaredPermissions(context: Context): Set<String> = runCatching {
-        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            context.packageManager.getPackageInfo(
-                context.packageName,
-                PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong())
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_PERMISSIONS)
+    private fun auditAll(context: Context): String = buildString {
+        val declared = declaredPermissions(context).sorted()
+        appendLine("OmniDev access audit (${declared.size} declarations; ${runtimePermissions(context).size} supported runtime permissions)")
+        appendLine(DeviceAccessCatalog.summary(context))
+        appendLine("Own-app special-access modes:")
+        for (entry in AppOpAccessPlan.entries) appendLine("${entry.key}: ${appOpStatus(context, entry)}; reset with reset_${entry.key}")
+        appendLine("Manifest permission state (declaration is not a grant):")
+        for (name in declared) {
+            val info = permissionInfo(context, name)
+            val state = when {
+                info == null || !PermissionRequestPlan.supported(name, Build.VERSION.SDK_INT) -> "NOT_SUPPORTED"
+                granted(context, name) -> "GRANTED"
+                else -> "DENIED"
+            }
+            appendLine("$name: $state; route=${permissionRoute(context, name)}; protection=${info?.protectionLevel ?: "unknown"}")
         }
-        info.requestedPermissions?.toSet().orEmpty()
-    }.getOrDefault(emptySet())
+    }.trimEnd()
 
-    private suspend fun launchIntent(
-        context: Context,
-        intent: Intent,
-        label: String
-    ): ToolExecutionResult = withContext(Dispatchers.Main) {
+    internal fun permissionRoute(context: Context, name: String): String {
+        if (!PermissionRequestPlan.supported(name, Build.VERSION.SDK_INT)) return "unsupported-on-device"
+        val info = permissionInfo(context, name) ?: return "platform-or-companion-not-installed"
+        if (name == "android.permission.INTERACT_ACROSS_PROFILES") return "managed-profile-consent"
+        if (DeviceAccessCatalog.setupKey(name) != null) return "special-settings-or-authorized-appop"
+        if ((info.protectionLevel and PermissionInfo.PROTECTION_FLAG_DEVELOPMENT) != 0) return "authorized-development-backend"
+        return when (info.protectionLevel and PermissionInfo.PROTECTION_MASK_BASE) {
+            PermissionInfo.PROTECTION_NORMAL -> "install-time"
+            PermissionInfo.PROTECTION_DANGEROUS -> if (name in PermissionRequestPlan.staged) "separate-background-controller" else "runtime-dialog"
+            else -> "platform-signature-privileged-or-role-entitlement"
+        }
+    }
+
+    private suspend fun appSettings(context: Context, reason: String) = launchIntent(context,
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")), reason)
+    private fun pending(message: String) = ToolExecutionResult("USER_ACTION_REQUIRED: $message", isError = true,
+        classification = "USER_ACTION_REQUIRED", backend = "android-access", retryable = false)
+    private fun failure(message: String, classification: String) = ToolExecutionResult(message, isError = true,
+        classification = classification, backend = "android-access", retryable = false)
+    private suspend fun launchIntent(context: Context, intent: Intent, label: String): ToolExecutionResult = withContext(Dispatchers.Main) {
         runCatching {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(intent)
-            pendingUserAction(
-                "Opened Android settings/dialog for: $label. User approval is required where Android mandates it.",
-                backend = "android-settings"
-            )
-        }.getOrElse { error ->
-            ToolExecutionResult(
-                output = "Could not open settings for '$label': ${error.message}",
-                isError = true,
-                classification = "ANDROID_SETTINGS_LAUNCH_FAILED",
-                backend = "android-settings",
-                retryable = false
-            )
-        }
+            (PermissionRequestBridge.foregroundActivity() ?: context).startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            pending("Opened $label. Android is waiting for user action; recheck on return.")
+        }.getOrElse { failure("Could not open $label: ${it.message}. Use Android Settings → Apps → OmniDev → Special app access.", "ANDROID_SETTINGS_LAUNCH_FAILED") }
     }
-
-    private fun isAccessibilityServiceEnabled(context: Context): Boolean {
-        if (AccessibilityStateManager.isServiceConnected.value) return true
-        val expectedComponent = ComponentName(context, OmniAccessibilityService::class.java)
-        val expectedShort = expectedComponent.flattenToShortString()
-        val expectedFull = expectedComponent.flattenToString()
-        val enabledServices = Settings.Secure.getString(
-            context.contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-        return enabledServices.split(':').map { it.trim() }.any {
-            it == expectedShort || it == expectedFull
-        }
-    }
-
-    private fun isNotificationListenerEnabled(context: Context): Boolean {
-        val pkgName = context.packageName
-        val flat = Settings.Secure.getString(context.contentResolver, "enabled_notification_listeners")
-        return flat?.contains(pkgName) == true
-    }
-
-    private fun hasUsageStatsPermission(context: Context): Boolean {
-        val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
-        val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            appOps.unsafeCheckOpNoThrow(
-                AppOpsManager.OPSTR_GET_USAGE_STATS,
-                android.os.Process.myUid(),
-                context.packageName
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            appOps.checkOpNoThrow(
-                AppOpsManager.OPSTR_GET_USAGE_STATS,
-                android.os.Process.myUid(),
-                context.packageName
-            )
-        }
-        return mode == AppOpsManager.MODE_ALLOWED
-    }
-
-    private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
-        val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-        return power.isIgnoringBatteryOptimizations(context.packageName)
-    }
-
-    private fun canScheduleExactAlarms(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
-        val alarm = context.getSystemService(AlarmManager::class.java) ?: return false
-        return alarm.canScheduleExactAlarms()
-    }
-
-    private fun canRequestPackageInstalls(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return true
-        return context.packageManager.canRequestPackageInstalls()
-    }
-
-    fun getToolDefinitions(): List<ToolDefinition> = listOf(
-        ToolDefinition(
-            name = "check_permission",
-            description = "Audit a specific permission/special access, or pass permission='all' to return the complete OmniDev capability matrix. Special keys: vpn, accessibility, notification_listener, usage_stats, overlay, write_settings, all_files, battery_optimization, exact_alarms, install_unknown_apps, device_admin, background_location. Common aliases such as camera, microphone, location, contacts, calendar, sms and notifications are accepted.",
-            parameters = listOf(
-                ToolParameter("permission", "string", "Permission name, alias, special key, or 'all'.", required = true)
-            )
-        ),
-        ToolDefinition(
-            name = "request_permission",
-            description = "Request one permission/special access. Use permission='bootstrap_max' (or 'all') to attempt every declared runtime permission: Shizuku is tried first, then Android runtime dialogs are shown for the remainder. Signature/system-only privileges still require genuine OEM/system/root/Shizuku capability and are never spoofed.",
-            parameters = listOf(
-                ToolParameter("permission", "string", "Permission name, alias, special key, or bootstrap_max/all.", required = true)
-            )
-        )
+    fun getToolDefinitions() = listOf(
+        ToolDefinition("check_permission", "Read actual permission/backend status. permission='all' returns all declarations with protection levels, special access, root cache, Shizuku/rish, genuine system UID and owner states. No passive root prompt. Also accepts Android/companion permission names and aliases.",
+            parameters = listOf(ToolParameter("permission", "string", "Permission, alias or all.", required = true))),
+        ToolDefinition("request_permission", "Request declared access and verify privileged grants. bootstrap_max requests supported runtime permissions; background flows are separate. access_center opens setup UI. privileged_bootstrap requests development grants (secure_settings/logs/dump/battery_stats/configuration/app_ops_stats/cross_user). appop_bootstrap or appop_overlay/appop_usage_stats/appop_write_settings/appop_all_files/appop_manage_media sets allowed modes for OmniDev's own package only; reset_appop_* restores defaults. Special keys include assistant, accessibility, notification_listener, overlay, usage_stats, write_settings, notification_policy, all_files, manage_media, install_unknown_apps, exact_alarms, battery_optimization, input_method, vpn, device_admin, cross_profile, shizuku, root, termux. Owner/system roles need genuine provisioning; connected app grants are separate.",
+            parameters = listOf(ToolParameter("permission", "string", "Permission, alias or setup key.", required = true),
+                ToolParameter("backend", "string", "auto (authorized shell/system) or root (explicit superuser request); never silently escalates.", required = false)))
     )
 }

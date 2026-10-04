@@ -92,15 +92,14 @@ resume is a feature of the SDK's encrypted network data plane, not of this URI p
    without crashing either app.
 7. Both apps' CI compile/test/security checks pass before merging the cross-repository PRs.
 
-## Omni Launcher proposal
+## Omni Launcher integration
 
-feature/omni-launcher-integration adds a public question-draft activity entry point and a separate
+Workspace provides a public question-draft activity entry point and a separate
 same-signer launcher extension path. See [docs/LAUNCHER_INTEGRATION.md](docs/LAUNCHER_INTEGRATION.md)
 for all six capabilities, exact payloads, local consent, flavor ceilings, dry-run/approval behavior,
 limits, and the distinction from legacy LauncherConnectionManager. Both callers and receivers
 apply the policy. Search is a user-visible draft handoff, not a privileged agent submission.
-No SDK version/ABI change is needed. This proposal requires updated APKs and branch merges;
-13 direct shared-policy tests passed, while full Android builds/device checks remain pending.
+The integration uses the existing SDK protocol without changing its ABI. Both applications need compatible installed APKs; verify shared signing, policy tests and device behavior when updating either side.
 
 Integration development/updates are maintained by Abdelrahman Hussein (عبدالرحمن حسين / Obieda).
 Lawnchair, AOSP, AndroidIDE and other upstream components retain their own authors and rights;

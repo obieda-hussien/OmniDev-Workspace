@@ -1,8 +1,8 @@
 # Fluid UI and performance
 
-Implemented on `feature/fluid-ui-performance`, based on main `ea959c6373b2`.
+Motion policy, rendering behavior and performance verification for the application interface.
 
-## Changes
+## Interface behavior
 
 - All navigation destinations inherit short, reversible horizontal transitions with a restrained outgoing offset. Direction mirrors in RTL. Repeated taps use `launchSingleTop`.
 - Shared motion policy: 260 ms navigation / 180 ms response; compact mode uses 180 / 120 ms. Devices with up to 4 GiB physical RAM, Android low-RAM devices, and battery saver use compact mode. Disabling system animator duration scale removes custom movement. Power/animation-setting changes update while running. Nonzero system duration scaling remains Compose-managed.
@@ -22,9 +22,9 @@ Implemented on `feature/fluid-ui-performance`, based on main `ea959c6373b2`.
 
 No FPS, startup-time, memory, or battery improvement has been measured yet. This change is shared motion and identified hot-path work, not a claim that every runtime bottleneck is eliminated. Streaming Markdown still parses when its text changes; very large messages need on-device profiling before adding a background/incremental renderer.
 
-Local Gradle compilation was attempted but cannot download Gradle 8.11.1: network unreachable. The Android SDK is also unavailable locally. Initial GitHub compile verification failed because McpSettingsScreen was missing imports for lifecycle collection and OmniIconButton. These imports were repaired. Tail following was also hardened to react to measured layout changes and scroll completion, and to use a measured remaining distance instead of extreme offsets. Follow-up compile, unit and emulator results are recorded on PR #123. No APK has been verified. `TailFollowTest` covers history reading during incoming rows and explicit resume; it needs an emulator/device. CI now includes an API 30 emulator job covering history reading, growing replies, reopening the console, reduced-motion disclosure, button click semantics and fixed touch bounds while pressed, plus Arabic/English Markdown rendering/copy/update without stale cached content.
+`TailFollowTest` covers history reading during incoming rows and explicit resume on an emulator or device. CI includes an API 30 emulator job covering history reading, growing replies, reopening the console, reduced-motion disclosure, button click semantics and fixed touch bounds while pressed, plus Arabic/English Markdown rendering, copy and update without stale cached content. Check the completed job results for the tested revision.
 
-Validation commands (verification subsequently requested by the user):
+Validation commands:
 
 ```sh
 ./gradlew :app:compileLiteDebugKotlin :app:testLiteDebugUnitTest :app:lintLiteDebug
@@ -37,6 +37,6 @@ On the Infinix Hot 10S and one newer Android device, verify:
 2. Open/close the keyboard, rotate, switch sessions, and return from the background during a run. Check composer positioning, active-run retention and absence of duplicate collectors.
 3. Navigate across settings/providers/memory/analytics/brain/browser; test quick repeated taps and back gestures in LTR and RTL.
 4. Toggle battery saver and system animations off while running; no cursor loop or custom movement should remain in reduced mode.
-5. Profile a release build with Perfetto/Android Studio frame timing: compare navigation, long-history scrolling, streaming and console expansion against main. Targets: 16.7 ms at 60 Hz / 8.3 ms at 120 Hz; these are budgets, not measured achievements.
+5. Profile a release build with Perfetto/Android Studio frame timing: compare navigation, long-history scrolling, streaming and console expansion against a recorded baseline. Targets: 16.7 ms at 60 Hz / 8.3 ms at 120 Hz; these are budgets, not measured achievements.
 
 Official guidance: [Compose performance](https://developer.android.com/develop/ui/compose/performance/bestpractices), [navigation animation](https://developer.android.com/develop/ui/compose/animation/quick-guide), [lifecycle-aware collection](https://developer.android.com/topic/libraries/architecture/compose).

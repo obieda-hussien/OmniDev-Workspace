@@ -81,6 +81,11 @@ class MainActivity : ComponentActivity() {
         PermissionRequestBridge.attach(this)
     }
 
+    override fun onPause() {
+        PermissionRequestBridge.detach(this)
+        super.onPause()
+    }
+
     @Deprecated("WebView FileChooserParams still delivers results through Activity results")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         if (BrowserFileChooserBridge.handleActivityResult(requestCode, resultCode, data)) return

@@ -29,7 +29,11 @@ object AssistantSettings {
 
     fun isSelected(context: Context): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         runCatching { context.getSystemService(RoleManager::class.java)?.isRoleHeld(RoleManager.ROLE_ASSISTANT) == true }.getOrDefault(false)
-    } else false
+    } else runCatching {
+        listOf("assistant", "voice_interaction_service").any { key ->
+            android.content.ComponentName.unflattenFromString(Settings.Secure.getString(context.contentResolver, key).orEmpty())?.packageName == context.packageName
+        }
+    }.getOrDefault(false)
 
     // Use public intents, not hard-coded OEM Settings component names.
     fun settingsIntents(): List<Intent> = listOf(
@@ -55,6 +59,7 @@ fun AssistantSettingsCard() {
             }
             Text("Hold Home or use your device's assistant gesture. Ask a question, attach the screen, or select just one area.", style = MaterialTheme.typography.bodyMedium)
             Text("Choose Omni as the default digital assistant and allow screen content and screenshots in Android's assistant settings.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(onClick = { context.startActivity(Intent(context, DeviceAccessActivity::class.java)) }) { Text("Device access and permissions") }
             setupError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = {

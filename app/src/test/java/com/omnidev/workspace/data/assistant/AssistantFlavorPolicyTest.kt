@@ -40,6 +40,12 @@ class AssistantFlavorPolicyTest {
         assertTrue(flavor.promptContext.contains("Shizuku is unavailable"))
         assertTrue(flavor.promptContext.contains("Root is unavailable"))
     }
+    @Test fun screenAssistantKeepsPermissionAndConnectedAppToolsDiscoverable() {
+        val flavor = AssistantFlavorPolicy(Policy("PRO", true, true, true))
+        assertTrue(flavor.preferredToolNames.containsAll(setOf("check_permission", "request_permission", "omni_link")))
+        assertTrue(ToolDomain.MESSAGING in flavor.toolDomains)
+        assertTrue(flavor.promptContext.contains("manifest declaration is not runtime authority"))
+    }
     @Test fun proRequiresAvailableAndAuthorizedRootAndShizuku() {
         val flavor = AssistantFlavorPolicy(Policy("PRO", true, true, true))
         assertTrue(flavor.promptContext.contains("runtime grant"))

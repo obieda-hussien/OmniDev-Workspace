@@ -18,17 +18,18 @@ class AssistantActivity : ComponentActivity() {
     private val controller by lazy { AssistantRuntime.get(this) }
     private val speech by lazy { AssistantSpeechInput(this, controller) }
     private var preserveOnClose = false
-    private fun handoff(action: String) {
+    private fun handoff(action: String): Boolean {
         speech.stop()
-        runCatching { startActivity(AssistantInputActivity.intent(this, action)) }
+        return runCatching { startActivity(AssistantInputActivity.intent(this, action)) }
             .onSuccess { preserveOnClose = true; controller.hide(); finish() }
-            .onFailure { controller.message("Could not open the system picker. Try again or use File path.") }
+            .onFailure { controller.message("Could not open the system picker. Try again or use File path.") }.isSuccess
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         AssistantRuntime.begin(this, savedInstanceState != null || intent.getBooleanExtra(OmniVoiceInteractionService.RESUME, false))
+        AssistantRuntime.openAccessCenter = { handoff(AssistantInputActivity.ACCESS) }
         AssistantRuntime.minimizeForAction = {
             AssistantBubbleService.show(this).also { started ->
                 if (started) { preserveOnClose = true; controller.hide(); finish() }
@@ -44,6 +45,7 @@ class AssistantActivity : ComponentActivity() {
                         finish()
                     }
                 }, onSetup = { handoff(AssistantInputActivity.SETTINGS) },
+                    onAccess = { handoff(AssistantInputActivity.ACCESS) },
                     onAttach = { handoff(AssistantInputActivity.FILES) }, onSystemVoice = { handoff(AssistantInputActivity.VOICE) }, onMinimize = {
                         if (!Settings.canDrawOverlays(this)) handoff(AssistantInputActivity.BUBBLE)
                         else lifecycleScope.launch { AssistantRuntime.minimizeForAction?.invoke() }
@@ -52,9 +54,12 @@ class AssistantActivity : ComponentActivity() {
             }
         }
     }
+    override fun onResume() { super.onResume(); com.omnidev.workspace.data.tools.PermissionRequestBridge.attach(this) }
+    override fun onPause() { com.omnidev.workspace.data.tools.PermissionRequestBridge.detach(this); super.onPause() }
     override fun onStop() { speech.stop(); super.onStop() }
     override fun onDestroy() {
         speech.stop()
+        AssistantRuntime.openAccessCenter = null
         AssistantRuntime.minimizeForAction = null
         if (!isChangingConfigurations && !preserveOnClose) AssistantRuntime.close(this)
         super.onDestroy()

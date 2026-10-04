@@ -13,6 +13,7 @@ object AssistantRuntime {
     suspend fun restoreForConfirmation(context: Context) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main.immediate) {
         if (targetingScreen && !get(context).state.value.visible) OmniVoiceInteractionService.resume(context)
     }
+    var openAccessCenter: (() -> Boolean)? = null
     var minimizeForAction: (suspend () -> Boolean)? = null
     suspend fun prepareAction(context: Context, tool: String, args: Map<String, String>): com.omnidev.workspace.data.tools.ToolExecutionResult? {
         if (tool !in setOf("semantic_ui", "ui_automation", "autofill_assist", "app_manager", "ime_tool") ||

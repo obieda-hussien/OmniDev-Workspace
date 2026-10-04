@@ -76,7 +76,8 @@ fun AssistantOverlay(
     onMicrophone: () -> Unit,
     onMinimize: () -> Unit,
     onAttach: () -> Unit,
-    onSystemVoice: () -> Unit
+    onSystemVoice: () -> Unit,
+    onAccess: () -> Unit = onSetup
 ) {
     val screen by controller.state.collectAsStateWithLifecycle()
     val chat by controller.chat.uiState.collectAsStateWithLifecycle()
@@ -127,6 +128,7 @@ fun AssistantOverlay(
                             Text(if (screen.listening) "Listening…" else if (screen.minimizing) "Starting bubble…" else if (busy) chat.agentStatus ?: "Working…" else "Agent · ${flavor.tier}",
                                 style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, maxLines = 1)
                         }
+                        if (flavor.allowScreenActions) IconButton(onClick = onAccess, enabled = !busy) { Icon(Icons.Default.Security, "Device access and permissions") }
                         if (flavor.allowBubble) IconButton(onClick = onMinimize, enabled = !screen.saving && !screen.minimizing) { Icon(Icons.Default.Remove, "Minimize to floating bubble") }
                         AssistantExpandButton(screen.saving, screen.minimizing, chat.isProcessing, chat.pendingConfirmation != null, onExpand)
                         IconButton(onClick = { leave(onDismiss) }) { Icon(Icons.Default.Close, "Close and save conversation") }

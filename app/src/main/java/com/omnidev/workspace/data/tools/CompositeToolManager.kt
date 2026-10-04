@@ -892,7 +892,16 @@ class CompositeToolManager(
             "request_permission" -> {
                 val ctx = context ?: return ToolExecutionResult("Permission tool requires Android context.", isError = true)
                 val perm = arguments["permission"] ?: return missingArg("permission")
-                PermissionManagerTool.requestPermission(ctx, perm)
+                val backend = arguments["backend"] ?: "auto"
+                if (PermissionManagerTool.requiresPrivilegedApproval(ctx, perm, backend)) {
+                    val approved = confirmationGate?.request(
+                        com.omnidev.workspace.core.policy.ConfirmationKind.SHIZUKU_COMMAND,
+                        PermissionManagerTool.approvalPreview(ctx, perm, backend),
+                        null
+                    ) ?: false
+                    if (!approved) return ToolExecutionResult("Privileged access request was not approved.", isError = true, classification = "USER_DENIED")
+                }
+                PermissionManagerTool.requestPermission(ctx, perm, backend)
             }
             "vpn_control" -> {
                 val ctx = context ?: return ToolExecutionResult("VPN tool requires Android context.", isError = true)

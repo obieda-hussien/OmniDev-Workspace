@@ -49,6 +49,7 @@ class AssistantInputActivity : ComponentActivity() {
         when (intent.getStringExtra(ACTION)) {
             FILES -> external("The Android file picker could not open. Use File path, or enable a document provider.") { files.launch(arrayOf("*/*")) }
             MICROPHONE -> external("Microphone permission could not be requested. You can still type your question.") { microphone.launch(Manifest.permission.RECORD_AUDIO) }
+            ACCESS -> external("Device access could not open. Open OmniDev settings and choose Device access.") { settings.launch(Intent(this, DeviceAccessActivity::class.java)) }
             SETTINGS -> external("Assistant settings could not open. Use Android Settings → Apps → Default apps.") { settings.launch(AssistantSettings.intent(this)) }
             BUBBLE -> {
                 if (!controller.flavor.allowBubble) { controller.message("Floating bubbles are unavailable in this build."); resume(); return }
@@ -82,6 +83,7 @@ class AssistantInputActivity : ComponentActivity() {
         const val MICROPHONE = "microphone"
         const val BUBBLE = "bubble"
         const val SETTINGS = "settings"
+        const val ACCESS = "access"
         const val VOICE = "voice"
         fun intent(context: android.content.Context, action: String) = Intent(context, AssistantInputActivity::class.java).putExtra(ACTION, action).putExtra(GENERATION, AssistantRuntime.get(context).sessionGeneration)
     }

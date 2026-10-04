@@ -37,11 +37,11 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
     private val speech by lazy { AssistantSpeechInput(context, controller) }
     private var composition: ComposeView? = null
     private var preserveOnHide = false
-    private fun handoff(action: String) {
+    private fun handoff(action: String): Boolean {
         speech.stop()
-        runCatching { startAssistantActivity(AssistantInputActivity.intent(context, action)) }
+        return runCatching { startAssistantActivity(AssistantInputActivity.intent(context, action)) }
             .onSuccess { preserveOnHide = true; hide() }
-            .onFailure { controller.message("Could not open the system picker. Try again or use File path.") }
+            .onFailure { controller.message("Could not open the system picker. Try again or use File path.") }.isSuccess
     }
 
     init { setTheme(R.style.Theme_OmniDevWorkspace_Assistant) }
@@ -76,6 +76,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
                         hide()
                     }
                 }, onSetup = { handoff(AssistantInputActivity.SETTINGS) },
+                    onAccess = { handoff(AssistantInputActivity.ACCESS) },
                     onAttach = { handoff(AssistantInputActivity.FILES) },
                     onSystemVoice = { handoff(AssistantInputActivity.VOICE) },
                     onMinimize = {
@@ -94,6 +95,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
         super.onShow(args, showFlags)
         preserveOnHide = false
         AssistantRuntime.begin(context, args?.getBoolean(OmniVoiceInteractionService.RESUME) == true, native = true)
+        AssistantRuntime.openAccessCenter = { handoff(AssistantInputActivity.ACCESS) }
         AssistantRuntime.minimizeForAction = {
             AssistantBubbleService.show(context).also { started ->
                 if (started) { preserveOnHide = true; hide() }
@@ -118,6 +120,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
     override fun onHide() {
         uiScope.coroutineContext.cancelChildren()
         speech.stop()
+        AssistantRuntime.openAccessCenter = null
         AssistantRuntime.minimizeForAction = null
         if (preserveOnHide) controller.hide() else AssistantRuntime.close(context)
         composition?.disposeComposition()
