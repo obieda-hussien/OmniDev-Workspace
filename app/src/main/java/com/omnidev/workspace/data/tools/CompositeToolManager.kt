@@ -458,6 +458,15 @@ class CompositeToolManager(
             )
         }
 
+        context?.let { ctx ->
+            if (com.omnidev.workspace.data.admin.DeviceConsentStore(ctx).locked() &&
+                com.omnidev.workspace.data.voice.VoiceSessionPolicy.shouldUnlockForTool(name, arguments["action"])) {
+                if (!com.omnidev.workspace.data.voice.LocalVoiceSessionService.requestUnlock(ctx) &&
+                    com.omnidev.workspace.data.admin.DeviceConsentStore(ctx).locked()) return ToolExecutionResult(
+                        "USER_ACTION_REQUIRED: unlock Android manually or enable the private offline voice unlock session. No device action was executed.",
+                        isError = true, classification = "USER_ACTION_REQUIRED", retryable = false)
+            }
+        }
         context?.let { com.omnidev.workspace.data.admin.DeviceAccessGuard.toolDenial(it, name, arguments) }?.let { return it }
         assistantActionGuard?.invoke(name, arguments)?.let { return it }
 

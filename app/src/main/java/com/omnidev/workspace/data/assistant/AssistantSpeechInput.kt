@@ -2,111 +2,34 @@ package com.omnidev.workspace.data.assistant
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.os.Bundle
-import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import androidx.core.content.ContextCompat
+import com.omnidev.workspace.data.voice.LocalVoiceSessionService
+import com.omnidev.workspace.data.voice.OfflineVoiceModels
+import com.omnidev.workspace.data.voice.WakePreferences
 import java.util.Locale
 
-/** One tap, one utterance. Stale callbacks cannot overwrite a restarted request. */
+/** The assistant mic uses direct local PCM, with no repeated Google recognizer tones. */
 class AssistantSpeechInput(private val context: Context, private val controller: AssistantController) {
-    private var recognizer: SpeechRecognizer? = null
-    private var generation = 0
-    private var lockReceiver: android.content.BroadcastReceiver? = null
-
     fun toggle(onPermissionRequired: () -> Unit, onSystemInput: () -> Unit = {}) {
-        if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { stop(); return }
-        if (controller.state.value.listening) { stop(); return }
+        if (LocalVoiceSessionService.running) { LocalVoiceSessionService.stop(context); return }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             onPermissionRequired(); return
         }
-        stop()
-        val providers = SpeechRecognizerProvider.candidates(context)
-        if (providers.isEmpty()) { controller.message("No speech service is installed. Trying system voice input."); onSystemInput(); return }
-        val receiver = object : android.content.BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) { stop() }
+        if (!WakePreferences(context).autoDictation || !OfflineVoiceModels(context).ready()) {
+            controller.message("Enable local voice and install an offline model in Hi Omni settings. System voice input is available from its separate button.")
+            return
         }
-        ContextCompat.registerReceiver(context, receiver, android.content.IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_NOT_EXPORTED)
-        lockReceiver = receiver
-        val epoch = generation
-        var activeIndex = -1
-        fun start(index: Int) {
-            if (epoch != generation || com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { stop(); return }
-            activeIndex = index
-            recognizer?.destroy()
-            controller.message(null)
-            controller.listening(true)
-            runCatching {
-                recognizer = SpeechRecognizer.createSpeechRecognizer(context, providers[index]).apply {
-                    setRecognitionListener(object : RecognitionListener {
-                        override fun onReadyForSpeech(params: Bundle?) {}
-                        override fun onBeginningOfSpeech() {}
-                        override fun onRmsChanged(rmsdB: Float) {}
-                        override fun onBufferReceived(buffer: ByteArray?) {}
-                        // Android requires waiting for a final result/error before starting again.
-                        override fun onEndOfSpeech() {}
-                        override fun onError(error: Int) {
-                            if (epoch != generation || activeIndex != index) return
-                            if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { stop(); return }
-                            controller.listening(false)
-                            if (error in setOf(SpeechRecognizer.ERROR_CLIENT, SpeechRecognizer.ERROR_SERVER, SpeechRecognizer.ERROR_RECOGNIZER_BUSY, 12, 13) && index + 1 < providers.size) {
-                                activeIndex = -1
-                                android.os.Handler(android.os.Looper.getMainLooper()).post { start(index + 1) }
-                                return
-                            }
-                            activeIndex = -1
-                            val reason = when (error) {
-                                SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "The speech service cannot access the microphone. Check its microphone permission too."
-                                SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Speech recognition needs a working connection."
-                                SpeechRecognizer.ERROR_AUDIO -> "The speech service could not record audio. Another app may be using the microphone."
-                                SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech was recognized. Tap the mic and speak again."
-                                12, 13 -> "The speech service does not support ${Locale.getDefault().displayLanguage}."
-                                else -> "Speech service failed (code $error). Trying system voice input."
-                            }
-                            controller.message(reason)
-                            if (error !in setOf(SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) onSystemInput()
-                        }
-                        override fun onResults(results: Bundle?) {
-                            if (epoch != generation || activeIndex != index) return
-                            if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { stop(); return }
-                            controller.listening(false)
-                            activeIndex = -1
-                            results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.let(controller::input)
-                        }
-                        override fun onPartialResults(partialResults: Bundle?) {
-                            if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { stop(); return }
-                            if (epoch == generation && activeIndex == index) partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.let(controller::input)
-                        }
-                        override fun onEvent(eventType: Int, params: Bundle?) {}
-                    })
-                    startListening(intent())
-                }
-            }.onFailure {
-                controller.listening(false)
-                if (index + 1 < providers.size) start(index + 1)
-                else { controller.message("Speech could not start. Trying system voice input."); onSystemInput() }
-            }
-        }
-        start(0)
+        if (!LocalVoiceSessionService.start(context)) controller.message("Local voice could not start. Check microphone and assistant setup.")
     }
-
-    fun stop() {
-        lockReceiver?.let { runCatching { context.unregisterReceiver(it) } }
-        lockReceiver = null
-        generation++
-        recognizer?.cancel(); recognizer?.destroy(); recognizer = null
-        controller.listening(false)
-    }
-
+    // The FGS owns its lifetime; closing a host is handled by AssistantRuntime.close.
+    fun stop() { controller.listening(false) }
     companion object {
-        fun intent() = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        /** Only for an explicitly selected system-input picker, never used for private credentials. */
+        fun intent() = android.content.Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag())
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            // Do not force offline: many installed recognizers have no offline Arabic pack.
         }
     }
 }

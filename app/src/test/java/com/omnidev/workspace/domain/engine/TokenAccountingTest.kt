@@ -11,6 +11,23 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TokenAccountingTest {
+    @Test fun encodedImageSizeDoesNotBecomeTextTokenUsage() {
+        fun image(data: String) = com.omnidev.workspace.data.model.AttachmentMeta("file:///photo.jpg", "image/jpeg", "photo.jpg", 1,
+            com.omnidev.workspace.data.model.AttachmentMediaType.IMAGE, data)
+        val small = ChatMessage(MessageRole.USER, "Compare these images", attachments = listOf(image("AA==")))
+        val large = small.copy(attachments = listOf(image("A".repeat(3_000_000))))
+        assertEquals(TokenAccounting.estimateMessageTokens(small), TokenAccounting.estimateMessageTokens(large))
+        val native = CompletionResponse("done", tokensUsed = TokenUsage(17, 8, 25))
+        assertEquals(25, TokenAccounting.usage(CompletionRequest("test", listOf(large)), native).totalTokens)
+    }
+
+    @Test fun onlyInlineImagesConsumeTheMediaEstimate() {
+        val image = com.omnidev.workspace.data.model.AttachmentMeta("file:///photo.jpg", "image/jpeg", "photo.jpg", 8_000_000,
+            com.omnidev.workspace.data.model.AttachmentMediaType.IMAGE)
+        val text = ChatMessage(MessageRole.USER, "Read the selected file")
+        assertEquals(TokenAccounting.estimateMessageTokens(text), TokenAccounting.estimateMessageTokens(text.copy(attachments = listOf(image))))
+        assertTrue(TokenAccounting.estimateMessageTokens(text.copy(attachments = listOf(image.copy(base64Data = "AA==")))) > TokenAccounting.estimateMessageTokens(text))
+    }
 
     @Test
     fun `native provider usage is authoritative`() {

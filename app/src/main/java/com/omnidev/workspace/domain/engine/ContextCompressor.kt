@@ -15,12 +15,8 @@ object ContextCompressor {
         val degraded: Boolean = false
     )
 
-    internal fun estimatedTokens(message: ChatMessage): Int = 16 + (
-        message.content.length +
-            message.toolCalls.sumOf { it.name.length + it.arguments.toString().length } +
-            message.toolResults.sumOf { it.output.length } +
-            message.attachments.sumOf { it.base64Data?.length ?: 0 } + 1
-        ) / 2
+    internal fun estimatedTokens(message: ChatMessage): Int =
+        TokenAccounting.estimateMessageTokens(message, charsPerToken = 2)
 
     internal fun groups(messages: List<ChatMessage>): List<List<ChatMessage>> {
         val groups = mutableListOf<MutableList<ChatMessage>>()

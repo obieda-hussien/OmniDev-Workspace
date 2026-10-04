@@ -38,7 +38,7 @@ fun rememberDeviceLocked(): Boolean {
     return locked
 }
 
-/** No chat history, attachments, console, speech, or grant controls while locked. */
+/** Private lock host: no history, attachments, console, credential transcript or grant controls. */
 @Composable
 fun LockedAssistantPanel(onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -68,6 +68,13 @@ fun LockedAssistantPanel(onDismiss: () -> Unit) {
                 Text("Omni · Device locked", style = MaterialTheme.typography.titleLarge)
                 Text(if (allowed) "Unlock your device to continue. Your conversation stays private while locked."
                     else "Enable Assistant on the lock screen from Device access after unlocking.")
+                val voiceStatus by com.omnidev.workspace.data.voice.LocalVoiceSessionService.status.collectAsState()
+                Text(voiceStatus, style = MaterialTheme.typography.bodySmall)
+                if (allowed && com.omnidev.workspace.data.voice.WakePreferences(context).autoDictation) {
+                    OutlinedButton(onClick = { com.omnidev.workspace.data.voice.LocalVoiceSessionService.start(context) }, enabled = !busy) { Text("Start private local voice") }
+                    TextButton(onClick = { com.omnidev.workspace.data.voice.LocalVoiceSessionService.stop(context) }) { Text("Stop voice") }
+                    Text("Patterns: 1–3 top row, 4–6 middle, 7–9 bottom. Speak points in drawing order. Codes are never displayed here.", style = MaterialTheme.typography.bodySmall)
+                }
                 if (allowed && consent.enabled(DeviceConsentPolicy.Scope.UNLOCK)) {
                     Button(onClick = { request("request_unlock") }, enabled = !busy) { Text("Unlock with Android") }
                     if (consent.enabled(DeviceConsentPolicy.Scope.SAVED_PIN) && consent.pinArmed()) {

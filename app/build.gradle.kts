@@ -389,6 +389,9 @@ dependencies {
 
     implementation("androidx.webkit:webkit:1.17.0")
     implementation("org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r")
+    // Direct offline PCM recognition; no Android/Google SpeechRecognizer startup sounds.
+    implementation("com.alphacephei:vosk-android:0.3.75@aar")
+    implementation("net.java.dev.jna:jna:5.18.1@aar")
 
     // ── Core & Lifecycle ──
     implementation(libs.androidx.core.ktx)

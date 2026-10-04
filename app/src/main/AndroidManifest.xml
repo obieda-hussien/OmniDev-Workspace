@@ -251,6 +251,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
@@ -324,6 +325,12 @@
             android:theme="@style/Theme.OmniDevWorkspace.Assistant" android:excludeFromRecents="true" android:taskAffinity="" />
         <activity android:name=".ui.assistant.DeviceAccessActivity" android:exported="false"
             android:theme="@style/Theme.OmniDevWorkspace" />
+        <activity android:name=".ui.assistant.VoiceWakeActivity" android:exported="false"
+            android:theme="@style/Theme.OmniDevWorkspace" android:excludeFromRecents="true" />
+        <service android:name=".data.voice.LocalWakeService" android:exported="false"
+            android:foregroundServiceType="microphone" />
+        <service android:name=".data.voice.LocalVoiceSessionService" android:exported="false"
+            android:foregroundServiceType="microphone" />
         <activity android:name=".ui.assistant.AssistantInputActivity" android:exported="false"
             android:theme="@style/Theme.OmniDevWorkspace.Assistant" android:excludeFromRecents="true" android:taskAffinity="" />
         <service android:name=".data.assistant.AssistantBubbleService" android:exported="false"

@@ -28,9 +28,11 @@ import android.app.assist.AssistContent
 import android.app.assist.AssistStructure
 import com.omnidev.workspace.ui.assistant.AssistantOverlay
 import com.omnidev.workspace.ui.assistant.AssistantSettings
+import com.omnidev.workspace.ui.assistant.AssistantWindowPrivacy
 import com.omnidev.workspace.ui.theme.OmniDevTheme
 
 class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
+    private var capturePrivacy: AssistantWindowPrivacy? = null
     private val owner = SessionOwner()
     private val uiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val controller by lazy { AssistantRuntime.get(context) }
@@ -63,7 +65,8 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
             setBackgroundDrawableResource(android.R.color.transparent)
             setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            capturePrivacy?.close()
+            capturePrivacy = AssistantWindowPrivacy(context, this)
             setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         }
         view.setContent {
@@ -94,11 +97,27 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
 
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
+        capturePrivacy?.refresh()
         if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).let {
             it.locked() && !it.enabled(com.omnidev.workspace.data.admin.DeviceConsentPolicy.Scope.LOCK_OVERLAY)
         }) { hide(); return }
         preserveOnHide = false
         AssistantRuntime.begin(context, args?.getBoolean(OmniVoiceInteractionService.RESUME) == true, native = true)
+        val wake = args?.getBoolean(OmniVoiceInteractionService.WAKE_INVOCATION) == true || args?.getBoolean(OmniVoiceInteractionService.UNLOCK_REQUEST) == true
+        val deviceConsent = com.omnidev.workspace.data.admin.DeviceConsentStore(context)
+        if (wake && deviceConsent.enabled(com.omnidev.workspace.data.admin.DeviceConsentPolicy.Scope.WAKE)) {
+            window?.window?.addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+        } else window?.window?.clearFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+        com.omnidev.workspace.data.voice.LocalVoiceSessionService.hideForCredential = { preserveOnHide = true; hide() }
+        if (wake && args?.getBoolean(OmniVoiceInteractionService.UNLOCK_REQUEST) != true && com.omnidev.workspace.data.voice.WakePreferences(context).autoDictation) {
+            uiScope.launch {
+                delay(400)
+                if (controller.state.value.visible && com.omnidev.workspace.data.voice.WakePreferences(context).autoDictation) {
+                    if (!com.omnidev.workspace.data.voice.LocalVoiceSessionService.start(context))
+                        controller.message("Install an offline voice model in Hi Omni settings to start local voice.")
+                }
+            }
+        }
         AssistantRuntime.openAccessCenter = { handoff(AssistantInputActivity.ACCESS) }
         AssistantRuntime.minimizeForAction = {
             AssistantBubbleService.show(context).also { started ->
@@ -126,6 +145,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
         speech.stop()
         AssistantRuntime.openAccessCenter = null
         AssistantRuntime.minimizeForAction = null
+        com.omnidev.workspace.data.voice.LocalVoiceSessionService.hideForCredential = null
         if (preserveOnHide) controller.hide() else AssistantRuntime.close(context)
         composition?.disposeComposition()
         owner.registry.currentState = Lifecycle.State.CREATED
@@ -133,6 +153,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
     }
 
     override fun onDestroy() {
+        capturePrivacy?.close(); capturePrivacy = null
         uiScope.cancel()
         speech.stop()
         if (!preserveOnHide) AssistantRuntime.close(context)

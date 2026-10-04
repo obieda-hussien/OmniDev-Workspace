@@ -44,9 +44,10 @@ object LocalPinUnlock {
         if (!consent.enabled(DeviceConsentPolicy.Scope.SAVED_PIN) || !consent.enabled(DeviceConsentPolicy.Scope.UNLOCK))
             return "DENIED: enable local PIN and Android unlock in Device access."
         if (!ready(context)) return "USER_ACTION_REQUIRED: the standard empty SystemUI PIN keypad is unavailable. Open it manually or unlock yourself."
-        if (!consent.consumePin()) return "USER_ACTION_REQUIRED: authorize one PIN attempt in Device access first."
+        if (!CredentialInputGate.acquire()) return "USER_ACTION_REQUIRED: another private credential attempt is active."
         entering = true
         try {
+            if (!consent.consumePin()) return "USER_ACTION_REQUIRED: authorize one PIN attempt in Device access first."
             val service = OmniAccessibilityService.instance ?: return "USER_ACTION_REQUIRED: Accessibility disconnected."
             val accepted = DevicePinVault(context).withPin { pin ->
                 for (digit in pin) {
@@ -74,6 +75,6 @@ object LocalPinUnlock {
         } catch (error: Exception) {
             if (error is kotlinx.coroutines.CancellationException) throw error
             return "USER_ACTION_REQUIRED: local PIN attempt unavailable. No automatic retry."
-        } finally { entering = false }
+        } finally { entering = false; CredentialInputGate.release() }
     }
 }

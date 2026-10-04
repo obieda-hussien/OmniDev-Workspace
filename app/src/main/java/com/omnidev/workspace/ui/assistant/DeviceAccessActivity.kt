@@ -113,6 +113,9 @@ private fun DeviceAccessScreen(refresh: Int, onRefresh: () -> Unit, onClose: () 
                 AccessRow(name.substringAfterLast('.').replace('_', ' '), "Grant foreground access first, then choose background access separately.", statuses[name].orEmpty(), !busy) { request(name) }
             }
             item { DeviceConsentCard() }
+            if (policy.allowAccessibility) item {
+                OutlinedButton(onClick = { context.startActivity(Intent(context, VoiceWakeActivity::class.java)) }) { Text("Voice activation · train and test my phrase") }
+            }
             item { Text("Special access", style = MaterialTheme.typography.titleLarge) }
             for (entry in DeviceAccessCatalog.entries) {
                 val status = statuses[entry.key].orEmpty()

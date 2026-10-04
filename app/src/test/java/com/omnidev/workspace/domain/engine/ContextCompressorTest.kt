@@ -7,6 +7,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ContextCompressorTest {
+    @Test fun threeLargeImagesAndAFilePathRemainAdmissibleAndUnmodified() {
+        val images = List(3) { AttachmentMeta("file:///photo$it.jpg", "image/jpeg", "photo$it.jpg", 2_000_000,
+            AttachmentMediaType.IMAGE, "A".repeat(2_700_000)) }
+        val goal = ChatMessage(MessageRole.USER, "Read /storage/emulated/0/Download/ore-4.py and compare these images", attachments = images)
+        val result = ContextCompressor.trim(listOf(goal), 32_000)
+        assertEquals(listOf(goal), result)
+        assertTrue(result.sumOf(ContextCompressor::estimatedTokens) < 32_000)
+        assertEquals(3, result.single().attachments.size)
+        assertTrue(TokenAccounting.estimateMessageTokens(goal) <= ContextCompressor.estimatedTokens(goal))
+    }
+    @Test fun tenImagesFitGeminiSizedContextWithoutRemovingAnyPayload() {
+        val images = List(10) { AttachmentMeta("file:///$it.jpg", "image/jpeg", "$it.jpg", 500_000,
+            AttachmentMediaType.IMAGE, "A".repeat(700_000)) }
+        val goal = ChatMessage(MessageRole.USER, "Compare all ten", attachments = images)
+        assertTrue(ContextCompressor.estimatedTokens(goal) < 50_000)
+        assertEquals(images, ContextCompressor.trim(listOf(goal), 100_000).single().attachments)
+    }
     @Test fun latestUserGoalSurvivesOldConversationAndToolTrimming() {
         val latestGoal = ChatMessage(MessageRole.USER, "New task: do not modify files")
         val call = ChatMessage(MessageRole.ASSISTANT, "", toolCalls = listOf(ToolCall("c", "read", emptyMap())))
