@@ -304,26 +304,7 @@ class CompositeToolManager(
 
         // ── Device admin tool ──
         if (context != null) {
-            add(ToolDefinition(
-                name = "device_admin",
-                description = "Device administration: lock screen, set password policies, check admin status. " +
-                        "Requires Device Admin permission. Actions: lock_screen, set_password_min_length, " +
-                        "set_lock_timeout, status, request_activation.",
-                parameters = listOf(
-                    ToolParameter(
-                        name = "action",
-                        type = "string",
-                        description = "One of: lock_screen, set_password_min_length, set_lock_timeout, status, request_activation",
-                        required = true
-                    ),
-                    ToolParameter(
-                        name = "value",
-                        type = "string",
-                        description = "Value for the action (e.g., min password length, timeout in ms)",
-                        required = false
-                    )
-                )
-            ))
+            add(DeviceAdminTool.definition())
         }
 
         // ── Incoming SMS capture tool ──
@@ -477,6 +458,7 @@ class CompositeToolManager(
             )
         }
 
+        context?.let { com.omnidev.workspace.data.admin.DeviceAccessGuard.toolDenial(it, name, arguments) }?.let { return it }
         assistantActionGuard?.invoke(name, arguments)?.let { return it }
 
         if (name == "learned_routine") return learnedRoutineTool?.execute(arguments, scopePath)
@@ -1099,41 +1081,8 @@ class CompositeToolManager(
             }
 
             // ── Device admin tool ──
-            "device_admin" -> {
-                val ctx = context
-                    ?: return ToolExecutionResult("Device admin requires Android context.", isError = true)
-                val action = arguments["action"] ?: return missingArg("action")
-                when (action.lowercase()) {
-                    "lock_screen" -> {
-                        val success = OmniDeviceAdminReceiver.lockScreen(ctx)
-                        if (success) ToolExecutionResult("🔒 Screen locked successfully.")
-                        else ToolExecutionResult("Device Admin not active. Use action 'request_activation' first.", isError = true)
-                    }
-                    "set_password_min_length" -> {
-                        val len = arguments["value"]?.toIntOrNull()
-                            ?: return ToolExecutionResult("'value' must be an integer for min password length.", isError = true)
-                        val success = OmniDeviceAdminReceiver.setMinPasswordLength(ctx, len)
-                        if (success) ToolExecutionResult("✅ Minimum password length set to $len.")
-                        else ToolExecutionResult("Device Admin not active.", isError = true)
-                    }
-                    "set_lock_timeout" -> {
-                        val ms = arguments["value"]?.toLongOrNull()
-                            ?: return ToolExecutionResult("'value' must be timeout in milliseconds.", isError = true)
-                        val success = OmniDeviceAdminReceiver.setMaxScreenLockTimeout(ctx, ms)
-                        if (success) ToolExecutionResult("✅ Screen lock timeout set to ${ms}ms.")
-                        else ToolExecutionResult("Device Admin not active.", isError = true)
-                    }
-                    "status" -> {
-                        val active = OmniDeviceAdminReceiver.isAdminActive(ctx)
-                        ToolExecutionResult("Device Admin status: ${if (active) "✅ Active" else "❌ Inactive (use request_activation)"}")
-                    }
-                    "request_activation" -> {
-                        OmniDeviceAdminReceiver.requestAdminActivation(ctx)
-                        ToolExecutionResult("📱 Device Admin activation dialog launched. User must approve.")
-                    }
-                    else -> ToolExecutionResult("Unknown device_admin action '$action'.", isError = true)
-                }
-            }
+            "device_admin" -> context?.let { DeviceAdminTool.execute(it, arguments) }
+                ?: ToolExecutionResult("Device admin requires Android context.", isError = true)
 
             // ── Incoming SMS capture tool ──
             "read_incoming_sms" -> {

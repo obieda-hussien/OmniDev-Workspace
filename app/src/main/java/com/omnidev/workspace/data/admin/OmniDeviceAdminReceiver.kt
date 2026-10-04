@@ -229,6 +229,12 @@ class OmniDeviceAdminReceiver : DeviceAdminReceiver() {
 
         // ── Audit & Threat System ─────────────────────────────────────────────
 
+        /** Credential-free events for the separately consented screen-access paths. */
+        fun recordDeviceAccess(action: String, success: Boolean) {
+            if (action !in setOf("WAKE_SCREEN", "REQUEST_UNLOCK", "LOCAL_PIN_UNLOCK", "CONSENT_CHANGE", "CONSENT_REVOKE")) return
+            addAuditEntry(AuditEntry(action, "Local device access", success = success))
+        }
+
         /** Returns the complete Device Admin audit log for the agent. */
         fun getAuditLog(limit: Int = 50): String = buildString {
             append("📋 Device Admin audit log (latest $limit):\n")

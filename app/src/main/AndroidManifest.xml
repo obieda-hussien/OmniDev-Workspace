@@ -171,6 +171,7 @@
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
@@ -319,6 +320,8 @@
                 <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
             </intent-filter>
         </activity-alias>
+        <activity android:name=".ui.assistant.DeviceUnlockActivity" android:exported="false"
+            android:theme="@style/Theme.OmniDevWorkspace.Assistant" android:excludeFromRecents="true" android:taskAffinity="" />
         <activity android:name=".ui.assistant.DeviceAccessActivity" android:exported="false"
             android:theme="@style/Theme.OmniDevWorkspace" />
         <activity android:name=".ui.assistant.AssistantInputActivity" android:exported="false"

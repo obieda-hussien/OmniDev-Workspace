@@ -79,6 +79,12 @@ fun AssistantOverlay(
     onSystemVoice: () -> Unit,
     onAccess: () -> Unit = onSetup
 ) {
+    val locked = rememberDeviceLocked()
+    if (locked) {
+        LaunchedEffect(controller) { controller.clearScreen() }
+        LockedAssistantPanel(onDismiss)
+        return
+    }
     val taskContext = androidx.compose.ui.platform.LocalContext.current
     val taskHub = remember(taskContext) { com.omnidev.workspace.data.routines.RoutineLearningHub.get(taskContext) }
     val localTask by taskHub.latestRun.collectAsStateWithLifecycle()

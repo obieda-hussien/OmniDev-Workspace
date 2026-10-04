@@ -112,6 +112,7 @@ private fun DeviceAccessScreen(refresh: Int, onRefresh: () -> Unit, onClose: () 
             if (showBackground) for (name in staged) item(key = name) {
                 AccessRow(name.substringAfterLast('.').replace('_', ' '), "Grant foreground access first, then choose background access separately.", statuses[name].orEmpty(), !busy) { request(name) }
             }
+            item { DeviceConsentCard() }
             item { Text("Special access", style = MaterialTheme.typography.titleLarge) }
             for (entry in DeviceAccessCatalog.entries) {
                 val status = statuses[entry.key].orEmpty()

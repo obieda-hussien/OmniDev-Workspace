@@ -28,6 +28,15 @@ class AssistantActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        val lockConsent = com.omnidev.workspace.data.admin.DeviceConsentStore(this)
+            .enabled(com.omnidev.workspace.data.admin.DeviceConsentPolicy.Scope.LOCK_OVERLAY)
+        if (com.omnidev.workspace.data.admin.DeviceConsentStore(this).locked() && !lockConsent) { finish(); return }
+        if (android.os.Build.VERSION.SDK_INT >= 27) setShowWhenLocked(lockConsent)
+        else if (lockConsent) {
+            @Suppress("DEPRECATION")
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
+        }
         AssistantRuntime.begin(this, savedInstanceState != null || intent.getBooleanExtra(OmniVoiceInteractionService.RESUME, false))
         AssistantRuntime.openAccessCenter = { handoff(AssistantInputActivity.ACCESS) }
         AssistantRuntime.minimizeForAction = {

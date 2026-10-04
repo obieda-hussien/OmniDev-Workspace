@@ -2,6 +2,10 @@
 
 The floating assistant and the full agent use the same Android grants and build-tier policy. Open **Settings → Omni on your screen → Device access and permissions**, or the shield button in the floating assistant. The latter uses an Activity-result handoff and returns to the existing conversation after setup.
 
+## Lock screen and sensitive access
+
+The access center now has separate authenticated opt-ins for waking the display, requesting Android unlock, assistant presence on the lock screen, semantic lock-screen inspection and Android Settings access. Admin can also store a local encrypted PIN and authorize one keypad attempt for 15 minutes, without exposing the code to the model. See [setup, limits and verification](docs/DEVICE_LOCK_ACCESS.md). Every new scope starts disabled; Admin automatic action approval does not grant user consent.
+
 ## Access paths
 
 | Path | What is checked or requested | Requirements and limits |
@@ -18,7 +22,7 @@ The manifest adds phone-number/basic-phone-state, WAP push, Android 16 ranging, 
 
 ## Permission declarations
 
-The main manifest declares 207 unique permission names. A declaration only requests eligibility; the platform, API level, build variant and user's grants determine actual access.
+The main manifest declares 208 unique permission names. A declaration only requests eligibility; the platform, API level, build variant and user's grants determine actual access.
 
 | Permission | Purpose | Access type |
 |---|---|---|

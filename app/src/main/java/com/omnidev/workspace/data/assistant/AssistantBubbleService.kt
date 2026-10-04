@@ -26,7 +26,22 @@ class AssistantBubbleService : Service() {
     private val manager by lazy { getSystemService(WINDOW_SERVICE) as WindowManager }
     private val owners = mutableSetOf<String>()
     private var generation = -1
-    override fun onCreate() { super.onCreate(); active = this }
+    private val privacyReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) { updateLockVisibility() }
+    }
+    private val consentListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> updateLockVisibility() }
+    private val consentPrefs by lazy { getSharedPreferences("device-user-consent", Context.MODE_PRIVATE) }
+    override fun onCreate() {
+        super.onCreate(); active = this
+        androidx.core.content.ContextCompat.registerReceiver(this, privacyReceiver, android.content.IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_USER_PRESENT)
+        }, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+        consentPrefs.registerOnSharedPreferenceChangeListener(consentListener)
+    }
+    private fun updateLockVisibility() {
+        val consent = com.omnidev.workspace.data.admin.DeviceConsentStore(this)
+        bubble?.visibility = if (consent.locked() && !consent.enabled(com.omnidev.workspace.data.admin.DeviceConsentPolicy.Scope.LOCK_OVERLAY)) View.GONE else View.VISIBLE
+    }
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == CLOSE) { AssistantRuntime.close(this); stopSelf(); return START_NOT_STICKY }
@@ -127,8 +142,11 @@ class AssistantBubbleService : Service() {
         })
         bubble = view
         manager.addView(view, params)
+        updateLockVisibility()
     }
     override fun onDestroy() {
+        unregisterReceiver(privacyReceiver)
+        consentPrefs.unregisterOnSharedPreferenceChangeListener(consentListener)
         signal(false)
         removeBubble()
         owners.clear()

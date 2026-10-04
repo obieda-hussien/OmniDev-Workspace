@@ -34,6 +34,9 @@ object VisualInspectorTool {
     )
 
     suspend fun execute(context: Context): ToolExecutionResult = withContext(Dispatchers.IO) {
+        com.omnidev.workspace.data.admin.DeviceAccessGuard.check(context, screenshot = true)?.let {
+            return@withContext ToolExecutionResult(it, true)
+        }
         try {
             var bitmap: Bitmap? = null
 
@@ -77,6 +80,9 @@ object VisualInspectorTool {
                 return@withContext ToolExecutionResult("Failed to generate or decode screenshot bitmap.", isError = true)
             }
 
+            com.omnidev.workspace.data.admin.DeviceAccessGuard.check(context, screenshot = true)?.let {
+                bitmap.recycle(); return@withContext ToolExecutionResult(it, true)
+            }
             // Step 3: Aggressive Optimization & Compression for LLMs
             // Max dimension 1024px + 50% JPEG quality keeps text perfectly readable for Vision Models
             // but drastically reduces Base64 string generation time and LLM processing lag.

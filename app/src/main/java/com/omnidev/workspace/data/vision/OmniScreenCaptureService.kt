@@ -98,6 +98,9 @@ class OmniScreenCaptureService : Service() {
         imageReader?.setOnImageAvailableListener({ reader ->
             val image = reader.acquireLatestImage()
             if (image != null) {
+                if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this, screenshot = true) != null) {
+                    latestBitmap = null; image.close(); return@setOnImageAvailableListener
+                }
                 val planes = image.planes
                 val buffer = planes[0].buffer
                 val pixelStride = planes[0].pixelStride
@@ -118,6 +121,9 @@ class OmniScreenCaptureService : Service() {
 
     // دالة يستخدمها الوكيل الذكي (AI) للحصول على أحدث صورة للشاشة فوراً
     fun getLatestFrame(): Bitmap? {
+        if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this, screenshot = true) != null) {
+            latestBitmap = null; return null
+        }
         return latestBitmap
     }
 

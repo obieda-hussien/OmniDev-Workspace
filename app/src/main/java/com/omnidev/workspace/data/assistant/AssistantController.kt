@@ -101,12 +101,17 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
     fun message(value: String?) { mutable.update { it.copy(message = value) } }
     fun minimizing(value: Boolean) { mutable.update { it.copy(minimizing = value) } }
     fun listening(value: Boolean) { mutable.update { it.copy(listening = value) } }
+    fun clearScreen() { mutable.update { it.copy(screenshot = null, attachment = null, selecting = false) } }
     fun screenshot(bitmap: Bitmap?) {
+        if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(context, screenshot = true) != null) {
+            clearScreen(); return
+        }
         if (!mutable.value.visible) return
         mutable.update { it.copy(screenshot = bitmap,
             message = if (bitmap == null) "Screen access is unavailable. Allow screenshots in Android's assistant settings, then invoke Omni again. Protected screens cannot be captured." else null) }
     }
     fun useScreen(select: Boolean) {
+        if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(context, screenshot = true) != null) { clearScreen(); return }
         if (mutable.value.screenshot == null) {
             message("No screen image available. Choose Omni as your default digital assistant, allow screen access, then hold Home again.")
             return
@@ -116,6 +121,7 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
     }
     fun cancelSelection() { mutable.update { it.copy(selecting = false) } }
     fun select(crop: ScreenSelection.Crop) {
+        if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(context, screenshot = true) != null) { clearScreen(); return }
         val bitmap = mutable.value.screenshot ?: return
         val selected = Bitmap.createBitmap(bitmap, crop.left, crop.top, crop.width, crop.height)
         mutable.update { it.copy(attachment = selected, selecting = false, message = null) }
@@ -124,6 +130,7 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
 
     /** Explicit expand also transfers an unsent screen question into the full composer. */
     fun openConversation(open: () -> Unit) {
+        if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { clearScreen(); return }
         val current = mutable.value
         if (current.saving || current.minimizing || chat.uiState.value.isProcessing || chat.uiState.value.pendingConfirmation != null) return
         val epoch = generation
@@ -133,6 +140,7 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
             try {
                 current.attachment?.let { file = persistImage(it) }
                 if (epoch != generation || chat.uiState.value.isProcessing || chat.uiState.value.pendingConfirmation != null) { file?.delete(); return@launch }
+                if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { file?.delete(); clearScreen(); return@launch }
                 val fullChat = com.omnidev.workspace.WorkspaceChatRuntime.get(context)
                 chat.uiState.value.currentSessionId?.let(fullChat::loadSession)
                 if (current.input.isNotBlank()) fullChat.onInputChanged(current.input)
@@ -151,6 +159,7 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
     }
 
     private suspend fun persistImage(bitmap: Bitmap): File {
+        check(com.omnidev.workspace.data.admin.DeviceAccessGuard.check(context, screenshot = true) == null) { "Screen access revoked or device locked." }
         val directory = File(context.filesDir, "assistant_workspace/attachments")
         val target = File(directory, "screen_${UUID.randomUUID()}.png")
         return try {
@@ -163,6 +172,7 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
     }
 
     fun send(prompt: String = mutable.value.input) {
+        if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { clearScreen(); return }
         val current = mutable.value
         if (current.saving || current.minimizing || chat.uiState.value.isProcessing || prompt.isBlank()) return
         val epoch = generation
@@ -176,6 +186,7 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
                 }
                 val attachments = current.files + listOfNotNull(image)
                 require(attachments.size <= 5 && attachments.sumOf { File(it.uri.path.orEmpty()).length() } <= 15L * 1024 * 1024 && attachments.all { File(it.uri.path.orEmpty()).length() <= 10L * 1024 * 1024 }) { "Attach up to five files, at most 10 MB each and 15 MB combined." }
+                if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { file?.delete(); clearScreen(); return@launch }
                 if (epoch != generation || !chat.sendAssistantMessage(prompt, attachments, AssistantRuntime.targetPackage?.let { "Foreground app package: $it." }.orEmpty())) {
                     file?.delete()
                 } else {

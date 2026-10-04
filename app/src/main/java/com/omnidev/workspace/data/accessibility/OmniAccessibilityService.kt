@@ -95,7 +95,11 @@ class OmniAccessibilityService : AccessibilityService() {
      */
     private fun refreshRootNode() {
         try {
-            val root = assistantTargetRoot() ?: return
+            val root = assistantTargetRoot()
+            if (root == null) { AccessibilityStateManager.updateRootNode(null); return }
+            if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this, root.packageName?.toString()) != null) {
+                root.recycle(); AccessibilityStateManager.updateRootNode(null); SemanticUITool.clearSnapshot(); return
+            }
             // AccessibilityStateManager.updateRootNode() recycles any previously held root node.
             if (AssistantRuntime.targetingScreen) AccessibilityStateManager.updateActiveWindow(root.packageName?.toString(), null)
             AccessibilityStateManager.updateRootNode(root)
@@ -119,7 +123,10 @@ class OmniAccessibilityService : AccessibilityService() {
     }
 
     /** Caller owns and recycles the fresh foreground root. */
-    fun routineRoot(): AccessibilityNodeInfo? = assistantTargetRoot()
+    fun routineRoot(): AccessibilityNodeInfo? = assistantTargetRoot()?.let { root ->
+        if (com.omnidev.workspace.data.admin.DeviceConsentStore(this).locked() ||
+            com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this, root.packageName?.toString()) != null) { root.recycle(); null } else root
+    }
 
     // ── Public API for SemanticUITool ──
 
@@ -129,6 +136,7 @@ class OmniAccessibilityService : AccessibilityService() {
      * @return true if the click action was performed successfully.
      */
     fun clickNode(nodeInfo: AccessibilityNodeInfo): Boolean {
+        if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this, nodeInfo.packageName?.toString(), mutation = true) != null) return false
         var current: AccessibilityNodeInfo? = nodeInfo
         while (current != null) {
             if (isNodeClickable(current)) {
@@ -154,6 +162,7 @@ class OmniAccessibilityService : AccessibilityService() {
      * Traverses up to find a long-clickable parent if necessary.
      */
     fun longClickNode(nodeInfo: AccessibilityNodeInfo): Boolean {
+        if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this, nodeInfo.packageName?.toString(), mutation = true) != null) return false
         var current: AccessibilityNodeInfo? = nodeInfo
         while (current != null) {
             if (isNodeLongClickable(current)) {
@@ -181,6 +190,7 @@ class OmniAccessibilityService : AccessibilityService() {
      * Focuses the node first, then sets the text.
      */
     fun typeIntoNode(nodeInfo: AccessibilityNodeInfo, text: String): Boolean {
+        if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this, nodeInfo.packageName?.toString(), mutation = true) != null) return false
         if (nodeInfo.isPassword) return false
         nodeInfo.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
         val args = Bundle().apply {
@@ -215,6 +225,7 @@ class OmniAccessibilityService : AccessibilityService() {
      * @param forward true for scroll forward/down, false for scroll backward/up.
      */
     fun scrollNode(nodeInfo: AccessibilityNodeInfo, forward: Boolean): Boolean {
+        if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this, nodeInfo.packageName?.toString(), mutation = true) != null) return false
         var current: AccessibilityNodeInfo? = nodeInfo
         while (current != null) {
             if (isNodeScrollable(current)) {
@@ -231,19 +242,22 @@ class OmniAccessibilityService : AccessibilityService() {
         return false
     }
 
+    private fun guardedGlobalAction(action: Int): Boolean =
+        com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this, mutation = true) == null && performGlobalAction(action)
+
     // ── Global Actions ──
 
     /** Performs the global BACK action. */
-    fun pressBack(): Boolean = performGlobalAction(GLOBAL_ACTION_BACK)
+    fun pressBack(): Boolean = guardedGlobalAction(GLOBAL_ACTION_BACK)
 
     /** Performs the global HOME action. */
-    fun pressHome(): Boolean = performGlobalAction(GLOBAL_ACTION_HOME)
+    fun pressHome(): Boolean = guardedGlobalAction(GLOBAL_ACTION_HOME)
 
     /** Performs the global RECENTS action. */
-    fun pressRecents(): Boolean = performGlobalAction(GLOBAL_ACTION_RECENTS)
+    fun pressRecents(): Boolean = guardedGlobalAction(GLOBAL_ACTION_RECENTS)
     
     /** Performs the global NOTIFICATIONS action (pull down status bar). */
-    fun openNotifications(): Boolean = performGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
+    fun openNotifications(): Boolean = guardedGlobalAction(GLOBAL_ACTION_NOTIFICATIONS)
 
     /**
      * The God-Mode Feature (Android 11+): Silently captures a screenshot.
@@ -251,6 +265,9 @@ class OmniAccessibilityService : AccessibilityService() {
      * Returns a [Bitmap] of the screen, or null if it fails or SDK is < 30.
      */
     suspend fun takeSilentScreenshot(): Bitmap? = suspendCoroutine { continuation ->
+        if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this, screenshot = true) != null) {
+            continuation.resume(null); return@suspendCoroutine
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             takeScreenshot(
                 android.view.Display.DEFAULT_DISPLAY,
@@ -262,7 +279,10 @@ class OmniAccessibilityService : AccessibilityService() {
                             screenshotResult.hardwareBuffer,
                             screenshotResult.colorSpace
                         )
-                        continuation.resume(bitmap)
+                        screenshotResult.hardwareBuffer.close()
+                        if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this@OmniAccessibilityService, screenshot = true) != null) {
+                            bitmap?.recycle(); continuation.resume(null)
+                        } else continuation.resume(bitmap)
                     }
 
                     override fun onFailure(errorCode: Int) {
@@ -284,6 +304,7 @@ class OmniAccessibilityService : AccessibilityService() {
      * This is the fallback when semantic node interaction isn't possible.
      */
     fun tapAtCoordinates(x: Float, y: Float): Boolean {
+        if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this, mutation = true) != null) return false
         val path = Path().apply { moveTo(x, y) }
         val gesture = GestureDescription.Builder()
             .addStroke(GestureDescription.StrokeDescription(path, 0L, TAP_DURATION_MS))
@@ -299,6 +320,7 @@ class OmniAccessibilityService : AccessibilityService() {
         endX: Float, endY: Float,
         durationMs: Long = 300L
     ): Boolean {
+        if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this, mutation = true) != null) return false
         val path = Path().apply {
             moveTo(startX, startY)
             lineTo(endX, endY)

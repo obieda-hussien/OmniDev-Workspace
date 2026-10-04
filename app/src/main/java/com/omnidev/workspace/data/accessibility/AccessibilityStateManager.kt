@@ -188,6 +188,7 @@ object AccessibilityStateManager {
     fun findNodeByText(text: String, exactMatch: Boolean = false): AccessibilityNodeInfo? {
         val root = _rootNode.value ?: return null
         return findNodeRecursive(root) { node ->
+            if (node.isPassword || node.viewIdResourceName?.substringAfterLast('/') in setOf("pinEntry", "passwordEntry")) return@findNodeRecursive false
             val nodeText = node.text?.toString() ?: ""
             val nodeDesc = node.contentDescription?.toString() ?: ""
             if (exactMatch) {
