@@ -1,6 +1,7 @@
 package com.omnidev.workspace.ui.settings
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -12,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -33,6 +35,9 @@ import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.repository.ApiKeyRepository
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.registry.ModelRegistry
+import com.omnidev.workspace.ui.components.SettingsDisclosure
+import com.omnidev.workspace.ui.components.SettingsEmptyState
+import com.omnidev.workspace.ui.components.SettingsSearchField
 import com.omnidev.workspace.ui.motion.OmniIconButton
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -57,7 +62,8 @@ fun IntegrationsScreen(
      * by the same file and serialize reads/writes atomically.
      */
     apiKeyRepository: ApiKeyRepository? = null,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onOpenGitHubAgentAccess: (() -> Unit)? = null
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -132,45 +138,129 @@ fun IntegrationsScreen(
     var sendGridApiKey by remember { mutableStateOf("") }
 
     var saved by remember { mutableStateOf(false) }
+    var loaded by remember { mutableStateOf(false) }
+    var loadError by remember { mutableStateOf<String?>(null) }
+    var loadAttempt by remember { mutableStateOf(0) }
+    var saving by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var expandedIntegration by rememberSaveable { mutableStateOf<String?>(null) }
+    BackHandler(enabled = expandedIntegration != null) { expandedIntegration = null }
+    val searchAliases = remember { mapOf(
+        "GitHub AI" to "github copilot models جيتهاب جيت هاب نماذج",
+        "GitHub account" to "github agent repositories جيتهاب جيت هاب حساب مستودعات",
+        "Telegram" to "telegram bot تيليجرام تليجرام بوت",
+        "Discord" to "discord ديسكورد",
+        "WhatsApp Cloud" to "whatsapp meta واتساب واتس اب سحابي",
+        "WhatsApp Bridge" to "whatsapp baileys termux واتساب واتس اب بريدج ترمكس",
+        "Notion" to "notion نوشن",
+        "Slack" to "slack سلاك",
+        "SendGrid" to "sendgrid email ايميل بريد"
+    ) }
+    fun matches(title: String, description: String) = query.isBlank() ||
+        "$title $description ${searchAliases[title].orEmpty()}".contains(query.trim(), ignoreCase = true)
+    fun toggle(name: String) { expandedIntegration = if (expandedIntegration == name) null else name }
 
     // Load existing values on first composition
-    LaunchedEffect(Unit) {
-        githubOAuthToken = settingsRepository.observeGitHubOAuthToken().first()
-        // Restore the persisted sub-mode so the UI reflects the actual connected state
-        val storedMode = settingsRepository.observeGitHubSubMode().first()
-        val mode = GitHubDeviceFlowManager.SubMode.fromSerializedName(storedMode)
-        if (githubOAuthToken != null) {
-            connectedSubMode = mode
-            selectedSubMode  = mode
-        } else {
-            selectedSubMode = mode
-        }
-        // Load saved GitHub Models PAT
-        val repo = apiKeyRepository ?: ApiKeyRepository(context)
-        githubModelsPat = repo.getApiKey(ModelProvider.GITHUB_MODELS) ?: ""
-        telegramToken = settingsRepository.observeTelegramBotToken().first() ?: ""
-        telegramChatId = settingsRepository.observeTelegramChatId().first() ?: ""
-        telegramOwner = telegramLinkStore.owner(telegramToken)
-        discordWebhookUrl = settingsRepository.observeDiscordWebhookUrl().first() ?: ""
-        discordBotToken = settingsRepository.observeDiscordBotToken().first() ?: ""
-        discordListenerChannelId = settingsRepository.observeDiscordListenerChannelId().first() ?: ""
-        discordListenerEnabled = settingsRepository.observeDiscordListenerEnabled().first()
-        whatsappPhoneNumberId = settingsRepository.observeWhatsAppPhoneNumberId().first() ?: ""
-        whatsappAccessToken = settingsRepository.observeWhatsAppAccessToken().first() ?: ""
-        whatsappBridgeUrl = settingsRepository.observeWhatsAppBridgeUrl().first() ?: ""
-        whatsappBridgePhone = settingsRepository.observeWhatsAppBridgePhone().first() ?: ""
-        whatsappBridgeApiKey = settingsRepository.observeWhatsAppBridgeApiKey().first() ?: ""
-        whatsappBridgeEnabled = settingsRepository.observeWhatsAppBridgeEnabled().first()
-        notionApiKey = settingsRepository.observeNotionApiKey().first() ?: ""
-        notionDatabaseId = settingsRepository.observeNotionDatabaseId().first() ?: ""
-        slackBotToken = settingsRepository.observeSlackBotToken().first() ?: ""
-        sendGridApiKey = settingsRepository.observeSendGridApiKey().first() ?: ""
+    LaunchedEffect(loadAttempt) {
+        loaded = false
+        loadError = null
+        try {
+            githubOAuthToken = settingsRepository.observeGitHubOAuthToken().first()
+            // Restore the persisted sub-mode so the UI reflects the actual connected state
+            val storedMode = settingsRepository.observeGitHubSubMode().first()
+            val mode = GitHubDeviceFlowManager.SubMode.fromSerializedName(storedMode)
+            if (githubOAuthToken != null) {
+                connectedSubMode = mode
+                selectedSubMode  = mode
+            } else {
+                selectedSubMode = mode
+            }
+            // Load saved GitHub Models PAT
+            val repo = apiKeyRepository ?: ApiKeyRepository(context)
+            githubModelsPat = repo.getApiKey(ModelProvider.GITHUB_MODELS) ?: ""
+            telegramToken = settingsRepository.observeTelegramBotToken().first() ?: ""
+            telegramChatId = settingsRepository.observeTelegramChatId().first() ?: ""
+            telegramOwner = telegramLinkStore.owner(telegramToken)
+            discordWebhookUrl = settingsRepository.observeDiscordWebhookUrl().first() ?: ""
+            discordBotToken = settingsRepository.observeDiscordBotToken().first() ?: ""
+            discordListenerChannelId = settingsRepository.observeDiscordListenerChannelId().first() ?: ""
+            discordListenerEnabled = settingsRepository.observeDiscordListenerEnabled().first()
+            whatsappPhoneNumberId = settingsRepository.observeWhatsAppPhoneNumberId().first() ?: ""
+            whatsappAccessToken = settingsRepository.observeWhatsAppAccessToken().first() ?: ""
+            whatsappBridgeUrl = settingsRepository.observeWhatsAppBridgeUrl().first() ?: ""
+            whatsappBridgePhone = settingsRepository.observeWhatsAppBridgePhone().first() ?: ""
+            whatsappBridgeApiKey = settingsRepository.observeWhatsAppBridgeApiKey().first() ?: ""
+            whatsappBridgeEnabled = settingsRepository.observeWhatsAppBridgeEnabled().first()
+            notionApiKey = settingsRepository.observeNotionApiKey().first() ?: ""
+            notionDatabaseId = settingsRepository.observeNotionDatabaseId().first() ?: ""
+            slackBotToken = settingsRepository.observeSlackBotToken().first() ?: ""
+            sendGridApiKey = settingsRepository.observeSendGridApiKey().first() ?: ""
+            loaded = true
+        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { loadError = "Could not load linked accounts. Retry before editing." }
     }
 
     Scaffold(
+        bottomBar = {
+            Surface(tonalElevation = 2.dp) {
+                Column(Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    saveError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                    Button(
+                        enabled = loaded && !saving,
+                        onClick = {
+                            scope.launch {
+                                saving = true
+                                saveError = null
+                                try {
+                                    val priorToken = settingsRepository.observeTelegramBotToken().first()
+                                    if (priorToken != telegramToken.ifBlank { null }) {
+                                        stopTelegramListener()
+                                        telegramLinkStore.revoke()
+                                        telegramOwner = null
+                                        telegramPairCode = null
+                                    }
+                                    settingsRepository.setTelegramBotToken(telegramToken.ifBlank { null })
+                                    settingsRepository.setTelegramChatId(telegramChatId.ifBlank { null })
+                                    settingsRepository.setDiscordWebhookUrl(discordWebhookUrl.ifBlank { null })
+                                    settingsRepository.setDiscordBotToken(discordBotToken.ifBlank { null })
+                                    settingsRepository.setDiscordListenerChannelId(discordListenerChannelId.ifBlank { null })
+                                    settingsRepository.setWhatsAppPhoneNumberId(whatsappPhoneNumberId.ifBlank { null })
+                                    settingsRepository.setWhatsAppAccessToken(whatsappAccessToken.ifBlank { null })
+                                    val previousBridgeUrl = settingsRepository.observeWhatsAppBridgeUrl().first()
+                                    val previousBridgeKey = settingsRepository.observeWhatsAppBridgeApiKey().first()
+                                    settingsRepository.setWhatsAppBridgeUrl(whatsappBridgeUrl.ifBlank { null })
+                                    settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone.ifBlank { null })
+                                    settingsRepository.setWhatsAppBridgeApiKey(whatsappBridgeApiKey.ifBlank { null })
+                                    if (whatsappBridgeEnabled &&
+                                        (previousBridgeUrl != whatsappBridgeUrl.ifBlank { null } ||
+                                            previousBridgeKey != whatsappBridgeApiKey.ifBlank { null })) {
+                                        ContextCompat.startForegroundService(context,
+                                            Intent(context, WhatsAppBridgeService::class.java))
+                                    }
+                                    settingsRepository.setNotionApiKey(notionApiKey.ifBlank { null })
+                                    settingsRepository.setNotionDatabaseId(notionDatabaseId.ifBlank { null })
+                                    settingsRepository.setSlackBotToken(slackBotToken.ifBlank { null })
+                                    settingsRepository.setSendGridApiKey(sendGridApiKey.ifBlank { null })
+                                    saved = true
+                                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                                catch (_: Exception) {
+                                    saved = false
+                                    saveError = "Could not save all changes. Check your settings and retry."
+                                } finally { saving = false }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(if (saving) "Saving…" else if (saved) "Changes saved" else "Save changes")
+                    }
+                }
+            }
+        },
         topBar = {
             TopAppBar(
-                title = { Text("Integrations & Linked Accounts") },
+                title = { Text("Connections", maxLines = 1) },
                 navigationIcon = {
                     OmniIconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -187,867 +277,835 @@ fun IntegrationsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ── GitHub Device Flow Section ──
-            Text(
-                text = "🐙 GitHub",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            if (githubOAuthToken != null) {
-                // ── Connected state ──────────────────────────────────────────
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.CheckCircle,
-                        contentDescription = "Connected",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = "Connected to GitHub ✓",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                val modeLabel = when (connectedSubMode) {
-                    GitHubDeviceFlowManager.SubMode.COPILOT ->
-                        "GitHub Copilot is active — models routed via api.githubcopilot.com."
-                    else ->
-                        "GitHub Repos integration and GitHub AI Models are both active."
-                }
-                Text(
-                    text = modeLabel,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                OutlinedButton(
-                    onClick = {
-                        scope.launch {
-                            settingsRepository.setGitHubOAuthToken(null)
-                            settingsRepository.setGitHubPat(null)
-                            // Clear only the key for the active sub-mode
-                            val repo = apiKeyRepository ?: ApiKeyRepository(context)
-                            when (connectedSubMode) {
-                                GitHubDeviceFlowManager.SubMode.COPILOT ->
-                                    repo.clearApiKey(ModelProvider.GITHUB_COPILOT)
-                                GitHubDeviceFlowManager.SubMode.MODELS -> {
-                                    repo.clearApiKey(ModelProvider.GITHUB_MODELS)
-                                    githubModelsPat = ""
-                                }
-                                null -> {
-                                    repo.clearApiKey(ModelProvider.GITHUB_COPILOT)
-                                    repo.clearApiKey(ModelProvider.GITHUB_MODELS)
-                                    githubModelsPat = ""
-                                }
-                            }
-                            githubOAuthToken = null
-                            connectedSubMode = null
-                            githubModelsPatError = null
-                            deviceFlowUserCode = null
-                            deviceFlowPolling = false
-                            deviceFlowError = null
-                            deviceFlowInProgress = false
-                            // Clear persisted Copilot session + dynamic model list
-                            CopilotSessionManager.clearSession()
-                            ModelRegistry.clearDynamicCopilotModels()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Log Out of GitHub")
-                }
-            } else {
-                // ── Not yet connected ────────────────────────────────────────
-
-                // Sub-mode selector
-                Text(
-                    text = "Choose connection type:",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    // ── Copilot option ──
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp)
-                    ) {
-                        RadioButton(
-                            selected = selectedSubMode == GitHubDeviceFlowManager.SubMode.COPILOT,
-                            onClick = { selectedSubMode = GitHubDeviceFlowManager.SubMode.COPILOT }
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "🤖 GitHub Copilot",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                text = "Zero registration · Uses your Copilot subscription · Access GPT-4o, Claude, Gemini, o3-mini",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    // ── Models option ──
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp)
-                    ) {
-                        RadioButton(
-                            selected = selectedSubMode == GitHubDeviceFlowManager.SubMode.MODELS,
-                            onClick = { selectedSubMode = GitHubDeviceFlowManager.SubMode.MODELS }
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "🛒 GitHub Models",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                text = "Enter your GitHub PAT · Free AI marketplace · GPT-4o, Llama, DeepSeek, Phi and more",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+            SettingsSearchField(query, { query = it }, "Search connections")
+            Text("Choose a service to configure. Save changes when you finish.",
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (!loaded) {
+                loadError?.let { message ->
+                    SettingsEmptyState("Accounts unavailable", message)
+                    OutlinedButton(onClick = { loadAttempt++ }, modifier = Modifier.fillMaxWidth()) { Text("Retry") }
+                } ?: CircularProgressIndicator(Modifier.align(Alignment.CenterHorizontally))
+            }
+            if (loaded) {
+                if (onOpenGitHubAgentAccess != null && matches("GitHub account", "Repository access and agent permissions")) {
+                    OutlinedButton(onClick = onOpenGitHubAgentAccess, modifier = Modifier.fillMaxWidth()) {
+                        Text("GitHub account & agent permissions")
                     }
                 }
-
-                if (deviceFlowUserCode != null) {
-                    // ── Device Flow active: show the code ───────────────────
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            text = "Step 1: Copy this code",
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                        // Large monospace code display
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(
-                                    MaterialTheme.colorScheme.surfaceVariant,
-                                    RoundedCornerShape(8.dp)
-                                )
-                                .border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.outline,
-                                    RoundedCornerShape(8.dp)
-                                )
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = deviceFlowUserCode!!,
-                                style = MaterialTheme.typography.headlineMedium.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 28.sp,
-                                    letterSpacing = 4.sp
-                                ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        OutlinedButton(
-                            onClick = { clipboard.setText(AnnotatedString(deviceFlowUserCode!!)) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("📋 Copy Code")
-                        }
-
-                        Text(
-                            text = "Step 2: Open GitHub and enter the code",
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                        Button(
-                            onClick = {
-                                GitHubDeviceFlowManager.openVerificationPage(
-                                    context, deviceFlowVerificationUri
-                                )
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Open GitHub (${deviceFlowVerificationUri})")
-                        }
-
-                        if (deviceFlowPolling) {
+                if (matches("GitHub AI", "Copilot and GitHub Models")) {
+                    SettingsDisclosure(
+                        title = "GitHub AI", description = "Copilot and GitHub Models",
+                        status = if (githubOAuthToken != null) "Configured" else "Not configured",
+                        expanded = expandedIntegration == "GitHub AI", onToggle = { toggle("GitHub AI") }
+                    ) {
+                        if (githubOAuthToken != null) {
+                            // ── Connected state ──────────────────────────────────────────
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                                Icon(
+                                    imageVector = Icons.Filled.CheckCircle,
+                                    contentDescription = "Connected",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
                                 Text(
-                                    text = "Waiting for authorization...",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    text = "Connected to GitHub ✓",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
-                        }
-
-                        if (deviceFlowError != null) {
+                            val modeLabel = when (connectedSubMode) {
+                                GitHubDeviceFlowManager.SubMode.COPILOT ->
+                                    "GitHub Copilot is active — models routed via api.githubcopilot.com."
+                                else ->
+                                    "GitHub Models is configured for AI requests."
+                            }
                             Text(
-                                text = "⚠️ ${deviceFlowError}",
+                                text = modeLabel,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                        }
+                            OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        settingsRepository.setGitHubOAuthToken(null)
+                                        settingsRepository.setGitHubPat(null)
+                                        // Clear only the key for the active sub-mode
+                                        val repo = apiKeyRepository ?: ApiKeyRepository(context)
+                                        when (connectedSubMode) {
+                                            GitHubDeviceFlowManager.SubMode.COPILOT ->
+                                                repo.clearApiKey(ModelProvider.GITHUB_COPILOT)
+                                            GitHubDeviceFlowManager.SubMode.MODELS -> {
+                                                repo.clearApiKey(ModelProvider.GITHUB_MODELS)
+                                                githubModelsPat = ""
+                                            }
+                                            null -> {
+                                                repo.clearApiKey(ModelProvider.GITHUB_COPILOT)
+                                                repo.clearApiKey(ModelProvider.GITHUB_MODELS)
+                                                githubModelsPat = ""
+                                            }
+                                        }
+                                        githubOAuthToken = null
+                                        connectedSubMode = null
+                                        githubModelsPatError = null
+                                        deviceFlowUserCode = null
+                                        deviceFlowPolling = false
+                                        deviceFlowError = null
+                                        deviceFlowInProgress = false
+                                        // Clear persisted Copilot session + dynamic model list
+                                        CopilotSessionManager.clearSession()
+                                        ModelRegistry.clearDynamicCopilotModels()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Log Out of GitHub")
+                            }
+                        } else {
+                            // ── Not yet connected ────────────────────────────────────────
 
-                        OutlinedButton(
-                            onClick = {
-                                deviceFlowUserCode = null
-                                deviceFlowPolling = false
-                                deviceFlowError = null
-                                deviceFlowInProgress = false
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Cancel")
-                        }
-                    }
-                } else {
-                    if (selectedSubMode == GitHubDeviceFlowManager.SubMode.MODELS) {
-                        // ── GitHub Models: PAT input ─────────────────────────
-                        Text(
-                            text = "Enter your GitHub Personal Access Token",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        OutlinedTextField(
-                            value = githubModelsPat,
-                            onValueChange = { githubModelsPat = it; githubModelsPatError = null },
-                            label = { Text("GitHub PAT (ghp_…)") },
-                            placeholder = { Text("ghp_xxxxxxxxxxxxxxxxxxxx") },
-                            visualTransformation = PasswordVisualTransformation(),
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                        Text(
-                            text = "Generate at github.com/settings/tokens → Classic token → repo scope",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (githubModelsPatError != null) {
+                            // Sub-mode selector
                             Text(
-                                text = "⚠️ ${githubModelsPatError}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
+                                text = "Choose connection type:",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                        }
-                        Button(
-                            onClick = {
-                                val pat = githubModelsPat.trim()
-                                if (pat.isBlank()) {
-                                    githubModelsPatError = "Token cannot be empty."
-                                    return@Button
-                                }
-                                scope.launch {
-                                    val repo = apiKeyRepository ?: ApiKeyRepository(context)
-                                    // Store PAT in three places that serve different consumers:
-                                    //  • ApiKeyRepository/GITHUB_MODELS → CompletionService (AI calls)
-                                    //  • SettingsRepository.githubOAuthToken → UI "connected" state
-                                    //  • SettingsRepository.githubPat → GitHubManagerTool (repo ops)
-                                    repo.setApiKey(ModelProvider.GITHUB_MODELS, pat)
-                                    settingsRepository.setGitHubOAuthToken(pat)
-                                    settingsRepository.setGitHubPat(pat)
-                                    settingsRepository.setGitHubSubMode(
-                                        GitHubDeviceFlowManager.SubMode.MODELS.serializedName
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                // ── Copilot option ──
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp)
+                                ) {
+                                    RadioButton(
+                                        selected = selectedSubMode == GitHubDeviceFlowManager.SubMode.COPILOT,
+                                        onClick = { selectedSubMode = GitHubDeviceFlowManager.SubMode.COPILOT }
                                     )
-                                    githubOAuthToken = pat
-                                    connectedSubMode = GitHubDeviceFlowManager.SubMode.MODELS
-                                    githubModelsPatError = null
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "🤖 GitHub Copilot",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Text(
+                                            text = "Zero registration · Uses your Copilot subscription · Access GPT-4o, Claude, Gemini, o3-mini",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
-                            },
-                            enabled = githubModelsPat.isNotBlank(),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Save Token")
-                        }
-                    } else {
-                        // ── GitHub Copilot: Device Flow start button ─────────
-                        if (deviceFlowError != null) {
-                            Text(
-                                text = "⚠️ ${deviceFlowError}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                        Button(
-                            onClick = {
-                                deviceFlowError = null
-                                deviceFlowInProgress = true
-                                val chosenMode = selectedSubMode
-                                scope.launch {
-                                    val repoArg = apiKeyRepository
-                                        ?: ApiKeyRepository(context)
-                                    GitHubDeviceFlowManager.startDeviceFlowAndPoll(
-                                        settingsRepository, repoArg, chosenMode
-                                    ).collect { state ->
-                                        when (state) {
-                                            is GitHubDeviceFlowManager.DeviceFlowState.AwaitingUserCode -> {
-                                                deviceFlowUserCode = state.userCode
-                                                deviceFlowVerificationUri = state.verificationUri
-                                                deviceFlowPolling = false
+                                // ── Models option ──
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 2.dp)
+                                ) {
+                                    RadioButton(
+                                        selected = selectedSubMode == GitHubDeviceFlowManager.SubMode.MODELS,
+                                        onClick = { selectedSubMode = GitHubDeviceFlowManager.SubMode.MODELS }
+                                    )
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "🛒 GitHub Models",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Text(
+                                            text = "Enter your GitHub PAT · Free AI marketplace · GPT-4o, Llama, DeepSeek, Phi and more",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (deviceFlowUserCode != null) {
+                                // ── Device Flow active: show the code ───────────────────
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Text(
+                                        text = "Step 1: Copy this code",
+                                        style = MaterialTheme.typography.labelLarge
+                                    )
+                                    // Large monospace code display
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(
+                                                MaterialTheme.colorScheme.surfaceVariant,
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .border(
+                                                1.dp,
+                                                MaterialTheme.colorScheme.outline,
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .padding(16.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = deviceFlowUserCode!!,
+                                            style = MaterialTheme.typography.headlineMedium.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                fontSize = 28.sp,
+                                                letterSpacing = 4.sp
+                                            ),
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    OutlinedButton(
+                                        onClick = { clipboard.setText(AnnotatedString(deviceFlowUserCode!!)) },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("📋 Copy Code")
+                                    }
+
+                                    Text(
+                                        text = "Step 2: Open GitHub and enter the code",
+                                        style = MaterialTheme.typography.labelLarge
+                                    )
+                                    Button(
+                                        onClick = {
+                                            GitHubDeviceFlowManager.openVerificationPage(
+                                                context, deviceFlowVerificationUri
+                                            )
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Open GitHub (${deviceFlowVerificationUri})")
+                                    }
+
+                                    if (deviceFlowPolling) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                                            Text(
+                                                text = "Waiting for authorization...",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+
+                                    if (deviceFlowError != null) {
+                                        Text(
+                                            text = "⚠️ ${deviceFlowError}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+
+                                    OutlinedButton(
+                                        onClick = {
+                                            deviceFlowUserCode = null
+                                            deviceFlowPolling = false
+                                            deviceFlowError = null
+                                            deviceFlowInProgress = false
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Cancel")
+                                    }
+                                }
+                            } else {
+                                if (selectedSubMode == GitHubDeviceFlowManager.SubMode.MODELS) {
+                                    // ── GitHub Models: PAT input ─────────────────────────
+                                    Text(
+                                        text = "Enter your GitHub Personal Access Token",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    OutlinedTextField(
+                                        value = githubModelsPat,
+                                        onValueChange = { githubModelsPat = it; githubModelsPatError = null },
+                                        label = { Text("GitHub PAT (ghp_…)") },
+                                        placeholder = { Text("ghp_xxxxxxxxxxxxxxxxxxxx") },
+                                        visualTransformation = PasswordVisualTransformation(),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
+                                    )
+                                    Text(
+                                        text = "Generate at github.com/settings/tokens → Classic token → repo scope",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    if (githubModelsPatError != null) {
+                                        Text(
+                                            text = "⚠️ ${githubModelsPatError}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                    Button(
+                                        onClick = {
+                                            val pat = githubModelsPat.trim()
+                                            if (pat.isBlank()) {
+                                                githubModelsPatError = "Token cannot be empty."
+                                                return@Button
                                             }
-                                            is GitHubDeviceFlowManager.DeviceFlowState.Polling -> {
-                                                deviceFlowPolling = true
+                                            scope.launch {
+                                                val repo = apiKeyRepository ?: ApiKeyRepository(context)
+                                                // Store PAT in three places that serve different consumers:
+                                                //  • ApiKeyRepository/GITHUB_MODELS → CompletionService (AI calls)
+                                                //  • SettingsRepository.githubOAuthToken → UI "connected" state
+                                                //  • SettingsRepository.githubPat → GitHubManagerTool (repo ops)
+                                                repo.setApiKey(ModelProvider.GITHUB_MODELS, pat)
+                                                settingsRepository.setGitHubOAuthToken(pat)
+                                                settingsRepository.setGitHubPat(pat)
+                                                settingsRepository.setGitHubSubMode(
+                                                    GitHubDeviceFlowManager.SubMode.MODELS.serializedName
+                                                )
+                                                githubOAuthToken = pat
+                                                connectedSubMode = GitHubDeviceFlowManager.SubMode.MODELS
+                                                githubModelsPatError = null
                                             }
-                                            is GitHubDeviceFlowManager.DeviceFlowState.Success -> {
-                                                githubOAuthToken = state.token
-                                                connectedSubMode = chosenMode
-                                                deviceFlowUserCode = null
-                                                deviceFlowPolling = false
-                                                deviceFlowInProgress = false
+                                        },
+                                        enabled = githubModelsPat.isNotBlank(),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("Save Token")
+                                    }
+                                } else {
+                                    // ── GitHub Copilot: Device Flow start button ─────────
+                                    if (deviceFlowError != null) {
+                                        Text(
+                                            text = "⚠️ ${deviceFlowError}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+                                    Button(
+                                        onClick = {
+                                            deviceFlowError = null
+                                            deviceFlowInProgress = true
+                                            val chosenMode = selectedSubMode
+                                            scope.launch {
+                                                val repoArg = apiKeyRepository
+                                                    ?: ApiKeyRepository(context)
+                                                GitHubDeviceFlowManager.startDeviceFlowAndPoll(
+                                                    settingsRepository, repoArg, chosenMode
+                                                ).collect { state ->
+                                                    when (state) {
+                                                        is GitHubDeviceFlowManager.DeviceFlowState.AwaitingUserCode -> {
+                                                            deviceFlowUserCode = state.userCode
+                                                            deviceFlowVerificationUri = state.verificationUri
+                                                            deviceFlowPolling = false
+                                                        }
+                                                        is GitHubDeviceFlowManager.DeviceFlowState.Polling -> {
+                                                            deviceFlowPolling = true
+                                                        }
+                                                        is GitHubDeviceFlowManager.DeviceFlowState.Success -> {
+                                                            githubOAuthToken = state.token
+                                                            connectedSubMode = chosenMode
+                                                            deviceFlowUserCode = null
+                                                            deviceFlowPolling = false
+                                                            deviceFlowInProgress = false
+                                                        }
+                                                        is GitHubDeviceFlowManager.DeviceFlowState.Error -> {
+                                                            deviceFlowError = state.message
+                                                            deviceFlowUserCode = null
+                                                            deviceFlowPolling = false
+                                                            deviceFlowInProgress = false
+                                                        }
+                                                    }
+                                                }
                                             }
-                                            is GitHubDeviceFlowManager.DeviceFlowState.Error -> {
-                                                deviceFlowError = state.message
-                                                deviceFlowUserCode = null
-                                                deviceFlowPolling = false
-                                                deviceFlowInProgress = false
+                                        },
+                                        enabled = !deviceFlowInProgress,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        if (deviceFlowInProgress) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                                                Text("Connecting...")
                                             }
+                                        } else {
+                                            Text("Connect with ${selectedSubMode.displayName}")
                                         }
                                     }
                                 }
-                            },
-                            enabled = !deviceFlowInProgress,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            if (deviceFlowInProgress) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                                    Text("Connecting...")
-                                }
-                            } else {
-                                Text("Connect with ${selectedSubMode.displayName}")
                             }
                         }
                     }
                 }
-            }
-
-            HorizontalDivider()
-
-            // ── Telegram Section ──
-            Text(
-                text = "📨 Telegram Bot",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "Connect a Telegram Bot to let the AI publish messages to your channel or group.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            OutlinedTextField(
-                value = telegramToken,
-                onValueChange = { telegramToken = it; saved = false },
-                label = { Text("Bot Token") },
-                placeholder = { Text("123456:ABCdefGHI...") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = telegramChatId,
-                onValueChange = { telegramChatId = it; saved = false },
-                label = { Text("Chat ID / @channel") },
-                placeholder = { Text("-1001234567890 or @mychannel") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Text(
-                "Remote Agent/Swarm access is private and requires linking your personal Telegram chat. " +
-                    "The Chat ID above is for outgoing messages and does not grant agent access.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                telegramOwner?.let { "Linked owner: user ${it.userId} · chat ${it.chatId}" }
-                    ?: "No owner linked. The listener will ignore commands until pairing is complete.",
-                style = MaterialTheme.typography.bodySmall
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = {
-                    scope.launch {
-                        val savedToken = settingsRepository.observeTelegramBotToken().first()
-                        if (savedToken.isNullOrBlank() || savedToken != telegramToken) {
-                            telegramLinkStatus = "Save the Bot Token before creating a pairing code."
-                        } else runCatching { telegramLinkStore.createPairingCode(savedToken) }
-                            .onSuccess { telegramPairCode = it; telegramLinkStatus = null }
-                            .onFailure { telegramLinkStatus = "Secure pairing storage is unavailable." }
-                    }
-                }) { Text("Create pairing code") }
-                OutlinedButton(onClick = {
-                    telegramOwner = telegramLinkStore.owner(telegramToken)
-                }) { Text("Refresh link") }
-            }
-            telegramPairCode?.let { code ->
-                Text("Send /pair $code to your bot in a private chat within 10 minutes. " +
-                    "The code works once and expires after five incorrect attempts.",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace)
-            }
-            if (telegramOwner != null) {
-                OutlinedButton(onClick = {
-                    telegramLinkStore.revoke()
-                    stopTelegramListener()
-                    telegramOwner = null
-                    telegramPairCode = null
-                }) { Text("Revoke Telegram owner") }
-            }
-            telegramLinkStatus?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-
-            // Telegram Bot Listener toggle (OpenClaw-style polling)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "🤖 Telegram Bot Listener",
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                    Text(
-                        text = if (telegramBotRunning)
-                            "Active — Omni is listening to Telegram messages"
-                        else
-                            "Start to let Omni listen and reply to Telegram messages (OpenClaw-style)",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (telegramBotRunning)
-                            MaterialTheme.colorScheme.primary
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = telegramBotRunning,
-                    onCheckedChange = { enabled ->
-                        telegramBotRunning = enabled
-                        val svcIntent = Intent(context, TelegramPollingService::class.java)
-                        if (enabled) {
-                            context.startService(svcIntent)
-                        } else {
-                            svcIntent.action = TelegramPollingService.ACTION_STOP
-                            context.startService(svcIntent)
-                        }
-                    }
-                )
-            }
-
-            HorizontalDivider()
-
-            // ── Discord Section ──
-            Text(
-                text = "🎮 Discord",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "Discord Webhook: let the AI push notifications to a channel.\nDiscord Bot: full bidirectional listener — the AI reads messages and responds.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            OutlinedTextField(
-                value = discordWebhookUrl,
-                onValueChange = { discordWebhookUrl = it; saved = false },
-                label = { Text("Webhook URL (one-way notifications)") },
-                placeholder = { Text("https://discord.com/api/webhooks/...") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = discordBotToken,
-                onValueChange = { discordBotToken = it; saved = false },
-                label = { Text("Bot Token (full bidirectional)") },
-                placeholder = { Text("Bot Token from Discord Developer Portal") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = discordListenerChannelId,
-                onValueChange = { discordListenerChannelId = it; saved = false },
-                label = { Text("Default Channel ID to listen on") },
-                placeholder = { Text("Channel ID from Discord (right-click → Copy ID)") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (discordListenerEnabled) "✅ Discord Bot Listener — Running" else "Discord Bot Listener",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Switch(
-                    checked = discordListenerEnabled,
-                    onCheckedChange = { enabled ->
-                        discordListenerEnabled = enabled
-                        scope.launch {
-                            settingsRepository.setDiscordListenerEnabled(enabled)
-                            if (enabled) {
-                                ContextCompat.startForegroundService(
-                                    context,
-                                    Intent(context, DiscordPollingService::class.java)
-                                )
-                            } else {
-                                context.startService(
-                                    Intent(context, DiscordPollingService::class.java)
-                                        .apply { action = DiscordPollingService.ACTION_STOP }
-                                )
-                            }
-                        }
-                    }
-                )
-            }
-
-            HorizontalDivider()
-
-            // ── WhatsApp Section ──
-            Text(
-                text = "💬 WhatsApp",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "Connect via Meta WhatsApp Business Cloud API to let the AI send messages, images, documents, locations and contacts.\n\nSetup: Meta Business Suite → WhatsApp → Get Started → copy Phone Number ID and Access Token.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            OutlinedTextField(
-                value = whatsappPhoneNumberId,
-                onValueChange = { whatsappPhoneNumberId = it; saved = false },
-                label = { Text("Phone Number ID") },
-                placeholder = { Text("1234567890 from Meta Business Suite") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = whatsappAccessToken,
-                onValueChange = { whatsappAccessToken = it; saved = false },
-                label = { Text("Access Token") },
-                placeholder = { Text("EAAxxxxxxxx...") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            HorizontalDivider()
-
-            // ── WhatsApp Bridge Section (Baileys) ──
-            Text(
-                text = "📱 WhatsApp Bridge (Baileys)",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "Run the companion package in Termux on this phone. Enter its local URL, your " +
-                    "WhatsApp number and the generated API key. Only your own chat is accepted. " +
-                    "Request a pairing code, then use WhatsApp → Linked Devices → Link with phone number.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            OutlinedTextField(
-                value = whatsappBridgeUrl,
-                onValueChange = { whatsappBridgeUrl = it; saved = false },
-                label = { Text("Bridge Server URL") },
-                placeholder = { Text("http://127.0.0.1:3000") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = whatsappBridgePhone,
-                onValueChange = { whatsappBridgePhone = it; saved = false },
-                label = { Text("Phone Number (international format)") },
-                placeholder = { Text("201012345678") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = whatsappBridgeApiKey,
-                onValueChange = { whatsappBridgeApiKey = it; saved = false },
-                label = { Text("Termux Bridge API Key") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            // Pairing code request button
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Button(
-                    onClick = {
-                        if (whatsappBridgeUrl.isBlank() || whatsappBridgePhone.isBlank()) return@Button
-                        whatsappBridgePairingLoading = true
-                        whatsappBridgePairingCode = null
-                        whatsappBridgeStatus = null
-                        scope.launch {
-                            try {
-                                val pairingCode = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                    WhatsAppBridgeClient(whatsappBridgeUrl, whatsappBridgeApiKey)
-                                        .pair(whatsappBridgePhone).getString("code")
-                                }
-                                settingsRepository.setWhatsAppBridgeUrl(whatsappBridgeUrl.trimEnd('/'))
-                                settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone)
-                                settingsRepository.setWhatsAppBridgeApiKey(whatsappBridgeApiKey)
-                                whatsappBridgePairingCode = pairingCode
-                            } catch (e: Exception) {
-                                whatsappBridgePairingCode = "Error: ${e.message}"
-                            } finally {
-                                whatsappBridgePairingLoading = false
-                            }
-                        }
-                    },
-                    enabled = !whatsappBridgePairingLoading && whatsappBridgeUrl.isNotBlank() && whatsappBridgePhone.isNotBlank() && whatsappBridgeApiKey.isNotBlank(),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    if (whatsappBridgePairingLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                    }
-                    Text("Request Pairing Code")
-                }
-                // Check status button
-                OmniIconButton(
-                    onClick = {
-                        if (whatsappBridgeUrl.isBlank()) return@OmniIconButton
-                        scope.launch {
-                            try {
-                                val status = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                    WhatsAppBridgeClient(whatsappBridgeUrl, whatsappBridgeApiKey)
-                                        .status().optString("status", "unknown")
-                                }
-                                whatsappBridgeStatus = status
-                            } catch (e: Exception) {
-                                whatsappBridgeStatus = "Error: ${e.message}"
-                            }
-                        }
-                    }
-                ) {
-                    Icon(Icons.Filled.CheckCircle, contentDescription = "Check status")
-                }
-            }
-            // Show pairing code if available
-            whatsappBridgePairingCode?.let { code ->
-                if (code.isNotBlank()) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (code.startsWith("Error"))
-                                MaterialTheme.colorScheme.errorContainer
-                            else MaterialTheme.colorScheme.primaryContainer
-                        )
+                if (matches("Telegram", "Bot messages and owner pairing")) {
+                    SettingsDisclosure(
+                        title = "Telegram", description = "Bot messages and owner pairing",
+                        status = if (telegramToken.isNotBlank()) "Configured" else "Not configured",
+                        expanded = expandedIntegration == "Telegram", onToggle = { toggle("Telegram") }
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            if (!code.startsWith("Error")) {
-                                Text(
-                                    "🔑 Pairing Code",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Text(
-                                    code,
-                                    style = MaterialTheme.typography.headlineMedium.copy(
-                                        fontFamily = FontFamily.Monospace,
-                                        letterSpacing = 4.sp
-                                    ),
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Text(
-                                    "Open WhatsApp → Linked Devices → Link with phone number → enter this code",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                TextButton(onClick = { clipboard.setText(AnnotatedString(code)) }) {
-                                    Text("Copy Code")
+                        Text(
+                            text = "Connect a Telegram Bot to let the AI publish messages to your channel or group.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = telegramToken,
+                            onValueChange = { telegramToken = it; saved = false },
+                            label = { Text("Bot Token") },
+                            placeholder = { Text("123456:ABCdefGHI...") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = telegramChatId,
+                            onValueChange = { telegramChatId = it; saved = false },
+                            label = { Text("Chat ID / @channel") },
+                            placeholder = { Text("-1001234567890 or @mychannel") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Text(
+                            "Remote Agent/Swarm access is private and requires linking your personal Telegram chat. " +
+                                "The Chat ID above is for outgoing messages and does not grant agent access.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            telegramOwner?.let { "Linked owner: user ${it.userId} · chat ${it.chatId}" }
+                                ?: "No owner linked. The listener will ignore commands until pairing is complete.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = {
+                                scope.launch {
+                                    val savedToken = settingsRepository.observeTelegramBotToken().first()
+                                    if (savedToken.isNullOrBlank() || savedToken != telegramToken) {
+                                        telegramLinkStatus = "Save the Bot Token before creating a pairing code."
+                                    } else runCatching { telegramLinkStore.createPairingCode(savedToken) }
+                                        .onSuccess { telegramPairCode = it; telegramLinkStatus = null }
+                                        .onFailure { telegramLinkStatus = "Secure pairing storage is unavailable." }
                                 }
-                            } else {
-                                Text(
-                                    code,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            }
+                            }) { Text("Create pairing code") }
+                            OutlinedButton(onClick = {
+                                telegramOwner = telegramLinkStore.owner(telegramToken)
+                            }) { Text("Refresh link") }
                         }
-                    }
-                }
-            }
-            // Show connection status badge
-            whatsappBridgeStatus?.let { status ->
-                val isConnected = status.lowercase() == "connected" || status.lowercase() == "open"
-                Text(
-                    "Bridge: $status",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                )
-            }
-            // Enable/disable listener toggle
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = if (whatsappBridgeEnabled) "WhatsApp Bridge Listener — Enabled" else "WhatsApp Bridge Listener",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f)
-                )
-                Switch(
-                    checked = whatsappBridgeEnabled,
-                    onCheckedChange = { enabled ->
-                        scope.launch {
-                            try {
-                                if (enabled) WhatsAppBridgeClient(whatsappBridgeUrl, whatsappBridgeApiKey)
-                                settingsRepository.setWhatsAppBridgeUrl(whatsappBridgeUrl.trimEnd('/'))
-                                settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone)
-                                settingsRepository.setWhatsAppBridgeApiKey(whatsappBridgeApiKey)
-                                settingsRepository.setWhatsAppBridgeEnabled(enabled)
-                                if (enabled) {
-                                    ContextCompat.startForegroundService(context, Intent(context, WhatsAppBridgeService::class.java))
-                                } else {
-                                    context.startService(Intent(context, WhatsAppBridgeService::class.java)
-                                        .apply { action = WhatsAppBridgeService.ACTION_STOP })
-                                }
-                                whatsappBridgeEnabled = enabled
-                            } catch (e: Exception) {
-                                whatsappBridgeStatus = "Error: ${e.message}"
-                                whatsappBridgeEnabled = false
-                                settingsRepository.setWhatsAppBridgeEnabled(false)
-                            }
+                        telegramPairCode?.let { code ->
+                            Text("Send /pair $code to your bot in a private chat within 10 minutes. " +
+                                "The code works once and expires after five incorrect attempts.",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = FontFamily.Monospace)
                         }
-                    }
-                )
-            }
-
-            // ── Notion Section ──
-            Text(
-                text = "📝 Notion",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "Connect a Notion Integration to let the AI create pages in your database.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            OutlinedTextField(
-                value = notionApiKey,
-                onValueChange = { notionApiKey = it; saved = false },
-                label = { Text("Notion API Key") },
-                placeholder = { Text("secret_...") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = notionDatabaseId,
-                onValueChange = { notionDatabaseId = it; saved = false },
-                label = { Text("Database ID") },
-                placeholder = { Text("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            HorizontalDivider()
-
-            // ── Slack Section ──
-            Text(
-                text = "💬 Slack",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "Connect a Slack Bot to let the AI send and read messages, manage channels, search, and more.\n\nSetup: api.slack.com → Your Apps → create or select an app → OAuth & Permissions → copy Bot User OAuth Token (xoxb-...).",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            OutlinedTextField(
-                value = slackBotToken,
-                onValueChange = { slackBotToken = it; saved = false },
-                label = { Text("Slack Bot Token") },
-                placeholder = { Text("xoxb-...") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            HorizontalDivider()
-
-            // ── SendGrid Email Section ──
-            Text(
-                text = "📧 SendGrid Email",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                text = "Connect SendGrid to let the AI send transactional and template emails, manage marketing contacts, and retrieve send statistics.\n\nSetup: app.sendgrid.com → Settings → API Keys → Create API Key → copy key.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            OutlinedTextField(
-                value = sendGridApiKey,
-                onValueChange = { sendGridApiKey = it; saved = false },
-                label = { Text("SendGrid API Key") },
-                placeholder = { Text("SG.xxxx...") },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            HorizontalDivider()
-
-            // ── Save Button ──
-            Button(
-                onClick = {
-                    scope.launch {
-                        try {
-                            val priorToken = settingsRepository.observeTelegramBotToken().first()
-                            if (priorToken != telegramToken.ifBlank { null }) {
-                                stopTelegramListener()
+                        if (telegramOwner != null) {
+                            OutlinedButton(onClick = {
                                 telegramLinkStore.revoke()
+                                stopTelegramListener()
                                 telegramOwner = null
                                 telegramPairCode = null
+                            }) { Text("Revoke Telegram owner") }
+                        }
+                        telegramLinkStatus?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+
+                        // Telegram Bot Listener toggle (OpenClaw-style polling)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "🤖 Telegram Bot Listener",
+                                    style = MaterialTheme.typography.labelLarge
+                                )
+                                Text(
+                                    text = if (telegramBotRunning)
+                                        "Active — Omni is listening to Telegram messages"
+                                    else
+                                        "Start to let Omni listen and reply to Telegram messages (OpenClaw-style)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (telegramBotRunning)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                            settingsRepository.setTelegramBotToken(telegramToken.ifBlank { null })
-                            settingsRepository.setTelegramChatId(telegramChatId.ifBlank { null })
-                            settingsRepository.setDiscordWebhookUrl(discordWebhookUrl.ifBlank { null })
-                            settingsRepository.setDiscordBotToken(discordBotToken.ifBlank { null })
-                            settingsRepository.setDiscordListenerChannelId(discordListenerChannelId.ifBlank { null })
-                            settingsRepository.setWhatsAppPhoneNumberId(whatsappPhoneNumberId.ifBlank { null })
-                            settingsRepository.setWhatsAppAccessToken(whatsappAccessToken.ifBlank { null })
-                            val previousBridgeUrl = settingsRepository.observeWhatsAppBridgeUrl().first()
-                            val previousBridgeKey = settingsRepository.observeWhatsAppBridgeApiKey().first()
-                            settingsRepository.setWhatsAppBridgeUrl(whatsappBridgeUrl.ifBlank { null })
-                            settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone.ifBlank { null })
-                            settingsRepository.setWhatsAppBridgeApiKey(whatsappBridgeApiKey.ifBlank { null })
-                            if (whatsappBridgeEnabled &&
-                                (previousBridgeUrl != whatsappBridgeUrl.ifBlank { null } ||
-                                    previousBridgeKey != whatsappBridgeApiKey.ifBlank { null })) {
-                                ContextCompat.startForegroundService(context,
-                                    Intent(context, WhatsAppBridgeService::class.java))
-                            }
-                            settingsRepository.setNotionApiKey(notionApiKey.ifBlank { null })
-                            settingsRepository.setNotionDatabaseId(notionDatabaseId.ifBlank { null })
-                            settingsRepository.setSlackBotToken(slackBotToken.ifBlank { null })
-                            settingsRepository.setSendGridApiKey(sendGridApiKey.ifBlank { null })
-                            saved = true
-                        } catch (_: Exception) {
-                            saved = false
+                            Switch(
+                                checked = telegramBotRunning,
+                                onCheckedChange = { enabled ->
+                                    telegramBotRunning = enabled
+                                    val svcIntent = Intent(context, TelegramPollingService::class.java)
+                                    if (enabled) {
+                                        context.startService(svcIntent)
+                                    } else {
+                                        svcIntent.action = TelegramPollingService.ACTION_STOP
+                                        context.startService(svcIntent)
+                                    }
+                                }
+                            )
                         }
                     }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (saved) "✅ Saved" else "Save All Integrations")
+                }
+                if (matches("Discord", "Webhook notifications and bot listening")) {
+                    SettingsDisclosure(
+                        title = "Discord", description = "Webhook notifications and bot listening",
+                        status = if (discordBotToken.isNotBlank() || discordWebhookUrl.isNotBlank()) "Configured" else "Not configured",
+                        expanded = expandedIntegration == "Discord", onToggle = { toggle("Discord") }
+                    ) {
+                        Text(
+                            text = "Discord Webhook: let the AI push notifications to a channel.\nDiscord Bot: full bidirectional listener — the AI reads messages and responds.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = discordWebhookUrl,
+                            onValueChange = { discordWebhookUrl = it; saved = false },
+                            label = { Text("Webhook URL (one-way notifications)") },
+                            placeholder = { Text("https://discord.com/api/webhooks/...") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = discordBotToken,
+                            onValueChange = { discordBotToken = it; saved = false },
+                            label = { Text("Bot Token (full bidirectional)") },
+                            placeholder = { Text("Bot Token from Discord Developer Portal") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = discordListenerChannelId,
+                            onValueChange = { discordListenerChannelId = it; saved = false },
+                            label = { Text("Default Channel ID to listen on") },
+                            placeholder = { Text("Channel ID from Discord (right-click → Copy ID)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (discordListenerEnabled) "✅ Discord Bot Listener — Running" else "Discord Bot Listener",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Switch(
+                                checked = discordListenerEnabled,
+                                onCheckedChange = { enabled ->
+                                    discordListenerEnabled = enabled
+                                    scope.launch {
+                                        settingsRepository.setDiscordListenerEnabled(enabled)
+                                        if (enabled) {
+                                            ContextCompat.startForegroundService(
+                                                context,
+                                                Intent(context, DiscordPollingService::class.java)
+                                            )
+                                        } else {
+                                            context.startService(
+                                                Intent(context, DiscordPollingService::class.java)
+                                                    .apply { action = DiscordPollingService.ACTION_STOP }
+                                            )
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+                if (matches("WhatsApp Cloud", "Business messaging through Meta")) {
+                    SettingsDisclosure(
+                        title = "WhatsApp Cloud", description = "Business messaging through Meta",
+                        status = if (whatsappAccessToken.isNotBlank()) "Configured" else "Not configured",
+                        expanded = expandedIntegration == "WhatsApp Cloud", onToggle = { toggle("WhatsApp Cloud") }
+                    ) {
+                        Text(
+                            text = "Connect via Meta WhatsApp Business Cloud API to let the AI send messages, images, documents, locations and contacts.\n\nSetup: Meta Business Suite → WhatsApp → Get Started → copy Phone Number ID and Access Token.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = whatsappPhoneNumberId,
+                            onValueChange = { whatsappPhoneNumberId = it; saved = false },
+                            label = { Text("Phone Number ID") },
+                            placeholder = { Text("1234567890 from Meta Business Suite") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = whatsappAccessToken,
+                            onValueChange = { whatsappAccessToken = it; saved = false },
+                            label = { Text("Access Token") },
+                            placeholder = { Text("EAAxxxxxxxx...") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+                if (matches("WhatsApp Bridge", "Personal account through a local bridge")) {
+                    SettingsDisclosure(
+                        title = "WhatsApp Bridge", description = "Personal account through a local bridge",
+                        status = if (whatsappBridgeUrl.isNotBlank()) "Configured" else "Not configured",
+                        expanded = expandedIntegration == "WhatsApp Bridge", onToggle = { toggle("WhatsApp Bridge") }
+                    ) {
+                        Text(
+                            text = "Run the companion package in Termux on this phone. Enter its local URL, your " +
+                                "WhatsApp number and the generated API key. Only your own chat is accepted. " +
+                                "Request a pairing code, then use WhatsApp → Linked Devices → Link with phone number.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = whatsappBridgeUrl,
+                            onValueChange = { whatsappBridgeUrl = it; saved = false },
+                            label = { Text("Bridge Server URL") },
+                            placeholder = { Text("http://127.0.0.1:3000") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = whatsappBridgePhone,
+                            onValueChange = { whatsappBridgePhone = it; saved = false },
+                            label = { Text("Phone Number (international format)") },
+                            placeholder = { Text("201012345678") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = whatsappBridgeApiKey,
+                            onValueChange = { whatsappBridgeApiKey = it; saved = false },
+                            label = { Text("Termux Bridge API Key") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        // Pairing code request button
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = {
+                                    if (whatsappBridgeUrl.isBlank() || whatsappBridgePhone.isBlank()) return@Button
+                                    whatsappBridgePairingLoading = true
+                                    whatsappBridgePairingCode = null
+                                    whatsappBridgeStatus = null
+                                    scope.launch {
+                                        try {
+                                            val pairingCode = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                WhatsAppBridgeClient(whatsappBridgeUrl, whatsappBridgeApiKey)
+                                                    .pair(whatsappBridgePhone).getString("code")
+                                            }
+                                            settingsRepository.setWhatsAppBridgeUrl(whatsappBridgeUrl.trimEnd('/'))
+                                            settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone)
+                                            settingsRepository.setWhatsAppBridgeApiKey(whatsappBridgeApiKey)
+                                            whatsappBridgePairingCode = pairingCode
+                                        } catch (e: Exception) {
+                                            whatsappBridgePairingCode = "Error: ${e.message}"
+                                        } finally {
+                                            whatsappBridgePairingLoading = false
+                                        }
+                                    }
+                                },
+                                enabled = !whatsappBridgePairingLoading && whatsappBridgeUrl.isNotBlank() && whatsappBridgePhone.isNotBlank() && whatsappBridgeApiKey.isNotBlank(),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                if (whatsappBridgePairingLoading) {
+                                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text("Request Pairing Code")
+                            }
+                            // Check status button
+                            OmniIconButton(
+                                onClick = {
+                                    if (whatsappBridgeUrl.isBlank()) return@OmniIconButton
+                                    scope.launch {
+                                        try {
+                                            val status = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                                WhatsAppBridgeClient(whatsappBridgeUrl, whatsappBridgeApiKey)
+                                                    .status().optString("status", "unknown")
+                                            }
+                                            whatsappBridgeStatus = status
+                                        } catch (e: Exception) {
+                                            whatsappBridgeStatus = "Error: ${e.message}"
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Filled.CheckCircle, contentDescription = "Check status")
+                            }
+                        }
+                        // Show pairing code if available
+                        whatsappBridgePairingCode?.let { code ->
+                            if (code.isNotBlank()) {
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (code.startsWith("Error"))
+                                            MaterialTheme.colorScheme.errorContainer
+                                        else MaterialTheme.colorScheme.primaryContainer
+                                    )
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        if (!code.startsWith("Error")) {
+                                            Text(
+                                                "🔑 Pairing Code",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                            Text(
+                                                code,
+                                                style = MaterialTheme.typography.headlineMedium.copy(
+                                                    fontFamily = FontFamily.Monospace,
+                                                    letterSpacing = 4.sp
+                                                ),
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                            Text(
+                                                "Open WhatsApp → Linked Devices → Link with phone number → enter this code",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                            )
+                                            TextButton(onClick = { clipboard.setText(AnnotatedString(code)) }) {
+                                                Text("Copy Code")
+                                            }
+                                        } else {
+                                            Text(
+                                                code,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onErrorContainer
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // Show connection status badge
+                        whatsappBridgeStatus?.let { status ->
+                            val isConnected = status.lowercase() == "connected" || status.lowercase() == "open"
+                            Text(
+                                "Bridge: $status",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isConnected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            )
+                        }
+                        // Enable/disable listener toggle
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = if (whatsappBridgeEnabled) "WhatsApp Bridge Listener — Enabled" else "WhatsApp Bridge Listener",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(
+                                checked = whatsappBridgeEnabled,
+                                onCheckedChange = { enabled ->
+                                    scope.launch {
+                                        try {
+                                            if (enabled) WhatsAppBridgeClient(whatsappBridgeUrl, whatsappBridgeApiKey)
+                                            settingsRepository.setWhatsAppBridgeUrl(whatsappBridgeUrl.trimEnd('/'))
+                                            settingsRepository.setWhatsAppBridgePhone(whatsappBridgePhone)
+                                            settingsRepository.setWhatsAppBridgeApiKey(whatsappBridgeApiKey)
+                                            settingsRepository.setWhatsAppBridgeEnabled(enabled)
+                                            if (enabled) {
+                                                ContextCompat.startForegroundService(context, Intent(context, WhatsAppBridgeService::class.java))
+                                            } else {
+                                                context.startService(Intent(context, WhatsAppBridgeService::class.java)
+                                                    .apply { action = WhatsAppBridgeService.ACTION_STOP })
+                                            }
+                                            whatsappBridgeEnabled = enabled
+                                        } catch (e: Exception) {
+                                            whatsappBridgeStatus = "Error: ${e.message}"
+                                            whatsappBridgeEnabled = false
+                                            settingsRepository.setWhatsAppBridgeEnabled(false)
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+                if (matches("Notion", "Pages and workspace databases")) {
+                    SettingsDisclosure(
+                        title = "Notion", description = "Pages and workspace databases",
+                        status = if (notionApiKey.isNotBlank()) "Configured" else "Not configured",
+                        expanded = expandedIntegration == "Notion", onToggle = { toggle("Notion") }
+                    ) {
+                        Text(
+                            text = "Connect a Notion Integration to let the AI create pages in your database.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = notionApiKey,
+                            onValueChange = { notionApiKey = it; saved = false },
+                            label = { Text("Notion API Key") },
+                            placeholder = { Text("secret_...") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = notionDatabaseId,
+                            onValueChange = { notionDatabaseId = it; saved = false },
+                            label = { Text("Database ID") },
+                            placeholder = { Text("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+                if (matches("Slack", "Workspace bot messaging")) {
+                    SettingsDisclosure(
+                        title = "Slack", description = "Workspace bot messaging",
+                        status = if (slackBotToken.isNotBlank()) "Configured" else "Not configured",
+                        expanded = expandedIntegration == "Slack", onToggle = { toggle("Slack") }
+                    ) {
+                        Text(
+                            text = "Connect a Slack Bot to let the AI send and read messages, manage channels, search, and more.\n\nSetup: api.slack.com → Your Apps → create or select an app → OAuth & Permissions → copy Bot User OAuth Token (xoxb-...).",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = slackBotToken,
+                            onValueChange = { slackBotToken = it; saved = false },
+                            label = { Text("Slack Bot Token") },
+                            placeholder = { Text("xoxb-...") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+                if (matches("SendGrid", "Send email from Omni")) {
+                    SettingsDisclosure(
+                        title = "SendGrid", description = "Send email from Omni",
+                        status = if (sendGridApiKey.isNotBlank()) "Configured" else "Not configured",
+                        expanded = expandedIntegration == "SendGrid", onToggle = { toggle("SendGrid") }
+                    ) {
+                        Text(
+                            text = "Connect SendGrid to let the AI send transactional and template emails, manage marketing contacts, and retrieve send statistics.\n\nSetup: app.sendgrid.com → Settings → API Keys → Create API Key → copy key.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        OutlinedTextField(
+                            value = sendGridApiKey,
+                            onValueChange = { sendGridApiKey = it; saved = false },
+                            label = { Text("SendGrid API Key") },
+                            placeholder = { Text("SG.xxxx...") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+                if (!(matches("GitHub AI", "Copilot and GitHub Models") || matches("Telegram", "Bot messages and owner pairing") || matches("Discord", "Webhook notifications and bot listening") || matches("WhatsApp Cloud", "Business messaging through Meta") || matches("WhatsApp Bridge", "Personal account through a local bridge") || matches("Notion", "Pages and workspace databases") || matches("Slack", "Workspace bot messaging") || matches("SendGrid", "Send email from Omni")) && !(onOpenGitHubAgentAccess != null && matches("GitHub account", "Repository access and agent permissions"))) {
+                    SettingsEmptyState("No connections found", "Try GitHub, Telegram, WhatsApp or another service name.")
+                }
             }
         }
     }

@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,17 +15,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -34,14 +39,12 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,7 +52,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,6 +62,9 @@ import com.omnidev.workspace.data.repository.AnalyticsStats
 import com.omnidev.workspace.data.repository.DailyUsage
 import com.omnidev.workspace.data.repository.ModelStats
 import com.omnidev.workspace.data.repository.ProviderStats
+import com.omnidev.workspace.ui.components.SettingsDisclosure
+import com.omnidev.workspace.ui.components.SettingsEmptyState
+import com.omnidev.workspace.ui.components.SettingsPageTabs
 import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility as AnimatedVisibility
 import com.omnidev.workspace.ui.motion.OmniIconButton
 import java.text.NumberFormat
@@ -120,125 +125,93 @@ fun AnalyticsDashboardScreen(
 @Composable
 private fun AnalyticsDashboardContent(viewModel: AnalyticsDashboardViewModel, onNavigateBack: () -> Unit) {
     val stats by viewModel.stats.collectAsStateWithLifecycle()
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     var showClearDialog by remember { mutableStateOf(false) }
-
+    var showMenu by remember { mutableStateOf(false) }
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
+    val tabStates = rememberSaveableStateHolder()
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            title = { Text("Clear Analytics?") },
-            text = { Text("All usage statistics will be permanently deleted. This cannot be undone.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.clearStats()
-                        showClearDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
-                    )
-                ) { Text("Clear") }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { showClearDialog = false }) { Text("Cancel") }
-            }
+            title = { Text("Clear analytics?") },
+            text = { Text("All recorded usage statistics will be permanently deleted.") },
+            confirmButton = { Button(onClick = { viewModel.clearStats(); showClearDialog = false },
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("Clear") } },
+            dismissButton = { OutlinedButton(onClick = { showClearDialog = false }) { Text("Cancel") } }
         )
     }
-
-    Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "📊 Analytics Dashboard",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                navigationIcon = {
-                    OmniIconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+    Scaffold(topBar = {
+        TopAppBar(title = { Text("Analytics", fontWeight = FontWeight.SemiBold) },
+            navigationIcon = { OmniIconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+            actions = {
+                Box {
+                    OmniIconButton(onClick = { showMenu = true }, enabled = stats?.let { !isStatsEmpty(it) } == true) { Icon(Icons.Default.MoreVert, "Analytics actions") }
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenuItem(text = { Text("Clear analytics", color = MaterialTheme.colorScheme.error) },
+                            onClick = { showMenu = false; showClearDialog = true })
                     }
-                },
-                scrollBehavior = scrollBehavior
-            )
-        }
-    ) { padding ->
+                }
+            })
+    }) { padding ->
         val currentStats = stats
-        if (currentStats == null || isStatsEmpty(currentStats)) {
-            EmptyState(modifier = Modifier.fillMaxSize().padding(padding))
+        if (currentStats == null) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        } else if (isStatsEmpty(currentStats)) {
+            EmptyState(Modifier.fillMaxSize().padding(padding))
         } else {
-            val providers = remember(currentStats) { currentStats.providerBreakdown }
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item(key = "overview") {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SectionTitle("Overview")
-                        OverviewSection(currentStats)
-                        Text(
-                            "Tokens are provider-reported; missing usage is not proof of zero consumption. Costs are estimates when pricing is available, not invoices. Older releases may have lost tool counters.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                if (providers.isNotEmpty()) {
-                    item(key = "provider_distribution") {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SectionTitle("Provider share of reported tokens")
-                            ProviderDistributionSection(providers)
-                        }
-                    }
-                    item(key = "provider_details") {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SectionTitle("Providers — Deep Dive")
-                            ProvidersDeepDiveSection(providers)
-                        }
-                    }
-                }
-                if (currentStats.tokensByModel.isNotEmpty()) {
-                    item(key = "top_models") {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SectionTitle("Top Models")
-                            TopModelsSection(currentStats)
-                        }
-                    }
-                }
-                if (currentStats.totalCostUsd > 0.0) {
-                    item(key = "cost_leaderboard") {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SectionTitle("Cost Leaderboard")
-                            CostLeaderboardSection(currentStats)
-                        }
-                    }
-                }
-                if (currentStats.dailyTimeline.size >= 2) {
-                    item(key = "daily_timeline") {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SectionTitle("Daily usage (${currentStats.dailyTimeline.size} recorded days, UTC)")
-                            DailyTimelineSection(currentStats.dailyTimeline)
-                        }
-                    }
-                }
-                if (currentStats.toolUsageCount.isNotEmpty()) {
-                    item(key = "top_tools") {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SectionTitle("Top Tools Used")
-                            TopToolsSection(currentStats)
-                        }
-                    }
-                }
-                item(key = "actions") {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SectionTitle("Actions")
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                            Button(onClick = { showClearDialog = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
-                                Text("🗑  Clear Analytics")
+            Column(Modifier.fillMaxSize().padding(padding)) {
+                SettingsPageTabs(listOf("Overview", "Usage", "Providers", "Costs", "Tools"), selectedTab, { selectedTab = it })
+                tabStates.SaveableStateProvider(selectedTab) {
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        when (selectedTab) {
+                            0 -> {
+                                item(key = "overview") { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Text("Recorded usage", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                    OverviewSection(currentStats)
+                                } }
+                                item(key = "tracking") {
+                                    var expanded by rememberSaveable { mutableStateOf(false) }
+                                    SettingsDisclosure("About these numbers", "Reported usage and estimated pricing", expanded, { expanded = !expanded }) {
+                                        Text("Tokens are provider-reported. Missing usage does not mean zero consumption. Costs are estimates when pricing is available, not invoices. Older releases may have lost tool counters.",
+                                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                            1 -> {
+                                if (currentStats.tokensByModel.isNotEmpty()) item(key = "models") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    SectionTitle("Models"); TopModelsSection(currentStats)
+                                } }
+                                if (currentStats.dailyTimeline.size >= 2) item(key = "timeline") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    SectionTitle("Daily usage · recorded days in UTC"); DailyTimelineSection(currentStats.dailyTimeline)
+                                } }
+                                if (currentStats.tokensByModel.isEmpty() && currentStats.dailyTimeline.size < 2) item(key = "empty") {
+                                    SettingsEmptyState("Usage details will appear here", "Model usage and daily trends need recorded model activity.")
+                                }
+                            }
+                            2 -> {
+                                if (currentStats.providerBreakdown.isEmpty()) item(key = "empty") { SettingsEmptyState("No providers recorded", "Provider comparisons appear after reported model usage.") }
+                                else {
+                                    item(key = "distribution") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        SectionTitle("Share of reported tokens"); ProviderDistributionSection(currentStats.providerBreakdown)
+                                    } }
+                                    item(key = "details") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        SectionTitle("Provider details"); ProvidersDeepDiveSection(currentStats.providerBreakdown)
+                                    } }
+                                }
+                            }
+                            3 -> {
+                                item(key = "cost") { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    SummaryCard("Estimated total · USD", formatCostUsd(currentStats.totalCostUsd), Modifier.fillMaxWidth())
+                                    Text("Estimates cover recorded usage with known pricing. Your provider's bill may differ.",
+                                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                } }
+                                if (currentStats.totalCostUsd > 0.0) item(key = "ranking") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    SectionTitle("Cost by model"); CostLeaderboardSection(currentStats)
+                                } } else item(key = "empty") { SettingsEmptyState("No priced usage recorded", "Free, unpriced or missing usage can all produce a zero estimate.") }
+                            }
+                            4 -> {
+                                if (currentStats.toolUsageCount.isNotEmpty()) item(key = "tools") { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    SectionTitle("Tool usage"); TopToolsSection(currentStats)
+                                } } else item(key = "empty") { SettingsEmptyState("No tool activity recorded", "Tool statistics appear after the agent uses a tool.") }
                             }
                         }
                     }
@@ -254,7 +227,7 @@ private fun AnalyticsDashboardContent(viewModel: AnalyticsDashboardViewModel, on
 private fun EmptyState(modifier: Modifier = Modifier) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "📊", style = MaterialTheme.typography.displayMedium)
+            Text(text = "Usage insights", style = MaterialTheme.typography.headlineSmall)
             Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "No analytics data yet",
@@ -294,49 +267,28 @@ private fun SectionTitle(title: String) {
 
 @Composable
 private fun OverviewSection(stats: AnalyticsStats) {
-    // Row 1 — tokens & cost
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        SummaryCard("Total Tokens", formatLargeNumber(stats.totalTokens), Modifier.weight(1f))
-        SummaryCard("Total Cost", formatCostUsd(stats.totalCostUsd), Modifier.weight(1f))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        SummaryCard("Reported tokens", formatLargeNumber(stats.totalTokens), Modifier.weight(1f))
+        SummaryCard("Estimated cost · USD", formatCostUsd(stats.totalCostUsd), Modifier.weight(1f))
     }
-    // Row 2 — requests & providers
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        SummaryCard("API Requests", formatLargeNumber(stats.totalRequests), Modifier.weight(1f))
-        SummaryCard("Providers", stats.providerBreakdown.size.toString(), Modifier.weight(1f))
-        SummaryCard("Models", stats.tokensByModel.size.toString(), Modifier.weight(1f))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        SummaryCard("API requests", formatLargeNumber(stats.totalRequests), Modifier.weight(1f))
+        SummaryCard("Error rate", formatPercent(stats.errorRate), Modifier.weight(1f),
+            accent = if (stats.errorRate > 0.05) MaterialTheme.colorScheme.error else null)
     }
-    // Row 3 — agent / swarm runs
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        SummaryCard("Agent Runs", stats.totalAgentRuns.toString(), Modifier.weight(1f))
-        SummaryCard("Swarm Runs", stats.totalSwarmRuns.toString(), Modifier.weight(1f))
-        SummaryCard(
-            label = "Error Rate",
-            value = formatPercent(stats.errorRate),
-            modifier = Modifier.weight(1f),
-            accent = if (stats.errorRate > 0.05) MaterialTheme.colorScheme.error else null
-        )
-    }
-    // Row 4 — input / output split & avg tokens
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        SummaryCard("Input Tokens", formatLargeNumber(stats.totalInputTokens), Modifier.weight(1f))
-        SummaryCard("Output Tokens", formatLargeNumber(stats.totalOutputTokens), Modifier.weight(1f))
-        SummaryCard(
-            "Avg / Req",
-            formatLargeNumber(stats.averageTokensPerRequest.toLong()),
-            Modifier.weight(1f)
-        )
+    var detailsExpanded by rememberSaveable { mutableStateOf(false) }
+    SettingsDisclosure("Request & run details", "Token breakdown, providers and agent runs", detailsExpanded,
+        { detailsExpanded = !detailsExpanded }) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SummaryCard("Input tokens", formatLargeNumber(stats.totalInputTokens), Modifier.weight(1f))
+            SummaryCard("Output tokens", formatLargeNumber(stats.totalOutputTokens), Modifier.weight(1f))
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SummaryCard("Agent runs", stats.totalAgentRuns.toString(), Modifier.weight(1f))
+            SummaryCard("Swarm runs", stats.totalSwarmRuns.toString(), Modifier.weight(1f))
+        }
+        Text("${stats.providerBreakdown.size} providers · ${stats.tokensByModel.size} models · ${formatLargeNumber(stats.averageTokensPerRequest.toLong())} average tokens per request",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
     // Optional meta row — tracking window
     if (stats.firstRecordedAt > 0L && stats.lastRecordedAt > 0L) {
@@ -360,12 +312,12 @@ private fun SummaryCard(
 ) {
     Card(
         modifier = modifier,
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(12.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column(
             modifier = Modifier.padding(12.dp).fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.Start
         ) {
             Text(
                 text = value,
@@ -378,9 +330,9 @@ private fun SummaryCard(
             Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
         }
@@ -391,19 +343,21 @@ private fun SummaryCard(
 
 @Composable
 private fun ProviderDistributionSection(providers: List<ProviderStats>) {
+    val holeColor = MaterialTheme.colorScheme.surfaceContainerLow
     val totalTokens = providers.sumOf { it.totalTokens }.coerceAtLeast(1L)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(12.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Pie chart
             Canvas(
@@ -425,7 +379,7 @@ private fun ProviderDistributionSection(providers: List<ProviderStats>) {
                 // Donut hole for readability
                 val holeSize = size.minDimension * 0.5f
                 drawArc(
-                    color = Color.White,
+                    color = holeColor,
                     startAngle = 0f,
                     sweepAngle = 360f,
                     useCenter = true,
@@ -439,7 +393,7 @@ private fun ProviderDistributionSection(providers: List<ProviderStats>) {
 
             // Legend
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 providers.take(6).forEach { ps ->
@@ -466,7 +420,7 @@ private fun ProviderDistributionSection(providers: List<ProviderStats>) {
                             text = formatPercent(share),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = ps.provider.color()
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -514,8 +468,8 @@ private fun ProviderCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(12.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column {
             // Header — always visible
@@ -785,8 +739,8 @@ private fun TopModelsSection(stats: AnalyticsStats) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(12.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Chip row
@@ -932,8 +886,8 @@ private fun CostLeaderboardSection(stats: AnalyticsStats) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(12.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column {
             // Header
@@ -1039,8 +993,8 @@ private fun DailyTimelineSection(days: List<DailyUsage>) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(12.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Summary row
@@ -1123,8 +1077,8 @@ private fun TopToolsSection(stats: AnalyticsStats) {
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        shape = RoundedCornerShape(12.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(20.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp),

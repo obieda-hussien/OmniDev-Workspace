@@ -1,27 +1,24 @@
 package com.omnidev.workspace.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -38,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -46,6 +44,7 @@ import com.omnidev.workspace.data.auth.GitHubAgentAccessStore
 import com.omnidev.workspace.data.auth.GitHubDeviceFlowManager
 import com.omnidev.workspace.data.auth.GitHubTokenValidator
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.ui.components.SettingsDisclosure
 import kotlinx.coroutines.launch
 
 /**
@@ -67,22 +66,11 @@ fun IntegrationsLinkedAccountsScreen(
     val accessStore = remember(context) { GitHubAgentAccessStore(context) }
     var showGitHubAgentSheet by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        IntegrationsScreen(
-            settingsRepository = settingsRepository,
-            onNavigateBack = onNavigateBack
-        )
-
-        ExtendedFloatingActionButton(
-            onClick = { showGitHubAgentSheet = true },
-            icon = { Icon(Icons.Filled.AccountTree, contentDescription = null) },
-            text = { Text("GitHub Agent Access") },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(20.dp)
-                .navigationBarsPadding()
-        )
-    }
+    IntegrationsScreen(
+        settingsRepository = settingsRepository,
+        onNavigateBack = onNavigateBack,
+        onOpenGitHubAgentAccess = { showGitHubAgentSheet = true }
+    )
 
     if (showGitHubAgentSheet) {
         ModalBottomSheet(onDismissRequest = { showGitHubAgentSheet = false }) {
@@ -103,6 +91,7 @@ private fun GitHubAgentAccessPanel(
     val scope = rememberCoroutineScope()
     val initial = remember { store.policy() }
 
+    var advancedExpanded by remember { mutableStateOf(false) }
     var enabled by remember { mutableStateOf(initial.enabled) }
     var writeEnabled by remember { mutableStateOf(initial.writeEnabled) }
     var destructiveEnabled by remember { mutableStateOf(initial.destructiveEnabled) }
@@ -150,6 +139,8 @@ private fun GitHubAgentAccessPanel(
         modifier = Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
+            .navigationBarsPadding()
+            .imePadding()
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -159,13 +150,12 @@ private fun GitHubAgentAccessPanel(
             fontWeight = FontWeight.Bold
         )
         Text(
-            "GitHub AI Access (Copilot / Models) stays separate above. This section grants Omni account/repository control only when you explicitly enable it.",
+            "Connect your GitHub account and choose which repository actions Omni can perform.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            "This connection also powers Git Manager fetch/pull and, with Write enabled, push. " +
-                "Git Manager accepts only an HTTPS github.com remote from the selected repository root.",
+            "This account powers repository tools and Git Manager. Copilot and Models use a separate AI connection.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -185,7 +175,7 @@ private fun GitHubAgentAccessPanel(
 
         PermissionSwitchRow(
             title = "Allow agent GitHub access",
-            subtitle = "Lets Omni use the separate account token for GitHub API and Git Manager remote operations.",
+            subtitle = "Use this account for repository tools and Git Manager.",
             checked = enabled,
             onCheckedChange = {
                 enabled = it
@@ -195,7 +185,7 @@ private fun GitHubAgentAccessPanel(
 
         PermissionSwitchRow(
             title = "Allow write operations",
-            subtitle = "Allows Git Manager push and GitHub API writes, within the connected token's permissions.",
+            subtitle = "Create or edit repository content and push commits within your token's permissions.",
             checked = writeEnabled,
             enabled = enabled,
             onCheckedChange = {
@@ -205,27 +195,31 @@ private fun GitHubAgentAccessPanel(
             }
         )
 
-        PermissionSwitchRow(
-            title = "Allow destructive operations",
-            subtitle = "Allows DELETE operations. OAuth also requests delete_repo/delete:packages. PAT permissions remain controlled by GitHub. Off by default.",
-            checked = destructiveEnabled,
-            enabled = enabled && writeEnabled,
-            onCheckedChange = {
-                destructiveEnabled = it
-                store.setDestructiveEnabled(it)
-            }
-        )
+        SettingsDisclosure("Advanced permissions", "Deletion and account administration", advancedExpanded,
+            { advancedExpanded = !advancedExpanded }) {
+            PermissionSwitchRow(
+                title = "Allow destructive operations",
+                subtitle = "Allows DELETE operations. OAuth also requests delete_repo/delete:packages. PAT permissions remain controlled by GitHub. Off by default.",
+                checked = destructiveEnabled,
+                enabled = enabled && writeEnabled,
+                onCheckedChange = {
+                    destructiveEnabled = it
+                    store.setDestructiveEnabled(it)
+                }
+            )
 
-        PermissionSwitchRow(
-            title = "Allow advanced account & organization admin",
-            subtitle = "Allows organization/account administration only when the connected GitHub token also has those permissions.",
-            checked = orgAdminEnabled,
-            enabled = enabled,
-            onCheckedChange = {
-                orgAdminEnabled = it
-                store.setOrganizationAdminEnabled(it)
-            }
-        )
+            PermissionSwitchRow(
+                title = "Allow advanced account & organization admin",
+                subtitle = "Allows organization/account administration only when the connected GitHub token also has those permissions.",
+                checked = orgAdminEnabled,
+                enabled = enabled,
+                onCheckedChange = {
+                    orgAdminEnabled = it
+                    store.setOrganizationAdminEnabled(it)
+                }
+            )
+
+        }
 
         HorizontalDivider()
 
@@ -237,7 +231,7 @@ private fun GitHubAgentAccessPanel(
 
         AuthMethodRow(
             title = "Connect with GitHub",
-            subtitle = "OAuth Device Flow. Best for a polished one-tap linked-account experience; requires OmniDev's Device Flow-enabled GitHub OAuth App Client ID.",
+            subtitle = "Authorize through GitHub using a device code.",
             selected = selectedMethod == GitHubAgentAccessStore.AuthMethod.OAUTH_DEVICE_FLOW,
             onClick = {
                 selectedMethod = GitHubAgentAccessStore.AuthMethod.OAUTH_DEVICE_FLOW
@@ -247,7 +241,7 @@ private fun GitHubAgentAccessPanel(
         )
         AuthMethodRow(
             title = "Personal Access Token",
-            subtitle = "No Client ID required. Supports fine-grained or classic PATs; fine-grained is preferred. Omni verifies the token before replacing any existing connection.",
+            subtitle = "Use a fine-grained or classic token. Omni checks it before replacing the current connection.",
             selected = selectedMethod == GitHubAgentAccessStore.AuthMethod.PERSONAL_ACCESS_TOKEN,
             onClick = {
                 selectedMethod = GitHubAgentAccessStore.AuthMethod.PERSONAL_ACCESS_TOKEN
@@ -510,11 +504,11 @@ private fun AuthMethodRow(
     onClick: () -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        RadioButton(selected = selected, onClick = onClick)
+        RadioButton(selected = selected, onClick = null)
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
             Text(
@@ -535,7 +529,7 @@ private fun PermissionSwitchRow(
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().toggleable(value = checked, enabled = enabled, role = Role.Switch, onValueChange = onCheckedChange),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -550,7 +544,7 @@ private fun PermissionSwitchRow(
         Switch(
             checked = checked,
             enabled = enabled,
-            onCheckedChange = onCheckedChange
+            onCheckedChange = null
         )
     }
 }
