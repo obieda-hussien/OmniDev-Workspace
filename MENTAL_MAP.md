@@ -1,6 +1,6 @@
 # خريطة ذهنية سريعة لـ OmniDev Workspace
 
-> لقطة للكود على فرع PR #119 بتاريخ 29 سبتمبر 2026. الأرقام المحدثة وطريقة حسابها في [README](README.md)، والتفاصيل في [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md).
+> دليل سريع لنقاط الدخول ومسارات التشغيل. الأرقام وطريقة حسابها في [README](README.md)، والبنية في [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md)، وتصنيف الملفات في [دليل المشروع](docs/PROJECT_FILES.md).
 
 ## أين أبدأ؟
 
@@ -14,6 +14,9 @@
 | أين تظهر الأدوات؟ | `data/tools/CompositeToolManager.kt`, `TierToolGate.kt` |
 | من أين يأتي كود المستودع؟ | `data/repo/RepoIndexer.kt`, `LocalCodeRetriever.kt` |
 | أين تحفظ الرسائل؟ | `data/db/OmniDevDatabase.kt` (Room v17) |
+| أين أجهز صلاحيات المساعد؟ | `ui/assistant/DeviceAccessActivity.kt` و`data/tools/PermissionManagerTool.kt` |
+| من يتحقق من حالة الوصول؟ | `DeviceAccessCatalog.kt`, `PermissionRequestPlan.kt`, `core/policy/` |
+| من يحافظ على الجلسة العائمة؟ | `data/assistant/AssistantRuntime.kt`, `AssistantController.kt` |
 | أين تضبط النسخ؟ | `app/build.gradle.kts` و`app/src/{lite,norm,pro,oem,admin}/` |
 
 كل المسارات المختصرة للكود أعلاه تبدأ من `app/src/main/java/com/omnidev/workspace/` ما لم يذكر خلاف ذلك.

@@ -1,6 +1,6 @@
 # معمارية OmniDev Workspace
 
-> مرجع للكود على `feature/local-context-and-adaptive-routing`، 29 سبتمبر 2026. الإحصاءات الدقيقة وطريقة عدّها في [README](README.md)؛ المشروع حاليًا وحدة Gradle واحدة `:app` بخمس product flavors.
+> وصف بنية التطبيق ومسؤولياته. الإحصاءات وطريقة عدّها في [README](README.md)، وتصنيف الملفات في [دليل المشروع](docs/PROJECT_FILES.md). المشروع وحدة Gradle واحدة `:app` بخمس نسخ بناء.
 
 ## طبقات التشغيل
 
@@ -16,6 +16,8 @@ flowchart TD
 | الجزء | موضعه تحت `app/src/main/java/com/omnidev/workspace/` | أمثلة |
 |---|---|---|
 | واجهة التطبيق | `ui/`, `MainActivity.kt`, `OmniDevApp.kt` | المحادثة والموفرون والإعدادات والمتصفح |
+| المساعد العائم | `ui/assistant/`, `data/assistant/` | الجلسة، النافذة، الصوت، الكورة والعودة من إعدادات Android |
+| إدارة الوصول | `data/tools/PermissionManagerTool.kt`, `DeviceAccessCatalog.kt`, `PermissionRequestPlan.kt` | اكتشاف الصلاحيات، تهيئة الوصول الخاص والتحقق من المنح |
 | سير الوكيل | `domain/engine/` | `AgentPipeline`, `SwarmOrchestrator`, `AgentRuntime` |
 | قرار الوضع | `domain/engine/` | `IntentClassifier`, `AdaptiveModeRouter`, `ModeOutcomeLearner` |
 | الأدوات | `data/tools/`, `core/tools/` | `CompositeToolManager`, `TierToolGate`, `RepoContextTools` |
@@ -38,7 +40,13 @@ flowchart TD
 
 `app/build.gradle.kts` يعلن `lite`, `norm`, `pro`, `oem`, `admin`، مع مصادر مشتركة `liteNorm`, `proOem`, `proOemAdmin` وحزم/خصائص Manifest حسب الحاجة. `core/policy/TierPolicy` و`ConfirmationGate` وفصل `core/privileged/` يحددون الحدود؛ صلاحيات Android الفعلية وتوفر تطبيق مقابل أو Shizuku/Root شيء منفصل. Admin مخصص للاختبار الداخلي واسع الصلاحيات. قواعد البروتوكول في [LINK_PROTOCOL.md](LINK_PROTOCOL.md) وتكامل [OmniLink v3](OMNILINK_V3_INTEGRATION.md).
 
-**AIDL:** يوجد خمسة ملفات `.aidl` متتبعة. لا نفترض أن وجود اسمين متشابهين عيب ازدواج؛ يحدد اسم الحزمة والتوقيع والاستخدام كل واجهة. أي حذف أو دمج يتطلب فحص المستدعين وبناء نسخ التطبيق المتأثرة. الوثيقة السابقة كانت تصف “مشكلة حرجة” دون تحقق من الحالة الحالية، لذلك لا نكرر هذا الادعاء.
+**AIDL:** يوجد خمسة ملفات `.aidl` متتبعة. لا نفترض أن وجود اسمين متشابهين عيب ازدواج؛ يحدد اسم الحزمة والتوقيع والاستخدام كل واجهة. أي حذف أو دمج يتطلب فحص المستدعين وبناء نسخ التطبيق المتأثرة. توافق الحزمة والتوقيع والمستدعين يحدد سلامة العقد.
+
+## صلاحيات المساعد ومسار التهيئة
+
+`DeviceAccessActivity` يعرض الصلاحيات العادية والخاصة وحالة الروت وShizuku وrish والنظام وDevice/Profile Owner. `PermissionManagerTool` يكتشف التصريحات من الـmerged manifest وتعريفات الصلاحيات على الجهاز، ويفصل منح الخلفية باستخدام `PermissionRequestPlan`. `DeviceAccessCatalog` يراجع الوصول الخاص والمكوّنات المثبتة بدل استنتاج الإذن من اسم نسخة البناء.
+
+`AssistantInputActivity` يربط صفحة الوصول بالجلسة العائمة عبر Activity Result، و`PermissionRequestBridge` يستخدم Activity أمامية لإظهار طلبات Android. `AssistantFlavorPolicy` يتيح أدوات فحص الصلاحيات وطلبها وOmniLink، و`ChatViewModel` يضيف لقطة وصول حديثة لسياق المساعد. منح صلاحية مميزة يمر بالموافقة المناسبة وسجل التدقيق، ثم بفحص قراءة الإذن بعد التنفيذ. التفاصيل في [DEVICE_ACCESS.md](DEVICE_ACCESS.md).
 
 ## خريطة التغيير والتحقق
 

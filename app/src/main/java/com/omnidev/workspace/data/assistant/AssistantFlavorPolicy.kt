@@ -16,10 +16,13 @@ class AssistantFlavorPolicy(private val policy: TierPolicy) {
         add(ToolDomain.WEB_SEARCH)
         add(ToolDomain.GENERAL)
         add(ToolDomain.CODE_TERMINAL) // e.g. read_file; the tier tool filter remains authoritative.
-        if (allowScreenActions) add(ToolDomain.DEVICE_CONTROL)
+        if (allowScreenActions) {
+            add(ToolDomain.DEVICE_CONTROL)
+            add(ToolDomain.MESSAGING)
+        }
     }
     val preferredToolNames: Set<String> get() = if (allowScreenActions)
-        setOf("semantic_ui", "autofill_assist", "ui_automation") else emptySet()
+        setOf("semantic_ui", "autofill_assist", "ui_automation", "check_permission", "request_permission", "omni_link") else emptySet()
     val promptContext: String get() = buildString {
         append("Build: $tier. ")
         if (allowScreenActions) append("Live app inspection and ordinary field actions are supported with Android permission. ")
@@ -27,6 +30,7 @@ class AssistantFlavorPolicy(private val policy: TierPolicy) {
         append(if (policy.allowShizuku) "Shizuku requires its runtime grant. " else "Shizuku is unavailable. ")
         append(if (policy.allowRoot) "Root requires an available authorized backend. " else "Root is unavailable. ")
         if (policy.allowSystemIntegration) append("System integration requires the corresponding device entitlement. ")
+        if (allowScreenActions) append("Check check_permission(permission='all') for actual access before privileged work; request_permission(permission='access_center') opens device setup. Prefer Accessibility for UI, authorized Shizuku/rish for shell work, and explicitly selected root only for root-only work. OmniLink capabilities require a trusted connected peer and its grants; notifications, IME, usage access and document URIs each have independent permissions. A build flag or manifest declaration is not runtime authority. ")
         append(if (policy.autoApproveConfirmations) "Flavor approval is automatic and audited."
             else "Proposed actions follow this flavor's approval gate.")
     }

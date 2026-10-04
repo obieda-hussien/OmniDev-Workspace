@@ -5,7 +5,7 @@ Hold Home or use Android's assistant gesture to open a compact OmniDev card over
 ## Set up and use
 
 1. In **AI Settings → Omni on your screen → Set up assistant**, the result-aware setup bridge requests Android's assistant role. A refused/unavailable OEM chooser falls back to public default-app settings; an already-selected assistant opens default-app settings so its assistant/screen-access options can be reviewed. Allow screen content and screenshots there. Launch failures try additional public Settings routes and return readable manual instructions instead of crashing.
-2. On Norm, Pro, OEM and Admin, enable OmniDev Accessibility to inspect and interact with application UI. Lite accepts attached screens and files but does not expose live app control or bubble setup. The separate Assistant capabilities page has been removed; configure permissions in Android settings as needed. Tool availability still follows app flavor, configured tool switches and Android permissions.
+2. On Norm, Pro, OEM and Admin, enable OmniDev Accessibility to inspect and interact with application UI. Lite accepts attached screens and files but does not expose live app control or bubble setup. Open **Device access and permissions** in assistant settings, or use the shield button on the floating card. This opens the foreground access center and returns to the same conversation. See [device access](../DEVICE_ACCESS.md) for runtime/background requests, special access and verified privileged grants. Tool availability still follows app flavor, configured tool switches and Android permissions.
 3. Invoke Omni. Type or tap the microphone; recording never starts automatically. Recognition uses the device language, partial transcription, an external recognizer excluding Omni's own bridge, bounded provider fallback and system voice input when the embedded service fails. Offline recognition is not forced. **+ → System voice input** also provides a manual fallback, including after a no-match error. Permission, network, recording, language and no-speech failures have distinct messages.
 4. **Screen** attaches the screen supplied at invocation. **Select area** opens a frozen preview and supports reverse drags, portrait, landscape, letterboxing and RTL. Pixels stay in memory until an explicit send or expansion.
 5. **+ → Files, photos & videos** opens Android's document picker directly from the floating card through a transparent result bridge. It returns to the same floating conversation, including when cancelled, without opening the full workspace or requesting broad storage access. Up to five files, 10 MB each and 15 MB combined, are copied to private storage with their actual accessible paths. Images go to vision-capable agent models. Other files, including video, are supplied as paths for tools: attaching a video does not imply that every frame or its audio was analyzed. **File path** is an inline editor in the card and adds an explicit path for existing accessible files. Existing storage, scope and tier policies continue to apply.
@@ -34,6 +34,22 @@ The native `VoiceInteractionSession` is a service-hosted window, not an Activity
 `AssistantRuntime` owns temporary state across Activity-result handoffs and minimization. Result bridges carry the conversation generation, so a late picker/voice/permission result cannot modify a newer Home invocation. Missing external handlers and failed bubble starts return an actionable message. Bubble starts now await the actual view-attachment signal, with a bounded timeout, generation checks and cleanup on rejection/cancellation. Service-start acceptance alone never hides the card or authorizes a gesture. The action guard checks attachment again before executing and rejects hidden-assistant actions without a restoration bubble. Android binds the native assistant services through `BIND_VOICE_INTERACTION`. Only the optional user-started bubble uses `SYSTEM_ALERT_WINDOW` and a special-use foreground service; it is non-exported and non-sticky.
 
 Accessibility reads application windows underneath the assistant rather than the assistant's own focused window. Native assistant screenshots are of the display at invocation, not scrolling page captures; protected applications can refuse them. Screen, file and page content are task evidence, never action authorization.
+
+## Access implementation
+
+| File | Responsibility |
+|---|---|
+| `ui/assistant/DeviceAccessActivity.kt` | Access dashboard, individual/bulk requests, actual status refresh on return |
+| `data/tools/PermissionManagerTool.kt` | Discover merged declarations, request access and read back privileged grants |
+| `data/tools/PermissionRequestPlan.kt` | Android API compatibility, location/media batching and background prerequisites |
+| `data/tools/DeviceAccessCatalog.kt` | Special-access intents, exact service matching, backend and owner states |
+| `ui/assistant/AssistantInputActivity.kt` | Preserve the floating session while setup is open |
+| `data/tools/PermissionRequestBridge.kt` | Foreground Activity for Android runtime dialogs |
+| `ui/assistant/HealthAccessRationaleActivity.kt` | Android 16 health permission-usage/privacy destination |
+
+The assistant receives a compact access snapshot before each request and keeps permission/OmniLink tools discoverable within its existing tier and chat policies. Shell/system development grants and explicit root requests retain the applicable confirmation gate. Passive status reads do not trigger a root prompt. Permission declarations are distinct from implemented operations: the access center does not implement a Health Connect record reader.
+
+All paths in this table are relative to `app/src/main/java/com/omnidev/workspace/`.
 
 ## Validation
 
