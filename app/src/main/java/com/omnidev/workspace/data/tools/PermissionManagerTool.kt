@@ -138,7 +138,7 @@ object PermissionManagerTool {
         if (prerequisites.isNotEmpty() && prerequisites.none { granted(context, it) }) return pending("Grant a foreground prerequisite first: ${prerequisites.joinToString()}")
         // Android 11+ background location is chosen on the app permission page.
         if (name == PermissionRequestPlan.BACKGROUND_LOCATION && Build.VERSION.SDK_INT >= 30) return appSettings(context, "Choose Permissions → Location → Allow all the time.")
-        if (name == PermissionRequestPlan.BACKGROUND_HEALTH) return appSettings(context, "Grant background health access through the device's health permission controller.")
+        // The runtime request routes health permissions to Android's Health Connect controller.
         val batch = if (name in PermissionRequestPlan.staged) listOf(name) else PermissionRequestPlan.foregroundBatch(listOf(name), Build.VERSION.SDK_INT)
         val started = PermissionRequestBridge.requestRuntimePermissions(batch.filter { it in declaredPermissions(context) }.toTypedArray(), REQUEST_CODE)
         return pending(if (started) "Android permission dialog requested for ${batch.joinToString()}. Recheck after user approval. If Android no longer prompts, use the Access center's App permissions button."

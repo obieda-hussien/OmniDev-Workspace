@@ -7,7 +7,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.media.MediaStore
+import android.provider.MediaStore
 import android.net.Uri
 import android.net.VpnService
 import android.os.Build
