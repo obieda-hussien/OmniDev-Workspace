@@ -28,6 +28,9 @@ import android.view.accessibility.AccessibilityNodeInfo
  */
 object SemanticTreeParser {
 
+    private fun protectedInput(node: AccessibilityNodeInfo): Boolean = node.isPassword ||
+        node.viewIdResourceName?.substringAfterLast('/') in setOf("pinEntry", "passwordEntry")
+
     private const val MAX_NODES = 150
     private const val MAX_DEPTH = 30
     private const val MAX_TEXT_LENGTH = 200
@@ -144,7 +147,7 @@ object SemanticTreeParser {
 
         // استخراج عناصر التنقل
         val navElements = allMeta
-            .filter { it.isNavigational }
+            .filter { it.isNavigational && !protectedInput(it.node) }
             .map { meta ->
                 val node = nodeMap[meta.nodeId]
                 "${meta.nodeId}: ${node?.text ?: node?.contentDescription ?: "nav"}"
@@ -222,7 +225,7 @@ object SemanticTreeParser {
         append(className)
 
         // Label من الـ parent (للنماذج)
-        if (showLabel && meta.labelCandidate != null) {
+        if (showLabel && meta.labelCandidate != null && !protectedInput(meta.labelCandidate)) {
             val labelText = meta.labelCandidate.text?.toString()?.trim()
                 ?: meta.labelCandidate.contentDescription?.toString()?.trim()
             if (!labelText.isNullOrEmpty()) {
@@ -231,20 +234,17 @@ object SemanticTreeParser {
         }
 
         // النص
-        val text = node.text?.toString()?.trim()
-        if (!text.isNullOrEmpty()) {
-            if (node.isPassword) append(": \"••••\"")
-            else append(": \"${truncate(text)}\"")
-        }
+        val text = if (protectedInput(node)) "••••" else node.text?.toString()?.trim()
+        if (!text.isNullOrEmpty()) append(": \"${truncate(text)}\"")
 
         // الوصف
-        val desc = node.contentDescription?.toString()?.trim()
+        val desc = if (protectedInput(node)) null else node.contentDescription?.toString()?.trim()
         if (!desc.isNullOrEmpty() && desc != text) {
             append(" [desc: \"${truncate(desc)}\"]")
         }
 
         // الحالة الدلالية من extras
-        val semanticState = readSemanticState(node)
+        val semanticState = if (protectedInput(node)) null else readSemanticState(node)
         if (!semanticState.isNullOrEmpty()) {
             append(" [state: \"${truncate(semanticState)}\"]")
         }
@@ -303,7 +303,7 @@ object SemanticTreeParser {
                 val node = nodeMap[meta.nodeId]!!
                 val label = meta.labelCandidate?.text?.toString()?.trim()
                     ?: meta.labelCandidate?.contentDescription?.toString()?.trim()
-                val placeholder = node.text?.toString()?.trim()
+                val placeholder = if (protectedInput(node)) null else node.text?.toString()?.trim()
                     ?.takeIf { it.isNotEmpty() && !it.all { c -> c.isDigit() } }
                 FormField(
                     nodeId = meta.nodeId,
@@ -349,7 +349,7 @@ object SemanticTreeParser {
 
         val topNodes = allMeta.sortedByDescending { it.priority }.take(3)
         if (topNodes.isNotEmpty()) {
-            val topDesc = topNodes.mapNotNull { meta ->
+            val topDesc = topNodes.filterNot { protectedInput(it.node) }.mapNotNull { meta ->
                 meta.node.text?.toString()?.trim()
                     ?: meta.node.contentDescription?.toString()?.trim()
             }.take(3)
@@ -444,7 +444,7 @@ object SemanticTreeParser {
 
     private fun inferFieldType(node: AccessibilityNodeInfo): FieldType {
         if (!node.isEditable) return FieldType.UNKNOWN
-        if (node.isPassword) return FieldType.PASSWORD
+        if (protectedInput(node)) return FieldType.PASSWORD
 
         val inputType = node.inputType
         val hint = node.text?.toString()?.lowercase() ?: ""
@@ -475,7 +475,7 @@ object SemanticTreeParser {
         if (node.isLongClickable) flags.add("LongClickable")
         if (node.isEditable) flags.add("Editable")
         if (node.isScrollable) flags.add("Scrollable")
-        if (node.isPassword) flags.add("Password")
+        if (protectedInput(node)) flags.add("Password")
         if (node.isCheckable) flags.add(if (node.isChecked) "Checked" else "Unchecked")
         if (node.isSelected) flags.add("Selected")
         if (node.isFocused) flags.add("Focused")
@@ -493,7 +493,7 @@ object SemanticTreeParser {
         val text = node.text?.toString()?.trim()
         if (!text.isNullOrEmpty() && text.length <= MAX_TEXT_LENGTH) return true
 
-        val desc = node.contentDescription?.toString()?.trim()
+        val desc = if (protectedInput(node)) null else node.contentDescription?.toString()?.trim()
         if (!desc.isNullOrEmpty() && desc.length <= MAX_TEXT_LENGTH) return true
 
         if (hasSemanticExtras(node)) return true

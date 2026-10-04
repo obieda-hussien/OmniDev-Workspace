@@ -63,6 +63,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
             setBackgroundDrawableResource(android.R.color.transparent)
             setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
             clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            addFlags(WindowManager.LayoutParams.FLAG_SECURE)
             setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         }
         view.setContent {
@@ -93,6 +94,9 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
 
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
+        if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).let {
+            it.locked() && !it.enabled(com.omnidev.workspace.data.admin.DeviceConsentPolicy.Scope.LOCK_OVERLAY)
+        }) { hide(); return }
         preserveOnHide = false
         AssistantRuntime.begin(context, args?.getBoolean(OmniVoiceInteractionService.RESUME) == true, native = true)
         AssistantRuntime.openAccessCenter = { handoff(AssistantInputActivity.ACCESS) }

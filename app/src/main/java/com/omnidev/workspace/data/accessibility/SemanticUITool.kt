@@ -45,6 +45,8 @@ object SemanticUITool {
     @Volatile
     private var lastParseResult: SemanticTreeParser.ParseResult? = null
 
+    fun clearSnapshot() { lastParseResult = null }
+
     fun recordedSelector(nodeId: String?): com.omnidev.workspace.data.routines.UiSelector? =
         lastParseResult?.nodeMap?.get(nodeId?.uppercase())?.let(com.omnidev.workspace.data.routines.RoutineUi::selector)
 
@@ -118,6 +120,9 @@ object SemanticUITool {
 
     suspend fun execute(action: String, params: Map<String, String>): ToolExecutionResult =
         withContext(Dispatchers.Main) {
+            OmniAccessibilityService.instance?.let { service ->
+                com.omnidev.workspace.data.admin.DeviceAccessGuard.toolDenial(service, "semantic_ui", params + ("action" to action))
+            }?.let { clearSnapshot(); return@withContext it }
             if (action.lowercase() == "auto_enable") return@withContext autoEnable()
 
             if (!AccessibilityStateManager.isServiceConnected.value) {
@@ -356,6 +361,8 @@ object SemanticUITool {
         }
         val node = lastParseResult?.nodeMap?.get(nodeId.uppercase())
             ?: return ToolExecutionResult("[$nodeId] غير موجود. استخدم dump_tree.", isError = true)
+        if (node.isPassword || node.viewIdResourceName?.substringAfterLast('/') in setOf("pinEntry", "passwordEntry"))
+            return ToolExecutionResult("Protected input: value unavailable.", true)
 
         val text = node.text?.toString() ?: ""
         val desc = node.contentDescription?.toString() ?: ""
@@ -368,6 +375,8 @@ object SemanticUITool {
         }
         val node = lastParseResult?.nodeMap?.get(nodeId.uppercase())
             ?: return ToolExecutionResult("[$nodeId] غير موجود. استخدم dump_tree.", isError = true)
+        if (node.isPassword || node.viewIdResourceName?.substringAfterLast('/') in setOf("pinEntry", "passwordEntry"))
+            return ToolExecutionResult("Protected input: value unavailable.", true)
 
         val bounds = Rect().also { node.getBoundsInScreen(it) }
         return ToolExecutionResult(buildString {
@@ -391,6 +400,8 @@ object SemanticUITool {
         }
         val node = lastParseResult?.nodeMap?.get(nodeId.uppercase())
             ?: return ToolExecutionResult("[$nodeId] غير موجود. الواجهة قد تغيّرت — استخدم dump_tree.", isError = true)
+        if (node.isPassword || node.viewIdResourceName?.substringAfterLast('/') in setOf("pinEntry", "passwordEntry"))
+            return ToolExecutionResult("Protected input: value unavailable.", true)
 
         val exists = true
         val stateMatch = when (expectedState?.lowercase()) {

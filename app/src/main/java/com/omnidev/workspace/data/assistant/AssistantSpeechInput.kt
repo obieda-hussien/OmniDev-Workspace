@@ -15,8 +15,10 @@ import java.util.Locale
 class AssistantSpeechInput(private val context: Context, private val controller: AssistantController) {
     private var recognizer: SpeechRecognizer? = null
     private var generation = 0
+    private var lockReceiver: android.content.BroadcastReceiver? = null
 
     fun toggle(onPermissionRequired: () -> Unit, onSystemInput: () -> Unit = {}) {
+        if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { stop(); return }
         if (controller.state.value.listening) { stop(); return }
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             onPermissionRequired(); return
@@ -24,10 +26,15 @@ class AssistantSpeechInput(private val context: Context, private val controller:
         stop()
         val providers = SpeechRecognizerProvider.candidates(context)
         if (providers.isEmpty()) { controller.message("No speech service is installed. Trying system voice input."); onSystemInput(); return }
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) { stop() }
+        }
+        ContextCompat.registerReceiver(context, receiver, android.content.IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_NOT_EXPORTED)
+        lockReceiver = receiver
         val epoch = generation
         var activeIndex = -1
         fun start(index: Int) {
-            if (epoch != generation) return
+            if (epoch != generation || com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { stop(); return }
             activeIndex = index
             recognizer?.destroy()
             controller.message(null)
@@ -43,6 +50,7 @@ class AssistantSpeechInput(private val context: Context, private val controller:
                         override fun onEndOfSpeech() {}
                         override fun onError(error: Int) {
                             if (epoch != generation || activeIndex != index) return
+                            if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { stop(); return }
                             controller.listening(false)
                             if (error in setOf(SpeechRecognizer.ERROR_CLIENT, SpeechRecognizer.ERROR_SERVER, SpeechRecognizer.ERROR_RECOGNIZER_BUSY, 12, 13) && index + 1 < providers.size) {
                                 activeIndex = -1
@@ -63,11 +71,13 @@ class AssistantSpeechInput(private val context: Context, private val controller:
                         }
                         override fun onResults(results: Bundle?) {
                             if (epoch != generation || activeIndex != index) return
+                            if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { stop(); return }
                             controller.listening(false)
                             activeIndex = -1
                             results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.let(controller::input)
                         }
                         override fun onPartialResults(partialResults: Bundle?) {
+                            if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { stop(); return }
                             if (epoch == generation && activeIndex == index) partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.let(controller::input)
                         }
                         override fun onEvent(eventType: Int, params: Bundle?) {}
@@ -84,6 +94,8 @@ class AssistantSpeechInput(private val context: Context, private val controller:
     }
 
     fun stop() {
+        lockReceiver?.let { runCatching { context.unregisterReceiver(it) } }
+        lockReceiver = null
         generation++
         recognizer?.cancel(); recognizer?.destroy(); recognizer = null
         controller.listening(false)

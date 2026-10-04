@@ -72,6 +72,11 @@ class RoutineLearningHub private constructor(private val context: Context) {
         store.save(recipe); changed(); return recipe
     }
     @Synchronized fun onAccessibilityEvent(event: AccessibilityEvent) {
+        // Delayed SystemUI click events can arrive after unlock; never learn their digits.
+        if (event.packageName?.toString() == "com.android.systemui") return
+        // Never learn a credential keypad, consent dialog, or unauthorized settings flow.
+        if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked() ||
+            com.omnidev.workspace.data.admin.DeviceAccessGuard.check(context, event.packageName?.toString(), mutation = true) != null) return
         if (_teaching.value == null || event.packageName?.toString() == context.packageName) return
         if (event.eventType !in setOf(AccessibilityEvent.TYPE_VIEW_CLICKED, AccessibilityEvent.TYPE_VIEW_LONG_CLICKED,
                 AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED, AccessibilityEvent.TYPE_VIEW_SCROLLED)) return

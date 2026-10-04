@@ -6,6 +6,10 @@
 
 **المطوّر والمحدّث ومسؤول صيانة وتكامل منظومة Omni:** [عبدالرحمن حسين — Abdelrahman Hussein / Obieda](https://github.com/obieda-hussien). تُحفظ حقوق وأسماء مؤلفي أي مكوّن أصلي أو اعتماد خارجي؛ هذا الدور يخص تطوير Omni وتعديلاته وتكاملاته. راجع [بيان النسب والحقوق](ATTRIBUTION.md).
 
+## Consented lock-screen access
+
+The device access center provides authenticated opt-ins for screen wake, Android unlock requests, a private assistant panel while locked, lock-screen semantic inspection and sensitive Settings access. Admin adds a device-local encrypted PIN vault with one authorized keypad attempt for 15 minutes. PINs stay out of model arguments, chat and learned tasks. See [Device lock access](docs/DEVICE_LOCK_ACCESS.md) for setup, Android/OEM limits and verification.
+
 ## المحتويات
 
 - [المشروع بالأرقام](#المشروع-بالأرقام)

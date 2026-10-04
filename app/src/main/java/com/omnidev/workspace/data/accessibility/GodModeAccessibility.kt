@@ -171,6 +171,12 @@ object GodModeAccessibility {
         clearFirst: Boolean = false
     ): String {
         if (text.isEmpty()) return "❌ النص فارغ"
+        if (fallbackNode?.isPassword == true ||
+            com.omnidev.workspace.data.admin.DeviceAccessGuard.containsPassword(AccessibilityStateManager.rootNode.value))
+            return "Protected input: user handoff required."
+        OmniAccessibilityService.instance?.let { service ->
+            com.omnidev.workspace.data.admin.DeviceAccessGuard.check(service, mutation = true)
+        }?.let { return it }
 
         // تنظيف الحقل أولاً إذا طُلب
         if (clearFirst) {
