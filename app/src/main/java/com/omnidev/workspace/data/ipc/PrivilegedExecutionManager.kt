@@ -69,7 +69,7 @@ object PrivilegedExecutionManager {
      * [forceProbe] is reserved for an explicit root operation. A short TTL prevents one logical
      * root action from prompting/probing repeatedly while still allowing capability changes later.
      */
-    fun isRootAvailable(forceProbe: Boolean = false): Boolean {
+    fun isRootAvailable(forceProbe: Boolean = false, probeTimeoutMs: Long = 1_500L): Boolean {
         val now = System.currentTimeMillis()
         val age = now - rootHealthCheckedAtMs
         if (rootHealth != RootHealth.UNKNOWN && age in 0 until ROOT_HEALTH_TTL_MS) {
@@ -79,7 +79,7 @@ object PrivilegedExecutionManager {
 
         val ready = runCatching {
             val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "id"))
-            val finished = process.waitFor(1_500, java.util.concurrent.TimeUnit.MILLISECONDS)
+            val finished = process.waitFor(probeTimeoutMs.coerceIn(1_500L, 30_000L), java.util.concurrent.TimeUnit.MILLISECONDS)
             if (!finished) {
                 process.destroy()
                 false

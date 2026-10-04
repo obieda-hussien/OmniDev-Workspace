@@ -2,6 +2,20 @@
 
 The floating assistant and the full agent use the same Android grants and build-tier policy. Open **Settings → Omni on your screen → Device access and permissions**, or the shield button in the floating assistant. The latter uses an Activity-result handoff and returns to the existing conversation after setup.
 
+## One-button setup
+
+**Enable all available access** starts a single setup session. Choose **Shizuku**, **Root**, or **Android** first; only backends allowed in the installed edition appear. The overview reads the merged APK through `PackageManager`, so its declaration count reflects the actual installed build rather than a hard-coded 180 or 208. Search and collapsed sections provide individual controls without listing every permission on the opening screen.
+
+With an authorized privileged backend, setup requests every supported missing dangerous or development permission discovered on the device, including installed companion permissions. Foreground grants precede dependent background grants. It then attempts own-app AppOps for overlay, usage, settings, shared files/media, APK installation and exact alarms; Accessibility, notification-listener and DND access; and battery-optimization exclusion. Existing Accessibility services are preserved. Every attempt is checked through `PackageManager` or the effective special-access API; successful shell execution alone is insufficient.
+
+Shizuku authorization happens once and continues setup after its result. Root is selected explicitly, verifies UID 0, and gives the user up to 30 seconds for the initial superuser prompt. An unavailable or denied backend continues through Android approvals without switching to root. A lost connection ends the privileged pass. Individual failures remain in **Connection & advanced details**.
+
+The remaining runtime, background and special-access screens open one at a time. Setup reads actual access on return and advances even after denial; it never repeatedly prompts for the same step in one session. Skip and Stop are available. The setup ViewModel and Activity-result contracts retain progress across rotation; process recreation starts a fresh session without replaying privileged work automatically. A retry skips grants already available.
+
+Some declarations require a platform signature, privileged installation, a role, managed-device provisioning, installer authorization or a different Android version. Neither a Root selection nor a Shizuku selection guarantees these entitlements. Lock-screen and sensitive access retain their individual Android identity confirmations under a collapsed section; saving or authorizing a PIN remains a separate local operation. Voice training, Termux external-app configuration and OmniLink peer grants also retain their own setup.
+
+Validation covers foreground/background sequencing, companion permissions, denial and retry behavior, protected/tier-blocked declarations, own-package command validation, AppOps effective read-back and preservation/idempotence of Accessibility settings. Physical-device verification is still required for OEM restrictions, initial root-manager approval, service binding and each system consent screen.
+
 ## Lock screen and sensitive access
 
 The access center now has separate authenticated opt-ins for waking the display, requesting Android unlock, assistant presence on the lock screen, semantic lock-screen inspection and Android Settings access. Admin can also store a local encrypted PIN and authorize one keypad attempt for 15 minutes, without exposing the code to the model. See [setup, limits and verification](docs/DEVICE_LOCK_ACCESS.md). Every new scope starts disabled; Admin automatic action approval does not grant user consent.

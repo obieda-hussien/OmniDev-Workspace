@@ -8,7 +8,9 @@ internal object AppOpAccessPlan {
         Entry("appop_usage_stats", "GET_USAGE_STATS", "android.permission.PACKAGE_USAGE_STATS", "usage_stats"),
         Entry("appop_write_settings", "WRITE_SETTINGS", "android.permission.WRITE_SETTINGS", "write_settings"),
         Entry("appop_all_files", "MANAGE_EXTERNAL_STORAGE", "android.permission.MANAGE_EXTERNAL_STORAGE", "all_files", 30),
-        Entry("appop_manage_media", "MANAGE_MEDIA", "android.permission.MANAGE_MEDIA", "manage_media", 31)
+        Entry("appop_manage_media", "MANAGE_MEDIA", "android.permission.MANAGE_MEDIA", "manage_media", 31),
+        Entry("appop_install_packages", "REQUEST_INSTALL_PACKAGES", "android.permission.REQUEST_INSTALL_PACKAGES", "install_unknown_apps", 26),
+        Entry("appop_exact_alarms", "SCHEDULE_EXACT_ALARM", "android.permission.SCHEDULE_EXACT_ALARM", "exact_alarms", 31)
     )
     fun entry(key: String): Entry? = entries.firstOrNull { it.key == key.removePrefix("reset_") }
     fun mode(key: String): String = if (key.startsWith("reset_")) "default" else "allow"
