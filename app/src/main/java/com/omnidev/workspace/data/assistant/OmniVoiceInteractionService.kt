@@ -20,7 +20,8 @@ class OmniVoiceInteractionService : VoiceInteractionService() {
         const val RESUME = "resume_assistant_session"
         const val WAKE_INVOCATION = "local_wake_invocation"
         const val UNLOCK_REQUEST = "local_unlock_request"
-        private var active: OmniVoiceInteractionService? = null
+        @Volatile private var active: OmniVoiceInteractionService? = null
+        val ready get() = active != null
         fun showForUnlock(context: Context): Boolean {
             val consent = com.omnidev.workspace.data.admin.DeviceConsentStore(context)
             if (!consent.enabled(com.omnidev.workspace.data.admin.DeviceConsentPolicy.Scope.LOCK_OVERLAY)) return false

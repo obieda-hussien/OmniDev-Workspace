@@ -42,7 +42,7 @@ class PersonalWakeModel private constructor(
             val nearestNegative = negative.minOf { score(it, positive) }
             val threshold = max(.025f, worstPositive * 1.4f + .015f).coerceAtMost(.5f)
             require(worstPositive < threshold && threshold < nearestNegative * .8f) {
-                "The phrases are not distinct enough. Re-record Hi Omni consistently and use different words for the negative examples."
+                "The phrases are not distinct enough. Re-record your chosen wake phrase consistently and use different words for the negative examples."
             }
             val mean = FloatArray(WakeFeatures.DIM) { c -> positive.sumOf { it.voice[c].toDouble() }.toFloat() / positive.size }
             val variance = FloatArray(mean.size) { c -> max(.01f, positive.sumOf { (it.voice[c] - mean[c]).toDouble().pow(2) }.toFloat() / positive.size) }

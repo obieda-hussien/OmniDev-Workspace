@@ -28,6 +28,19 @@ class AssistantWindowControlsTest {
     @get:Rule val compose = createComposeRule()
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
 
+    @Test fun unlockedAssistantWindowAllowsUserScreenshots() {
+        val context = instrumentation.targetContext
+        org.junit.Assume.assumeFalse(com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked())
+        instrumentation.runOnMainSync {
+            val dialog = android.app.Dialog(android.view.ContextThemeWrapper(context, android.R.style.Theme_Material_Light_Dialog))
+            val window = requireNotNull(dialog.window)
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+            val privacy = AssistantWindowPrivacy(context, window)
+            try { assertEquals(0, window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE) }
+            finally { privacy.close() }
+        }
+    }
+
     @Test fun nonActivityContextCanReviewAndApproveWithoutCreatingDialogWindow() {
         var approvals = 0
         compose.setContent {

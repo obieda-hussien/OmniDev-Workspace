@@ -13,6 +13,16 @@ class WakePreferences(context: Context) {
     val personalVoice get() = prefs.getBoolean("personal_voice", true)
     val lockScreen get() = prefs.getBoolean("lock_screen", false)
     val autoDictation get() = prefs.getBoolean("auto_dictation", false)
+    val phrase get() = runCatching { WakePhrasePolicy.normalize(prefs.getString("phrase", WakePhrasePolicy.DEFAULT).orEmpty()) }.getOrDefault(WakePhrasePolicy.DEFAULT)
+    /** Call off the main thread: changing the phrase invalidates its acoustic profile first. */
+    fun setPhrase(value: String): Boolean {
+        check(userCanConfigure()) { "Unlock the device to change the wake phrase." }
+        val normalized = WakePhrasePolicy.normalize(value)
+        if (normalized == phrase) return true
+        LocalWakeService.stop(context); LocalVoiceSessionService.stop(context)
+        WakeProfileStore(context).delete()
+        return prefs.edit().putString("phrase", normalized).commit()
+    }
     fun setEnabled(value: Boolean) = prefs.edit().putBoolean("enabled", value).commit()
     fun setPersonalVoice(value: Boolean) = prefs.edit().putBoolean("personal_voice", value).commit()
     fun setLockScreen(value: Boolean) = prefs.edit().putBoolean("lock_screen", value).commit()

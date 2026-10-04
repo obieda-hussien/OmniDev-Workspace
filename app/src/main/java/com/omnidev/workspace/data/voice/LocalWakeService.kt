@@ -93,7 +93,7 @@ class LocalWakeService : Service() {
                         segmenter = WakeSegmenter(WakeAudio.calibrate(recorder, chunk) {
                             preferences.allowedNow() && !AssistantRuntime.targetingScreen && !LocalVoiceSessionService.running && audio.mode == AudioManager.MODE_NORMAL && !audio.isMusicActive
                         })
-                        update("Listening locally · say Hi Omni")
+                        update("Listening locally · say ${preferences.phrase}")
                         while (currentCoroutineContext().isActive && preferences.allowedNow() && !AssistantRuntime.targetingScreen && !LocalVoiceSessionService.running &&
                             audio.mode == AudioManager.MODE_NORMAL && !audio.isMusicActive) {
                             val now = SystemClock.elapsedRealtime()
@@ -118,11 +118,12 @@ class LocalWakeService : Service() {
                     // Microphone has been released before Android shows the assistant.
                     main.post {
                         if (active !== this || !preferences.allowedNow() || AssistantRuntime.targetingScreen || LocalVoiceSessionService.running) return@post
+                        update("Wake phrase detected · opening Omni")
                         if (!OmniVoiceInteractionService.wake(this)) {
-                            update("Hi Omni detected · tap to open assistant")
+                            update("Wake phrase detected · tap to open assistant")
                             getSystemService(NotificationManager::class.java).notify(INVOCATION_ID,
                                 NotificationCompat.Builder(this, CHANNEL).setSmallIcon(R.drawable.ic_launcher_foreground)
-                                    .setContentTitle("Hi Omni detected").setContentText("Tap to open Omni. Android's native voice service is unavailable.")
+                                    .setContentTitle("Wake phrase detected").setContentText("Tap to open Omni. Android's native voice service is unavailable.")
                                     .setContentIntent(PendingIntent.getActivity(this, 2, Intent(this, AssistantActivity::class.java), immutable()))
                                     .setAutoCancel(true).setVisibility(NotificationCompat.VISIBILITY_PRIVATE).build())
                         }
@@ -173,8 +174,15 @@ class LocalWakeService : Service() {
         @Volatile private var active: LocalWakeService? = null
         private fun immutable() = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         fun start(context: Context): Boolean {
-            if (!WakePreferences(context).userCanConfigure() || !AssistantSettings.isSelected(context) || !WakeProfileStore(context).exists()) return false
-            if (!WakePreferences(context).setEnabled(true)) return false
+            fun unavailable(reason: String): Boolean { state.value = reason; return false }
+            if (!WakePreferences(context).userCanConfigure()) return unavailable("Unlock the phone, then start listening from Voice activation settings.")
+            if (!AssistantSettings.isSelected(context)) return unavailable("Choose Omni as Android's default digital assistant first.")
+            if (!WakeProfileStore(context).exists()) return unavailable("No trained wake profile. Complete the voice recordings in Step 2 first.")
+            if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                return unavailable("Microphone permission is missing. Allow it in Voice activation settings.")
+            if (context.getSystemService(AudioManager::class.java)?.isMicrophoneMute == true)
+                return unavailable("The microphone is muted. Enable microphone access in Android, then try again.")
+            if (!WakePreferences(context).setEnabled(true)) return unavailable("Could not save listening activation. Try again.")
             return runCatching { ContextCompat.startForegroundService(context, Intent(context, LocalWakeService::class.java)); true }
                 .getOrElse { WakePreferences(context).setEnabled(false); state.value = "Android could not start the microphone service. Open settings and try again."; false }
         }

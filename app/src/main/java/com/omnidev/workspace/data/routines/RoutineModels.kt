@@ -61,7 +61,8 @@ data class RoutineRun(
 
 /** Exact approved aliases only. Ambiguous matches never execute. No model or embedding call. */
 object RoutineMatcher {
-    private val slot = Regex("\\{\\{([a-zA-Z][a-zA-Z0-9_]{0,39})}}")
+    // Android ICU rejects unescaped literal closing braces; JVM Pattern tolerates them.
+    private val slot = Regex("\\{\\{([a-zA-Z][a-zA-Z0-9_]{0,39})\\}\\}")
     fun variables(value: String): Set<String> = slot.findAll(value).map { it.groupValues[1] }.toSet()
     fun bind(value: String, parameters: Map<String, String>): String = slot.replace(value) {
         parameters[it.groupValues[1]] ?: error("Missing parameter: ${it.groupValues[1]}")

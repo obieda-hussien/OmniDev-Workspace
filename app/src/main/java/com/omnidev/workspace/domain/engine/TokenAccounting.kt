@@ -1,6 +1,7 @@
 package com.omnidev.workspace.domain.engine
 
 import com.omnidev.workspace.data.model.ChatMessage
+import com.omnidev.workspace.data.model.AttachmentMediaType
 import com.omnidev.workspace.data.model.CompletionRequest
 import com.omnidev.workspace.data.model.CompletionResponse
 import com.omnidev.workspace.data.tools.ToolDefinition
@@ -55,11 +56,11 @@ object TokenAccounting {
     }
 
     fun estimateInputTokens(request: CompletionRequest): Int {
-        val chars = (request.systemPrompt?.length ?: 0) +
-            request.messages.sumOf(::messageChars) +
-            request.tools.orEmpty().sumOf(::toolChars)
+        val chars = (request.systemPrompt?.length ?: 0).toLong() +
+            request.tools.orEmpty().sumOf { toolChars(it).toLong() }
         // Code, JSON schemas and multilingual text often tokenize denser than plain English.
-        return ((chars + 2) / 3).coerceAtLeast(1)
+        return ((chars + 2) / 3 + request.messages.sumOf { estimateMessageTokens(it).toLong() })
+            .coerceIn(1, Int.MAX_VALUE.toLong()).toInt()
     }
 
     fun estimateResponseTokens(response: CompletionResponse): Int {
@@ -101,15 +102,24 @@ object TokenAccounting {
         return input to (total - input)
     }
 
-    private fun messageChars(message: ChatMessage): Int =
-        message.content.length +
-            message.toolCalls.sumOf { it.name.length + it.arguments.toString().length } +
-            message.toolResults.sumOf { it.toolName.length + it.output.length } +
-            message.attachments.sumOf { attachment ->
-                // Base64 images are provider payload, but counting all base64 chars here would be
-                // wildly pessimistic compared with multimodal tokenization. Use a capped proxy.
-                minOf(attachment.base64Data?.length ?: 0, 12_000)
+    /** Shared by context admission and usage fallback. Encoded image bytes are not text tokens. */
+    fun estimateMessageTokens(message: ChatMessage, charsPerToken: Int = 3): Int {
+        require(charsPerToken in 1..4)
+        val textChars = message.content.length.toLong() +
+            message.toolCalls.sumOf { it.name.length.toLong() + it.arguments.toString().length } +
+            message.toolResults.sumOf { it.toolName.length.toLong() + it.output.length }
+        val mediaTokens = message.attachments.sumOf { attachment ->
+            when {
+                attachment.base64Data.isNullOrEmpty() -> 0L // A path/metadata is not an inline image.
+                attachment.mediaType == AttachmentMediaType.IMAGE -> 4_000L
+                else -> (minOf(attachment.base64Data.length, 12_000) + 2L) / 3
             }
+        }
+        // Conservative provider-independent image proxy, not a price or exact tokenizer result.
+        // The provider's native usage remains authoritative. Do not scale this by base64 length.
+        return (16 + (textChars + charsPerToken - 1) / charsPerToken + mediaTokens)
+            .coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    }
 
     private fun toolChars(tool: ToolDefinition): Int =
         tool.name.length + tool.description.length + tool.parameters.sumOf { parameter ->

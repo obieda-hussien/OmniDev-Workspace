@@ -59,6 +59,8 @@ private fun VoiceWakeScreen(refresh: Int, track: (Job) -> Unit, close: () -> Uni
     var message by remember { mutableStateOf<String?>(null) }
     var selected by remember { mutableStateOf(false) }
     var enabled by remember { mutableStateOf(false) }
+    var phrase by remember { mutableStateOf(prefs.phrase) }
+    var phraseDraft by remember { mutableStateOf(prefs.phrase) }
     fun clearSamples() {
         samples.forEach { s -> s.frames.forEach { it.fill(0f) }; s.voice.fill(0f) }
         samples.clear()
@@ -82,10 +84,10 @@ private fun VoiceWakeScreen(refresh: Int, track: (Job) -> Unit, close: () -> Uni
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Hi Omni", style = MaterialTheme.typography.headlineMedium)
+                    Text("Voice activation", style = MaterialTheme.typography.headlineMedium)
                     TextButton(onClick = close) { Text("Done") }
                 }
-                Text("A personal wake model trained and used entirely on this device. Say Hi Omni, then Omni's assistant panel appears over your screen.")
+                Text("Say ‘$phrase’ to open Omni's assistant panel. Choose your own phrase, train it below, then Start listening.")
                 Text("Experimental acoustic learning: five examples teach the sound of your phrase, two other phrases teach rejection, and a fresh recording checks it. It does not transcribe or verify that you said these exact words.", style = MaterialTheme.typography.bodySmall)
             }
             item { Card(Modifier.fillMaxWidth()) {
@@ -100,21 +102,42 @@ private fun VoiceWakeScreen(refresh: Int, track: (Job) -> Unit, close: () -> Uni
             message?.let { item { Text(it, color = MaterialTheme.colorScheme.primary) } }
             item { Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Enroll and train your voice", style = MaterialTheme.typography.titleMedium)
+                    Text("1 · Choose your wake phrase", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(phraseDraft, { phraseDraft = it.take(60) }, label = { Text("Wake phrase") }, singleLine = true, enabled = !busy, modifier = Modifier.fillMaxWidth())
+                    Text("Any language. Use a distinct short phrase you can say in under three seconds. Changing it stops listening and deletes the old acoustic profile; record new examples afterwards.", style = MaterialTheme.typography.bodySmall)
+                    OutlinedButton(onClick = {
+                        val chosen = runCatching { WakePhrasePolicy.normalize(phraseDraft) }.getOrElse { message = it.message; return@OutlinedButton }
+                        if (chosen == phrase) { phraseDraft = chosen; return@OutlinedButton }
+                        busy = true
+                        track(scope.launch {
+                            try {
+                                check(withContext(Dispatchers.IO) { prefs.setPhrase(chosen) }) { "Could not save the phrase." }
+                                clearSamples(); phrase = prefs.phrase; phraseDraft = phrase; enrolled = store.exists(); enabled = false
+                                message = "Phrase saved. Record five examples, two different phrases and one validation example below."
+                            } catch (cancelled: CancellationException) { throw cancelled }
+                            catch (error: Exception) { message = error.message ?: "Could not change the phrase." }
+                            finally { busy = false }
+                        })
+                    }, enabled = !busy && phraseDraft != phrase) { Text("Save phrase and retrain") }
+                }
+            } }
+            item { Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("2 · Record and train your voice", style = MaterialTheme.typography.titleMedium)
                     Row {
                         Checkbox(consent, { consent = it }, enabled = !busy)
                         Text("I agree to record my voice and save an encrypted local acoustic profile. Raw recordings are discarded. I can delete the model at any time.", Modifier.weight(1f))
                     }
                     Text(when (samples.size) {
-                        in 0..4 -> "${samples.size}/5 wake examples · Press Record, say Hi Omni once naturally, then pause. Try small changes in distance and speaking speed."
+                        in 0..4 -> "${samples.size}/5 wake examples · Press Record, say ‘$phrase’ once naturally, then pause. Try small changes in distance and speaking speed."
                         5 -> "Negative 1/2 · Say a different short phrase, for example: hello today."
-                        6 -> "Negative 2/2 · Say another phrase, for example: open the door. Do not say Hi Omni."
-                        else -> "Validation · Say Hi Omni again. This recording is kept out of training."
+                        6 -> "Negative 2/2 · Say another phrase, for example: open the door. Do not say ‘$phrase’."
+                        else -> "Validation · Say ‘$phrase’ again. This recording is kept out of training."
                     })
                     if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                     Button(onClick = {
                         if (!consent || !permissionReady()) return@Button
-                        LocalWakeService.stop(context); enabled = false; busy = true; message = "Preparing microphone… wait for the speak prompt."
+                        LocalWakeService.stop(context); LocalVoiceSessionService.stop(context); enabled = false; busy = true; message = "Preparing microphone… wait for the speak prompt."
                         track(scope.launch {
                             try {
                                 val sample = WakeAudio.sample(context) { message = "Recording… say the displayed phrase once, then pause. Maximum 12 seconds." }
@@ -130,7 +153,7 @@ private fun VoiceWakeScreen(refresh: Int, track: (Job) -> Unit, close: () -> Uni
                                     } finally { sample.frames.forEach { it.fill(0f) }; sample.voice.fill(0f) }
                                     withContext(Dispatchers.IO) { store.save(model) }
                                     clearSamples(); enrolled = true
-                                    message = "Model trained, validated and encrypted locally. Press Start listening to enable Hi Omni."
+                                    message = "Model trained, validated and encrypted locally. Press Start listening to enable ‘$phrase’."
                                 }
                             } catch (cancelled: CancellationException) { message = "Recording cancelled. Tap Record to try again."; throw cancelled }
                             catch (error: Exception) { message = error.message ?: "Could not record or train. Try again." }
@@ -142,21 +165,38 @@ private fun VoiceWakeScreen(refresh: Int, track: (Job) -> Unit, close: () -> Uni
             } }
             item { Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Listening permissions", style = MaterialTheme.typography.titleMedium)
+                    Text("3 · Start listening", style = MaterialTheme.typography.titleMedium)
                     Row { Switch(personal, { personal = it; prefs.setPersonalVoice(it) }, enabled = !busy); Text("Prefer only my enrolled voice", Modifier.padding(start = 12.dp)) }
                     Text("The voice profile reduces accidental activation. Recordings or similar voices can still match. It never confirms your identity, unlocks Android or approves agent actions.", style = MaterialTheme.typography.bodySmall)
                     Row { Switch(locked, { locked = it; prefs.setLockScreen(it) }, enabled = !busy); Text("Listen while the screen is locked", Modifier.padding(start = 12.dp)) }
                     Text("Requires separate device permissions for waking the screen and showing the assistant on the lock screen. The locked panel hides chat history. Local voice conversation is a separate opt-in below.", style = MaterialTheme.typography.bodySmall)
                     TextButton(onClick = { context.startActivity(Intent(context, DeviceAccessActivity::class.java)) }, enabled = !busy) { Text("Lock-screen permissions") }
-                    Row { Switch(dictation, { dictation = it; prefs.setAutoDictation(it) }, enabled = !busy); Text("Local voice conversation after Hi Omni", Modifier.padding(start = 12.dp)) }
+                    Row { Switch(dictation, { dictation = it; prefs.setAutoDictation(it) }, enabled = !busy); Text("Local voice conversation after wake", Modifier.padding(start = 12.dp)) }
                     Text("Direct offline speech recognition, with no Google startup tones. The assistant speaks using an installed offline Android voice. Private spoken unlock requires its own authenticated permission in Device access. Voice matching is not identity verification.", style = MaterialTheme.typography.bodySmall)
                     Button(onClick = {
                         if (enabled) { LocalWakeService.stop(context); enabled = false }
                         else if (permissionReady()) {
                             enabled = LocalWakeService.start(context)
-                            if (!enabled) message = "Unlock the device, select Omni as the default assistant and enroll a model first."
+                            if (!enabled) message = LocalWakeService.status.value
                         }
-                    }, enabled = !busy && (enabled || (enrolled && selected))) { Text(if (enabled) "Stop listening" else "Start listening") }
+                    }, enabled = !busy) { Text(if (enabled) "Stop listening" else "Start listening") }
+                    if (!enrolled) Text("Not trained yet: complete Step 2 before listening. Enabling lock-screen access does not train the detector.", style = MaterialTheme.typography.bodySmall)
+                    if (selected && !com.omnidev.workspace.data.assistant.OmniVoiceInteractionService.ready) Text("Omni's native voice service is not ready. Re-select Omni in Android's Digital assistant settings. If activation cannot open a session, use the wake notification to open Omni.", style = MaterialTheme.typography.bodySmall)
+                    OutlinedButton(onClick = {
+                        if (!permissionReady()) return@OutlinedButton
+                        LocalWakeService.stop(context); LocalVoiceSessionService.stop(context); enabled = false; busy = true
+                        track(scope.launch {
+                            var sample: WakeFeatures.Sample? = null
+                            try {
+                                sample = WakeAudio.sample(context) { message = "Test recording · say ‘$phrase’ once, then pause." }
+                                val result = withContext(Dispatchers.Default) { store.load().match(sample!!, personal) }
+                                message = if (result.accepted) "Phrase matched. Press Start listening, close the assistant panel, then say it again."
+                                    else "No match. Try a quiet room and consistent pronunciation, disable Prefer only my enrolled voice to test the phrase alone, or retrain."
+                            } catch (cancelled: CancellationException) { throw cancelled }
+                            catch (error: Exception) { message = error.message ?: "Could not test the phrase." }
+                            finally { sample?.let { it.frames.forEach { frame -> frame.fill(0f) }; it.voice.fill(0f) }; busy = false }
+                        })
+                    }, enabled = !busy && enrolled) { Text("Test my phrase now") }
                     OutlinedButton(onClick = {
                         LocalWakeService.stop(context); enabled = false
                         track(scope.launch {

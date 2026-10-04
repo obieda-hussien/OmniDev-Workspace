@@ -114,7 +114,7 @@ private fun DeviceAccessScreen(refresh: Int, onRefresh: () -> Unit, onClose: () 
             }
             item { DeviceConsentCard() }
             if (policy.allowAccessibility) item {
-                OutlinedButton(onClick = { context.startActivity(Intent(context, VoiceWakeActivity::class.java)) }) { Text("Hi Omni · local voice enrollment") }
+                OutlinedButton(onClick = { context.startActivity(Intent(context, VoiceWakeActivity::class.java)) }) { Text("Voice activation · train and test my phrase") }
             }
             item { Text("Special access", style = MaterialTheme.typography.titleLarge) }
             for (entry in DeviceAccessCatalog.entries) {

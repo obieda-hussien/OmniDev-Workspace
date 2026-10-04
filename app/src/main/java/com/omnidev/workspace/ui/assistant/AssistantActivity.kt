@@ -18,6 +18,7 @@ class AssistantActivity : ComponentActivity() {
     private val controller by lazy { AssistantRuntime.get(this) }
     private val speech by lazy { AssistantSpeechInput(this, controller) }
     private var preserveOnClose = false
+    private var capturePrivacy: AssistantWindowPrivacy? = null
     private fun handoff(action: String): Boolean {
         speech.stop()
         return runCatching { startActivity(AssistantInputActivity.intent(this, action)) }
@@ -28,7 +29,7 @@ class AssistantActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        capturePrivacy = AssistantWindowPrivacy(this, window)
         val lockConsent = com.omnidev.workspace.data.admin.DeviceConsentStore(this)
             .enabled(com.omnidev.workspace.data.admin.DeviceConsentPolicy.Scope.LOCK_OVERLAY)
         if (com.omnidev.workspace.data.admin.DeviceConsentStore(this).locked() && !lockConsent) { finish(); return }
@@ -63,10 +64,11 @@ class AssistantActivity : ComponentActivity() {
             }
         }
     }
-    override fun onResume() { super.onResume(); com.omnidev.workspace.data.tools.PermissionRequestBridge.attach(this) }
+    override fun onResume() { super.onResume(); capturePrivacy?.refresh(); com.omnidev.workspace.data.tools.PermissionRequestBridge.attach(this) }
     override fun onPause() { com.omnidev.workspace.data.tools.PermissionRequestBridge.detach(this); super.onPause() }
     override fun onStop() { speech.stop(); super.onStop() }
     override fun onDestroy() {
+        capturePrivacy?.close(); capturePrivacy = null
         speech.stop()
         AssistantRuntime.openAccessCenter = null
         AssistantRuntime.minimizeForAction = null

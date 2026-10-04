@@ -4,11 +4,13 @@ Available in Norm, Pro, OEM and Admin. Lite keeps the normal assistant gesture b
 
 ## Setup
 
-1. Open assistant settings → **Hi Omni · local voice wake**, or the same entry in Device access.
+1. Open **AI Settings → Omni on your screen → Voice activation · phrase, training & listening**, or the enrollment entry in Device access. This page is included in builds from PR #132; older builds that only have wake-screen consent do not include voice enrollment.
 2. Select Omni as Android's default digital assistant. Grant microphone permission; allow notifications so the listening controls remain visible.
-3. Agree to record and save a local profile. Record **Hi Omni** five times, with small natural changes in speed and distance. Pause after each phrase.
-4. Record two different short phrases as negative examples, then a fresh **Hi Omni** recording for validation. The model is saved only after training and this held-out check pass.
-5. Press **Start listening**. Say the phrase by itself, pause briefly, then use the panel. Enable **Local voice conversation after Hi Omni**, install a speech model and an offline Android TTS voice. The local session then listens for commands and speaks replies without Google recognizer startup tones.
+3. Choose a short custom phrase in any language, or keep **Hi Omni**. Save a changed phrase, then agree to record and save a local profile. Record your chosen phrase five times, with small natural changes in speed and distance. Pause after each phrase.
+4. Record two different short phrases as negative examples, then a fresh chosen-phrase recording for validation. The model is saved only after training and this held-out check pass. **Test my phrase now** records a fresh sample and reports whether the saved model matches, without opening the assistant or saving the recording.
+5. Press **Start listening**. Say the phrase by itself, pause briefly, then use the panel. Enable **Local voice conversation after wake**, install a speech model and an offline Android TTS voice. The local session then listens for commands and speaks replies without Google recognizer startup tones.
+
+Changing a phrase stops both listening services and deletes the old acoustic profile/key before saving the new label. Train new examples before restarting. A phrase is at most 60 characters and should fit in the detector's three-second utterance bound; invisible/control characters are rejected. Granting wake/lock-screen permissions alone neither trains nor starts the microphone. Startup reports missing training, assistant selection, microphone permission or a muted microphone; the live detector status explains permission, active-assistant, playback and call pauses. If the native voice service is unavailable after selecting Omni, re-select it in Android's Digital assistant settings or use the detected-phrase notification fallback.
 6. Stop from settings or the notification. **Delete my voice profile** stops listening and removes both the saved model and its Keystore key.
 
 For screen-off detection, enable the separate authenticated **Wake screen** permission in Device access. For a locked screen, also enable **Assistant on lock screen** and **Listen while the screen is locked**. The existing private lock-screen panel applies: no conversation history or attachments. A separately enabled local voice session can collect an unlock request; private code input needs **Enter a spoken unlock code locally** and **Request Android unlock**. A wake match never arms or consumes a saved PIN permit.

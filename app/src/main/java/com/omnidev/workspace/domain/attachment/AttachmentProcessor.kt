@@ -24,7 +24,7 @@ import java.io.InputStream
  * files, etc. directly into the chat for the agent to reason about.
  *
  * Enforces safety limits (count / total size) even in God Mode:
- * - Maximum 5 files per request
+ * - Maximum 10 files per request
  * - Maximum 15 MB total payload size
  * - Maximum 10 MB per single file
  *
@@ -45,7 +45,7 @@ class AttachmentProcessor(
 
     companion object {
         /** Maximum number of attachments allowed in a single request. */
-        const val MAX_ATTACHMENT_COUNT = 5
+        const val MAX_ATTACHMENT_COUNT = 10
 
         /** Maximum cumulative size of all attachments in bytes (15 MB). */
         const val MAX_TOTAL_SIZE_BYTES = 15L * 1024L * 1024L

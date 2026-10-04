@@ -6,6 +6,7 @@ import android.net.Uri
 import com.omnidev.workspace.ui.assistant.ScreenSelection
 import com.omnidev.workspace.ui.chat.ChatViewModel
 import com.omnidev.workspace.ui.chat.PendingAttachment
+import com.omnidev.workspace.domain.attachment.AttachmentProcessor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -64,8 +65,8 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
         scope.launch {
             val created = mutableListOf<File>()
             try {
-                val available = 5 - mutable.value.files.size - if (mutable.value.attachment != null) 1 else 0
-                require(uris.size <= available) { "Attach up to five files per message." }
+                val available = AttachmentProcessor.MAX_ATTACHMENT_COUNT - mutable.value.files.size - if (mutable.value.attachment != null) 1 else 0
+                require(uris.size <= available) { "Attach up to ${AttachmentProcessor.MAX_ATTACHMENT_COUNT} files per message, including the selected screen." }
                 var total = mutable.value.files.sumOf { File(it.uri.path.orEmpty()).length() }
                 val files = withContext(Dispatchers.IO) {
                     uris.map { uri ->
@@ -82,7 +83,7 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
                                 while (true) {
                                     val count = input.read(buffer); if (count < 0) break
                                     size += count; total += count
-                                    require(size <= 10L * 1024 * 1024 && total <= 15L * 1024 * 1024) { "Files must be at most 10 MB each and 15 MB combined. Use a file path for larger media." }
+                                    require(size <= AttachmentProcessor.MAX_SINGLE_FILE_SIZE_BYTES && total <= AttachmentProcessor.MAX_TOTAL_SIZE_BYTES) { "Files must be at most 10 MB each and 15 MB combined. Use a file path for larger media." }
                                     output.write(buffer, 0, count)
                                 }
                             }
@@ -185,7 +186,7 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
                     PendingAttachment(Uri.fromFile(file!!), "Selected screen.png")
                 }
                 val attachments = current.files + listOfNotNull(image)
-                require(attachments.size <= 5 && attachments.sumOf { File(it.uri.path.orEmpty()).length() } <= 15L * 1024 * 1024 && attachments.all { File(it.uri.path.orEmpty()).length() <= 10L * 1024 * 1024 }) { "Attach up to five files, at most 10 MB each and 15 MB combined." }
+                require(attachments.size <= AttachmentProcessor.MAX_ATTACHMENT_COUNT && attachments.sumOf { File(it.uri.path.orEmpty()).length() } <= AttachmentProcessor.MAX_TOTAL_SIZE_BYTES && attachments.all { File(it.uri.path.orEmpty()).length() <= AttachmentProcessor.MAX_SINGLE_FILE_SIZE_BYTES }) { "Attach up to ${AttachmentProcessor.MAX_ATTACHMENT_COUNT} files, at most 10 MB each and 15 MB combined." }
                 if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { file?.delete(); clearScreen(); return@launch }
                 if (epoch != generation || !chat.sendAssistantMessage(prompt, attachments, AssistantRuntime.targetPackage?.let { "Foreground app package: $it." }.orEmpty())) {
                     file?.delete()
