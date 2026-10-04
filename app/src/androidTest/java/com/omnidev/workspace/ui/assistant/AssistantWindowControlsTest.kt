@@ -1,12 +1,16 @@
 package com.omnidev.workspace.ui.assistant
 
 import android.app.Activity
-import android.app.Instrumentation
-import android.app.role.RoleManager
-import android.content.IntentFilter
-import android.os.Build
+import android.content.Intent
+import androidx.activity.result.ActivityResultRegistry
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.core.app.ActivityOptionsCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
 import android.provider.Settings
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalContext
@@ -17,7 +21,6 @@ import com.omnidev.workspace.ui.chat.ConfirmationGateCard
 import com.omnidev.workspace.ui.chat.ConfirmationType
 import com.omnidev.workspace.ui.chat.PendingConfirmation
 import org.junit.Assert.assertEquals
-import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -83,21 +86,54 @@ class AssistantWindowControlsTest {
         compose.runOnIdle { assertEquals("/storage/emulated/0/Movies/demo.mp4", addedPath) }
     }
 
-    @Test fun cancelledOemRoleRequestFallsBackToDefaultAppSettings() {
-        assumeTrue(Build.VERSION.SDK_INT >= 29)
-        val roles = instrumentation.targetContext.getSystemService(RoleManager::class.java) ?: return
-        assumeTrue(roles.isRoleAvailable(RoleManager.ROLE_ASSISTANT) && !roles.isRoleHeld(RoleManager.ROLE_ASSISTANT))
-        val cancelled = Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null)
-        val roleMonitor = instrumentation.addMonitor(IntentFilter("android.app.role.action.REQUEST_ROLE"), cancelled, true)
-        val defaultsMonitor = instrumentation.addMonitor(IntentFilter(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS), cancelled, true)
-        try {
-            compose.setContent { MaterialTheme { AssistantSettingsCard() } }
-            compose.onNodeWithText("Set up assistant").performClick()
-            compose.waitUntil(5_000) { roleMonitor.hits > 0 && defaultsMonitor.hits > 0 }
-            assertEquals(1, defaultsMonitor.hits)
-        } finally {
-            instrumentation.removeMonitor(roleMonitor)
-            instrumentation.removeMonitor(defaultsMonitor)
+    @Test fun fullConversationCannotHidePendingApprovalOrActiveRun() {
+        val pending = mutableStateOf(true)
+        val processing = mutableStateOf(false)
+        var expansions = 0
+        compose.setContent {
+            MaterialTheme {
+                Column {
+                    AssistantExpandButton(false, false, processing.value, pending.value) { expansions++ }
+                    if (pending.value) ConfirmationGateCard(PendingConfirmation("request", ConfirmationType.ASSISTANT_ACTION,
+                        "Fill Name with Obieda", onApprove = { pending.value = false }, onDeny = { pending.value = false }))
+                }
+            }
         }
+        val expand = compose.onNodeWithContentDescription("Open full conversation")
+        expand.assertIsNotEnabled().performClick()
+        compose.runOnIdle { assertEquals(0, expansions) }
+        compose.onNodeWithText("Allow").performClick()
+        compose.runOnIdle { processing.value = true }
+        expand.assertIsNotEnabled()
+        compose.runOnIdle { processing.value = false }
+        expand.assertIsEnabled().performClick()
+        compose.runOnIdle { assertEquals(1, expansions) }
+    }
+
+    @Test fun cancelledOemRoleRequestFallsBackToDefaultAppSettings() {
+        val launched = mutableListOf<String?>()
+        var result: Int? = null
+        instrumentation.runOnMainSync {
+            val owner = object : LifecycleOwner {
+                val state = LifecycleRegistry(this)
+                override val lifecycle: Lifecycle get() = state
+            }
+            owner.state.currentState = Lifecycle.State.CREATED
+            val registry = object : ActivityResultRegistry() {
+                override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>,
+                    input: I, options: ActivityOptionsCompat?) {
+                    launched += contract.createIntent(instrumentation.targetContext, input).action
+                    dispatchResult(requestCode, Activity.RESULT_CANCELED, null)
+                }
+            }
+            val flow = AssistantSetupFlow(registry, owner,
+                roleRequest = { Intent("android.app.role.action.REQUEST_ROLE") },
+                isSelected = { false }, finish = { code, _ -> result = code })
+            owner.state.currentState = Lifecycle.State.STARTED
+            flow.start()
+            owner.state.currentState = Lifecycle.State.DESTROYED
+        }
+        assertEquals(listOf("android.app.role.action.REQUEST_ROLE", Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS), launched)
+        assertEquals(Activity.RESULT_CANCELED, result)
     }
 }

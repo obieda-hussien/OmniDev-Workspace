@@ -82,7 +82,7 @@ fun AssistantOverlay(
     val chat by controller.chat.uiState.collectAsStateWithLifecycle()
     val colors = MaterialTheme.colorScheme
     val motion = LocalOmniMotion.current
-    val busy = chat.isProcessing || screen.saving
+    val busy = chat.isProcessing || screen.saving || screen.minimizing
     val flavor = controller.flavor
     val reveal = remember { MutableTransitionState(false) }.apply { targetState = screen.visible }
     val scope = rememberCoroutineScope()
@@ -124,11 +124,11 @@ fun AssistantOverlay(
                         Image(painterResource(R.drawable.ic_launcher_foreground), "OmniDev", Modifier.size(40.dp).clip(CircleShape).background(colors.primaryContainer))
                         Column(Modifier.weight(1f).padding(start = 8.dp)) {
                             Text("OmniDev", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text(if (screen.listening) "Listening…" else if (busy) chat.agentStatus ?: "Working…" else "Agent · ${flavor.tier}",
+                            Text(if (screen.listening) "Listening…" else if (screen.minimizing) "Starting bubble…" else if (busy) chat.agentStatus ?: "Working…" else "Agent · ${flavor.tier}",
                                 style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant, maxLines = 1)
                         }
-                        if (flavor.allowBubble) IconButton(onClick = { leave(onMinimize) }, enabled = !screen.saving) { Icon(Icons.Default.Remove, "Minimize to floating bubble") }
-                        IconButton(onClick = onExpand, enabled = !screen.saving) { Icon(Icons.Default.OpenInFull, "Open full conversation") }
+                        if (flavor.allowBubble) IconButton(onClick = onMinimize, enabled = !screen.saving && !screen.minimizing) { Icon(Icons.Default.Remove, "Minimize to floating bubble") }
+                        AssistantExpandButton(screen.saving, screen.minimizing, chat.isProcessing, chat.pendingConfirmation != null, onExpand)
                         IconButton(onClick = { leave(onDismiss) }) { Icon(Icons.Default.Close, "Close and save conversation") }
                     }
                     val confirmation = chat.pendingConfirmation
@@ -221,7 +221,7 @@ fun AssistantOverlay(
                             }
                             OutlinedTextField(screen.input, controller::input, placeholder = { Text("Ask Omni…") }, shape = RoundedCornerShape(22.dp), modifier = Modifier.weight(1f), maxLines = 3, enabled = !busy)
                             IconButton(onClick = onMicrophone, enabled = !busy) { Icon(if (screen.listening) Icons.Default.MicOff else Icons.Default.Mic, if (screen.listening) "Stop listening" else "Speak your question") }
-                            FilledIconButton(onClick = { if (busy) controller.chat.cancelCurrentRun() else controller.send() }, enabled = !screen.saving && (busy || screen.input.isNotBlank())) {
+                            FilledIconButton(onClick = { if (busy) controller.chat.cancelCurrentRun() else controller.send() }, enabled = !screen.saving && !screen.minimizing && (busy || screen.input.isNotBlank())) {
                                 Icon(if (busy) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send, if (busy) "Stop request" else "Send question")
                             }
                         }

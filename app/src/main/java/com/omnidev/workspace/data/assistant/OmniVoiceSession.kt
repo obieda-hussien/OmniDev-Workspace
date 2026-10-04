@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Bundle
+import android.provider.Settings
+import kotlinx.coroutines.*
 import android.service.voice.VoiceInteractionSession
 import android.view.View
 import android.view.ViewGroup
@@ -30,6 +32,7 @@ import com.omnidev.workspace.ui.theme.OmniDevTheme
 
 class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
     private val owner = SessionOwner()
+    private val uiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val controller by lazy { AssistantRuntime.get(context) }
     private val speech by lazy { AssistantSpeechInput(context, controller) }
     private var composition: ComposeView? = null
@@ -75,7 +78,10 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
                 }, onSetup = { handoff(AssistantInputActivity.SETTINGS) },
                     onAttach = { handoff(AssistantInputActivity.FILES) },
                     onSystemVoice = { handoff(AssistantInputActivity.VOICE) },
-                    onMinimize = { handoff(AssistantInputActivity.BUBBLE) },
+                    onMinimize = {
+                        if (!Settings.canDrawOverlays(context)) handoff(AssistantInputActivity.BUBBLE)
+                        else uiScope.launch { AssistantRuntime.minimizeForAction?.invoke() }
+                    },
                     onMicrophone = {
                         speech.toggle({ handoff(AssistantInputActivity.MICROPHONE) }, { handoff(AssistantInputActivity.VOICE) })
                     }
@@ -110,6 +116,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
     }
 
     override fun onHide() {
+        uiScope.coroutineContext.cancelChildren()
         speech.stop()
         AssistantRuntime.minimizeForAction = null
         if (preserveOnHide) controller.hide() else AssistantRuntime.close(context)
@@ -119,6 +126,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
     }
 
     override fun onDestroy() {
+        uiScope.cancel()
         speech.stop()
         if (!preserveOnHide) AssistantRuntime.close(context)
         owner.registry.currentState = Lifecycle.State.DESTROYED

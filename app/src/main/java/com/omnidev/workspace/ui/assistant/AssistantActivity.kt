@@ -2,6 +2,9 @@ package com.omnidev.workspace.ui.assistant
 
 import android.os.Bundle
 import android.content.Intent
+import android.provider.Settings
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -41,7 +44,10 @@ class AssistantActivity : ComponentActivity() {
                         finish()
                     }
                 }, onSetup = { handoff(AssistantInputActivity.SETTINGS) },
-                    onAttach = { handoff(AssistantInputActivity.FILES) }, onSystemVoice = { handoff(AssistantInputActivity.VOICE) }, onMinimize = { handoff(AssistantInputActivity.BUBBLE) },
+                    onAttach = { handoff(AssistantInputActivity.FILES) }, onSystemVoice = { handoff(AssistantInputActivity.VOICE) }, onMinimize = {
+                        if (!Settings.canDrawOverlays(this)) handoff(AssistantInputActivity.BUBBLE)
+                        else lifecycleScope.launch { AssistantRuntime.minimizeForAction?.invoke() }
+                    },
                     onMicrophone = { speech.toggle({ handoff(AssistantInputActivity.MICROPHONE) }, { handoff(AssistantInputActivity.VOICE) }) })
             }
         }

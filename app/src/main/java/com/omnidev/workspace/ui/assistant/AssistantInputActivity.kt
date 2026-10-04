@@ -7,6 +7,8 @@ import android.os.Bundle
 import android.provider.Settings
 import android.speech.RecognizerIntent
 import androidx.activity.ComponentActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.activity.result.contract.ActivityResultContracts
 import com.omnidev.workspace.data.assistant.*
 
@@ -65,7 +67,7 @@ class AssistantInputActivity : ComponentActivity() {
         voice.launch(AssistantSpeechInput.intent())
     }
     private fun minimize() {
-        if (AssistantBubbleService.show(this)) finish() else resume()
+        lifecycleScope.launch { if (AssistantBubbleService.show(this@AssistantInputActivity)) finish() else resume() }
     }
     private fun resume() {
         if (isCurrent()) runCatching { OmniVoiceInteractionService.resume(this) }.onFailure {

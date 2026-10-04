@@ -25,6 +25,7 @@ data class AssistantScreenState(
     val attachment: Bitmap? = null,
     val selecting: Boolean = false,
     val saving: Boolean = false,
+    val minimizing: Boolean = false,
     val message: String? = null,
     val listening: Boolean = false,
     val visible: Boolean = false
@@ -98,6 +99,7 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
     }
     fun input(value: String) { mutable.update { it.copy(input = value) } }
     fun message(value: String?) { mutable.update { it.copy(message = value) } }
+    fun minimizing(value: Boolean) { mutable.update { it.copy(minimizing = value) } }
     fun listening(value: Boolean) { mutable.update { it.copy(listening = value) } }
     fun screenshot(bitmap: Bitmap?) {
         if (!mutable.value.visible) return
@@ -123,14 +125,14 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
     /** Explicit expand also transfers an unsent screen question into the full composer. */
     fun openConversation(open: () -> Unit) {
         val current = mutable.value
-        if (current.saving) return
+        if (current.saving || current.minimizing || chat.uiState.value.isProcessing || chat.uiState.value.pendingConfirmation != null) return
         val epoch = generation
         mutable.update { it.copy(saving = true) }
         scope.launch {
             var file: File? = null
             try {
                 current.attachment?.let { file = persistImage(it) }
-                if (epoch != generation) { file?.delete(); return@launch }
+                if (epoch != generation || chat.uiState.value.isProcessing || chat.uiState.value.pendingConfirmation != null) { file?.delete(); return@launch }
                 val fullChat = com.omnidev.workspace.WorkspaceChatRuntime.get(context)
                 chat.uiState.value.currentSessionId?.let(fullChat::loadSession)
                 if (current.input.isNotBlank()) fullChat.onInputChanged(current.input)
@@ -162,7 +164,7 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
 
     fun send(prompt: String = mutable.value.input) {
         val current = mutable.value
-        if (current.saving || chat.uiState.value.isProcessing || prompt.isBlank()) return
+        if (current.saving || current.minimizing || chat.uiState.value.isProcessing || prompt.isBlank()) return
         val epoch = generation
         mutable.update { it.copy(saving = true, message = null) }
         scope.launch {
