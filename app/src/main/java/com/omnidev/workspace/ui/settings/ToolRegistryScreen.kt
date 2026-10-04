@@ -2,9 +2,7 @@ package com.omnidev.workspace.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -13,13 +11,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.omnidev.workspace.ui.components.SettingsPageTabs
 import com.omnidev.workspace.ui.motion.OmniIconButton
 
 /**
@@ -37,18 +40,13 @@ fun ToolRegistryScreen(
     onNavigateBack: () -> Unit = {},
     onCreateSkillWithOmni: (String) -> Unit = {}
 ) {
+    var selectedTab by rememberSaveable { mutableStateOf(0) }
+    val tabStates = rememberSaveableStateHolder()
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("Agent Skills")
-                        Text(
-                            "Built-in, imported, and Omni-created skills",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    Text("Agent skills")
                 },
                 navigationIcon = {
                     OmniIconButton(onClick = onNavigateBack) {
@@ -58,19 +56,18 @@ fun ToolRegistryScreen(
             )
         }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-                .navigationBarsPadding()
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Spacer(Modifier.height(4.dp))
-            LearnedTasksPanel(onAskOmni = onCreateSkillWithOmni)
-            SkillsSettingsPanel(onCreateWithOmni = onCreateSkillWithOmni)
-            Spacer(Modifier.height(24.dp))
+        Column(Modifier.fillMaxSize().padding(innerPadding)) {
+            SettingsPageTabs(listOf("Skill library", "Learned tasks"), selectedTab, { selectedTab = it })
+            tabStates.SaveableStateProvider(selectedTab) {
+                if (selectedTab == 0) {
+                    SkillsSettingsPanel(onCreateWithOmni = onCreateSkillWithOmni, modifier = Modifier.weight(1f))
+                } else {
+                    Column(
+                        Modifier.weight(1f).verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) { LearnedTasksPanel(onAskOmni = onCreateSkillWithOmni) }
+                }
+            }
         }
     }
 }

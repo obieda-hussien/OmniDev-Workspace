@@ -23,9 +23,8 @@ import com.omnidev.workspace.data.routines.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LearnedTasksPanel(onAskOmni: (String) -> Unit) {
     val context = LocalContext.current
@@ -67,7 +66,7 @@ fun LearnedTasksPanel(onAskOmni: (String) -> Unit) {
             Switch(hub.captureEnabled, { hub.setCapture(it) })
         }
         Text("Drafts stay inactive until reviewed. Inputs become parameters; recorded input text is never saved.", style = MaterialTheme.typography.labelSmall)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedButton(enabled = teaching == null && !busy, onClick = { name = ""; importing = false; naming = true }) { Text("Teach live") }
             OutlinedButton(enabled = !busy, onClick = { name = ""; importing = true; naming = true }) { Text(if (busy) "Importing…" else "From video") }
         }
@@ -75,7 +74,7 @@ fun LearnedTasksPanel(onAskOmni: (String) -> Unit) {
             Card { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(it)
                 Text("Switch to your app and demonstrate. Notification buttons add a decision or stop the lesson.", style = MaterialTheme.typography.bodySmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedButton(onClick = { hub.decision() }) { Text("Decision") }
                     Button(onClick = { review = hub.stopTeaching() }) { Text("Stop & review") }
                 }
@@ -90,7 +89,7 @@ fun LearnedTasksPanel(onAskOmni: (String) -> Unit) {
             if (recipe != null) Card { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Paused: ${recipe.name}", style = MaterialTheme.typography.titleMedium)
                 Text(checkpoint.reason, style = MaterialTheme.typography.bodySmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedButton(onClick = { run = recipe to checkpoint }) { Text("I completed this step") }
                     Button(onClick = { onAskOmni(handoffPrompt(recipe, checkpoint)) }) { Text("Ask Omni") }
                 }
@@ -106,7 +105,7 @@ fun LearnedTasksPanel(onAskOmni: (String) -> Unit) {
                     })
                 }
                 Text("${recipe.steps.size} steps · ${recipe.successfulRuns} local runs · ${if (recipe.enabled) "Ready" else "Draft"}", style = MaterialTheme.typography.labelSmall)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedButton(onClick = { review = recipe }) { Text("Review") }
                     Button(enabled = recipe.enabled, onClick = { run = recipe to null }) { Text("Run") }
                     TextButton(onClick = { delete = recipe }) { Text("Delete") }
