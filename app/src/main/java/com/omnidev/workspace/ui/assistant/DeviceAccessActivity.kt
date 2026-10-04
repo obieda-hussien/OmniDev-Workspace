@@ -18,6 +18,7 @@ import com.omnidev.workspace.data.tools.DeviceAccessCatalog
 import com.omnidev.workspace.data.tools.PermissionManagerTool
 import com.omnidev.workspace.data.tools.PermissionRequestBridge
 import com.omnidev.workspace.data.tools.PermissionRequestPlan
+import com.omnidev.workspace.data.tools.AppOpAccessPlan
 import com.omnidev.workspace.ui.theme.OmniDevTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -54,14 +55,18 @@ private fun DeviceAccessScreen(refresh: Int, onRefresh: () -> Unit, onClose: () 
     var statuses by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var showRuntime by remember { mutableStateOf(false) }
     var showBackground by remember { mutableStateOf(false) }
-    val keys = remember { DeviceAccessCatalog.entries.map { it.key } + listOf("shizuku", "rish", "root", "system", "device_owner", "profile_owner", "termux") }
+    var showProtected by remember { mutableStateOf(false) }
+    var protectedDeclarations by remember { mutableStateOf<List<String>>(emptyList()) }
+    val keys = remember { DeviceAccessCatalog.entries.map { it.key } + AppOpAccessPlan.entries.map { it.key } + listOf("shizuku", "rish", "root", "system", "device_owner", "profile_owner", "termux") }
     LaunchedEffect(refresh) {
         val snapshot = withContext(Dispatchers.IO) {
             val names = PermissionManagerTool.runtimePermissions(context)
-            names to (keys + names).associateWith { PermissionManagerTool.checkPermission(context, it) }
+            val declarations = PermissionManagerTool.declaredPermissions(context).sorted()
+            Triple(names, declarations.filterNot { it in names }, (keys + declarations).associateWith { PermissionManagerTool.checkPermission(context, it) })
         }
         runtime = snapshot.first
-        statuses = snapshot.second
+        protectedDeclarations = snapshot.second
+        statuses = snapshot.third
     }
     fun request(key: String, backend: String = "auto") {
         if (busy) return
@@ -121,8 +126,31 @@ private fun DeviceAccessScreen(refresh: Int, onRefresh: () -> Unit, onClose: () 
                     Text("Shizuku through ADB runs as shell; Shizuku started with root may run as root. Root needs a rooted device. System access needs the ROM's genuine entitlements. Diagnostics never trigger a root prompt.", style = MaterialTheme.typography.bodySmall)
                     if (policy.allowShizuku || policy.allowSystemIntegration) Button(onClick = { request("privileged_bootstrap") }, enabled = !busy) { Text("Grant settings and diagnostics") }
                     if (policy.allowRoot) TextButton(onClick = { request("privileged_bootstrap", "root") }, enabled = !busy) { Text("Grant settings and diagnostics via root") }
-                    Text("These buttons request WRITE_SECURE_SETTINGS, READ_LOGS, DUMP and BATTERY_STATS, then verify each grant. Other signature-only permissions need their platform entitlement.", style = MaterialTheme.typography.bodySmall)
+                    Text("Requests secure settings, logs, dumps, battery statistics, configuration, AppOps statistics and cross-user development grants, where supported. Every grant is verified. Signature-only permissions need their real platform entitlement.", style = MaterialTheme.typography.bodySmall)
                 }
+            }
+            if (policy.allowShizuku || policy.allowSystemIntegration || policy.allowRoot) {
+                item { Text("Advanced special access", style = MaterialTheme.typography.titleLarge) }
+                for (entry in AppOpAccessPlan.entries.filter { android.os.Build.VERSION.SDK_INT >= it.minSdk && it.permission in protectedDeclarations }) item(key = entry.key) {
+                    AccessSection(entry.specialKey.replace('_', ' '), statuses[entry.key].orEmpty()) {
+                        Text("Changes only OmniDev's own special-access mode. Reset restores Android's default; it does not guarantee access is denied.", style = MaterialTheme.typography.bodySmall)
+                        if (policy.allowShizuku || policy.allowSystemIntegration) Row {
+                            TextButton(onClick = { request(entry.key) }, enabled = !busy) { Text("Allow via shell/system") }
+                            TextButton(onClick = { request("reset_${entry.key}") }, enabled = !busy) { Text("Restore default") }
+                        }
+                        if (policy.allowRoot) Row {
+                            TextButton(onClick = { request(entry.key, "root") }, enabled = !busy) { Text("Allow via root") }
+                            TextButton(onClick = { request("reset_${entry.key}", "root") }, enabled = !busy) { Text("Restore via root") }
+                        }
+                    }
+                }
+            }
+            item {
+                TextButton(onClick = { showProtected = !showProtected }) { Text("Other permission declarations · ${protectedDeclarations.size}") }
+            }
+            if (showProtected) for (name in protectedDeclarations) item(key = "protected:$name") {
+                val route = PermissionManagerTool.permissionRoute(context, name)
+                AccessRow(name.substringAfterLast('.').replace('_', ' '), "$name\nAccess path: $route", statuses[name].orEmpty(), !busy) { request(name) }
             }
             item {
                 AccessSection("Connected apps", "Termux command access: ${statuses["termux"]}") {

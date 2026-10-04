@@ -36,7 +36,7 @@ OmniDev Workspace تطبيق Android يضم المحادثة، وكيل الأد
 |---|---|---|
 | واجهة التطبيق | `ui/chat/`, `ui/settings/`, `ui/providers/`, `ui/navigation/` | المحادثة، الإعدادات، الموفرون ومسارات التنقل |
 | المساعد العائم | `ui/assistant/`, `data/assistant/` | النافذة، الجلسة، الصوت، الكورة، الإرفاق والعودة من إعدادات Android |
-| الصلاحيات والامتيازات | `core/policy/`, `core/privileged/`, `data/tools/`, `data/ipc/` | `PermissionManagerTool`, `DeviceAccessCatalog`, `PermissionRequestPlan`, `PrivilegedExecutionManager` |
+| الصلاحيات والامتيازات | `core/policy/`, `core/privileged/`, `data/tools/`, `data/ipc/` | `PermissionManagerTool`, `DeviceAccessCatalog`, `PermissionRequestPlan`, `AppOpAccessPlan`, `PrivilegedExecutionManager` |
 | قرار الوضع | `domain/engine/` | `IntentClassifier`, `AdaptiveModeRouter`, `ModeDecisionModel`, `ModeOutcomeLearner` |
 | ميزانيات واستمرارية الوكيل | `domain/engine/` | ضغط السياق، توكنز، نقل المهمة، تكرار الأدوات والتعثر |
 | فهرسة المشروع | `data/repo/`, `data/builddoctor/`, `data/rollback/` | فهرسة الكود، استرجاع الأدلة، تشخيص البناء والتراجع |

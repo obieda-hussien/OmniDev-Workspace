@@ -17,7 +17,7 @@ flowchart TD
 |---|---|---|
 | واجهة التطبيق | `ui/`, `MainActivity.kt`, `OmniDevApp.kt` | المحادثة والموفرون والإعدادات والمتصفح |
 | المساعد العائم | `ui/assistant/`, `data/assistant/` | الجلسة، النافذة، الصوت، الكورة والعودة من إعدادات Android |
-| إدارة الوصول | `data/tools/PermissionManagerTool.kt`, `DeviceAccessCatalog.kt`, `PermissionRequestPlan.kt` | اكتشاف الصلاحيات، تهيئة الوصول الخاص والتحقق من المنح |
+| إدارة الوصول | `data/tools/PermissionManagerTool.kt`, `DeviceAccessCatalog.kt`, `PermissionRequestPlan.kt`, `AppOpAccessPlan.kt` | اكتشاف الصلاحيات، تهيئة الوصول الخاص، ضبط AppOps للتطبيق والتحقق من المنح |
 | سير الوكيل | `domain/engine/` | `AgentPipeline`, `SwarmOrchestrator`, `AgentRuntime` |
 | قرار الوضع | `domain/engine/` | `IntentClassifier`, `AdaptiveModeRouter`, `ModeOutcomeLearner` |
 | الأدوات | `data/tools/`, `core/tools/` | `CompositeToolManager`, `TierToolGate`, `RepoContextTools` |

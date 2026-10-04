@@ -896,7 +896,7 @@ class CompositeToolManager(
                 if (PermissionManagerTool.requiresPrivilegedApproval(ctx, perm, backend)) {
                     val approved = confirmationGate?.request(
                         com.omnidev.workspace.core.policy.ConfirmationKind.SHIZUKU_COMMAND,
-                        "Request access: $perm; backend: $backend. Development bootstrap grants secure settings, logs, dumps and battery statistics to OmniDev only.",
+                        PermissionManagerTool.approvalPreview(ctx, perm, backend),
                         null
                     ) ?: false
                     if (!approved) return ToolExecutionResult("Privileged access request was not approved.", isError = true, classification = "USER_DENIED")

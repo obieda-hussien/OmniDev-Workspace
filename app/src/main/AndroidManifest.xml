@@ -187,6 +187,23 @@
     <uses-permission android:name="android.permission.REQUEST_COMPANION_PROFILE_WATCH" />
     <uses-permission android:name="android.permission.REQUEST_COMPANION_PROFILE_GLASSES" />
 
+    <!-- Extended entitlement declarations. Signature/privileged grants need actual ROM authority;
+         companion declarations require a managed association and a device implementation. -->
+    <uses-permission android:name="android.permission.REQUEST_COMPANION_START_FOREGROUND_SERVICES_FROM_BACKGROUND" />
+    <uses-permission android:name="android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE" />
+    <uses-permission android:name="android.permission.REQUEST_OBSERVE_DEVICE_UUID_PRESENCE" />
+    <uses-permission android:name="android.permission.READ_CLIPBOARD_IN_BACKGROUND" />
+    <uses-permission android:name="android.permission.GET_APP_OPS_STATS" />
+    <uses-permission android:name="android.permission.MANAGE_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.READ_PRIVILEGED_PHONE_STATE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_ROUTING" />
+    <uses-permission android:name="android.permission.NETWORK_SETTINGS" />
+    <uses-permission android:name="android.permission.MANAGE_USB" />
+    <uses-permission android:name="android.permission.CHANGE_APP_IDLE_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_DEVICE_IDLE_TEMP_WHITELIST" />
+    <uses-permission android:name="android.permission.INTERACT_ACROSS_USERS" />
+
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.USE_FINGERPRINT" />
     <uses-permission android:name="android.permission.MANAGE_BIOMETRIC" />

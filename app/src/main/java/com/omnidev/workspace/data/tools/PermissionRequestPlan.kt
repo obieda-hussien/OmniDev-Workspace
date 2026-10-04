@@ -21,8 +21,14 @@ internal object PermissionRequestPlan {
         "android.permission.NEARBY_WIFI_DEVICES" -> sdk >= 33
         "android.permission.READ_MEDIA_VISUAL_USER_SELECTED" -> sdk >= 34
         "android.permission.RANGING", BACKGROUND_HEALTH -> sdk >= 36
+        "android.permission.REQUEST_OBSERVE_DEVICE_UUID_PRESENCE" -> sdk >= 36
+        "android.permission.REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE",
+        "android.permission.REQUEST_COMPANION_START_FOREGROUND_SERVICES_FROM_BACKGROUND" -> sdk >= 31
         else -> !permission.startsWith("android.permission.health.") || sdk >= 36
     }
+
+    // Health grants must reach the runtime/Health Connect controller, never generic app details.
+    fun usesAppDetails(permission: String, sdk: Int): Boolean = permission == BACKGROUND_LOCATION && sdk >= 30
 
     fun foregroundBatch(permissions: Collection<String>, sdk: Int): List<String> {
         val result = permissions.filter { supported(it, sdk) && it !in staged }.toMutableSet()

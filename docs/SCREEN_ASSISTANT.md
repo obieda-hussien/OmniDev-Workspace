@@ -42,12 +42,13 @@ Accessibility reads application windows underneath the assistant rather than the
 | `ui/assistant/DeviceAccessActivity.kt` | Access dashboard, individual/bulk requests, actual status refresh on return |
 | `data/tools/PermissionManagerTool.kt` | Discover merged declarations, request access and read back privileged grants |
 | `data/tools/PermissionRequestPlan.kt` | Android API compatibility, location/media batching and background prerequisites |
+| `data/tools/AppOpAccessPlan.kt` | Allowlisted own-app special-access operations and per-operation reset commands |
 | `data/tools/DeviceAccessCatalog.kt` | Special-access intents, exact service matching, backend and owner states |
 | `ui/assistant/AssistantInputActivity.kt` | Preserve the floating session while setup is open |
 | `data/tools/PermissionRequestBridge.kt` | Foreground Activity for Android runtime dialogs |
 | `ui/assistant/HealthAccessRationaleActivity.kt` | Android 16 health permission-usage/privacy destination |
 
-The assistant receives a compact access snapshot before each request and keeps permission/OmniLink tools discoverable within its existing tier and chat policies. Shell/system development grants and explicit root requests retain the applicable confirmation gate. Passive status reads do not trigger a root prompt. Permission declarations are distinct from implemented operations: the access center does not implement a Health Connect record reader.
+The assistant receives a compact access snapshot before each request and keeps permission/OmniLink tools discoverable within its existing tier and chat policies. Development grants, own-app AppOps allow/reset and explicit root requests retain the applicable confirmation gate. The access center exposes each declaration's actual state and setup route, plus Android-managed work-profile consent where eligible. Passive status reads do not trigger a root prompt. Permission declarations are distinct from implemented operations: the access center does not implement a Health Connect record reader or companion-device pairing.
 
 All paths in this table are relative to `app/src/main/java/com/omnidev/workspace/`.
 

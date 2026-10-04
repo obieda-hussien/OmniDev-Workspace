@@ -58,4 +58,16 @@ class PermissionRequestPlanTest {
     @Test fun companionAppPermissionIsNotDiscardedAsUnknownAndroidAlias() {
         assertEquals(listOf("com.termux.permission.RUN_COMMAND"), PermissionRequestPlan.foregroundBatch(listOf("com.termux.permission.RUN_COMMAND"), 30))
     }
+    @Test fun android16HealthBackgroundRequestReachesRuntimeController() {
+        assertFalse(PermissionRequestPlan.usesAppDetails(PermissionRequestPlan.BACKGROUND_HEALTH, 36))
+        assertFalse(PermissionRequestPlan.usesAppDetails(PermissionRequestPlan.BACKGROUND_SENSORS, 33))
+        assertTrue(PermissionRequestPlan.usesAppDetails(PermissionRequestPlan.BACKGROUND_LOCATION, 30))
+        assertFalse(PermissionRequestPlan.usesAppDetails(PermissionRequestPlan.BACKGROUND_LOCATION, 29))
+    }
+    @Test fun companionPresenceDeclarationsRespectTheirPlatformBoundaries() {
+        assertFalse(PermissionRequestPlan.supported(prefix + "REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE", 30))
+        assertTrue(PermissionRequestPlan.supported(prefix + "REQUEST_OBSERVE_COMPANION_DEVICE_PRESENCE", 31))
+        assertFalse(PermissionRequestPlan.supported(prefix + "REQUEST_OBSERVE_DEVICE_UUID_PRESENCE", 35))
+        assertTrue(PermissionRequestPlan.supported(prefix + "REQUEST_OBSERVE_DEVICE_UUID_PRESENCE", 36))
+    }
 }

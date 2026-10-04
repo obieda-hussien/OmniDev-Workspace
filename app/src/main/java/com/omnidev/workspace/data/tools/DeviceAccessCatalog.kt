@@ -7,6 +7,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.CrossProfileApps
 import android.provider.MediaStore
 import android.net.Uri
 import android.net.VpnService
@@ -40,19 +41,23 @@ object DeviceAccessCatalog {
         Entry("battery_optimization", "Background reliability", "Request exclusion from battery optimization; OEM limits may still apply."),
         Entry("input_method", "Omni input method", "Enable and select Omni keyboard for ordinary text entry."),
         Entry("vpn", "Local VPN", "Local traffic tooling; Android permits one VPN at a time."),
-        Entry("device_admin", "Device administrator", "Device lock and supported policies; this does not make Omni Device Owner.")
+        Entry("device_admin", "Device administrator", "Device lock and supported policies; this does not make Omni Device Owner."),
+        Entry("cross_profile", "Work-profile interaction", "Android-managed consent for this same app installed in another eligible profile.", 30)
     )
     private val requiredPermissions = mapOf(
         "overlay" to "android.permission.SYSTEM_ALERT_WINDOW", "usage_stats" to "android.permission.PACKAGE_USAGE_STATS",
         "write_settings" to "android.permission.WRITE_SETTINGS", "notification_policy" to "android.permission.ACCESS_NOTIFICATION_POLICY",
         "all_files" to "android.permission.MANAGE_EXTERNAL_STORAGE", "manage_media" to "android.permission.MANAGE_MEDIA",
         "install_unknown_apps" to "android.permission.REQUEST_INSTALL_PACKAGES",
-        "battery_optimization" to "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+        "battery_optimization" to "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+        "cross_profile" to "android.permission.INTERACT_ACROSS_PROFILES"
     )
     private fun hasComponent(context: Context, setting: String, component: ComponentName): Boolean {
         val raw = Settings.Secure.getString(context.contentResolver, setting).orEmpty()
         return raw.split(':').any { ComponentName.unflattenFromString(it) == component }
     }
+    internal fun setupKey(permission: String): String? = requiredPermissions.entries.firstOrNull { it.value == permission }?.key
+        ?: if (permission in setOf("android.permission.SCHEDULE_EXACT_ALARM", "android.permission.USE_EXACT_ALARM")) "exact_alarms" else null
     fun status(context: Context, key: String): String {
         return runCatching {
             val policy = TierPolicyHolder.current
@@ -92,6 +97,7 @@ object DeviceAccessCatalog {
                 "device_admin" -> OmniDeviceAdminReceiver.isAdminActive(context)
                 "device_owner" -> OmniDeviceAdminReceiver.isDeviceOwner(context)
                 "profile_owner" -> context.getSystemService(DevicePolicyManager::class.java)?.isProfileOwnerApp(context.packageName) == true
+                "cross_profile" -> Build.VERSION.SDK_INT >= 30 && context.getSystemService(CrossProfileApps::class.java)?.canInteractAcrossProfiles() == true
                 "system" -> policy.allowSystemIntegration && android.os.Process.myUid() % 100000 == 1000
                 "shizuku" -> policy.allowShizuku && ShizukuCommandTool.isAvailable() && ShizukuCommandTool.hasPermission()
                 "rish" -> policy.allowShizuku && PrivilegedExecutionManager.isRishReady()
@@ -134,6 +140,9 @@ object DeviceAccessCatalog {
             "vpn" -> VpnService.prepare(context)
             "device_admin" -> Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).putExtra(
                 DevicePolicyManager.EXTRA_DEVICE_ADMIN, OmniDeviceAdminReceiver.getComponentName(context))
+            "cross_profile" -> if (Build.VERSION.SDK_INT >= 30) context.getSystemService(CrossProfileApps::class.java)?.let {
+                if (it.canRequestInteractAcrossProfiles()) it.createRequestInteractAcrossProfilesIntent() else null
+            } else null
             else -> null
         }
     }
@@ -145,6 +154,13 @@ object DeviceAccessCatalog {
         if (TierPolicyHolder.current.allowShizuku && ShizukuCommandTool.hasPermission()) {
             val uid = runCatching { rikka.shizuku.Shizuku.getUid() }.getOrNull()
             appendLine("Shizuku server UID: ${uid ?: "unknown"} (0=root, 2000=ADB shell; per-operation restrictions still apply)")
+        }
+        if (Build.VERSION.SDK_INT >= 26) {
+            val count = runCatching {
+                @Suppress("DEPRECATION")
+                context.getSystemService(android.companion.CompanionDeviceManager::class.java)?.associations?.size ?: 0
+            }.getOrNull()
+            appendLine("CompanionDeviceManager associations: ${count ?: "unavailable"}; companion grants require an association and implemented device integration.")
         }
         append("OmniLink uses per-peer capabilities and grants. Connected apps, Termux, document providers and browser sessions retain their own authorization. Screen capture of protected windows is unavailable.")
     }
