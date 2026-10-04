@@ -45,7 +45,7 @@ object AssistantSettings {
 }
 
 @Composable
-fun AssistantSettingsCard() {
+fun AssistantSettingsCard(showAccessLinks: Boolean = true) {
     val context = LocalContext.current
     var setupError by remember { mutableStateOf<String?>(null) }
     val setup = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -59,19 +59,21 @@ fun AssistantSettingsCard() {
             }
             Text("Hold Home or use your device's assistant gesture. Ask a question, attach the screen, or select just one area.", style = MaterialTheme.typography.bodyMedium)
             Text("Choose Omni as the default digital assistant and allow screen content and screenshots in Android's assistant settings.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = { context.startActivity(Intent(context, DeviceAccessActivity::class.java)) }) { Text("Device access and permissions") }
-            if (com.omnidev.workspace.core.policy.TierPolicyHolder.current.allowAccessibility) {
+            if (showAccessLinks) {
+                TextButton(onClick = { context.startActivity(Intent(context, DeviceAccessActivity::class.java)) }) { Text("Device access and permissions") }
+            }
+            if (showAccessLinks && com.omnidev.workspace.core.policy.TierPolicyHolder.current.allowAccessibility) {
                 OutlinedButton(onClick = { context.startActivity(Intent(context, VoiceWakeActivity::class.java)) }, modifier = Modifier.fillMaxWidth()) { Text("Voice activation · phrase, training & listening") }
                 Text("Wake/lock-screen permissions alone do not start listening. Choose a phrase, record your voice examples, then press Start listening.", style = MaterialTheme.typography.bodySmall)
             }
             setupError?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(modifier = Modifier.fillMaxWidth(), onClick = {
                     setupError = null
                     runCatching { setup.launch(AssistantSettings.intent(context)) }
                         .onFailure { setupError = "Could not open setup. Open Android Settings → Apps → Default apps → Digital assistant app, and select OmniDev." }
                 }) { Text("Set up assistant") }
-                TextButton(onClick = { context.startActivity(Intent(context, AssistantActivity::class.java)) }) { Text("Try it") }
+                TextButton(modifier = Modifier.fillMaxWidth(), onClick = { context.startActivity(Intent(context, AssistantActivity::class.java)) }) { Text("Try it") }
             }
         }
     }
