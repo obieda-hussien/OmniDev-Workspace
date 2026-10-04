@@ -36,6 +36,18 @@ class AppOpAccessPlanTest {
             AppOpAccessPlan.command(entry.key, "com.omnidev.workspace.lite", 0, 36, emptySet())
         }
     }
+    @Test fun apkInstallAccessIsAvailableOnlyFromAndroid8WithItsDeclaration() {
+        rejects { AppOpAccessPlan.command("appop_install_packages", "com.omnidev.workspace", 0, 25, declarations) }
+        assertTrue(AppOpAccessPlan.command("appop_install_packages", "com.omnidev.workspace", 10, 26, declarations)
+            .contains("--user 10 'com.omnidev.workspace' 'REQUEST_INSTALL_PACKAGES' 'allow'"))
+        assertFalse(AppOpAccessPlan.verified("appop_install_packages", 0, false))
+    }
+    @Test fun exactAlarmAccessIsAvailableOnlyFromAndroid12AndMustBeEffective() {
+        rejects { AppOpAccessPlan.command("appop_exact_alarms", "com.omnidev.workspace", 0, 30, declarations) }
+        assertTrue(AppOpAccessPlan.command("appop_exact_alarms", "com.omnidev.workspace", 0, 31, declarations).contains("'SCHEDULE_EXACT_ALARM'"))
+        assertFalse(AppOpAccessPlan.verified("appop_exact_alarms", 0, false))
+        assertTrue(AppOpAccessPlan.verified("appop_exact_alarms", 0, true))
+    }
     @Test fun foregroundOrUnknownModesCannotProveAnAllowGrant() {
         for (rawMode in listOf(null, 1, 2, 3, 4)) assertFalse(AppOpAccessPlan.verified("appop_overlay", rawMode, true))
         assertFalse(AppOpAccessPlan.verified("appop_overlay", 0, false))

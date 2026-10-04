@@ -78,7 +78,7 @@ object PermissionManagerTool {
         val key = permission.lowercase().trim()
         val operation = AppOpAccessPlan.entry(key)
         if (operation != null) return "Set OmniDev's ${operation.specialKey} AppOp to ${AppOpAccessPlan.mode(key)} via $backend; package ${context.packageName}, user ${android.os.Process.myUid() / 100000}. Other applications are unchanged."
-        if (key == "appop_bootstrap") return "Allow OmniDev's own overlay, usage statistics, settings, shared-file and media AppOps where supported, via $backend; package ${context.packageName}, user ${android.os.Process.myUid() / 100000}."
+        if (key == "appop_bootstrap") return "Allow OmniDev's own overlay, usage statistics, settings, shared-file, media, APK installation and exact-alarm AppOps where supported, via $backend; package ${context.packageName}, user ${android.os.Process.myUid() / 100000}."
         if (key == "privileged_bootstrap") return "Request ${developmentKeys.joinToString { resolve(it) }} for OmniDev via $backend; verify each grant."
         return "Request access: $permission; backend: $backend; target: OmniDev only."
     }
@@ -111,7 +111,11 @@ object PermissionManagerTool {
         }
         if (key == "root") {
             if (!TierPolicyHolder.current.allowRoot) return failure("Root is unavailable in this build.", "TIER_BLOCKED")
-            val ready = withContext(Dispatchers.IO) { PrivilegedExecutionManager.isRootAvailable(forceProbe = true) }
+            val ready = withContext(Dispatchers.IO) {
+                // This is a user-selected authorization, so allow time to answer the su dialog.
+                PrivilegedExecutionManager.resetRootHealth()
+                PrivilegedExecutionManager.isRootAvailable(forceProbe = true, probeTimeoutMs = 30_000L)
+            }
             return ToolExecutionResult(if (ready) "Root uid=0 verified." else "Root unavailable or superuser approval is pending. Allow OmniDev in your root manager and retry.",
                 isError = !ready, classification = if (ready) "SUCCESS" else "USER_ACTION_REQUIRED", backend = "root")
         }
@@ -174,10 +178,98 @@ object PermissionManagerTool {
             else "Open the Access center in OmniDev to request ${batch.joinToString()} from a foreground Activity.")
     }
 
-    private fun privilegedBackendReady(): Boolean {
+    internal fun privilegedBackendReady(): Boolean {
         val policy = TierPolicyHolder.current
         return (policy.allowShizuku && (PrivilegedExecutionManager.isShizukuReady() || PrivilegedExecutionManager.isRishReady())) ||
             (policy.allowSystemIntegration && android.os.Process.myUid() % 100000 == 1000)
+    }
+
+    /** Includes every merged declaration, plus effective service/role access independently. */
+    internal fun accessSnapshot(context: Context): List<DeviceAccessSetupPlan.Access> {
+        val declarations = declaredPermissions(context).sorted().map { name ->
+            val info = permissionInfo(context, name)
+            val route = when {
+                info == null || !PermissionRequestPlan.supported(name, Build.VERSION.SDK_INT) -> DeviceAccessSetupPlan.Route.UNSUPPORTED
+                DeviceAccessCatalog.setupKey(name) != null -> DeviceAccessSetupPlan.Route.SPECIAL
+                (info.protectionLevel and PermissionInfo.PROTECTION_FLAG_DEVELOPMENT) != 0 -> DeviceAccessSetupPlan.Route.DEVELOPMENT
+                (info.protectionLevel and PermissionInfo.PROTECTION_MASK_BASE) == PermissionInfo.PROTECTION_DANGEROUS -> DeviceAccessSetupPlan.Route.RUNTIME
+                (info.protectionLevel and PermissionInfo.PROTECTION_MASK_BASE) == PermissionInfo.PROTECTION_NORMAL -> DeviceAccessSetupPlan.Route.INSTALL
+                else -> DeviceAccessSetupPlan.Route.ENTITLEMENT
+            }
+            val specialKey = DeviceAccessCatalog.setupKey(name)
+            DeviceAccessSetupPlan.Access(name, name.substringAfterLast('.').replace('_', ' '),
+                name, if (specialKey != null) DeviceAccessCatalog.status(context, specialKey) else checkPermission(context, name), route)
+        }
+        return declarations + DeviceAccessCatalog.entries.map { entry ->
+            DeviceAccessSetupPlan.Access(entry.key, entry.title, entry.detail, DeviceAccessCatalog.status(context, entry.key),
+                DeviceAccessSetupPlan.Route.SPECIAL, declaration = false)
+        }
+    }
+
+    /** No settings launches here: the foreground setup controller owns the sequential dialogs. */
+    internal suspend fun grantAllSupportedAccess(
+        context: Context, backend: String, onProgress: (Int, Int, String) -> Unit
+    ): List<String> = withContext(Dispatchers.IO) {
+        require(backend in setOf("auto", "root", "android"))
+        if (backend == "android") return@withContext emptyList()
+        if (backend == "root" && !TierPolicyHolder.current.allowRoot) return@withContext listOf("Root unavailable in this build.")
+        if (backend != "root" && !privilegedBackendReady()) return@withContext listOf("Shizuku is not authorized. Continuing with Android approval screens.")
+        val permissions = DeviceAccessSetupPlan.automaticPermissions(accessSnapshot(context))
+        val appOps = AppOpAccessPlan.entries.filter {
+            Build.VERSION.SDK_INT >= it.minSdk && it.permission in declaredPermissions(context) &&
+                DeviceAccessCatalog.status(context, it.specialKey) == "DENIED"
+        }
+        val services = PrivilegedAccessSetupPlan.keys.filter { DeviceAccessCatalog.status(context, it) == "DENIED" }
+        val total = permissions.size + appOps.size + services.size
+        val failures = mutableListOf<String>()
+        var completed = 0
+        fun backendReady() = if (backend == "root") PrivilegedExecutionManager.cachedRootAvailable() != false else privilegedBackendReady()
+        suspend fun attempt(title: String, action: suspend () -> ToolExecutionResult) {
+            onProgress(completed, total, title)
+            try {
+                val result = action()
+                if (result.isError) failures += "$title: ${result.output.take(300)}"
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { failures += "$title: ${error.message.orEmpty().take(300)}" }
+            completed++
+            onProgress(completed, total, title)
+        }
+        for (name in permissions) {
+            if (!backendReady()) {
+                failures += "Privileged connection lost. Remaining access requires Android approval or a retry."
+                return@withContext failures
+            }
+            attempt(name) {
+                val prerequisites = PermissionRequestPlan.prerequisites(name)
+                if (prerequisites.isNotEmpty() && prerequisites.none { granted(context, it) }) {
+                    pending("Foreground access is required first.")
+                } else grantPrivileged(context, name, backend)
+            }
+        }
+        for (entry in appOps) {
+            if (!backendReady()) return@withContext failures + "Privileged connection lost before special access."
+            attempt(entry.specialKey) { requestAppOp(context, entry.key, backend) }
+        }
+        for (key in services) {
+            if (!backendReady()) return@withContext failures + "Privileged connection lost before service setup."
+            attempt(key) {
+                val component = when (key) {
+                    "accessibility" -> android.content.ComponentName(context, com.omnidev.workspace.data.accessibility.OmniAccessibilityService::class.java).flattenToString()
+                    "notification_listener" -> android.content.ComponentName(context, AgentNotificationService::class.java).flattenToString()
+                    else -> null
+                }
+                val command = PrivilegedAccessSetupPlan.command(key, context.packageName, android.os.Process.myUid() / 100000, component)
+                com.omnidev.workspace.core.policy.OmniAuditLog.record(tier = TierPolicyHolder.current.tier,
+                    autoApproved = TierPolicyHolder.current.autoApproveConfirmations,
+                    kind = com.omnidev.workspace.core.policy.ConfirmationKind.SHIZUKU_COMMAND,
+                    preview = "Own-app setup via $backend: $command")
+                val outcome = executePrivilegedCommand(command, backend)
+                // Accessibility is usable only once its service binds, even if the setting was written.
+                if (DeviceAccessCatalog.status(context, key) == "GRANTED") ToolExecutionResult("$key granted and verified.")
+                else failure("$key not yet available. ${outcome.take(300)}", "PRIVILEGE_NOT_GRANTED")
+            }
+        }
+        failures
     }
     private suspend fun grantPrivileged(context: Context, name: String, backend: String): ToolExecutionResult {
         // Neither packageName nor permission names are interpolated as unquoted shell code.
@@ -320,7 +412,7 @@ object PermissionManagerTool {
     fun getToolDefinitions() = listOf(
         ToolDefinition("check_permission", "Read actual permission/backend status. permission='all' returns all declarations with protection levels, special access, root cache, Shizuku/rish, genuine system UID and owner states. No passive root prompt. Also accepts Android/companion permission names and aliases.",
             parameters = listOf(ToolParameter("permission", "string", "Permission, alias or all.", required = true))),
-        ToolDefinition("request_permission", "Request declared access and verify privileged grants. bootstrap_max requests supported runtime permissions; background flows are separate. access_center opens setup UI. privileged_bootstrap requests development grants (secure_settings/logs/dump/battery_stats/configuration/app_ops_stats/cross_user). appop_bootstrap or appop_overlay/appop_usage_stats/appop_write_settings/appop_all_files/appop_manage_media sets allowed modes for OmniDev's own package only; reset_appop_* restores defaults. Special keys include assistant, accessibility, notification_listener, overlay, usage_stats, write_settings, notification_policy, all_files, manage_media, install_unknown_apps, exact_alarms, battery_optimization, input_method, vpn, device_admin, cross_profile, shizuku, root, termux. Owner/system roles need genuine provisioning; connected app grants are separate.",
+        ToolDefinition("request_permission", "Request declared access and verify privileged grants. bootstrap_max requests supported runtime permissions; background flows are separate. access_center opens setup UI. privileged_bootstrap requests development grants (secure_settings/logs/dump/battery_stats/configuration/app_ops_stats/cross_user). appop_bootstrap or appop_overlay/appop_usage_stats/appop_write_settings/appop_all_files/appop_manage_media/appop_install_packages/appop_exact_alarms sets allowed modes for OmniDev's own package only; reset_appop_* restores defaults. Special keys include assistant, accessibility, notification_listener, overlay, usage_stats, write_settings, notification_policy, all_files, manage_media, install_unknown_apps, exact_alarms, battery_optimization, input_method, vpn, device_admin, cross_profile, shizuku, root, termux. Owner/system roles need genuine provisioning; connected app grants are separate.",
             parameters = listOf(ToolParameter("permission", "string", "Permission, alias or setup key.", required = true),
                 ToolParameter("backend", "string", "auto (authorized shell/system) or root (explicit superuser request); never silently escalates.", required = false)))
     )
