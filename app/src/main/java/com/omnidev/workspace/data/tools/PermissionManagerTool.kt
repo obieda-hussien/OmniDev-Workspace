@@ -219,7 +219,8 @@ object PermissionManagerTool {
         val ops = context.getSystemService(AppOpsManager::class.java) ?: return null
         val operation = "android:${entry.operation.lowercase(java.util.Locale.ROOT)}"
         @Suppress("DEPRECATION")
-        if (Build.VERSION.SDK_INT >= 29) ops.unsafeCheckOpNoThrow(operation, android.os.Process.myUid(), context.packageName)
+        if (Build.VERSION.SDK_INT >= 36) ops.checkOpRawNoThrow(operation, android.os.Process.myUid(), context.packageName, null)
+        else if (Build.VERSION.SDK_INT >= 29) ops.unsafeCheckOpRawNoThrow(operation, android.os.Process.myUid(), context.packageName)
         else ops.checkOpNoThrow(operation, android.os.Process.myUid(), context.packageName)
     }.getOrNull()
 
@@ -247,8 +248,7 @@ object PermissionManagerTool {
         val outcome = executePrivilegedCommand(command, backend)
         val mode = appOpMode(context, entry)
         val reset = AppOpAccessPlan.mode(key) == "default"
-        val verified = if (reset) mode == AppOpsManager.MODE_DEFAULT
-            else mode == AppOpsManager.MODE_ALLOWED && DeviceAccessCatalog.status(context, entry.specialKey) == "GRANTED"
+        val verified = AppOpAccessPlan.verified(key, mode, DeviceAccessCatalog.status(context, entry.specialKey) == "GRANTED")
         return ToolExecutionResult("$key: ${appOpStatus(context, entry)}. " +
             if (verified) "${if (reset) "Default mode restored" else "Special access granted"} and verified for OmniDev only."
             else "Requested mode was not verified. ${outcome.take(1000)}", isError = !verified,

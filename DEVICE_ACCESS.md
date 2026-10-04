@@ -59,7 +59,7 @@ The access center exposes install-time/protected declaration states and the rout
 
 ### Own-app AppOps
 
-Authorized Shizuku/rish, genuine system execution or explicitly selected root can set five allowlisted special-access modes for **OmniDev's own package and Android user**: overlay, usage statistics, write settings, all-files access (API 30+) and media management (API 31+). Each operation checks its merged-manifest declaration and API compatibility, and records an audit event. Success requires both the AppOps mode and effective Android access check. Generic package/operation arguments are not accepted.
+Authorized Shizuku/rish, genuine system execution or explicitly selected root can set five allowlisted special-access modes for **OmniDev's own package and Android user**: overlay, usage statistics, write settings, all-files access (API 30+) and media management (API 31+). Each operation checks its merged-manifest declaration and API compatibility, and records an audit event. Success requires both the raw AppOps mode and effective Android access check; foreground-only modes never prove a full allow grant. Generic package/operation arguments are not accepted.
 
 `reset_appop_*` restores that operation to Android's default mode. Default mode can still permit access through another entitlement; resetting is not a guarantee of denial. Unavailable backends return a setup instruction rather than silently switching to root. Model-originated AppOps requests pass the existing privileged confirmation gate; access-center buttons are explicit user actions.
 

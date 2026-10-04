@@ -36,6 +36,17 @@ class AppOpAccessPlanTest {
             AppOpAccessPlan.command(entry.key, "com.omnidev.workspace.lite", 0, 36, emptySet())
         }
     }
+    @Test fun foregroundOrUnknownModesCannotProveAnAllowGrant() {
+        for (rawMode in listOf(null, 1, 2, 3, 4)) assertFalse(AppOpAccessPlan.verified("appop_overlay", rawMode, true))
+        assertFalse(AppOpAccessPlan.verified("appop_overlay", 0, false))
+        assertTrue(AppOpAccessPlan.verified("appop_overlay", 0, true))
+    }
+    @Test fun restoredDefaultCanStillHaveEffectiveAccess() {
+        assertTrue(AppOpAccessPlan.verified("reset_appop_overlay", 3, true))
+        assertTrue(AppOpAccessPlan.verified("reset_appop_overlay", 3, false))
+        assertFalse(AppOpAccessPlan.verified("reset_appop_overlay", 0, true))
+        assertFalse(AppOpAccessPlan.verified("appop_unknown", 0, true))
+    }
     private fun rejects(action: () -> Unit) {
         try { action(); fail("Invalid command must be rejected before execution") }
         catch (_: IllegalArgumentException) { }

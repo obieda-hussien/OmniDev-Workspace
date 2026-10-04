@@ -12,6 +12,9 @@ internal object AppOpAccessPlan {
     )
     fun entry(key: String): Entry? = entries.firstOrNull { it.key == key.removePrefix("reset_") }
     fun mode(key: String): String = if (key.startsWith("reset_")) "default" else "allow"
+    // Android raw MODE_ALLOWED=0 and MODE_DEFAULT=3. MODE_FOREGROUND is not an allow grant.
+    fun verified(key: String, rawMode: Int?, effectiveAccess: Boolean): Boolean = entry(key) != null &&
+        if (mode(key) == "default") rawMode == 3 else rawMode == 0 && effectiveAccess
     fun command(key: String, packageName: String, userId: Int, sdk: Int, declarations: Set<String>): String {
         val entry = requireNotNull(entry(key)) { "Unsupported special-access operation" }
         require(sdk >= entry.minSdk && entry.permission in declarations) { "Operation unavailable in this APK or Android version" }
