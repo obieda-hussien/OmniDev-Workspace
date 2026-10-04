@@ -13,17 +13,32 @@ object AssistantRuntime {
     suspend fun restoreForConfirmation(context: Context) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main.immediate) {
         if (targetingScreen && !get(context).state.value.visible) OmniVoiceInteractionService.resume(context)
     }
-    var minimizeForAction: (() -> Unit)? = null
+    var minimizeForAction: (suspend () -> Boolean)? = null
     suspend fun prepareAction(context: Context, tool: String, args: Map<String, String>): com.omnidev.workspace.data.tools.ToolExecutionResult? {
         if (tool !in setOf("semantic_ui", "ui_automation", "autofill_assist", "app_manager", "ime_tool") ||
-            AssistantActionPolicy.isReadOnly(tool, args) || !get(context).state.value.visible) return null
+            AssistantActionPolicy.isReadOnly(tool, args)) return null
         if (!get(context).flavor.allowScreenActions) return com.omnidev.workspace.data.tools.ToolExecutionResult(
             "Live device actions are unavailable in this flavor.", isError = true, classification = "TIER_DENIED")
         return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main.immediate) {
-            if (android.provider.Settings.canDrawOverlays(context) && minimizeForAction != null) {
-                minimizeForAction?.invoke()
-                kotlinx.coroutines.delay(200)
-                null
+            if (!get(context).state.value.visible) {
+                if (targetingScreen && AssistantBubbleService.isReady(context)) null
+                else {
+                    restoreForConfirmation(context)
+                    com.omnidev.workspace.data.tools.ToolExecutionResult(
+                        "The assistant is hidden without an attached restoration bubble. No device action was executed.",
+                        isError = true, classification = "ASSISTANT_WINDOW_UNAVAILABLE", retryable = false)
+                }
+            } else if (android.provider.Settings.canDrawOverlays(context) && minimizeForAction != null) {
+                if (minimizeForAction?.invoke() == true) {
+                    kotlinx.coroutines.delay(200)
+                    if (get(context).state.value.visible || !AssistantBubbleService.isReady(context)) {
+                        restoreForConfirmation(context)
+                        com.omnidev.workspace.data.tools.ToolExecutionResult(
+                            "The assistant was restored or its bubble detached before the action. No gesture was executed.",
+                            isError = true, classification = "ASSISTANT_WINDOW_UNAVAILABLE", retryable = false)
+                    } else null
+                } else com.omnidev.workspace.data.tools.ToolExecutionResult(
+                    "Could not minimize the assistant safely. No gesture was executed; retry after minimizing.", isError = true)
             } else if (tool == "ui_automation" || args["action"] in setOf("tap_xy", "swipe", "force_click", "force_long_click", "force_type", "chain", "macro_play", "back", "home", "recents")) {
                 com.omnidev.workspace.data.tools.ToolExecutionResult("Minimize the assistant with the minus button and allow display over other apps before gesture actions. Then retry.", isError = true)
             } else null

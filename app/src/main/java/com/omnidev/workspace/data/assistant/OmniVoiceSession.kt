@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Bundle
+import android.provider.Settings
+import kotlinx.coroutines.*
 import android.service.voice.VoiceInteractionSession
 import android.view.View
 import android.view.ViewGroup
@@ -30,14 +32,16 @@ import com.omnidev.workspace.ui.theme.OmniDevTheme
 
 class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
     private val owner = SessionOwner()
+    private val uiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val controller by lazy { AssistantRuntime.get(context) }
     private val speech by lazy { AssistantSpeechInput(context, controller) }
     private var composition: ComposeView? = null
     private var preserveOnHide = false
     private fun handoff(action: String) {
-        preserveOnHide = true
-        startAssistantActivity(AssistantInputActivity.intent(context, action))
-        hide()
+        speech.stop()
+        runCatching { startAssistantActivity(AssistantInputActivity.intent(context, action)) }
+            .onSuccess { preserveOnHide = true; hide() }
+            .onFailure { controller.message("Could not open the system picker. Try again or use File path.") }
     }
 
     init { setTheme(R.style.Theme_OmniDevWorkspace_Assistant) }
@@ -74,7 +78,10 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
                 }, onSetup = { handoff(AssistantInputActivity.SETTINGS) },
                     onAttach = { handoff(AssistantInputActivity.FILES) },
                     onSystemVoice = { handoff(AssistantInputActivity.VOICE) },
-                    onMinimize = { handoff(AssistantInputActivity.BUBBLE) },
+                    onMinimize = {
+                        if (!Settings.canDrawOverlays(context)) handoff(AssistantInputActivity.BUBBLE)
+                        else uiScope.launch { AssistantRuntime.minimizeForAction?.invoke() }
+                    },
                     onMicrophone = {
                         speech.toggle({ handoff(AssistantInputActivity.MICROPHONE) }, { handoff(AssistantInputActivity.VOICE) })
                     }
@@ -88,9 +95,9 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
         preserveOnHide = false
         AssistantRuntime.begin(context, args?.getBoolean(OmniVoiceInteractionService.RESUME) == true, native = true)
         AssistantRuntime.minimizeForAction = {
-            preserveOnHide = true
-            AssistantBubbleService.show(context)
-            hide()
+            AssistantBubbleService.show(context).also { started ->
+                if (started) { preserveOnHide = true; hide() }
+            }
         }
         owner.registry.currentState = Lifecycle.State.RESUMED
         // The first onShow can precede window attachment; Compose then creates itself on attach.
@@ -109,6 +116,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
     }
 
     override fun onHide() {
+        uiScope.coroutineContext.cancelChildren()
         speech.stop()
         AssistantRuntime.minimizeForAction = null
         if (preserveOnHide) controller.hide() else AssistantRuntime.close(context)
@@ -118,6 +126,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
     }
 
     override fun onDestroy() {
+        uiScope.cancel()
         speech.stop()
         if (!preserveOnHide) AssistantRuntime.close(context)
         owner.registry.currentState = Lifecycle.State.DESTROYED

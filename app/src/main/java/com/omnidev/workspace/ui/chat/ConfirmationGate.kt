@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -199,78 +201,7 @@ fun ConfirmationGateDialog(confirmation: PendingConfirmation) {
                 fontWeight = FontWeight.Bold
             )
         },
-        text = {
-            Column {
-                Text(
-                    text = confirmation.type.subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                Spacer(Modifier.height(12.dp))
-
-                if (hasDiff) {
-                    // ── Diff mode: syntax-highlighted DiffViewer ──
-                    Text(
-                        text = confirmation.preview,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-                    DiffViewer(
-                        diffText = confirmation.diffContent!!,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                } else {
-                    // ── Plain mode: monospace command preview ──
-                    SelectionContainer {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.inverseSurface)
-                                .padding(12.dp)
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            val safePreview = remember(confirmation.preview) {
-                                val pLines = confirmation.preview.lines()
-                                if (pLines.size > 1000) {
-                                    (pLines.take(1000) + "... [Preview truncated, ${pLines.size - 1000} lines omitted]").joinToString("\n")
-                                } else {
-                                    confirmation.preview
-                                }
-                            }
-                            Text(
-                                text = safePreview,
-                                style = MaterialTheme.typography.bodySmall.copy(
-                                    fontFamily = FontFamily.Monospace,
-                                    color = MaterialTheme.colorScheme.inverseOnSurface,
-                                    lineHeight = 20.sp
-                                )
-                            )
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Filled.Warning,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(end = 4.dp)
-                    )
-                    Text(
-                        text = "Review carefully before executing",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-        },
+        text = { ConfirmationGateBody(confirmation) },
         confirmButton = {
             Button(
                 onClick = confirmation.onApprove,
@@ -288,4 +219,98 @@ fun ConfirmationGateDialog(confirmation: PendingConfirmation) {
             }
         }
     )
+}
+
+/** Shares the normal chat's preview/diff content without creating another Android window. */
+@Composable
+fun ConfirmationGateCard(confirmation: PendingConfirmation, modifier: Modifier = Modifier) {
+    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), tonalElevation = 3.dp) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(confirmation.type.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            ConfirmationGateBody(confirmation)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                OutlinedButton(onClick = confirmation.onDeny) { Text("Cancel") }
+                Button(onClick = confirmation.onApprove) {
+                    Text(if (confirmation.diffContent != null) "Apply" else "Allow")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConfirmationGateBody(confirmation: PendingConfirmation) {
+    val hasDiff = confirmation.diffContent != null
+    Column {
+        Text(
+            text = confirmation.type.subtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
+        Spacer(Modifier.height(12.dp))
+
+        if (hasDiff) {
+            // ── Diff mode: syntax-highlighted DiffViewer ──
+            Text(
+                text = confirmation.preview,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+            DiffViewer(
+                diffText = confirmation.diffContent!!,
+                modifier = Modifier.fillMaxWidth().heightIn(max = 180.dp)
+            )
+        } else {
+            // ── Plain mode: monospace command preview ──
+            SelectionContainer {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.inverseSurface)
+                        .padding(12.dp)
+                        .heightIn(max = 180.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    val safePreview = remember(confirmation.preview) {
+                        val pLines = confirmation.preview.lines()
+                        if (pLines.size > 1000) {
+                            (pLines.take(1000) + "... [Preview truncated, ${pLines.size - 1000} lines omitted]").joinToString("\n")
+                        } else {
+                            confirmation.preview
+                        }
+                    }
+                    Text(
+                        text = safePreview,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.inverseOnSurface,
+                            lineHeight = 20.sp
+                        )
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Filled.Warning,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(end = 4.dp)
+            )
+            Text(
+                text = "Review carefully before executing",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+    }
+
 }

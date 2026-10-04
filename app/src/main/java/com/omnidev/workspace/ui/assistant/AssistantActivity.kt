@@ -2,6 +2,9 @@ package com.omnidev.workspace.ui.assistant
 
 import android.os.Bundle
 import android.content.Intent
+import android.provider.Settings
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -16,18 +19,20 @@ class AssistantActivity : ComponentActivity() {
     private val speech by lazy { AssistantSpeechInput(this, controller) }
     private var preserveOnClose = false
     private fun handoff(action: String) {
-        preserveOnClose = true
-        startActivity(AssistantInputActivity.intent(this, action))
-        finish()
+        speech.stop()
+        runCatching { startActivity(AssistantInputActivity.intent(this, action)) }
+            .onSuccess { preserveOnClose = true; controller.hide(); finish() }
+            .onFailure { controller.message("Could not open the system picker. Try again or use File path.") }
     }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         AssistantRuntime.begin(this, savedInstanceState != null || intent.getBooleanExtra(OmniVoiceInteractionService.RESUME, false))
         AssistantRuntime.minimizeForAction = {
-            preserveOnClose = true
-            AssistantBubbleService.show(this)
-            finish()
+            AssistantBubbleService.show(this).also { started ->
+                if (started) { preserveOnClose = true; controller.hide(); finish() }
+            }
         }
         setContent {
             OmniDevTheme(dynamicColor = false) {
@@ -39,7 +44,10 @@ class AssistantActivity : ComponentActivity() {
                         finish()
                     }
                 }, onSetup = { handoff(AssistantInputActivity.SETTINGS) },
-                    onAttach = { handoff(AssistantInputActivity.FILES) }, onSystemVoice = { handoff(AssistantInputActivity.VOICE) }, onMinimize = { handoff(AssistantInputActivity.BUBBLE) },
+                    onAttach = { handoff(AssistantInputActivity.FILES) }, onSystemVoice = { handoff(AssistantInputActivity.VOICE) }, onMinimize = {
+                        if (!Settings.canDrawOverlays(this)) handoff(AssistantInputActivity.BUBBLE)
+                        else lifecycleScope.launch { AssistantRuntime.minimizeForAction?.invoke() }
+                    },
                     onMicrophone = { speech.toggle({ handoff(AssistantInputActivity.MICROPHONE) }, { handoff(AssistantInputActivity.VOICE) }) })
             }
         }
@@ -48,7 +56,7 @@ class AssistantActivity : ComponentActivity() {
     override fun onDestroy() {
         speech.stop()
         AssistantRuntime.minimizeForAction = null
-        if (!isChangingConfigurations && !preserveOnClose) AssistantRuntime.close(this) else controller.hide()
+        if (!isChangingConfigurations && !preserveOnClose) AssistantRuntime.close(this)
         super.onDestroy()
     }
 }

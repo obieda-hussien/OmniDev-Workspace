@@ -14,25 +14,66 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.omnidev.workspace.R
 import kotlin.math.abs
+import java.util.UUID
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
 
 /** Optional, user-started overlay; no audio recording or hidden capture while minimized. */
 class AssistantBubbleService : Service() {
     private var bubble: View? = null
     private val manager by lazy { getSystemService(WINDOW_SERVICE) as WindowManager }
+    private val owners = mutableSetOf<String>()
+    private var generation = -1
+    override fun onCreate() { super.onCreate(); active = this }
     override fun onBind(intent: Intent?): IBinder? = null
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == CLOSE) { AssistantRuntime.close(this); stopSelf(); return START_NOT_STICKY }
         if (intent?.action == RESUME) { OmniVoiceInteractionService.resume(this); stopSelf(); return START_NOT_STICKY }
-        if (!AssistantFlavorPolicy(com.omnidev.workspace.core.policy.TierPolicyHolder.current).allowBubble || !Settings.canDrawOverlays(this)) { stopSelf(); return START_NOT_STICKY }
-        if (Build.VERSION.SDK_INT >= 26) (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
-            .createNotificationChannel(NotificationChannel(CHANNEL, "Floating assistant", NotificationManager.IMPORTANCE_LOW))
-        fun action(value: String) = PendingIntent.getService(this, value.hashCode(), Intent(this, AssistantBubbleService::class.java).setAction(value), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        startForeground(9183, NotificationCompat.Builder(this, CHANNEL)
-            .setSmallIcon(R.drawable.ic_launcher_foreground).setContentTitle("OmniDev assistant")
-            .setContentText("Tap the bubble to continue. Long press it to close.").setOngoing(true)
-            .setContentIntent(action(RESUME)).addAction(0, "Close", action(CLOSE)).build())
-        if (bubble == null) runCatching { addBubble() }.onFailure { stopSelf() }
+        val id = intent?.getStringExtra(REQUEST)
+        val request = id?.let { pending[it] }
+        if (id == null || request == null || request.generation != AssistantRuntime.get(this).sessionGeneration) {
+            request?.result?.complete(false)
+            if (bubble == null) stopSelf(startId)
+            return START_NOT_STICKY
+        }
+        owners += id
+        if (!AssistantFlavorPolicy(com.omnidev.workspace.core.policy.TierPolicyHolder.current).allowBubble || !Settings.canDrawOverlays(this)) {
+            signal(false); stopSelf(); return START_NOT_STICKY
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= 26) (getSystemService(NOTIFICATION_SERVICE) as NotificationManager)
+                .createNotificationChannel(NotificationChannel(CHANNEL, "Floating assistant", NotificationManager.IMPORTANCE_LOW))
+            fun action(value: String) = PendingIntent.getService(this, value.hashCode(), Intent(this, AssistantBubbleService::class.java).setAction(value), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            startForeground(9183, NotificationCompat.Builder(this, CHANNEL)
+                .setSmallIcon(R.drawable.ic_launcher_foreground).setContentTitle("OmniDev assistant")
+                .setContentText("Tap the bubble to continue. Long press it to close.").setOngoing(true)
+                .setContentIntent(action(RESUME)).addAction(0, "Close", action(CLOSE)).build())
+            generation = request.generation
+            if (bubble == null) addBubble()
+            // addView can return before ViewRoot attaches; its listener completes pending starts.
+            if (readyFor(request.generation)) signal(true)
+        } catch (error: Exception) {
+            signal(false); stopSelf()
+        }
         return START_NOT_STICKY
+    }
+    private fun readyFor(epoch: Int): Boolean = generation == epoch &&
+        bubble?.isAttachedToWindow == true && bubble?.windowToken != null && Settings.canDrawOverlays(this)
+    private fun signal(attached: Boolean) {
+        owners.toList().forEach { id -> pending[id]?.let { request ->
+            request.result.complete(attached && request.generation == generation &&
+                request.generation == AssistantRuntime.get(this).sessionGeneration && readyFor(request.generation))
+        } }
+    }
+    private fun discard(id: String) {
+        if (owners.remove(id) && owners.isEmpty()) { removeBubble(); stopSelf() }
+    }
+    private fun removeBubble() {
+        val view = bubble
+        bubble = null
+        view?.let { runCatching { manager.removeView(it) } }
     }
     @Suppress("DEPRECATION", "ClickableViewAccessibility")
     private fun addBubble() {
@@ -66,7 +107,10 @@ class AssistantBubbleService : Service() {
                     if (moved) {
                         params.x = (startX + dx.toInt()).coerceIn(0, (resources.displayMetrics.widthPixels - size).coerceAtLeast(0))
                         params.y = (startY + dy.toInt()).coerceIn(0, (resources.displayMetrics.heightPixels - size).coerceAtLeast(0))
-                        manager.updateViewLayout(view, params)
+                        runCatching { manager.updateViewLayout(view, params) }.onFailure {
+                            signal(false); stopSelf()
+                            runCatching { OmniVoiceInteractionService.resume(this) }
+                        }
                     }
                 }
                 MotionEvent.ACTION_UP -> { view.removeCallbacks(longPress); if (!moved && !longPressed) view.performClick() }
@@ -74,16 +118,61 @@ class AssistantBubbleService : Service() {
             }
             true
         }
-        manager.addView(view, params); bubble = view
+        view.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(attached: View) {
+                if (bubble === attached && readyFor(generation)) signal(true)
+                else { signal(false); stopSelf() }
+            }
+            override fun onViewDetachedFromWindow(detached: View) { signal(false) }
+        })
+        bubble = view
+        manager.addView(view, params)
     }
-    override fun onDestroy() { bubble?.let { runCatching { manager.removeView(it) } }; bubble = null; super.onDestroy() }
+    override fun onDestroy() {
+        signal(false)
+        removeBubble()
+        owners.clear()
+        if (active === this) active = null
+        super.onDestroy()
+    }
     companion object {
         private const val CHANNEL = "assistant_bubble"
         private const val CLOSE = "assistant_bubble_close"
         private const val RESUME = "assistant_bubble_resume"
-        fun show(context: Context) {
-            if (AssistantFlavorPolicy(com.omnidev.workspace.core.policy.TierPolicyHolder.current).allowBubble)
-                ContextCompat.startForegroundService(context, Intent(context, AssistantBubbleService::class.java))
+        private const val REQUEST = "assistant_bubble_request"
+        private data class StartRequest(val generation: Int, val result: CompletableDeferred<Boolean>)
+        // Service and native/Activity hosts share the main thread and default app process.
+        private val pending = mutableMapOf<String, StartRequest>()
+        private var active: AssistantBubbleService? = null
+        fun isReady(context: Context): Boolean = active?.readyFor(AssistantRuntime.get(context).sessionGeneration) == true
+
+        suspend fun show(context: Context): Boolean = withContext(Dispatchers.Main.immediate) {
+            val controller = AssistantRuntime.get(context)
+            if (!controller.flavor.allowBubble || controller.state.value.minimizing) return@withContext false
+            val epoch = controller.sessionGeneration
+            val id = UUID.randomUUID().toString()
+            val request = StartRequest(epoch, CompletableDeferred())
+            var attached = false
+            pending[id] = request
+            controller.minimizing(true)
+            try {
+                attached = awaitBubbleAttachment(request.result) {
+                    Settings.canDrawOverlays(context) && ContextCompat.startForegroundService(context,
+                        Intent(context, AssistantBubbleService::class.java).putExtra(REQUEST, id)) != null
+                } && epoch == controller.sessionGeneration && isReady(context)
+                if (!attached && epoch == controller.sessionGeneration)
+                    controller.message("The floating bubble could not attach. Keep the assistant open and try again.")
+                attached
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (epoch == controller.sessionGeneration) controller.message("The floating bubble could not attach. Try again.")
+                false
+            } finally {
+                pending.remove(id)
+                if (!attached) active?.discard(id)
+                if (epoch == controller.sessionGeneration) controller.minimizing(false)
+            }
         }
         fun remove(context: Context) { context.stopService(Intent(context, AssistantBubbleService::class.java)) }
     }
