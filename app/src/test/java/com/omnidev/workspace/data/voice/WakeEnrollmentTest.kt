@@ -62,4 +62,53 @@ class WakeEnrollmentTest {
         assertEquals(WakeEnrollment.Phase.EXAMPLES, enrollment.phase)
         assertEquals(0, enrollment.count)
     }
+    @Test fun replacingOnlyTheProblemContrastRetainsSixOtherRecordings() {
+        val enrollment = WakeEnrollment()
+        val positives = List(5) { sample() }
+        positives.forEach(enrollment::add)
+        val firstContrast = sample(3); val badContrast = sample()
+        enrollment.add(firstContrast)
+        assertThrows(PersonalWakeModel.TrainingException::class.java) { enrollment.add(badContrast) }
+        assertEquals(6, enrollment.trainingProblem!!.exampleIndex)
+        enrollment.replaceProblemExample()
+        assertEquals(WakeEnrollment.Phase.CONTRAST, enrollment.phase)
+        assertEquals(6, enrollment.nextIndex)
+        assertEquals(7, enrollment.count)
+        enrollment.add(sample(4))
+        assertTrue(positives.all(enrollment::owns)); assertTrue(enrollment.owns(firstContrast))
+        assertFalse(enrollment.owns(badContrast))
+        assertTrue(badContrast.frames.all { f -> f.all { it == 0f } })
+        assertEquals(WakeEnrollment.Phase.VALIDATION, enrollment.phase)
+        assertNotNull(enrollment.validate(sample(), true))
+    }
+    @Test fun replacingAnInconsistentWakeRecordingDoesNotRestartContrastTraining() {
+        val enrollment = WakeEnrollment()
+        val positives = List(5) { sample(if (it == 2) 5 else 1) }
+        positives.forEach(enrollment::add)
+        val firstContrast = sample(3); val secondContrast = sample(4)
+        enrollment.add(firstContrast)
+        assertThrows(PersonalWakeModel.TrainingException::class.java) { enrollment.add(secondContrast) }
+        assertEquals(2, enrollment.trainingProblem!!.exampleIndex)
+        enrollment.replaceProblemExample()
+        assertEquals(WakeEnrollment.Phase.EXAMPLES, enrollment.phase)
+        assertEquals(2, enrollment.nextIndex)
+        enrollment.add(sample())
+        assertEquals(7, enrollment.count)
+        assertTrue(enrollment.owns(firstContrast)); assertTrue(enrollment.owns(secondContrast))
+        assertTrue(positives[2].voice.all { it == 0f })
+        assertEquals(WakeEnrollment.Phase.VALIDATION, enrollment.phase)
+        assertNotNull(enrollment.validate(sample(), true))
+    }
+    @Test fun anotherBadReplacementDoesNotAppendAnEighthTrainingSample() {
+        val enrollment = WakeEnrollment()
+        repeat(6) { enrollment.add(sample()) }
+        assertThrows(PersonalWakeModel.TrainingException::class.java) { enrollment.add(sample()) }
+        repeat(2) {
+            enrollment.replaceProblemExample()
+            assertThrows(PersonalWakeModel.TrainingException::class.java) { enrollment.add(sample()) }
+            assertEquals(7, enrollment.count)
+            assertEquals(WakeEnrollment.Phase.TRAINING_FAILED, enrollment.phase)
+            assertFalse(enrollment.canRecord)
+        }
+    }
 }

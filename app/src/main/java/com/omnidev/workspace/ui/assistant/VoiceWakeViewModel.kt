@@ -24,6 +24,9 @@ internal class VoiceWakeViewModel(application: Application) : AndroidViewModel(a
         val locked: Boolean = false,
         val conversation: Boolean = false,
         val count: Int = 0,
+        val recordingIndex: Int = 0,
+        val trainingIssue: PersonalWakeModel.TrainingIssue? = null,
+        val problemExample: Int? = null,
         val phase: WakeEnrollment.Phase = WakeEnrollment.Phase.EXAMPLES,
         val attempts: Int = 0,
         val installed: List<String> = emptyList(),
@@ -63,7 +66,8 @@ internal class VoiceWakeViewModel(application: Application) : AndroidViewModel(a
         mutable.update { it.copy(loaded = true, phrase = prefs.phrase, enrolled = saved,
             assistantSelected = AssistantSettings.isSelected(context), listening = prefs.enabled,
             personal = prefs.personalVoice, locked = prefs.lockScreen, conversation = prefs.autoDictation,
-            installed = installed, language = language, count = enrollment.count, phase = enrollment.phase, attempts = enrollment.validationAttempts) }
+            installed = installed, language = language, count = enrollment.count, phase = enrollment.phase, attempts = enrollment.validationAttempts,
+            recordingIndex = enrollment.nextIndex, trainingIssue = enrollment.trainingProblem?.issue, problemExample = enrollment.trainingProblem?.exampleIndex) }
     }
     fun notify(message: String, error: Boolean = false) { mutable.update { it.copy(message = message, error = error) } }
     fun consent(value: Boolean) { mutable.update { it.copy(consent = value) } }
@@ -101,7 +105,7 @@ internal class VoiceWakeViewModel(application: Application) : AndroidViewModel(a
             try {
                 check(prefs.userCanConfigure()) { "Unlock the phone to continue training." }
                 if (!validating) {
-                    mutable.update { it.copy(progress = if (enrollment.count == 6) "Checking your training examples…" else "Saving example…") }
+                    mutable.update { it.copy(progress = if (enrollment.count >= 6) "Checking your training examples…" else "Saving example…") }
                     withContext(Dispatchers.Default) { enrollment.add(sample) }
                     notify(if (enrollment.phase == WakeEnrollment.Phase.VALIDATION) "Seven examples captured. One final check remains." else "Example saved.")
                 } else {
@@ -122,10 +126,16 @@ internal class VoiceWakeViewModel(application: Application) : AndroidViewModel(a
             } finally { if (!enrollment.owns(sample)) WakeEnrollment.wipe(sample) }
         }
     }
-    fun restart() { if (!state.value.busy) { enrollment.restart(); mutable.update { it.copy(phase = enrollment.phase, count = 0, attempts = 0) }; notify("New training started. Your saved profile stays available until the replacement passes.") } }
-    fun redoContrast() { if (!state.value.busy) { enrollment.redoContrast(); mutable.update { it.copy(phase = enrollment.phase, count = enrollment.count, attempts = 0) }; notify("Wake examples kept. Record two clearly different phrases.") } }
-    fun undo() { if (!state.value.busy) { enrollment.undo(); mutable.update { it.copy(phase = enrollment.phase, count = enrollment.count, attempts = 0) }; notify("Last example removed. Record a replacement.") } }
-    fun retryValidation() { if (!state.value.busy) { enrollment.retryValidation(); mutable.update { it.copy(phase = enrollment.phase, attempts = 0) }; notify("Try the final check again. Your training examples are retained.") } }
+    private fun publishEnrollment() { mutable.update { it.copy(phase = enrollment.phase, count = enrollment.count, attempts = enrollment.validationAttempts,
+        recordingIndex = enrollment.nextIndex, trainingIssue = enrollment.trainingProblem?.issue, problemExample = enrollment.trainingProblem?.exampleIndex) } }
+    fun restart() { if (!state.value.busy) { enrollment.restart(); publishEnrollment(); notify("New training started. Your saved profile stays available until the replacement passes.") } }
+    fun redoContrast() { if (!state.value.busy) { enrollment.redoContrast(); publishEnrollment(); notify("Wake examples kept. Record two clearly different phrases.") } }
+    fun undo() { if (!state.value.busy) { enrollment.undo(); publishEnrollment(); notify("Last example removed. Record a replacement.") } }
+    fun retryValidation() { if (!state.value.busy) { enrollment.retryValidation(); publishEnrollment(); notify("Try the final check again. Your training examples are retained.") } }
+    fun replaceProblemExample() {
+        if (state.value.busy || enrollment.phase != WakeEnrollment.Phase.TRAINING_FAILED || enrollment.trainingProblem == null) return
+        enrollment.replaceProblemExample(); publishEnrollment(); notify("Replace the indicated recording. Your other six examples are retained.")
+    }
     fun changePhrase(value: String) = run(Operation.SETTINGS) {
         if (WakePhrasePolicy.normalize(value) == prefs.phrase) return@run
         withContext(Dispatchers.IO) { check(prefs.setPhrase(value)) { "Could not save the phrase." } }

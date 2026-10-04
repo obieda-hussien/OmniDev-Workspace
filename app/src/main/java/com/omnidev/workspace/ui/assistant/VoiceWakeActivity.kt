@@ -117,9 +117,11 @@ private fun VoiceWakeScreen(model: VoiceWakeViewModel, refresh: Int, close: () -
                     TextButton(onClick = model::restart, enabled = !state.busy) { Text("Retrain my voice") }
                 } else {
                     val completed = state.count
+                    val recordingIndex = state.recordingIndex
+                    val replacing = completed == 7 && state.phase in setOf(WakeEnrollment.Phase.EXAMPLES, WakeEnrollment.Phase.CONTRAST)
                     Text(when (state.phase) {
-                        WakeEnrollment.Phase.EXAMPLES -> "Wake recording ${completed + 1} of 5"
-                        WakeEnrollment.Phase.CONTRAST -> "Different phrase ${completed - 4} of 2"
+                        WakeEnrollment.Phase.EXAMPLES -> "${if (replacing) "Replace wake recording" else "Wake recording"} ${recordingIndex + 1} of 5"
+                        WakeEnrollment.Phase.CONTRAST -> "${if (replacing) "Replace different phrase" else "Different phrase"} ${recordingIndex - 4} of 2"
                         WakeEnrollment.Phase.VALIDATION -> "Final check · ${state.attempts + 1} of 3"
                         WakeEnrollment.Phase.TRAINING_FAILED -> "Training examples need a change"
                         WakeEnrollment.Phase.VALIDATION_FAILED -> "Final check paused"
@@ -128,7 +130,8 @@ private fun VoiceWakeScreen(model: VoiceWakeViewModel, refresh: Int, close: () -
                     LinearProgressIndicator(progress = { completed / 8f }, modifier = Modifier.fillMaxWidth())
                     val contrast = state.phase == WakeEnrollment.Phase.CONTRAST
                     if (state.phase in setOf(WakeEnrollment.Phase.EXAMPLES, WakeEnrollment.Phase.CONTRAST, WakeEnrollment.Phase.VALIDATION)) {
-                        Text(if (contrast) if (completed == 5) "Say: ‘hello today’" else "Say: ‘open the door’" else "Say: ‘${state.phrase}’", style = MaterialTheme.typography.headlineSmall)
+                        val contrastPhrases = listOf("hello today", "open the door", "purple coffee").filterNot { it.equals(state.phrase, ignoreCase = true) }
+                        Text(if (contrast) "Say: ‘${contrastPhrases[(recordingIndex - 5).coerceIn(0, 1)]}’" else "Say: ‘${state.phrase}’", style = MaterialTheme.typography.headlineSmall)
                         Text(if (contrast) "Use different words from your wake phrase, in any language. These examples prevent accidental activation."
                             else if (state.phase == WakeEnrollment.Phase.VALIDATION) "One fresh recording checks the trained profile. Wait for Recording, say it once, then pause."
                             else "Wait for Recording, say the phrase naturally once, then pause. Keep a similar microphone distance.", style = MaterialTheme.typography.bodyMedium)
@@ -139,8 +142,14 @@ private fun VoiceWakeScreen(model: VoiceWakeViewModel, refresh: Int, close: () -
                     }
                     when (state.phase) {
                         WakeEnrollment.Phase.TRAINING_FAILED -> {
-                            Text("The wake and different phrases could not be separated. Replace the different phrases, or restart if the wake recordings were inconsistent.", style = MaterialTheme.typography.bodyMedium)
-                            Button(onClick = model::redoContrast, enabled = !state.busy) { Text("Replace different phrases") }
+                            Text(if (state.trainingIssue == PersonalWakeModel.TrainingIssue.INCONSISTENT_WAKE)
+                                "One wake recording differs from the others. Re-record the indicated example; keep the other six."
+                                else "One different phrase is too similar to your wake examples. Replace it with different words and rhythm; keep the other six.", style = MaterialTheme.typography.bodyMedium)
+                            if (state.problemExample != null) Button(onClick = model::replaceProblemExample, enabled = !state.busy) {
+                                val index = state.problemExample!!
+                                Text(if (index < 5) "Replace wake recording ${index + 1}" else "Replace different phrase ${index - 4}")
+                            }
+                            TextButton(onClick = model::redoContrast, enabled = !state.busy) { Text("Replace both different phrases") }
                         }
                         WakeEnrollment.Phase.VALIDATION_FAILED -> {
                             Text("Your seven examples are retained. Check your pronunciation and microphone distance before trying again.", style = MaterialTheme.typography.bodyMedium)
