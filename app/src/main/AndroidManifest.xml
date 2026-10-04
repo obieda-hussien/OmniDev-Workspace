@@ -329,6 +329,8 @@
             android:theme="@style/Theme.OmniDevWorkspace" android:excludeFromRecents="true" />
         <service android:name=".data.voice.LocalWakeService" android:exported="false"
             android:foregroundServiceType="microphone" />
+        <service android:name=".data.voice.LocalVoiceSessionService" android:exported="false"
+            android:foregroundServiceType="microphone" />
         <activity android:name=".ui.assistant.AssistantInputActivity" android:exported="false"
             android:theme="@style/Theme.OmniDevWorkspace.Assistant" android:excludeFromRecents="true" android:taskAffinity="" />
         <service android:name=".data.assistant.AssistantBubbleService" android:exported="false"

@@ -57,6 +57,7 @@ object AssistantRuntime {
         AssistantBubbleService.remove(context)
     }
     fun close(context: Context) {
+        if (!com.omnidev.workspace.data.voice.LocalVoiceSessionService.handoff) com.omnidev.workspace.data.voice.LocalVoiceSessionService.stop(context)
         get(context).close()
         targetingScreen = false
         targetPackage = null

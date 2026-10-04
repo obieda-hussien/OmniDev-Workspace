@@ -68,11 +68,11 @@ class LocalWakeService : Service() {
             var lastWake = -10_000L
             while (currentCoroutineContext().isActive && preferences.enabled) {
                 if (!AssistantSettings.isSelected(this)) { fail("Default assistant changed. Start listening again after selecting Omni."); return }
-                if (!preferences.allowedNow() || AssistantRuntime.targetingScreen ||
+                if (!preferences.allowedNow() || AssistantRuntime.targetingScreen || LocalVoiceSessionService.running ||
                     audio.mode != AudioManager.MODE_NORMAL || audio.isMusicActive || SystemClock.elapsedRealtime() - lastWake < 8000) {
                     update(when {
                         !preferences.allowedNow() -> "Paused · wake/lock-screen permissions are required for this state"
-                        AssistantRuntime.targetingScreen -> "Paused · assistant is active"
+                        AssistantRuntime.targetingScreen || LocalVoiceSessionService.running -> "Paused · assistant is active"
                         audio.mode != AudioManager.MODE_NORMAL -> "Paused · call or another voice session"
                         audio.isMusicActive -> "Paused · audio playback"
                         else -> "Paused · wake cooldown"
@@ -91,22 +91,22 @@ class LocalWakeService : Service() {
                         cpu.acquire(60_000); renewed = SystemClock.elapsedRealtime()
                         recorder.startRecording(); update("Calibrating background noise…")
                         segmenter = WakeSegmenter(WakeAudio.calibrate(recorder, chunk) {
-                            preferences.allowedNow() && !AssistantRuntime.targetingScreen && audio.mode == AudioManager.MODE_NORMAL && !audio.isMusicActive
+                            preferences.allowedNow() && !AssistantRuntime.targetingScreen && !LocalVoiceSessionService.running && audio.mode == AudioManager.MODE_NORMAL && !audio.isMusicActive
                         })
                         update("Listening locally · say Hi Omni")
-                        while (currentCoroutineContext().isActive && preferences.allowedNow() && !AssistantRuntime.targetingScreen &&
+                        while (currentCoroutineContext().isActive && preferences.allowedNow() && !AssistantRuntime.targetingScreen && !LocalVoiceSessionService.running &&
                             audio.mode == AudioManager.MODE_NORMAL && !audio.isMusicActive) {
                             val now = SystemClock.elapsedRealtime()
                             if (!cpu.isHeld || now - renewed >= 30_000) { cpu.acquire(60_000); renewed = now }
                             WakeAudio.readFrame(recorder, chunk)
-                            if (!preferences.allowedNow() || AssistantRuntime.targetingScreen) break
+                            if (!preferences.allowedNow() || AssistantRuntime.targetingScreen || LocalVoiceSessionService.running) break
                             val pcm = segmenter.accept(chunk) ?: continue
                             val match = try { runCatching { model.match(WakeFeatures.extract(pcm), preferences.personalVoice) }.getOrNull() }
                                 finally { pcm.fill(0) }
                             if (match?.accepted == true) { matched = true; break }
                         }
                     } catch (error: IllegalStateException) {
-                        if (preferences.allowedNow() && !AssistantRuntime.targetingScreen && audio.mode == AudioManager.MODE_NORMAL && !audio.isMusicActive) throw error
+                        if (preferences.allowedNow() && !AssistantRuntime.targetingScreen && !LocalVoiceSessionService.running && audio.mode == AudioManager.MODE_NORMAL && !audio.isMusicActive) throw error
                     } finally {
                         capture = null; runCatching { recorder.stop() }; recorder.release()
                         if (cpu.isHeld) cpu.release()
@@ -117,7 +117,7 @@ class LocalWakeService : Service() {
                     lastWake = SystemClock.elapsedRealtime()
                     // Microphone has been released before Android shows the assistant.
                     main.post {
-                        if (active !== this || !preferences.allowedNow() || AssistantRuntime.targetingScreen) return@post
+                        if (active !== this || !preferences.allowedNow() || AssistantRuntime.targetingScreen || LocalVoiceSessionService.running) return@post
                         if (!OmniVoiceInteractionService.wake(this)) {
                             update("Hi Omni detected · tap to open assistant")
                             getSystemService(NotificationManager::class.java).notify(INVOCATION_ID,
@@ -163,6 +163,7 @@ class LocalWakeService : Service() {
         super.onDestroy()
     }
     companion object {
+        val running get() = active != null
         private const val CHANNEL = "local_hi_omni"
         private const val ID = 9186
         private const val INVOCATION_ID = 9187

@@ -303,6 +303,7 @@
         <!-- This service requires overlay/special-use FGS permissions stripped above. -->
         <service android:name=".data.assistant.AssistantBubbleService" tools:node="remove" />
         <service android:name=".data.voice.LocalWakeService" tools:node="remove" />
+        <service android:name=".data.voice.LocalVoiceSessionService" tools:node="remove" />
         <activity android:name=".ui.assistant.VoiceWakeActivity" tools:node="remove" />
 
         <!-- No Shizuku provider in Play Store build -->

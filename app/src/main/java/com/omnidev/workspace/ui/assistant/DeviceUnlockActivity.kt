@@ -22,21 +22,25 @@ class DeviceUnlockActivity : ComponentActivity() {
     private var requestId: String? = null
     private val handler = Handler(Looper.getMainLooper())
     private val timeout = Runnable { complete("USER_ACTION_REQUIRED: unlock timed out or was blocked by Android.") }
+    private var voiceSession = false
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestId = intent.getStringExtra("request")
         val consent = DeviceConsentStore(this)
         val unlock = intent.getBooleanExtra("unlock", false)
+        voiceSession = intent.getBooleanExtra("voice_session", false)
         if (requestId !in pending || !consent.enabled(if (unlock) DeviceConsentPolicy.Scope.UNLOCK else DeviceConsentPolicy.Scope.WAKE)) {
             complete("DENIED: device consent unavailable."); return
         }
+        requestId?.let { hosts[it] = this }
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        if (voiceSession && !consent.enabled(DeviceConsentPolicy.Scope.VOICE_CREDENTIAL)) { complete("DENIED: private spoken unlock unavailable."); return }
         if (Build.VERSION.SDK_INT >= 27) { setShowWhenLocked(true); setTurnScreenOn(true) }
         else {
             @Suppress("DEPRECATION")
             window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
         }
-        handler.postDelayed(timeout, 30_000)
+        handler.postDelayed(timeout, if (voiceSession) 90_000 else 30_000)
         if (!unlock) {
             window.decorView.postDelayed({
                 val interactive = getSystemService(android.os.PowerManager::class.java)?.isInteractive == true
@@ -55,24 +59,26 @@ class DeviceUnlockActivity : ComponentActivity() {
     }
     private fun complete(result: String) { requestId?.let { pending[it]?.complete(result) }; finish() }
     override fun onDestroy() {
+        requestId?.let { if (hosts[it] === this) hosts.remove(it) }
         handler.removeCallbacksAndMessages(null)
         if (!isChangingConfigurations) requestId?.let { pending[it]?.complete("USER_ACTION_REQUIRED: unlock host closed.") }
         super.onDestroy()
     }
     companion object {
         private val pending = mutableMapOf<String, CompletableDeferred<String>>()
-        suspend fun request(context: Context, unlock: Boolean): String = withContext(Dispatchers.Main.immediate) {
+        private val hosts = mutableMapOf<String, DeviceUnlockActivity>()
+        suspend fun request(context: Context, unlock: Boolean, voiceSession: Boolean = false): String = withContext(Dispatchers.Main.immediate) {
             val id = UUID.randomUUID().toString()
             val result = CompletableDeferred<String>()
             pending[id] = result
             try {
                 context.startActivity(Intent(context, DeviceUnlockActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    .putExtra("request", id).putExtra("unlock", unlock))
-                withTimeoutOrNull(31_000) { result.await() } ?: "USER_ACTION_REQUIRED: Android blocked or delayed the unlock activity."
+                    .putExtra("request", id).putExtra("unlock", unlock).putExtra("voice_session", voiceSession))
+                withTimeoutOrNull(if (voiceSession) 91_000 else 31_000) { result.await() } ?: "USER_ACTION_REQUIRED: Android blocked or delayed the unlock activity."
             } catch (error: Exception) {
                 if (error is kotlinx.coroutines.CancellationException) throw error
                 "USER_ACTION_REQUIRED: open Omni in the foreground; Android blocked the activity."
-            } finally { pending.remove(id) }
+            } finally { pending.remove(id); hosts.remove(id)?.finish() }
         }
     }
 }

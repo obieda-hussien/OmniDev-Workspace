@@ -8,10 +8,10 @@ Available in Norm, Pro, OEM and Admin. Lite keeps the normal assistant gesture b
 2. Select Omni as Android's default digital assistant. Grant microphone permission; allow notifications so the listening controls remain visible.
 3. Agree to record and save a local profile. Record **Hi Omni** five times, with small natural changes in speed and distance. Pause after each phrase.
 4. Record two different short phrases as negative examples, then a fresh **Hi Omni** recording for validation. The model is saved only after training and this held-out check pass.
-5. Press **Start listening**. Say the phrase by itself, pause briefly, then use the panel. Optional **Listen for my request after waking** starts Android dictation after the panel appears.
+5. Press **Start listening**. Say the phrase by itself, pause briefly, then use the panel. Enable **Local voice conversation after Hi Omni**, install a speech model and an offline Android TTS voice. The local session then listens for commands and speaks replies without Google recognizer startup tones.
 6. Stop from settings or the notification. **Delete my voice profile** stops listening and removes both the saved model and its Keystore key.
 
-For screen-off detection, enable the separate authenticated **Wake screen** permission in Device access. For a locked screen, also enable **Assistant on lock screen** and **Listen while the screen is locked**. The existing private lock-screen panel applies: no conversation history, attachments or automatic dictation. A wake match never arms or consumes a saved PIN permit.
+For screen-off detection, enable the separate authenticated **Wake screen** permission in Device access. For a locked screen, also enable **Assistant on lock screen** and **Listen while the screen is locked**. The existing private lock-screen panel applies: no conversation history or attachments. A separately enabled local voice session can collect an unlock request; private code input needs **Enter a spoken unlock code locally** and **Request Android unlock**. A wake match never arms or consumes a saved PIN permit.
 
 ## What is local and what is trained
 
@@ -23,14 +23,14 @@ This is **experimental few-shot acoustic learning**, not neural-network fine-tun
 
 The model and timbre profile are encrypted with AES-GCM using a device-local AndroidKeyStore key, written atomically under credential-encrypted `noBackupFilesDir`, and have a versioned, bounded, finite-value-validated binary format. Wake preferences are excluded from cloud backup and device transfer. There is no agent tool for recording enrollment, reading/exporting profiles, enabling listening, changing permissions or deleting them. Enrollment is an unexported, unlocked, `FLAG_SECURE` Activity; the shared UI action/capture guard treats it as user-operated.
 
-Optional command dictation uses the existing installed **Android speech provider**, which may use its network service. It is separately opt-in and disabled while locked. The chat response provider remains the user's existing local or remote model selection. Training the wake model does not fine-tune that chat model.
+Local command and credential recognition uses Vosk 0.3.75 with direct `AudioRecord` PCM, never the Android/Google recognizer. Installed offline Android TTS voices speak prompts and unlocked replies; network voices and missing voice packs are rejected. Recognition is half-duplex: the recorder is released before speech and a short speaker-tail delay precedes the next recording. The separate, explicitly selected System voice input picker remains available for ordinary unlocked dictation. The chat response provider remains the user's existing local or remote model selection; ordinary requests reach that provider only after unlock. Training the wake model does not fine-tune the chat or Vosk model.
 
 ## Android lifecycle and constraints
 
 - Listening starts from an explicit foreground settings action with `RECORD_AUDIO`, the microphone foreground-service type and a persistent notification with Stop. It is `START_NOT_STICKY`; there is no boot, worker or hidden restart path. After Android terminates it or the device restarts, start it again in settings.
 - The selected `OmniVoiceInteractionService` invokes `showSession` to open the existing floating native assistant. If the native voice service is unavailable, a tap notification provides the supported fallback; the service does not force a background Activity or full-screen notification.
 - Capture stops while the assistant is active, during phone/communication modes, during audio playback, when device permissions are revoked, and during an eight-second wake cooldown. AudioRecord is released before the panel or command recognizer starts. Lock-screen permission changes are checked during capture and immediately before invocation.
-- A single coroutine mutex coordinates local recording and enrollment. Backgrounding enrollment cancels it. Each recording checks the device lock state. Errors stop listening and require the user to restart it.
+- A single coroutine mutex coordinates wake recording, command/code recognition and enrollment. Voice sessions have a 220-second lifetime and at most eight turns; idle command input times out after 20 seconds. Private code and confirmation input are separately bounded.  Backgrounding enrollment cancels it. Each recording checks the device lock state. Errors stop listening and require the user to restart it.
 - A renewable, timeout-bounded partial wake lock is held only during permitted capture and released on pause/stop. Continuous software detection costs battery; this is not a hardware DSP hotword implementation.
 - Android microphone privacy controls, permission revocation, OEM battery restrictions, unsupported microphone formats and role changes can prevent listening. Default-assistant shutdown stops the detector. No attempt is made to bypass Android restrictions.
 
@@ -41,3 +41,35 @@ Official platform references: [selected VoiceInteractionService](https://develop
 Unit tests cover fresh/time-warped examples, different phrases, coarse voice preference, ambiguous enrollment, finite/gain-invariant features, malformed serialization, bounded segmentation, resets and the full lock-screen consent matrix. Android instrumentation tests cover encrypted save/reload/delete and tamper rejection. CI runs these through the existing flavor test jobs.
 
 Device acceptance: enroll using a real voice; test wake at different distances and with TV/noise/another speaker; confirm the panel appears over another app; measure recognition latency and false accepts; check Screen off with each grant independently revoked; check private lock UI, replay behavior, microphone privacy switch, calls/playback, role removal, force-stop/reboot, enrollment cancellation, deletion and long-term battery use. Do not describe the voice profile as authentication or publish accuracy claims without measured results.
+
+
+## Spoken PIN, passwords and patterns
+
+Enable the authenticated **Enter a spoken unlock code locally** grant in Device access, in addition to wake/lock-overlay/unlock grants and local voice settings. This is a convenience input method, not biometric authentication: anyone nearby may hear a code and recordings can be replayed. An ordinary voice match grants no unlock authority.
+
+After Hi Omni, say **unlock phone** / **افتح القفل**. A task requested while locked stays in the session coroutine until unlock; if a device tool encounters a lock mid-task, its call suspends for the private session. Codes do not appear in assistant input, tool arguments/results, screen snapshots, task learning, audit logs or TTS. Prompt/credential/confirmation recognition is separate from task submission. There is no cloud recognizer fallback.
+
+| Lock type | Spoken form | Native submission and limit |
+|---|---|---|
+| PIN | Individual digits, e.g. `one two three four` or `واحد اتنين ثلاثة أربعة` | Standard genuine SystemUI `pinEntry` and digit keys, 4–16 digits |
+| Password | Exact spelling, e.g. `capital alpha bravo at five`; `arabic الف` explicitly selects an Arabic letter | Empty protected editable `passwordEntry`, ACTION_SET_TEXT and advertised IME_ENTER/enter key; 4–64 characters |
+| Pattern | Drawing-order points numbered 1–3 top, 4–6 middle, 7–9 bottom | Detected standard 3×3 SystemUI pattern view bounds; one continuous gesture, 4–9 unique points, Android skipped midpoints included |
+
+A fresh high-confidence recording must parse without guessing. The assistant then asks **confirm** / **تأكيد**, without repeating the code, before one submission. Pattern coordinates are derived only from the recognized native view; an active SystemUI window and absence of intersecting higher windows are required. Unknown OEM widgets, nonempty credential fields, lockouts, missing Accessibility, low confidence, unsupported characters/actions or rejected codes stop the attempt. There is no automatic retry. Android keyguard state is checked before reporting success. User cancellation, grant revocation and service destruction stop capture and discard pending tasks/codes; the normal agent confirmation policy still applies after unlock.
+
+Credential `CharArray` buffers are zeroed after use. Android parcelables, recognizer JSON and JVM/native temporary memory cannot be guaranteed securely erased; they are kept transient, never logged or persisted. Pattern traces already submitted to Android cannot be rolled back by cancelling the coroutine. Strong-auth/reboot/SIM/work-profile/OEM restrictions remain Android-controlled; a post-reboot session cannot start before the user unlocks the device and starts the service again.
+
+## Offline speech models and memory
+
+The settings downloader fetches only official HTTPS model archives on explicit user action, pins SHA-256, bounds archive/extracted size, rejects traversal, and stages model replacement. Inference is offline. Models and preferences are backup-excluded.
+
+| Model | Language | Download / installed size | SHA-256 |
+|---|---|---|---|
+| vosk-model-small-en-us-0.15 | English | About 40 MB / 71 MB | `30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498` |
+| vosk-model-ar-mgb2-0.4 | Arabic | About 318 MB / 665 MiB | `357469ae1bb4d7a3810c9cd6b86d33bc135898dfc134e6df8bc2ddd28c5fe77a` |
+
+The English model is preferable on limited RAM. The Arabic model is substantially heavier and modern-standard-Arabic trained; Egyptian dialect/spelling and punctuation accuracy need measurement. No neural ASR weights are committed into the repo/APK; installation requires storage for the archive, stage and prior installed model. Passwords need explicit case/symbol spelling; the selected model must recognize those words. A recognizer score is not a calibrated authentication confidence or an anti-replay guarantee.
+
+Vosk API, the selected model releases and JNA retain their upstream licenses; see [attribution](../ATTRIBUTION.md) and the [official model catalog](https://alphacephei.com/vosk/models). The downloaded model's bundled README is retained.
+
+Additional verification covers digit/spelling parsing, secret redaction/zeroing, pattern midpoint/repeat rules, confirmation and permission matrices, and the tool-unlock boundary. On-device acceptance must also verify actual PIN/password/pattern widgets, native IME-enter behavior, silent microphone starts, local TTS packs, cancellation during prompts/gestures, competing windows, ordinary-task resumption, process-death settings and Arabic resource use. No Android keyguard unlock was exercised in the development environment.

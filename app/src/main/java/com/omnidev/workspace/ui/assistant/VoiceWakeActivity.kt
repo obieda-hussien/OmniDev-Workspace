@@ -64,7 +64,10 @@ private fun VoiceWakeScreen(refresh: Int, track: (Job) -> Unit, close: () -> Uni
         samples.clear()
     }
     DisposableEffect(Unit) { onDispose { clearSamples() } }
-    LaunchedEffect(refresh, status) { selected = AssistantSettings.isSelected(context); enabled = prefs.enabled; enrolled = store.exists() }
+    LaunchedEffect(refresh, status) {
+        selected = AssistantSettings.isSelected(context); enabled = prefs.enabled && LocalWakeService.running; enrolled = store.exists()
+        if (!LocalWakeService.running && prefs.enabled) prefs.setEnabled(false)
+    }
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         message = if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
             "Microphone granted. Press Record or Start listening when ready." else "Microphone permission is needed."
@@ -143,10 +146,10 @@ private fun VoiceWakeScreen(refresh: Int, track: (Job) -> Unit, close: () -> Uni
                     Row { Switch(personal, { personal = it; prefs.setPersonalVoice(it) }, enabled = !busy); Text("Prefer only my enrolled voice", Modifier.padding(start = 12.dp)) }
                     Text("The voice profile reduces accidental activation. Recordings or similar voices can still match. It never confirms your identity, unlocks Android or approves agent actions.", style = MaterialTheme.typography.bodySmall)
                     Row { Switch(locked, { locked = it; prefs.setLockScreen(it) }, enabled = !busy); Text("Listen while the screen is locked", Modifier.padding(start = 12.dp)) }
-                    Text("Requires separate device permissions for waking the screen and showing the assistant on the lock screen. No chat history or automatic dictation is exposed there.", style = MaterialTheme.typography.bodySmall)
+                    Text("Requires separate device permissions for waking the screen and showing the assistant on the lock screen. The locked panel hides chat history. Local voice conversation is a separate opt-in below.", style = MaterialTheme.typography.bodySmall)
                     TextButton(onClick = { context.startActivity(Intent(context, DeviceAccessActivity::class.java)) }, enabled = !busy) { Text("Lock-screen permissions") }
-                    Row { Switch(dictation, { dictation = it; prefs.setAutoDictation(it) }, enabled = !busy); Text("Listen for my request after waking", Modifier.padding(start = 12.dp)) }
-                    Text("Optional command dictation uses your installed Android speech service and may send speech to its provider. Hi Omni detection and voice training remain local. Disabled on the lock screen.", style = MaterialTheme.typography.bodySmall)
+                    Row { Switch(dictation, { dictation = it; prefs.setAutoDictation(it) }, enabled = !busy); Text("Local voice conversation after Hi Omni", Modifier.padding(start = 12.dp)) }
+                    Text("Direct offline speech recognition, with no Google startup tones. The assistant speaks using an installed offline Android voice. Private spoken unlock requires its own authenticated permission in Device access. Voice matching is not identity verification.", style = MaterialTheme.typography.bodySmall)
                     Button(onClick = {
                         if (enabled) { LocalWakeService.stop(context); enabled = false }
                         else if (permissionReady()) {
@@ -162,6 +165,45 @@ private fun VoiceWakeScreen(refresh: Int, track: (Job) -> Unit, close: () -> Uni
                             finally { busy = false }
                         })
                     }, enabled = !busy && enrolled) { Text("Delete my voice profile") }
+                }
+            } }
+            item { Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Offline speech model", style = MaterialTheme.typography.titleMedium)
+                    Text(if (OfflineVoiceModels(context).ready()) "Installed · ${OfflineVoiceModels(context).language()}" else "Install a model for commands and private codes. Wake-phrase training alone does not transcribe speech.")
+                    for (preset in OfflineVoiceModels.Preset.entries) {
+                        OutlinedButton(onClick = {
+                            LocalWakeService.stop(context); com.omnidev.workspace.data.voice.LocalVoiceSessionService.stop(context)
+                            enabled = false; busy = true
+                            track(scope.launch {
+                                try {
+                                    var displayedMb = -1L
+                                    val main = android.os.Handler(android.os.Looper.getMainLooper())
+                                    OfflineVoiceModels(context).install(preset) { count ->
+                                        val mb = count / (1024 * 1024)
+                                        if (mb != displayedMb) {
+                                            displayedMb = mb
+                                            main.post { message = "Downloading model · $mb MB" }
+                                        }
+                                    }
+                                    message = "Verified offline model installed. Enable local voice conversation, then Start listening."
+                                } catch (cancelled: CancellationException) { message = "Model installation cancelled."; throw cancelled }
+                                catch (error: Exception) { message = "Could not install the model. Check your connection and available storage." }
+                                finally { busy = false }
+                            })
+                        }, enabled = !busy) { Text(preset.sizeLabel) }
+                    }
+                    Text("Only model downloads use the network. Speech audio stays on the device. The Arabic model uses more memory and does not guarantee Egyptian dialect accuracy. Passwords must be spelled exactly; do not rely on automatic punctuation or case.", style = MaterialTheme.typography.bodySmall)
+                    Text("Examples: PIN ‘one two three four’; password ‘capital alpha bravo at five’; pattern ‘one two five eight’. Say confirm or تأكيد to submit one attempt, or cancel / إلغاء. Symbols include at, hash, underscore, dash, dot, star, plus and space.", style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = {
+                        runCatching { context.startActivity(Intent(android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)) }
+                            .onFailure { message = "Open Android Settings → Text-to-speech and install an offline voice." }
+                    }, enabled = !busy) { Text("Install offline spoken voice") }
+                    TextButton(onClick = {
+                        LocalWakeService.stop(context); com.omnidev.workspace.data.voice.LocalVoiceSessionService.stop(context)
+                        busy = true
+                        track(scope.launch { try { OfflineVoiceModels(context).delete(); message = "Offline speech model removed." } finally { busy = false } })
+                    }, enabled = !busy && OfflineVoiceModels(context).ready()) { Text("Remove speech model") }
                 }
             } }
             item { Spacer(Modifier.height(20.dp)) }

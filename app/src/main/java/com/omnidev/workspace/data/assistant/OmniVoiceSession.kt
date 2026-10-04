@@ -99,18 +99,18 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
         }) { hide(); return }
         preserveOnHide = false
         AssistantRuntime.begin(context, args?.getBoolean(OmniVoiceInteractionService.RESUME) == true, native = true)
-        val wake = args?.getBoolean(OmniVoiceInteractionService.WAKE_INVOCATION) == true
+        val wake = args?.getBoolean(OmniVoiceInteractionService.WAKE_INVOCATION) == true || args?.getBoolean(OmniVoiceInteractionService.UNLOCK_REQUEST) == true
         val deviceConsent = com.omnidev.workspace.data.admin.DeviceConsentStore(context)
         if (wake && deviceConsent.enabled(com.omnidev.workspace.data.admin.DeviceConsentPolicy.Scope.WAKE)) {
             window?.window?.addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
         } else window?.window?.clearFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
-        if (wake && com.omnidev.workspace.data.voice.WakePreferences(context).autoDictation && !deviceConsent.locked()) {
+        com.omnidev.workspace.data.voice.LocalVoiceSessionService.hideForCredential = { preserveOnHide = true; hide() }
+        if (wake && args?.getBoolean(OmniVoiceInteractionService.UNLOCK_REQUEST) != true && com.omnidev.workspace.data.voice.WakePreferences(context).autoDictation) {
             uiScope.launch {
                 delay(400)
-                if (controller.state.value.visible && com.omnidev.workspace.data.voice.WakePreferences(context).autoDictation &&
-                    !com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) {
-                    speech.toggle({ controller.message("Allow microphone permission to dictate a request.") },
-                        { controller.message("Tap the mic to select a speech service.") })
+                if (controller.state.value.visible && com.omnidev.workspace.data.voice.WakePreferences(context).autoDictation) {
+                    if (!com.omnidev.workspace.data.voice.LocalVoiceSessionService.start(context))
+                        controller.message("Install an offline voice model in Hi Omni settings to start local voice.")
                 }
             }
         }
@@ -141,6 +141,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
         speech.stop()
         AssistantRuntime.openAccessCenter = null
         AssistantRuntime.minimizeForAction = null
+        com.omnidev.workspace.data.voice.LocalVoiceSessionService.hideForCredential = null
         if (preserveOnHide) controller.hide() else AssistantRuntime.close(context)
         composition?.disposeComposition()
         owner.registry.currentState = Lifecycle.State.CREATED

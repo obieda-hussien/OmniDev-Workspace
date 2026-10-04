@@ -11,7 +11,8 @@ object DeviceAccessGuard {
     private val readers = setOf("dump_tree", "get_summary", "find_element", "get_text", "describe", "verify", "wait_for", "macro_list", "routine_wait")
     fun currentPackage(): String? = AccessibilityStateManager.activePackage.value ?: AssistantRuntime.targetPackage
     fun check(context: Context, pkg: String? = currentPackage(), screenshot: Boolean = false, mutation: Boolean = false): String? {
-        if (LocalPinUnlock.entering) return "Local credential entry is in progress. Observation and other interaction are paused."
+        if (LocalPinUnlock.entering || CredentialInputGate.entering || com.omnidev.workspace.data.voice.LocalVoiceSessionService.privateInput)
+            return "Local credential entry is in progress. Observation and other interaction are paused."
         if (pkg == context.packageName && AccessibilityStateManager.activeActivity.value?.let {
                 it.endsWith("DeviceAccessActivity") || it.endsWith("DeviceUnlockActivity") || it.endsWith("VoiceWakeActivity")
             } == true) return "USER_ACTION_REQUIRED: device consent and authentication screens are user-operated."
