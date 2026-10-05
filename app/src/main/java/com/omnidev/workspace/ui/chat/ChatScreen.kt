@@ -87,8 +87,8 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
             ChatConversation(state = state, onInputChanged = viewModel::onInputChanged, onSend = viewModel::sendMessage,
                 onStop = { viewModel.cancelCurrentRun() }, onModeSelected = viewModel::setMode,
                 onOpenConversations = { scope.launch { drawer.open() } }, onNewConversation = viewModel::newSession,
-                onChooseScope = { if (state.isGodModeEnabled) onNavigateToSettings() else directoryPicker.launch(null) },
-                onSettings = onNavigateToSettings, onBrowser = onOpenBrowser,
+                onChooseScope = { directoryPicker.launch(null) },
+                onBrowser = onOpenBrowser,
                 onAttach = { attachments.launch("*/*") }, onRemoveAttachment = viewModel::removeAttachment,
                 onReply = viewModel::setReplyingTo, onDismissReply = viewModel::clearReplyingTo,
                 onUpdateChatSettings = viewModel::updateChatSettings, onClearError = viewModel::clearError,
@@ -106,7 +106,7 @@ internal fun ChatConversation(
     state: ChatUiState,
     onInputChanged: (String) -> Unit = {}, onSend: () -> Unit = {}, onStop: () -> Unit = {},
     onModeSelected: (OmniMode) -> Unit = {}, onOpenConversations: () -> Unit = {}, onNewConversation: () -> Unit = {},
-    onChooseScope: () -> Unit = {}, onSettings: () -> Unit = {}, onBrowser: () -> Unit = {},
+    onChooseScope: () -> Unit = {}, onBrowser: () -> Unit = {},
     onAttach: () -> Unit = {}, onRemoveAttachment: (android.net.Uri) -> Unit = {},
     onReply: (ChatMessage) -> Unit = {}, onDismissReply: () -> Unit = {}, onUpdateChatSettings: (ChatSettings) -> Unit = {},
     onClearError: () -> Unit = {}, onModeDecision: (String, ModeSwitchPermissionStore.Approval?) -> Unit = { _, _ -> }
@@ -114,7 +114,6 @@ internal fun ChatConversation(
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
-    var menu by rememberSaveable { mutableStateOf(false) }
     val list = rememberLazyListState()
     val messagesById = remember(state.messages) { state.messages.associateBy { it.messageId } }
     val lastUserId = remember(state.messages) { state.messages.lastOrNull { it.role == MessageRole.USER }?.messageId }
@@ -127,7 +126,9 @@ internal fun ChatConversation(
         AgentConsoleSerializer.compact(state.consoleEntries.map(ConsoleRedactor::entry))
     }
     fun leaveEditor(action: () -> Unit) { focusManager.clearFocus(); keyboard?.hide(); action() }
-    Scaffold(modifier = Modifier.testTag("chat-conversation"), containerColor = MaterialTheme.colorScheme.surface, topBar = {
+    // Scaffold owns system and IME insets once; the body consumes its padding.
+    Scaffold(modifier = Modifier.testTag("chat-conversation"), containerColor = MaterialTheme.colorScheme.surface,
+        contentWindowInsets = WindowInsets.safeDrawing, topBar = {
         Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth().testTag("conversation-header")) {
             Row(Modifier.fillMaxWidth().statusBarsPadding().heightIn(min = 64.dp).padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically) {
@@ -136,21 +137,10 @@ internal fun ChatConversation(
                     ModeSelector(state.activeMode, onModeSelected, isProcessing = state.isProcessing, conversationTitle = title)
                 }
                 OmniIconButton(onClick = { leaveEditor(onNewConversation) }) { Icon(Icons.Default.Edit, "New conversation") }
-                Box {
-                    OmniIconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreHoriz, "Conversation options") }
-                    DropdownMenu(menu, { menu = false }) {
-                        DropdownMenuItem(text = { Text(if (state.isGodModeEnabled) "File access settings" else "Project scope") },
-                            leadingIcon = { Icon(Icons.Default.FolderOpen, null) }, onClick = { menu = false; leaveEditor(onChooseScope) })
-                        DropdownMenuItem(text = { Text("Open browser") }, leadingIcon = { Icon(Icons.Default.Language, null) },
-                            onClick = { menu = false; leaveEditor(onBrowser) })
-                        DropdownMenuItem(text = { Text("Settings") }, leadingIcon = { Icon(Icons.Default.Settings, null) },
-                            onClick = { menu = false; leaveEditor(onSettings) })
-                    }
-                }
             }
         }
     }) { insets ->
-        BoxWithConstraints(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets).imePadding()) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets)) {
             val compactComposer = maxHeight < 280.dp
             Column(Modifier.fillMaxSize()) {
                 Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -196,9 +186,10 @@ internal fun ChatConversation(
                 }
                 ChatInputBar(state.inputText, onInputChanged, onSend, onStop, state.isProcessing, state.pendingAttachments, onAttach,
                     onRemoveAttachment, state.replyingTo, onDismissReply, state.chatSettings, onUpdateChatSettings, focusRequester,
-                    scopeLabel = if (state.activeMode == OmniMode.CHAT) null else if (state.isGodModeEnabled) "Extended file access"
+                    scopeLabel = if (state.activeMode == OmniMode.CHAT || state.isGodModeEnabled) null
                         else state.targetContextDisplayName ?: state.targetContext?.substringAfterLast('/')?.ifBlank { state.targetContext },
-                    onChooseScope = onChooseScope, compact = compactComposer)
+                    onChooseScope = onChooseScope, compact = compactComposer,
+                    showScopeChooser = state.activeMode != OmniMode.CHAT && !state.isGodModeEnabled)
             }
         }
     }

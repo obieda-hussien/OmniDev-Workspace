@@ -282,7 +282,8 @@
 
         <profileable android:shell="true" />
 
-        <activity android:name=".MainActivity" android:launchMode="singleTop" android:exported="true" android:label="@string/app_name" android:theme="@style/Theme.OmniDevWorkspace">
+        <activity android:name=".MainActivity" android:launchMode="singleTop" android:exported="true" android:label="@string/app_name" android:theme="@style/Theme.OmniDevWorkspace"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

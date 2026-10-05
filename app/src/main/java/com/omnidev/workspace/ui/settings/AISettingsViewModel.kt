@@ -25,6 +25,7 @@ data class AISettingsUiState(
     val modelAssignments: Map<ModelRole, String> = ModelRole.entries.associateWith {
         ModelRegistry.getDefaultModelForRole(it).id
     },
+    val localModelConfigured: Boolean = false,
     /** Whether Deep Thinking mode is enabled globally. */
     val deepThinkingEnabled: Boolean = false,
     /** Whether God Mode (unrestricted file system access) is enabled. */
@@ -65,15 +66,18 @@ class AISettingsViewModel(
             combine(
                 settingsRepository.observeAllModelAssignments(),
                 settingsRepository.observeDeepThinking(),
-                settingsRepository.observeGodMode()
-            ) { assignments, deepThinking, godMode ->
+                settingsRepository.observeGodMode(),
+                settingsRepository.observeLocalModelUri()
+            ) { assignments, deepThinking, godMode, localUri ->
                 AISettingsUiState(
                     modelAssignments = assignments,
+                    localModelConfigured = !localUri.isNullOrBlank(),
                     deepThinkingEnabled = deepThinking,
                     godModeEnabled = godMode
                 )
             }.collect { state ->
                 _uiState.update { it.copy(modelAssignments = state.modelAssignments,
+                    localModelConfigured = state.localModelConfigured,
                     deepThinkingEnabled = state.deepThinkingEnabled, godModeEnabled = state.godModeEnabled) }
             }
         }

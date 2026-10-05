@@ -224,6 +224,7 @@ class ProvidersViewModel(
      * cached entry. Errors are surfaced both as a catalog entry and as a snackbar.
      */
     fun refreshModels(provider: ModelProvider) {
+        if (_uiState.value.catalogs[provider]?.isFetching == true) return
         _uiState.update { state ->
             state.copy(
                 catalogs = state.catalogs + (provider to ProviderModelCatalog(
@@ -235,12 +236,19 @@ class ProvidersViewModel(
             )
         }
         viewModelScope.launch {
-            val apiKey = apiKeyRepository.getApiKey(provider)
-            val result = modelFetcher.fetchModels(provider, apiKey)
-            result.getOrNull()?.takeIf { provider != ModelProvider.CUSTOM_OPENAI }?.let { models ->
-                val normalized = models.map {
-                    it.copy(id = if ("::" in it.id) it.id else "${provider.name}::${it.id}")
-                }
+            val result = runCatching {
+                val apiKey = apiKeyRepository.getApiKey(provider)
+                if (provider == ModelProvider.GITHUB_COPILOT) {
+                    val token = apiKey?.takeIf { it.isNotBlank() } ?: error("Connect GitHub Copilot first.")
+                    com.omnidev.workspace.data.auth.CopilotModelRefresher.fetchModels(token)
+                } else modelFetcher.fetchModels(provider, apiKey).getOrThrow()
+            }
+            result.exceptionOrNull()?.let { if (it is kotlinx.coroutines.CancellationException) throw it }
+            val canonicalResult = result.map { models ->
+                if (provider == ModelProvider.CUSTOM_OPENAI) ModelRegistry.modelsByProvider[provider].orEmpty()
+                else normalizeCatalogModels(provider, models)
+            }
+            canonicalResult.getOrNull()?.takeIf { provider != ModelProvider.CUSTOM_OPENAI }?.let { normalized ->
                 ModelRegistry.setProviderModels(provider, normalized)
                 try {
                     settingsRepository.saveModelCatalog(provider, normalized)
@@ -251,7 +259,7 @@ class ProvidersViewModel(
                 }
             }
             _uiState.update { state ->
-                val entry = result.fold(
+                val entry = canonicalResult.fold(
                     onSuccess = { models ->
                         ProviderModelCatalog(
                             isFetching = false,
@@ -263,7 +271,7 @@ class ProvidersViewModel(
                     onFailure = { err ->
                         ProviderModelCatalog(
                             isFetching = false,
-                            models = emptyList(),
+                            models = state.catalogs[provider]?.models.orEmpty(),
                             error = err.message ?: "Fetch failed",
                             lastFetchedAt = System.currentTimeMillis()
                         )

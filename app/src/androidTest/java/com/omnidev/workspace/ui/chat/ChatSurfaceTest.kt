@@ -2,6 +2,12 @@ package com.omnidev.workspace.ui.chat
 
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.dp
+import com.omnidev.workspace.ui.theme.OmniDevTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.semantics.Role
@@ -104,4 +110,18 @@ class ChatSurfaceTest {
         compose.onNodeWithContentDescription("Clear search").performClick()
         compose.onNodeWithText("Telegram task").assertExists()
     }
+    @Test fun drawerKeepsOneSettingsAndBrowserEntryWithSavedConversationActions() {
+        val sessions = listOf(ChatSessionEntity(id = 1, title = "Design notes", isPinned = true),
+            ChatSessionEntity(id = 2, title = "Code review"))
+        compose.setContent { OmniDevTheme(darkTheme = false, dynamicColor = false) {
+            Box(Modifier.width(320.dp).testTag("conversation-drawer")) {
+                ChatHistoryDrawer(sessions, 1, {}, {}, {}, { _, _ -> }, {}, {}, {}, {})
+            }
+        } }
+        compose.onAllNodesWithText("Settings").assertCountEquals(1)
+        compose.onAllNodesWithText("Browser").assertCountEquals(1)
+        compose.onNodeWithText("Design notes").assertIsDisplayed()
+        saveChatPreview(compose, "conversation-drawer", "drawer-light.png")
+    }
+
 }

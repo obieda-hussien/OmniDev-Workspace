@@ -92,7 +92,7 @@ class ChatExperienceTest {
         compose.runOnIdle { assertEquals(1, scopes) }
         compose.onNodeWithContentDescription("Conversation tools").performClick()
         compose.onNodeWithText("Chat tools and skills").performClick()
-        compose.onNodeWithText("Add to chat").assertExists()
+        compose.onNodeWithText("Tools & skills").assertExists()
     }
 
     @Test fun streamingBurstsEventuallyRenderTheFullLatestMarkdownAndArabic() {
@@ -133,9 +133,23 @@ class ChatExperienceTest {
         compose.onNodeWithContentDescription("Message Omni").assertIsFocused()
     }
 
+    @Test fun conversationHeaderHasNoDuplicateNavigationAndExtendedAccessHasNoSettingsShortcut() {
+        compose.setContent { OmniDevTheme(dynamicColor = false) {
+            ChatConversation(ChatUiState(activeMode = OmniMode.AGENT, isGodModeEnabled = true))
+        } }
+        compose.onNodeWithContentDescription("Conversation options").assertDoesNotExist()
+        compose.onNodeWithText("Settings").assertDoesNotExist()
+        compose.onNodeWithText("Open browser").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Conversation tools").performClick()
+        compose.onNodeWithText("Project scope").assertDoesNotExist()
+        compose.onNodeWithText("File access settings").assertDoesNotExist()
+        compose.onNodeWithText("Attach files").assertExists()
+        compose.onNodeWithText("Chat tools and skills").assertExists()
+    }
+
     private fun savePreview(tag: String, name: String) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val directory = checkNotNull(context.getExternalFilesDir("chat-previews"))
+        val directory = File(context.filesDir, "chat-previews")
         check(directory.isDirectory || directory.mkdirs())
         val bitmap = compose.onNodeWithTag(tag).captureToImage().asAndroidBitmap()
         File(directory, name).outputStream().use { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
