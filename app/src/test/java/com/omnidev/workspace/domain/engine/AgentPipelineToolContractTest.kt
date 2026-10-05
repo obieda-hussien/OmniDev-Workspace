@@ -19,6 +19,27 @@ class AgentPipelineToolContractTest {
     }
     private val config = AgentConfig(maxIterations = 6, enableRetry = false, enableMemoryTrimming = false)
 
+    @Test fun `GitHub enumeration cannot turn a failed project read into verified success`() = runTest {
+        var round = 0
+        val tools = object : ToolManager {
+            override fun getToolDefinitions() = listOf(ToolDefinition("github_manager", "GitHub repository reads", listOf(
+                ToolParameter("action", "string", "Action"), ToolParameter("repo", "string", "Repository", required = false))))
+            override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?) =
+                if (arguments["action"] == "get_repo") ToolExecutionResult("HTTP404", true, classification = "GITHUB_RESOURCE_NOT_FOUND")
+                else ToolExecutionResult("Repository names only")
+        }
+        val pipeline = AgentPipeline(tools, completionProvider = {
+            when (++round) {
+                1 -> CompletionResponse("", listOf(ToolCall("read", "github_manager", mapOf("action" to "get_repo", "repo" to "a/b"))))
+                2 -> CompletionResponse("", listOf(ToolCall("list", "github_manager", mapOf("action" to "list_repos"))))
+                else -> CompletionResponse("I reviewed the project source")
+            }
+        }, config = config)
+        val events = pipeline.execute("Review GitHub project source", modelId = "gpt-4o-mini", scopePath = "/tmp").toList()
+        assertTrue(events.none { it is AgentEvent.FinalAnswer })
+        assertTrue(events.filterIsInstance<AgentEvent.Error>().any { it.message.contains("unverified") })
+    }
+
     @Test fun `invented tool triggers runtime recovery without a discover call`() = runTest {
         val tools = FakeTools()
         var round = 0

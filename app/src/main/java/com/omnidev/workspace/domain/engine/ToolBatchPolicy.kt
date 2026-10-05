@@ -48,6 +48,8 @@ object ToolBatchPolicy {
                 }
             }
 
+            "github_manager" -> return call.arguments["action"] in setOf("policy_status", "whoami", "get_repo", "list_repos", "list_contents", "read_file")
+
             "git_manager" -> return call.arguments["action"] in setOf("status", "diff", "log", "remote_status")
 
             "omni_link" -> return call.arguments["action"] in setOf("list_extensions", "find_capability", "get_manifest", "get_events")

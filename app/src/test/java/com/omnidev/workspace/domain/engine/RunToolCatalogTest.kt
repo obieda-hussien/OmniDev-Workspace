@@ -9,6 +9,11 @@ class RunToolCatalogTest {
         ToolParameter("path", "string", "Exact target path")
     )) }
 
+    @Test fun `failure telemetry cannot retrieve unrelated domains without lexical evidence`() {
+        val run = RunToolCatalog(registry, "registered_120")
+        assertTrue(run.search("failed returned error class tool_error false persistent", 6, lexicalOnly = true).isEmpty())
+    }
+
     @Test fun `initial schema set is small and includes discovery`() {
         val run = RunToolCatalog(registry, "registered_119")
         assertTrue(run.definitions().size <= 25)

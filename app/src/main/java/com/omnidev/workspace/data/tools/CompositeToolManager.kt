@@ -718,15 +718,15 @@ class CompositeToolManager(
 
             // ── GitHub manager tool ──
             "github_manager" -> {
-                val pat = settingsRepository?.observeGitHubPat()?.first()
                 GitHubManagerTool.execute(
-                    pat = pat,
+                    pat = null,
                     action = arguments["action"] ?: return missingArg("action"),
-                    repo = arguments["repo"] ?: return missingArg("repo"),
-                    title = arguments["title"] ?: return missingArg("title"),
-                    body = arguments["body"] ?: return missingArg("body"),
+                    repo = arguments["repo"].orEmpty(),
+                    title = arguments["title"].orEmpty(),
+                    body = arguments["body"].orEmpty(),
                     head = arguments["head"],
-                    base = arguments["base"]
+                    base = arguments["base"],
+                    options = arguments
                 )
             }
 

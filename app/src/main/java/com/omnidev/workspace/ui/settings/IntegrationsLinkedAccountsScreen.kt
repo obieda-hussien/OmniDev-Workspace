@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import com.omnidev.workspace.data.auth.GitHubAccountDeviceFlowManager
 import com.omnidev.workspace.data.auth.GitHubAgentAccessStore
 import com.omnidev.workspace.data.auth.GitHubDeviceFlowManager
+import com.omnidev.workspace.data.tools.GitHubManagerTool
 import com.omnidev.workspace.data.auth.GitHubTokenValidator
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.ui.components.SettingsDisclosure
@@ -89,7 +90,7 @@ private fun GitHubAgentAccessPanel(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val initial = remember { store.policy() }
+    val initial = remember { store.publicPolicy() }
 
     var advancedExpanded by remember { mutableStateOf(false) }
     var enabled by remember { mutableStateOf(initial.enabled) }
@@ -115,6 +116,9 @@ private fun GitHubAgentAccessPanel(
 
     var authRunning by remember { mutableStateOf(false) }
     var patValidating by remember { mutableStateOf(false) }
+    var repositoryToTest by remember { mutableStateOf("") }
+    var repositoryTesting by remember { mutableStateOf(false) }
+    var repositoryResult by remember { mutableStateOf<String?>(null) }
     var authCode by remember { mutableStateOf<String?>(null) }
     var verificationUri by remember { mutableStateOf(GitHubAccountDeviceFlowManager.VERIFICATION_URL) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -163,7 +167,7 @@ private fun GitHubAgentAccessPanel(
         if (connected) {
             Text(
                 buildString {
-                    append("Connected ✓")
+                    append("Credential saved")
                     accountLogin?.takeIf { it.isNotBlank() }?.let { append(" · @").append(it) }
                     append(" · ").append(connectedMethod.displayName)
                 },
@@ -171,6 +175,34 @@ private fun GitHubAgentAccessPanel(
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold
             )
+        }
+
+        if (connected) {
+            Text("A saved token does not prove access to every repository. Local switches only limit its GitHub permissions.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedTextField(value = repositoryToTest, onValueChange = { repositoryToTest = it; repositoryResult = null },
+                label = { Text("Test repository · owner/repo") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedButton(enabled = enabled && !repositoryTesting && !authRunning && !patValidating && repositoryToTest.isNotBlank(),
+                onClick = {
+                    val target = repositoryToTest.trim()
+                    repositoryTesting = true
+                    repositoryResult = null
+                    scope.launch {
+                        try {
+                            val metadata = GitHubManagerTool.execute(null, "get_repo", repo = target)
+                            repositoryResult = if (metadata.isError) metadata.output else {
+                                val contents = GitHubManagerTool.execute(null, "list_contents", repo = target)
+                                "Repository metadata read succeeded.\n" + if (contents.isError) contents.output else
+                                    "Root directory read succeeded for $target. This verifies current reads, not write/admin access."
+                            }
+                        } finally { repositoryTesting = false }
+                    }
+                }, modifier = Modifier.fillMaxWidth()) {
+                Text(if (repositoryTesting) "Testing repository access…" else "Test repository access")
+            }
+            repositoryResult?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            Text("For a fine-grained PAT, select the repository and Contents: Read on GitHub; check organization approval/SSO if needed. A 404 can mean an incorrect name/path/ref or a resource hidden from this token.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
 
         PermissionSwitchRow(
@@ -475,6 +507,7 @@ private fun GitHubAgentAccessPanel(
                     grantedScopes = ""
                     authCode = null
                     personalAccessToken = ""
+                    repositoryResult = null
                     status = "Local GitHub Agent authorization removed. GitHub AI credentials were not changed."
                 },
                 modifier = Modifier.fillMaxWidth()
