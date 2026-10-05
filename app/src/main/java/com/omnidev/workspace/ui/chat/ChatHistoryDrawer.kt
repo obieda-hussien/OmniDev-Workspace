@@ -29,7 +29,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.omnidev.workspace.data.db.entities.ChatSessionEntity
 import com.omnidev.workspace.ui.components.SettingsEmptyState
-import com.omnidev.workspace.ui.components.SettingsSearchField
+import com.omnidev.workspace.ui.components.OmniSearchField
+import com.omnidev.workspace.ui.components.OmniMark
 import com.omnidev.workspace.ui.motion.OmniIconButton
 import com.omnidev.workspace.ui.motion.LocalOmniMotion
 import com.omnidev.workspace.ui.motion.OmniEasing
@@ -124,10 +125,11 @@ internal fun ChatHistoryDrawer(
             dismissButton = { TextButton(onClick = { deleteGroup = null }) { Text("Cancel") } })
     }
     Column(Modifier.fillMaxHeight().imePadding().background(MaterialTheme.colorScheme.surface)) {
-        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 16.dp, bottom = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (!selection) { OmniMark(Modifier.size(32.dp)); Spacer(Modifier.width(12.dp)) }
             Column(Modifier.weight(1f)) {
-                Text(if (selection) "${selectedIds.size} selected" else "Conversations", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                if (!selection) Text("${sessions.size} saved chats", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if (selection) "${selectedIds.size} selected" else "Omni", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                if (!selection) Text("Your conversations", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (selection) {
                 OmniIconButton(onClick = { deleteGroup = "selected" }, enabled = selectedIds.isNotEmpty()) { Icon(Icons.Default.Delete, "Delete selected conversations") }
@@ -135,10 +137,10 @@ internal fun ChatHistoryDrawer(
             } else OmniIconButton(onClick = onCloseDrawer) { Icon(Icons.Default.Close, "Close conversations") }
         }
         if (!selection) {
-            Button(onClick = { onNewSession(); onCloseDrawer() }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(16.dp)) {
-                Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("New conversation")
+            FilledTonalButton(onClick = { onNewSession(); onCloseDrawer() }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).heightIn(min = 52.dp), shape = RoundedCornerShape(20.dp)) {
+                Icon(Icons.Default.Edit, null); Spacer(Modifier.width(8.dp)); Text("New conversation")
             }
-            SettingsSearchField(query, { query = it }, "Search conversations", Modifier.padding(horizontal = 16.dp, vertical = 12.dp))
+            OmniSearchField(query, { query = it }, "Search conversations", Modifier.padding(horizontal = 16.dp, vertical = 12.dp))
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(filter == HistoryFilter.ALL, { filter = HistoryFilter.ALL }, label = { Text("All") })
                 FilterChip(filter == HistoryFilter.PINNED, { filter = HistoryFilter.PINNED }, label = { Text("Pinned") })
@@ -164,7 +166,6 @@ internal fun ChatHistoryDrawer(
                 } }
             }
             Spacer(Modifier.weight(1f))
-            Text("${visible.size} visible", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (!selection) Box {
                 OmniIconButton(onClick = { menu = true }, enabled = sessions.isNotEmpty()) { Icon(Icons.Default.MoreVert, "Manage conversations") }
                 DropdownMenu(menu, { menu = false }) {
@@ -173,8 +174,8 @@ internal fun ChatHistoryDrawer(
                 }
             }
         }
-        LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (visible.isEmpty()) item {
                 SettingsEmptyState(if (sessions.isEmpty()) "Your conversations start here" else "No matching chats",
                     if (sessions.isEmpty()) "Create a conversation to get started." else "Try another search or source.")
@@ -195,10 +196,10 @@ internal fun ChatHistoryDrawer(
                 }
             }
         }
-        HorizontalDivider()
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            TextButton(onClick = onSettings, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Settings, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Settings") }
-            TextButton(onClick = onBrowser, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Language, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Browser") }
+        HorizontalDivider(Modifier.padding(horizontal = 20.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilledTonalButton(onClick = onSettings, modifier = Modifier.weight(1f).heightIn(min = 48.dp), shape = RoundedCornerShape(16.dp)) { Icon(Icons.Default.Settings, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Settings") }
+            FilledTonalButton(onClick = onBrowser, modifier = Modifier.weight(1f).heightIn(min = 48.dp), shape = RoundedCornerShape(16.dp)) { Icon(Icons.Default.Language, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Browser") }
         }
     }
 }
@@ -209,16 +210,20 @@ private fun HistorySessionItem(session: ChatSessionEntity, active: Boolean, sele
     onClick: () -> Unit, onLongClick: () -> Unit, onPin: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit, modifier: Modifier = Modifier) {
     var menu by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
-    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-        .background(if (checked) MaterialTheme.colorScheme.primaryContainer else if (active) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface)
+    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+        .background(if (checked || active) MaterialTheme.colorScheme.primaryContainer.copy(alpha = .55f) else MaterialTheme.colorScheme.surface)
         .semantics { selected = if (selection) checked else active }
         .combinedClickable(onClick = onClick, onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onLongClick() })
         .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         if (selection) Checkbox(checked, null)
+        else {
+            Icon(if (session.isPinned) Icons.Default.PushPin else Icons.Default.ChatBubbleOutline, null,
+                Modifier.padding(end = 12.dp).size(18.dp), tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(session.title.ifBlank { "Untitled conversation" }, maxLines = 2, overflow = TextOverflow.Ellipsis,
                 style = MaterialTheme.typography.bodyMedium, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal)
-            Text("${sessionSourceLabel(session)} · ${relativeSessionTime(session.lastUpdated)}", maxLines = 1,
+            Text(if (session.source == ChatSessionEntity.SOURCE_APP) relativeSessionTime(session.lastUpdated) else "${sessionSourceLabel(session)} · ${relativeSessionTime(session.lastUpdated)}", maxLines = 1,
                 overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (!selection) Box {

@@ -1,5 +1,7 @@
 package com.omnidev.workspace.ui.chat
 
+import com.omnidev.workspace.ui.components.OmniMark
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.net.Uri
@@ -72,11 +74,12 @@ private fun modeDescription(mode: OmniMode) = when (mode) {
 
 @Composable
 private fun ModeIcon(mode: OmniMode, modifier: Modifier = Modifier) {
+    if (mode == OmniMode.AUTO) { OmniMark(modifier); return }
     Icon(when (mode) {
         OmniMode.CHAT -> Icons.Default.QuestionAnswer
         OmniMode.AGENT -> Icons.Default.SmartToy
         OmniMode.SWARM -> Icons.Default.Hub
-        OmniMode.AUTO -> Icons.Default.AutoAwesome
+        OmniMode.AUTO -> Icons.Default.SmartToy
     }, null, modifier, tint = MaterialTheme.colorScheme.primary)
 }
 
@@ -134,7 +137,7 @@ internal fun ModeSelector(activeMode: OmniMode, onModeSelected: (OmniMode) -> Un
 private fun AssistantSignature(status: String? = null) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(Modifier.size(28.dp).background(MaterialTheme.colorScheme.primaryContainer, CircleShape), contentAlignment = Alignment.Center) {
-            Icon(Icons.Default.AutoAwesome, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+            OmniMark(Modifier.size(20.dp))
         }
         Text("Omni", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
         status?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -237,7 +240,7 @@ internal fun ChatInputBar(inputText: String, onInputChanged: (String) -> Unit, o
     onRemoveAttachment: (Uri) -> Unit = {}, replyingTo: ChatMessage? = null, onDismissReply: () -> Unit = {},
     chatSettings: ChatSettings = ChatSettings(), onUpdateChatSettings: (ChatSettings) -> Unit = {},
     focusRequester: FocusRequester = remember { FocusRequester() }, scopeLabel: String? = null,
-    onChooseScope: () -> Unit = {}, compact: Boolean = false) {
+    onChooseScope: () -> Unit = {}, compact: Boolean = false, showScopeChooser: Boolean = true) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showTools by rememberSaveable { mutableStateOf(false) }
     var focused by remember { mutableStateOf(false) }
@@ -254,7 +257,7 @@ internal fun ChatInputBar(inputText: String, onInputChanged: (String) -> Unit, o
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).navigationBarsPadding()) {
             Text("Add to your conversation", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(12.dp))
             ChatToolRow("Attach files", "Images, documents or code", Icons.Default.AttachFile) { showTools = false; onAttachClick() }
-            ChatToolRow("Project scope", scopeLabel ?: "Choose a folder for file work", Icons.Default.FolderOpen) { showTools = false; onChooseScope() }
+            if (showScopeChooser) ChatToolRow("Project scope", scopeLabel ?: "Choose a folder for file work", Icons.Default.FolderOpen) { showTools = false; onChooseScope() }
             ChatToolRow("Chat tools and skills", "Choose available tools and capabilities", Icons.Default.Tune) { showTools = false; showSettings = true }
         }
     }
@@ -361,7 +364,7 @@ private fun ChatToolRow(title: String, description: String, icon: androidx.compo
 internal fun EmptyStateContent(mode: OmniMode, onSuggestion: (String) -> Unit) {
     Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(vertical = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         Box(Modifier.size(56.dp).background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(20.dp)), contentAlignment = Alignment.Center) {
-            Icon(Icons.Default.AutoAwesome, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
+            OmniMark(Modifier.size(36.dp))
         }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("A little help.\nA lot of possibilities.", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)

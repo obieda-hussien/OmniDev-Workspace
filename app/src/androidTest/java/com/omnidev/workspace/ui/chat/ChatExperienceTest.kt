@@ -92,7 +92,7 @@ class ChatExperienceTest {
         compose.runOnIdle { assertEquals(1, scopes) }
         compose.onNodeWithContentDescription("Conversation tools").performClick()
         compose.onNodeWithText("Chat tools and skills").performClick()
-        compose.onNodeWithText("Add to chat").assertExists()
+        compose.onNodeWithText("Tools & skills").assertExists()
     }
 
     @Test fun streamingBurstsEventuallyRenderTheFullLatestMarkdownAndArabic() {
@@ -131,6 +131,20 @@ class ChatExperienceTest {
         compose.onNodeWithText("Explain something").performClick()
         compose.runOnIdle { assertTrue(state.value.inputText.startsWith("Explain this")); assertEquals(0, sends) }
         compose.onNodeWithContentDescription("Message Omni").assertIsFocused()
+    }
+
+    @Test fun conversationHeaderHasNoDuplicateNavigationAndExtendedAccessHasNoSettingsShortcut() {
+        compose.setContent { OmniDevTheme(dynamicColor = false) {
+            ChatConversation(ChatUiState(activeMode = OmniMode.AGENT, isGodModeEnabled = true))
+        } }
+        compose.onNodeWithContentDescription("Conversation options").assertDoesNotExist()
+        compose.onNodeWithText("Settings").assertDoesNotExist()
+        compose.onNodeWithText("Open browser").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Conversation tools").performClick()
+        compose.onNodeWithText("Project scope").assertDoesNotExist()
+        compose.onNodeWithText("File access settings").assertDoesNotExist()
+        compose.onNodeWithText("Attach files").assertExists()
+        compose.onNodeWithText("Chat tools and skills").assertExists()
     }
 
     private fun savePreview(tag: String, name: String) {
