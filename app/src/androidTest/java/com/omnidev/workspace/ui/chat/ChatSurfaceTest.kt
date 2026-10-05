@@ -61,15 +61,15 @@ class ChatSurfaceTest {
         var sends = 0
         var stops = 0
         compose.setContent { MaterialTheme {
-            ChatInputBar(text.value, { text.value = it }, { sends++ }, { stops++ }, processing.value)
+            ChatInputBar(text.value, { text.value = it }, { sends++; text.value = "" }, { stops++ }, processing.value)
         } }
         compose.onNodeWithContentDescription("Send").assertIsNotEnabled()
         compose.onNode(hasSetTextAction()).performTextInput("اختبار")
         compose.onNodeWithContentDescription("Send").performClick()
         compose.runOnIdle { assertEquals(1, sends); processing.value = true }
-        compose.onNodeWithText("اختبار").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Message Omni").assertIsEnabled().performTextInput("المهمة التالية")
         compose.onNodeWithContentDescription("Stop agent").assertIsEnabled().performClick()
-        compose.runOnIdle { assertEquals(1, stops); assertEquals(1, sends) }
+        compose.runOnIdle { assertEquals(1, stops); assertEquals(1, sends); assertEquals("المهمة التالية", text.value) }
     }
 
     @Test fun bulkDeletionRequiresConfirmationAndPassesOnlySelectedSessionIds() {

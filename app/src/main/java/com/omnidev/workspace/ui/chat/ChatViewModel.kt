@@ -447,8 +447,9 @@ class ChatViewModel(
 
     fun sendMessage() {
         val state = _uiState.value
-        val input = state.inputText.trim()
-        if (input.isEmpty() || state.isProcessing) return
+        val draft = state.inputText.trim()
+        if ((draft.isEmpty() && state.pendingAttachments.isEmpty()) || state.isProcessing) return
+        val input = draft.ifEmpty { "Please review the attached files." }
 
         val runId = activeRunId.incrementAndGet()
         currentAgentJob?.cancel()

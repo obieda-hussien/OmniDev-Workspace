@@ -1,6 +1,7 @@
 package com.omnidev.workspace.ui.chat
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -30,6 +31,8 @@ import com.omnidev.workspace.data.db.entities.ChatSessionEntity
 import com.omnidev.workspace.ui.components.SettingsEmptyState
 import com.omnidev.workspace.ui.components.SettingsSearchField
 import com.omnidev.workspace.ui.motion.OmniIconButton
+import com.omnidev.workspace.ui.motion.LocalOmniMotion
+import com.omnidev.workspace.ui.motion.OmniEasing
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -62,6 +65,7 @@ internal fun ChatHistoryDrawer(
     var deleteId by rememberSaveable { mutableStateOf<Long?>(null) }
     var deleteGroup by rememberSaveable { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
+    val motion = LocalOmniMotion.current
     LaunchedEffect(sessions) {
         val existingIds = sessions.mapTo(hashSetOf()) { it.id }
         selectedIds = selectedIds.filter { it in existingIds }
@@ -86,10 +90,15 @@ internal fun ChatHistoryDrawer(
             HistorySort.TITLE -> rows.sortedBy { it.title.lowercase(locale) }
         } }
     }
-    val pinned = visible.filter { it.isPinned }
-    val others = visible.filterNot { it.isPinned }
-    val grouped = if (sort == HistorySort.RECENT) groupHistorySessionsByDate(others) else linkedMapOf("Conversations" to others)
-    val visibleIds = visible.map { it.id }
+    val dayKey = Calendar.getInstance().let { it.get(Calendar.YEAR) to it.get(Calendar.DAY_OF_YEAR) }
+    val sections = remember(visible, sort, dayKey, locale) {
+        val (pinned, others) = visible.partition { it.isPinned }
+        linkedMapOf<String, List<ChatSessionEntity>>().apply {
+            if (pinned.isNotEmpty()) put("Pinned", pinned)
+            putAll(if (sort == HistorySort.RECENT) groupHistorySessionsByDate(others) else linkedMapOf("Conversations" to others))
+        }
+    }
+    val visibleIds = remember(visible) { visible.map { it.id } }
     val allSelected = visibleIds.isNotEmpty() && selectedIds.containsAll(visibleIds)
     fun toggle(id: Long) { selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id }
     sessions.firstOrNull { it.id == renameId }?.let { target ->
@@ -171,9 +180,6 @@ internal fun ChatHistoryDrawer(
                     if (sessions.isEmpty()) "Create a conversation to get started." else "Try another search or source.")
                 if (sessions.isNotEmpty()) TextButton(onClick = { query = ""; filter = HistoryFilter.ALL }) { Text("Reset filters") }
             }
-            val sections = linkedMapOf<String, List<ChatSessionEntity>>()
-            if (pinned.isNotEmpty()) sections["Pinned"] = pinned
-            sections.putAll(grouped)
             sections.forEach { (label, rows) ->
                 if (rows.isNotEmpty()) item(key = "section:$label") {
                     Text(label, Modifier.padding(start = 8.dp, top = 12.dp, bottom = 4.dp), style = MaterialTheme.typography.labelMedium,
@@ -184,7 +190,8 @@ internal fun ChatHistoryDrawer(
                         onClick = { if (selection) toggle(session.id) else { onSessionClick(session.id); onCloseDrawer() } },
                         onLongClick = { selection = true; if (session.id !in selectedIds) selectedIds = selectedIds + session.id },
                         onPin = { onTogglePin(session.id) }, onRename = { renameText = session.title; renameId = session.id },
-                        onDelete = { deleteId = session.id })
+                        onDelete = { deleteId = session.id }, modifier = if (motion.reduced || motion.compact) Modifier else Modifier.animateItem(
+                            fadeInSpec = null, fadeOutSpec = null, placementSpec = tween(motion.responseMillis, easing = OmniEasing)))
                 }
             }
         }
@@ -199,10 +206,10 @@ internal fun ChatHistoryDrawer(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun HistorySessionItem(session: ChatSessionEntity, active: Boolean, selection: Boolean, checked: Boolean,
-    onClick: () -> Unit, onLongClick: () -> Unit, onPin: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
+    onClick: () -> Unit, onLongClick: () -> Unit, onPin: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit, modifier: Modifier = Modifier) {
     var menu by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
         .background(if (checked) MaterialTheme.colorScheme.primaryContainer else if (active) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface)
         .semantics { selected = if (selection) checked else active }
         .combinedClickable(onClick = onClick, onLongClick = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); onLongClick() })
