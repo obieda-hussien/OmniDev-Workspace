@@ -69,6 +69,9 @@ class ChatExperienceTest {
         }
         compose.onNodeWithContentDescription("Stop agent").assertIsDisplayed().assertIsEnabled()
         compose.onNodeWithContentDescription("Cancel reply").assertIsDisplayed()
+        val header = compose.onNodeWithTag("conversation-header").getUnclippedBoundsInRoot()
+        val mode = compose.onNodeWithContentDescription("Choose conversation mode").getUnclippedBoundsInRoot()
+        assertTrue("Larger text must fit inside the header", mode.bottom <= header.bottom)
         savePreview("compact-chat", "compact-dark-rtl.png")
         compose.onNodeWithContentDescription("Stop agent").performClick()
         compose.runOnIdle { assertEquals(1, stops) }

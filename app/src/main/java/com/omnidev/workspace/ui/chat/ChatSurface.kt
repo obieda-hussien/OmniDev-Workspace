@@ -87,7 +87,9 @@ internal fun ModeSelector(activeMode: OmniMode, onModeSelected: (OmniMode) -> Un
     isProcessing: Boolean = false, conversationTitle: String = "Omni") {
     var open by rememberSaveable { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
-    Surface(onClick = { open = true }, enabled = enabled, shape = RoundedCornerShape(12.dp),
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    Surface(onClick = { focus.clearFocus(); keyboard?.hide(); open = true }, enabled = enabled, shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surface, modifier = Modifier.heightIn(min = 48.dp)
             .semantics { contentDescription = "Choose conversation mode" }) {
         Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {

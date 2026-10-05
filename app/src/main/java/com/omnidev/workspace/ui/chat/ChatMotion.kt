@@ -1,6 +1,7 @@
 package com.omnidev.workspace.ui.chat
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -17,8 +18,9 @@ internal fun <T> ChatControlTransition(target: T, label: String, content: @Compo
     val motion = LocalOmniMotion.current
     if (motion.reduced) content(target)
     else AnimatedContent(targetState = target, label = label, transitionSpec = {
-        fadeIn(tween(motion.responseMillis, easing = OmniEasing)) togetherWith
-            fadeOut(tween(motion.responseMillis / 2, easing = OmniEasing))
+        (fadeIn(tween(motion.responseMillis, easing = OmniEasing)) togetherWith
+            fadeOut(tween(motion.responseMillis / 2, easing = OmniEasing))).using(
+                SizeTransform(clip = false) { _, _ -> tween(motion.responseMillis, easing = OmniEasing) })
     }) { content(it) }
 }
 

@@ -128,9 +128,13 @@ internal fun ChatConversation(
     }
     fun leaveEditor(action: () -> Unit) { focusManager.clearFocus(); keyboard?.hide(); action() }
     Scaffold(modifier = Modifier.testTag("chat-conversation"), containerColor = MaterialTheme.colorScheme.surface, topBar = {
-        TopAppBar(title = { ModeSelector(state.activeMode, onModeSelected, isProcessing = state.isProcessing, conversationTitle = title) },
-            navigationIcon = { OmniIconButton(onClick = { leaveEditor(onOpenConversations) }) { Icon(Icons.Default.Menu, "Open conversations") } },
-            actions = {
+        Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth().testTag("conversation-header")) {
+            Row(Modifier.fillMaxWidth().statusBarsPadding().heightIn(min = 64.dp).padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                OmniIconButton(onClick = { leaveEditor(onOpenConversations) }) { Icon(Icons.Default.Menu, "Open conversations") }
+                Box(Modifier.weight(1f)) {
+                    ModeSelector(state.activeMode, onModeSelected, isProcessing = state.isProcessing, conversationTitle = title)
+                }
                 OmniIconButton(onClick = { leaveEditor(onNewConversation) }) { Icon(Icons.Default.Edit, "New conversation") }
                 Box {
                     OmniIconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreHoriz, "Conversation options") }
@@ -143,7 +147,8 @@ internal fun ChatConversation(
                             onClick = { menu = false; leaveEditor(onSettings) })
                     }
                 }
-            }, colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface))
+            }
+        }
     }) { insets ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets).imePadding()) {
             val compactComposer = maxHeight < 280.dp
