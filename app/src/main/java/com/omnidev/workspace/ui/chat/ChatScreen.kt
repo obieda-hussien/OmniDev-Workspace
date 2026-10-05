@@ -7,281 +7,217 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.domain.engine.ModeSwitchPermissionStore
-import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility as AnimatedVisibility
+import com.omnidev.workspace.domain.engine.OmniMode
+import com.omnidev.workspace.domain.model.ChatSettings
+import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility
 import com.omnidev.workspace.ui.motion.OmniIconButton
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(
-    viewModel: ChatViewModel,
-    onNavigateToSettings: () -> Unit = {},
-    onOpenBrowser: () -> Unit = {}
-) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, onOpenBrowser: () -> Unit = {}) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val drawerState = rememberDrawerState(
-        initialValue = if (uiState.isDrawerOpen) DrawerValue.Open else DrawerValue.Closed
-    )
+    val drawer = rememberDrawerState(if (state.isDrawerOpen) DrawerValue.Open else DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-
-    uiState.pendingConfirmation?.let { confirmation ->
-        ConfirmationGateDialog(
-            confirmation = confirmation.copy(
-                onApprove = {
-                    confirmation.onApprove()
-                    viewModel.clearConfirmation()
-                },
-                onDeny = {
-                    confirmation.onDeny()
-                    viewModel.clearConfirmation()
-                }
-            )
-        )
+    val historyState = rememberSaveableStateHolder()
+    state.pendingConfirmation?.let { confirmation ->
+        ConfirmationGateDialog(confirmation.copy(
+            onApprove = { confirmation.onApprove(); viewModel.clearConfirmation() },
+            onDeny = { confirmation.onDeny(); viewModel.clearConfirmation() }))
     }
-
-    LaunchedEffect(uiState.isDrawerOpen) {
-        if (uiState.isDrawerOpen) drawerState.open() else drawerState.close()
-    }
-    LaunchedEffect(drawerState.currentValue) {
-        viewModel.setDrawerOpen(drawerState.isOpen)
-    }
-
-    val directoryPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
+    LaunchedEffect(state.isDrawerOpen) { if (state.isDrawerOpen) drawer.open() else drawer.close() }
+    LaunchedEffect(drawer.currentValue) { viewModel.setDrawerOpen(drawer.isOpen) }
+    val directoryPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
-            val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-            context.contentResolver.takePersistableUriPermission(uri, flags)
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
             viewModel.setTargetContextFromUri(context, uri)
         }
     }
-
-    val attachmentLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetMultipleContents()
-    ) { uris ->
+    val attachments = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         if (uris.isNotEmpty()) {
-            val displayNames = uris.map { uri ->
-                val cursor = context.contentResolver.query(uri, null, null, null, null)
-                cursor?.use { c ->
-                    val nameCol = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                    if (c.moveToFirst() && nameCol >= 0) c.getString(nameCol) else null
+            val names = uris.map { uri ->
+                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val col = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (cursor.moveToFirst() && col >= 0) cursor.getString(col) else null
                 } ?: uri.lastPathSegment ?: "Attachment"
             }
-            viewModel.addAttachments(uris, displayNames)
+            viewModel.addAttachments(uris, names)
         }
     }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val drawerWidth = (maxWidth * .9f).coerceAtMost(360.dp)
+        ModalNavigationDrawer(drawerState = drawer, drawerContent = {
+            ModalDrawerSheet(Modifier.width(drawerWidth)) {
+                // Closed history does not rebuild while tokens arrive. Search/sort survive reopening.
+                if (drawer.isOpen || drawer.targetValue == DrawerValue.Open) historyState.SaveableStateProvider("history") {
+                    ChatHistoryDrawer(state.sessions, state.currentSessionId, viewModel::newSession, viewModel::loadSession,
+                        viewModel::togglePinSession, viewModel::renameSession, viewModel::deleteSession, viewModel::deleteAllSessions,
+                        viewModel::deleteSelectedSessions, { scope.launch { drawer.close() } },
+                        isOpen = drawer.targetValue == DrawerValue.Open,
+                        onSettings = { scope.launch { drawer.close(); onNavigateToSettings() } },
+                        onBrowser = { scope.launch { drawer.close(); onOpenBrowser() } })
+                }
+            }
+        }) {
+            ChatConversation(state = state, onInputChanged = viewModel::onInputChanged, onSend = viewModel::sendMessage,
+                onStop = { viewModel.cancelCurrentRun() }, onModeSelected = viewModel::setMode,
+                onOpenConversations = { scope.launch { drawer.open() } }, onNewConversation = viewModel::newSession,
+                onChooseScope = { if (state.isGodModeEnabled) onNavigateToSettings() else directoryPicker.launch(null) },
+                onSettings = onNavigateToSettings, onBrowser = onOpenBrowser,
+                onAttach = { attachments.launch("*/*") }, onRemoveAttachment = viewModel::removeAttachment,
+                onReply = viewModel::setReplyingTo, onDismissReply = viewModel::clearReplyingTo,
+                onUpdateChatSettings = viewModel::updateChatSettings, onClearError = viewModel::clearError,
+                onModeDecision = { id, approval ->
+                    if (approval == null) viewModel.denyExecutionMode(id) else viewModel.acceptExecutionMode(id, approval)
+                })
+        }
+    }
+}
 
-    val rememberedFocus = remember { androidx.compose.ui.focus.FocusRequester() }
-    var showChatMenu by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    val listState = rememberLazyListState()
-    val messagesById = remember(uiState.messages) { uiState.messages.associateBy { it.messageId } }
-    val tailFollow = rememberTailFollowState(
-        listState = listState,
-        sessionKey = uiState.currentSessionId,
-        contentRevision = Triple(uiState.messages.size, uiState.streamingContent, uiState.isProcessing),
-        forceFollowKey = uiState.messages.lastOrNull { it.role == MessageRole.USER }?.messageId
-    )
-
-    androidx.compose.material3.ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            androidx.compose.material3.ModalDrawerSheet(modifier = Modifier.widthIn(max = 360.dp).fillMaxWidth(.9f)) {
-                ChatHistoryDrawer(
-                    sessions = uiState.sessions,
-                    currentSessionId = uiState.currentSessionId,
-                    onNewSession = { viewModel.newSession() },
-                    onSessionClick = { viewModel.loadSession(it) },
-                    onTogglePin = { viewModel.togglePinSession(it) },
-                    onRenameSession = { id, title -> viewModel.renameSession(id, title) },
-                    onDeleteSession = { viewModel.deleteSession(it) },
-                    onDeleteAllSessions = { viewModel.deleteAllSessions() },
-                    onDeleteSelectedSessions = { viewModel.deleteSelectedSessions(it) },
-                    onCloseDrawer = { scope.launch { drawerState.close() } },
-                    isOpen = drawerState.isOpen,
-                    onSettings = { scope.launch { drawerState.close(); onNavigateToSettings() } },
-                    onBrowser = { scope.launch { drawerState.close(); onOpenBrowser() } }
-                )
+/** Pure presentation: usable in narrow-window and IME regression tests without running an agent. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun ChatConversation(
+    state: ChatUiState,
+    onInputChanged: (String) -> Unit = {}, onSend: () -> Unit = {}, onStop: () -> Unit = {},
+    onModeSelected: (OmniMode) -> Unit = {}, onOpenConversations: () -> Unit = {}, onNewConversation: () -> Unit = {},
+    onChooseScope: () -> Unit = {}, onSettings: () -> Unit = {}, onBrowser: () -> Unit = {},
+    onAttach: () -> Unit = {}, onRemoveAttachment: (android.net.Uri) -> Unit = {},
+    onReply: (ChatMessage) -> Unit = {}, onDismissReply: () -> Unit = {}, onUpdateChatSettings: (ChatSettings) -> Unit = {},
+    onClearError: () -> Unit = {}, onModeDecision: (String, ModeSwitchPermissionStore.Approval?) -> Unit = { _, _ -> }
+) {
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    var menu by rememberSaveable { mutableStateOf(false) }
+    val list = rememberLazyListState()
+    val messagesById = remember(state.messages) { state.messages.associateBy { it.messageId } }
+    val lastUserId = remember(state.messages) { state.messages.lastOrNull { it.role == MessageRole.USER }?.messageId }
+    val title = remember(state.sessions, state.currentSessionId) {
+        state.sessions.firstOrNull { it.id == state.currentSessionId }?.title?.ifBlank { "Omni" } ?: "Omni"
+    }
+    val follow = rememberTailFollowState(list, state.currentSessionId,
+        Triple(state.messages.size, state.streamingContent, state.consoleEntries.size), forceFollowKey = lastUserId)
+    val runningConsole = remember(state.consoleEntries) {
+        AgentConsoleSerializer.compact(state.consoleEntries.map(ConsoleRedactor::entry))
+    }
+    fun leaveEditor(action: () -> Unit) { focusManager.clearFocus(); keyboard?.hide(); action() }
+    Scaffold(modifier = Modifier.testTag("chat-conversation"), containerColor = MaterialTheme.colorScheme.surface, topBar = {
+        Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxWidth().testTag("conversation-header")) {
+            Row(Modifier.fillMaxWidth().statusBarsPadding().heightIn(min = 64.dp).padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                OmniIconButton(onClick = { leaveEditor(onOpenConversations) }) { Icon(Icons.Default.Menu, "Open conversations") }
+                Box(Modifier.weight(1f)) {
+                    ModeSelector(state.activeMode, onModeSelected, isProcessing = state.isProcessing, conversationTitle = title)
+                }
+                OmniIconButton(onClick = { leaveEditor(onNewConversation) }) { Icon(Icons.Default.Edit, "New conversation") }
+                Box {
+                    OmniIconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreHoriz, "Conversation options") }
+                    DropdownMenu(menu, { menu = false }) {
+                        DropdownMenuItem(text = { Text(if (state.isGodModeEnabled) "File access settings" else "Project scope") },
+                            leadingIcon = { Icon(Icons.Default.FolderOpen, null) }, onClick = { menu = false; leaveEditor(onChooseScope) })
+                        DropdownMenuItem(text = { Text("Open browser") }, leadingIcon = { Icon(Icons.Default.Language, null) },
+                            onClick = { menu = false; leaveEditor(onBrowser) })
+                        DropdownMenuItem(text = { Text("Settings") }, leadingIcon = { Icon(Icons.Default.Settings, null) },
+                            onClick = { menu = false; leaveEditor(onSettings) })
+                    }
+                }
             }
         }
-    ) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text(uiState.sessions.firstOrNull { it.id == uiState.currentSessionId }?.title?.ifBlank { "New conversation" }
-                        ?: "Omni", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    navigationIcon = { OmniIconButton(onClick = { scope.launch { drawerState.open() } }) {
-                        Icon(Icons.Filled.Menu, "Open conversations")
-                    } },
-                    actions = {
-                        OmniIconButton(onClick = viewModel::newSession) { Icon(Icons.Filled.Add, "New conversation") }
-                        Box {
-                            OmniIconButton(onClick = { showChatMenu = true }) { Icon(Icons.Filled.MoreVert, "Conversation options") }
-                            androidx.compose.material3.DropdownMenu(showChatMenu, { showChatMenu = false }) {
-                                if (!uiState.isGodModeEnabled) androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text("Choose project scope") }, leadingIcon = { Icon(Icons.Filled.FolderOpen, null) },
-                                    onClick = { showChatMenu = false; directoryPickerLauncher.launch(null) })
-                                androidx.compose.material3.DropdownMenuItem(text = { Text("Open browser") }, leadingIcon = { Icon(Icons.Filled.Language, null) },
-                                    onClick = { showChatMenu = false; onOpenBrowser() })
-                                androidx.compose.material3.DropdownMenuItem(text = { Text("Settings") }, leadingIcon = { Icon(Icons.Filled.Settings, null) },
-                                    onClick = { showChatMenu = false; onNavigateToSettings() })
-                            }
+    }) { insets ->
+        BoxWithConstraints(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets).imePadding()) {
+            val compactComposer = maxHeight < 280.dp
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    LazyColumn(Modifier.fillMaxSize().testTag("conversation-messages"), state = list,
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                        if (state.messages.isEmpty() && !state.isProcessing) item(key = "welcome") {
+                            EmptyStateContent(state.activeMode) { prompt -> onInputChanged(prompt); focusRequester.requestFocus(); keyboard?.show() }
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
-                )
-            }
-        ) { padding ->
-            Column(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
-                AnimatedVisibility(visible = uiState.isProcessing) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-
-                // Always visible and manually selectable. ChatViewModel checkpoints an active run
-                // before a user-initiated mode change.
-                ModeSelector(
-                    activeMode = uiState.activeMode,
-                    onModeSelected = { viewModel.setMode(it) },
-                    enabled = true,
-                    isProcessing = uiState.isProcessing
-                )
-
-                androidx.compose.material3.TextButton(
-                    onClick = { if (uiState.isGodModeEnabled) onNavigateToSettings() else directoryPickerLauncher.launch(null) },
-                    modifier = Modifier.padding(horizontal = 12.dp)
-                ) {
-                    Icon(Icons.Filled.FolderOpen, null, Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (uiState.isGodModeEnabled) "Extended file access" else uiState.targetContextDisplayName ?: uiState.targetContext ?: "Choose project scope",
-                        style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-
-                AnimatedVisibility(visible = uiState.isProcessing && uiState.consoleEntries.isNotEmpty()) {
-                    AgentLiveConsole(
-                        entries = remember(uiState.consoleEntries) {
-                            AgentConsoleSerializer.compact(uiState.consoleEntries.map(ConsoleRedactor::entry))
-                        },
-                        isRunning = uiState.isProcessing,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        onOpenBrowser = onOpenBrowser
-                    )
-                }
-
-                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(20.dp)
-                    ) {
-                        if (uiState.messages.isEmpty() && !uiState.isProcessing) item {
-                            EmptyStateContent(uiState.activeMode) { prompt ->
-                                viewModel.onInputChanged(prompt)
-                                rememberedFocus.requestFocus()
-                            }
-                        }
-                        items(uiState.messages, key = { it.messageId }, contentType = { it.role }) { message ->
-                            val replyToMessage = message.replyToMessageId?.let { id ->
-                                messagesById[id]
-                            }
-                            MessageBubble(
-                                message = message,
-                                consoleEntries = uiState.messageConsoleEntries[message.timestamp],
-                                replyToMessage = replyToMessage,
-                                onReply = { viewModel.setReplyingTo(it) },
-                                onOpenBrowser = onOpenBrowser
-                            )
+                        items(state.messages, key = { it.messageId }, contentType = { it.role }) { message ->
+                            MessageBubble(message, state.messageConsoleEntries[message.timestamp],
+                                message.replyToMessageId?.let(messagesById::get), onReply = {
+                                    onReply(it); focusRequester.requestFocus(); keyboard?.show()
+                                }, onOpenBrowser = onBrowser)
                             message.executionRequest?.let { request ->
-                                if (message.role == MessageRole.ASSISTANT) {
-                                    ModeSwitchRequestCard(
-                                        request = request,
-                                        enabled = !uiState.isProcessing,
-                                        onOnce = {
-                                            viewModel.acceptExecutionMode(
-                                                message.messageId,
-                                                ModeSwitchPermissionStore.Approval.ONCE
-                                            )
-                                        },
-                                        onAlwaysTransition = {
-                                            viewModel.acceptExecutionMode(
-                                                message.messageId,
-                                                ModeSwitchPermissionStore.Approval.ALWAYS_THIS_TRANSITION
-                                            )
-                                        },
-                                        onAllSession = {
-                                            viewModel.acceptExecutionMode(
-                                                message.messageId,
-                                                ModeSwitchPermissionStore.Approval.ALL_THIS_SESSION
-                                            )
-                                        },
-                                        onDeny = { viewModel.denyExecutionMode(message.messageId) }
-                                    )
+                                if (message.role == MessageRole.ASSISTANT) ModeSwitchRequestCard(request, !state.isProcessing,
+                                    onOnce = { onModeDecision(message.messageId, ModeSwitchPermissionStore.Approval.ONCE) },
+                                    onAlwaysTransition = { onModeDecision(message.messageId, ModeSwitchPermissionStore.Approval.ALWAYS_THIS_TRANSITION) },
+                                    onAllSession = { onModeDecision(message.messageId, ModeSwitchPermissionStore.Approval.ALL_THIS_SESSION) },
+                                    onDeny = { onModeDecision(message.messageId, null) })
+                            }
+                        }
+                        state.errorMessage?.let { error -> item(key = "error", contentType = "error") { ChatErrorBanner(error, onClearError) } }
+                        if (state.isProcessing && runningConsole.isNotEmpty()) item(key = "live-console", contentType = "console") {
+                            AgentLiveConsole(runningConsole, true, onOpenBrowser = onBrowser)
+                        }
+                        if (state.isProcessing) {
+                            val content = state.streamingContent
+                            if (!content.isNullOrBlank()) item(key = "streaming", contentType = "streaming") { StreamingMessageBubble(content) }
+                            else item(key = "working", contentType = "status") {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Default.MoreHoriz, null, tint = MaterialTheme.colorScheme.primary)
+                                    Text(state.agentStatus ?: "Omni is thinking…", style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }
-                        val streamingContent = uiState.streamingContent
-                        if (uiState.isProcessing && streamingContent != null) {
-                            item(key = "streaming", contentType = "streaming") { StreamingMessageBubble(content = streamingContent) }
-                        }
                     }
-
-                    if (!tailFollow.following) {
-                        SmallFloatingActionButton(
-                            onClick = { tailFollow.resume() },
-                            modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp),
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer
-                        ) {
-                            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "Jump to latest message")
+                    OmniAnimatedVisibility(!follow.following, Modifier.align(Alignment.BottomEnd).padding(12.dp)) {
+                        SmallFloatingActionButton(onClick = { follow.resume() }, containerColor = MaterialTheme.colorScheme.secondaryContainer) {
+                            Icon(Icons.Default.KeyboardArrowDown, "Jump to latest message")
                         }
                     }
                 }
-
-                uiState.errorMessage?.let { error ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = error,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
-                }
-
-                ChatInputBar(
-                    inputText = uiState.inputText,
-                    onInputChanged = { viewModel.onInputChanged(it) },
-                    onSend = { viewModel.sendMessage() },
-                    onStop = { viewModel.cancelCurrentRun() },
-                    isProcessing = uiState.isProcessing,
-                    pendingAttachments = uiState.pendingAttachments,
-                    onAttachClick = { attachmentLauncher.launch("*/*") },
-                    onRemoveAttachment = { viewModel.removeAttachment(it) },
-                    replyingTo = uiState.replyingTo,
-                    onDismissReply = { viewModel.clearReplyingTo() },
-                    chatSettings = uiState.chatSettings,
-                    onUpdateChatSettings = { viewModel.updateChatSettings(it) },
-                    focusRequester = rememberedFocus
-                )
+                ChatInputBar(state.inputText, onInputChanged, onSend, onStop, state.isProcessing, state.pendingAttachments, onAttach,
+                    onRemoveAttachment, state.replyingTo, onDismissReply, state.chatSettings, onUpdateChatSettings, focusRequester,
+                    scopeLabel = if (state.activeMode == OmniMode.CHAT) null else if (state.isGodModeEnabled) "Extended file access"
+                        else state.targetContextDisplayName ?: state.targetContext?.substringAfterLast('/')?.ifBlank { state.targetContext },
+                    onChooseScope = onChooseScope, compact = compactComposer)
             }
+        }
+    }
+}
+
+@Composable
+private fun ChatErrorBanner(error: String, onDismiss: () -> Unit) {
+    var details by rememberSaveable(error) { mutableStateOf(false) }
+    if (details) AlertDialog(onDismissRequest = { details = false }, title = { Text("Conversation error") },
+        text = { SelectionContainer { Text(error, Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) } },
+        confirmButton = { TextButton(onClick = { details = false }) { Text("Close") } })
+    Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+        Row(Modifier.padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                Text(error, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                TextButton(onClick = { details = true }, contentPadding = PaddingValues(horizontal = 0.dp)) { Text("Details") }
+            }
+            OmniIconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Dismiss error") }
         }
     }
 }

@@ -47,9 +47,18 @@ adb shell input keyevent 82
 adb shell settings put global window_animation_scale 1
 adb shell settings put global transition_animation_scale 1
 adb shell settings put global animator_duration_scale 1
+ui_test_status=0
+# AGP otherwise uninstalls the app and deletes its external files before adb pull.
 bash ./gradlew --no-daemon --max-workers 1 \
   -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
   -Pkotlin.compiler.execution.strategy=in-process \
   :app:connectedLiteDebugAndroidTest \
   -Pkotlin.incremental=false \
-  -Pandroid.testInstrumentationRunnerArguments.package=com.omnidev.workspace.ui
+  -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
+  -Pandroid.testInstrumentationRunnerArguments.package=com.omnidev.workspace.ui || ui_test_status=$?
+
+# The Lite flavor uses the canonical package ID. Preserve native UI captures with test reports.
+mkdir -p app/build/reports/androidTests
+adb pull /sdcard/Android/data/com.omnidev.workspace/files/chat-previews app/build/reports/androidTests/ \
+  || echo '::notice::No chat preview captures were produced.'
+exit "$ui_test_status"
