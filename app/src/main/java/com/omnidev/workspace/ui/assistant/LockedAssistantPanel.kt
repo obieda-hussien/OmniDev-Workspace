@@ -66,6 +66,7 @@ fun LockedAssistantPanel(onDismiss: () -> Unit) {
         Surface(Modifier.fillMaxWidth().padding(16.dp), shape = MaterialTheme.shapes.large) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Omni · Device locked", style = MaterialTheme.typography.titleLarge)
+                Text("The display stays awake for up to two minutes after activation. The power button still turns it off.", style = MaterialTheme.typography.bodySmall)
                 Text(if (allowed) "Unlock your device to continue. Your conversation stays private while locked."
                     else "Enable Assistant on the lock screen from Device access after unlocking.")
                 val voiceStatus by com.omnidev.workspace.data.voice.LocalVoiceSessionService.status.collectAsState()
