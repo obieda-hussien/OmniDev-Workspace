@@ -236,13 +236,13 @@ class ProvidersViewModel(
             )
         }
         viewModelScope.launch {
-            val apiKey = apiKeyRepository.getApiKey(provider)
-            val result = if (provider == ModelProvider.GITHUB_COPILOT) {
-                runCatching {
+            val result = runCatching {
+                val apiKey = apiKeyRepository.getApiKey(provider)
+                if (provider == ModelProvider.GITHUB_COPILOT) {
                     val token = apiKey?.takeIf { it.isNotBlank() } ?: error("Connect GitHub Copilot first.")
                     com.omnidev.workspace.data.auth.CopilotModelRefresher.fetchModels(token)
-                }
-            } else modelFetcher.fetchModels(provider, apiKey)
+                } else modelFetcher.fetchModels(provider, apiKey).getOrThrow()
+            }
             result.exceptionOrNull()?.let { if (it is kotlinx.coroutines.CancellationException) throw it }
             val canonicalResult = result.map { models ->
                 if (provider == ModelProvider.CUSTOM_OPENAI) ModelRegistry.modelsByProvider[provider].orEmpty()

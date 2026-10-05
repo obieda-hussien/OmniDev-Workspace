@@ -41,7 +41,7 @@ object CopilotModelRefresher {
 
     /** Picker refreshes need the actual result, including recoverable network errors. */
     internal suspend fun fetchModels(oauthToken: String): List<AIModel> =
-        CopilotSessionManager.fetchAndStoreAvailableModels(oauthToken).map { it.toAIModel() }
+        CopilotSessionManager.fetchAndStoreAvailableModels(oauthToken, propagateErrors = true).map { it.toAIModel() }
 
     /**
      * Fire-and-forget variant.  Launches [refreshModels] on [Dispatchers.IO] inside

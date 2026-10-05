@@ -141,7 +141,7 @@ object CopilotSessionManager {
      * @param oauthToken The raw GitHub OAuth token from Device Flow.
      * @return List of Copilot models available on this subscription.
      */
-    suspend fun fetchAndStoreAvailableModels(oauthToken: String): List<CopilotModel> {
+    suspend fun fetchAndStoreAvailableModels(oauthToken: String, propagateErrors: Boolean = false): List<CopilotModel> {
         return withContext(Dispatchers.IO) {
             try {
                 val sessionToken = getSessionToken(oauthToken)
@@ -151,7 +151,10 @@ object CopilotSessionManager {
                 prefs().edit().putString(KEY_MODEL_IDS, ids).apply()
                 Log.d(TAG, "Fetched ${models.size} Copilot models: ${models.take(5).map { it.id }}")
                 models
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
             } catch (e: Exception) {
+                if (propagateErrors) throw e
                 Log.w(TAG, "Failed to fetch Copilot models: ${e.message}")
                 emptyList()
             }
