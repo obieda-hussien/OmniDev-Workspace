@@ -29,13 +29,46 @@ class RunToolCatalog(
         listOf(DISCOVER) + catalog.filter { it.name in loaded }, emptyList()
     ).orEmpty()
 
+    /** Runtime retrieval, not a model call. Observations are search data, never instructions. */
+    fun prepare(objective: String, observation: String? = null): List<String> {
+        val matches = (search(objective.take(2_000), SEARCH_SIZE) +
+            observation?.takeIf { it.isNotBlank() }?.let { search(it.take(800), SEARCH_SIZE) }.orEmpty())
+            .distinctBy { it.name }
+        val added = matches.filter { it.name !in loaded }.map { it.name }
+        load(matches)
+        return added
+    }
+
+    data class OperationMatch(val tool: ToolDefinition?, val candidates: List<ToolDefinition>)
+
+    /** Domain/quality priors alone never authorize a semantic operation match. */
+    fun matchOperation(intent: String): OperationMatch {
+        val query = words(intent)
+        val ranked = catalog.mapNotNull { tool ->
+            val matched = query.intersect(terms.getValue(tool.name))
+            val exact = intent.trim() == tool.name
+            if (!exact && (matched.size < 2 || matched.size.toDouble() / query.size.coerceAtLeast(1) < 0.6)) null else tool to if (exact) 1_000.0 else
+                matched.sumOf { term -> ln(1.0 + (catalog.size + 1.0) / ((frequency[term] ?: 0) + 1.0)) }
+        }.sortedWith(compareByDescending<Pair<ToolDefinition, Double>> { it.second }.thenBy { it.first.name })
+        val best = ranked.firstOrNull()
+        val runnerUp = ranked.getOrNull(1)
+        val unique = best != null && (runnerUp == null || best.second >= runnerUp.second * 1.5 && best.second - runnerUp.second >= 0.5)
+        return OperationMatch(if (unique) best.first else null, ranked.take(SEARCH_SIZE).map { it.first })
+    }
+
+    fun loadCandidates(candidates: List<ToolDefinition>) = load(candidates.take(SEARCH_SIZE))
+
+    private fun load(matches: List<ToolDefinition>) {
+        matches.forEach { tool -> loaded.remove(tool.name); loaded.add(tool.name) }
+        while (loaded.size > MAX_LOADED) loaded.remove(loaded.first())
+    }
+
     fun discover(query: String): ToolExecutionResult {
         if (query.isBlank()) return ToolExecutionResult("Use a concrete task or exact tool name as query.", true,
             classification = "INVALID_TOOL_ARGUMENTS")
         val matches = search(query, SEARCH_SIZE)
         if (matches.isEmpty()) return ToolExecutionResult("No registered tool matched. Describe the needed operation differently; do not invent tool names.")
-        matches.forEach { tool -> loaded.remove(tool.name); loaded.add(tool.name) }
-        while (loaded.size > MAX_LOADED) loaded.remove(loaded.first())
+        load(matches)
         return ToolExecutionResult(buildString {
             appendLine("Loaded for the NEXT model request; call only after reading its native schema:")
             matches.forEach { tool ->

@@ -218,6 +218,7 @@ Do not use tools. Do not rewrite merely for style.
             permittedDefinitions, routingContext,
             preferredToolNames + "learned_routine", toolQuality, additionalToolDomains
         )
+        val automaticRouter = AutomaticToolRouter(runCatalog)
         var toolDefs = if (permittedDefinitions.isEmpty()) emptyList() else runCatalog.definitions()
         brain?.registerTools(toolDefs)
 
@@ -286,11 +287,19 @@ Do not use tools. Do not rewrite merely for style.
             if (iteration > 1) delay(interCallDelayFor(model.tier))
             send(AgentEvent.Thinking(iteration))
 
+            if (permittedDefinitions.isNotEmpty()) {
+                val added = runCatalog.prepare(routingContext, lastToolObservation)
+                toolDefs = runCatalog.definitions()
+                if (added.isNotEmpty()) phase(AgentExecutionPhase.ANALYZE, "Automatically loaded tools: ${added.joinToString()}")
+            }
+
             val desiredOutputBudget = AgentDecisionPolicy.outputCap(
                 taskSignals, model.maxOutputTokens,
                 remainingAtStart?.coerceAtLeast(MIN_COMPLETION_OUTPUT_RESERVE)
             )
-            val iterationSystemPrompt = systemPrompt + if (nativeTools || toolDefs.isEmpty()) "" else "\n" + ToolTextProtocol.schemas(toolDefs)
+            val iterationSystemPrompt = systemPrompt +
+                (if (toolDefs.isEmpty()) "" else "\n" + AutomaticToolRouter.CONTRACT) +
+                (if (nativeTools || toolDefs.isEmpty()) "" else "\n" + ToolTextProtocol.schemas(toolDefs))
             // Tool definitions are already compacted to the exact set sent to the provider.
             val schemaEstimate = if (nativeTools) (toolDefs.sumOf { it.toString().length } / 3).coerceAtLeast(0) else 0
             val inputBudget = model.contextWindow - desiredOutputBudget - config.contextWindowBuffer -
@@ -374,7 +383,9 @@ Do not use tools. Do not rewrite merely for style.
                 }
             ) ?: return@channelFlow
 
-            val response = if (toolDefs.isEmpty()) nativeResponse else TextToolCallAdapter.adapt(nativeResponse)
+            val response = if (toolDefs.isEmpty()) nativeResponse else automaticRouter.adapt(
+                TextToolCallAdapter.adapt(nativeResponse), toolDefs.mapTo(mutableSetOf()) { it.name }
+            )
 
             // Usage is never allowed to disappear merely because a provider omitted metadata.
             val responseUsage = TokenAccounting.usage(request, nativeResponse)
@@ -386,6 +397,20 @@ Do not use tools. Do not rewrite merely for style.
                 ?.let { send(AgentEvent.ThinkingBlock(it)) }
 
             if (response.toolCalls.isEmpty()) {
+                if (permittedDefinitions.isNotEmpty() &&
+                    (unresolvedToolFailure != null || automaticRouter.unavailableToolReply(response.content))) {
+                    val feedback = automaticRouter.recovery(routingContext, unresolvedToolFailure ?: response.content)
+                    if (feedback != null) {
+                        messages += ChatMessage(MessageRole.ASSISTANT, response.content)
+                        messages += ChatMessage(MessageRole.USER, feedback)
+                        phase(AgentExecutionPhase.ANALYZE, "Automatically retrieving tools after model stalled")
+                        continue
+                    }
+                    if (unresolvedToolFailure == null) {
+                        send(AgentEvent.Error("Model could not select an available tool after two automatic retrieval attempts."))
+                        return@channelFlow
+                    }
+                }
                 unresolvedToolFailure?.let { failure ->
                     brain?.onTaskEnd(EpisodeOutcome.FAILURE, "run ended with unresolved tool failure")
                     send(AgentEvent.Error("Execution remains unverified after a failed tool batch: " + failure.take(1_200)))
@@ -486,6 +511,8 @@ Do not use tools. Do not rewrite merely for style.
                 "TOOL_NOT_EXPOSED", "INVALID_TOOL_ARGUMENTS", "INVALID_TOOL_BATCH", "BATCH_PREFLIGHT_BLOCKED"
             ) }
             invalidBatches = if (preflightFailed) invalidBatches + 1 else 0
+            val automaticRecoveryFeedback = if (preflightFailed) automaticRouter.recovery(routingContext,
+                response.toolCalls.joinToString(" ") { it.name } + " " + failedResult?.output.orEmpty()) else null
             toolDefs = if (permittedDefinitions.isEmpty()) emptyList() else runCatalog.definitions()
             val toolResults = mutableListOf<ToolCallResult>()
             val modelSafeResults = mutableListOf<ToolExecutionResult>()
@@ -574,6 +601,7 @@ Do not use tools. Do not rewrite merely for style.
                 )
                 if (hasErrors) {
                     append("\n\nOne or more tools failed. Do not claim those operations succeeded; pivot strategy or report the blocker explicitly.")
+                    automaticRecoveryFeedback?.let { append("\n\n$it") }
                 } else if (stagnation.noActionStreak >= 2 && stagnation.readOnlyRatio >= 0.75f) {
                     append(
                         "\n\n[Omni runtime guidance] You already have multiple successful read-only " +

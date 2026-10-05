@@ -19,6 +19,74 @@ class AgentPipelineToolContractTest {
     }
     private val config = AgentConfig(maxIterations = 6, enableRetry = false, enableMemoryTrimming = false)
 
+    @Test fun `invented tool triggers runtime recovery without a discover call`() = runTest {
+        val tools = FakeTools()
+        var round = 0
+        val pipeline = AgentPipeline(tools, completionProvider = { request ->
+            when (++round) {
+                1 -> CompletionResponse("", listOf(ToolCall("bad", "imaginary", emptyMap())))
+                2 -> {
+                    assertTrue(request.messages.last().content.contains("automatically retrieved"))
+                    CompletionResponse("", listOf(ToolCall("read", "read_file", mapOf("path" to "a.kt"))))
+                }
+                else -> CompletionResponse("Verified")
+            }
+        }, config = config)
+        val events = pipeline.execute("Read a file", modelId = "gpt-4o-mini", scopePath = "/tmp").toList()
+        assertEquals(listOf("read_file"), tools.executed)
+        assertTrue(events.any { it is AgentEvent.FinalAnswer })
+    }
+
+    @Test fun `operation routing cannot bypass worker scope`() = runTest {
+        val tools = FakeTools()
+        val pipeline = AgentPipeline(tools, completionProvider = {
+            CompletionResponse("""{"omni_operation":{"intent":"read_file","arguments":{"path":"a.kt"}}}""")
+        }, toolCallEligibility = { "READ_ONLY_WORKER: not allowed" }, config = config)
+        val events = pipeline.execute("Read a file", modelId = "gpt-4o-mini", scopePath = "/tmp").toList()
+        assertTrue(tools.executed.isEmpty())
+        assertTrue(events.filterIsInstance<AgentEvent.Error>().any { it.message.startsWith("READ_ONLY_WORKER:") })
+    }
+
+    @Test fun `model without discovery can recover from unavailable tool reply`() = runTest {
+        val tools = FakeTools()
+        var round = 0
+        val pipeline = AgentPipeline(tools, completionProvider = { request ->
+            when (++round) {
+                1 -> CompletionResponse("I cannot find a tool for this")
+                2 -> {
+                    assertTrue(request.messages.last().content.contains("automatically retrieved"))
+                    CompletionResponse("""{"omni_operation":{"intent":"read_file","arguments":{"path":"a.kt"}}}""")
+                }
+                else -> CompletionResponse("Verified")
+            }
+        }, config = config)
+        val events = pipeline.execute("Read a file", modelId = "gpt-4o-mini", scopePath = "/tmp").toList()
+        assertEquals(listOf("read_file"), tools.executed)
+        assertTrue(events.any { it is AgentEvent.FinalAnswer })
+    }
+
+    @Test fun `operation proposal still requires argument preflight`() = runTest {
+        val tools = FakeTools()
+        val pipeline = AgentPipeline(tools, completionProvider = {
+            CompletionResponse("""{"omni_operation":{"intent":"read_file","arguments":{"wrong":"a.kt"}}}""")
+        }, config = config)
+        pipeline.execute("Read a file", modelId = "gpt-4o-mini", scopePath = "/tmp").toList()
+        assertTrue(tools.executed.isEmpty())
+    }
+
+    @Test fun `unavailable tool replies are bounded and not published as success`() = runTest {
+        val tools = FakeTools()
+        var round = 0
+        val pipeline = AgentPipeline(tools, completionProvider = {
+            round++
+            CompletionResponse("مفيش أداة مناسبة")
+        }, config = config)
+        val events = pipeline.execute("Read a file", modelId = "gpt-4o-mini", scopePath = "/tmp").toList()
+        assertEquals(3, round)
+        assertTrue(events.none { it is AgentEvent.FinalAnswer })
+        assertTrue(tools.executed.isEmpty())
+    }
+
     @Test fun `weak model corrects invented tool using discovery before execution`() = runTest {
         val tools = FakeTools()
         var round = 0
