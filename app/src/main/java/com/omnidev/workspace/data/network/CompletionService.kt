@@ -107,13 +107,6 @@ private data class AnthropicStreamEvent(
 )
 
 @Serializable
-private data class AnthropicStreamContentBlock(
-    val type: String = "",
-    val id: String? = null,
-    val name: String? = null
-)
-
-@Serializable
 private data class AnthropicStreamDelta(
     val type: String = "",
     val text: String? = null,
