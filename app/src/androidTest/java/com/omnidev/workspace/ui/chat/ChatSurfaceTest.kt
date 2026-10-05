@@ -4,6 +4,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
@@ -18,18 +20,21 @@ import org.junit.Test
 class ChatSurfaceTest {
     @get:Rule val compose = createComposeRule()
 
+    private fun modeOption(title: String) = compose.onNode(hasText(title) and
+        SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
+
     @Test fun modePickerPreservesTheChosenModeAndOffersAllThreeManualModes() {
         val mode = mutableStateOf(OmniMode.CHAT)
         compose.setContent { MaterialTheme { ModeSelector(mode.value, { mode.value = it }) } }
         compose.onNodeWithContentDescription("Choose conversation mode").performClick()
-        compose.onNodeWithText("Agent", useUnmergedTree = true).performClick()
+        modeOption("Agent").performClick()
         compose.runOnIdle { assertEquals(OmniMode.AGENT, mode.value) }
         compose.onNodeWithContentDescription("Choose conversation mode").performClick()
-        compose.onNode(isSelected()).assert(hasText("Agent"))
-        compose.onNodeWithText("Multi-agent", useUnmergedTree = true).performClick()
+        modeOption("Agent").assertIsSelected()
+        modeOption("Multi-agent").performClick()
         compose.runOnIdle { assertEquals(OmniMode.SWARM, mode.value) }
         compose.onNodeWithContentDescription("Choose conversation mode").performClick()
-        compose.onNodeWithText("Chat", useUnmergedTree = true).performClick()
+        modeOption("Chat").performClick()
         compose.runOnIdle { assertEquals(OmniMode.CHAT, mode.value) }
     }
 
@@ -62,7 +67,7 @@ class ChatSurfaceTest {
         compose.onNode(hasSetTextAction()).performTextInput("اختبار")
         compose.onNodeWithContentDescription("Send").performClick()
         compose.runOnIdle { assertEquals(1, sends); processing.value = true }
-        compose.onNode(hasSetTextAction()).assertIsNotEnabled()
+        compose.onNodeWithText("اختبار").assertIsNotEnabled()
         compose.onNodeWithContentDescription("Stop agent").assertIsEnabled().performClick()
         compose.runOnIdle { assertEquals(1, stops); assertEquals(1, sends) }
     }
