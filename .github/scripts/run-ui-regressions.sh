@@ -57,8 +57,16 @@ bash ./gradlew --no-daemon --max-workers 1 \
   -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
   -Pandroid.testInstrumentationRunnerArguments.package=com.omnidev.workspace.ui || ui_test_status=$?
 
-# The Lite flavor uses the canonical package ID. Preserve native UI captures with test reports.
-mkdir -p app/build/reports/androidTests
-adb pull /sdcard/Android/data/com.omnidev.workspace/files/chat-previews app/build/reports/androidTests/ \
-  || echo '::notice::No chat preview captures were produced.'
+# Android 11 restricts shell access to Android/data. Export private test captures
+# as the debuggable Lite app's UID; no shared-storage or root permission is needed.
+preview_archive="$RUNNER_TEMP/omni-chat-previews.tar"
+preview_directory="app/build/reports/androidTests/chat-previews"
+mkdir -p "$preview_directory"
+if adb exec-out run-as com.omnidev.workspace tar -C files/chat-previews -cf - . > "$preview_archive" \
+  && tar -tf "$preview_archive" > /dev/null 2>&1; then
+  tar -xf "$preview_archive" -C "$preview_directory" \
+    || echo '::notice::Could not extract chat preview captures.'
+else
+  echo '::notice::No chat preview captures were produced.'
+fi
 exit "$ui_test_status"

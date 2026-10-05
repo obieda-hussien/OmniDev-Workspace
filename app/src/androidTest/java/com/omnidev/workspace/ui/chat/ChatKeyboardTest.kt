@@ -59,7 +59,7 @@ class ChatKeyboardTest {
             compose.onNodeWithContentDescription("Stop agent").assertIsDisplayed().performClick()
             compose.runOnIdle { assertEquals(cycle + 1, stops); assertTrue(state.value.inputText.contains("رسالة عربية")) }
             if (cycle == 0) {
-                val directory = checkNotNull(context.getExternalFilesDir("chat-previews")); directory.mkdirs()
+                val directory = File(context.filesDir, "chat-previews"); directory.mkdirs()
                 val bitmap = checkNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
                 File(directory, "chat-keyboard-light.png").outputStream().use { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
             }

@@ -4,7 +4,7 @@
     android:height="32dp"
     android:viewportWidth="64"
     android:viewportHeight="64">
-    
+
     <group android:translateX="-22" android:translateY="-18">
     <path
         android:fillColor="#40388A"
