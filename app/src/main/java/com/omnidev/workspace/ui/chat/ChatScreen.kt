@@ -1,112 +1,29 @@
 package com.omnidev.workspace.ui.chat
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Intent
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Reply
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AttachFile
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DismissibleDrawerSheet
-import androidx.compose.material3.DismissibleNavigationDrawer
-import androidx.compose.material3.DrawerValue
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.InputChip
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SmallFloatingActionButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDrawerState
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.domain.engine.ModeSwitchPermissionStore
-import com.omnidev.workspace.domain.engine.OmniMode
-import com.omnidev.workspace.ui.motion.LocalOmniMotion
 import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility as AnimatedVisibility
-import com.omnidev.workspace.ui.motion.OmniEasing
 import com.omnidev.workspace.ui.motion.OmniIconButton
 import kotlinx.coroutines.launch
-
-private const val REPLY_PREVIEW_MAX_CHARS = 120
-private const val USER_MESSAGE_COLLAPSE_THRESHOLD = 300
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -169,6 +86,8 @@ fun ChatScreen(
         }
     }
 
+    val rememberedFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    var showChatMenu by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val messagesById = remember(uiState.messages) { uiState.messages.associateBy { it.messageId } }
     val tailFollow = rememberTailFollowState(
@@ -178,10 +97,10 @@ fun ChatScreen(
         forceFollowKey = uiState.messages.lastOrNull { it.role == MessageRole.USER }?.messageId
     )
 
-    DismissibleNavigationDrawer(
+    androidx.compose.material3.ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            DismissibleDrawerSheet(modifier = Modifier.width(344.dp)) {
+            androidx.compose.material3.ModalDrawerSheet(modifier = Modifier.widthIn(max = 360.dp).fillMaxWidth(.9f)) {
                 ChatHistoryDrawer(
                     sessions = uiState.sessions,
                     currentSessionId = uiState.currentSessionId,
@@ -192,7 +111,10 @@ fun ChatScreen(
                     onDeleteSession = { viewModel.deleteSession(it) },
                     onDeleteAllSessions = { viewModel.deleteAllSessions() },
                     onDeleteSelectedSessions = { viewModel.deleteSelectedSessions(it) },
-                    onCloseDrawer = { scope.launch { drawerState.close() } }
+                    onCloseDrawer = { scope.launch { drawerState.close() } },
+                    isOpen = drawerState.isOpen,
+                    onSettings = { scope.launch { drawerState.close(); onNavigateToSettings() } },
+                    onBrowser = { scope.launch { drawerState.close(); onOpenBrowser() } }
                 )
             }
         }
@@ -200,63 +122,25 @@ fun ChatScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = {
-                        Column {
-                            Text(
-                                text = "OmniDev Workspace",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            if (uiState.isGodModeEnabled) {
-                                Text(
-                                    text = "⚡ God Mode — Full Root Access",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.tertiary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            } else {
-                                val displayName = uiState.targetContextDisplayName ?: uiState.targetContext
-                                if (displayName != null) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Filled.FolderOpen,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = displayName,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                } else {
-                                    Text(
-                                        text = "Tap 📁 to set scope",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                }
-                            }
-                        }
-                    },
-                    navigationIcon = {
-                        OmniIconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Filled.History, contentDescription = "Chat History")
-                        }
-                    },
+                    title = { Text(uiState.sessions.firstOrNull { it.id == uiState.currentSessionId }?.title?.ifBlank { "New conversation" }
+                        ?: "Omni", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    navigationIcon = { OmniIconButton(onClick = { scope.launch { drawerState.open() } }) {
+                        Icon(Icons.Filled.Menu, "Open conversations")
+                    } },
                     actions = {
-                        if (!uiState.isGodModeEnabled) {
-                            OmniIconButton(onClick = { directoryPickerLauncher.launch(null) }) {
-                                Icon(Icons.Filled.FolderOpen, contentDescription = "Set Target Context")
+                        OmniIconButton(onClick = viewModel::newSession) { Icon(Icons.Filled.Add, "New conversation") }
+                        Box {
+                            OmniIconButton(onClick = { showChatMenu = true }) { Icon(Icons.Filled.MoreVert, "Conversation options") }
+                            androidx.compose.material3.DropdownMenu(showChatMenu, { showChatMenu = false }) {
+                                if (!uiState.isGodModeEnabled) androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text("Choose project scope") }, leadingIcon = { Icon(Icons.Filled.FolderOpen, null) },
+                                    onClick = { showChatMenu = false; directoryPickerLauncher.launch(null) })
+                                androidx.compose.material3.DropdownMenuItem(text = { Text("Open browser") }, leadingIcon = { Icon(Icons.Filled.Language, null) },
+                                    onClick = { showChatMenu = false; onOpenBrowser() })
+                                androidx.compose.material3.DropdownMenuItem(text = { Text("Settings") }, leadingIcon = { Icon(Icons.Filled.Settings, null) },
+                                    onClick = { showChatMenu = false; onNavigateToSettings() })
                             }
-                        }
-                        OmniIconButton(onClick = onNavigateToSettings) {
-                            Icon(Icons.Filled.Settings, contentDescription = "AI Settings")
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -273,8 +157,19 @@ fun ChatScreen(
                 ModeSelector(
                     activeMode = uiState.activeMode,
                     onModeSelected = { viewModel.setMode(it) },
-                    enabled = true
+                    enabled = true,
+                    isProcessing = uiState.isProcessing
                 )
+
+                androidx.compose.material3.TextButton(
+                    onClick = { if (uiState.isGodModeEnabled) onNavigateToSettings() else directoryPickerLauncher.launch(null) },
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                ) {
+                    Icon(Icons.Filled.FolderOpen, null, Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (uiState.isGodModeEnabled) "Extended file access" else uiState.targetContextDisplayName ?: uiState.targetContext ?: "Choose project scope",
+                        style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
 
                 AnimatedVisibility(visible = uiState.isProcessing && uiState.consoleEntries.isNotEmpty()) {
                     AgentLiveConsole(
@@ -292,9 +187,14 @@ fun ChatScreen(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
-                        if (uiState.messages.isEmpty()) item { EmptyStateContent() }
+                        if (uiState.messages.isEmpty() && !uiState.isProcessing) item {
+                            EmptyStateContent(uiState.activeMode) { prompt ->
+                                viewModel.onInputChanged(prompt)
+                                rememberedFocus.requestFocus()
+                            }
+                        }
                         items(uiState.messages, key = { it.messageId }, contentType = { it.role }) { message ->
                             val replyToMessage = message.replyToMessageId?.let { id ->
                                 messagesById[id]
@@ -378,13 +278,15 @@ fun ChatScreen(
                     replyingTo = uiState.replyingTo,
                     onDismissReply = { viewModel.clearReplyingTo() },
                     chatSettings = uiState.chatSettings,
-                    onUpdateChatSettings = { viewModel.updateChatSettings(it) }
+                    onUpdateChatSettings = { viewModel.updateChatSettings(it) },
+                    focusRequester = rememberedFocus
                 )
             }
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ModeSwitchRequestCard(
     request: com.omnidev.workspace.data.model.ExecutionModeRequest,
@@ -402,7 +304,7 @@ internal fun ModeSwitchRequestCard(
     ) {
         Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             val source = request.sourceMode ?: "current mode"
-            val target = if (request.mode == "SWARM") "Team Agents" else request.mode.lowercase().replaceFirstChar { it.uppercase() }
+            val target = if (request.mode == "SWARM") "Multi-agent" else request.mode.lowercase().replaceFirstChar { it.uppercase() }
             Text(
                 text = if (pending) "$source → $target" else "Mode decision: ${request.status.replace('_', ' ')}",
                 style = MaterialTheme.typography.labelLarge,
@@ -416,460 +318,16 @@ internal fun ModeSwitchRequestCard(
                 )
             }
             if (pending) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedButton(onClick = onOnce, enabled = enabled, modifier = Modifier.weight(1f)) {
-                        Text("Allow once")
-                    }
-                    OutlinedButton(onClick = onAlwaysTransition, enabled = enabled, modifier = Modifier.weight(1f)) {
-                        Text("Always this switch")
-                    }
+                Text("Allow Omni to change execution mode for this task.", style = MaterialTheme.typography.bodySmall)
+                Button(onClick = onOnce, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
+                    Text("Allow once")
                 }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedButton(onClick = onAllSession, enabled = enabled, modifier = Modifier.weight(1f)) {
-                        Text("All this session")
-                    }
-                    OutlinedButton(onClick = onDeny, enabled = enabled, modifier = Modifier.weight(1f)) {
-                        Text("Deny")
-                    }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    OutlinedButton(onClick = onAlwaysTransition, enabled = enabled) { Text("Always this switch") }
+                    OutlinedButton(onClick = onAllSession, enabled = enabled) { Text("All this session") }
+                    TextButton(onClick = onDeny, enabled = enabled) { Text("Deny") }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun ModeSelector(
-    activeMode: OmniMode,
-    onModeSelected: (OmniMode) -> Unit,
-    enabled: Boolean = true
-) {
-    val manualModes = remember { listOf(OmniMode.CHAT, OmniMode.AGENT, OmniMode.SWARM) }
-    val motion = LocalOmniMotion.current
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(0.dp)
-    ) {
-        manualModes.forEachIndexed { index, mode ->
-            val isSelected = mode == activeMode
-            val shape = when (index) {
-                0 -> RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp)
-                manualModes.lastIndex -> RoundedCornerShape(topEnd = 12.dp, bottomEnd = 12.dp)
-                else -> RoundedCornerShape(0.dp)
-            }
-            val containerColor by animateColorAsState(
-                targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                animationSpec = tween(motion.responseMillis, easing = OmniEasing), label = "mode"
-            )
-            Surface(
-                modifier = Modifier.weight(1f).height(44.dp).semantics { selected = isSelected },
-                shape = shape,
-                color = containerColor,
-                onClick = { if (enabled) onModeSelected(mode) }
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = mode.label,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-internal fun MessageBubble(
-    message: ChatMessage,
-    consoleEntries: List<AgentConsoleEntry>? = null,
-    replyToMessage: ChatMessage? = null,
-    onReply: (ChatMessage) -> Unit = {},
-    onOpenBrowser: (() -> Unit)? = null
-) {
-    val isUser = message.role == MessageRole.USER
-    val alignment = if (isUser) Alignment.End else Alignment.Start
-    val backgroundColor = if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-    val icon = if (isUser) Icons.Filled.Person else Icons.Filled.SmartToy
-    val parsed = remember(message.content, isUser) {
-        if (!isUser) MessageFormatter.parse(message.content) else null
-    }
-    val context = LocalContext.current
-    val haptic = LocalHapticFeedback.current
-    val copyText = parsed?.cleanText?.ifBlank { null } ?: message.content
-
-    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = alignment) {
-        if (!isUser && !consoleEntries.isNullOrEmpty()) {
-            AgentLiveConsole(
-                entries = remember(consoleEntries) { consoleEntries.map(ConsoleRedactor::entry) },
-                isRunning = false,
-                modifier = Modifier.padding(bottom = 4.dp),
-                onOpenBrowser = onOpenBrowser
-            )
-        }
-
-        if (parsed != null && parsed.thoughtBlocks.isNotEmpty()) {
-            parsed.thoughtBlocks.forEach { thought ->
-                ExpandableBlock("🧠 Thought Process", thought, Color(0xFF0D2137))
-                Spacer(modifier = Modifier.height(4.dp))
-            }
-        }
-
-        if (parsed != null && parsed.toolBlocks.isNotEmpty()) {
-            parsed.toolBlocks.forEach { toolBlock ->
-                ExpandableBlock(
-                    headerLabel = "🛠️ Tool Execution",
-                    content = buildString {
-                        appendLine("```")
-                        appendLine(toolBlock.toolCode)
-                        appendLine("```")
-                        toolBlock.observation?.let {
-                            appendLine(); appendLine("**Output:**"); appendLine(it)
-                        }
-                    },
-                    headerColor = Color(0xFF1A1A2E)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-            }
-        }
-
-        Row(
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            if (!isUser) {
-                Box(
-                    modifier = Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp))
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-
-            Card(
-                modifier = Modifier.widthIn(max = 320.dp).combinedClickable(
-                    onClick = {},
-                    onLongClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onReply(message)
-                    }
-                ),
-                shape = RoundedCornerShape(
-                    topStart = if (isUser) 16.dp else 4.dp,
-                    topEnd = if (isUser) 4.dp else 16.dp,
-                    bottomStart = 16.dp,
-                    bottomEnd = 16.dp
-                ),
-                colors = CardDefaults.cardColors(containerColor = backgroundColor)
-            ) {
-                Column {
-                    if (replyToMessage != null) {
-                        val quoteSenderLabel = if (replyToMessage.role == MessageRole.USER) "You" else "OmniDev"
-                        Row(
-                            modifier = Modifier.fillMaxWidth().background(
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f),
-                                RoundedCornerShape(topStart = if (isUser) 16.dp else 4.dp, topEnd = if (isUser) 4.dp else 16.dp)
-                            ).padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(modifier = Modifier.width(3.dp).height(32.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(quoteSenderLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                                Text(
-                                    text = replyToMessage.content.take(REPLY_PREVIEW_MAX_CHARS).replace("\n", " "),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                )
-                            }
-                        }
-                    }
-
-                    Box {
-                        SelectionContainer(
-                            modifier = Modifier.combinedClickable(
-                                onClick = {},
-                                onLongClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onReply(message)
-                                }
-                            )
-                        ) {
-                            if (isUser) {
-                                val isLong = message.content.length > USER_MESSAGE_COLLAPSE_THRESHOLD
-                                var userExpanded by remember(message.messageId) { mutableStateOf(false) }
-                                Column(modifier = Modifier.padding(12.dp)) {
-                                    Text(
-                                        text = if (isLong && !userExpanded) message.content.take(USER_MESSAGE_COLLAPSE_THRESHOLD) + "…" else message.content,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    if (isLong) {
-                                        Row(
-                                            modifier = Modifier.padding(top = 4.dp).clickable { userExpanded = !userExpanded },
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Icon(
-                                                imageVector = if (userExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Text(
-                                                text = if (userExpanded) "Read less" else "Read more",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                                            )
-                                        }
-                                    }
-                                }
-                            } else {
-                                MarkdownText(
-                                    text = parsed?.cleanText?.ifBlank { null } ?: message.content,
-                                    modifier = Modifier.padding(start = 12.dp, end = 36.dp, top = 12.dp, bottom = 12.dp)
-                                )
-                            }
-                        }
-                        OmniIconButton(
-                            onClick = {
-                                val clipboard = context.getSystemService(ClipboardManager::class.java)
-                                clipboard?.setPrimaryClip(ClipData.newPlainText("OmniDev", copyText))
-                                Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
-                            },
-                            modifier = Modifier.align(Alignment.TopEnd).size(32.dp).padding(4.dp)
-                        ) {
-                            Icon(
-                                Icons.Filled.ContentCopy,
-                                contentDescription = "Copy message",
-                                modifier = Modifier.size(14.dp),
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                            )
-                        }
-                    }
-                }
-            }
-
-            if (isUser) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.tertiary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onTertiary, modifier = Modifier.size(18.dp))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun StreamingMessageBubble(content: String) {
-    Row(
-        verticalAlignment = Alignment.Top,
-        horizontalArrangement = Arrangement.Start,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Box(
-            modifier = Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Filled.SmartToy, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(18.dp))
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        Card(
-            modifier = Modifier.widthIn(max = 320.dp),
-            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            SelectionContainer {
-                MarkdownText(text = content, modifier = Modifier.padding(12.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun ExpandableBlock(headerLabel: String, content: String, headerColor: Color) {
-    var expanded by remember { mutableStateOf(false) }
-    Surface(shape = RoundedCornerShape(8.dp), color = headerColor, modifier = Modifier.fillMaxWidth()) {
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = headerLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color(0xFF8BBFD4),
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.weight(1f)
-                )
-                Icon(
-                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = if (expanded) "Collapse" else "Expand",
-                    tint = Color(0xFF8BBFD4),
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-            AnimatedVisibility(visible = expanded, enter = fadeIn(), exit = fadeOut()) {
-                Text(
-                    text = content.trim(),
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
-                    color = Color(0xFFCDD6E8),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChatInputBar(
-    inputText: String,
-    onInputChanged: (String) -> Unit,
-    onSend: () -> Unit,
-    onStop: () -> Unit = {},
-    isProcessing: Boolean,
-    pendingAttachments: List<PendingAttachment> = emptyList(),
-    onAttachClick: () -> Unit = {},
-    onRemoveAttachment: (android.net.Uri) -> Unit = {},
-    replyingTo: ChatMessage? = null,
-    onDismissReply: () -> Unit = {},
-    chatSettings: com.omnidev.workspace.domain.model.ChatSettings = com.omnidev.workspace.domain.model.ChatSettings(),
-    onUpdateChatSettings: (com.omnidev.workspace.domain.model.ChatSettings) -> Unit = {}
-) {
-    var showSettingsSheet by remember { mutableStateOf(false) }
-    if (showSettingsSheet) {
-        ChatSettingsSheet(
-            settings = chatSettings,
-            onDismiss = { showSettingsSheet = false },
-            onUpdate = onUpdateChatSettings
-        )
-    }
-    Column(modifier = Modifier.fillMaxWidth()) {
-        if (replyingTo != null) {
-            val senderLabel = if (replyingTo.role == MessageRole.USER) "You" else "OmniDev"
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                shape = RoundedCornerShape(8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.Reply, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Box(modifier = Modifier.width(3.dp).height(36.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp)))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(senderLabel, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                        Text(
-                            text = replyingTo.content.take(REPLY_PREVIEW_MAX_CHARS).replace("\n", " "),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
-                    OmniIconButton(onClick = onDismissReply, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Filled.Close, contentDescription = "Cancel reply", modifier = Modifier.size(16.dp))
-                    }
-                }
-            }
-        }
-
-        if (pendingAttachments.isNotEmpty()) {
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                pendingAttachments.forEach { attachment ->
-                    InputChip(
-                        selected = false,
-                        onClick = {},
-                        label = {
-                            Text(
-                                text = attachment.displayName,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                style = MaterialTheme.typography.labelSmall
-                            )
-                        },
-                        trailingIcon = {
-                            OmniIconButton(onClick = { onRemoveAttachment(attachment.uri) }, modifier = Modifier.size(18.dp)) {
-                                Icon(Icons.Filled.Close, contentDescription = "Remove attachment", modifier = Modifier.size(14.dp))
-                            }
-                        }
-                    )
-                }
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.Bottom
-        ) {
-            OmniIconButton(onClick = { showSettingsSheet = true }, enabled = !isProcessing, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Filled.Add, contentDescription = "Add to chat", tint = MaterialTheme.colorScheme.primary)
-            }
-            OmniIconButton(onClick = onAttachClick, enabled = !isProcessing, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Filled.AttachFile, contentDescription = "Attach files", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            OutlinedTextField(
-                value = inputText,
-                onValueChange = onInputChanged,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Ask OmniDev anything...") },
-                shape = RoundedCornerShape(24.dp),
-                maxLines = 5,
-                enabled = !isProcessing
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            FloatingActionButton(
-                onClick = if (isProcessing) onStop else onSend,
-                modifier = Modifier.size(48.dp),
-                containerColor = if (isProcessing) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                shape = CircleShape
-            ) {
-                if (isProcessing) {
-                    Icon(Icons.Filled.Stop, contentDescription = "Stop agent", tint = MaterialTheme.colorScheme.onError)
-                } else {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = MaterialTheme.colorScheme.onPrimary)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyStateContent() {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 64.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(
-            imageVector = Icons.Filled.SmartToy,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-            modifier = Modifier.size(80.dp)
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = "OmniDev Workspace",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Set a Target Context and start coding with AI",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-        )
     }
 }
