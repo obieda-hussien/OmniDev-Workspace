@@ -286,6 +286,9 @@ class LocalVoiceSessionService : Service() {
             val id = UUID.randomUUID().toString(); val result = CompletableDeferred<String>()
             synchronized(pending) { pending[id] = result }
             try {
+                // Capture the origin before showForUnlock marks the new voice host as active.
+                // Its subsequent DeviceUnlockActivity is a handoff, not a second invocation.
+                LockScreenAwake.holdForRequest(context, assistantHandoff = AssistantRuntime.targetingScreen)
                 if (!OmniVoiceInteractionService.showForUnlock(context)) return@withContext "USER_ACTION_REQUIRED: Android could not show the private assistant. Open Omni in the foreground and unlock manually."
                 ContextCompat.startForegroundService(context, Intent(context, LocalVoiceSessionService::class.java).putExtra(REQUEST, id))
                 val outcome = withTimeoutOrNull(110_000) { result.await() }

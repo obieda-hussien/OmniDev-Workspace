@@ -170,6 +170,10 @@ class DeviceUnlockActivity : ComponentActivity() {
                 if (!consent.enabled(if (unlock) DeviceConsentPolicy.Scope.UNLOCK else DeviceConsentPolicy.Scope.WAKE) ||
                     (voiceSession && !consent.enabled(DeviceConsentPolicy.Scope.VOICE_CREDENTIAL))) return@withContext "DENIED: device consent unavailable."
                 if (unlock && !consent.locked()) return@withContext "UNLOCKED: verified with Android keyguard state."
+                // Establish a fresh lease for a standalone request before launching its host.
+                // Assistant/voice transfers share their existing lease; onCreate only continues it.
+                com.omnidev.workspace.data.admin.LockScreenAwake.holdForRequest(context,
+                    assistantHandoff = AssistantRuntime.targetingScreen || voiceSession)
                 if (unlock && AssistantRuntime.targetingScreen && AssistantRuntime.hideForUnlock != null) {
                     restoreGeneration = AssistantRuntime.get(context).sessionGeneration
                     AssistantRuntime.hideForUnlock?.invoke()

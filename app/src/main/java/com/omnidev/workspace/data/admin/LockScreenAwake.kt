@@ -35,11 +35,18 @@ object LockScreenAwake {
         (consent.enabled(DeviceConsentPolicy.Scope.LOCK_OVERLAY) || consent.enabled(DeviceConsentPolicy.Scope.UNLOCK))
     private fun remaining() = deadline.remaining(SystemClock.elapsedRealtime())
 
+    fun hold(context: Context, newInvocation: Boolean = false) = hold(context, if (newInvocation)
+        ScreenAwakeDeadline.Origin.ASSISTANT_INVOCATION else ScreenAwakeDeadline.Origin.HOST_HANDOFF)
+
+    /** Called once at the request boundary, never from Activity creation/recreation. */
+    fun holdForRequest(context: Context, assistantHandoff: Boolean) = hold(context, if (assistantHandoff)
+        ScreenAwakeDeadline.Origin.HOST_HANDOFF else ScreenAwakeDeadline.Origin.STANDALONE_REQUEST)
+
     @Suppress("DEPRECATION")
-    fun hold(context: Context, newInvocation: Boolean = false) {
+    private fun hold(context: Context, origin: ScreenAwakeDeadline.Origin) {
         val consent = DeviceConsentStore(context)
         if (!consent.locked() || !allowed(consent)) { release(); return }
-        deadline.start(SystemClock.elapsedRealtime(), newInvocation)
+        deadline.start(SystemClock.elapsedRealtime(), origin)
         val duration = remaining()
         if (duration == 0L) return
         if (app == null) {
@@ -50,7 +57,7 @@ object LockScreenAwake {
         }
         // A window flag alone ends when SystemUI covers the assistant. A bounded display
         // lock bridges that handoff. No ACQUIRE_CAUSES_WAKEUP or ON_AFTER_RELEASE flags.
-        if (display?.isHeld != true || newInvocation) runCatching {
+        if (display?.isHeld != true || origin != ScreenAwakeDeadline.Origin.HOST_HANDOFF) runCatching {
             display?.let { if (it.isHeld) it.release() }
             val power = context.getSystemService(PowerManager::class.java)
             if (power?.isWakeLockLevelSupported(PowerManager.SCREEN_BRIGHT_WAKE_LOCK) == true) {
