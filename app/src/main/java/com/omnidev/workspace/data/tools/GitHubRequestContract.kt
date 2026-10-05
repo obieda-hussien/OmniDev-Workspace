@@ -25,7 +25,7 @@ object GitHubRequestContract {
         }
         val relative = value.removePrefix("/")
         val parts = relative.substringBefore('?').split('/')
-        if (parts.first() !in roots) {
+        if (!value.startsWith("/") && parts.first() !in roots) {
             require(method == "GET" && parts.size >= 2 && parts.take(2).joinToString("/").matches(repository)) { "Unknown API root. Use /repos/owner/repo/...; mutation endpoints must be explicit." }
             return "/repos/$relative"
         }

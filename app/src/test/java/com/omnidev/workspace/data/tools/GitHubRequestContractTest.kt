@@ -10,7 +10,7 @@ class GitHubRequestContractTest {
         assertEquals("/repos/obieda-hussien/OmniLinkSDK/contents", GitHubRequestContract.endpoint("obieda-hussien/OmniLinkSDK/contents", "GET"))
     }
     @Test fun `explicit nonrepository roots remain unchanged`() {
-        for (path in listOf("/user/repos", "/users/obieda-hussien/repos", "/graphql", "/search/code?q=a"))
+        for (path in listOf("/user/repos", "/users/obieda-hussien/repos", "/graphql", "/search/code?q=a", "/advisories/GHSA-test"))
             assertEquals(path, GitHubRequestContract.endpoint(path, "GET"))
     }
     @Test fun `mutations do not guess endpoint prefixes`() {

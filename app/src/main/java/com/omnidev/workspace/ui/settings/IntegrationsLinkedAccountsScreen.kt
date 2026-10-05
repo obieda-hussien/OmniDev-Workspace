@@ -43,6 +43,7 @@ import com.omnidev.workspace.data.auth.GitHubAccountDeviceFlowManager
 import com.omnidev.workspace.data.auth.GitHubAgentAccessStore
 import com.omnidev.workspace.data.auth.GitHubDeviceFlowManager
 import com.omnidev.workspace.data.tools.GitHubManagerTool
+import com.omnidev.workspace.data.auth.GitHubScopeCoverage
 import com.omnidev.workspace.data.auth.GitHubTokenValidator
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.ui.components.SettingsDisclosure
@@ -313,10 +314,10 @@ private fun GitHubAgentAccessPanel(
                 )
 
                 if (connected && connectedMethod == GitHubAgentAccessStore.AuthMethod.OAUTH_DEVICE_FLOW &&
-                    grantedScopes.isNotBlank() && grantedScopes.split(' ').toSet() != desiredScopes.split(' ').toSet()
+                    grantedScopes.isNotBlank() && GitHubScopeCoverage.missing(grantedScopes, desiredScopes).isNotEmpty()
                 ) {
                     Text(
-                        "Permission switches changed. Re-authorize OAuth to request the updated scopes.",
+                        "Missing OAuth scopes: ${GitHubScopeCoverage.missing(grantedScopes, desiredScopes).joinToString()}. Re-authorize only if you want these additional permissions.",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
