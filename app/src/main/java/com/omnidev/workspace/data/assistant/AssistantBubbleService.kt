@@ -103,7 +103,8 @@ class AssistantBubbleService : Service() {
             y = (160 * density).toInt()
         }
         val view = ImageView(this).apply {
-            setImageResource(R.drawable.ic_launcher_foreground)
+            setImageResource(R.drawable.ic_omni)
+            setPadding((12 * density).toInt(), (12 * density).toInt(), (12 * density).toInt(), (12 * density).toInt())
             background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFFDDD6FE.toInt()) }
             elevation = 8 * density
             contentDescription = "Open OmniDev assistant"

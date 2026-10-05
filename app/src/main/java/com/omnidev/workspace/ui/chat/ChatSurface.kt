@@ -6,9 +6,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.net.Uri
 import android.widget.Toast
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -18,12 +15,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Reply
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,9 +25,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
@@ -45,7 +36,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -53,8 +43,6 @@ import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.domain.engine.OmniMode
 import com.omnidev.workspace.domain.model.ChatSettings
-import com.omnidev.workspace.ui.motion.LocalOmniMotion
-import com.omnidev.workspace.ui.motion.OmniEasing
 import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility
 import com.omnidev.workspace.ui.motion.OmniIconButton
 
@@ -246,12 +234,6 @@ internal fun ChatInputBar(inputText: String, onInputChanged: (String) -> Unit, o
     var focused by remember { mutableStateOf(false) }
     var previousReply by remember { mutableStateOf(replyingTo) }
     LaunchedEffect(replyingTo) { if (replyingTo != null) previousReply = replyingTo }
-    val keyboard = LocalSoftwareKeyboardController.current
-    val focus = LocalFocusManager.current
-    val motion = LocalOmniMotion.current
-    val borderColor by animateColorAsState(
-        if (focused) MaterialTheme.colorScheme.primary.copy(alpha = .45f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = .65f),
-        animationSpec = tween(motion.responseMillis, easing = OmniEasing), label = "composer focus")
     if (showSettings) ChatSettingsSheet(chatSettings, { showSettings = false }, onUpdateChatSettings)
     if (showTools) ModalBottomSheet(onDismissRequest = { showTools = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).navigationBarsPadding()) {
@@ -303,37 +285,10 @@ internal fun ChatInputBar(inputText: String, onInputChanged: (String) -> Unit, o
                 }
             }
         }
-        Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerLow,
-            border = BorderStroke(1.dp, borderColor)) {
-            Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.Bottom) {
-                OmniIconButton(onClick = { keyboard?.hide(); showTools = true }, enabled = !isProcessing) {
-                    Icon(Icons.Default.Add, "Conversation tools", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                BasicTextField(value = inputText, onValueChange = onInputChanged,
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp).focusRequester(focusRequester)
-                        .onFocusChanged { focused = it.isFocused }.semantics { contentDescription = "Message Omni" },
-                    minLines = 1, maxLines = if (compact) 3 else 5, keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface, textDirection = TextDirection.Content),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    decorationBox = { field ->
-                        Box(Modifier.padding(horizontal = 8.dp, vertical = 12.dp)) {
-                            if (inputText.isEmpty()) Text(if (isProcessing) "Write your next message…" else "Message Omni…",
-                                style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            field()
-                        }
-                    })
-                FilledIconButton(onClick = {
-                    if (isProcessing) onStop() else { keyboard?.hide(); focus.clearFocus(); onSend() }
-                }, enabled = isProcessing || inputText.isNotBlank() || pendingAttachments.isNotEmpty(),
-                    modifier = Modifier.size(48.dp).semantics { contentDescription = if (isProcessing) "Stop agent" else "Send" }, shape = CircleShape,
-                    colors = IconButtonDefaults.filledIconButtonColors(containerColor = if (isProcessing) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primary,
-                        contentColor = if (isProcessing) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimary)) {
-                    ChatControlTransition(isProcessing, "send or stop") { busy ->
-                        Icon(if (busy) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send, null, Modifier.size(22.dp))
-                    }
-                }
-            }
-        }
+        ChatComposerSurface(inputText, onInputChanged, onSend, onStop, isProcessing,
+            onTools = { showTools = true },
+            sendEnabled = inputText.isNotBlank() || pendingAttachments.isNotEmpty(),
+            focusRequester = focusRequester, compact = compact, onFocusChanged = { focused = it })
     }
 }
 
