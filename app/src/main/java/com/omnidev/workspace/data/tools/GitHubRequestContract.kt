@@ -20,8 +20,7 @@ object GitHubRequestContract {
         require(value.length <= 2048 && value.none { it.isISOControl() } && !value.contains("://") && !value.startsWith("//") && !value.contains('\\') && !value.contains('#')) { "Only a relative api.github.com path is allowed." }
         val path = value.substringBefore('?')
         path.split('/').filter { it.isNotEmpty() }.forEach { segment ->
-            val decoded = URLDecoder.decode(segment, "UTF-8")
-            require(decoded != "." && decoded != ".." && decoded.none { it.isISOControl() } && !decoded.contains('/') && !decoded.contains('\\') && !decoded.contains('%')) { "Invalid or encoded traversal in API path." }
+            validateSegment(segment)
         }
         val relative = value.removePrefix("/")
         val parts = relative.substringBefore('?').split('/')
@@ -65,6 +64,13 @@ object GitHubRequestContract {
         }
         method.uppercase() + " " + path // ref and page identify distinct resources/observations.
     }.getOrNull()
+
+    private fun validateSegment(segment: String) {
+        // Decode exactly once: %25 represents a literal percent in a GitHub filename.
+        // Decoding again would reinterpret legal names such as %2F.txt as separators.
+        val decoded = URLDecoder.decode(segment, "UTF-8")
+        require(decoded != "." && decoded != ".." && decoded.none { it.isISOControl() } && !decoded.contains('/') && !decoded.contains('\\')) { "Invalid or encoded traversal in API path." }
+    }
 
     private fun encode(value: String) = URLEncoder.encode(value, "UTF-8").replace("+", "%20")
 }

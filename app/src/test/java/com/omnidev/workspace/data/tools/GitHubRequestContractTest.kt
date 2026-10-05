@@ -18,7 +18,7 @@ class GitHubRequestContractTest {
         assertEquals("/repos/owner/repo", GitHubRequestContract.endpoint("/repos/owner/repo", "DELETE"))
     }
     @Test fun `host escapes and encoded traversal are rejected`() {
-        for (path in listOf("", "https://evil.test/repos/a/b", "//evil.test/a/b", "/repos/a/b/../c", "/repos/a/b/%2e%2e/c", "/repos/a/b/%252e%252e/c", "/repos/a/b/%2f..", "/repos/a/b\\c", "/repos/a/b#c"))
+        for (path in listOf("", "https://evil.test/repos/a/b", "//evil.test/a/b", "/repos/a/b/../c", "/repos/a/b/%2e%2e/c", "/repos/a/b/%2f..", "/repos/a/b\\c", "/repos/a/b#c"))
             assertThrows(path, IllegalArgumentException::class.java) { GitHubRequestContract.endpoint(path, "GET") }
     }
     @Test fun `typed paths refs and pagination are encoded without losing punctuation`() {
@@ -28,6 +28,14 @@ class GitHubRequestContractTest {
         assertTrue(file.endpoint.contains("%20a.md?ref=feature%2Fa"))
         assertEquals("/user/repos?per_page=20&page=2&sort=updated", GitHubRequestContract.read("list_repos", "", null, null, 2, 20, null).endpoint)
     }
+    @Test fun `literal percent filenames survive typed building and API normalization`() {
+        for (path in listOf("docs/100%.md", "docs/%notes.md", "docs/100% done.md", "docs/%2F.txt", "docs/%2e%2e")) {
+            val read = GitHubRequestContract.read("read_file", "a/b", path, null, 1, 20, null)
+            assertEquals(read.endpoint, GitHubRequestContract.endpoint(read.endpoint, "GET"))
+            assertTrue(read.endpoint.contains("%25"))
+        }
+    }
+
     @Test fun `typed root and invalid paths are explicit`() {
         assertEquals("/repos/a/b/contents", GitHubRequestContract.read("list_contents", "a/b", null, null, 1, 20, null).endpoint)
         assertThrows(IllegalArgumentException::class.java) { GitHubRequestContract.read("read_file", "a/b", "", null, 1, 20, null) }

@@ -62,6 +62,22 @@ class GitHubManagerToolContractTest {
         }
         assertFalse(sent)
     }
+    @Test fun `429 without optional headers is still rate limiting`() {
+        val result = GitHubManagerTool.apiRequest(policy, "secret-token", "GET", "/user", null, client = client(429, "{}"))
+        assertEquals("GITHUB_RATE_LIMITED", result.classification)
+        assertTrue(result.persistentFailure)
+        assertFalse(result.output.contains("Check token repository selection"))
+        assertEquals("GITHUB_PERMISSION_DENIED", GitHubManagerTool.apiRequest(policy, "secret-token", "GET", "/user", null,
+            client = client(403, "{}")).classification)
+    }
+    @Test fun `raw percent filename reaches the correctly encoded GitHub request`() {
+        val endpoint = GitHubRequestContract.read("read_file", "a/b", "docs/100%.md", null, 1, 20, null).endpoint
+        val result = GitHubManagerTool.apiRequest(policy, "secret-token", "GET", endpoint, null, rawFile = true,
+            client = client(200, "file text") { assertTrue(it.url.encodedPath.endsWith("/docs/100%25.md")) })
+        assertFalse(result.isError)
+        assertTrue(result.output.contains("file text"))
+    }
+
     @Test fun `401 and rate limits have distinct actionable classes`() {
         assertEquals("GITHUB_AUTH_REQUIRED", GitHubManagerTool.apiRequest(policy, "secret-token", "GET", "/user", null,
             client = client(401, "{}")).classification)

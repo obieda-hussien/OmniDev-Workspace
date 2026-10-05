@@ -239,7 +239,8 @@ object GitHubManagerTool {
             } else {
                 val classification = when (code) {
                     401 -> "GITHUB_AUTH_REQUIRED"
-                    403, 429 -> if (response.header("X-RateLimit-Remaining") == "0" || response.header("Retry-After") != null) "GITHUB_RATE_LIMITED" else "GITHUB_PERMISSION_DENIED"
+                    429 -> "GITHUB_RATE_LIMITED"
+                    403 -> if (response.header("X-RateLimit-Remaining") == "0" || response.header("Retry-After") != null) "GITHUB_RATE_LIMITED" else "GITHUB_PERMISSION_DENIED"
                     404 -> "GITHUB_RESOURCE_NOT_FOUND"
                     422, 400 -> "INVALID_TOOL_ARGUMENTS"
                     else -> "GITHUB_HTTP_ERROR"
