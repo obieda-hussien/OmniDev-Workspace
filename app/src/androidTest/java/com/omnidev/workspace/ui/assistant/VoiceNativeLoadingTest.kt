@@ -9,7 +9,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.vosk.LibVosk
 
-/** Paired with the release mapping gate: load the actual JNI bridge on the API 30 CI device. */
+/** Paired with the release APK gate: load the actual JNI bridge on the API 30 CI device. */
 @RunWith(AndroidJUnit4::class)
 class VoiceNativeLoadingTest {
     @Test fun jnaPeerLookupAndVoskInitializationWorkWithoutAModelDownload() {

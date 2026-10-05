@@ -48,8 +48,8 @@ jobs:
       - name: Self-test single-file Admin delivery packaging
         run: python3 .github/scripts/test-package-admin-delivery.py
 
-      - name: Self-test voice native release mapping verification
-        run: python3 .github/scripts/test-verify-voice-native-mapping.py
+      - name: Self-test voice native APK verification
+        run: python3 .github/scripts/test-verify-voice-native-apk.py
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
@@ -280,11 +280,11 @@ jobs:
 
       - name: Verify JNA and Vosk survive release shrinking
         run: |
-          python3 .github/scripts/verify-voice-native-mapping.py \
-            app/build/outputs/mapping/liteRelease/mapping.txt \
-            app/build/outputs/mapping/normRelease/mapping.txt \
-            app/build/outputs/mapping/proRelease/mapping.txt \
-            app/build/outputs/mapping/oemRelease/mapping.txt
+          python3 .github/scripts/verify-voice-native-apk.py \
+            app/build/outputs/apk/lite/release/*.apk \
+            app/build/outputs/apk/norm/release/*.apk \
+            app/build/outputs/apk/pro/release/*.apk \
+            app/build/outputs/apk/oem/release/*.apk
 
       - name: Upload release APKs
         if: always()
@@ -450,8 +450,8 @@ jobs:
             "${unsigned_arg[@]}" \
             :app:assembleAdminRelease --stacktrace
 
-      - name: Verify Admin voice native release mapping
-        run: python3 .github/scripts/verify-voice-native-mapping.py app/build/outputs/mapping/adminRelease/mapping.txt
+      - name: Verify Admin voice native APK
+        run: python3 .github/scripts/verify-voice-native-apk.py app/build/outputs/apk/admin/release/*.apk
 
       - name: Verify Admin APK output
         shell: bash
