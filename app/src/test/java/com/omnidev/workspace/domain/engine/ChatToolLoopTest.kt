@@ -10,7 +10,7 @@ import org.junit.Test
 class ChatToolLoopTest {
     private class FakeTools : ToolManager {
         val executed = mutableListOf<String>()
-        override fun getToolDefinitions() = (ChatToolLoop.WEB_TOOLS + "delete_file").map { ToolDefinition(it, it) }
+        override fun getToolDefinitions() = (ChatToolLoop.WEB_TOOLS + "delete_file").map { ToolDefinition(it, it, listOf(ToolParameter("query", "string", "Query", false))) }
         override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
             executed += name
             return ToolExecutionResult("verified result")
@@ -82,7 +82,7 @@ class ChatToolLoopTest {
 
     @Test fun `cancellation is not converted to tool error`() = runTest {
         val tools = object : ToolManager {
-            override fun getToolDefinitions() = listOf(ToolDefinition("web_search", "search"))
+            override fun getToolDefinitions() = listOf(ToolDefinition("web_search", "search", listOf(ToolParameter("query", "string", "Query", false))))
             override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
                 throw CancellationException("stopped")
             }
@@ -96,7 +96,7 @@ class ChatToolLoopTest {
     }
     @Test fun `chat redacts transient secrets before model history and events`() = runTest {
         val tools = object : ToolManager {
-            override fun getToolDefinitions() = listOf(ToolDefinition("web_search", "search"))
+            override fun getToolDefinitions() = listOf(ToolDefinition("web_search", "search", listOf(ToolParameter("query", "string", "Query", false))))
             override suspend fun executeTool(
                 name: String,
                 arguments: Map<String, String>,

@@ -120,7 +120,10 @@ class StreamableMcpConnection(
                     val parameters = schema["properties"]?.jsonObject?.map { (key, value) ->
                         val prop = value.jsonObject
                         ToolParameter(key, (prop["type"] as? JsonPrimitive)?.content ?: "string",
-                            prop["description"]?.jsonPrimitive?.content.orEmpty(), key in required)
+                            prop["description"]?.jsonPrimitive?.content.orEmpty(), key in required,
+                            allowedValues = if ((prop["type"] as? JsonPrimitive)?.content == "string")
+                                (prop["enum"] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeIf { value -> value.isString }?.content }.orEmpty()
+                            else emptyList())
                     }.orEmpty()
                     tools.add(ToolDefinition("mcp_${serverName}_$name", tool["description"]?.jsonPrimitive?.content.orEmpty(), parameters))
                 }

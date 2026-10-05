@@ -169,7 +169,7 @@ object TeamExecutionPolicy {
         )
         return ClassifiedTask(
             task = task,
-            effectiveParallelSafe = task.parallelSafe && mutationScore < HARD_MUTATION_THRESHOLD,
+            effectiveParallelSafe = task.parallelSafe && !task.needsConnectedTools && mutationScore < HARD_MUTATION_THRESHOLD,
             resourceKeys = inferResourceKeys(task.description),
             mutationScore = mutationScore
         )

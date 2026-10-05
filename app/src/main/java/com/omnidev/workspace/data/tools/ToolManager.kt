@@ -50,7 +50,11 @@ data class ToolParameter(
     val name: String,
     val type: String,
     val description: String,
-    val required: Boolean = true
+    val required: Boolean = true,
+    /** Explicit schema constraint; descriptions alone are never parsed as authority. */
+    val allowedValues: List<String> = emptyList(),
+    /** Required only when the tool action matches one of these exact values. */
+    val requiredForActions: List<String> = emptyList()
 )
 
 /**

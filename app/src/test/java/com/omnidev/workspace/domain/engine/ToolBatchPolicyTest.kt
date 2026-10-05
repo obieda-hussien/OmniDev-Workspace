@@ -114,10 +114,10 @@ class ToolBatchPolicyTest {
     }
 
     @Test
-    fun `MCP mutation marker overrides read marker`() {
+    fun `unknown MCP effects are never inferred from a name`() {
         assertFalse(ToolBatchPolicy.isReadOnly(call("mcp_example_get_and_delete")))
         assertFalse(ToolBatchPolicy.isReadOnly(call("mcp_github_create_pull_request")))
-        assertTrue(ToolBatchPolicy.isReadOnly(call("mcp_example_get_status")))
+        assertFalse(ToolBatchPolicy.isReadOnly(call("mcp_example_get_status")))
     }
 
 

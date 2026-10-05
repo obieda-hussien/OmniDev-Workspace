@@ -50,19 +50,20 @@ object GitManagerTool {
                     name = "action",
                     type = "string",
                     description = "status | diff | log | add | commit | branch | checkout | stash | remote_status | fetch | pull | push",
-                    required = true
+                    required = true,
+                    allowedValues = listOf("status", "diff", "log", "add", "commit", "branch", "checkout", "stash", "remote_status", "fetch", "pull", "push")
                 ),
                 ToolParameter(
                     name = "commitMessage",
                     type = "string",
                     description = "Commit message (required for 'commit' action)",
-                    required = false
+                    required = false, requiredForActions = listOf("commit")
                 ),
                 ToolParameter(
                     name = "branch",
                     type = "string",
                     description = "Branch name (for 'checkout' or 'branch' actions)",
-                    required = false
+                    required = false, requiredForActions = listOf("checkout")
                 ),
                 ToolParameter(
                     name = "files",

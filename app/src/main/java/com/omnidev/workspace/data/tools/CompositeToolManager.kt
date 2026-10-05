@@ -125,8 +125,11 @@ class CompositeToolManager(
                 com.omnidev.workspace.core.policy.ConfirmationKind.ASSISTANT_ACTION, preview, null) == true })
     }
 
+    private val allToolDefinitions by lazy { buildAllToolDefinitions() }
+    private val toolPreflight by lazy { com.omnidev.workspace.domain.engine.ToolCallPreflight(allToolDefinitions) }
+
     override fun getToolDefinitions(): List<ToolDefinition> {
-        val allDefs = buildAllToolDefinitions()
+        val allDefs = allToolDefinitions
         // ── Tier filter ───────────────────────────────────────────────────────
         // LITE tier exposes ONLY the allow-list in TierToolGate.LITE_TOOLS.
         // NORM tier blocks the pro-only advanced security / root tools.
@@ -457,6 +460,10 @@ class CompositeToolManager(
                 isError = true
             )
         }
+
+        toolPreflight.check(
+            com.omnidev.workspace.data.model.ToolCall("dispatch", name, arguments)
+        )?.let { return it }
 
         context?.let { ctx ->
             if (com.omnidev.workspace.data.admin.DeviceConsentStore(ctx).locked() &&

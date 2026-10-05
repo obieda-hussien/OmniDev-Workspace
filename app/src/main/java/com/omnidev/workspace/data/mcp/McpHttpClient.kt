@@ -101,7 +101,10 @@ class McpHttpClient(private val client: OkHttpClient = OkHttpClient.Builder()
                             name = propName,
                             type = type,
                             description = desc,
-                            required = isRequired
+                            required = isRequired,
+                            allowedValues = if (type == "string") (propObj["enum"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull {
+                                (it as? JsonPrimitive)?.takeIf { value -> value.isString }?.content
+                            }.orEmpty() else emptyList()
                         ))
                     }
 
