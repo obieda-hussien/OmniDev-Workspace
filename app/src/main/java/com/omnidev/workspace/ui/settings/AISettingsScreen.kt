@@ -20,7 +20,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -229,6 +231,7 @@ fun AISettingsScreen(
                                         role = role,
                                         selectedModelId = uiState.modelAssignments[role] ?: "",
                                         isSaving = uiState.isSaving,
+                                        saveError = uiState.modelSaveError,
                                         isExpanded = uiState.expandedDropdownRole == role,
                                         onExpandToggle = { viewModel.toggleDropdown(role) },
                                         onModelSelected = { viewModel.selectModelForRole(role, it) },
@@ -271,6 +274,7 @@ private fun ModelRoleCard(
     role: ModelRole,
     selectedModelId: String,
     isSaving: Boolean,
+    saveError: String?,
     isExpanded: Boolean,
     onExpandToggle: () -> Unit,
     onModelSelected: (String) -> Unit,
@@ -335,15 +339,17 @@ private fun ModelRoleCard(
         }
     }
     if (isExpanded) androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss,
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.padding(16.dp).widthIn(max = 640.dp).fillMaxWidth().heightIn(max = 640.dp),
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(16.dp)
+            .widthIn(max = 640.dp).fillMaxWidth().heightIn(max = 640.dp),
             color = MaterialTheme.colorScheme.surface) {
-            Column(Modifier.imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Model for ${role.displayName}", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                     TextButton(onClick = onDismiss) { Text("Close") }
                 }
                 if (isSaving) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
+                saveError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
                 com.omnidev.workspace.ui.components.SettingsSearchField(search, { search = it }, "Search models or providers")
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     androidx.compose.material3.FilterChip(selected = providerFilter == null || providerFilter !in modelsByProvider,

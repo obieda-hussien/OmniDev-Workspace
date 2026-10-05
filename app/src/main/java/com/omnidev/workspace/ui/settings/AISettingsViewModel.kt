@@ -33,6 +33,8 @@ data class AISettingsUiState(
     val expandedDropdownRole: ModelRole? = null,
     /** Whether a save operation is in progress. */
     val isSaving: Boolean = false,
+    /** Kept inside the model picker so a dialog cannot obscure the save failure. */
+    val modelSaveError: String? = null,
     /** Transient status message shown after save or error. */
     val statusMessage: String? = null
 ) {
@@ -82,7 +84,7 @@ class AISettingsViewModel(
      */
     fun selectModelForRole(role: ModelRole, modelId: String) {
         if (_uiState.value.isSaving) return
-        _uiState.update { it.copy(isSaving = true) }
+        _uiState.update { it.copy(isSaving = true, modelSaveError = null) }
         viewModelScope.launch {
             try {
                 settingsRepository.setModelForRole(role, modelId)
@@ -96,7 +98,8 @@ class AISettingsViewModel(
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (e: Exception) {
                 _uiState.update {
-                    it.copy(statusMessage = "❌ Error: ${e.message}")
+                    it.copy(statusMessage = "Could not save model selection.",
+                        modelSaveError = "Could not save this model. Please try again.")
                 }
             } finally { _uiState.update { it.copy(isSaving = false) } }
         }
@@ -128,7 +131,8 @@ class AISettingsViewModel(
     fun toggleDropdown(role: ModelRole) {
         _uiState.update {
             it.copy(
-                expandedDropdownRole = if (it.expandedDropdownRole == role) null else role
+                expandedDropdownRole = if (it.expandedDropdownRole == role) null else role,
+                modelSaveError = null
             )
         }
     }
