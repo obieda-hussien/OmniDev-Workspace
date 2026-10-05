@@ -1,395 +1,175 @@
 package com.omnidev.workspace.ui.settings
 
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LargeTopAppBar
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.omnidev.workspace.data.db.dao.KnowledgeDao
 import com.omnidev.workspace.data.db.entities.KnowledgeSnippet
+import com.omnidev.workspace.ui.components.SettingsEmptyState
+import com.omnidev.workspace.ui.components.SettingsSearchField
 import com.omnidev.workspace.ui.motion.OmniIconButton
 import com.omnidev.workspace.ui.motion.omniAnimateContentSize
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import java.text.DateFormat
+import java.util.Date
 
-/**
- * Omni Memory management surface.
- *
- * The user sees one editable memory collection. Semantic/vector retrieval is an internal search
- * strategy over these same rows, not a second user-visible datastore.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MemoryExplorerScreen(
-    knowledgeDao: KnowledgeDao,
-    onNavigateBack: () -> Unit
-) {
+fun MemoryExplorerScreen(knowledgeDao: KnowledgeDao, onNavigateBack: () -> Unit) {
     val scope = rememberCoroutineScope()
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
-
     val snippetsFlow = remember(knowledgeDao) { knowledgeDao.observeAll() }
-    val allSnippets by snippetsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf<String?>(null) }
+    val loaded by snippetsFlow.collectAsStateWithLifecycle(initialValue = null)
+    val snippets = loaded.orEmpty()
+    var query by rememberSaveable { mutableStateOf("") }
+    var category by rememberSaveable { mutableStateOf<String?>(null) }
+    var oldestFirst by rememberSaveable { mutableStateOf(false) }
     var editTarget by remember { mutableStateOf<KnowledgeSnippet?>(null) }
     var pendingDelete by remember { mutableStateOf<KnowledgeSnippet?>(null) }
-    var showAddDialog by remember { mutableStateOf(false) }
-
-    val categories = remember(allSnippets) {
-        allSnippets.map { it.category }.filter { it.isNotBlank() }.distinct().sorted()
+    var adding by rememberSaveable { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val categories = remember(snippets) { snippets.groupingBy { it.category }.eachCount().toSortedMap() }
+    LaunchedEffect(categories, loaded) { if (loaded != null && category != null && category !in categories) category = null }
+    val filtered = remember(snippets, query, category, oldestFirst) {
+        val search = query.trim()
+        snippets.filter {
+            (category == null || it.category == category) &&
+                (search.isBlank() || listOf(it.content, it.tags, it.category).any { text -> text.contains(search, true) })
+        }.let { if (oldestFirst) it.sortedBy { row -> row.createdAt } else it.sortedByDescending { row -> row.createdAt } }
     }
-
-    val dialogSnippet = editTarget
-    if (dialogSnippet != null || showAddDialog) {
-        MemoryEditDialog(
-            initial = dialogSnippet,
-            onDismiss = {
-                editTarget = null
-                showAddDialog = false
-            },
-            onConfirm = { content, category, tags ->
+    if (editTarget != null || adding) {
+        val target = editTarget
+        MemoryEditDialog(target, saving, error, onDismiss = { if (!saving) { adding = false; editTarget = null; error = null } },
+            onConfirm = { content, chosenCategory, tags ->
+                saving = true; error = null
                 scope.launch {
-                    if (dialogSnippet != null) {
-                        knowledgeDao.update(
-                            dialogSnippet.copy(
-                                content = content.trim(),
-                                category = category.trim().lowercase(),
-                                tags = tags.trim().lowercase()
-                            )
-                        )
-                    } else {
-                        knowledgeDao.insert(
-                            KnowledgeSnippet(
-                                content = content.trim(),
-                                category = category.trim().lowercase(),
-                                tags = tags.trim().lowercase()
-                            )
-                        )
-                    }
-                    editTarget = null
-                    showAddDialog = false
+                    try {
+                        if (target != null) knowledgeDao.update(target.copy(content = content.trim(), category = chosenCategory.trim().lowercase(), tags = tags.trim().lowercase()))
+                        else knowledgeDao.insert(KnowledgeSnippet(content = content.trim(), category = chosenCategory.trim().lowercase(), tags = tags.trim().lowercase()))
+                        editTarget = null; adding = false
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (failure: Exception) { error = "Could not save the memory. Please try again." }
+                    finally { saving = false }
                 }
-            }
-        )
+            })
     }
-
     pendingDelete?.let { target ->
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text("Delete memory?") },
-            text = {
-                Text(
-                    "This removes the memory from Omni Memory. " +
-                        "Keyword and semantic retrieval will both stop seeing it."
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        scope.launch { knowledgeDao.deleteById(target.id) }
-                        pendingDelete = null
+        AlertDialog(onDismissRequest = { if (!saving) { pendingDelete = null; error = null } },
+            title = { Text("Delete memory?") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Omni will stop using this memory in future answers.")
+                Text(target.content, maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            } }, confirmButton = {
+                TextButton(enabled = !saving, onClick = {
+                    saving = true; error = null
+                    scope.launch {
+                        try { knowledgeDao.deleteById(target.id); pendingDelete = null }
+                        catch (cancelled: CancellationException) { throw cancelled }
+                        catch (failure: Exception) { error = "Could not delete the memory. Please try again." }
+                        finally { saving = false }
                     }
-                ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) { Text("Cancel") }
-            }
-        )
+                }) { Text(if (saving) "Deleting…" else "Delete", color = MaterialTheme.colorScheme.error) }
+            }, dismissButton = { TextButton(enabled = !saving, onClick = { pendingDelete = null; error = null }) { Text("Cancel") } })
     }
-
-    val filtered = remember(allSnippets, searchQuery, selectedCategory) {
-        val query = searchQuery.trim()
-        allSnippets.filter { snippet ->
-            val categoryMatches = selectedCategory == null || snippet.category == selectedCategory
-            val queryMatches = query.isBlank() ||
-                snippet.content.contains(query, ignoreCase = true) ||
-                snippet.tags.contains(query, ignoreCase = true) ||
-                snippet.category.contains(query, ignoreCase = true)
-            categoryMatches && queryMatches
-        }
-    }
-
-    Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
-        topBar = {
-            LargeTopAppBar(
-                title = {
-                    Column {
-                        Text("Omni Memory")
-                        Text(
-                            text = "${allSnippets.size} memories · one unified store",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                },
-                navigationIcon = {
-                    OmniIconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                scrollBehavior = scrollBehavior
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
-                Icon(Icons.Filled.Add, contentDescription = "Add memory")
+    Scaffold(topBar = { TopAppBar(title = { Text("Omni Memory") }, navigationIcon = {
+        OmniIconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+    }, actions = { TextButton(onClick = { adding = true; error = null }, enabled = loaded != null && !saving) {
+        Icon(Icons.Default.Add, null); Spacer(Modifier.width(4.dp)); Text("Add")
+    } }) }) { padding ->
+        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item {
+                Text("What Omni remembers", style = MaterialTheme.typography.headlineSmall)
+                Text("Review the facts, preferences and project rules your assistant can use.", style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Search content, tags, or categories…") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        OmniIconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Clear")
-                        }
+            item { SettingsSearchField(query, { query = it }, "Search memories, tags or categories") }
+            item {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = category == null, onClick = { category = null }, label = { Text("All · ${snippets.size}") })
+                    categories.forEach { (name, count) ->
+                        FilterChip(selected = category == name, onClick = { category = if (category == name) null else name }, label = { Text("${prettyCategory(name)} · $count") })
                     }
-                },
-                supportingText = {
-                    Text("Semantic retrieval uses these same memories automatically in the agent.")
-                },
-                singleLine = true
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = selectedCategory == null,
-                    onClick = { selectedCategory = null },
-                    label = { Text("All") }
-                )
-                categories.forEach { category ->
-                    FilterChip(
-                        selected = selectedCategory == category,
-                        onClick = {
-                            selectedCategory = if (selectedCategory == category) null else category
-                        },
-                        label = { Text(prettyCategory(category)) }
-                    )
                 }
             }
-
-            if (filtered.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = when {
-                            allSnippets.isEmpty() -> "No memories yet. Tap + to add your first one."
-                            searchQuery.isNotBlank() -> "No memories match \"$searchQuery\"."
-                            else -> "No memories in this category."
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    Text("${filtered.size} ${if (filtered.size == 1) "memory" else "memories"}", style = MaterialTheme.typography.labelLarge)
+                    TextButton(onClick = { oldestFirst = !oldestFirst }) { Text(if (oldestFirst) "Oldest first" else "Newest first") }
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(items = filtered, key = { it.id }) { snippet ->
-                        MemoryCard(
-                            snippet = snippet,
-                            onEdit = { editTarget = snippet },
-                            onDelete = { pendingDelete = snippet }
-                        )
-                    }
-                    item { Spacer(Modifier.height(80.dp)) }
-                }
+            }
+            if (loaded == null) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+            else if (filtered.isEmpty()) item {
+                SettingsEmptyState(if (snippets.isEmpty()) "Start your memory collection" else "No matching memories",
+                    if (snippets.isEmpty()) "Add a preference or project rule you want Omni to remember." else "Try another search or reset the category.")
+                if (snippets.isEmpty()) Button(onClick = { adding = true }, modifier = Modifier.fillMaxWidth()) { Text("Add your first memory") }
+                else TextButton(onClick = { query = ""; category = null }, modifier = Modifier.fillMaxWidth()) { Text("Reset filters") }
+            }
+            items(filtered, key = { it.id }) { snippet ->
+                MemoryCard(snippet, onEdit = { editTarget = snippet; error = null }, onDelete = { pendingDelete = snippet; error = null })
             }
         }
     }
 }
 
 @Composable
-private fun MemoryCard(
-    snippet: KnowledgeSnippet,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .omniAnimateContentSize(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = prettyCategory(snippet.category),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = snippet.content,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 5,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (snippet.tags.isNotBlank()) {
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = "🏷 ${snippet.tags}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                Row {
-                    OmniIconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
-                        Icon(
-                            Icons.Filled.Edit,
-                            contentDescription = "Edit memory",
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    OmniIconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
-                        Icon(
-                            Icons.Filled.Delete,
-                            contentDescription = "Delete memory",
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
+@OptIn(ExperimentalLayoutApi::class)
+private fun MemoryCard(snippet: KnowledgeSnippet, onEdit: () -> Unit, onDelete: () -> Unit) {
+    var expanded by rememberSaveable(snippet.id) { mutableStateOf(false) }
+    Card(Modifier.fillMaxWidth().omniAnimateContentSize(), shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(prettyCategory(snippet.category), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            SelectionContainer {
+                Text(snippet.content, style = MaterialTheme.typography.bodyLarge, maxLines = if (expanded) Int.MAX_VALUE else 4,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
+            if (snippet.tags.isNotBlank()) Text("Tags · ${snippet.tags}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(snippet.createdAt)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Show less" else "Read full memory") }
+                TextButton(onClick = onEdit) { Text("Edit") }
+                TextButton(onClick = onDelete) { Text("Delete", color = MaterialTheme.colorScheme.error) }
             }
         }
     }
 }
 
 @Composable
-private fun MemoryEditDialog(
-    initial: KnowledgeSnippet?,
-    onDismiss: () -> Unit,
-    onConfirm: (content: String, category: String, tags: String) -> Unit
-) {
-    var content by remember(initial?.id) { mutableStateOf(initial?.content ?: "") }
-    var category by remember(initial?.id) { mutableStateOf(initial?.category ?: "general") }
-    var tags by remember(initial?.id) { mutableStateOf(initial?.tags ?: "") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initial != null) "Edit Memory" else "Add Memory") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = content,
-                    onValueChange = { content = it },
-                    label = { Text("Memory") },
-                    placeholder = { Text("Fact, preference, project rule, architecture note…") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(132.dp),
-                    minLines = 3
-                )
-                OutlinedTextField(
-                    value = category,
-                    onValueChange = { category = it },
-                    label = { Text("Category") },
-                    placeholder = { Text("user_preference, project_rule, architecture, general") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = tags,
-                    onValueChange = { tags = it },
-                    label = { Text("Tags") },
-                    placeholder = { Text("comma-separated keywords") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
+private fun MemoryEditDialog(initial: KnowledgeSnippet?, saving: Boolean, error: String?, onDismiss: () -> Unit,
+    onConfirm: (String, String, String) -> Unit) {
+    var content by rememberSaveable(initial?.id) { mutableStateOf(initial?.content.orEmpty()) }
+    var category by rememberSaveable(initial?.id) { mutableStateOf(initial?.category ?: "general") }
+    var tags by rememberSaveable(initial?.id) { mutableStateOf(initial?.tags.orEmpty()) }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(if (initial != null) "Edit memory" else "Add memory") },
+        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(content, { content = it }, label = { Text("Memory") }, placeholder = { Text("A fact, preference or project rule…") },
+                minLines = 4, enabled = !saving, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(category, { category = it }, label = { Text("Category") }, singleLine = true, enabled = !saving,
+                supportingText = { Text("For example: general, project_rule, user_preference") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(tags, { tags = it }, label = { Text("Tags · optional") }, singleLine = true, enabled = !saving,
+                supportingText = { Text("Separate keywords with commas.") }, modifier = Modifier.fillMaxWidth())
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        } }, confirmButton = {
+            TextButton(onClick = { onConfirm(content, category, tags) }, enabled = !saving && content.isNotBlank() && category.isNotBlank()) {
+                Text(if (saving) "Saving…" else if (initial != null) "Save changes" else "Add memory")
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(content, category, tags) },
-                enabled = content.isNotBlank() && category.isNotBlank()
-            ) {
-                Text(if (initial != null) "Save" else "Add")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
-        }
-    )
+        }, dismissButton = { TextButton(onClick = onDismiss, enabled = !saving) { Text("Cancel") } })
 }
 
-private fun prettyCategory(category: String): String =
-    category
-        .split('_', '-', ' ')
-        .filter { it.isNotBlank() }
-        .joinToString(" ") { part -> part.replaceFirstChar { it.uppercase() } }
-        .ifBlank { "General" }
+private fun prettyCategory(category: String): String = category.split('_', '-', ' ').filter { it.isNotBlank() }
+    .joinToString(" ") { it.replaceFirstChar { character -> character.uppercase() } }.ifBlank { "General" }

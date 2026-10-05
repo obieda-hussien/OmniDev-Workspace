@@ -134,6 +134,7 @@ class LocalVoiceSessionService : Service() {
                 }
             }
         } catch (cancelled: CancellationException) { throw cancelled }
+        catch (error: VoiceNativeUnavailableException) { update(error.message ?: "Offline speech library unavailable.") }
         catch (error: Exception) { update("Voice session stopped. Check the local model, offline voice and device permissions.") }
         finally {
             credential?.close(); credential = null; privatePhase = false; handingOff = false

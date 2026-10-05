@@ -3,6 +3,7 @@ package com.omnidev.workspace.ui.settings
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +18,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -34,15 +38,9 @@ import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -230,6 +228,7 @@ fun AISettingsScreen(
                                         configuredProviders = providersUiState?.configuredProviders ?: emptyList(),
                                         role = role,
                                         selectedModelId = uiState.modelAssignments[role] ?: "",
+                                        isSaving = uiState.isSaving,
                                         isExpanded = uiState.expandedDropdownRole == role,
                                         onExpandToggle = { viewModel.toggleDropdown(role) },
                                         onModelSelected = { viewModel.selectModelForRole(role, it) },
@@ -263,9 +262,7 @@ fun AISettingsScreen(
     }
 }
 
-/**
- * Elevated card for a single model role with an ExposedDropdownMenu grouped by provider.
- */
+/** Role assignments stay compact; a focused searchable picker handles large provider catalogs. */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun ModelRoleCard(
@@ -273,227 +270,125 @@ private fun ModelRoleCard(
     configuredProviders: List<com.omnidev.workspace.ui.providers.ProviderEntry>,
     role: ModelRole,
     selectedModelId: String,
+    isSaving: Boolean,
     isExpanded: Boolean,
     onExpandToggle: () -> Unit,
     onModelSelected: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val allDynamicModels = catalogs.values.flatMap { it.models }
-    val selectedModel = allDynamicModels.find { it.id == selectedModelId }
+    val configured = configuredProviders.map { it.provider }.toSet()
+    val modelsByProvider = ModelProvider.entries.associateWith { provider ->
+        catalogs[provider]?.models?.takeIf { it.isNotEmpty() } ?: ModelRegistry.modelsByProvider[provider].orEmpty()
+    }.filter { (provider, models) ->
+        models.isNotEmpty() && (provider in configured || provider == ModelProvider.LOCAL_EDGE || provider == ModelProvider.GITHUB_COPILOT)
+    }
+    val selected = catalogs.values.flatMap { it.models }.find { it.id == selectedModelId }
         ?: ModelRegistry.findModelById(selectedModelId)
-
-    var expandedProviders by remember { mutableStateOf(mapOf<ModelProvider, Boolean>()) }
+    var details by rememberSaveable(role.name) { mutableStateOf(false) }
+    var search by rememberSaveable(role.name) { mutableStateOf("") }
+    var providerFilter by rememberSaveable(role.name) { mutableStateOf<ModelProvider?>(null) }
     val roleIcon = when (role) {
         ModelRole.CHAT -> Icons.Filled.QuestionAnswer
         ModelRole.AGENT -> Icons.Filled.SmartToy
         ModelRole.SWARM_ORCHESTRATOR -> Icons.Filled.Hub
         ModelRole.SWARM_WORKER -> Icons.Filled.Code
     }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .omniAnimateContentSize(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
-            // Role header
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(
-                    imageVector = roleIcon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = role.displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = role.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+    Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        modifier = Modifier.fillMaxWidth().omniAnimateContentSize()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(roleIcon, null, tint = MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f)) {
+                    Text(role.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(role.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Model dropdown
-            ExposedDropdownMenuBox(
-                expanded = isExpanded,
-                onExpandedChange = { onExpandToggle() }
-            ) {
-                OutlinedTextField(
-                    value = selectedModel?.let { "${it.displayName} (${it.provider.displayName})" } ?: "Select model",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Selected Model") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isExpanded) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .menuAnchor(MenuAnchorType.PrimaryNotEditable),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                ExposedDropdownMenu(
-                    expanded = isExpanded,
-                    onDismissRequest = onDismiss
-                ) {
-                    // Group models by provider
-                    val configuredProvidersSet = configuredProviders.map { it.provider }.toSet()
-                    val mergedModelsByProvider = ModelProvider.entries.associateWith { provider ->
-                        val staticModels = ModelRegistry.modelsByProvider[provider] ?: emptyList()
-                        val dynamicModels = catalogs[provider]?.models
-                        if (dynamicModels.isNullOrEmpty()) staticModels else dynamicModels
-                    }.filter { (provider, models) ->
-                        (provider == ModelProvider.LOCAL_EDGE || provider == ModelProvider.GITHUB_COPILOT || provider in configuredProvidersSet) && models.isNotEmpty()
+            Surface(onClick = onExpandToggle, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(selected?.displayName ?: selectedModelId.ifBlank { "Choose a model" }, style = MaterialTheme.typography.titleSmall)
+                    Text(selected?.provider?.displayName ?: "Select from your available providers", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Change model", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+            selected?.let { model ->
+                Text("${formatContextWindow(model.contextWindow)} context${if (model.supportsVision) " · Vision" else ""}${if (model.supportsThinking) " · Thinking" else ""}",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { details = !details }) { Text(if (details) "Hide model details" else "Model details") }
+                com.omnidev.workspace.ui.motion.OmniAnimatedVisibility(details) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(model.id, style = MaterialTheme.typography.labelSmall)
+                        Text(model.shortDescription.orEmpty(), style = MaterialTheme.typography.bodySmall)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            CapabilityBadge(model.tier.displayName)
+                            if (model.supportsVideo) CapabilityBadge("Video")
+                            model.speedTokensPerSecond?.let { CapabilityBadge("$it tokens/s") }
+                        }
+                        if (model.costPer1MInputTokens != null && model.costPer1MOutputTokens != null) {
+                            Text("Catalog pricing / 1M tokens: \$${formatCost(model.costPer1MInputTokens)} input · \$${formatCost(model.costPer1MOutputTokens)} output",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
-                    mergedModelsByProvider.forEach { (provider, models) ->
-                        // Provider header
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = provider.displayName,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            },
-                            onClick = {},
-                            enabled = false
-                        )
-
-                        // Models under this provider
-                        val isProviderExpanded = expandedProviders[provider] ?: false
-                        val visibleModels = if (isProviderExpanded) models else models.take(10)
-                        visibleModels.forEach { model ->
-                            val isSelected = model.id == selectedModelId
-                            DropdownMenuItem(
-                                text = {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(
-                                                    text = model.displayName,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                                )
-                                                if (model.isLatest) {
-                                                    Spacer(modifier = Modifier.width(6.dp))
-                                                    Text(
-                                                        text = "LATEST",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        color = MaterialTheme.colorScheme.primary,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
-                                            }
-                                            Text(
-                                                text = buildModelCapabilityString(model),
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                        if (isSelected) {
-                                            Icon(
-                                                imageVector = Icons.Filled.Check,
-                                                contentDescription = "Selected",
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
+                }
+            }
+        }
+    }
+    if (isExpanded) androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(shape = RoundedCornerShape(24.dp), modifier = Modifier.padding(16.dp).widthIn(max = 640.dp).fillMaxWidth().heightIn(max = 640.dp),
+            color = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Model for ${role.displayName}", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                    TextButton(onClick = onDismiss) { Text("Close") }
+                }
+                if (isSaving) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
+                com.omnidev.workspace.ui.components.SettingsSearchField(search, { search = it }, "Search models or providers")
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.FilterChip(selected = providerFilter == null || providerFilter !in modelsByProvider,
+                        onClick = { providerFilter = null }, label = { Text("All providers") })
+                    modelsByProvider.keys.forEach { provider ->
+                        androidx.compose.material3.FilterChip(selected = providerFilter == provider, onClick = { providerFilter = provider },
+                            label = { Text(provider.displayName) })
+                    }
+                }
+                val query = search.trim()
+                val visible = modelsByProvider.filterKeys { providerFilter == null || providerFilter !in modelsByProvider || it == providerFilter }
+                    .mapValues { (provider, models) -> models.filter {
+                        query.isBlank() || it.displayName.contains(query, true) || it.id.contains(query, true) || provider.displayName.contains(query, true)
+                    } }.filterValues { it.isNotEmpty() }
+                androidx.compose.foundation.lazy.LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (visible.isEmpty()) item {
+                        com.omnidev.workspace.ui.components.SettingsEmptyState("No matching models", "Try another search or connect a provider in settings.")
+                    }
+                    visible.forEach { (provider, models) ->
+                        item(key = "provider:${provider.name}") {
+                            Column {
+                                Text("${provider.displayName} · ${models.size}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                if (catalogs[provider]?.isFetching == true) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
+                                else if (catalogs[provider]?.error != null) Text("Showing cached catalog. Refresh this provider in Providers & API keys.",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        items(models.size, key = { index -> "${provider.name}:${models[index].id}:$index" }) { index ->
+                            val model = models[index]
+                            val chosen = model.id == selectedModelId
+                            Surface(onClick = { onModelSelected(model.id) }, enabled = !isSaving, shape = RoundedCornerShape(12.dp),
+                                color = if (chosen) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow) {
+                                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text(model.displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = if (chosen) FontWeight.SemiBold else FontWeight.Normal)
+                                        Text(buildModelCapabilityString(model), style = MaterialTheme.typography.bodySmall,
+                                            color = if (chosen) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
-                                },
-                                onClick = { onModelSelected(model.id) },
-                                modifier = Modifier.padding(start = 16.dp)
-                            )
-                        }
-
-                        if (!isProviderExpanded && models.size > 10) {
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = "Show all ${models.size} models...",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                },
-                                onClick = { expandedProviders = expandedProviders + (provider to true) },
-                                modifier = Modifier.padding(start = 16.dp)
-                            )
-                        }
-
-                        // Divider between providers (except last)
-                        if (provider != mergedModelsByProvider.keys.last()) {
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                                    if (chosen) Icon(Icons.Default.Check, "Selected", tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                                }
+                            }
                         }
                     }
                 }
-            }
-
-            // Model capability badges
-            selectedModel?.let { model ->
-                Spacer(modifier = Modifier.height(8.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    // Tier badge
-                    CapabilityBadge(
-                        text = "${model.tier.badge} ${model.tier.displayName}",
-                        containerAlpha = 0.7f
-                    )
-                    CapabilityBadge("${formatContextWindow(model.contextWindow)} ctx")
-                    if (model.isLatest) CapabilityBadge("✨ Latest")
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    if (model.supportsVision) CapabilityBadge("👁 Vision")
-                    if (model.supportsVideo) CapabilityBadge("🎥 Video")
-                    if (model.supportsThinking) CapabilityBadge("🧠 Thinking")
-                    model.speedTokensPerSecond?.let { CapabilityBadge("⚡ ${it}t/s") }
-                }
-                // Pricing row
-                val inputCost = model.costPer1MInputTokens
-                val outputCost = model.costPer1MOutputTokens
-                if (inputCost != null && outputCost != null) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "\$${formatCost(inputCost)} in / \$${formatCost(outputCost)} out per 1M tokens",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                // Short description
-                model.shortDescription?.let { desc ->
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = desc,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                Text("Selecting a model saves the assignment immediately.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

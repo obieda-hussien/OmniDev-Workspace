@@ -86,8 +86,10 @@ class OfflineVoiceModels(context: Context) {
                 File(stage, "omni-language").writeText(preset.language)
                 require(files.valid(stage)) { "The model archive is incomplete." }
                 // Opening Vosk before commit catches unusable downloads without touching installed models.
-                LibVosk.vosk_set_log_level(-1)
-                Model(stage.absolutePath).use { }
+                voiceNativeCall {
+                    LibVosk.vosk_set_log_level(-1)
+                    Model(stage.absolutePath).use { }
+                }
                 currentCoroutineContext().ensureActive()
                 files.commit(preset.language)
                 select(preset)
@@ -101,8 +103,10 @@ class OfflineVoiceModels(context: Context) {
     } }
     suspend fun <T> withModel(block: suspend (Model) -> T): T = withContext(Dispatchers.IO) { modelLock.withLock {
         val directory = files.installed(language()) ?: error("Install an offline voice model from Voice activation first.")
-        LibVosk.vosk_set_log_level(-1)
-        Model(directory.absolutePath).use { block(it) }
+        voiceNativeCall {
+            LibVosk.vosk_set_log_level(-1)
+            Model(directory.absolutePath).use { block(it) }
+        }
     } }
     companion object { private val modelLock = Mutex() }
 }

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 /**
  * UI state for the AI Settings screen.
@@ -70,7 +71,8 @@ class AISettingsViewModel(
                     godModeEnabled = godMode
                 )
             }.collect { state ->
-                _uiState.update { state }
+                _uiState.update { it.copy(modelAssignments = state.modelAssignments,
+                    deepThinkingEnabled = state.deepThinkingEnabled, godModeEnabled = state.godModeEnabled) }
             }
         }
     }
@@ -79,6 +81,8 @@ class AISettingsViewModel(
      * Updates the selected model for a specific [role].
      */
     fun selectModelForRole(role: ModelRole, modelId: String) {
+        if (_uiState.value.isSaving) return
+        _uiState.update { it.copy(isSaving = true) }
         viewModelScope.launch {
             try {
                 settingsRepository.setModelForRole(role, modelId)
@@ -89,11 +93,12 @@ class AISettingsViewModel(
                         statusMessage = "✅ ${role.displayName} updated"
                     )
                 }
-            } catch (e: Exception) {
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (e: Exception) {
                 _uiState.update {
                     it.copy(statusMessage = "❌ Error: ${e.message}")
                 }
-            }
+            } finally { _uiState.update { it.copy(isSaving = false) } }
         }
     }
 
