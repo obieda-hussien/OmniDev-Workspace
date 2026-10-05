@@ -20,6 +20,7 @@ class AssistantWindowPrivacy(context: Context, private val window: Window) : Aut
         }
     }
     init {
+        com.omnidev.workspace.data.admin.LockScreenAwake.attach(window)
         ContextCompat.registerReceiver(app, receiver, IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_OFF); addAction(Intent.ACTION_SCREEN_ON); addAction(Intent.ACTION_USER_PRESENT)
         }, ContextCompat.RECEIVER_NOT_EXPORTED)
@@ -30,5 +31,11 @@ class AssistantWindowPrivacy(context: Context, private val window: Window) : Aut
         if (value) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         else window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
-    override fun close() { if (!closed) { closed = true; app.unregisterReceiver(receiver) } }
+    override fun close() {
+        if (!closed) {
+            closed = true
+            com.omnidev.workspace.data.admin.LockScreenAwake.detach(window)
+            app.unregisterReceiver(receiver)
+        }
+    }
 }

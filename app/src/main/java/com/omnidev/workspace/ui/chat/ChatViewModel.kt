@@ -1259,7 +1259,11 @@ class ChatViewModel(
                 if (progress.isNotEmpty()) {
                     appendLine(); appendLine("Latest progress:"); progress.forEach(::appendLine)
                 }
-                appendLine(); append("Continue from this checkpoint; do not restart previous finished steps.")
+                appendLine()
+                if (reason.contains("USER_ACTION_REQUIRED")) {
+                    append("Waiting for user action: complete the Android prompt or manual unlock first, then continue from this checkpoint. " +
+                        "Do not repeat the failed unlock, retry a credential, or request a device code in chat. Keep previously finished steps.")
+                } else append("Continue from this checkpoint; do not restart previous finished steps.")
             }
         )
     }
