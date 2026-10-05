@@ -64,9 +64,10 @@ fun AssistantOverlay(
         return
     }
     val confirmation = chat.pendingConfirmation
-    AssistantConversation(screen, chat.copy(pendingConfirmation = confirmation?.copy(
-        onApprove = { confirmation.onApprove(); controller.chat.clearConfirmation() },
-        onDeny = { confirmation.onDeny(); controller.chat.clearConfirmation() })), controller.flavor,
+    val reviewed = confirmation?.let { pending -> pending.copy(
+        onApprove = { pending.onApprove(); controller.chat.clearConfirmation() },
+        onDeny = { pending.onDeny(); controller.chat.clearConfirmation() }) }
+    AssistantConversation(screen, chat.copy(pendingConfirmation = reviewed), controller.flavor,
         onInputChanged = controller::input, onSend = { controller.send() }, onStop = { controller.chat.cancelCurrentRun() },
         onDismiss = ::dismiss, onExpand = onExpand, onMinimize = onMinimize,
         onMicrophone = onMicrophone, onAttach = onAttach, onSystemVoice = onSystemVoice,

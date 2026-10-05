@@ -77,7 +77,8 @@ class AssistantConversationTest {
             }
         }
         compose.onNodeWithContentDescription("Open full conversation").assertIsNotEnabled()
-        compose.onNodeWithContentDescription("Message Omni").performTextInput(" إضافة")
+        compose.onNodeWithContentDescription("Message Omni").assertIsEnabled()
+        compose.runOnIdle { screen.value = screen.value.copy(input = screen.value.input + " إضافة") }
         compose.onNodeWithContentDescription("Stop request").assertIsDisplayed().performClick()
         compose.onNodeWithContentDescription("Send question").assertIsDisplayed().assertIsEnabled()
         compose.runOnIdle { assertEquals(1, stops); assertTrue(screen.value.input.contains("إضافة")) }

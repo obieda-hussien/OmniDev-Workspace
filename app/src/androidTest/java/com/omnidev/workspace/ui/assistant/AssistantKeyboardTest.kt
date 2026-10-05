@@ -32,12 +32,14 @@ class AssistantKeyboardTest {
             compose.activity.window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         }
         val screen = mutableStateOf(AssistantScreenState(visible = true))
+        val processing = mutableStateOf(true)
         var sends = 0
         lateinit var root: View
         compose.setContent { OmniDevTheme(darkTheme = false, dynamicColor = false) {
             root = LocalView.current
-            AssistantConversation(screen.value, ChatUiState(), assistantTestFlavor(),
-                onInputChanged = { screen.value = screen.value.copy(input = it) }, onSend = { sends++ })
+            AssistantConversation(screen.value, ChatUiState(isProcessing = processing.value), assistantTestFlavor(),
+                onInputChanged = { screen.value = screen.value.copy(input = it) }, onSend = { sends++ },
+                onStop = { processing.value = false })
         } }
         val keyboard = WindowInsetsControllerCompat(compose.activity.window, compose.activity.window.decorView)
         repeat(2) { cycle ->
@@ -52,6 +54,7 @@ class AssistantKeyboardTest {
             val density = context.resources.displayMetrics.density
             val gap = visible.bottom - (location[1] + composer.bottom.value * density)
             assertTrue("Assistant composer must sit above the real IME, without clipping or a second keyboard gap: $gap px", gap >= -2 && gap <= 16 * density)
+            if (cycle == 0) compose.onNodeWithContentDescription("Stop request").assertIsDisplayed().performClick()
             compose.onNodeWithContentDescription("Send question").assertIsDisplayed().assertIsEnabled()
             if (cycle == 0) {
                 val directory = File(context.filesDir, "chat-previews"); directory.mkdirs()
