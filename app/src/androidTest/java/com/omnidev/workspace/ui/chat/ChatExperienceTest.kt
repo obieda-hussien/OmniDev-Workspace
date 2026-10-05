@@ -42,7 +42,8 @@ class ChatExperienceTest {
             ChatInputBar("", {}, { sends++ }, isProcessing = false, pendingAttachments = attachments.value)
         } }
         compose.onNodeWithContentDescription("Send").assertIsNotEnabled()
-        val height = compose.onNodeWithTag("conversation-composer").getUnclippedBoundsInRoot().height
+        val bounds = compose.onNodeWithTag("conversation-composer").getUnclippedBoundsInRoot()
+        val height = bounds.bottom - bounds.top
         assertTrue("Empty composer should occupy one toolbar row", height <= 80.dp)
         compose.runOnIdle { attachments.value = listOf(PendingAttachment(Uri.parse("content://test/file"), "report.pdf")) }
         compose.onNodeWithContentDescription("Send").assertIsEnabled().performClick()
