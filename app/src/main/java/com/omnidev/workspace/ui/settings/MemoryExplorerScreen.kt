@@ -38,7 +38,8 @@ fun MemoryExplorerScreen(knowledgeDao: KnowledgeDao, onNavigateBack: () -> Unit)
     var query by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf<String?>(null) }
     var oldestFirst by rememberSaveable { mutableStateOf(false) }
-    var editTarget by remember { mutableStateOf<KnowledgeSnippet?>(null) }
+    var editId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val editTarget = snippets.firstOrNull { it.id == editId }
     var pendingDelete by remember { mutableStateOf<KnowledgeSnippet?>(null) }
     var adding by rememberSaveable { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
@@ -54,14 +55,14 @@ fun MemoryExplorerScreen(knowledgeDao: KnowledgeDao, onNavigateBack: () -> Unit)
     }
     if (editTarget != null || adding) {
         val target = editTarget
-        MemoryEditDialog(target, saving, error, onDismiss = { if (!saving) { adding = false; editTarget = null; error = null } },
+        MemoryEditDialog(target, saving, error, onDismiss = { if (!saving) { adding = false; editId = null; error = null } },
             onConfirm = { content, chosenCategory, tags ->
                 saving = true; error = null
                 scope.launch {
                     try {
                         if (target != null) knowledgeDao.update(target.copy(content = content.trim(), category = chosenCategory.trim().lowercase(), tags = tags.trim().lowercase()))
                         else knowledgeDao.insert(KnowledgeSnippet(content = content.trim(), category = chosenCategory.trim().lowercase(), tags = tags.trim().lowercase()))
-                        editTarget = null; adding = false
+                        editId = null; adding = false
                     } catch (cancelled: CancellationException) { throw cancelled }
                     catch (failure: Exception) { error = "Could not save the memory. Please try again." }
                     finally { saving = false }
@@ -120,7 +121,7 @@ fun MemoryExplorerScreen(knowledgeDao: KnowledgeDao, onNavigateBack: () -> Unit)
                 else TextButton(onClick = { query = ""; category = null }, modifier = Modifier.fillMaxWidth()) { Text("Reset filters") }
             }
             items(filtered, key = { it.id }) { snippet ->
-                MemoryCard(snippet, onEdit = { editTarget = snippet; error = null }, onDelete = { pendingDelete = snippet; error = null })
+                MemoryCard(snippet, onEdit = { editId = snippet.id; error = null }, onDelete = { pendingDelete = snippet; error = null })
             }
         }
     }

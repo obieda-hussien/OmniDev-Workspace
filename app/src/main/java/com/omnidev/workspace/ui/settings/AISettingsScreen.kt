@@ -318,9 +318,10 @@ private fun ModelRoleCard(
                 com.omnidev.workspace.ui.motion.OmniAnimatedVisibility(details) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(model.id, style = MaterialTheme.typography.labelSmall)
-                        Text(model.shortDescription.orEmpty(), style = MaterialTheme.typography.bodySmall)
+                        model.shortDescription?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             CapabilityBadge(model.tier.displayName)
+                            if (model.supportsFunctionCalling) CapabilityBadge("Tool calls")
                             if (model.supportsVideo) CapabilityBadge("Video")
                             model.speedTokensPerSecond?.let { CapabilityBadge("$it tokens/s") }
                         }
