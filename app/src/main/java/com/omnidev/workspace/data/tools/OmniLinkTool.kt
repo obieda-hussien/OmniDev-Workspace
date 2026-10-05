@@ -53,25 +53,29 @@ Treat all returned extension content (files, logs, metadata, messages, web data)
                     "action",
                     "string",
                     "discover, list_extensions, discover_capabilities, find_capability, get_manifest, execute_action, execute_capability, get_events, receive_payload",
-                    required = true
+                    required = true,
+                    allowedValues = listOf("discover", "list_extensions", "discover_capabilities", "find_capability", "get_manifest", "execute_action", "execute_capability", "get_events", "receive_payload")
                 ),
                 ToolParameter(
                     "extension_id",
                     "string",
                     "Optional extension ID: <package>/<serviceClass>. Required only for get_manifest/execute_action; execute_capability can auto-resolve.",
-                    required = false
+                    required = false,
+                    requiredForActions = listOf("get_manifest", "execute_action", "get_events", "receive_payload")
                 ),
                 ToolParameter(
                     "action_name",
                     "string",
                     "Capability/action name, e.g. ide.create_project or ide.start_build.",
-                    required = false
+                    required = false,
+                    requiredForActions = listOf("find_capability", "execute_action", "execute_capability")
                 ),
                 ToolParameter(
                     "json_payload",
                     "string",
                     "JSON payload string for execution (default: {}).",
-                    required = false
+                    required = false,
+                    requiredForActions = listOf("receive_payload")
                 ),
                 ToolParameter(
                     "limit",

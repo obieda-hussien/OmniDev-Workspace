@@ -9,7 +9,6 @@ import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.data.model.ModelTier
 import com.omnidev.workspace.data.model.ToolCall
 import com.omnidev.workspace.data.model.ToolCallResult
-import com.omnidev.workspace.data.model.ToolSchemaCompactor
 import com.omnidev.workspace.data.tools.ToolExecutionResult
 import com.omnidev.workspace.data.tools.CompositeToolManager
 import com.omnidev.workspace.data.tools.ToolManager
@@ -17,9 +16,6 @@ import com.omnidev.workspace.data.tools.orchestration.ToolOrchestrator
 import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
@@ -75,11 +71,11 @@ class AgentPipeline(
     private val smartLearningBridge: com.omnidev.workspace.data.brain.SmartLearningBridge? = null,
     private val toolOrchestrator: ToolOrchestrator = ToolOrchestrator(),
     private val analyticsRepository: com.omnidev.workspace.data.repository.AnalyticsRepository? = null,
-    private val toolEligibility: ((String) -> String?)? = null
+    private val toolEligibility: ((String) -> String?)? = null,
+    private val toolCallEligibility: ((ToolCall) -> String?)? = null
 ) {
 
     companion object {
-        private const val MAX_TOOLS_PER_REQUEST = 80
         private const val RATE_LIMIT_MAX_RETRIES = 4
         private const val RATE_LIMIT_BASE_DELAY_MS = 15_000L
         private const val RATE_LIMIT_MAX_DELAY_MS = 60_000L
@@ -97,9 +93,9 @@ Do not use tools. Do not rewrite merely for style.
 """
 
         private fun interCallDelayFor(tier: ModelTier): Long = when (tier) {
-            ModelTier.FAST -> 100L
-            ModelTier.EXECUTOR -> 250L
-            ModelTier.ORCHESTRATOR -> 500L
+            ModelTier.FAST -> 0L
+            ModelTier.EXECUTOR -> 50L
+            ModelTier.ORCHESTRATOR -> 100L
         }
     }
 
@@ -152,7 +148,7 @@ Do not use tools. Do not rewrite merely for style.
 
         val learnedTool = (toolManager as? CompositeToolManager)?.learnedRoutineTool
         // This path precedes provider selection, API key reads, memory retrieval and prompt compilation.
-        val localMatch = if (workerPersona == null && userAttachments.isEmpty() &&
+        val localMatch = if (workerPersona == null && toolCallEligibility == null && userAttachments.isEmpty() &&
             toolAccessMode != "DISABLED" && "learned_routine" !in disabledToolNames)
             learnedTool?.let { com.omnidev.workspace.data.routines.RoutineMatcher.match(userMessage, it.hub.store.list()) } else null
         if (localMatch != null) {
@@ -174,6 +170,7 @@ Do not use tools. Do not rewrite merely for style.
 
         val model = ModelRegistry.findModelById(modelId) ?: ModelRegistry.getModelById(modelId)
         val resolvedApiKey = apiKeyRepository?.getApiKey(model.provider)
+        val nativeTools = model.supportsFunctionCalling && model.provider != com.omnidev.workspace.data.model.ModelProvider.LOCAL_EDGE
 
         // Team worker prompts contain the original broad objective after the assigned atomic task.
         // Route capabilities from the assigned slice only, otherwise every worker gets the whole
@@ -192,15 +189,15 @@ Do not use tools. Do not rewrite merely for style.
             append(routingObjective)
         }.takeLast(2_400)
         val taskSignals = IntentClassifier.analyze(routingObjective)
-        val relevantDomains = IntentClassifier.getRelevantDomains(routingContext) + additionalToolDomains
         val localTools = toolManager.getToolDefinitions()
             .asSequence()
             .filter { it.name !in disabledToolNames }
-            .filter { it.name == "learned_routine" || IntentClassifier.getToolDomain(it.name) in relevantDomains }
             .toList()
         val mcpTools = try {
             mcpRegistry?.fetchAllAvailableTools().orEmpty()
-                .filter { IntentClassifier.getToolDomain(it.name) in relevantDomains }
+                .filter { it.name !in disabledToolNames }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (_: Exception) {
             emptyList()
         }
@@ -216,18 +213,13 @@ Do not use tools. Do not rewrite merely for style.
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) { emptyMap() }
-        val compactedTools = ToolSchemaCompactor.compact(
-            tools = rawToolDefs,
-            messages = listOf(ChatMessage(MessageRole.USER, routingContext)),
-            toolQuality = toolQuality
-        ).orEmpty()
-        // Keep assistant interaction tools callable even for a short "what goes here?" question.
-        // Disabled/tier-filtered tools are absent from rawToolDefs and cannot be resurrected.
-        val preferredTools = ToolSchemaCompactor.compact(
-            rawToolDefs.filter { it.name in preferredToolNames || it.name == "learned_routine" },
-            listOf(ChatMessage(MessageRole.USER, routingContext))
-        ).orEmpty()
-        val toolDefs = (preferredTools + compactedTools).distinctBy { it.name }.take(MAX_TOOLS_PER_REQUEST)
+        val permittedDefinitions = if (toolAccessMode == "DISABLED") emptyList() else rawToolDefs
+        val runCatalog = RunToolCatalog(
+            permittedDefinitions, routingContext,
+            preferredToolNames + "learned_routine", toolQuality, additionalToolDomains
+        )
+        val automaticRouter = AutomaticToolRouter(runCatalog)
+        var toolDefs = if (permittedDefinitions.isEmpty()) emptyList() else runCatalog.definitions()
         brain?.registerTools(toolDefs)
 
         val memoryContext = try {
@@ -251,7 +243,7 @@ Do not use tools. Do not rewrite merely for style.
             memoryContext = memoryContext,
             brainContext = brainContext,
             toolDefinitions = toolDefs,
-            toolAccessMode = toolAccessMode,
+            toolAccessMode = "ON_DEMAND",
             enableDeepThinking = enableDeepThinking,
             supportsThinking = model.supportsThinking
         )
@@ -263,6 +255,8 @@ Do not use tools. Do not rewrite merely for style.
 
         var iteration = 0
         var totalTokensUsed = 0
+        var invalidBatches = 0
+        var unresolvedToolFailure: String? = null
         val repetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
         val stagnationDetector = AgentStagnationDetector(
             windowSize = 8,
@@ -293,14 +287,23 @@ Do not use tools. Do not rewrite merely for style.
             if (iteration > 1) delay(interCallDelayFor(model.tier))
             send(AgentEvent.Thinking(iteration))
 
+            if (permittedDefinitions.isNotEmpty()) {
+                val added = runCatalog.prepare(routingContext, lastToolObservation)
+                toolDefs = runCatalog.definitions()
+                if (added.isNotEmpty()) phase(AgentExecutionPhase.ANALYZE, "Automatically loaded tools: ${added.joinToString()}")
+            }
+
             val desiredOutputBudget = AgentDecisionPolicy.outputCap(
                 taskSignals, model.maxOutputTokens,
                 remainingAtStart?.coerceAtLeast(MIN_COMPLETION_OUTPUT_RESERVE)
             )
+            val iterationSystemPrompt = systemPrompt +
+                (if (toolDefs.isEmpty()) "" else "\n" + AutomaticToolRouter.CONTRACT) +
+                (if (nativeTools || toolDefs.isEmpty()) "" else "\n" + ToolTextProtocol.schemas(toolDefs))
             // Tool definitions are already compacted to the exact set sent to the provider.
-            val schemaEstimate = (toolDefs.sumOf { it.toString().length } / 3).coerceAtLeast(0)
+            val schemaEstimate = if (nativeTools) (toolDefs.sumOf { it.toString().length } / 3).coerceAtLeast(0) else 0
             val inputBudget = model.contextWindow - desiredOutputBudget - config.contextWindowBuffer -
-                systemPrompt.length / 3 - schemaEstimate
+                iterationSystemPrompt.length / 3 - schemaEstimate
             if (inputBudget <= 0) {
                 brain?.onTaskEnd(EpisodeOutcome.FAILURE, "system/tool schema exceeds context window")
                 send(AgentEvent.Error("System instructions and tool definitions exceed this model's context window."))
@@ -336,13 +339,13 @@ Do not use tools. Do not rewrite merely for style.
 
             val requestPrototype = CompletionRequest(
                 modelId = modelId,
-                messages = requestMessages,
-                systemPrompt = systemPrompt,
+                messages = ToolTextProtocol.messages(requestMessages, textCallsOnly = nativeTools),
+                systemPrompt = iterationSystemPrompt,
                 maxTokens = desiredOutputBudget,
                 enableThinking = enableDeepThinking && model.supportsThinking,
                 targetContext = scopePath,
                 apiKey = resolvedApiKey,
-                tools = toolDefs
+                tools = if (nativeTools) toolDefs else null
             )
             val estimatedRequestInput = TokenAccounting.estimateInputTokens(requestPrototype)
             val remainingAfterCompaction = config.tokenBudget?.minus(totalTokensUsed)
@@ -369,7 +372,7 @@ Do not use tools. Do not rewrite merely for style.
                 onReasoning = { send(AgentEvent.ThinkingBlock(it)) }
             )
 
-            val response = callWithRetry(
+            val nativeResponse = callWithRetry(
                 request = request,
                 iteration = iteration,
                 onStreamChunk = { send(AgentEvent.StreamChunk(it)) },
@@ -380,8 +383,12 @@ Do not use tools. Do not rewrite merely for style.
                 }
             ) ?: return@channelFlow
 
+            val response = if (toolDefs.isEmpty()) nativeResponse else automaticRouter.adapt(
+                TextToolCallAdapter.adapt(nativeResponse), toolDefs.mapTo(mutableSetOf()) { it.name }
+            )
+
             // Usage is never allowed to disappear merely because a provider omitted metadata.
-            val responseUsage = TokenAccounting.usage(request, response)
+            val responseUsage = TokenAccounting.usage(request, nativeResponse)
             totalTokensUsed += responseUsage.totalTokens
             emitUsage(responseUsage.totalTokens, totalTokensUsed)
 
@@ -390,6 +397,25 @@ Do not use tools. Do not rewrite merely for style.
                 ?.let { send(AgentEvent.ThinkingBlock(it)) }
 
             if (response.toolCalls.isEmpty()) {
+                if (permittedDefinitions.isNotEmpty() &&
+                    (unresolvedToolFailure != null || automaticRouter.unavailableToolReply(response.content))) {
+                    val feedback = automaticRouter.recovery(routingContext, unresolvedToolFailure ?: response.content)
+                    if (feedback != null) {
+                        messages += ChatMessage(MessageRole.ASSISTANT, response.content)
+                        messages += ChatMessage(MessageRole.USER, feedback)
+                        phase(AgentExecutionPhase.ANALYZE, "Automatically retrieving tools after model stalled")
+                        continue
+                    }
+                    if (unresolvedToolFailure == null) {
+                        send(AgentEvent.Error("Model could not select an available tool after two automatic retrieval attempts."))
+                        return@channelFlow
+                    }
+                }
+                unresolvedToolFailure?.let { failure ->
+                    brain?.onTaskEnd(EpisodeOutcome.FAILURE, "run ended with unresolved tool failure")
+                    send(AgentEvent.Error("Execution remains unverified after a failed tool batch: " + failure.take(1_200)))
+                    return@channelFlow
+                }
                 phase(AgentExecutionPhase.VERIFY, "Checking final completeness")
                 messages += ChatMessage(
                     role = MessageRole.ASSISTANT,
@@ -473,9 +499,21 @@ Do not use tools. Do not rewrite merely for style.
                 calls = response.toolCalls,
                 scopePath = scopePath,
                 allowParallel = config.enableParallelToolExecution,
-                capture = capture
+                capture = capture,
+                definitions = toolDefs,
+                runCatalog = runCatalog
             )
 
+            val failedResult = rawResults.firstOrNull { it.isError }
+            if (failedResult != null) unresolvedToolFailure = SensitiveObservationRedactor.redact(failedResult.output)
+            else if (response.toolCalls.any { it.name != RunToolCatalog.DISCOVER.name }) unresolvedToolFailure = null
+            val preflightFailed = rawResults.any { it.classification in setOf(
+                "TOOL_NOT_EXPOSED", "INVALID_TOOL_ARGUMENTS", "INVALID_TOOL_BATCH", "BATCH_PREFLIGHT_BLOCKED"
+            ) }
+            invalidBatches = if (preflightFailed) invalidBatches + 1 else 0
+            val automaticRecoveryFeedback = if (preflightFailed) automaticRouter.recovery(routingContext,
+                response.toolCalls.joinToString(" ") { it.name } + " " + failedResult?.output.orEmpty()) else null
+            toolDefs = if (permittedDefinitions.isEmpty()) emptyList() else runCatalog.definitions()
             val toolResults = mutableListOf<ToolCallResult>()
             val modelSafeResults = mutableListOf<ToolExecutionResult>()
             val routineVideoImages = mutableListOf<AttachmentMeta>()
@@ -503,6 +541,15 @@ Do not use tools. Do not rewrite merely for style.
                 )
             }
 
+            val workerScopeDenied = modelSafeResults.firstOrNull {
+                it.classification == "TOOL_POLICY_DENIED" && it.output.startsWith("READ_ONLY_WORKER:")
+            }
+            if (workerScopeDenied != null) {
+                brain?.onTaskEnd(EpisodeOutcome.BLOCKED, "worker needs serialized execution")
+                send(AgentEvent.Error(workerScopeDenied.output))
+                return@channelFlow
+            }
+
             val pendingUserAction = modelSafeResults.firstOrNull {
                 it.classification == "USER_ACTION_REQUIRED"
             }
@@ -518,6 +565,12 @@ Do not use tools. Do not rewrite merely for style.
                         }
                     )
                 )
+                return@channelFlow
+            }
+
+            if (invalidBatches >= 3) {
+                brain?.onTaskEnd(EpisodeOutcome.FAILURE, "tool preflight failed three consecutive batches")
+                send(AgentEvent.Error("Model could not produce valid tool calls after three corrections. Invalid batches executed no actions."))
                 return@channelFlow
             }
 
@@ -548,6 +601,7 @@ Do not use tools. Do not rewrite merely for style.
                 )
                 if (hasErrors) {
                     append("\n\nOne or more tools failed. Do not claim those operations succeeded; pivot strategy or report the blocker explicitly.")
+                    automaticRecoveryFeedback?.let { append("\n\n$it") }
                 } else if (stagnation.noActionStreak >= 2 && stagnation.readOnlyRatio >= 0.75f) {
                     append(
                         "\n\n[Omni runtime guidance] You already have multiple successful read-only " +
@@ -575,9 +629,15 @@ Do not use tools. Do not rewrite merely for style.
         calls: List<ToolCall>,
         scopePath: String,
         allowParallel: Boolean,
-        capture: com.omnidev.workspace.data.routines.RoutineCapture? = null
+        capture: com.omnidev.workspace.data.routines.RoutineCapture? = null,
+        definitions: List<com.omnidev.workspace.data.tools.ToolDefinition>,
+        runCatalog: RunToolCatalog
     ): List<ToolExecutionResult> {
         suspend fun executeOne(call: ToolCall): ToolExecutionResult {
+            if (call.name == RunToolCatalog.DISCOVER.name) return runCatalog.discover(call.arguments.getValue("query"))
+            toolCallEligibility?.invoke(call)?.let { reason ->
+                return ToolExecutionResult(reason, true, classification = "TOOL_POLICY_DENIED")
+            }
             // Recheck at execution: also covers forged/unadvertised calls and MCP dispatch.
             toolEligibility?.invoke(call.name)?.let { reason ->
                 return ToolExecutionResult("Flavor policy denied ${call.name}: $reason", isError = true,
@@ -662,10 +722,9 @@ Do not use tools. Do not rewrite merely for style.
             return finalResult
         }
 
-        val parallel = allowParallel && ToolBatchPolicy.canRunBatchInParallel(calls)
-        return if (parallel) {
-            coroutineScope { calls.map { async { executeOne(it) } }.awaitAll() }
-        } else calls.map { executeOne(it) }
+        return ValidatedToolBatchExecutor.execute(calls, definitions, allowParallel,
+            authorize = { call -> toolCallEligibility?.invoke(call) ?: toolEligibility?.invoke(call.name) },
+            dispatch = ::executeOne)
     }
 
     private suspend fun maybeCritique(

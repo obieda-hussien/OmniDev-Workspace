@@ -13,7 +13,7 @@ object ToolBatchPolicy {
 
     internal fun isReadOnly(call: ToolCall): Boolean {
         val name = call.name.lowercase()
-        if (name.startsWith("mcp_")) return isKnownReadMcp(name)
+        if (name.startsWith("mcp_")) return false
 
         when (name) {
             "read_notifications" -> return call.arguments["operation"]?.trim()?.lowercase()
@@ -48,9 +48,16 @@ object ToolBatchPolicy {
                 }
             }
 
+            "git_manager" -> return call.arguments["action"] in setOf("status", "diff", "log", "remote_status")
+
+            "omni_link" -> return call.arguments["action"] in setOf("list_extensions", "find_capability", "get_manifest", "get_events")
+
             "agent_runtime" -> {
                 val action = call.arguments["action"]?.lowercase().orEmpty()
-                if (action in setOf("env_check", "status", "find_binary", "job_status")) return true
+                if (action in setOf("bootstrap_status", "job_status", "job_list", "tools_status", "tools_list",
+                    "file_read", "file_list", "file_stat", "file_find", "file_grep",
+                    "git_status", "git_log", "git_diff", "git_remote", "proc_list", "proc_top", "proc_find",
+                    "script_list", "script_get", "env_get", "env_list", "env_list_profiles")) return true
                 if (action in setOf("shell_script", "termux_run")) {
                     val script = call.arguments["script"] ?: call.arguments["command"]
                     if (!script.isNullOrBlank() &&
@@ -62,26 +69,11 @@ object ToolBatchPolicy {
 
         if (name in EXPLICIT_READ_TOOLS) return true
         if (MUTATION_HINTS.any(name::contains)) return false
-        if (READ_HINTS.any(name::contains)) return true
+
 
         // Unknown capabilities are serialized and executed at-most-once. Correctness beats
         // speculative parallelism/retry after an uncertain side effect.
         return false
-    }
-
-    private fun isKnownReadMcp(name: String): Boolean {
-        val mutationMarkers = listOf(
-            "create", "write", "update", "delete", "remove", "send", "post", "put",
-            "patch", "execute", "run", "deploy", "merge", "push", "commit", "install",
-            "uninstall", "grant", "revoke", "set", "trigger", "publish"
-        )
-        if (mutationMarkers.any { marker ->
-                name.contains("_$marker") || name.endsWith(marker)
-            }
-        ) return false
-
-        return listOf("get", "list", "search", "read", "fetch", "query", "inspect", "status", "find")
-            .any { marker -> name.contains("_$marker") || name.endsWith(marker) }
     }
 
     private val EXPLICIT_READ_TOOLS = setOf(
@@ -89,12 +81,9 @@ object ToolBatchPolicy {
         "web_scraper", "fetch_page", "scrape_multiple", "grep_search", "find_files",
         "get_device_info", "read_notifications", "vector_search", "vector_similar",
         "browser_get_dom", "sms_reader_tool", "call_log_tool",
-        "device_info_tool", "get_trust_profile", "list_earned_capabilities"
-    )
-
-    private val READ_HINTS = listOf(
-        "read", "search", "grep", "find", "list", "inspect", "query", "fetch", "status",
-        "info", "scan", "analyze", "dump", "get_"
+        "device_info_tool", "get_trust_profile", "list_earned_capabilities",
+        "read_file", "repo_find_context", "repo_context", "search_messages", "read_chat_session",
+        "read_chat_message", "list_chat_sessions", "search_knowledge", "discover_tools"
     )
 
     private val MUTATION_HINTS = listOf(

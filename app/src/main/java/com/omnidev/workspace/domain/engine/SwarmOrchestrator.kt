@@ -203,7 +203,8 @@ Synthesize specialist evidence into the answer to the original request.
             val task: SwarmTask,
             val result: String,
             val error: String? = null,
-            val infrastructureBlocked: Boolean = false
+            val infrastructureBlocked: Boolean = false,
+            val requiresSerialReplan: Boolean = false
         )
 
         suspend fun runWorker(task: SwarmTask): TaskOutcome {
@@ -229,13 +230,17 @@ Synthesize specialist evidence into the answer to the original request.
                 streamingCompletionProvider = streamingCompletionProvider,
                 config = TEAM_WORKER_CONFIG.copy(
                     maxIterations = budget.maxIterations,
-                    tokenBudget = budget.tokenBudget,
+                    tokenBudget = minOf(budget.tokenBudget, (TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTeamTokens.get() - SYNTHESIS_TOKEN_RESERVE).coerceAtLeast(1)),
                     maxRepeatedToolCalls = budget.repeatedToolLimit
                 ),
                 apiKeyRepository = apiKeyRepository,
                 memoryManager = memoryManager,
                 smartLearningBridge = smartLearningBridge,
-                analyticsRepository = analyticsRepository
+                analyticsRepository = analyticsRepository,
+                toolCallEligibility = if (task.parallelSafe) ({ call ->
+                    if (call.name == RunToolCatalog.DISCOVER.name || ToolBatchPolicy.isReadOnly(call)) null
+                    else "READ_ONLY_WORKER: Mutation or unknown-effect tool requires a serial task; no batch actions executed."
+                }) else null
             )
 
             var taskResult = ""
@@ -287,11 +292,19 @@ Synthesize specialist evidence into the answer to the original request.
                 task = task,
                 result = "[FAILED] $error$partial",
                 error = error,
-                infrastructureBlocked = isInfrastructureFailure(error)
+                infrastructureBlocked = isInfrastructureFailure(error),
+                requiresSerialReplan = task.parallelSafe && error.startsWith("READ_ONLY_WORKER:") &&
+                    TeamExecutionPolicy.classify(SwarmTask("objective", userMessage)).mutationScore >= 0.42f
             )
         }
 
+        val serialReplans = mutableListOf<SwarmTask>()
         suspend fun accept(outcome: TaskOutcome) {
+            if (outcome.requiresSerialReplan) {
+                serialReplans += outcome.task.copy(parallelSafe = false)
+                send(SwarmEvent.WorkerPhaseChanged(outcome.task, "REPLAN", "Runtime detected a mutation; resume once after parallel workers finish."))
+                return
+            }
             completed[outcome.task.id] = outcome.result
             if (outcome.error != null) {
                 failed[outcome.task.id] = outcome.error
@@ -350,6 +363,14 @@ Synthesize specialist evidence into the answer to the original request.
                     coroutineScope {
                         wave.map { task -> async(dispatcher) { runWorker(task) } }.awaitAll()
                     }.forEach { accept(it) }
+                }
+                // No mutation overlaps a read wave, even when the planner mislabeled a task.
+                val replans = serialReplans.toList()
+                serialReplans.clear()
+                for (task in replans) {
+                    if (observedTeamTokens.get() >= TEAM_TOTAL_TOKEN_HARD_LIMIT - SYNTHESIS_TOKEN_RESERVE) {
+                        accept(TaskOutcome(task, "[FAILED] Team budget exhausted before serial recovery.", "Team budget exhausted before serial recovery."))
+                    } else accept(runWorker(task))
                 }
             }
         }

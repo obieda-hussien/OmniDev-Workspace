@@ -138,7 +138,7 @@ class LocalVoiceSessionService : Service() {
         catch (error: Exception) { update("Voice session stopped. Check the local model, offline voice and device permissions.") }
         finally {
             credential?.close(); credential = null; privatePhase = false; handingOff = false
-            input?.stop(); input = null; output?.close(); output = null
+            input?.stop(); input = null; releaseSpeechOutput()
             finishRequest(false)
             if (cpu.isHeld) cpu.release()
             stopSelf()
@@ -212,8 +212,13 @@ class LocalVoiceSessionService : Service() {
         requestId?.let { id -> synchronized(pending) { pending[id]?.complete(success) } }
         requestId = null
     }
+    private fun releaseSpeechOutput() {
+        val owned = output
+        output = null
+        owned?.close()
+    }
     override fun onDestroy() {
-        input?.stop(); output?.stop(); session?.cancel(); scope.cancel()
+        input?.stop(); releaseSpeechOutput(); session?.cancel(); scope.cancel()
         getSharedPreferences("device-user-consent", MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(consentListener)
         getSharedPreferences(WakePreferences.NAME, MODE_PRIVATE).unregisterOnSharedPreferenceChangeListener(consentListener)
         unregisterReceiver(privacy)

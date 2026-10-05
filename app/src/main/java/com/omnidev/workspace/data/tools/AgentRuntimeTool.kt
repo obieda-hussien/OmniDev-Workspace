@@ -295,7 +295,8 @@ Execute the full OmniDev autonomous runtime. Backed by Shizuku/Root + Termux.
 • tools_list       — List installed tools in /data/local/tmp/omni_tools/
             """.trimIndent(),
             parameters = listOf(
-                ToolParameter("action",      "string", "Action to perform (see description above).", required = true),
+                ToolParameter("action",      "string", "Action to perform (see description above).", required = true,
+                    allowedValues = listOf("env_check", "termux_check", "env_probe", "bootstrap", "bootstrap_status", "tool_which", "install_python", "install_node", "install_git", "shell_script", "termux_run", "python_run", "node_run", "run_script", "script_run", "pipe_exec", "job_submit", "job_status", "job_list", "job_cancel", "job_purge", "pip_install", "pip_list", "npm_install", "pkg_install", "pkg_update", "pkg_upgrade", "file_read", "file_write", "file_list", "file_delete", "file_copy", "file_move", "file_stat", "file_find", "file_grep", "file_chmod", "file_mkdir", "git_clone", "git_pull", "git_push", "git_status", "git_log", "git_diff", "git_commit", "git_checkout", "git_stash", "git_reset", "git_branch", "git_init", "git_remote", "git_tag", "proc_list", "proc_kill", "proc_top", "proc_find", "script_save", "script_list", "script_get", "script_delete", "env_set", "env_get", "env_list", "env_delete", "env_delete_profile", "env_list_profiles", "download_file", "download_exec", "download_verify", "install_tool", "tools_status", "tools_list")),
                 // Execution
                 ToolParameter("code",        "string", "Source code for python_run / node_run.", required = false),
                 ToolParameter("script",      "string", "Shell script for shell_script / job_submit.", required = false),

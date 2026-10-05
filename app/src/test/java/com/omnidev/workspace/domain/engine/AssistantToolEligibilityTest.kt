@@ -13,7 +13,8 @@ class AssistantToolEligibilityTest {
         var revoked = false
         var requests = 0
         val manager = object : ToolManager {
-            override fun getToolDefinitions() = listOf(ToolDefinition(toolName, "Inspect current screen"))
+            override fun getToolDefinitions() = listOf(ToolDefinition(toolName, "Inspect current screen",
+                listOf(ToolParameter("action", "string", "Inspection action"))))
             override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
                 invoked = true
                 return ToolExecutionResult("Should not execute")

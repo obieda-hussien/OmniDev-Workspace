@@ -107,13 +107,6 @@ private data class AnthropicStreamEvent(
 )
 
 @Serializable
-private data class AnthropicStreamContentBlock(
-    val type: String = "",
-    val id: String? = null,
-    val name: String? = null
-)
-
-@Serializable
 private data class AnthropicStreamDelta(
     val type: String = "",
     val text: String? = null,
@@ -514,10 +507,12 @@ class CompletionService(
         val toolCalls = parsed.content
             .filter { it.type == "tool_use" }
             .mapIndexed { idx, block ->
+                val decoded = com.omnidev.workspace.data.model.ToolArgumentCodec.decode(block.input)
                 ToolCall(
                     id = block.id ?: "tool_$idx",
                     name = block.name ?: "",
-                    arguments = parseJsonElementToStringMap(block.input)
+                    arguments = decoded.arguments,
+                    argumentError = decoded.error
                 )
             }
 
@@ -621,10 +616,12 @@ class CompletionService(
         val choice = parsed.choices.firstOrNull()
 
         val toolCalls = choice?.message?.toolCalls?.map { tc ->
+            val decoded = com.omnidev.workspace.data.model.ToolArgumentCodec.decode(tc.function.arguments)
             ToolCall(
                 id = tc.id,
                 name = tc.function.name,
-                arguments = parseJsonStringToStringMap(tc.function.arguments),
+                arguments = decoded.arguments,
+                argumentError = decoded.error,
                 extraContent = tc.extraContent
             )
         } ?: emptyList()
@@ -824,10 +821,12 @@ class CompletionService(
         if (!finished) throw IOException("Provider stream ended before a finish event.")
 
         val toolCalls = tcIds.keys.sorted().map { idx ->
+            val decoded = com.omnidev.workspace.data.model.ToolArgumentCodec.decode(tcArgs[idx]?.toString().orEmpty())
             ToolCall(
                 id        = tcIds[idx]   ?: "tool_$idx",
                 name      = tcNames[idx]?.toString() ?: "",
-                arguments = parseJsonStringToStringMap(tcArgs[idx]?.toString() ?: "{}"),
+                arguments = decoded.arguments,
+                argumentError = decoded.error,
                 extraContent = tcExtra[idx]
             )
         }
@@ -907,6 +906,7 @@ class CompletionService(
         val toolUseIds   = mutableMapOf<Int, String>()
         val toolUseNames = mutableMapOf<Int, String>()
         val toolUseArgs  = mutableMapOf<Int, StringBuilder>()
+        val toolInitialInputs = mutableMapOf<Int, JsonElement>()
         var inputTokens = 0
         var outputTokens = 0
 
@@ -934,6 +934,7 @@ class CompletionService(
                                 val idx = event.index ?: 0
                                 toolUseIds[idx]   = block.id   ?: "tool_$idx"
                                 toolUseNames[idx] = block.name ?: ""
+                                block.input?.let { toolInitialInputs[idx] = it }
                             }
                         }
                         "content_block_delta" -> {
@@ -966,10 +967,12 @@ class CompletionService(
         if (!finished) throw IOException("Provider stream ended before message_stop.")
 
         val toolCalls = toolUseIds.keys.sorted().map { idx ->
+            val decoded = com.omnidev.workspace.data.model.ToolArgumentCodec.decode(toolUseArgs[idx]?.toString() ?: toolInitialInputs[idx]?.toString() ?: "{}")
             ToolCall(
                 id        = toolUseIds[idx]   ?: "tool_$idx",
                 name      = toolUseNames[idx] ?: "",
-                arguments = parseJsonStringToStringMap(toolUseArgs[idx]?.toString() ?: "{}")
+                arguments = decoded.arguments,
+                argumentError = decoded.error
             )
         }
 
@@ -1049,7 +1052,10 @@ class CompletionService(
                 parameters.forEach { param ->
                     putJsonObject(param.name) {
                         put("type", param.type.lowercase())
-                        put("description", param.description)
+                        put("description", param.description + if (param.requiredForActions.isEmpty()) "" else " Required for actions: ${param.requiredForActions.joinToString()}.")
+                        if (param.allowedValues.isNotEmpty()) {
+                            putJsonArray("enum") { param.allowedValues.forEach { add(JsonPrimitive(it)) } }
+                        }
                     }
                 }
             }
@@ -1073,7 +1079,10 @@ class CompletionService(
                 this@toOpenAiToolDef.parameters.forEach { param ->
                     putJsonObject(param.name) {
                         put("type", param.type.lowercase())
-                        put("description", param.description)
+                        put("description", param.description + if (param.requiredForActions.isEmpty()) "" else " Required for actions: ${param.requiredForActions.joinToString()}.")
+                        if (param.allowedValues.isNotEmpty()) {
+                            putJsonArray("enum") { param.allowedValues.forEach { add(JsonPrimitive(it)) } }
+                        }
                     }
                 }
             }
@@ -1088,32 +1097,4 @@ class CompletionService(
         ))
     }
 
-    /**
-     * Parses a [JsonElement] tool `input` (from Anthropic `tool_use` block) into
-     * a flat [Map<String, String>] suitable for [ToolCall.arguments].
-     */
-    private fun parseJsonElementToStringMap(element: JsonElement?): Map<String, String> {
-        if (element == null || element !is JsonObject) return emptyMap()
-        return element.entries.associate { (k, v) ->
-            k to when (v) {
-                is JsonPrimitive -> v.content
-                else -> v.toString()
-            }
-        }
-    }
-
-    /**
-     * Parses an OpenAI tool-call `arguments` JSON string (e.g. `{"path":"foo.kt"}`)
-     * into a flat [Map<String, String>] suitable for [ToolCall.arguments].
-     * Returns an empty map if the string is blank or cannot be parsed.
-     */
-    private fun parseJsonStringToStringMap(argumentsJson: String): Map<String, String> {
-        if (argumentsJson.isBlank()) return emptyMap()
-        return try {
-            val parsed = json.parseToJsonElement(argumentsJson)
-            parseJsonElementToStringMap(parsed)
-        } catch (_: Exception) {
-            emptyMap()
-        }
-    }
 }

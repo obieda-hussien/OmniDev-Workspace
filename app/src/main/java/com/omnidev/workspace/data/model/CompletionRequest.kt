@@ -31,7 +31,11 @@ data class ToolCall(
     val name: String,
     val arguments: Map<String, String>,
     /** Opaque provider metadata (including Gemini thought signatures); replay unchanged. */
-    val extraContent: kotlinx.serialization.json.JsonObject? = null
+    val extraContent: kotlinx.serialization.json.JsonObject? = null,
+    /** Preserve malformed provider input so it cannot become a valid zero-argument call. */
+    val argumentError: String? = null,
+    /** Text-envelope proposals are replayed as text, never forged native calls/signatures. */
+    val textProtocol: Boolean = false
 )
 
 @Serializable

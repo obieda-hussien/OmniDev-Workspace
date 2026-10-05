@@ -39,7 +39,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
             REQUEST_MODE,
             "Ask the user to enable execution. Never needed for web research. Use AGENT for sequential execution; SWARM only for independent parallel tasks. This only proposes a mode; it does not execute anything.",
             listOf(
-                ToolParameter("mode", "string", "AGENT or SWARM"),
+                ToolParameter("mode", "string", "AGENT or SWARM", allowedValues = listOf("AGENT", "SWARM")),
                 ToolParameter(
                     "reason",
                     "string",
@@ -170,11 +170,12 @@ class ChatToolLoop(private val tools: ToolManager?) {
             )
             val results = mutableListOf<ToolCallResult>()
 
-            for (call in response.toolCalls) {
+            val batchErrors = ToolCallPreflight(request.tools.orEmpty()).checkBatch(response.toolCalls)
+            for ((callIndex, call) in response.toolCalls.withIndex()) {
                 event(AgentEvent.ToolExecution(call.name, call.arguments, round))
                 val mode = call.arguments["mode"]?.takeIf { it == "AGENT" || it == "SWARM" }
                 val reason = call.arguments["reason"]?.trim()?.take(1200)
-                if (call.name == REQUEST_MODE && mode != null && !reason.isNullOrBlank()) {
+                if (batchErrors[callIndex] == null && call.name == REQUEST_MODE && mode != null && !reason.isNullOrBlank()) {
                     event(
                         AgentEvent.ToolResult(
                             call.name,
@@ -196,7 +197,9 @@ class ChatToolLoop(private val tools: ToolManager?) {
                     )
                 }
 
+                val validationError = batchErrors[callIndex]
                 val rawResult = when {
+                    validationError != null -> validationError
                     calls >= MAX_TOOL_CALLS -> ToolExecutionResult("Chat tool budget exhausted.", true)
                     call.name !in allowed -> ToolExecutionResult(
                         "Tool unavailable in Chat. Use request_execution_mode only if execution is required.",
