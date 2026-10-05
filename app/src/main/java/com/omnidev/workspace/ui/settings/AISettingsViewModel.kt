@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 /**
  * UI state for the AI Settings screen.
@@ -32,6 +33,8 @@ data class AISettingsUiState(
     val expandedDropdownRole: ModelRole? = null,
     /** Whether a save operation is in progress. */
     val isSaving: Boolean = false,
+    /** Kept inside the model picker so a dialog cannot obscure the save failure. */
+    val modelSaveError: String? = null,
     /** Transient status message shown after save or error. */
     val statusMessage: String? = null
 ) {
@@ -70,7 +73,8 @@ class AISettingsViewModel(
                     godModeEnabled = godMode
                 )
             }.collect { state ->
-                _uiState.update { state }
+                _uiState.update { it.copy(modelAssignments = state.modelAssignments,
+                    deepThinkingEnabled = state.deepThinkingEnabled, godModeEnabled = state.godModeEnabled) }
             }
         }
     }
@@ -79,6 +83,8 @@ class AISettingsViewModel(
      * Updates the selected model for a specific [role].
      */
     fun selectModelForRole(role: ModelRole, modelId: String) {
+        if (_uiState.value.isSaving) return
+        _uiState.update { it.copy(isSaving = true, modelSaveError = null) }
         viewModelScope.launch {
             try {
                 settingsRepository.setModelForRole(role, modelId)
@@ -89,11 +95,13 @@ class AISettingsViewModel(
                         statusMessage = "✅ ${role.displayName} updated"
                     )
                 }
-            } catch (e: Exception) {
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (e: Exception) {
                 _uiState.update {
-                    it.copy(statusMessage = "❌ Error: ${e.message}")
+                    it.copy(statusMessage = "Could not save model selection.",
+                        modelSaveError = "Could not save this model. Please try again.")
                 }
-            }
+            } finally { _uiState.update { it.copy(isSaving = false) } }
         }
     }
 
@@ -123,7 +131,8 @@ class AISettingsViewModel(
     fun toggleDropdown(role: ModelRole) {
         _uiState.update {
             it.copy(
-                expandedDropdownRole = if (it.expandedDropdownRole == role) null else role
+                expandedDropdownRole = if (it.expandedDropdownRole == role) null else role,
+                modelSaveError = null
             )
         }
     }

@@ -46,6 +46,12 @@ class McpConfigManager(private val context: Context) {
         getServersWrapper().mcpServers
     }
 
+    /** Commit the validated editor draft once; never clear existing servers before saving. */
+    suspend fun replaceServers(servers: Map<String, McpServerConfig>) = withContext(Dispatchers.IO) {
+        val encoded = json.encodeToString(McpConfigWrapper(servers))
+        check(sharedPreferences.edit().putString(KEY_CONFIG, encoded).commit()) { "Could not save MCP configuration." }
+    }
+
     private fun getServersWrapper(): McpConfigWrapper {
         val jsonString = sharedPreferences.getString(KEY_CONFIG, null)
         return if (jsonString != null) {

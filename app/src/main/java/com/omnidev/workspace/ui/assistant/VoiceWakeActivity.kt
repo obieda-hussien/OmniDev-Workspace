@@ -10,9 +10,16 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.animation.AnimatedVisibility
+import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility as AnimatedVisibility
+import com.omnidev.workspace.ui.components.SettingsPageTabs
+import com.omnidev.workspace.ui.components.SettingsDisclosure
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
@@ -50,8 +57,10 @@ class VoiceWakeActivity : ComponentActivity() {
 @Composable
 private fun VoiceWakeScreen(model: VoiceWakeViewModel, refresh: Int, close: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val state by model.state.collectAsState()
-    val status by LocalWakeService.status.collectAsState()
+    val state by model.state.collectAsStateWithLifecycle()
+    val status by LocalWakeService.status.collectAsStateWithLifecycle()
+    val listStates = listOf(rememberLazyListState(), rememberLazyListState(), rememberLazyListState())
+    var tab by rememberSaveable { mutableIntStateOf(0) }
     var options by rememberSaveable { mutableStateOf(false) }
     var details by rememberSaveable { mutableStateOf(false) }
     var editingPhrase by rememberSaveable { mutableStateOf(false) }
@@ -82,10 +91,16 @@ private fun VoiceWakeScreen(model: VoiceWakeViewModel, refresh: Int, close: () -
     Scaffold(topBar = { TopAppBar(title = { Text("Voice activation") }, navigationIcon = {
         IconButton(onClick = close) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
     }) }) { padding ->
-        LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.fillMaxSize().padding(padding)) {
+        SettingsPageTabs(listOf("Setup", "Speech & replies", "Options"), tab, { tab = it })
+        LazyColumn(Modifier.weight(1f), state = listStates[tab], contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
-                Text("Say ‘${state.phrase}’", style = MaterialTheme.typography.headlineMedium)
-                Text("Train your wake phrase once, then use it to open Omni hands-free.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(when (tab) { 1 -> "Speak after wake"; 2 -> "Make voice work for you"; else -> "Say ‘${state.phrase}’" }, style = MaterialTheme.typography.headlineSmall)
+                Text(when (tab) {
+                    1 -> "Optional offline speech languages and spoken replies. Wake training needs no download."
+                    2 -> "Voice preference, lock-screen access and privacy."
+                    else -> "Three steps to open Omni hands-free. Your completed recordings stay saved while you set up."
+                }, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (!state.loaded) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             if (state.message != null || state.busy) item {
@@ -104,11 +119,20 @@ private fun VoiceWakeScreen(model: VoiceWakeViewModel, refresh: Int, close: () -
                     }
                 }
             }
-            if (!state.assistantSelected) item { VoiceCard("1 · Connect Android assistant") {
-                Text("Select Omni as your default digital assistant so the wake phrase can open it.", style = MaterialTheme.typography.bodyMedium)
-                Button(onClick = { context.startActivity(AssistantSettings.intent(context)) }, enabled = !state.busy) { Text("Choose Omni") }
+            if (tab == 0) {
+            item { VoiceCard("1 · Android assistant") {
+                if (state.assistantSelected) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
+                        Text("Omni is connected", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    TextButton(onClick = { context.startActivity(AssistantSettings.intent(context)) }, enabled = !state.busy) { Text("Android assistant settings") }
+                } else {
+                    Text("Choose Omni as your default digital assistant so the wake phrase can open it.", style = MaterialTheme.typography.bodyMedium)
+                    Button(onClick = { context.startActivity(AssistantSettings.intent(context)) }, enabled = state.loaded && !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Choose Omni") }
+                }
             } }
-            item { VoiceCard(if (state.phase == WakeEnrollment.Phase.COMPLETE) "Wake phrase ready" else "${if (state.assistantSelected) "1" else "2"} · Train your wake phrase") {
+            item { VoiceCard("2 · ${if (state.phase == WakeEnrollment.Phase.COMPLETE) "Wake phrase ready" else "Train your wake phrase"}") {
                 if (state.phase == WakeEnrollment.Phase.COMPLETE) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
@@ -136,8 +160,8 @@ private fun VoiceWakeScreen(model: VoiceWakeViewModel, refresh: Int, close: () -
                             else if (state.phase == WakeEnrollment.Phase.VALIDATION) "One fresh recording checks the trained profile. Wait for Recording, say it once, then pause."
                             else "Wait for Recording, say the phrase naturally once, then pause. Keep a similar microphone distance.", style = MaterialTheme.typography.bodyMedium)
                     }
-                    if (!state.consent) Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(state.consent, model::consent, enabled = !state.busy)
+                    if (!state.consent) Row(Modifier.toggleable(state.consent, enabled = !state.busy, role = Role.Checkbox, onValueChange = model::consent), verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(state.consent, null, enabled = !state.busy)
                         Text("Allow voice recordings for an encrypted local profile. Raw audio is discarded.", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                     }
                     when (state.phase) {
@@ -177,7 +201,7 @@ private fun VoiceWakeScreen(model: VoiceWakeViewModel, refresh: Int, close: () -
                     }, enabled = !state.busy && phraseDraft.trim() != state.phrase) { Text("Save new phrase") }
                 } }
             } }
-            item { VoiceCard("Listening") {
+            item { VoiceCard("3 · Start listening") {
                 Text(if (state.listening) status else "Stopped · tap Start when you are ready", style = MaterialTheme.typography.bodyMedium)
                 if (!state.enrolled) Text("Finish wake training first.", style = MaterialTheme.typography.bodySmall)
                 else if (!state.assistantSelected) Text("Choose Omni as Android's assistant first.", style = MaterialTheme.typography.bodySmall)
@@ -187,13 +211,15 @@ private fun VoiceWakeScreen(model: VoiceWakeViewModel, refresh: Int, close: () -
                 if (state.enrolled) TextButton(onClick = { if (permissionReady()) model.test() }, enabled = !state.busy) { Text("Test saved wake phrase") }
                 Text("A visible microphone notification stays on while listening. Start again after a restart or if Android stops it.", style = MaterialTheme.typography.bodySmall)
             } }
+            }
+            if (tab == 1) {
             item { VoiceCard("Speech languages") {
-                Text("Optional · for spoken commands after wake. Wake training works without a language download.", style = MaterialTheme.typography.bodyMedium)
                 for (preset in OfflineVoiceModels.Preset.entries) {
                     val installed = preset.language in state.installed
                     val active = installed && state.language == preset.language
                     HorizontalDivider()
-                    Text(preset.sizeLabel, style = MaterialTheme.typography.titleSmall)
+                    Text(preset.name.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.titleMedium)
+                    Text(preset.sizeLabel.substringAfter(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     if (installed) {
                         Text(if (active) "Installed · selected" else "Installed · ready to use", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -203,6 +229,9 @@ private fun VoiceWakeScreen(model: VoiceWakeViewModel, refresh: Int, close: () -
                     } else OutlinedButton(onClick = { model.install(preset) }, enabled = state.loaded && !state.busy) { Text("Download ${preset.name.lowercase().replaceFirstChar { it.uppercase() }}") }
                 }
                 Text("Both languages stay installed when you switch. Arabic needs more storage and memory; dialect accuracy varies.", style = MaterialTheme.typography.bodySmall)
+            } }
+            item { VoiceCard("Spoken replies") {
+                Text("Uses an offline voice installed in Android text-to-speech settings.", style = MaterialTheme.typography.bodyMedium)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = {
                         runCatching { context.startActivity(Intent(android.speech.tts.TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA)) }
@@ -211,44 +240,45 @@ private fun VoiceWakeScreen(model: VoiceWakeViewModel, refresh: Int, close: () -
                     TextButton(onClick = model::testReply, enabled = state.loaded && !state.busy) { Text("Test spoken reply") }
                 }
             } }
-            item { VoiceCard("Listening options") {
-                TextButton(onClick = { options = !options }) { Text(if (options) "Hide options" else "Voice preference, lock screen and conversation") }
-                AnimatedVisibility(options) { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            }
+            if (tab == 2) {
+            item { SettingsDisclosure("Listening preferences", "Voice matching, lock screen and conversation", options, { options = !options }) {
                     TextButton(onClick = { context.startActivity(AssistantSettings.intent(context)) }, enabled = !state.busy) { Text("Android assistant settings") }
                     VoiceSwitch("Prefer my enrolled voice", "Reduces accidental matches. Similar voices or recordings can still activate Omni.", state.personal, !state.busy, model::personal)
                     VoiceSwitch("Listen on the lock screen", "Requires wake-screen and lock-screen assistant permissions.", state.locked, !state.busy, model::locked)
                     if (state.locked) TextButton(onClick = { context.startActivity(Intent(context, DeviceAccessActivity::class.java)) }, enabled = !state.busy) { Text("Set up lock-screen access") }
                     VoiceSwitch("Voice conversation after wake", "Uses the selected speech language and an offline Android voice.", state.conversation, !state.busy && state.installed.isNotEmpty(), model::conversation)
-                    if (state.installed.isEmpty()) Text("Download a speech language to enable conversation.", style = MaterialTheme.typography.bodySmall)
-                    if (state.enrolled) TextButton(onClick = { confirmDelete = "profile" }, enabled = !state.busy) { Text("Delete wake profile") }
-                } }
+                    if (state.installed.isEmpty()) TextButton(onClick = { tab = 1 }) { Text("Choose a speech language") }
             } }
-            item {
-                TextButton(onClick = { details = !details }) { Text(if (details) "Hide how it works" else "Privacy and how it works") }
-                AnimatedVisibility(details) { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (state.enrolled) item { VoiceCard("Wake profile") {
+                Text("Your encrypted voice profile is stored on this device.", style = MaterialTheme.typography.bodyMedium)
+                TextButton(onClick = { confirmDelete = "profile" }, enabled = !state.busy) { Text("Delete wake profile", color = MaterialTheme.colorScheme.error) }
+            } }
+            item { SettingsDisclosure("Privacy & how it works", "Local processing and voice-matching limits", details, { details = !details }) {
                     Text("Wake learning matches the sound of your examples; it does not verify the exact words. Five wake examples and two different phrases train the profile. The final recording is checked separately and never used for training.", style = MaterialTheme.typography.bodySmall)
                     Text("Voice audio stays on this device. Only language downloads use the network. The encrypted wake profile and speech languages are stored separately. Voice matching does not verify identity or approve agent actions.", style = MaterialTheme.typography.bodySmall)
                     Text("Private spoken unlock needs separate permission in Device access. Spell passwords precisely; don't rely on automatic punctuation or case. Voice matching is not a substitute for device authentication.", style = MaterialTheme.typography.bodySmall)
-                } }
+            } }
             }
+        }
         }
     }
 }
 
 @Composable
 private fun VoiceCard(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(title, style = MaterialTheme.typography.titleMedium); content()
     } }
 }
 
 @Composable
 private fun VoiceSwitch(title: String, subtitle: String, checked: Boolean, enabled: Boolean, change: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(Modifier.fillMaxWidth().toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = change), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Switch(checked, change, enabled = enabled)
+        Switch(checked, null, enabled = enabled)
     }
 }

@@ -116,3 +116,10 @@
 -keep class com.omnidev.workspace.data.tools.ProgressiveTrustTool { *; }
 -keep class com.omnidev.workspace.data.tools.ScriptRunnerTool { *; }
 -keep class com.omnidev.workspace.data.tools.ScriptRunnerTool$* { *; }
+# JNA looks up Pointer.peer and its bridge classes by name from jnidispatch.
+# Keep the complete reflective/native API, including Vosk's direct mappings.
+# https://github.com/java-native-access/jna/blob/master/www/FrequentlyAskedQuestions.md#jna-on-android
+-dontwarn java.awt.**
+-keep class com.sun.jna.** { *; }
+-keep class * extends com.sun.jna.** { *; }
+-keep class org.vosk.** { *; }

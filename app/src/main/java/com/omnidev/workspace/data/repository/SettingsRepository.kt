@@ -649,6 +649,14 @@ class SettingsRepository(private val context: Context) {
         }
     }
 
+    /** Save both profile fields in a single DataStore transaction. */
+    suspend fun setUserProfile(name: String, persona: String) {
+        context.settingsDataStore.edit { prefs ->
+            if (name.isBlank()) prefs.remove(Keys.USER_NAME) else prefs[Keys.USER_NAME] = name.trim()
+            if (persona.isBlank()) prefs.remove(Keys.USER_PERSONA) else prefs[Keys.USER_PERSONA] = persona.trim()
+        }
+    }
+
     /**
      * A short free-text bio the user writes about themselves (e.g. "Senior Android developer,
      * prefers Kotlin, builds indie apps"). Injected into the system prompt so the AI can tailor
