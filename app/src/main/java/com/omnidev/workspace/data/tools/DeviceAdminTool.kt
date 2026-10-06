@@ -13,7 +13,7 @@ import kotlinx.coroutines.withContext
 object DeviceAdminTool {
     fun definition() = ToolDefinition("device_admin",
         "Device administration with separate authenticated user consent. Never ask for a PIN in chat or pass credentials as arguments. " +
-            "wake_screen wakes only; request_unlock waits for verified Android authentication and uses the private offline voice unlock session when configured; " +
+            "wake_screen wakes only; request_unlock waits for verified Android authentication and prefers an authorized saved local PIN, otherwise private offline voice when configured; " +
             "Device Admin and Shizuku cannot replace a fingerprint/device code. unlock_with_saved_pin uses one locally authorized PIN attempt " +
             "on a supported standard SystemUI keypad (Admin only). Open consent_settings for user setup. Android protected screens remain protected.",
         listOf(ToolParameter("action", "string", "status, consent_settings, wake_screen, request_unlock, unlock_with_saved_pin, lock_screen, audit_log, security_report, set_password_min_length, set_lock_timeout, request_activation", true),
@@ -44,24 +44,24 @@ object DeviceAdminTool {
             "wake_screen", "request_unlock" -> {
                 val scope = if (action == "wake_screen") DeviceConsentPolicy.Scope.WAKE else DeviceConsentPolicy.Scope.UNLOCK
                 if (!consent.enabled(scope)) return@withContext denied(scope)
-                val voiceUnavailable = if (action == "request_unlock") LocalVoiceSessionService.unlockUnavailableReason(context) else null
-                val useVoice = action == "request_unlock" && consent.locked() && voiceUnavailable == null
-                val output = if (useVoice)
-                    LocalVoiceSessionService.requestUnlockResult(context)
-                else DeviceUnlockActivity.request(context, action == "request_unlock")
+                val unlockResult = if (action == "request_unlock") DeviceUnlockController.request(context)
+                    else UnlockRoutePolicy.Result(DeviceUnlockActivity.request(context, false), "android-keyguard")
+                val output = unlockResult.output
                 OmniDeviceAdminReceiver.recordDeviceAccess(action.uppercase(), output.startsWith("AWAKE") || output.startsWith("UNLOCKED"))
                 val success = output.startsWith("AWAKE:") || output.startsWith("UNLOCKED:")
-                ToolExecutionResult(output = output + if (!success && voiceUnavailable != null)
-                    "\nPrivate voice unlock unavailable: $voiceUnavailable Device Admin/Shizuku do not replace Android authentication." else "",
+                ToolExecutionResult(output = output,
                     isError = !success, classification = if (success) "SUCCESS" else if (output.startsWith("DENIED:")) "PERMISSION_DENIED" else "USER_ACTION_REQUIRED",
-                    backend = if (useVoice) "android-private-voice" else "android-keyguard",
+                    backend = unlockResult.backend,
                     verification = if (success) output else null, retryable = false)
             }
             "unlock_with_saved_pin" -> {
                 if (TierPolicyHolder.current.tier != "ADMIN") return@withContext result("Local PIN unlock is available only in Admin.", true)
-                val output = LocalPinUnlock.attempt(context)
+                val output = LocalPinUnlock.request(context)
                 OmniDeviceAdminReceiver.recordDeviceAccess("LOCAL_PIN_UNLOCK", output.startsWith("UNLOCKED"))
-                result(output, !output.startsWith("UNLOCKED"))
+                val success = output.startsWith("UNLOCKED:")
+                ToolExecutionResult(output, isError = !success,
+                    classification = if (success) "SUCCESS" else if (output.startsWith("DENIED:")) "PERMISSION_DENIED" else "USER_ACTION_REQUIRED",
+                    backend = "android-saved-pin", verification = if (success) output else null, retryable = false)
             }
             "lock_screen" -> {
                 val success = OmniDeviceAdminReceiver.lockScreen(context)
