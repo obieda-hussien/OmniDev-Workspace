@@ -40,6 +40,7 @@ class AssistantActivity : ComponentActivity() {
         }
         AssistantRuntime.begin(this, savedInstanceState != null || intent.getBooleanExtra(OmniVoiceInteractionService.RESUME, false))
         AssistantRuntime.openAccessCenter = { handoff(AssistantInputActivity.ACCESS) }
+        AssistantRuntime.hideForUnlock = { preserveOnClose = true; speech.stop(); controller.hide(); finish() }
         AssistantRuntime.minimizeForAction = {
             AssistantBubbleService.show(this).also { started ->
                 if (started) { preserveOnClose = true; controller.hide(); finish() }
@@ -71,6 +72,7 @@ class AssistantActivity : ComponentActivity() {
         capturePrivacy?.close(); capturePrivacy = null
         speech.stop()
         AssistantRuntime.openAccessCenter = null
+        AssistantRuntime.hideForUnlock = null
         AssistantRuntime.minimizeForAction = null
         if (!isChangingConfigurations && !preserveOnClose) AssistantRuntime.close(this)
         super.onDestroy()

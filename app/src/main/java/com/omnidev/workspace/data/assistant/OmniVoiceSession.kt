@@ -39,6 +39,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
     private val speech by lazy { AssistantSpeechInput(context, controller) }
     private var composition: ComposeView? = null
     private var preserveOnHide = false
+    private var userDismissed = false
     private fun handoff(action: String): Boolean {
         speech.stop()
         return runCatching { startAssistantActivity(AssistantInputActivity.intent(context, action)) }
@@ -71,7 +72,7 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
         }
         view.setContent {
             OmniDevTheme(dynamicColor = false) {
-                AssistantOverlay(controller, onDismiss = { preserveOnHide = false; hide() }, onExpand = {
+                AssistantOverlay(controller, onDismiss = { userDismissed = true; preserveOnHide = false; hide() }, onExpand = {
                     controller.openConversation {
                         preserveOnHide = true
                         startAssistantActivity(Intent(context, MainActivity::class.java)
@@ -102,13 +103,18 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
             it.locked() && !it.enabled(com.omnidev.workspace.data.admin.DeviceConsentPolicy.Scope.LOCK_OVERLAY)
         }) { hide(); return }
         preserveOnHide = false
+        userDismissed = false
         AssistantRuntime.begin(context, args?.getBoolean(OmniVoiceInteractionService.RESUME) == true, native = true)
         val wake = args?.getBoolean(OmniVoiceInteractionService.WAKE_INVOCATION) == true || args?.getBoolean(OmniVoiceInteractionService.UNLOCK_REQUEST) == true
         val deviceConsent = com.omnidev.workspace.data.admin.DeviceConsentStore(context)
+        @Suppress("DEPRECATION")
+        if (deviceConsent.enabled(com.omnidev.workspace.data.admin.DeviceConsentPolicy.Scope.LOCK_OVERLAY)) {
+            window?.window?.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
+        } else window?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
         if (wake && deviceConsent.enabled(com.omnidev.workspace.data.admin.DeviceConsentPolicy.Scope.WAKE)) {
             window?.window?.addFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
         } else window?.window?.clearFlags(WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
-        com.omnidev.workspace.data.voice.LocalVoiceSessionService.hideForCredential = { preserveOnHide = true; hide() }
+        AssistantRuntime.hideForUnlock = { preserveOnHide = true; hide() }
         if (wake && args?.getBoolean(OmniVoiceInteractionService.UNLOCK_REQUEST) != true && com.omnidev.workspace.data.voice.WakePreferences(context).autoDictation) {
             uiScope.launch {
                 delay(400)
@@ -141,11 +147,15 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
     }
 
     override fun onHide() {
+        // SystemUI may hide the host when the display sleeps or its credential UI takes
+        // focus. That is not an explicit cancellation of the user's running task.
+        if (!userDismissed && com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked() &&
+            (controller.chat.uiState.value.isProcessing || com.omnidev.workspace.data.voice.LocalVoiceSessionService.running)) preserveOnHide = true
         uiScope.coroutineContext.cancelChildren()
         speech.stop()
         AssistantRuntime.openAccessCenter = null
         AssistantRuntime.minimizeForAction = null
-        com.omnidev.workspace.data.voice.LocalVoiceSessionService.hideForCredential = null
+        AssistantRuntime.hideForUnlock = null
         if (preserveOnHide) controller.hide() else AssistantRuntime.close(context)
         composition?.disposeComposition()
         owner.registry.currentState = Lifecycle.State.CREATED

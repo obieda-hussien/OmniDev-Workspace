@@ -14,6 +14,8 @@ object AssistantRuntime {
         if (targetingScreen && !get(context).state.value.visible) OmniVoiceInteractionService.resume(context)
     }
     var openAccessCenter: (() -> Boolean)? = null
+    /** Hide the current host while preserving its run for Android authentication. */
+    var hideForUnlock: (() -> Unit)? = null
     var minimizeForAction: (suspend () -> Boolean)? = null
     suspend fun prepareAction(context: Context, tool: String, args: Map<String, String>): com.omnidev.workspace.data.tools.ToolExecutionResult? {
         if (tool !in setOf("semantic_ui", "ui_automation", "autofill_assist", "app_manager", "app_manager_tool", "ime_tool") ||
@@ -54,9 +56,11 @@ object AssistantRuntime {
         targetingScreen = true
         com.omnidev.workspace.data.voice.LocalWakeService.pauseCapture()
         controller.show()
+        com.omnidev.workspace.data.admin.LockScreenAwake.hold(context, newInvocation = !resume)
         AssistantBubbleService.remove(context)
     }
     fun close(context: Context) {
+        com.omnidev.workspace.data.admin.LockScreenAwake.release()
         if (!com.omnidev.workspace.data.voice.LocalVoiceSessionService.handoff) com.omnidev.workspace.data.voice.LocalVoiceSessionService.stop(context)
         get(context).close()
         targetingScreen = false

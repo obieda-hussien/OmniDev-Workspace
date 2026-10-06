@@ -6,13 +6,15 @@ import com.omnidev.workspace.core.policy.TierPolicyHolder
 import com.omnidev.workspace.data.admin.*
 import com.omnidev.workspace.ui.assistant.DeviceAccessActivity
 import com.omnidev.workspace.ui.assistant.DeviceUnlockActivity
+import com.omnidev.workspace.data.voice.LocalVoiceSessionService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 object DeviceAdminTool {
     fun definition() = ToolDefinition("device_admin",
         "Device administration with separate authenticated user consent. Never ask for a PIN in chat or pass credentials as arguments. " +
-            "wake_screen wakes only; request_unlock uses Android authentication; unlock_with_saved_pin uses one locally authorized PIN attempt " +
+            "wake_screen wakes only; request_unlock waits for verified Android authentication and prefers an authorized saved local PIN, otherwise private offline voice when configured; " +
+            "Device Admin and Shizuku cannot replace a fingerprint/device code. unlock_with_saved_pin uses one locally authorized PIN attempt " +
             "on a supported standard SystemUI keypad (Admin only). Open consent_settings for user setup. Android protected screens remain protected.",
         listOf(ToolParameter("action", "string", "status, consent_settings, wake_screen, request_unlock, unlock_with_saved_pin, lock_screen, audit_log, security_report, set_password_min_length, set_lock_timeout, request_activation", true),
             ToolParameter("value", "string", "Non-secret numeric policy value only", required = false)))
@@ -30,7 +32,9 @@ object DeviceAdminTool {
                 appendLine("Device Admin: ${OmniDeviceAdminReceiver.isAdminActive(context)}; Device Owner: ${OmniDeviceAdminReceiver.isDeviceOwner(context)}")
                 appendLine("Locked: ${consent.locked()}; Screen interactive: ${context.getSystemService(android.os.PowerManager::class.java)?.isInteractive == true}")
                 DeviceConsentPolicy.Scope.entries.forEach { appendLine("${it.name}: ${consent.enabled(it)}") }
-                append("PIN stored locally: ${DevicePinVault(context).exists()}; One attempt authorized: ${consent.pinArmed()}")
+                appendLine("PIN stored locally: ${DevicePinVault(context).exists()}; PIN authorization: ${consent.pinAuthorizationStatus()}")
+                appendLine("Private voice unlock: ${LocalVoiceSessionService.unlockUnavailableReason(context) ?: "ready; one locally confirmed attempt"}")
+                append("Device Admin, Device Owner and Shizuku do not authenticate a secure keyguard. Android still needs your fingerprint/device code, or a separately consented local credential attempt.")
             })
             "consent_settings" -> {
                 runCatching { context.startActivity(Intent(context, DeviceAccessActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
@@ -40,15 +44,24 @@ object DeviceAdminTool {
             "wake_screen", "request_unlock" -> {
                 val scope = if (action == "wake_screen") DeviceConsentPolicy.Scope.WAKE else DeviceConsentPolicy.Scope.UNLOCK
                 if (!consent.enabled(scope)) return@withContext denied(scope)
-                val output = DeviceUnlockActivity.request(context, action == "request_unlock")
+                val unlockResult = if (action == "request_unlock") DeviceUnlockController.request(context)
+                    else UnlockRoutePolicy.Result(DeviceUnlockActivity.request(context, false), "android-keyguard")
+                val output = unlockResult.output
                 OmniDeviceAdminReceiver.recordDeviceAccess(action.uppercase(), output.startsWith("AWAKE") || output.startsWith("UNLOCKED"))
-                result(output, output.startsWith("DENIED") || output.startsWith("USER_ACTION_REQUIRED"))
+                val success = output.startsWith("AWAKE:") || output.startsWith("UNLOCKED:")
+                ToolExecutionResult(output = output,
+                    isError = !success, classification = if (success) "SUCCESS" else if (output.startsWith("DENIED:")) "PERMISSION_DENIED" else "USER_ACTION_REQUIRED",
+                    backend = unlockResult.backend,
+                    verification = if (success) output else null, retryable = false)
             }
             "unlock_with_saved_pin" -> {
                 if (TierPolicyHolder.current.tier != "ADMIN") return@withContext result("Local PIN unlock is available only in Admin.", true)
-                val output = LocalPinUnlock.attempt(context)
+                val output = LocalPinUnlock.request(context)
                 OmniDeviceAdminReceiver.recordDeviceAccess("LOCAL_PIN_UNLOCK", output.startsWith("UNLOCKED"))
-                result(output, !output.startsWith("UNLOCKED"))
+                val success = output.startsWith("UNLOCKED:")
+                ToolExecutionResult(output, isError = !success,
+                    classification = if (success) "SUCCESS" else if (output.startsWith("DENIED:")) "PERMISSION_DENIED" else "USER_ACTION_REQUIRED",
+                    backend = "android-saved-pin", verification = if (success) output else null, retryable = false)
             }
             "lock_screen" -> {
                 val success = OmniDeviceAdminReceiver.lockScreen(context)
