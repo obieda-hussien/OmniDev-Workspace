@@ -8,7 +8,7 @@
 
 ## Consented lock-screen access
 
-The device access center provides authenticated opt-ins for screen wake, Android unlock requests, a private assistant panel while locked, lock-screen semantic inspection and sensitive Settings access. Admin adds a device-local encrypted PIN vault with one authorized keypad attempt for 15 minutes. PINs stay out of model arguments, chat and learned tasks. See [Device lock access](docs/DEVICE_LOCK_ACCESS.md) for setup, Android/OEM limits and verification.
+The device access center provides authenticated opt-ins for screen wake, Android unlock requests, a private assistant panel while locked, lock-screen semantic inspection and sensitive Settings access. Admin adds a device-local encrypted PIN vault with a 15-minute one-shot permit or remembered authorization until revoked. Each requested unlock enters the PIN once; failed or interrupted input pauses remembered attempts. PINs stay out of model arguments, chat and learned tasks. See [Device lock access](docs/DEVICE_LOCK_ACCESS.md) for setup, Android/OEM limits and verification.
 
 ## المحتويات
 

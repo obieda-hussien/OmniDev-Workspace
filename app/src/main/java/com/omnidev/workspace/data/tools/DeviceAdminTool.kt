@@ -32,7 +32,7 @@ object DeviceAdminTool {
                 appendLine("Device Admin: ${OmniDeviceAdminReceiver.isAdminActive(context)}; Device Owner: ${OmniDeviceAdminReceiver.isDeviceOwner(context)}")
                 appendLine("Locked: ${consent.locked()}; Screen interactive: ${context.getSystemService(android.os.PowerManager::class.java)?.isInteractive == true}")
                 DeviceConsentPolicy.Scope.entries.forEach { appendLine("${it.name}: ${consent.enabled(it)}") }
-                appendLine("PIN stored locally: ${DevicePinVault(context).exists()}; One attempt authorized: ${consent.pinArmed()}")
+                appendLine("PIN stored locally: ${DevicePinVault(context).exists()}; PIN authorization: ${consent.pinAuthorizationStatus()}")
                 appendLine("Private voice unlock: ${LocalVoiceSessionService.unlockUnavailableReason(context) ?: "ready; one locally confirmed attempt"}")
                 append("Device Admin, Device Owner and Shizuku do not authenticate a secure keyguard. Android still needs your fingerprint/device code, or a separately consented local credential attempt.")
             })
