@@ -74,7 +74,7 @@ fun DeviceConsentCard() {
                 }
             }
             if (store.enabled(DeviceConsentPolicy.Scope.SAVED_PIN)) {
-                Text(if (vault.exists()) "Local PIN saved · ${if (store.pinArmed()) "one attempt authorized" else "attempt not authorized"}" else "No local PIN saved", style = MaterialTheme.typography.labelMedium)
+                Text(if (vault.exists()) "Local PIN saved · ${store.pinAuthorizationStatus()}" else "No local PIN saved", style = MaterialTheme.typography.labelMedium)
                 OutlinedTextField(value = pin, onValueChange = { value ->
                     if (value.length <= 16 && value.all { it in '0'..'9' }) pin = value
                 }, label = { Text("Device PIN (local only)") }, modifier = Modifier.fillMaxWidth(),
@@ -83,16 +83,32 @@ fun DeviceConsentCard() {
                 Button(enabled = pin.length in 4..16 && pending == null, onClick = { authorize {
                     if (store.enabled(DeviceConsentPolicy.Scope.SAVED_PIN)) {
                         val chars = pin.toCharArray(); pin = ""
-                        try { vault.save(chars); message = "PIN saved locally. Android still decides whether keypad entry is available." }
+                        try {
+                            check(store.revokePinAuthorization()) { "Could not revoke the previous PIN authorization." }
+                            vault.save(chars)
+                            message = "PIN saved locally. Choose an authorization option below."
+                        }
                         finally { chars.fill('\u0000') }
                     }
                 } }) { Text("Save local PIN") }
                 OutlinedButton(enabled = vault.exists() && store.enabled(DeviceConsentPolicy.Scope.UNLOCK) && pending == null,
                     onClick = { authorize {
                         if (store.enabled(DeviceConsentPolicy.Scope.SAVED_PIN) && store.enabled(DeviceConsentPolicy.Scope.UNLOCK)) {
-                            store.armPin(); message = "One attempt authorized for 15 minutes. Open the standard PIN keypad before asking Omni to unlock."
+                            message = if (store.armPin()) "One attempt authorized for 15 minutes. Ask Omni to unlock."
+                                else "Could not authorize PIN use. Check the PIN and unlock permissions."
                         }
                     } }) { Text("Authorize one PIN attempt") }
+                OutlinedButton(enabled = vault.exists() && store.enabled(DeviceConsentPolicy.Scope.UNLOCK) && pending == null,
+                    onClick = { authorize {
+                        message = if (store.rememberPinFromUser()) "PIN authorization remembered until you revoke it, delete the PIN or clear/uninstall the app. Each request uses one attempt."
+                            else "Could not remember PIN authorization. Check the PIN and unlock permissions."
+                    } }) { Text(if (store.pinPaused()) "Resume saved PIN attempts" else "Remember PIN authorization") }
+                Text("Remembered authorization survives app updates and restarts. Failed or interrupted PIN input pauses attempts until you resume them here.", style = MaterialTheme.typography.bodySmall)
+                if (store.pinArmed()) TextButton(enabled = pending == null, onClick = {
+                    message = if (store.revokePinAuthorization()) "PIN authorization revoked; the local PIN is still saved."
+                        else "Could not revoke PIN authorization. Try again."
+                    version++
+                }) { Text("Revoke PIN authorization") }
                 TextButton(onClick = { vault.delete(); store.setFromUser(DeviceConsentPolicy.Scope.SAVED_PIN, false); pin = ""; version++ }) { Text("Delete PIN and revoke") }
             }
             Text("Protected windows follow Android's restrictions. Passwords, PIN entry, biometrics and existing chat content stay private on the lock screen.", style = MaterialTheme.typography.bodySmall)

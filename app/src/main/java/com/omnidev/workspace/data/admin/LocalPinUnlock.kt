@@ -22,13 +22,14 @@ object LocalPinUnlock {
             consent.pinArmed() && DevicePinVault(context).exists()
     }
 
-    /** Open native authentication and await its empty keypad before consuming the one-shot permit. */
+    /** Open native authentication and await its empty keypad before authorizing one input. */
     suspend fun request(context: Context): String = withContext(Dispatchers.Main.immediate) {
         if (!requestGate.tryLock()) return@withContext "USER_ACTION_REQUIRED: another saved PIN request is active."
         try {
             val consent = DeviceConsentStore(context)
             if (!consent.locked()) return@withContext "UNLOCKED: verified with Android keyguard state."
-            if (!authorized(context)) return@withContext "USER_ACTION_REQUIRED: enable local PIN and Android unlock, save a PIN and authorize one attempt in Device access."
+            if (!authorized(context)) return@withContext "USER_ACTION_REQUIRED: enable local PIN and Android unlock, save a PIN and authorize its use in Device access."
+            if (consent.pinPaused()) return@withContext "USER_ACTION_REQUIRED: saved PIN attempts are paused after a failed or interrupted input. Resume them in Device access; no credential retry or voice fallback."
             if (OmniAccessibilityService.instance == null) return@withContext "USER_ACTION_REQUIRED: Accessibility disconnected. No PIN entered; unlock manually."
             coroutineScope {
                 val generation = AssistantRuntime.get(context).sessionGeneration
@@ -94,8 +95,10 @@ object LocalPinUnlock {
         if (!ready(context)) return "USER_ACTION_REQUIRED: the standard empty SystemUI PIN keypad is unavailable. Open it manually or unlock yourself."
         if (!CredentialInputGate.acquire()) return "USER_ACTION_REQUIRED: another private credential attempt is active."
         entering = true
+        var consumed = false
         try {
-            if (!consent.consumePin()) return "USER_ACTION_REQUIRED: authorize one PIN attempt in Device access first."
+            if (!consent.consumePin()) return "USER_ACTION_REQUIRED: authorize saved PIN use or resume paused attempts in Device access first. No PIN entered."
+            consumed = true
             val service = OmniAccessibilityService.instance ?: return "USER_ACTION_REQUIRED: Accessibility disconnected."
             val accepted = DevicePinVault(context).withPin { pin ->
                 for (digit in pin) {
@@ -124,6 +127,9 @@ object LocalPinUnlock {
         } catch (error: Exception) {
             if (error is kotlinx.coroutines.CancellationException) throw error
             return "USER_ACTION_REQUIRED: local PIN attempt unavailable. No automatic retry."
-        } finally { entering = false; CredentialInputGate.release() }
+        } finally {
+            try { if (consumed) consent.finishPinAttempt(!consent.locked()) }
+            finally { entering = false; CredentialInputGate.release() }
+        }
     }
 }
