@@ -3,12 +3,59 @@ package com.omnidev.workspace.data.admin
 import android.content.Context
 import android.view.accessibility.AccessibilityNodeInfo
 import com.omnidev.workspace.data.accessibility.OmniAccessibilityService
-import kotlinx.coroutines.delay
+import com.omnidev.workspace.data.assistant.AssistantRuntime
+import com.omnidev.workspace.data.assistant.OmniVoiceInteractionService
+import com.omnidev.workspace.data.voice.LocalVoiceSessionService
+import com.omnidev.workspace.ui.assistant.DeviceUnlockActivity
+import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
 
 /** Only the standard SystemUI PIN keypad; never coordinates, shell input, patterns or guessed PINs. */
 object LocalPinUnlock {
     @Volatile var entering = false
         private set
+    private val requestGate = Mutex()
+    fun authorized(context: Context): Boolean {
+        val consent = DeviceConsentStore(context)
+        return consent.enabled(DeviceConsentPolicy.Scope.SAVED_PIN) &&
+            consent.enabled(DeviceConsentPolicy.Scope.UNLOCK) &&
+            consent.pinArmed() && DevicePinVault(context).exists()
+    }
+
+    /** Open native authentication and await its empty keypad before consuming the one-shot permit. */
+    suspend fun request(context: Context): String = withContext(Dispatchers.Main.immediate) {
+        if (!requestGate.tryLock()) return@withContext "USER_ACTION_REQUIRED: another saved PIN request is active."
+        try {
+            val consent = DeviceConsentStore(context)
+            if (!consent.locked()) return@withContext "UNLOCKED: verified with Android keyguard state."
+            if (!authorized(context)) return@withContext "USER_ACTION_REQUIRED: enable local PIN and Android unlock, save a PIN and authorize one attempt in Device access."
+            if (OmniAccessibilityService.instance == null) return@withContext "USER_ACTION_REQUIRED: Accessibility disconnected. No PIN entered; unlock manually."
+            coroutineScope {
+                val generation = AssistantRuntime.get(context).sessionGeneration
+                val prompt = async(start = CoroutineStart.UNDISPATCHED) { DeviceUnlockActivity.request(context, true) }
+                try {
+                    when (SavedPinKeypadWait.await(
+                        locked = { consent.locked() }, authorized = { authorized(context) },
+                        promptFinished = { prompt.isCompleted }, ready = { ready(context) }
+                    )) {
+                        SavedPinKeypadWait.Outcome.UNLOCKED -> "UNLOCKED: verified with Android keyguard state."
+                        SavedPinKeypadWait.Outcome.PROMPT_FINISHED -> prompt.await()
+                        SavedPinKeypadWait.Outcome.REVOKED -> "USER_ACTION_REQUIRED: saved PIN authorization expired or was revoked. No PIN entered."
+                        SavedPinKeypadWait.Outcome.UNSUPPORTED -> "USER_ACTION_REQUIRED: the standard empty SystemUI PIN keypad did not become available. No PIN entered; unlock manually."
+                        SavedPinKeypadWait.Outcome.READY -> attempt(context)
+                    }
+                } finally {
+                    val cancelledHost = !prompt.isCompleted
+                    withContext(NonCancellable) { prompt.cancelAndJoin() }
+                    // Cancelling the sibling prompt suppresses its own restoration; restore only the same assistant session.
+                    if (cancelledHost && currentCoroutineContext().isActive && !LocalVoiceSessionService.handoff &&
+                        AssistantRuntime.targetingScreen && AssistantRuntime.get(context).sessionGeneration == generation) {
+                        runCatching { OmniVoiceInteractionService.resume(context) }
+                    }
+                }
+            }
+        } finally { requestGate.unlock() }
+    }
     private const val SYSTEM_UI = "com.android.systemui"
     private fun root(service: OmniAccessibilityService): AccessibilityNodeInfo? {
         val active = service.rootInActiveWindow
@@ -41,6 +88,7 @@ object LocalPinUnlock {
     }
     suspend fun attempt(context: Context): String {
         val consent = DeviceConsentStore(context)
+        if (!consent.locked()) return "UNLOCKED: verified with Android keyguard state."
         if (!consent.enabled(DeviceConsentPolicy.Scope.SAVED_PIN) || !consent.enabled(DeviceConsentPolicy.Scope.UNLOCK))
             return "DENIED: enable local PIN and Android unlock in Device access."
         if (!ready(context)) return "USER_ACTION_REQUIRED: the standard empty SystemUI PIN keypad is unavailable. Open it manually or unlock yourself."
@@ -51,7 +99,8 @@ object LocalPinUnlock {
             val service = OmniAccessibilityService.instance ?: return "USER_ACTION_REQUIRED: Accessibility disconnected."
             val accepted = DevicePinVault(context).withPin { pin ->
                 for (digit in pin) {
-                    if (!consent.enabled(DeviceConsentPolicy.Scope.SAVED_PIN) || !consent.locked()) return@withPin false
+                    if (!consent.locked()) return@withPin true
+                    if (!consent.enabled(DeviceConsentPolicy.Scope.SAVED_PIN) || !consent.enabled(DeviceConsentPolicy.Scope.UNLOCK)) return@withPin false
                     val current = root(service) ?: return@withPin false
                     val key = node(current, "key$digit")
                     val clicked = try { key?.isClickable == true && key.performAction(AccessibilityNodeInfo.ACTION_CLICK) }
@@ -60,7 +109,7 @@ object LocalPinUnlock {
                 }
                 // Some devices auto-submit. Never click again after they have unlocked.
                 if (!consent.locked()) return@withPin true
-                if (!consent.enabled(DeviceConsentPolicy.Scope.SAVED_PIN)) return@withPin false
+                if (!consent.enabled(DeviceConsentPolicy.Scope.SAVED_PIN) || !consent.enabled(DeviceConsentPolicy.Scope.UNLOCK)) return@withPin false
                 val current = root(service) ?: return@withPin false
                 val enter = node(current, "key_enter")
                 try { enter?.isClickable == true && enter.performAction(AccessibilityNodeInfo.ACTION_CLICK) }

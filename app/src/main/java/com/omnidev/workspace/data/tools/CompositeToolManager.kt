@@ -468,10 +468,10 @@ class CompositeToolManager(
         context?.let { ctx ->
             if (com.omnidev.workspace.data.admin.DeviceConsentStore(ctx).locked() &&
                 com.omnidev.workspace.data.voice.VoiceSessionPolicy.shouldUnlockForTool(name, arguments["action"])) {
-                val unlockResult = com.omnidev.workspace.data.voice.LocalVoiceSessionService.requestUnlockResult(ctx)
+                val unlockResult = com.omnidev.workspace.data.admin.DeviceUnlockController.request(ctx)
                 if (com.omnidev.workspace.data.admin.DeviceConsentStore(ctx).locked()) return ToolExecutionResult(
-                        "$unlockResult No device action was executed.",
-                        isError = true, classification = "USER_ACTION_REQUIRED", backend = "android-private-voice", retryable = false)
+                        "${unlockResult.output} No device action was executed.",
+                        isError = true, classification = "USER_ACTION_REQUIRED", backend = unlockResult.backend, retryable = false)
             }
         }
         context?.let { com.omnidev.workspace.data.admin.DeviceAccessGuard.toolDenial(it, name, arguments) }?.let { return it }

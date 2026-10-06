@@ -180,7 +180,9 @@ class ToolOrchestrator {
                         if (repeated >= PERSISTENT_SEMANTIC_REPEAT_THRESHOLD) {
                             val warning =
                                 "[semantic-circuit] repeated=$repeated class=${toolResult.classification} " +
-                                    "— DO NOT retry the same backend strategy; change execution domain/capability or report the blocker."
+                                    if (toolResult.classification == "USER_ACTION_REQUIRED")
+                                        "— Wait for the required user action. Do not retry credentials or switch authentication backends automatically."
+                                    else "— DO NOT retry the same backend strategy; change execution domain/capability or report the blocker."
                             val decorated = toolResult.copy(
                                 output = insertAfterTelemetry(toolResult.output, warning),
                                 retryable = false,

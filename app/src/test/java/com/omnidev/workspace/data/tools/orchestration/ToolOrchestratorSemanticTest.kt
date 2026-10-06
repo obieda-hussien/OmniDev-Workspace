@@ -66,6 +66,24 @@ class ToolOrchestratorSemanticTest {
         }
     }
     @Test
+    fun `user action circuit never suggests another credential backend`() = runBlocking {
+        val orchestrator = ToolOrchestrator()
+        repeat(2) { iteration ->
+            val result = orchestrator.executeTool("device_admin", maxRetries = 3) {
+                ToolExecutionResult("USER_ACTION_REQUIRED: unlock manually.", isError = true,
+                    classification = "USER_ACTION_REQUIRED", backend = "android-saved-pin", retryable = false)
+            }.getOrThrow()
+            assertFalse(result.retryable)
+            assertEquals("android-saved-pin", result.backend)
+            if (iteration == 1) {
+                assertTrue(result.output.contains("Wait for the required user action"))
+                assertTrue(result.output.contains("Do not retry credentials"))
+                assertFalse(result.output.contains("change execution domain/capability"))
+            }
+        }
+    }
+
+    @Test
     fun `mutation transport exception is never retried by default`() = runBlocking {
         val orchestrator = ToolOrchestrator()
         var attempts = 0

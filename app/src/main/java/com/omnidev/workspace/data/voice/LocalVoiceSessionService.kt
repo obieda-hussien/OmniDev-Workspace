@@ -166,6 +166,14 @@ class LocalVoiceSessionService : Service() {
         if (!DeviceConsentStore(this).locked()) return true
         if (attempted) return false
         val consent = DeviceConsentStore(this)
+        if (LocalPinUnlock.authorized(this)) {
+            // A saved PIN must not be routed into speech capture or followed by a second credential route.
+            attempted = true
+            update("Using one authorized saved PIN attempt")
+            val result = LocalPinUnlock.request(this)
+            update(result)
+            return result.startsWith("UNLOCKED:") && !consent.locked()
+        }
         if (!consent.enabled(DeviceConsentPolicy.Scope.VOICE_CREDENTIAL) || !consent.enabled(DeviceConsentPolicy.Scope.UNLOCK)) {
             say("Enable private spoken unlock in Device access, or unlock manually.", "فعّل فتح القفل بالصوت من صلاحيات الجهاز، أو افتح التليفون بنفسك."); return false
         }
@@ -194,10 +202,16 @@ class LocalVoiceSessionService : Service() {
             val heard = input?.listen(35) { allowed() && !nativePrompt.isCompleted }
             if (!consent.locked()) return true
             if (nativePrompt.isCompleted) { update(nativePrompt.await()); return false }
-            if (heard == null || heard.confidence < .9 || VoiceSessionPolicy.intent(heard.text) == VoiceSessionPolicy.Intent.CANCEL) {
-                update("Private code input was cancelled or unclear. Nothing entered; unlock manually."); return false
+            val captureFailure = when {
+                heard == null -> "Private code capture timed out or stopped."
+                VoiceSessionPolicy.intent(heard.text) == VoiceSessionPolicy.Intent.CANCEL -> "Private code capture was cancelled by the user."
+                heard.confidence < .9 -> "Private code recognition confidence was too low."
+                else -> null
             }
-            credential = runCatching { SpokenCredentialParser.parse(heard.text, kind) }.getOrNull()
+            if (captureFailure != null) {
+                update("$captureFailure Nothing entered; unlock manually."); return false
+            }
+            credential = runCatching { SpokenCredentialParser.parse(heard!!.text, kind) }.getOrNull()
             if (credential == null) { say("I couldn't understand the code precisely. Use manual unlock. Nothing entered.", "الرمز مش واضح بالضبط. افتح يدويًا، ما دخلتش أي حاجة."); return false }
             say("Code received. Say confirm to enter it once, or cancel.", "الرمز وصل. قول تأكيد عشان أدخله مرة واحدة، أو إلغاء.")
             val confirm = input?.listen(10) { allowed() && !nativePrompt.isCompleted }
