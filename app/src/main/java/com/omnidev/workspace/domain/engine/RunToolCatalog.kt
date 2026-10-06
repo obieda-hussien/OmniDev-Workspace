@@ -32,7 +32,7 @@ class RunToolCatalog(
     /** Runtime retrieval, not a model call. Observations are search data, never instructions. */
     fun prepare(objective: String, observation: String? = null): List<String> {
         val matches = (search(objective.take(2_000), SEARCH_SIZE) +
-            observation?.takeIf { it.isNotBlank() }?.let { search(it.take(800), SEARCH_SIZE) }.orEmpty())
+            observation?.takeIf { it.isNotBlank() }?.let { search(it.take(800), SEARCH_SIZE, lexicalOnly = true) }.orEmpty())
             .distinctBy { it.name }
         val added = matches.filter { it.name !in loaded }.map { it.name }
         load(matches)
@@ -80,7 +80,7 @@ class RunToolCatalog(
         })
     }
 
-    internal fun search(query: String, limit: Int): List<ToolDefinition> {
+    internal fun search(query: String, limit: Int, lexicalOnly: Boolean = false): List<ToolDefinition> {
         val queryTerms = words(query)
         if (queryTerms.isEmpty() || limit <= 0) return emptyList()
         val domains = IntentClassifier.getRelevantDomains(query) + additionalDomains
@@ -96,7 +96,7 @@ class RunToolCatalog(
             val exact = if (query.trim() == tool.name || tool.name in queryTerms) 100.0 else 0.0
             val domain = if (IntentClassifier.getToolDomain(tool.name) in domains) 1.5 else 0.0
             val history = if (lexical > 0) (quality[tool.name] ?: 0f).coerceIn(-1f, 1f) * 0.3 else 0.0
-            tool to (normalizedLexical + exact + domain + history)
+            tool to (if (lexicalOnly && lexical <= 0 && exact <= 0) 0.0 else normalizedLexical + exact + domain + history)
         }
         return scores.filter { it.second > 0 }.sortedWith(
             compareByDescending<Pair<ToolDefinition, Double>> { it.second }.thenBy { it.first.name }
@@ -113,7 +113,7 @@ class RunToolCatalog(
         private const val MAX_LOADED = 40
         private const val SEARCH_SIZE = 6
         private val WORD = Regex("[\\p{L}\\p{N}_.-]+")
-        private val STOP = setOf("the", "and", "for", "with", "tool", "tools", "use", "عايز", "اعمل", "من", "في", "علي")
+        private val STOP = setOf("the", "and", "for", "with", "tool", "tools", "use", "عايز", "اعمل", "من", "في", "علي", "failed", "returned", "error", "tool_error", "success", "retryable", "persistent", "class", "false", "true", "omni-outcome")
         val DISCOVER = ToolDefinition("discover_tools",
             "Find and load real tools for a concrete task or exact name. Returns registered schemas. Use when no loaded tool fits; never guess a tool name. Loading does not grant access.",
             listOf(ToolParameter("query", "string", "Concrete operation, keywords, or exact tool name.")))

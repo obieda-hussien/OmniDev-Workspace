@@ -257,6 +257,7 @@ Do not use tools. Do not rewrite merely for style.
         var totalTokensUsed = 0
         var invalidBatches = 0
         var unresolvedToolFailure: String? = null
+        val githubFailures = GitHubFailureLedger()
         val repetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
         val stagnationDetector = AgentStagnationDetector(
             windowSize = 8,
@@ -504,9 +505,10 @@ Do not use tools. Do not rewrite merely for style.
                 runCatalog = runCatalog
             )
 
+            response.toolCalls.zip(rawResults).forEach { (call, result) -> githubFailures.observe(call, result) }
             val failedResult = rawResults.firstOrNull { it.isError }
             if (failedResult != null) unresolvedToolFailure = SensitiveObservationRedactor.redact(failedResult.output)
-            else if (response.toolCalls.any { it.name != RunToolCatalog.DISCOVER.name }) unresolvedToolFailure = null
+            else if (response.toolCalls.any { it.name != RunToolCatalog.DISCOVER.name }) unresolvedToolFailure = githubFailures.unresolved()
             val preflightFailed = rawResults.any { it.classification in setOf(
                 "TOOL_NOT_EXPOSED", "INVALID_TOOL_ARGUMENTS", "INVALID_TOOL_BATCH", "BATCH_PREFLIGHT_BLOCKED"
             ) }
@@ -539,6 +541,15 @@ Do not use tools. Do not rewrite merely for style.
                     agentContext = redact(userMessage.take(240)),
                     callId = call.id
                 )
+            }
+
+            val githubBlocked = modelSafeResults.firstOrNull {
+                it.classification in setOf("GITHUB_AUTH_REQUIRED", "GITHUB_PERMISSION_DENIED", "GITHUB_RATE_LIMITED")
+            }
+            if (githubBlocked != null || githubFailures.repeatedFailure()) {
+                brain?.onTaskEnd(EpisodeOutcome.BLOCKED, "GitHub resource read blocked")
+                send(AgentEvent.Error(githubBlocked?.output ?: "Repeated GitHub resource failure; stopping speculative retries. " + githubFailures.unresolved().orEmpty().take(1600)))
+                return@channelFlow
             }
 
             val workerScopeDenied = modelSafeResults.firstOrNull {

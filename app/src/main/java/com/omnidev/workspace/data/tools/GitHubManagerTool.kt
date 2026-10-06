@@ -30,7 +30,6 @@ import java.util.concurrent.TimeUnit
 object GitHubManagerTool {
     private const val API_BASE = "https://api.github.com"
     private const val API_VERSION = "2022-11-28"
-    private const val MAX_RESPONSE_CHARS = 40_000
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
     private val httpClient: OkHttpClient by lazy {
@@ -42,44 +41,38 @@ object GitHubManagerTool {
             .build()
     }
 
-    fun getToolDefinitions(): List<ToolDefinition> = listOf(
-        ToolDefinition(
-            name = "github_manager",
-            description = "User-authorized GitHub account control. The user must enable GitHub Agent Access in Settings → Integrations & Linked Accounts. " +
-                "Actions: policy_status, whoami, create_issue, create_pull_request, api_request. " +
-                "api_request can call any relative GitHub REST API endpoint on api.github.com (including /graphql) using the separately authorized account token; local read/write/destructive/org-admin gates still apply. " +
-                "IMPORTANT legacy router compatibility: repo, title, and body must always be supplied; pass an empty string when an action does not use one.",
-            parameters = listOf(
-                ToolParameter("action", "string", "policy_status | whoami | create_issue | create_pull_request | api_request", required = true),
-                ToolParameter(
-                    "repo", "string",
-                    "For issue/PR: owner/name. For api_request: relative API path such as /user/repos, /repos/owner/repo/actions/runs, or /graphql. For policy_status/whoami pass an empty string.",
-                    required = true
-                ),
-                ToolParameter(
-                    "title", "string",
-                    "Issue/PR title. For api_request this is the HTTP method: GET, POST, PUT, PATCH, DELETE. For policy_status/whoami pass an empty string.",
-                    required = true
-                ),
-                ToolParameter(
-                    "body", "string",
-                    "Issue/PR body. For api_request this is optional JSON request body; pass an empty string for requests without a body.",
-                    required = true
-                ),
-                ToolParameter("head", "string", "Source branch for create_pull_request.", required = false),
-                ToolParameter("base", "string", "Target branch for create_pull_request (default main).", required = false)
-            )
+    fun getToolDefinitions(): List<ToolDefinition> = listOf(ToolDefinition(
+        "github_manager",
+        "Read and manage GitHub repositories using GitHub Agent Access. Prefer get_repo, list_contents and read_file for source review; list_repos only discovers names and cannot verify file contents. Preserve exact repository names including trailing hyphens. api_request uses endpoint and method, never owner/repo as an API root. Check policy_status for the connected account; a 404 is not proof of missing authorization.",
+        listOf(
+            ToolParameter("action", "string", "Operation", allowedValues = GitHubRequestContract.actions),
+            ToolParameter("repo", "string", "Exact owner/repo for typed repository actions. Legacy api_request endpoint fallback.", required = false, requiredForActions = listOf("get_repo", "list_contents", "read_file", "create_issue", "create_pull_request")),
+            ToolParameter("endpoint", "string", "api_request path, e.g. /repos/owner/repo/contents/README.md or /user/repos?page=2&per_page=20", required = false),
+            ToolParameter("method", "string", "api_request HTTP method; defaults to GET", required = false, allowedValues = listOf("GET", "POST", "PUT", "PATCH", "DELETE")),
+            ToolParameter("path", "string", "Exact file/directory path within repo; omit for root directory", required = false, requiredForActions = listOf("read_file")),
+            ToolParameter("ref", "string", "Branch/tag/SHA; omit for actual repository default branch", required = false),
+            ToolParameter("owner", "string", "list_repos: omit for authenticated account; supplied owner lists that user's public repos", required = false),
+            ToolParameter("page", "integer", "list_repos page, default 1", required = false),
+            ToolParameter("per_page", "integer", "list_repos page size 1..100, default 20", required = false),
+            ToolParameter("start_line", "integer", "read_file first line, default 1", required = false),
+            ToolParameter("max_lines", "integer", "read_file lines 1..200, default 120", required = false),
+            ToolParameter("response_format", "string", "api_request: compact by default; raw for exact fields, still bounded", required = false, allowedValues = listOf("compact", "raw")),
+            ToolParameter("title", "string", "Issue/PR title; legacy api_request method fallback", required = false, requiredForActions = listOf("create_issue", "create_pull_request")),
+            ToolParameter("body", "string", "Issue/PR text or optional api_request JSON payload. Omit for GET.", required = false),
+            ToolParameter("head", "string", "Source branch for PR", required = false, requiredForActions = listOf("create_pull_request")),
+            ToolParameter("base", "string", "PR target branch, default main", required = false)
         )
-    )
+    ))
 
     suspend fun execute(
         @Suppress("UNUSED_PARAMETER") pat: String?,
         action: String,
-        repo: String,
-        title: String,
-        body: String,
+        repo: String = "",
+        title: String = "",
+        body: String = "",
         head: String? = null,
-        base: String? = null
+        base: String? = null,
+        options: Map<String, String> = emptyMap()
     ): ToolExecutionResult = withContext(Dispatchers.IO) {
         val store = GitHubAgentAccessStore(OmniDevApp.instance.applicationContext)
         val policy = runCatching { store.policy() }.getOrElse { error ->
@@ -97,14 +90,14 @@ object GitHubManagerTool {
             return@withContext ToolExecutionResult(
                 "GITHUB_AGENT_ACCESS_DISABLED: The user has not allowed GitHub account control. " +
                     "Enable it explicitly in Settings → Integrations & Linked Accounts → GitHub Agent Access.",
-                isError = true
+                isError = true, classification = "GITHUB_AUTH_REQUIRED"
             )
         }
         val token = policy.token?.takeIf { it.isNotBlank() }
             ?: return@withContext ToolExecutionResult(
                 "GITHUB_AGENT_NOT_AUTHORIZED: GitHub Agent Access is enabled but no separate account-control token is connected. " +
                     "Connect with GitHub or verify a Personal Access Token from Settings → Integrations & Linked Accounts.",
-                isError = true
+                isError = true, classification = "GITHUB_AUTH_REQUIRED"
             )
 
         try {
@@ -116,18 +109,29 @@ object GitHubManagerTool {
                 "create_pull_request" -> {
                     requireWrite(policy) ?: createPullRequest(policy, token, repo, title, body, head, base ?: "main")
                 }
+                "get_repo", "list_repos", "list_contents", "read_file" -> {
+                    val read = GitHubRequestContract.read(action.lowercase().trim(), repo, options["path"], options["ref"],
+                        options["page"]?.toInt() ?: 1, options["per_page"]?.toInt() ?: 20, options["owner"])
+                    apiRequest(policy, token, "GET", read.endpoint, null, read.rawFile,
+                        startLine = options["start_line"]?.toInt() ?: 1, maxLines = options["max_lines"]?.toInt() ?: 120)
+                }
                 "api_request" -> {
-                    val method = title.trim().uppercase()
-                    val payload = body.takeIf { it.isNotBlank() }
-                    apiRequest(policy, token, method, normalizeEndpoint(repo), payload)
+                    val method = (options["method"] ?: title.takeIf { it.isNotBlank() } ?: "GET").trim().uppercase()
+                    require(options["method"] == null || title.isBlank() || title.trim().equals(method, true)) { "Conflicting method and legacy title." }
+                    require(options["endpoint"] == null || repo.isBlank() || GitHubRequestContract.endpoint(repo, method) == GitHubRequestContract.endpoint(options.getValue("endpoint"), method)) { "Conflicting endpoint and legacy repo." }
+                    val endpoint = GitHubRequestContract.endpoint(options["endpoint"] ?: repo, method)
+                    apiRequest(policy, token, method, endpoint, body.takeIf { it.isNotBlank() },
+                        rawResponse = options["response_format"] == "raw")
                 }
                 else -> ToolExecutionResult(
                     "Unknown GitHub action '$action'. Use policy_status, whoami, create_issue, create_pull_request, or api_request.",
                     isError = true
                 )
             }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
         } catch (e: IllegalArgumentException) {
-            ToolExecutionResult("GitHub request rejected: ${e.message}", isError = true)
+            ToolExecutionResult("GitHub request rejected: ${e.message}", isError = true, classification = "INVALID_TOOL_ARGUMENTS")
         } catch (e: IOException) {
             ToolExecutionResult("GitHub API I/O error: ${e.message}", isError = true)
         } catch (e: Exception) {
@@ -142,9 +146,10 @@ object GitHubManagerTool {
         title: String,
         body: String
     ): ToolExecutionResult {
-        validateRepo(repo)
+        val target = GitHubRequestContract.repo(repo)
+        require(title.isNotBlank()) { "Issue/PR title must not be blank." }
         val payload = JSONObject().put("title", title).put("body", body).toString()
-        return apiRequest(policy, token, "POST", "/repos/$repo/issues", payload)
+        return apiRequest(policy, token, "POST", "/repos/$target/issues", payload)
     }
 
     private fun createPullRequest(
@@ -156,7 +161,8 @@ object GitHubManagerTool {
         head: String?,
         base: String
     ): ToolExecutionResult {
-        validateRepo(repo)
+        val target = GitHubRequestContract.repo(repo)
+        require(title.isNotBlank()) { "Issue/PR title must not be blank." }
         require(!head.isNullOrBlank()) { "head branch is required for create_pull_request." }
         val payload = JSONObject()
             .put("title", title)
@@ -164,23 +170,29 @@ object GitHubManagerTool {
             .put("head", head)
             .put("base", base)
             .toString()
-        return apiRequest(policy, token, "POST", "/repos/$repo/pulls", payload)
+        return apiRequest(policy, token, "POST", "/repos/$target/pulls", payload)
     }
 
-    private fun apiRequest(
+    internal fun apiRequest(
         policy: GitHubAgentAccessStore.Policy,
         token: String,
         method: String,
         endpoint: String,
-        jsonBody: String?
+        jsonBody: String?,
+        rawFile: Boolean = false,
+        rawResponse: Boolean = false,
+        startLine: Int = 1,
+        maxLines: Int = 120,
+        client: OkHttpClient = httpClient
     ): ToolExecutionResult {
         val normalizedMethod = method.uppercase()
         require(normalizedMethod in setOf("GET", "POST", "PUT", "PATCH", "DELETE")) {
             "Unsupported HTTP method '$method'."
         }
-        val safeEndpoint = normalizeEndpoint(endpoint)
+        val safeEndpoint = GitHubRequestContract.endpoint(endpoint, normalizedMethod)
         enforceLocalPolicy(policy, normalizedMethod, safeEndpoint)
         validateJsonBody(jsonBody)
+        require(!rawFile || startLine >= 1 && maxLines in 1..200) { "Invalid file line range." }
 
         val requestBody = when {
             normalizedMethod in setOf("POST", "PUT", "PATCH") ->
@@ -193,40 +205,58 @@ object GitHubManagerTool {
         val request = Request.Builder()
             .url(API_BASE + safeEndpoint)
             .header("Authorization", "Bearer $token")
-            .header("Accept", "application/vnd.github+json")
+            .header("Accept", if (rawFile) "application/vnd.github.raw+json" else "application/vnd.github+json")
             .header("X-GitHub-Api-Version", API_VERSION)
             .header("User-Agent", "OmniDev-Workspace")
             .method(normalizedMethod, requestBody)
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
+        client.newCall(request).execute().use { response ->
             val code = response.code
-            val responseText = response.body?.string().orEmpty()
-            val scopes = response.header("X-OAuth-Scopes").orEmpty()
-            val accepted = response.header("X-Accepted-OAuth-Scopes").orEmpty()
-            val permissions = response.header("X-Accepted-GitHub-Permissions").orEmpty()
-            val clipped = responseText.take(MAX_RESPONSE_CHARS)
-
+            val responseText = response.body?.charStream()?.use { reader ->
+                val buffer = CharArray(4096)
+                val text = StringBuilder()
+                while (text.length <= 1_000_000) {
+                    val count = reader.read(buffer, 0, minOf(buffer.size, 1_000_001 - text.length))
+                    if (count < 0) break
+                    text.append(buffer, 0, count)
+                }
+                text.toString()
+            }.orEmpty()
+            if (responseText.length > 1_000_000) return ToolExecutionResult(
+                "GitHub response exceeds the bounded reader. Narrow the endpoint or page; no complete resource was verified.",
+                isError = true, classification = "GITHUB_RESPONSE_TOO_LARGE")
+            val next = GitHubResponseFormatter.nextEndpoint(response.header("Link"))
             return if (response.isSuccessful) {
-                ToolExecutionResult(
-                    buildString {
-                        append("✅ GitHub $normalizedMethod $safeEndpoint → HTTP $code")
-                        if (clipped.isNotBlank()) append("\n").append(clipped)
-                        if (responseText.length > clipped.length) append("\n[response truncated]")
-                    }
-                )
+                val evidence = if (rawFile) GitHubResponseFormatter.filePage(responseText, startLine, maxLines)
+                    else GitHubResponseFormatter.format(responseText, safeEndpoint, rawResponse)
+                ToolExecutionResult(buildString {
+                    appendLine("GitHub $normalizedMethod $safeEndpoint → HTTP $code")
+                    appendLine("Account: @${policy.accountLogin ?: "unknown"}")
+                    append(evidence)
+                    next?.let { append("\nNext page endpoint: $it (this response is only one page)") }
+                })
             } else {
-                ToolExecutionResult(
-                    buildString {
-                        append("GitHub API error HTTP $code for $normalizedMethod $safeEndpoint")
-                        if (clipped.isNotBlank()) append("\n").append(clipped)
-                        if (scopes.isNotBlank()) append("\nToken scopes: ").append(scopes)
-                        if (accepted.isNotBlank()) append("\nAccepted OAuth scopes: ").append(accepted)
-                        if (permissions.isNotBlank()) append("\nAccepted GitHub permissions: ").append(permissions)
-                        append("\nThe agent cannot expand its own authorization; change GitHub Agent Access in Settings if additional access is desired.")
-                    },
-                    isError = true
-                )
+                val classification = when (code) {
+                    401 -> "GITHUB_AUTH_REQUIRED"
+                    429 -> "GITHUB_RATE_LIMITED"
+                    403 -> if (response.header("X-RateLimit-Remaining") == "0" || response.header("Retry-After") != null) "GITHUB_RATE_LIMITED" else "GITHUB_PERMISSION_DENIED"
+                    404 -> "GITHUB_RESOURCE_NOT_FOUND"
+                    422, 400 -> "INVALID_TOOL_ARGUMENTS"
+                    else -> "GITHUB_HTTP_ERROR"
+                }
+                val hint = when (classification) {
+                    "GITHUB_AUTH_REQUIRED" -> "Token invalid/expired/revoked. Reconnect GitHub Agent Access in Settings."
+                    "GITHUB_PERMISSION_DENIED" -> "Check token repository selection/permissions, organization approval or SSO. Local switches cannot grant token permissions."
+                    "GITHUB_RATE_LIMITED" -> "GitHub rate limit: do not repeatedly retry now. Retry-After=${response.header("Retry-After") ?: "not supplied"}; reset=${response.header("X-RateLimit-Reset") ?: "not supplied"}."
+                    "GITHUB_RESOURCE_NOT_FOUND" -> "Check exact owner/repo, path and ref. A private resource may also be hidden by token repository selection or permissions; 404 alone cannot distinguish this. Do not remove punctuation, enumerate unrelated repos or switch to local git as a substitute for this read."
+                    else -> "Check the endpoint and request data; do not claim the operation succeeded."
+                }
+                ToolExecutionResult("GitHub HTTP $code for $normalizedMethod $safeEndpoint\nAccount: @${policy.accountLogin ?: "unknown"}\n" +
+                    responseText.take(1200) + "\n" + hint +
+                    response.header("X-Accepted-GitHub-Permissions")?.let { "\nRequired GitHub permissions: $it" }.orEmpty(),
+                    isError = true, classification = classification,
+                    persistentFailure = classification in setOf("GITHUB_AUTH_REQUIRED", "GITHUB_PERMISSION_DENIED", "GITHUB_RATE_LIMITED"))
             }
         }
     }
@@ -250,7 +280,7 @@ object GitHubManagerTool {
         if (method in setOf("POST", "PUT", "PATCH") && !policy.writeEnabled) {
             throw IllegalArgumentException("GitHub write access is disabled by the user in Integrations settings.")
         }
-        if (method == "DELETE" && !policy.destructiveEnabled) {
+        if (method == "DELETE" && (!policy.writeEnabled || !policy.destructiveEnabled)) {
             throw IllegalArgumentException("GitHub destructive access is disabled by the user in Integrations settings.")
         }
 
@@ -264,24 +294,6 @@ object GitHubManagerTool {
             "GITHUB_WRITE_DISABLED: The user allowed GitHub read access but disabled write operations.",
             isError = true
         )
-
-    private fun normalizeEndpoint(raw: String): String {
-        val trimmed = raw.trim()
-        require(trimmed.isNotBlank()) { "GitHub API endpoint is empty." }
-        require(!trimmed.contains("\r") && !trimmed.contains("\n")) { "Invalid endpoint." }
-        require(!trimmed.contains("..")) { "Path traversal is not allowed." }
-        require(!trimmed.contains("://")) { "Only relative api.github.com endpoints are allowed." }
-        require(!trimmed.startsWith("//")) { "Protocol-relative endpoints are not allowed." }
-        val endpoint = if (trimmed.startsWith('/')) trimmed else "/$trimmed"
-        require(endpoint.length <= 2_048) { "Endpoint is too long." }
-        return endpoint
-    }
-
-    private fun validateRepo(repo: String) {
-        require(repo.matches(Regex("^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$"))) {
-            "Invalid repo format '$repo'; expected owner/name."
-        }
-    }
 
     private fun policySummary(policy: GitHubAgentAccessStore.Policy): String = buildString {
         appendLine("GitHub Agent Access policy")
