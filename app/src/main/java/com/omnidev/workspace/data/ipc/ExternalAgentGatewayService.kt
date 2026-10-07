@@ -610,6 +610,7 @@ class ExternalAgentGatewayService : Service() {
                 forwardAgentEvent(request.taskId, callback, event)
                 persist(
                     status = when (event) {
+                        is AgentEvent.SteeringApplied -> "Applying follow-up"
                         AgentEvent.Started -> "Started"
                         is AgentEvent.Thinking -> "Thinking…"
                         is AgentEvent.ThinkingBlock -> "Reasoning…"
@@ -732,6 +733,7 @@ class ExternalAgentGatewayService : Service() {
                 forwardSwarmEvent(request.taskId, callback, event)
                 persist(
                     status = when (event) {
+                        is SwarmEvent.SteeringApplied -> "Applying follow-up"
                         SwarmEvent.PlanningStarted -> "Team planning…"
                         is SwarmEvent.PlanCompleted -> "Team plan ready"
                         is SwarmEvent.TaskStarted -> "Worker: " + event.task.description.take(120)
@@ -803,6 +805,7 @@ class ExternalAgentGatewayService : Service() {
         val seq = nextSequence(taskId)
         val now = System.currentTimeMillis()
         val out: AgentTaskEvent = when (event) {
+            is AgentEvent.SteeringApplied -> AgentTaskEvent.Status(taskId, seq, now, "Redirected", "User follow-up #${event.revision}")
             AgentEvent.Started -> AgentTaskEvent.Status(taskId, seq, now, "Started")
             is AgentEvent.Thinking -> AgentTaskEvent.Status(
                 taskId, seq, now, "Thinking", "Iteration " + event.iteration
@@ -853,6 +856,7 @@ class ExternalAgentGatewayService : Service() {
         val seq = nextSequence(taskId)
         val now = System.currentTimeMillis()
         val out: AgentTaskEvent = when (event) {
+            is SwarmEvent.SteeringApplied -> AgentTaskEvent.Status(taskId, seq, now, "Team redirected", "User follow-up #${event.revision}")
             SwarmEvent.PlanningStarted -> AgentTaskEvent.Status(taskId, seq, now, "Team planning")
             is SwarmEvent.PlanCompleted -> AgentTaskEvent.Status(
                 taskId, seq, now, "Team plan ready", event.tasks.size.toString() + " tasks"
@@ -917,6 +921,7 @@ class ExternalAgentGatewayService : Service() {
         event: SwarmEvent
     ) {
         when (event) {
+            is SwarmEvent.SteeringApplied -> entries += AgentConsoleEntry.PhaseEntry("Redirect", "User follow-up #${event.revision}")
             SwarmEvent.PlanningStarted -> entries += AgentConsoleEntry.ThinkingEntry(0)
             is SwarmEvent.PlanCompleted -> entries += AgentConsoleEntry.DeepThinkingEntry(
                 ("Team plan: " + event.tasks.joinToString(" | ") {

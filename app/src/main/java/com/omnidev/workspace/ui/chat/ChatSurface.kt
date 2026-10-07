@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -250,7 +251,8 @@ internal fun ChatInputBar(inputText: String, onInputChanged: (String) -> Unit, o
     onRemoveAttachment: (Uri) -> Unit = {}, replyingTo: ChatMessage? = null, onDismissReply: () -> Unit = {},
     chatSettings: ChatSettings = ChatSettings(), onUpdateChatSettings: (ChatSettings) -> Unit = {},
     focusRequester: FocusRequester = remember { FocusRequester() }, scopeLabel: String? = null,
-    onChooseScope: () -> Unit = {}, compact: Boolean = false, showScopeChooser: Boolean = true) {
+    onChooseScope: () -> Unit = {}, compact: Boolean = false, showScopeChooser: Boolean = true,
+    allowSteering: Boolean = false, submittedRevision: Long = 0L, appliedRevision: Long = 0L) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showTools by rememberSaveable { mutableStateOf(false) }
     var focused by remember { mutableStateOf(false) }
@@ -310,8 +312,20 @@ internal fun ChatInputBar(inputText: String, onInputChanged: (String) -> Unit, o
         ChatComposerSurface(inputText, onInputChanged, onSend, onStop, isProcessing,
             onTools = { showTools = true },
             sendEnabled = inputText.isNotBlank() || pendingAttachments.isNotEmpty(),
-            focusRequester = focusRequester, compact = compact, onFocusChanged = { focused = it })
+            focusRequester = focusRequester, compact = compact, onFocusChanged = { focused = it }, allowSteering = allowSteering)
+        LiveSteeringHint(isProcessing && allowSteering, submittedRevision, appliedRevision)
     }
+}
+
+@Composable
+internal fun LiveSteeringHint(visible: Boolean, submittedRevision: Long, appliedRevision: Long) {
+    if (!visible) return
+    Text(when {
+        submittedRevision > appliedRevision -> "Follow-up #$submittedRevision received · updating the route…"
+        appliedRevision > 0 -> "Route updated · follow-up #$appliedRevision applied"
+        else -> "You can correct the route or add an instruction while Omni works"
+    }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.padding(horizontal = 12.dp).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite })
 }
 
 @Composable

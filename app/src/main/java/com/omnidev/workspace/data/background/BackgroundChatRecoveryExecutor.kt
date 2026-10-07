@@ -120,6 +120,7 @@ class BackgroundChatRecoveryExecutor(private val context: Context) {
                     scope = scope,
                     onEvent = { event ->
                         when (event) {
+                            is SwarmEvent.SteeringApplied -> entries += AgentConsoleEntry.PhaseEntry("Redirect", "User follow-up #${event.revision}")
                             SwarmEvent.PlanningStarted -> entries += AgentConsoleEntry.ThinkingEntry(0)
                             is SwarmEvent.TaskStarted -> entries += AgentConsoleEntry.ToolEntry(
                                 toolName = "worker:${event.task.id}",
@@ -334,6 +335,7 @@ class BackgroundChatRecoveryExecutor(private val context: Context) {
     }
 
     private fun agentStatus(event: AgentEvent): String = when (event) {
+        is AgentEvent.SteeringApplied -> "Applied user follow-up #${event.revision}"
         is AgentEvent.Started -> "Agent started…"
         is AgentEvent.Thinking -> "Thinking • iteration ${event.iteration}"
         is AgentEvent.ThinkingBlock -> "Deep thinking…"
@@ -349,6 +351,7 @@ class BackgroundChatRecoveryExecutor(private val context: Context) {
     }
 
     private fun swarmStatus(event: SwarmEvent): String = when (event) {
+        is SwarmEvent.SteeringApplied -> "Team applying user follow-up #${event.revision}"
         SwarmEvent.PlanningStarted -> "Swarm is planning…"
         is SwarmEvent.PlanCompleted -> "Plan ready • ${event.tasks.size} sub-tasks"
         is SwarmEvent.TaskStarted -> "Worker ${event.task.id} started…"

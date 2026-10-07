@@ -14,6 +14,10 @@ The device access center provides authenticated opt-ins for screen wake, Android
 
 Use **Edit last message** on your most recent user message, then **Save & regenerate**, or **Regenerate last response** on the latest reply. Chat, Agent, Team and the floating assistant replace the previous turn's responses, media cards and activity in the same saved conversation. Attachments, reply context and the original mode/target scope are retained; drafts for the next request remain intact. Editing is disabled while a run or file import is active. Cancel leaves the message unchanged, and failed generation is reported as an error that can be retried.
 
+## Live follow-ups and steering
+
+While **Agent**, **Team**, or the floating assistant works, type a correction or an additional requirement and use **Send follow-up**. The instruction joins the current task and saved conversation. A received/applied indicator tracks the latest follow-up; **Stop** remains a separate control. Model generation is interrupted, unstarted actions from the old route are skipped, and in-flight tools settle before continuation. Team mode replans remaining work with completed-task and tool evidence. Live follow-ups currently accept text; learned tasks running without a model retain their own pause/resume flow. See [runtime behavior and limits](docs/LIVE_AGENT_STEERING.md).
+
 Replacement updates the user turn and removes its outputs in one database transaction. Late media delivery from a superseded revision is rejected; delayed results belonging to earlier requests are preserved. Regeneration starts a new execution: completed device/file actions remain applied and tools can run again.
 
 ## Chat media models
@@ -50,16 +54,16 @@ Choose independent image, video and music/song models in **Settings → Model Se
 
 | المقياس | العدد | طريقة الحساب |
 |---|---:|---|
-| الملفات المتتبعة | **714** | كل الملفات المتتبعة الحالية في `git ls-files` |
-| ملفات المصدر الإنتاجية | **457** | امتدادات Kotlin/Java/AIDL/C/C++/headers خارج مجلدات الاختبارات |
-| سطور المصدر الإنتاجية | **104,631** | سطور فعلية، تشمل الفراغات والتعليقات |
-| ملفات مصدر الاختبارات | **131** | نفس الامتدادات داخل `test` أو `androidTest` |
-| سطور مصدر الاختبارات | **9,806** | بنفس طريقة العدّ |
-| إجمالي ملفات المصدر | **588** | إنتاج + اختبارات |
-| إجمالي سطور المصدر | **114,437** | إنتاج + اختبارات |
-| ملفات Kotlin | **580** | إنتاج واختبارات معًا |
-| سطور Kotlin | **113,664** | إنتاج واختبارات معًا |
-| ملفات Markdown | **47** | الوثائق الأساسية وملفات مهارات الوكيل داخل الموارد |
+| الملفات المتتبعة | **731** | كل الملفات المتتبعة الحالية في `git ls-files` |
+| ملفات المصدر الإنتاجية | **465** | امتدادات Kotlin/Java/AIDL/C/C++/headers خارج مجلدات الاختبارات |
+| سطور المصدر الإنتاجية | **105,618** | سطور فعلية، تشمل الفراغات والتعليقات |
+| ملفات مصدر الاختبارات | **139** | نفس الامتدادات داخل `test` أو `androidTest` |
+| سطور مصدر الاختبارات | **10,489** | بنفس طريقة العدّ |
+| إجمالي ملفات المصدر | **604** | إنتاج + اختبارات |
+| إجمالي سطور المصدر | **116,107** | إنتاج + اختبارات |
+| ملفات Kotlin | **596** | إنتاج واختبارات معًا |
+| سطور Kotlin | **115,334** | إنتاج واختبارات معًا |
+| ملفات Markdown | **48** | الوثائق الأساسية وملفات مهارات الوكيل داخل الموارد |
 | نسخ التطبيق | **5** | `lite`, `norm`, `pro`, `oem`, `admin` |
 | أوضاع التشغيل | **4** | `AUTO`, `CHAT`, `AGENT`, `SWARM` |
 | إصدار قاعدة Room | **17** | `OmniDevDatabase.kt` |

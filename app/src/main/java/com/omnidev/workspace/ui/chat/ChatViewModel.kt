@@ -26,6 +26,7 @@ import com.omnidev.workspace.domain.engine.AgentEvent
 import com.omnidev.workspace.domain.engine.AgentPipeline
 import com.omnidev.workspace.domain.engine.IntentClassifier
 import com.omnidev.workspace.domain.engine.ModeSwitchPermissionStore
+import com.omnidev.workspace.domain.engine.RunSteering
 import com.omnidev.workspace.domain.engine.OmniMode
 import com.omnidev.workspace.domain.engine.SwarmEvent
 import com.omnidev.workspace.domain.engine.SwarmOrchestrator
@@ -54,6 +55,9 @@ data class ChatUiState(
     val targetContext: String? = null,
     val targetContextDisplayName: String? = null,
     val isProcessing: Boolean = false,
+    val canSteer: Boolean = false,
+    val submittedSteeringRevision: Long = 0L,
+    val appliedSteeringRevision: Long = 0L,
     val agentStatus: String? = null,
     val errorMessage: String? = null,
     val consoleEntries: List<AgentConsoleEntry> = emptyList(),
@@ -123,6 +127,12 @@ class ChatViewModel(
     private var sessionObservation: Job? = null
     private var attachmentImportJob: Job? = null
     private var stoppedRunSaveJob: Job? = null
+    private var currentSteering: RunSteering? = null
+    private var steeringSaveJob: Job? = null
+    private var runSessionReady = CompletableDeferred<Long>()
+    private var runHistory: List<ChatMessage> = emptyList()
+    private var runOriginMessageId: String? = null
+    private var runFollowUpIds = linkedSetOf<String>()
 
     private val modePermissionStore: ModeSwitchPermissionStore by lazy {
         ModeSwitchPermissionStore(com.omnidev.workspace.OmniDevApp.instance.applicationContext)
@@ -283,8 +293,9 @@ class ChatViewModel(
         val repo = chatRepository ?: return
         modePermissionStore.clearSession(_uiState.value.currentSessionId)
         activeRunId.incrementAndGet()
+        currentSteering = null
         currentAgentJob?.cancel()
-        _uiState.update { it.copy(isProcessing = false, streamingContent = null) }
+        _uiState.update { it.copy(isProcessing = false, canSteer = false, streamingContent = null) }
         sessionObservation?.cancel()
         sessionObservation = viewModelScope.launch {
             repo.observeMessages(sessionId).collect {
@@ -316,12 +327,13 @@ class ChatViewModel(
         modePermissionStore.clearSession(_uiState.value.currentSessionId)
         sessionObservation?.cancel()
         activeRunId.incrementAndGet()
+        currentSteering = null
         currentAgentJob?.cancel()
         currentAgentJob = null
         _uiState.update {
             it.copy(
                 currentSessionId = null,
-                isProcessing = false,
+                isProcessing = false, canSteer = false,
                 messages = emptyList(),
                 inputText = "",
                 pendingAttachments = emptyList(),
@@ -481,7 +493,8 @@ class ChatViewModel(
     /** The floating composer always executes through the agent, with its own saved session. */
     private var assistantAppContext: String = ""
     fun sendAssistantMessage(text: String, attachments: List<PendingAttachment> = emptyList(), appContext: String = ""): Boolean {
-        if (text.isBlank() || _uiState.value.isProcessing) return false
+        if (text.isBlank()) return false
+        if (_uiState.value.isProcessing) return submitSteering(text, attachments)
         assistantAppContext = appContext
         configureAssistantActionGuard(text)
         _uiState.update { it.copy(inputText = text, pendingAttachments = attachments, activeMode = OmniMode.AGENT) }
@@ -504,7 +517,57 @@ class ChatViewModel(
         }
     }
 
-    fun sendMessage() = startMessage()
+    fun sendMessage() {
+        if (_uiState.value.isProcessing) submitSteering(_uiState.value.inputText, _uiState.value.pendingAttachments)
+        else startMessage()
+    }
+
+    /** Follow-ups are additional user turns in the same run, not replacement prompts. */
+    fun submitSteering(text: String, attachments: List<PendingAttachment> = emptyList()): Boolean {
+        val state = _uiState.value
+        val control = currentSteering
+        if (!state.isProcessing || !state.canSteer || control == null || text.isBlank()) return false
+        if (state.isImportingAttachments || attachments.isNotEmpty()) {
+            _uiState.update { it.copy(errorMessage = "Live follow-ups support text. Remove the selected files or send them after this run.") }
+            return false
+        }
+        val update = try { control.submit(text) } catch (error: IllegalArgumentException) {
+            _uiState.update { it.copy(errorMessage = error.message) }; return false
+        } catch (error: IllegalStateException) {
+            _uiState.update { it.copy(errorMessage = error.message) }; return false
+        }
+        val submittedRunId = activeRunId.get()
+        val message = ChatMessage(MessageRole.USER, update.text, userInput = update.text,
+            userMode = state.activeMode.name, userScopePath = state.targetContext)
+        runFollowUpIds += message.messageId
+        val routineCall = state.consoleEntries.filterIsInstance<AgentConsoleEntry.ToolEntry>().lastOrNull { it.toolName == "learned_routine" }
+        val routineResult = state.consoleEntries.filterIsInstance<AgentConsoleEntry.ResultEntry>().lastOrNull { it.toolName == "learned_routine" }
+        if (routineCall != null && (routineResult == null || routineCall.id > routineResult.id))
+            compositeToolManager?.learnedRoutineTool?.runner?.pause()
+        if (assistantWorkspace != null) configureAssistantActionGuard(update.text)
+        // A pending proposal belongs to the old route. Resolve it before the new plan.
+        state.pendingConfirmation?.onDeny?.invoke()
+        clearConfirmation()
+        _uiState.update { it.copy(messages = it.messages + message, inputText = "", replyingTo = null,
+            submittedSteeringRevision = update.revision, streamingContent = null, errorMessage = null) }
+        val ready = runSessionReady
+        val previousSave = steeringSaveJob
+        steeringSaveJob = viewModelScope.launch {
+            try {
+                previousSave?.join()
+                chatRepository?.saveMessage(ready.await(), message)
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) {
+                if (activeRunId.get() == submittedRunId) _uiState.update { it.copy(errorMessage = "Could not save this live follow-up: ${error.message}") }
+            }
+        }
+        return true
+    }
+
+    private fun steeringApplied(revision: Long) {
+        _uiState.update { it.copy(appliedSteeringRevision = revision, streamingContent = null,
+            consoleEntries = it.consoleEntries + AgentConsoleEntry.PhaseEntry("Redirect", "Applied user follow-up #$revision")) }
+    }
 
     fun regenerateLastResponse(messageId: String) {
         val turn = LastChatTurn.from(_uiState.value.messages) ?: return
@@ -540,6 +603,12 @@ class ChatViewModel(
         }
 
         val runId = activeRunId.incrementAndGet()
+        currentSteering = if (matchingRoutine == null && (mode == OmniMode.AGENT || mode == OmniMode.SWARM)) RunSteering() else null
+        val sessionReady = CompletableDeferred<Long>()
+        runSessionReady = sessionReady
+        val followUpIds = linkedSetOf<String>()
+        runFollowUpIds = followUpIds
+        steeringSaveJob = null
         val previousJob = currentAgentJob
         val pendingSave = stoppedRunSaveJob
         previousJob?.cancel()
@@ -554,6 +623,7 @@ class ChatViewModel(
             val who = if (ref.role == MessageRole.USER) "you" else "OmniDev"
             "[Replying to $who: \"${ref.content.take(150).replace("\n", " ")}\"]\n\n"
         }.orEmpty()
+        runHistory = replacing?.prefix ?: state.messages
         val userMessage = ChatMessage(
             role = MessageRole.USER,
             content = replyPrefix + input + attachmentNote,
@@ -564,12 +634,16 @@ class ChatViewModel(
             attachments = replacing?.user?.attachments.orEmpty()
         )
 
+        runOriginMessageId = userMessage.messageId
         _uiState.update {
             it.copy(
                 messages = if (replacing == null) it.messages + userMessage else it.messages,
                 inputText = if (replacing == null) "" else it.inputText,
                 isProcessing = true,
                 agentStatus = "Starting ${mode.label}...",
+                canSteer = currentSteering != null,
+                submittedSteeringRevision = 0L,
+                appliedSteeringRevision = 0L,
                 errorMessage = null,
                 consoleEntries = emptyList(),
                 pendingAttachments = if (replacing == null) emptyList() else it.pendingAttachments,
@@ -604,7 +678,7 @@ class ChatViewModel(
                     val removedTimestamps = replacing.outputs.map { it.timestamp }.toSet()
                     _uiState.update { current ->
                         if (runId != activeRunId.get()) current else current.copy(
-                            messages = replacing.prefix + persisted,
+                            messages = replacing.prefix + persisted + current.messages.filter { it.messageId in followUpIds },
                             messageConsoleEntries = current.messageConsoleEntries.filterKeys { it !in removedTimestamps },
                             replyingTo = current.replyingTo?.let { ref ->
                                 if (ref.messageId == replacing.user.messageId) persisted
@@ -620,11 +694,12 @@ class ChatViewModel(
                         runCatching { androidx.work.WorkManager.getInstance(context).cancelUniqueWork("omni-media-$id") }
                     }
                 }
+                sessionReady.complete(sessionId)
                 val imageAttachments = resolveImageAttachments(attachments)
                 val executionInput = input + assistantAttachmentContext(attachments)
                 val scope = scopePath ?: if (_uiState.value.isGodModeEnabled) "/" else ""
                 if (matchingRoutine != null) {
-                    executeAgentMode(input, emptyList(), sessionId, scope, runId = runId)
+                    executeAgentMode(input, emptyList(), sessionId, scope, runId = runId, enableSteering = false)
                     return@launch
                 }
                 when (mode) {
@@ -656,7 +731,11 @@ class ChatViewModel(
                     else _uiState.update { it.copy(errorMessage = text) }
                 }
             } finally {
-                if (runId == activeRunId.get()) _uiState.update { it.copy(isProcessing = false, agentStatus = null, streamingContent = null) }
+                if (!sessionReady.isCompleted) sessionReady.cancel()
+                if (runId == activeRunId.get()) {
+                    currentSteering = null
+                    _uiState.update { it.copy(isProcessing = false, canSteer = false, agentStatus = null, streamingContent = null) }
+                }
             }
         }
     }
@@ -720,7 +799,7 @@ class ChatViewModel(
                 handleAgentEvent(AgentEvent.FinalAnswer(result.output.substringBefore("\nCheckpoint:"), 0, 0, emptyList()), sessionId, runId)
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
               catch (error: Exception) { _uiState.update { it.copy(errorMessage = error.message) } }
-            finally { if (activeRunId.get() == runId) _uiState.update { it.copy(isProcessing = false, agentStatus = null) } }
+            finally { if (activeRunId.get() == runId) _uiState.update { it.copy(isProcessing = false, canSteer = false, agentStatus = null) } }
         }
     }
 
@@ -735,6 +814,7 @@ class ChatViewModel(
         val console = state.consoleEntries
 
         activeRunId.incrementAndGet()
+        currentSteering = null
         currentAgentJob?.cancel()
         currentAgentJob = null
         _uiState.update {
@@ -742,7 +822,7 @@ class ChatViewModel(
                 messages = it.messages + status,
                 messageConsoleEntries = if (console.isNotEmpty())
                     it.messageConsoleEntries + (status.timestamp to console) else it.messageConsoleEntries,
-                isProcessing = false,
+                isProcessing = false, canSteer = false,
                 agentStatus = null,
                 streamingContent = null,
                 errorMessage = USER_STOPPED_MESSAGE
@@ -841,7 +921,7 @@ class ChatViewModel(
                     it.copy(
                         messages = it.messages + savedMessage,
                         messageConsoleEntries = it.messageConsoleEntries + (savedMessage.timestamp to runEntries),
-                        isProcessing = false,
+                        isProcessing = false, canSteer = false,
                         streamingContent = null,
                         agentStatus = null,
                         consoleEntries = runEntries
@@ -868,7 +948,7 @@ class ChatViewModel(
                 _uiState.update {
                     it.copy(
                         messages = it.messages + savedMessage,
-                        isProcessing = false,
+                        isProcessing = false, canSteer = false,
                         agentStatus = null,
                         streamingContent = null,
                         errorMessage = text,
@@ -970,6 +1050,10 @@ class ChatViewModel(
         }
 
         val runId = activeRunId.incrementAndGet()
+        currentSteering = null
+        runFollowUpIds = linkedSetOf()
+        runHistory = state.messages.takeWhile { it.messageId != original.messageId }
+        runOriginMessageId = original.messageId
         _uiState.update {
             it.copy(
                 activeMode = target,
@@ -977,6 +1061,7 @@ class ChatViewModel(
                 errorMessage = null,
                 streamingContent = null,
                 consoleEntries = emptyList(),
+                submittedSteeringRevision = 0L, appliedSteeringRevision = 0L,
                 agentStatus = if (autoApproved) "Auto-switching → ${target.label}" else "Switching → ${target.label}"
             )
         }
@@ -997,6 +1082,11 @@ class ChatViewModel(
                 throw cancelled
             } catch (error: Exception) {
                 handleAgentEvent(AgentEvent.Error(error.message ?: "Mode handoff failed"), sessionId, runId)
+            } finally {
+                if (runId == activeRunId.get()) {
+                    currentSteering = null
+                    _uiState.update { it.copy(isProcessing = false, canSteer = false, agentStatus = null, streamingContent = null) }
+                }
             }
         }
     }
@@ -1007,13 +1097,21 @@ class ChatViewModel(
         sessionId: Long,
         scopePath: String,
         modelRole: com.omnidev.workspace.data.model.ModelRole = com.omnidev.workspace.data.model.ModelRole.AGENT,
-        runId: Long
+        runId: Long,
+        enableSteering: Boolean = true
     ) {
+        if (enableSteering && currentSteering == null) {
+            currentSteering = RunSteering()
+            runSessionReady = CompletableDeferred(sessionId)
+            steeringSaveJob = null
+        }
+        _uiState.update { it.copy(canSteer = enableSteering) }
+        val control = currentSteering.takeIf { enableSteering }
         val modelId = settingsRepository.observeModelIdForRole(modelRole).first()
         val model = ModelRegistry.findModelById(modelId) ?: ModelRegistry.getModelById(modelId)
         val directImages = if (assistantWorkspace != null && !model.supportsVision) emptyList() else imageAttachments
         if (assistantWorkspace != null) {
-            val original = _uiState.value.messages.lastOrNull { it.role == MessageRole.USER }
+            val original = _uiState.value.messages.find { it.messageId == runOriginMessageId }
             if (original != null) {
                 val withAttachments = original.copy(attachments = (imageAttachments + original.attachments).distinctBy { it.uri })
                 _uiState.update { state -> state.copy(messages = state.messages.map { if (it.messageId == original.messageId) withAttachments else it }) }
@@ -1033,7 +1131,7 @@ class ChatViewModel(
 
         agentPipeline.execute(
             userMessage = input,
-            conversationHistory = _uiState.value.messages.dropLast(1),
+            conversationHistory = runHistory,
             modelId = modelId,
             scopePath = scopePath,
             enableDeepThinking = deepThinking && assistantWorkspace == null,
@@ -1054,7 +1152,8 @@ class ChatViewModel(
             toolAccessMode = chatSettings.toolAccessMode.name,
             additionalToolDomains = if (assistantWorkspace != null) flavor.toolDomains
                 else if (isLearnedTaskRequest(input)) setOf(IntentClassifier.ToolDomain.DEVICE_CONTROL) else emptySet(),
-            preferredToolNames = if (assistantWorkspace == null) emptySet() else flavor.preferredToolNames
+            preferredToolNames = if (assistantWorkspace == null) emptySet() else flavor.preferredToolNames,
+            steering = control
         ).collect { event ->
             handleAgentEvent(event, sessionId, runId)
             if (event is AgentEvent.Error) {
@@ -1076,9 +1175,16 @@ class ChatViewModel(
         scopePath: String,
         runId: Long
     ) {
+        if (currentSteering == null) {
+            currentSteering = RunSteering()
+            runSessionReady = CompletableDeferred(sessionId)
+            steeringSaveJob = null
+        }
+        _uiState.update { it.copy(canSteer = true) }
+        val control = currentSteering
         val orchestrator = swarmOrchestrator
         if (orchestrator == null) {
-            _uiState.update { it.copy(isProcessing = false, errorMessage = "Team Agents are unavailable.") }
+            _uiState.update { it.copy(isProcessing = false, canSteer = false, errorMessage = "Team Agents are unavailable.") }
             return
         }
         val orchestratorModelId = settingsRepository
@@ -1096,7 +1202,8 @@ class ChatViewModel(
                 workerModelId = workerModelId,
                 scopePath = scopePath,
                 enableDeepThinking = deepThinking,
-                godModeEnabled = godMode
+                godModeEnabled = godMode,
+                steering = control
             ).collect { event ->
                 handleSwarmEvent(event, sessionId, runId)
                 if (event is SwarmEvent.PlanCompleted) {
@@ -1109,7 +1216,7 @@ class ChatViewModel(
             }
         } catch (signal: ModeHandoffSignal) {
             if (runId != activeRunId.get()) return
-            _uiState.update { it.copy(isProcessing = false, agentStatus = null, streamingContent = null) }
+            _uiState.update { it.copy(isProcessing = false, canSteer = false, agentStatus = null, streamingContent = null) }
             val origin = _uiState.value.messages.lastOrNull { it.role == MessageRole.USER } ?: return
             publishModeSuggestion(signal.suggestion, origin, sessionId)
         }
@@ -1136,7 +1243,7 @@ class ChatViewModel(
         _uiState.update {
             it.copy(
                 messages = it.messages + proposal,
-                isProcessing = false,
+                isProcessing = false, canSteer = false,
                 agentStatus = null,
                 errorMessage = null,
                 streamingContent = null
@@ -1157,6 +1264,7 @@ class ChatViewModel(
     private suspend fun handleAgentEvent(event: AgentEvent, sessionId: Long, runId: Long) {
         if (runId != activeRunId.get()) return
         when (event) {
+            is AgentEvent.SteeringApplied -> steeringApplied(event.revision)
             is AgentEvent.Started -> _uiState.update { it.copy(agentStatus = "Agent started...") }
             is AgentEvent.Thinking -> _uiState.update {
                 it.copy(
@@ -1216,9 +1324,10 @@ class ChatViewModel(
                 it.copy(consoleEntries = it.consoleEntries + AgentConsoleEntry.ContextSummaryEntry(event.summary))
             }
             is AgentEvent.StreamChunk -> _uiState.update {
-                it.copy(streamingContent = (it.streamingContent ?: "") + event.delta)
+                if (it.submittedSteeringRevision > it.appliedSteeringRevision) it else it.copy(streamingContent = (it.streamingContent ?: "") + event.delta)
             }
             is AgentEvent.FinalAnswer -> {
+                steeringSaveJob?.join()
                 val message = ChatMessage(MessageRole.ASSISTANT, event.content)
                 val console = _uiState.value.consoleEntries
                 chatRepository?.saveMessage(sessionId, message, console)
@@ -1229,7 +1338,7 @@ class ChatViewModel(
                         messages = it.messages + message,
                         messageConsoleEntries = if (console.isEmpty()) it.messageConsoleEntries
                         else it.messageConsoleEntries + (message.timestamp to console),
-                        isProcessing = false,
+                        isProcessing = false, canSteer = false,
                         agentStatus = null,
                         streamingContent = null,
                         consoleEntries = it.consoleEntries + AgentConsoleEntry.ReplyEntry()
@@ -1245,7 +1354,7 @@ class ChatViewModel(
                         messages = it.messages + status,
                         messageConsoleEntries = if (console.isEmpty()) it.messageConsoleEntries
                         else it.messageConsoleEntries + (status.timestamp to console),
-                        isProcessing = false,
+                        isProcessing = false, canSteer = false,
                         agentStatus = null,
                         errorMessage = event.message,
                         streamingContent = null,
@@ -1274,6 +1383,7 @@ class ChatViewModel(
     private suspend fun handleSwarmEvent(event: SwarmEvent, sessionId: Long, runId: Long) {
         if (runId != activeRunId.get()) return
         when (event) {
+            is SwarmEvent.SteeringApplied -> steeringApplied(event.revision)
             is SwarmEvent.PlanningStarted -> _uiState.update {
                 it.copy(agentStatus = "🧠 Planning sub-tasks...", consoleEntries = it.consoleEntries + AgentConsoleEntry.ThinkingEntry(0))
             }
@@ -1341,6 +1451,7 @@ class ChatViewModel(
                 it.copy(agentStatus = "🔗 Synthesizing results...", consoleEntries = it.consoleEntries + AgentConsoleEntry.ThinkingEntry(99))
             }
             is SwarmEvent.Completed -> {
+                steeringSaveJob?.join()
                 val message = ChatMessage(MessageRole.ASSISTANT, event.summary)
                 val console = _uiState.value.consoleEntries
                 chatRepository?.saveMessage(sessionId, message, console)
@@ -1351,7 +1462,7 @@ class ChatViewModel(
                         messages = it.messages + message,
                         messageConsoleEntries = if (console.isEmpty()) it.messageConsoleEntries
                         else it.messageConsoleEntries + (message.timestamp to console),
-                        isProcessing = false,
+                        isProcessing = false, canSteer = false,
                         agentStatus = null,
                         streamingContent = null,
                         consoleEntries = it.consoleEntries + AgentConsoleEntry.ReplyEntry()
@@ -1359,7 +1470,7 @@ class ChatViewModel(
                 }
             }
             is SwarmEvent.WorkerStreamChunk -> _uiState.update {
-                it.copy(
+                if (it.submittedSteeringRevision > it.appliedSteeringRevision) it else it.copy(
                     agentStatus = "⚙️ Worker ${event.task.id}: streaming…",
                     streamingContent = (it.streamingContent ?: "") + event.delta
                 )
@@ -1369,7 +1480,7 @@ class ChatViewModel(
                 _uiState.update {
                     it.copy(
                         messages = it.messages + status,
-                        isProcessing = false,
+                        isProcessing = false, canSteer = false,
                         agentStatus = null,
                         errorMessage = event.message,
                         streamingContent = null,
@@ -1467,7 +1578,7 @@ class ChatViewModel(
         currentAgentJob = viewModelScope.launch {
             val useCase = autoHealBuildUseCase
             if (useCase == null) {
-                _uiState.update { it.copy(isProcessing = false, errorMessage = "Auto-Heal Build is not available.") }
+                _uiState.update { it.copy(isProcessing = false, canSteer = false, errorMessage = "Auto-Heal Build is not available.") }
                 return@launch
             }
             useCase.execute(scopePath, buildCommand, maxRetries).collect { event ->
@@ -1480,7 +1591,7 @@ class ChatViewModel(
                         val msg = ChatMessage(MessageRole.ASSISTANT, "✅ Build Successful on attempt ${event.attempt}!\n\n${event.output.take(500)}")
                         val session = _uiState.value.currentSessionId ?: ensureSession("Auto-Heal Build")
                         chatRepository?.saveMessage(session, msg)
-                        _uiState.update { it.copy(messages = it.messages + msg, isProcessing = false, agentStatus = null, consoleEntries = it.consoleEntries + AgentConsoleEntry.ReplyEntry()) }
+                        _uiState.update { it.copy(messages = it.messages + msg, isProcessing = false, canSteer = false, agentStatus = null, consoleEntries = it.consoleEntries + AgentConsoleEntry.ReplyEntry()) }
                     }
                     is com.omnidev.workspace.domain.engine.AutoHealBuildUseCase.BuildEvent.BuildFailed -> _uiState.update {
                         it.copy(agentStatus = "❌ Build failed (attempt ${event.attempt}), analyzing...", consoleEntries = it.consoleEntries + AgentConsoleEntry.ErrorEntry(event.errors.take(200)))
@@ -1498,7 +1609,7 @@ class ChatViewModel(
                         val msg = ChatMessage(MessageRole.ASSISTANT, "❌ Auto-Heal Build exhausted all ${event.totalAttempts} attempts. Manual intervention is required.")
                         val session = _uiState.value.currentSessionId ?: ensureSession("Auto-Heal Build")
                         chatRepository?.saveMessage(session, msg)
-                        _uiState.update { it.copy(messages = it.messages + msg, isProcessing = false, agentStatus = null, consoleEntries = it.consoleEntries + AgentConsoleEntry.ErrorEntry(msg.content)) }
+                        _uiState.update { it.copy(messages = it.messages + msg, isProcessing = false, canSteer = false, agentStatus = null, consoleEntries = it.consoleEntries + AgentConsoleEntry.ErrorEntry(msg.content)) }
                     }
                     is com.omnidev.workspace.domain.engine.AutoHealBuildUseCase.BuildEvent.AgentProgress ->
                         handleAgentEvent(event.event, _uiState.value.currentSessionId ?: -1L, runId)

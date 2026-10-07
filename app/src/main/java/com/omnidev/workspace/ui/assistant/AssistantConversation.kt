@@ -27,6 +27,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
+import com.omnidev.workspace.ui.chat.LiveSteeringHint
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -257,7 +258,8 @@ internal fun AssistantConversation(
                                 onTools = { panel = if (panel == AssistantPanel.NONE) AssistantPanel.ATTACHMENTS else AssistantPanel.NONE },
                                 sendEnabled = screen.input.isNotBlank(), focusRequester = focus, compact = compact,
                                 editorEnabled = !blocked, toolsEnabled = !busy, actionEnabled = !blocked,
-                                toolsDescription = "Assistant tools", sendDescription = "Send question", stopDescription = "Stop request")
+                                toolsDescription = "Assistant tools", sendDescription = "Send question", stopDescription = "Stop request", allowSteering = chat.canSteer)
+                            LiveSteeringHint(chat.isProcessing && chat.canSteer, chat.submittedSteeringRevision, chat.appliedSteeringRevision)
                         }
                     }
                 }

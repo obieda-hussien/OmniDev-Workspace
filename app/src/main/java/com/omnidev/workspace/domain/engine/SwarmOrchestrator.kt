@@ -14,6 +14,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.serialization.json.Json
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -103,10 +104,49 @@ Synthesize specialist evidence into the answer to the original request.
         workerModelId: String,
         scopePath: String,
         enableDeepThinking: Boolean = false,
-        godModeEnabled: Boolean = false
+        godModeEnabled: Boolean = false,
+        steering: RunSteering? = null
     ): Flow<SwarmEvent> = channelFlow {
         val teamStartedAt = System.currentTimeMillis()
         val observedTeamTokens = AtomicInteger(0)
+        val evidence = TeamSteeringEvidence()
+        while (true) {
+            val revision = steering?.revision ?: 0L
+            val objective = steering?.objective(userMessage, revision) ?: userMessage
+            if (revision > 0) send(SwarmEvent.SteeringApplied(revision))
+            try {
+                executeAttempt(objective + evidence.context(), orchestratorModelId, workerModelId,
+                    scopePath, enableDeepThinking, godModeEnabled, steering, revision,
+                    teamStartedAt, observedTeamTokens).collect { event ->
+                    evidence.record(event)
+                    send(event)
+                }
+                return@channelFlow
+            } catch (redirected: RunRedirected) {
+                if (steering == null) throw redirected
+                // All members of the old wave have settled before this replan starts.
+                continue
+            }
+        }
+    }
+
+    private fun executeAttempt(
+        userMessage: String,
+        orchestratorModelId: String,
+        workerModelId: String,
+        scopePath: String,
+        enableDeepThinking: Boolean,
+        godModeEnabled: Boolean,
+        steering: RunSteering?,
+        revision: Long,
+        teamStartedAt: Long,
+        observedTeamTokens: AtomicInteger
+    ): Flow<SwarmEvent> = channelFlow {
+        steering?.check(revision)
+        if (observedTeamTokens.get() >= TEAM_TOTAL_TOKEN_HARD_LIMIT - SYNTHESIS_TOKEN_RESERVE) {
+            send(SwarmEvent.Error("Team token ceiling reached while applying user follow-up."))
+            return@channelFlow
+        }
         send(SwarmEvent.PlanningStarted)
 
         val orchestratorModel = ModelRegistry.findModelById(orchestratorModelId)
@@ -114,7 +154,7 @@ Synthesize specialist evidence into the answer to the original request.
         val orchestratorApiKey = apiKeyRepository?.getApiKey(orchestratorModel.provider)
         val runtimeClock = currentRuntimeClock()
 
-        val planRequest = CompletionRequest(
+        val planPrototype = CompletionRequest(
             modelId = orchestratorModelId,
             messages = listOf(ChatMessage(MessageRole.USER, userMessage)),
             systemPrompt = buildString {
@@ -130,11 +170,24 @@ Synthesize specialist evidence into the answer to the original request.
             apiKey = orchestratorApiKey
         )
 
+        val planInput = TokenAccounting.estimateInputTokens(planPrototype)
+        val availableForPlan = TEAM_TOTAL_TOKEN_HARD_LIMIT - observedTeamTokens.get() - SYNTHESIS_TOKEN_RESERVE
+        if (availableForPlan <= planInput + 256) {
+            send(SwarmEvent.Error("Team token budget cannot fit the corrected plan and its evidence."))
+            return@channelFlow
+        }
+        val planRequest = planPrototype.copy(maxTokens = minOf(planPrototype.maxTokens, availableForPlan - planInput))
         val planResponse = try {
-            callWithRateLimitRetry(planRequest)
+            if (steering == null) callWithRateLimitRetry(planRequest)
+            else steering.reasoning(revision) { callWithRateLimitRetry(planRequest) }
         } catch (cancelled: CancellationException) {
+            if (steering?.changed(revision) == true) {
+                // Reserve a bounded estimate when an interrupted planner has no usage report.
+                observedTeamTokens.addAndGet(planInput + planRequest.maxTokens)
+            }
             throw cancelled
         } catch (error: Exception) {
+            steering?.check(revision)
             if (!isInfrastructureFailure(error.message.orEmpty())) {
                 recordTeamOutcome(
                     userMessage,
@@ -204,10 +257,12 @@ Synthesize specialist evidence into the answer to the original request.
             val result: String,
             val error: String? = null,
             val infrastructureBlocked: Boolean = false,
-            val requiresSerialReplan: Boolean = false
+            val requiresSerialReplan: Boolean = false,
+            val redirected: Boolean = false
         )
 
         suspend fun runWorker(task: SwarmTask): TaskOutcome {
+            if (steering?.changed(revision) == true) return TaskOutcome(task, "", redirected = true)
             send(SwarmEvent.TaskStarted(task))
             val budget = allocation.budgets[task.id] ?: TeamExecutionPolicy.budgetFor(task)
             val dependencyContext = compactDependencyContext(task, completed)
@@ -245,39 +300,47 @@ Synthesize specialist evidence into the answer to the original request.
 
             var taskResult = ""
             var taskError: String? = null
-            workerPipeline.execute(
-                userMessage = workerPrompt,
-                modelId = workerModelId,
-                scopePath = scopePath,
-                enableDeepThinking = enableDeepThinking,
-                workerPersona = task.requiredPersona.takeIf(String::isNotBlank),
-                toolAccessMode = "ON_DEMAND"
-            ).collect { event ->
-                when (event) {
-                    is AgentEvent.FinalAnswer -> taskResult = event.content
-                    is AgentEvent.Error -> taskError = event.message
-                    is AgentEvent.StreamChunk -> send(SwarmEvent.WorkerStreamChunk(task, event.delta))
-                    is AgentEvent.ToolExecution -> send(SwarmEvent.WorkerToolUse(task, event.toolName, event.arguments))
-                    is AgentEvent.ToolResult -> send(SwarmEvent.WorkerToolResult(task, event.toolName, event.output, event.isError))
-                    is AgentEvent.Thinking -> send(SwarmEvent.WorkerThinking(task, event.iteration))
-                    is AgentEvent.ThinkingBlock -> send(SwarmEvent.WorkerThinkingBlock(task, event.content))
-                    is AgentEvent.TokenUsageUpdate -> {
-                        observedTeamTokens.addAndGet(event.iterationTokens.coerceAtLeast(0))
-                        send(
-                            SwarmEvent.WorkerTokenUsage(
-                                task = task,
-                                totalTokens = event.totalTokens,
-                                budget = event.budget,
-                                iterationTokens = event.iterationTokens
+            try {
+                workerPipeline.execute(
+                    userMessage = workerPrompt,
+                    modelId = workerModelId,
+                    scopePath = scopePath,
+                    enableDeepThinking = enableDeepThinking,
+                    workerPersona = task.requiredPersona.takeIf(String::isNotBlank),
+                    toolAccessMode = "ON_DEMAND",
+                    steering = steering,
+                    steeringRevision = revision
+                ).collect { event ->
+                    when (event) {
+                        is AgentEvent.FinalAnswer -> taskResult = event.content
+                        is AgentEvent.Error -> taskError = event.message
+                        is AgentEvent.StreamChunk -> send(SwarmEvent.WorkerStreamChunk(task, event.delta))
+                        is AgentEvent.ToolExecution -> send(SwarmEvent.WorkerToolUse(task, event.toolName, event.arguments))
+                        is AgentEvent.ToolResult -> send(SwarmEvent.WorkerToolResult(task, event.toolName, event.output, event.isError))
+                        is AgentEvent.Thinking -> send(SwarmEvent.WorkerThinking(task, event.iteration))
+                        is AgentEvent.ThinkingBlock -> send(SwarmEvent.WorkerThinkingBlock(task, event.content))
+                        is AgentEvent.TokenUsageUpdate -> {
+                            observedTeamTokens.addAndGet(event.iterationTokens.coerceAtLeast(0))
+                            send(
+                                SwarmEvent.WorkerTokenUsage(
+                                    task = task,
+                                    totalTokens = event.totalTokens,
+                                    budget = event.budget,
+                                    iterationTokens = event.iterationTokens
+                                )
                             )
+                        }
+                        is AgentEvent.PhaseChanged -> send(
+                            SwarmEvent.WorkerPhaseChanged(task, event.phase.name, event.detail)
                         )
+                        else -> Unit
                     }
-                    is AgentEvent.PhaseChanged -> send(
-                        SwarmEvent.WorkerPhaseChanged(task, event.phase.name, event.detail)
-                    )
-                    else -> Unit
                 }
+
+            } catch (redirected: RunRedirected) {
+                return TaskOutcome(task, "", redirected = true)
             }
+            if (steering?.changed(revision) == true) return TaskOutcome(task, "", redirected = true)
 
             if (taskError == null && taskResult.isBlank()) {
                 taskError = "Worker ended without a final response."
@@ -300,6 +363,7 @@ Synthesize specialist evidence into the answer to the original request.
 
         val serialReplans = mutableListOf<SwarmTask>()
         suspend fun accept(outcome: TaskOutcome) {
+            if (outcome.redirected) throw RunRedirected()
             if (outcome.requiresSerialReplan) {
                 serialReplans += outcome.task.copy(parallelSafe = false)
                 send(SwarmEvent.WorkerPhaseChanged(outcome.task, "REPLAN", "Runtime detected a mutation; resume once after parallel workers finish."))
@@ -316,6 +380,7 @@ Synthesize specialist evidence into the answer to the original request.
         }
 
         while (remaining.isNotEmpty()) {
+            steering?.check(revision)
             if (observedTeamTokens.get() >= TEAM_TOTAL_TOKEN_HARD_LIMIT - SYNTHESIS_TOKEN_RESERVE) {
                 remaining.toList().forEach { task ->
                     val reason = "Team token ceiling reached before this task could start"
@@ -362,7 +427,10 @@ Synthesize specialist evidence into the answer to the original request.
                     val dispatcher = Dispatchers.Default.limitedParallelism(MAX_PARALLEL_WORKERS)
                     coroutineScope {
                         wave.map { task -> async(dispatcher) { runWorker(task) } }.awaitAll()
-                    }.forEach { accept(it) }
+                    }.also { outcomes ->
+                        outcomes.filterNot { it.redirected }.forEach { accept(it) }
+                        if (outcomes.any { it.redirected }) throw RunRedirected()
+                    }
                 }
                 // No mutation overlaps a read wave, even when the planner mislabeled a task.
                 val replans = serialReplans.toList()
@@ -378,7 +446,8 @@ Synthesize specialist evidence into the answer to the original request.
         val successfulCount = completed.keys.count { it !in failed }
         val totalFailures = failed.size + skipped.size
 
-        val finalSummary = when {
+        steering?.check(revision)
+        suspend fun summarize() = when {
             runtimeTasks.size == 1 && totalFailures == 0 -> completed[runtimeTasks.single().id].orEmpty()
             successfulCount == 0 -> deterministicFailureSummary(failed, skipped)
             else -> synthesize(
@@ -395,6 +464,9 @@ Synthesize specialist evidence into the answer to the original request.
                 onStart = { send(SwarmEvent.SynthesisStarted) }
             ) ?: deterministicEvidenceSummary(completed, failed, skipped)
         }
+
+        val finalSummary = if (steering == null) summarize() else steering.reasoning(revision) { summarize() }
+        if (steering != null && !steering.finish(revision)) throw RunRedirected()
 
         val rootFailures = failed.keys
         val onlyInfrastructureFailure = rootFailures.isNotEmpty() &&
@@ -757,6 +829,7 @@ Synthesize specialist evidence into the answer to the original request.
 
 sealed class SwarmEvent {
     data object PlanningStarted : SwarmEvent()
+    data class SteeringApplied(val revision: Long) : SwarmEvent()
     data class PlanCompleted(val tasks: List<SwarmTask>) : SwarmEvent()
     data class TaskStarted(val task: SwarmTask) : SwarmEvent()
     data class TaskCompleted(val task: SwarmTask, val result: String) : SwarmEvent()
