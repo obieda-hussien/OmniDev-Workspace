@@ -19,6 +19,7 @@ env:
   ANDROID_API_LEVEL: "36"
   ANDROID_BUILD_TOOLS: "35.0.0"
   ANDROID_NDK_VERSION: "27.0.12077973"
+  ANDROID_CMAKE_VERSION: "3.22.1"
   CI_GRADLE_JVMARGS: "-Xmx5g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8 -XX:+HeapDumpOnOutOfMemoryError"
 
 jobs:
@@ -51,10 +52,16 @@ jobs:
       - name: Self-test voice native APK verification
         run: python3 .github/scripts/test-verify-voice-native-apk.py
 
+      - name: Self-test Android CMake installation recovery
+        run: python3 .github/scripts/test-install-android-cmake.py
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
-          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
+
+      - name: Install and verify Android CMake with retry/backoff
+        run: bash .github/scripts/install-android-cmake.sh
 
       - name: Install and verify Android NDK
         run: bash .github/scripts/install-android-ndk.sh
@@ -128,7 +135,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
-          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
+
+      - name: Install and verify Android CMake with retry/backoff
+        run: bash .github/scripts/install-android-cmake.sh
 
       - name: Install and verify Android NDK
         run: bash .github/scripts/install-android-ndk.sh
@@ -192,7 +202,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
-          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
+
+      - name: Install and verify Android CMake with retry/backoff
+        run: bash .github/scripts/install-android-cmake.sh
 
       - name: Install and verify Android NDK
         run: bash .github/scripts/install-android-ndk.sh
@@ -256,7 +269,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
-          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
+
+      - name: Install and verify Android CMake with retry/backoff
+        run: bash .github/scripts/install-android-cmake.sh
 
       - name: Install and verify Android NDK
         run: bash .github/scripts/install-android-ndk.sh
@@ -324,7 +340,10 @@ jobs:
       - name: Set up Android SDK and emulator
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
-          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1 emulator system-images;android-30;google_apis;x86_64'
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} emulator system-images;android-30;google_apis;x86_64'
+      - name: Install and verify Android CMake with retry/backoff
+        run: bash .github/scripts/install-android-cmake.sh
+
       - name: Install and verify Android NDK
         run: bash .github/scripts/install-android-ndk.sh
       - name: Enable emulator acceleration
@@ -379,7 +398,10 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
         with:
-          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }} cmake;3.22.1'
+          packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
+
+      - name: Install and verify Android CMake with retry/backoff
+        run: bash .github/scripts/install-android-cmake.sh
 
       - name: Install and verify Android NDK
         run: bash .github/scripts/install-android-ndk.sh
