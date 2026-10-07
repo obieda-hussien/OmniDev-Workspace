@@ -9,10 +9,11 @@ import kotlinx.serialization.json.*
 internal object MediaToolResult {
     suspend fun message(toolName: String, output: String, isError: Boolean,
         existingUris: () -> Set<String>, resolve: suspend (String, String?) -> AttachmentMeta?): ChatMessage? {
-        if (toolName != "media_generation" || isError) return null
+        if (toolName != "media_generation") return null
         val start = output.indexOf('{')
         if (start < 0) return null
         val payload = runCatching { Json.parseToJsonElement(output.substring(start)).jsonObject }.getOrNull() ?: return null
+        if (isError && (payload["status"] as? JsonPrimitive)?.contentOrNull != "failed") return null
         val references = payload["attachments"] as? JsonArray ?: return null
         val media = references.take(10).mapNotNull { item ->
             val reference = item as? JsonObject ?: return@mapNotNull null

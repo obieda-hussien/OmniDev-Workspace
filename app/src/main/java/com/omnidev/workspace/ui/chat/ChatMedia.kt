@@ -10,6 +10,9 @@ import android.widget.Toast
 import android.widget.VideoView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
+import com.omnidev.workspace.ui.motion.LocalOmniMotion
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +20,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -31,11 +35,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -64,30 +71,64 @@ internal fun ChatMessageMedia(message: ChatMessage) {
     }
 }
 
+private data class MediaCardSnapshot(val job: MediaJob? = null, val actual: AttachmentMeta? = null,
+    val loaded: Boolean = false, val worker: String? = null, val monitorError: Boolean = false)
+
 @Composable
-private fun ChatMediaCard(original: AttachmentMeta) {
+internal fun ChatMediaCard(original: AttachmentMeta) {
     val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val scope = rememberCoroutineScope()
     var busy by remember(original.uri) { mutableStateOf(false) }
     var viewer by remember(original.uri) { mutableStateOf(false) }
+    var menu by remember(original.uri) { mutableStateOf(false) }
+    var actionError by remember(original.uri) { mutableStateOf<String?>(null) }
     val isJob = original.uri.startsWith("omni-media-job:")
-    val job by produceState<MediaJob?>(null, original.uri) {
-        if (isJob) while (isActive) {
-            value = withContext(Dispatchers.IO) { MediaJobStore(context).get(original.uri.removePrefix("omni-media-job:")) }
-            delay(1500)
+    val snapshot by produceState(MediaCardSnapshot(actual = if (isJob) null else original, loaded = !isJob), original.uri, lifecycle) {
+        if (isJob) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (isActive) {
+                value = try { withContext(Dispatchers.IO) {
+                    val id = original.uri.removePrefix("omni-media-job:")
+                    val store = MediaJobStore(context)
+                    var job = runCatching { store.get(id) }.getOrNull()
+                    var worker: String? = null; var unavailable = false; var workLoaded = false
+                    if (job?.state in setOf("queued", "processing", "waiting")) {
+                        try {
+                            val infos = androidx.work.WorkManager.getInstance(context).getWorkInfosForUniqueWork("omni-media-$id").get(2, java.util.concurrent.TimeUnit.SECONDS)
+                            val active = infos.firstOrNull { !it.state.isFinished }
+                            worker = (active ?: infos.maxByOrNull { info -> info.tags.firstOrNull { it.startsWith("omni-media-created:") }?.substringAfter(':')?.toLongOrNull() ?: 0L })?.state?.name
+                            workLoaded = true
+                        } catch (cancelled: CancellationException) { throw cancelled }
+                        catch (_: Exception) { unavailable = true }
+                        val reconciled = MediaCardStatus.reconcile(job!!, worker, workLoaded, System.currentTimeMillis())
+                        if (reconciled != job && store.update(reconciled)) {
+                            job = reconciled
+                            try { MediaCompletionPublisher.failure(context, reconciled) }
+                            catch (cancelled: CancellationException) { throw cancelled }
+                            catch (_: Exception) { /* The failed card remains visible even if history delivery is unavailable. */ }
+                        }
+                    }
+                    val actual = if (job?.state == "completed") ChatMediaStore.metadata(context, job.path.orEmpty()) else null
+                    MediaCardSnapshot(job, actual, true, worker, unavailable)
+                } } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) {
+                    MediaCardSnapshot(job = value.job, actual = value.actual, loaded = true, monitorError = true)
+                }
+                delay(if (value.job?.state in setOf("completed", "failed", "cancelled")) 4000 else 1200)
+            }
         }
     }
-    val actual by produceState<AttachmentMeta?>(if (isJob) null else original, original, job?.path, job?.state) {
-        value = if (isJob && job?.state == "completed") ChatMediaStore.metadata(context, job!!.path.orEmpty()) else if (!isJob) original else null
-    }
-    val meta = actual ?: original
+    val job = snapshot.job
+    val meta = snapshot.actual ?: original
+    val status = if (isJob) MediaCardStatus.from(job, snapshot.loaded, snapshot.actual != null, snapshot.worker, snapshot.monitorError)
+        else MediaCardStatus(MediaStage.READY, "Ready", "")
     fun action(block: suspend () -> Unit) {
         if (busy) return
         scope.launch {
-            busy = true
+            busy = true; actionError = null
             try { block() }
             catch (cancelled: CancellationException) { throw cancelled }
-            catch (error: Exception) { Toast.makeText(context, error.message ?: "Could not open this file.", Toast.LENGTH_LONG).show() }
+            catch (_: Exception) { actionError = "This action could not finish. Check file access, available storage or your connection and try again." }
             finally { busy = false }
         }
     }
@@ -97,66 +138,110 @@ private fun ChatMediaCard(original: AttachmentMeta) {
             catch (error: Exception) { runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri) }; throw error }
         }
     }
-    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(when(meta.mediaType) {
-                    AttachmentMediaType.IMAGE -> Icons.Default.Image
-                    AttachmentMediaType.VIDEO -> Icons.Default.Movie
-                    AttachmentMediaType.AUDIO -> Icons.Default.AudioFile
-                    else -> Icons.Default.InsertDriveFile
-                }, null, tint = MaterialTheme.colorScheme.primary)
-                Column(Modifier.weight(1f)) {
-                    Text(meta.fileName, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
-                    Text(if (meta.sizeBytes > 0) "${meta.mimeType} · ${meta.sizeBytes / 1024} KB" else meta.mimeType,
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            if (isJob && actual == null) {
-                if (job?.state in setOf(null, "queued", "processing")) LinearProgressIndicator(Modifier.fillMaxWidth())
-                Text(job?.error ?: "Generating ${when(original.mediaType) { AttachmentMediaType.VIDEO -> "video"; AttachmentMediaType.AUDIO -> "music"; else -> "image" }}… This card updates when ready.", style = MaterialTheme.typography.bodySmall)
-                Row {
-                    if (job?.operation != null && job?.state == "failed") TextButton(onClick = {
-                        MediaGenerationWorker.enqueue(context, job!!.id)
-                    }) { Text("Check status") }
-                    if (job?.state in setOf("queued", "processing")) TextButton(onClick = { MediaGenerationWorker.cancel(context, job!!.id) }) { Text("Cancel") }
-                }
-            } else {
-                when (meta.mediaType) {
-                    AttachmentMediaType.IMAGE -> MediaImage(meta, Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 280.dp)
-                        .clip(RoundedCornerShape(12.dp)).clickable { viewer = true })
-                    AttachmentMediaType.VIDEO -> FilledTonalButton(onClick = { viewer = true }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(8.dp)); Text("Play video")
+    val motion = LocalOmniMotion.current
+    val shape = RoundedCornerShape(24.dp)
+    val ratio = job?.aspect?.split(':')?.let { parts -> if (parts.size == 2) parts[0].toFloatOrNull()?.let { a -> parts[1].toFloatOrNull()?.takeIf { it > 0 }?.let { a / it } } else null }
+        ?.coerceIn(.8f, 1.8f) ?: if (meta.mediaType == AttachmentMediaType.VIDEO) 16f / 9f else 1.15f
+    Surface(shape = shape, color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f)),
+        modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().testTag("chat-media-card")) {
+        Column(if (motion.reduced || motion.compact) Modifier else Modifier.animateContentSize(tween(280))) {
+            if (status.stage != MediaStage.READY) {
+                MediaGenerationPreview(status, original.mediaType, Modifier.fillMaxWidth().heightIn(max = 340.dp).aspectRatio(ratio))
+            } else when (meta.mediaType) {
+                AttachmentMediaType.IMAGE -> Box(Modifier.fillMaxWidth().heightIn(max = 340.dp).aspectRatio(ratio).background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
+                    MediaImage(meta, Modifier.fillMaxSize().clickable { viewer = true })
+                    IconButton(onClick = { viewer = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp).clip(CircleShape).background(Color.Black.copy(alpha = .35f))) {
+                        Icon(Icons.Default.Fullscreen, "Expand image", tint = Color.White)
                     }
-                    AttachmentMediaType.AUDIO -> ChatAudioPlayer(meta)
-                    else -> Unit
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(enabled = !busy, onClick = {
-                        if (meta.mediaType in setOf(AttachmentMediaType.IMAGE, AttachmentMediaType.VIDEO)) viewer = true
-                        else action {
-                            val uri = ChatMediaStore.shareUri(context, meta)
-                            context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, meta.mimeType)
-                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).apply { clipData = ClipData.newRawUri("File", uri) })
+                AttachmentMediaType.VIDEO -> MediaVideoPreview(meta, Modifier.fillMaxWidth().heightIn(max = 320.dp).aspectRatio(ratio)) { viewer = true }
+                AttachmentMediaType.AUDIO -> Column(Modifier.padding(16.dp)) { ChatAudioPlayer(meta) }
+                else -> Unit
+            }
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(when(meta.mediaType) { AttachmentMediaType.IMAGE -> Icons.Default.Image; AttachmentMediaType.VIDEO -> Icons.Default.Movie; AttachmentMediaType.AUDIO -> Icons.Default.MusicNote; else -> Icons.Default.InsertDriveFile }, null, tint = MaterialTheme.colorScheme.primary)
+                    Column(Modifier.weight(1f)) {
+                        Text(meta.fileName, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
+                        Text(if (isJob) job?.model ?: "Saved creation" else meta.mimeType, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Surface(shape = CircleShape, color = if (status.stage == MediaStage.FAILED) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer) {
+                        Text(if (status.stage == MediaStage.READY) "READY" else if (status.stage == MediaStage.FAILED) "FAILED" else if (status.stage == MediaStage.CANCELLED) "STOPPED" else "IN PROGRESS",
+                            Modifier.padding(horizontal = 9.dp, vertical = 6.dp), style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                if (status.stage != MediaStage.READY) {
+                    Text(status.detail, style = MaterialTheme.typography.bodySmall, color = if (status.stage == MediaStage.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }.testTag("media-status-detail"))
+                    status.code?.let { Text("$it" + if ((job?.failures ?: 0) > 0) " · status attempts ${job?.failures}" else "", style = MaterialTheme.typography.labelSmall) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (job != null && MediaGenerationFailure.canResume(job)) FilledTonalButton(onClick = { action { MediaGenerationWorker.enqueue(context, job.id) } }, enabled = !busy) { Text("Check existing job") }
+                        if (job?.state in setOf("queued", "processing", "waiting")) OutlinedButton(onClick = { action { MediaGenerationWorker.cancel(context, job!!.id) } }, enabled = !busy) { Text("Cancel") }
+                    }
+                } else {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilledTonalButton(enabled = !busy, onClick = {
+                            if (Build.VERSION.SDK_INT < 29) saveAs.launch(ChatMediaStore.safeName(meta.fileName))
+                            else action { ChatMediaStore.save(context, meta); Toast.makeText(context, "Saved to device", Toast.LENGTH_SHORT).show() }
+                        }) { Icon(Icons.Default.Download, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Save") }
+                        Text(if (meta.sizeBytes > 0) mediaFileSize(meta.sizeBytes) else meta.mimeType.substringAfter('/'), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Box {
+                            IconButton(enabled = !busy, onClick = { menu = true }) { Icon(Icons.Default.MoreHoriz, "Media actions") }
+                            DropdownMenu(menu, { menu = false }) {
+                                DropdownMenuItem(text = { Text("Share") }, leadingIcon = { Icon(Icons.Default.Share, null) }, onClick = {
+                                    menu = false; action {
+                                        val uri = ChatMediaStore.shareUri(context, meta)
+                                        val send = Intent(Intent.ACTION_SEND).setType(meta.mimeType).putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).apply { clipData = ClipData.newRawUri("File", uri) }
+                                        context.startActivity(Intent.createChooser(send, "Share file"))
+                                    }
+                                })
+                                DropdownMenuItem(text = { Text("Open with…") }, leadingIcon = { Icon(Icons.Default.OpenInNew, null) }, onClick = {
+                                    menu = false; action {
+                                        val uri = ChatMediaStore.shareUri(context, meta)
+                                        context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, meta.mimeType).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).apply { clipData = ClipData.newRawUri("File", uri) })
+                                    }
+                                })
+                                DropdownMenuItem(text = { Text("Save as…") }, leadingIcon = { Icon(Icons.Default.FolderOpen, null) }, onClick = { menu = false; saveAs.launch(ChatMediaStore.safeName(meta.fileName)) })
+                            }
                         }
-                    }) { Text("Open") }
-                    TextButton(enabled = !busy, onClick = {
-                        if (Build.VERSION.SDK_INT < 29) saveAs.launch(ChatMediaStore.safeName(meta.fileName))
-                        else action { ChatMediaStore.save(context, meta); Toast.makeText(context, "Saved to ${if (meta.mediaType in setOf(AttachmentMediaType.IMAGE, AttachmentMediaType.VIDEO)) "gallery" else "device"}", Toast.LENGTH_SHORT).show() }
-                    }) { Text(if (Build.VERSION.SDK_INT < 29) "Save as" else if (meta.mediaType in setOf(AttachmentMediaType.IMAGE, AttachmentMediaType.VIDEO)) "Save to gallery" else "Save") }
-                    IconButton(enabled = !busy, onClick = { action {
-                        val uri = ChatMediaStore.shareUri(context, meta)
-                        val send = Intent(Intent.ACTION_SEND).setType(meta.mimeType).putExtra(Intent.EXTRA_STREAM, uri)
-                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).apply { clipData = ClipData.newRawUri("File", uri) }
-                        context.startActivity(Intent.createChooser(send, "Share file"))
-                    } }) { Icon(Icons.Default.Share, "Share ${meta.fileName}") }
+                    }
+                }
+                actionError?.let { error ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(error, Modifier.weight(1f), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        IconButton(onClick = { actionError = null }) { Icon(Icons.Default.Close, "Dismiss media error") }
+                    }
                 }
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             }
         }
     }
-    if (viewer && actual != null) ChatMediaViewer(meta) { viewer = false }
+    if (viewer && snapshot.actual != null) ChatMediaViewer(meta) { viewer = false }
+}
+
+private fun mediaFileSize(bytes: Long): String = if (bytes >= 1024 * 1024) "%.1f MB".format(java.util.Locale.ROOT, bytes / (1024f * 1024f)) else "${(bytes / 1024).coerceAtLeast(1)} KB"
+
+@Composable
+private fun MediaVideoPreview(meta: AttachmentMeta, modifier: Modifier, onOpen: () -> Unit) {
+    val context = LocalContext.current
+    val frame by produceState<android.graphics.Bitmap?>(null, meta.uri) {
+        if (!meta.uri.startsWith("https://")) value = withContext(Dispatchers.IO) {
+            val retriever = android.media.MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, Uri.parse(meta.uri))
+                if (Build.VERSION.SDK_INT >= 27) retriever.getScaledFrameAtTime(0, android.media.MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 720, 405)
+                else null
+            } catch (_: Exception) { null } finally { runCatching { retriever.release() } }
+        }
+    }
+    Box(modifier.background(Color(0xFF19162B)).clickable(onClick = onOpen), contentAlignment = Alignment.Center) {
+        frame?.let { Image(it.asImageBitmap(), meta.fileName, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        Box(Modifier.size(58.dp).clip(CircleShape).background(Color.Black.copy(alpha = .45f)), contentAlignment = Alignment.Center) {
+            Icon(Icons.Default.PlayArrow, "Play video", Modifier.size(34.dp), tint = Color.White)
+        }
+    }
 }
 
 @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
@@ -166,7 +251,11 @@ private fun MediaImage(meta: AttachmentMeta, modifier: Modifier, zoom: Boolean =
     var error by remember(meta.uri) { mutableStateOf<String?>(null) }
     val bitmap by produceState<android.graphics.Bitmap?>(null, meta.uri, zoom) {
         value = null
-        try { value = ChatMediaStore.bitmap(context, meta, if (zoom) 2048 else 1000) }
+        try {
+            error = null
+            value = ChatMediaStore.bitmap(context, meta, if (zoom) 2048 else 1000)
+            if (value == null) error = "This image could not be decoded. Open it with another app or save the file."
+        }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { error = "Preview unavailable. Open or save the file to view it." }
     }
@@ -265,8 +354,8 @@ private fun ChatAudioPlayer(meta: AttachmentMeta) {
             runCatching { position = player?.currentPosition?.toFloat() ?: 0f }; delay(300)
         }
     }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        IconButton(enabled = !loading, onClick = {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilledIconButton(enabled = !loading, onClick = {
             if (prepared) {
                 if (playing) stop() else { ChatPlayback.claim(stop); player?.start(); playing = true }
             } else scope.launch {
@@ -294,8 +383,10 @@ private fun ChatAudioPlayer(meta: AttachmentMeta) {
         Column(Modifier.weight(1f)) {
             Slider(value = position.coerceIn(0f, duration), onValueChange = { position = it; if (prepared) player?.seekTo(it.toInt()) },
                 valueRange = 0f..duration, enabled = prepared)
-            Text(error ?: "${(position / 1000).toInt()}s / ${(duration / 1000).toInt()}s", style = MaterialTheme.typography.labelSmall)
+            Text(error ?: "${mediaTime(position)} / ${if (prepared) mediaTime(duration) else "—:—"}", style = MaterialTheme.typography.labelSmall)
         }
         IconButton(onClick = { close() }) { Icon(Icons.Default.Stop, "Stop and close audio") }
     }
 }
+
+private fun mediaTime(ms: Float): String { val seconds = (ms / 1000).toInt(); return "%d:%02d".format(java.util.Locale.ROOT, seconds / 60, seconds % 60) }

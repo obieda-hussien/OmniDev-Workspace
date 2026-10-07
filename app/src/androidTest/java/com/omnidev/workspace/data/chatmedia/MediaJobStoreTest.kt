@@ -53,6 +53,17 @@ class MediaJobStoreTest {
         assertTrue(restored.delivered); assertTrue(restored.galleryAttempted); assertEquals("Lyrics", restored.lyricsText)
         assertEquals("content://media/42", restored.galleryUri)
     }
+    @Test fun waitingFailureDiagnosticsSurviveRestartAndRemainAnActiveJob() {
+        val context = preferencesContext(); val store = MediaJobStore(context)
+        val job = store.create("video", "gemini", "veo", "prompt", "16:9")
+        store.update(job.copy(state = "waiting", phase = "interrupted", operation = "operations/42",
+            error = "Connection interrupted", errorCode = "NETWORK", failures = 3, failureAnnounced = true))
+        val restored = MediaJobStore(context).get(job.id)!!
+        assertEquals("waiting", restored.state); assertEquals("interrupted", restored.phase)
+        assertEquals("NETWORK", restored.errorCode); assertEquals(3, restored.failures)
+        assertTrue(restored.failureAnnounced); assertTrue(MediaGenerationFailure.canResume(restored.copy(state = "failed")))
+        assertEquals(1, MediaJobStore(context).active().size)
+    }
     @Test fun completionCannotBeAnnouncedBeforeFileIsReady() {
         val queued = MediaJob("id", "music", "gemini", "lyria-3-clip-preview", "song", "", arabic = true)
         assertTrue(runCatching { MediaCompletion.text(queued) }.isFailure)

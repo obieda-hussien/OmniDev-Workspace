@@ -19,7 +19,8 @@ internal class MediaGenerationClient(
         ApiKeyRepository(context).getApiKey(MediaModelCatalog.provider(provider))
     },
     private val execute: suspend (Request) -> Response = MediaHttp::execute,
-    private val download: suspend (String, String?) -> Response = MediaHttp::downloadResponse
+    private val download: suspend (String, String?) -> Response = MediaHttp::downloadResponse,
+    private val onPhase: suspend (String) -> Unit = {}
 ) {
     private val json = "application/json".toMediaType()
     private suspend fun key(provider: String) = readKey(provider)?.takeIf { it.isNotBlank() }
@@ -30,7 +31,7 @@ internal class MediaGenerationClient(
         else builder.header("Authorization", "Bearer ${key(provider)}")
         if (body != null) builder.post(body.toString().toRequestBody(json))
         return execute(builder.build()).use { response ->
-            require(response.isSuccessful) { "Provider returned HTTP ${response.code}. Check model access, quota and media settings." }
+            if (!response.isSuccessful) throw MediaProviderException(response.code)
             val stream = response.body?.byteStream() ?: error("Empty provider response.")
             val data = stream.use { source ->
                 val target = java.io.ByteArrayOutputStream(); val buffer = ByteArray(64 * 1024)
@@ -121,6 +122,7 @@ internal class MediaGenerationClient(
     }
     suspend fun step(job: MediaJob): MediaJob = withContext(Dispatchers.IO) {
         val c = config(job); MediaRequestPolicy.validate(MediaKind.fromAction(job.kind) ?: error("Unknown kind"), c)
+        onPhase(if (job.operation == null) "requesting" else "checking")
         if (job.kind == "image") return@withContext job.copy(state = "completed", path = image(job), prompt = "", error = null)
         if (job.kind == "music") return@withContext music(job)
         if (job.operation == null) {
@@ -141,21 +143,22 @@ internal class MediaGenerationClient(
             when(response.optString("status")) {
                 "pending", "processing" -> return@withContext job.copy(state = "processing", error = null)
                 "done" -> value = response.optJSONObject("video")?.optString("url").orEmpty()
-                else -> return@withContext job.copy(state = "failed", error = "Video provider failed or expired this generation.")
+                else -> return@withContext job.copy(state = "failed", error = "Video provider failed or expired this generation.", errorCode = "PROVIDER_REJECTED")
             }
         } else {
             require(validOperation(job.operation))
             val response = request("https://generativelanguage.googleapis.com/v1beta/${job.operation}", job.provider)
             if (!response.optBoolean("done")) return@withContext job.copy(state = "processing", error = null)
-            if (response.has("error")) return@withContext job.copy(state = "failed", error = "Video provider rejected or failed this generation.")
+            if (response.has("error")) return@withContext job.copy(state = "failed", error = "Video provider rejected or failed this generation.", errorCode = "PROVIDER_REJECTED")
             value = response.optJSONObject("response")?.optJSONObject("generateVideoResponse")?.optJSONArray("generatedSamples")?.optJSONObject(0)?.optJSONObject("video")?.optString("uri").orEmpty()
             val url = MediaHttp.url(value)
             require(url.host == "generativelanguage.googleapis.com" && url.encodedPath.startsWith("/v1beta/files/")) { "Unexpected provider video location." }
         }
+        onPhase("downloading")
         val file = File(ChatMediaStore.directory(context), "omni-${job.id}.mp4"); val temp = File(file.path + ".part")
         try {
             download(value, if (job.provider == "gemini") key("gemini") else null).use { downloaded ->
-                require(downloaded.isSuccessful) { "Video download failed (${downloaded.code})." }
+                if (!downloaded.isSuccessful) throw MediaProviderException(downloaded.code)
                 val body = downloaded.body ?: error("Empty video response."); require(body.contentLength() <= ChatMediaStore.MAX_BYTES)
                 body.byteStream().use { source -> temp.outputStream().use { target ->
                     val buffer = ByteArray(64 * 1024); var total = 0L

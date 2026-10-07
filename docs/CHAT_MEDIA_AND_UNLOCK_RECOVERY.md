@@ -48,6 +48,16 @@ Provider operation IDs persist so video polling resumes without another billable
 
 Creation is not automatically replayed after an ambiguous interruption. HTTP automatic connection retries and credential-bearing redirects are disabled. Only the exact Google file-download host/path receives its key, and external redirects do not receive it. Failed existing video operations can be checked again without generating a second video. Outputs and temporary writes are bounded; partial downloads are removed.
 
+## Generation status and presentation
+
+Every card distinguishes queued, requesting/generating, downloading, waiting, completed, failed and cancelled states. HTTP access/quota errors, invalid responses, unexpected exceptions and worker interruption persist a curated error code/detail before exit. Failed creation results still attach their cards in Chat, Agent and Team, and terminal failures are announced once in their original conversation. Raw provider responses and exception messages are not exposed.
+
+Only existing video operations retry transient status-check failures, with a bounded consecutive failure budget; the card retains the last error while waiting/checking. Authentication/model refusals stop immediately. **Check existing job** is available for recoverable failed operations and never submits a second create request. A missing job/file or ended/missing WorkManager task renders an explicit failure rather than an indefinite generating indicator. Foreground lifecycle monitoring reconciles stale jobs and pauses in the background.
+
+Media output cards appear below the current run console and below the saved console when reopening history. Stored message ordering is unchanged. The floating assistant shares this presentation. Cards use a bounded rounded preview, status chip, inline diagnostics, prominent Save and a secondary actions menu. Images expand into the existing zoom viewer; local videos have a sampled cover and explicit play action; audio has play/pause/seek/stop with formatted duration.
+
+Generating/saving cards display moving soft gradient light, not a fabricated partial provider image or percentage. Failure/cancellation stops ambient animation. Reduced-motion and compact/low-memory policies disable the moving gradient; no Android 12-only blur API or full-size blur bitmap is required. Card resizing uses a short interruptible transition when motion is enabled.
+
 ## Validation limits
 
 Local validation compiles the changed Android/private-unlock/media implementation and Compose media renderer against Android/AndroidX APIs, with fixtures isolating unrelated app services. JVM regressions cover route precedence and cancellation, keyguard verification, voice policy/diagnostics, file-reference extraction, Chat tool-policy execution, and provider HTTP contracts. Provider contract fixtures do not call billable APIs. Instrumented provider tests are included for Android CI/device execution.

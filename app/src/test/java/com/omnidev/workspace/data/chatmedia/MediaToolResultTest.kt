@@ -38,6 +38,12 @@ class MediaToolResultTest {
         assertNull(MediaToolResult.message("media_generation", queued, false, { emptySet() }, resolver))
         assertEquals(1, resolutions)
     }
+    @Test fun `failed creation results still show their persistent error card in agent and team conversations`() = runTest {
+        val failed = queued.replace("queued", "failed")
+        val message = MediaToolResult.message("media_generation", failed, true, { emptySet() }, ::audio)!!
+        assertEquals("omni-media-job:music-1", message.attachments.single().uri)
+        assertFalse(message.content.contains("ready", true))
+    }
     @Test fun `file attachments preserve playable metadata and deduplicate within a worker result`() = runTest {
         val output = """{"status":"attached","attachments":[{"uri":"file:///song.mp3"},{"uri":"file:///song.mp3"}]}"""
         val result = MediaToolResult.message("media_generation", output, false, { emptySet() }, ::audio)!!
