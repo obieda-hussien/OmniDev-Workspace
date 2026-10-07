@@ -58,7 +58,7 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
             viewModel.setTargetContextFromUri(context, uri)
         }
     }
-    val attachments = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+    val attachments = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) {
             val names = uris.map { uri ->
                 context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
@@ -89,7 +89,7 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
                 onOpenConversations = { scope.launch { drawer.open() } }, onNewConversation = viewModel::newSession,
                 onChooseScope = { directoryPicker.launch(null) },
                 onBrowser = onOpenBrowser,
-                onAttach = { attachments.launch("*/*") }, onRemoveAttachment = viewModel::removeAttachment,
+                onAttach = { attachments.launch(arrayOf("*/*")) }, onRemoveAttachment = viewModel::removeAttachment,
                 onReply = viewModel::setReplyingTo, onDismissReply = viewModel::clearReplyingTo,
                 onUpdateChatSettings = viewModel::updateChatSettings, onClearError = viewModel::clearError,
                 onModeDecision = { id, approval ->

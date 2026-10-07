@@ -13,9 +13,9 @@ import kotlinx.coroutines.withContext
 object DeviceAdminTool {
     fun definition() = ToolDefinition("device_admin",
         "Device administration with separate authenticated user consent. Never ask for a PIN in chat or pass credentials as arguments. " +
-            "wake_screen wakes only; request_unlock waits for verified Android authentication and prefers an authorized saved local PIN, otherwise private offline voice when configured; " +
+            "wake_screen wakes only; request_unlock waits for verified Android authentication and prefers an authorized saved local PIN, otherwise private offline voice when configured or a local private code dialog; " +
             "Device Admin and Shizuku cannot replace a fingerprint/device code. unlock_with_saved_pin uses one locally authorized PIN attempt " +
-            "on a supported standard SystemUI keypad (Admin only). Open consent_settings for user setup. Android protected screens remain protected.",
+            "on a recognized SystemUI keypad (Admin only). Open consent_settings for user setup. Android protected screens remain protected.",
         listOf(ToolParameter("action", "string", "status, consent_settings, wake_screen, request_unlock, unlock_with_saved_pin, lock_screen, audit_log, security_report, set_password_min_length, set_lock_timeout, request_activation", true),
             ToolParameter("value", "string", "Non-secret numeric policy value only", required = false)))
 

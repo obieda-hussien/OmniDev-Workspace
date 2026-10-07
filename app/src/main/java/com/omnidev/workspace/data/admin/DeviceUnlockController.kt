@@ -18,7 +18,11 @@ internal object DeviceUnlockController {
             voiceAvailable = LocalVoiceSessionService.unlockUnavailableReason(context) == null,
             savedPin = { LocalPinUnlock.request(context) },
             voice = { LocalVoiceSessionService.requestUnlockResult(context) },
-            native = { DeviceUnlockActivity.request(context, true) }
+            native = { DeviceUnlockActivity.request(context, true) },
+            privateEntryAvailable = consent.enabled(DeviceConsentPolicy.Scope.VOICE_CREDENTIAL) &&
+                consent.enabled(DeviceConsentPolicy.Scope.LOCK_OVERLAY) &&
+                com.omnidev.workspace.data.accessibility.OmniAccessibilityService.instance != null,
+            privateEntry = { com.omnidev.workspace.ui.assistant.PrivateUnlockActivity.request(context) }
         )
     }
 }

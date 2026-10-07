@@ -27,20 +27,8 @@ object LocalSpokenUnlock {
     private fun allowed(context: Context) = DeviceConsentStore(context).let {
         it.locked() && it.enabled(DeviceConsentPolicy.Scope.UNLOCK) && it.enabled(DeviceConsentPolicy.Scope.VOICE_CREDENTIAL)
     }
-    private fun root(service: OmniAccessibilityService): AccessibilityNodeInfo? {
-        val node = service.rootInActiveWindow
-        if (node?.packageName?.toString() == SYSTEM) return node
-        node?.recycle()
-        return service.windows.sortedByDescending { it.layer }.firstNotNullOfOrNull { w ->
-            w.root?.let { if (it.packageName?.toString() == SYSTEM) it else { it.recycle(); null } }
-        }
-    }
-    private fun find(root: AccessibilityNodeInfo, id: String): AccessibilityNodeInfo? {
-        val nodes = root.findAccessibilityNodeInfosByViewId("$SYSTEM:id/$id")
-        val node = nodes.singleOrNull()?.takeIf { it.isVisibleToUser && it.isEnabled }
-        nodes.filter { it !== node }.forEach { it.recycle() }
-        return node
-    }
+    private fun root(service: OmniAccessibilityService) = SystemUiCredentialControls.root(service)
+    private fun find(root: AccessibilityNodeInfo, id: String) = SystemUiCredentialControls.find(root, id)
     fun visibleKind(): SpokenCredential.Kind? {
         val service = OmniAccessibilityService.instance ?: return null
         val root = root(service) ?: return null
@@ -60,7 +48,7 @@ object LocalSpokenUnlock {
                 when (credential.kind) {
                     SpokenCredential.Kind.PIN -> {
                         val input = find(root, "pinEntry") ?: return@withContext false
-                        val empty = input.isPassword && input.text.isNullOrEmpty()
+                        val empty = SystemUiCredentialControls.emptyPin(input)
                         input.recycle()
                         if (!empty || credential.chars.size !in 4..16 || credential.chars.any { it !in '0'..'9' }) return@withContext false
                         if (!(0..9).all { find(root, "key$it")?.let { key -> val yes = key.isClickable; key.recycle(); yes } == true }) return@withContext false
@@ -70,12 +58,16 @@ object LocalSpokenUnlock {
                             val key = find(current, "key$digit")
                             val success = try { key?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true } finally { key?.recycle(); current.recycle() }
                             if (!success) return@withContext false
+                            delay(120)
                         }
                         if (!DeviceConsentStore(context).locked()) true
                         else if (allowed(context)) {
-                            val current = root(service) ?: return@withContext false
-                            val enter = find(current, "key_enter")
-                            try { enter?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true } finally { enter?.recycle(); current.recycle() }
+                            val current = root(service)
+                            if (current == null) true // Await Android state after an auto-submit animation.
+                            else {
+                                val enter = find(current, "key_enter")
+                                try { enter == null || enter.performAction(AccessibilityNodeInfo.ACTION_CLICK) } finally { enter?.recycle(); current.recycle() }
+                            }
                         } else false
                     }
                     SpokenCredential.Kind.PASSWORD -> {
@@ -123,7 +115,7 @@ object LocalSpokenUnlock {
                 }
             } finally { root.recycle() }
             if (!submitted) return@withContext false
-            repeat(15) {
+            repeat(25) {
                 if (!DeviceConsentStore(context).locked()) return@withContext true
                 delay(200)
             }

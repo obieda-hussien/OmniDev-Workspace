@@ -136,4 +136,42 @@ class ChatToolLoopTest {
     }
 
 
+    @Test fun `image generation executes in chat and reports queued job without repeating creation`() = runTest {
+        var calls = 0
+        var rounds = 0
+        val tools = object : ToolManager {
+            override fun getToolDefinitions() = listOf(ToolDefinition("media_generation", "Generate media", listOf(ToolParameter("action", "string", "Action"))))
+            override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
+                calls++
+                return ToolExecutionResult("{\"job_id\":\"local-1\",\"status\":\"queued\"}")
+            }
+        }
+        val mediaRequest = request.copy(messages = listOf(ChatMessage(MessageRole.USER, "Generate an image of a purple sky")))
+        val result = ChatToolLoop(tools).run(mediaRequest, emptySet(), "user", complete = {
+            assertTrue(it.tools.orEmpty().any { tool -> tool.name == "media_generation" })
+            if (rounds++ == 0) CompletionResponse("", listOf(ToolCall("media-1", "media_generation", mapOf("action" to "image"))))
+            else CompletionResponse("Your image is generating; the card will update when ready.")
+        }, event = {})
+        assertEquals(1, calls)
+        assertNull(result.request)
+        assertTrue(result.content.contains("generating"))
+    }
+    @Test fun `disabled media capability is not executed from chat`() = runTest {
+        var invoked = false
+        val tools = object : ToolManager {
+            override fun getToolDefinitions() = listOf(ToolDefinition("media_generation", "Generate media"))
+            override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
+                invoked = true; return ToolExecutionResult("Unexpected")
+            }
+        }
+        var round = 0
+        val mediaRequest = request.copy(messages = listOf(ChatMessage(MessageRole.USER, "Draw a picture of a tree")))
+        ChatToolLoop(tools).run(mediaRequest, setOf("media_generation"), "user", complete = {
+            assertFalse(it.tools.orEmpty().any { tool -> tool.name == "media_generation" })
+            if (round++ == 0) CompletionResponse("", listOf(ToolCall("media-1", "media_generation", emptyMap())))
+            else CompletionResponse("Media tool is disabled.")
+        }, event = {})
+        assertFalse(invoked)
+    }
+
 }

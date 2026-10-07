@@ -159,6 +159,7 @@ internal fun MessageBubble(message: ChatMessage, consoleEntries: List<AgentConso
                 Column(Modifier.padding(horizontal = if (user) 16.dp else 0.dp, vertical = if (user) 12.dp else 4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     replyToMessage?.let { ReplyQuote(it) }
+                    ChatMessageMedia(message)
                     SelectionContainer {
                         if (user) Text(if (text.length > 500 && !expanded) text.take(500) + "…" else text,
                             style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content))

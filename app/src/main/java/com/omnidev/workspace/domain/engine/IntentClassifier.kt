@@ -450,6 +450,8 @@ object IntentClassifier {
             containsAny(n, "analytics", "metrics", "profiler", "anr", "memory_snapshot", "network_log", "db_schema")
         ) return ToolDomain.ANALYTICS
 
+        if (n == "media_generation") return ToolDomain.GENERAL
+
         if (n in WEB_TOOLS ||
             n.startsWith("web_") || n.startsWith("browser_") || n.startsWith("fetch_") ||
             n.contains("scraper") || n.contains("research") || n.contains("github_manager") ||

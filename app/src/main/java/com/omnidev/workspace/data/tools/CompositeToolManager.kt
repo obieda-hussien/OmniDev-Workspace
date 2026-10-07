@@ -191,6 +191,7 @@ class CompositeToolManager(
             addAll(godEyeProfilerTool.getToolDefs())
         }
         if (context != null) {
+            add(MediaGenerationTool.definition())
             addAll(SystemContactsTool.getToolDefinitions())
             addAll(UIAutomationTool.getToolDefinitions())
             addAll(SemanticUITool.getToolDefinitions())
@@ -1097,6 +1098,9 @@ class CompositeToolManager(
             }
 
             // ── Device admin tool ──
+            "media_generation" -> context?.let { MediaGenerationTool.execute(it, arguments) }
+                ?: ToolExecutionResult("Media generation requires Android context.", true)
+
             "device_admin" -> context?.let { DeviceAdminTool.execute(it, arguments) }
                 ?: ToolExecutionResult("Device admin requires Android context.", isError = true)
 

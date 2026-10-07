@@ -9,6 +9,7 @@ import com.omnidev.workspace.data.model.AIModel
 import com.omnidev.workspace.data.model.AttachmentMediaType
 import com.omnidev.workspace.data.model.AttachmentMeta
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.InputStream
 
@@ -259,9 +260,21 @@ class AttachmentProcessor(
      */
     suspend fun readImageAsBase64(uri: Uri): String? = withContext(Dispatchers.IO) {
         try {
-            val bytes = contentResolver.openInputStream(uri)?.use(InputStream::readBytes)
-                ?: return@withContext null
+            val bytes = contentResolver.openInputStream(uri)?.use { input ->
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(16 * 1024)
+                while (true) {
+                    kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    if (output.size().toLong() + read > MAX_SINGLE_FILE_SIZE_BYTES) return@withContext null
+                    output.write(buffer, 0, read)
+                }
+                output.toByteArray()
+            } ?: return@withContext null
             Base64.encodeToString(bytes, Base64.NO_WRAP)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
         } catch (e: Exception) {
             null
         }
@@ -308,6 +321,7 @@ class AttachmentProcessor(
     private fun classifyMediaType(mimeType: String): AttachmentMediaType = when {
         mimeType.startsWith(MIME_IMAGE_PREFIX) -> AttachmentMediaType.IMAGE
         mimeType.startsWith(MIME_VIDEO_PREFIX) -> AttachmentMediaType.VIDEO
+        mimeType.startsWith("audio/") -> AttachmentMediaType.AUDIO
         mimeType.startsWith(MIME_TEXT_PREFIX) -> AttachmentMediaType.TEXT
         mimeType == MIME_PDF -> AttachmentMediaType.PDF
         else -> AttachmentMediaType.UNKNOWN
