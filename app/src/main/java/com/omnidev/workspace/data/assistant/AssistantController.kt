@@ -175,7 +175,13 @@ class AssistantController(private val context: Context, val chat: ChatViewModel)
     fun send(prompt: String = mutable.value.input) {
         if (com.omnidev.workspace.data.admin.DeviceConsentStore(context).locked()) { clearScreen(); return }
         val current = mutable.value
-        if (current.saving || current.minimizing || chat.uiState.value.isProcessing || prompt.isBlank()) return
+        if (current.saving || current.minimizing || prompt.isBlank()) return
+        if (chat.uiState.value.isProcessing) {
+            if (current.attachment != null || current.files.isNotEmpty()) {
+                message("Live follow-ups support text. Remove attachments or send them after this run.")
+            } else if (chat.submitSteering(prompt)) mutable.update { it.copy(input = "", message = null) }
+            return
+        }
         val epoch = generation
         mutable.update { it.copy(saving = true, message = null) }
         scope.launch {

@@ -112,10 +112,13 @@ Do not use tools. Do not rewrite merely for style.
         disabledToolNames: Set<String> = emptySet(),
         toolAccessMode: String = "AUTO",
         additionalToolDomains: Set<IntentClassifier.ToolDomain> = emptySet(),
-        preferredToolNames: Set<String> = emptySet()
+        preferredToolNames: Set<String> = emptySet(),
+        steering: RunSteering? = null,
+        steeringRevision: Long? = null
     ): Flow<AgentEvent> = channelFlow {
         val brain = smartLearningBridge?.forkForRun()
         val startedAt = System.currentTimeMillis()
+        var revision = steeringRevision ?: 0L
         var activePhase: AgentExecutionPhase? = null
 
         suspend fun phase(next: AgentExecutionPhase, detail: String? = null) {
@@ -148,7 +151,7 @@ Do not use tools. Do not rewrite merely for style.
 
         val learnedTool = (toolManager as? CompositeToolManager)?.learnedRoutineTool
         // This path precedes provider selection, API key reads, memory retrieval and prompt compilation.
-        val localMatch = if (workerPersona == null && toolCallEligibility == null && userAttachments.isEmpty() &&
+        val localMatch = if (steering == null && workerPersona == null && toolCallEligibility == null && userAttachments.isEmpty() &&
             toolAccessMode != "DISABLED" && "learned_routine" !in disabledToolNames)
             learnedTool?.let { com.omnidev.workspace.data.routines.RoutineMatcher.match(userMessage, it.hub.store.list()) } else null
         if (localMatch != null) {
@@ -184,11 +187,11 @@ Do not use tools. Do not rewrite merely for style.
             .toList()
             .asReversed()
             .joinToString("\n") { it.content.take(800) }
-        val routingContext = buildString {
+        var routingContext = buildString {
             if (recentUserIntent.isNotBlank()) append(recentUserIntent).appendLine()
             append(routingObjective)
         }.takeLast(2_400)
-        val taskSignals = IntentClassifier.analyze(routingObjective)
+        var taskSignals = IntentClassifier.analyze(routingObjective)
         val localTools = toolManager.getToolDefinitions()
             .asSequence()
             .filter { it.name !in disabledToolNames }
@@ -218,7 +221,7 @@ Do not use tools. Do not rewrite merely for style.
             permittedDefinitions, routingContext,
             preferredToolNames + "learned_routine", toolQuality, additionalToolDomains
         )
-        val automaticRouter = AutomaticToolRouter(runCatalog)
+        var automaticRouter = AutomaticToolRouter(runCatalog)
         var toolDefs = if (permittedDefinitions.isEmpty()) emptyList() else runCatalog.definitions()
         brain?.registerTools(toolDefs)
 
@@ -257,16 +260,41 @@ Do not use tools. Do not rewrite merely for style.
         var totalTokensUsed = 0
         var invalidBatches = 0
         var unresolvedToolFailure: String? = null
-        val githubFailures = GitHubFailureLedger()
-        val repetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
-        val stagnationDetector = AgentStagnationDetector(
+        var githubFailures = GitHubFailureLedger()
+        var repetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
+        var stagnationDetector = AgentStagnationDetector(
             windowSize = 8,
             minIterationsBeforeAbort = 3,
             abortThreshold = 0.76f
         )
         var lastToolObservation: String? = null
 
+        suspend fun applySteering() {
+            val control = steering ?: return
+            if (!control.changed(revision)) return
+            // Team workers stop at a safe boundary; the coordinator replans all remaining tasks.
+            if (steeringRevision != null) throw RunRedirected()
+            val pending = control.after(revision)
+            pending.forEach { messages += ChatMessage(MessageRole.USER, it.text) }
+            revision = pending.last().revision
+            val objective = control.objective(userMessage, revision)
+            routingContext = objective.takeLast(8_000)
+            taskSignals = IntentClassifier.analyze(objective)
+            unresolvedToolFailure = null
+            invalidBatches = 0
+            automaticRouter = AutomaticToolRouter(runCatalog)
+            githubFailures = GitHubFailureLedger()
+            repetitionGuard = ToolRepetitionGuard(config.maxRepeatedToolCalls)
+            stagnationDetector = AgentStagnationDetector(windowSize = 8, minIterationsBeforeAbort = 3, abortThreshold = 0.76f)
+            messages += ChatMessage(MessageRole.USER,
+                "Runtime continuation: apply the latest user corrections to the current task. Keep relevant completed work. " +
+                "Verify existing state before repeating actions. Discard superseded plans and partial drafts.")
+            phase(AgentExecutionPhase.ANALYZE, "Applying user follow-up #$revision")
+            send(AgentEvent.SteeringApplied(revision))
+        }
+
         while (iteration < config.maxIterations) {
+            applySteering()
             iteration++
             brain?.onIterationStart()
 
@@ -368,21 +396,45 @@ Do not use tools. Do not rewrite merely for style.
                     (it - estimatedRequestInput).coerceAtLeast(MIN_COMPLETION_OUTPUT_RESERVE)
                 } ?: desiredOutputBudget
             )
+            val observedOutputChars = java.util.concurrent.atomic.AtomicInteger(0)
+            val requestBegan = java.util.concurrent.atomic.AtomicBoolean(false)
             val request = requestPrototype.copy(
                 maxTokens = outputBudget,
-                onReasoning = { send(AgentEvent.ThinkingBlock(it)) }
+                onReasoning = {
+                    observedOutputChars.addAndGet(it.length)
+                    send(AgentEvent.ThinkingBlock(it))
+                }
             )
 
-            val nativeResponse = callWithRetry(
-                request = request,
-                iteration = iteration,
-                onStreamChunk = { send(AgentEvent.StreamChunk(it)) },
-                onFatalError = { error ->
-                    val outcome = if (isInfrastructureError(error)) EpisodeOutcome.BLOCKED else EpisodeOutcome.FAILURE
-                    brain?.onTaskEnd(outcome, "API/runtime failure: ${error.take(240)}")
-                    send(AgentEvent.Error(error))
+            val nativeResponse = try {
+                suspend fun complete(): CompletionResponse? {
+                    requestBegan.set(true)
+                    return callWithRetry(
+                        request = request,
+                        iteration = iteration,
+                        onStreamChunk = {
+                            observedOutputChars.addAndGet(it.length)
+                            send(AgentEvent.StreamChunk(it))
+                        },
+                        onFatalError = { error ->
+                            steering?.check(revision)
+                            val outcome = if (isInfrastructureError(error)) EpisodeOutcome.BLOCKED else EpisodeOutcome.FAILURE
+                            brain?.onTaskEnd(outcome, "API/runtime failure: ${error.take(240)}")
+                            send(AgentEvent.Error(error))
+                        }
+                    )
                 }
-            ) ?: return@channelFlow
+                if (steering == null) complete() else steering.reasoning(revision) { complete() }
+            } catch (redirected: RunRedirected) {
+                // Interrupted providers may omit usage; retain observed input/output estimates.
+                if (requestBegan.get()) {
+                    val estimate = estimatedRequestInput + (observedOutputChars.get() + 2) / 3
+                    totalTokensUsed += estimate
+                    emitUsage(estimate, totalTokensUsed)
+                }
+                applySteering()
+                continue
+            } ?: return@channelFlow
 
             val response = if (toolDefs.isEmpty()) nativeResponse else automaticRouter.adapt(
                 TextToolCallAdapter.adapt(nativeResponse), toolDefs.mapTo(mutableSetOf()) { it.name }
@@ -424,20 +476,37 @@ Do not use tools. Do not rewrite merely for style.
                     thinkingContent = response.thinkingContent
                 )
 
-                val finalContent = maybeCritique(
-                    draft = response.content,
-                    originalUserMessage = userMessage,
-                    modelId = modelId,
-                    modelMaxOutputTokens = model.maxOutputTokens,
-                    scopePath = scopePath,
-                    apiKey = resolvedApiKey,
-                    totalTokensUsed = totalTokensUsed,
-                    onUsage = { used ->
-                        totalTokensUsed += used
-                        emitUsage(used, totalTokensUsed)
-                    },
-                    onReflecting = { send(AgentEvent.Reflecting(it)) }
-                )
+                val finalContent = try {
+                    suspend fun critique() = maybeCritique(
+                        draft = response.content,
+                        originalUserMessage = steering?.objective(userMessage, revision) ?: userMessage,
+                        modelId = modelId,
+                        modelMaxOutputTokens = model.maxOutputTokens,
+                        scopePath = scopePath,
+                        apiKey = resolvedApiKey,
+                        totalTokensUsed = totalTokensUsed,
+                        onUsage = { used ->
+                            totalTokensUsed += used
+                            emitUsage(used, totalTokensUsed)
+                        },
+                        onReflecting = { send(AgentEvent.Reflecting(it)) }
+                    )
+                    if (steering == null) critique() else steering.reasoning(revision) { critique() }
+                } catch (redirected: RunRedirected) {
+                    // A draft has no tool side effects; remove it before continuing.
+                    messages.removeAt(messages.lastIndex)
+                    applySteering()
+                    continue
+                }
+
+                if (steering != null) {
+                    if (steeringRevision != null) steering.check(revision)
+                    else if (!steering.finish(revision)) {
+                        messages.removeAt(messages.lastIndex)
+                        applySteering()
+                        continue
+                    }
+                }
 
                 capture?.finish()?.let { draft ->
                     send(AgentEvent.PhaseChanged(AgentExecutionPhase.REPORT,
@@ -502,7 +571,9 @@ Do not use tools. Do not rewrite merely for style.
                 allowParallel = config.enableParallelToolExecution,
                 capture = capture,
                 definitions = toolDefs,
-                runCatalog = runCatalog
+                runCatalog = runCatalog,
+                steering = steering,
+                steeringRevision = revision
             )
 
             response.toolCalls.zip(rawResults).forEach { (call, result) -> githubFailures.observe(call, result) }
@@ -541,6 +612,13 @@ Do not use tools. Do not rewrite merely for style.
                     agentContext = redact(userMessage.take(240)),
                     callId = call.id
                 )
+            }
+
+            if (steering?.changed(revision) == true) {
+                messages += ChatMessage(MessageRole.TOOL,
+                    toolResults.joinToString("\n\n") { "[${it.toolName}] ${it.output}" }, toolResults = toolResults)
+                applySteering()
+                continue
             }
 
             val githubBlocked = modelSafeResults.firstOrNull {
@@ -642,9 +720,14 @@ Do not use tools. Do not rewrite merely for style.
         allowParallel: Boolean,
         capture: com.omnidev.workspace.data.routines.RoutineCapture? = null,
         definitions: List<com.omnidev.workspace.data.tools.ToolDefinition>,
-        runCatalog: RunToolCatalog
+        runCatalog: RunToolCatalog,
+        steering: RunSteering? = null,
+        steeringRevision: Long = 0L
     ): List<ToolExecutionResult> {
         suspend fun executeOne(call: ToolCall): ToolExecutionResult {
+            if (steering?.changed(steeringRevision) == true) return ToolExecutionResult(
+                "Skipped: the user redirected this run before this action started. Re-plan using the latest instruction.",
+                true, classification = "RUN_REDIRECTED", retryable = false)
             if (call.name == RunToolCatalog.DISCOVER.name) return runCatalog.discover(call.arguments.getValue("query"))
             toolCallEligibility?.invoke(call)?.let { reason ->
                 return ToolExecutionResult(reason, true, classification = "TOOL_POLICY_DENIED")
@@ -665,6 +748,9 @@ Do not use tools. Do not rewrite merely for style.
                 baseRetryDelayMs = config.toolExecutionBaseRetryDelayMs,
                 retrySafe = retrySafe
             ) {
+                if (steering?.changed(steeringRevision) == true) return@executeTool ToolExecutionResult(
+                    "Skipped retry after user redirection. No new action executed.", true,
+                    classification = "RUN_REDIRECTED", retryable = false)
                 val result = if (call.name.startsWith("mcp_")) {
                     val output = mcpRegistry?.executeMcpTool(call.name, call.arguments)
                         ?: "Error: MCP Registry not configured"
@@ -972,6 +1058,7 @@ enum class AgentExecutionPhase { ANALYZE, IMPLEMENT, VERIFY, REPORT }
 
 sealed class AgentEvent {
     data object Started : AgentEvent()
+    data class SteeringApplied(val revision: Long) : AgentEvent()
     data class Thinking(val iteration: Int) : AgentEvent()
     data class ThinkingBlock(val content: String) : AgentEvent()
     data class ToolExecution(

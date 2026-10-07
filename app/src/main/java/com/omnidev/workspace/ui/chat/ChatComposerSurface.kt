@@ -41,6 +41,7 @@ internal fun ChatComposerSurface(
     editorEnabled: Boolean = true, toolsEnabled: Boolean = !isProcessing, actionEnabled: Boolean = true,
     toolsDescription: String = "Conversation tools", editorDescription: String = "Message Omni",
     sendDescription: String = "Send", stopDescription: String = "Stop agent",
+    allowSteering: Boolean = false,
     onFocusChanged: (Boolean) -> Unit = {}
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -66,21 +67,27 @@ internal fun ChatComposerSurface(
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 decorationBox = { field ->
                     Box(Modifier.padding(horizontal = 8.dp, vertical = 12.dp)) {
-                        if (inputText.isEmpty()) Text(if (isProcessing) "Write your next message…" else "Message Omni…",
+                        if (inputText.isEmpty()) Text(if (isProcessing && allowSteering) "Correct or add an instruction…" else if (isProcessing) "Write your next message…" else "Message Omni…",
                             style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                         field()
                     }
                 })
+            if (isProcessing && allowSteering) {
+                OmniIconButton(onClick = onStop, enabled = actionEnabled) {
+                    Icon(Icons.Default.Stop, stopDescription, tint = MaterialTheme.colorScheme.error)
+                }
+            }
+            val stopping = isProcessing && !allowSteering
             FilledIconButton(onClick = {
-                if (isProcessing) onStop() else { keyboard?.hide(); focus.clearFocus(); onSend() }
-            }, enabled = actionEnabled && (isProcessing || sendEnabled),
-                modifier = Modifier.size(48.dp).semantics { contentDescription = if (isProcessing) stopDescription else sendDescription },
+                if (stopping) onStop() else { keyboard?.hide(); focus.clearFocus(); onSend() }
+            }, enabled = actionEnabled && (stopping || sendEnabled),
+                modifier = Modifier.size(48.dp).semantics { contentDescription = if (stopping) stopDescription else if (isProcessing) "Send follow-up" else sendDescription },
                 shape = CircleShape,
                 colors = IconButtonDefaults.filledIconButtonColors(
-                    containerColor = if (isProcessing) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primary,
-                    contentColor = if (isProcessing) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimary)) {
-                ChatControlTransition(isProcessing, "send or stop") { processing ->
+                    containerColor = if (stopping) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primary,
+                    contentColor = if (stopping) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimary)) {
+                ChatControlTransition(stopping, "send or stop") { processing ->
                     Icon(if (processing) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send, null, Modifier.size(22.dp))
                 }
             }

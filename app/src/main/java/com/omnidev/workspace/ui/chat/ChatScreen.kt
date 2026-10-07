@@ -203,7 +203,9 @@ internal fun ChatConversation(
                     scopeLabel = if (state.activeMode == OmniMode.CHAT || state.isGodModeEnabled) null
                         else state.targetContextDisplayName ?: state.targetContext?.substringAfterLast('/')?.ifBlank { state.targetContext },
                     onChooseScope = onChooseScope, compact = compactComposer,
-                    showScopeChooser = state.activeMode != OmniMode.CHAT && !state.isGodModeEnabled)
+                    showScopeChooser = state.activeMode != OmniMode.CHAT && !state.isGodModeEnabled,
+                    allowSteering = state.canSteer, submittedRevision = state.submittedSteeringRevision,
+                    appliedRevision = state.appliedSteeringRevision)
             }
         }
     }

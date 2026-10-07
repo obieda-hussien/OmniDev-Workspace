@@ -105,6 +105,23 @@ class ChatSurfaceTest {
         compose.runOnIdle { assertEquals(1, stops); assertEquals(1, sends); assertEquals("المهمة التالية", text.value) }
     }
 
+    @Test fun liveFollowUpSendsWithoutStoppingAndKeepsIndependentStopControl() {
+        val text = mutableStateOf("")
+        var followUps = 0
+        var stops = 0
+        compose.setContent { MaterialTheme {
+            ChatInputBar(text.value, { text.value = it }, { followUps++; text.value = "" }, { stops++ },
+                isProcessing = true, allowSteering = true)
+        } }
+        compose.onNodeWithContentDescription("Send follow-up").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Stop agent").assertIsEnabled()
+        compose.onNodeWithContentDescription("Message Omni").performTextInput("استنى، استخدم Kotlin")
+        compose.onNodeWithContentDescription("Send follow-up").assertIsEnabled().performClick()
+        compose.runOnIdle { assertEquals(1, followUps); assertEquals(0, stops) }
+        compose.onNodeWithContentDescription("Stop agent").performClick()
+        compose.runOnIdle { assertEquals(1, stops); assertEquals(1, followUps) }
+    }
+
     @Test fun bulkDeletionRequiresConfirmationAndPassesOnlySelectedSessionIds() {
         val sessions = listOf(ChatSessionEntity(id = 11, title = "Pinned project", isPinned = true),
             ChatSessionEntity(id = 22, title = "Another project"))
