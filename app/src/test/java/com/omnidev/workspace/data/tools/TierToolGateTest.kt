@@ -32,6 +32,7 @@ class TierToolGateTest {
     }
 
     private val fullDefs = listOf(
+        ToolDefinition("media_generation", "", emptyList()),
         ToolDefinition("web_search", "", emptyList()),
         ToolDefinition("web_search_deep", "", emptyList()),
         ToolDefinition("web_scraper", "", emptyList()),
@@ -74,10 +75,20 @@ class TierToolGateTest {
     )
 
     @Test
-    fun `lite tier exposes approved browsing memory and read-only recall tools`() {
+    fun `lite tier exposes approved media browsing memory and read-only recall tools`() {
         TierPolicyHolder.install(stubPolicy("LITE"))
         val filtered = TierToolGate.filter(fullDefs).map { it.name }.toSet()
         assertEquals(TierToolGate.LITE_TOOLS, filtered)
+    }
+
+    @Test
+    fun `chat media is discoverable and executable in every initialized tier`() {
+        for (tier in listOf("LITE", "NORM", "PRO", "OEM", "ADMIN")) {
+            TierPolicyHolder.install(stubPolicy(tier))
+            assertTrue("$tier must expose media_generation",
+                TierToolGate.filter(fullDefs).any { it.name == "media_generation" })
+            assertNull("$tier must allow media_generation", TierToolGate.denyReason("media_generation"))
+        }
     }
 
     @Test
@@ -86,6 +97,7 @@ class TierToolGateTest {
         assertNull("web_search should pass", TierToolGate.denyReason("web_search"))
         assertNull("read_file should pass",  TierToolGate.denyReason("read_file"))
         assertNull("chat recall should pass", TierToolGate.denyReason("search_messages"))
+        assertNull("chat media generation should pass", TierToolGate.denyReason("media_generation"))
         assertNotNull("shizuku_command must be denied",         TierToolGate.denyReason("shizuku_command"))
         assertNotNull("terminal_command must be denied",        TierToolGate.denyReason("terminal_command"))
         assertNotNull("semantic_ui_action must be denied",      TierToolGate.denyReason("semantic_ui_action"))
@@ -140,5 +152,6 @@ class TierToolGateTest {
         val filtered = TierToolGate.filter(fullDefs).map { it.name }.toSet()
         assertEquals(TierToolGate.LITE_TOOLS, filtered)
         assertNotNull(TierToolGate.denyReason("terminal_command"))
+        assertNotNull("Media must not execute before tier initialization", TierToolGate.denyReason("media_generation"))
     }
 }
