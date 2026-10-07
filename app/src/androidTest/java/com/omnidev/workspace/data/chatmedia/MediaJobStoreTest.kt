@@ -71,6 +71,32 @@ class MediaJobStoreTest {
         assertTrue(MediaCompletion.text(queued.copy(state = "completed", path = "/song.mp3")).contains("عملتلك"))
     }
 
+    @Test fun replacedTurnDeliveryIsDetachedAcrossRestartAndStaleWorkerUpdates() {
+        val context = preferencesContext(); val store = MediaJobStore(context)
+        val old = store.create("image", "gemini", "image", "prompt", "1:1", sessionId = 42, originMessageId = "old")
+        val other = store.create("image", "gemini", "image", "prompt", "1:1", sessionId = 42, originMessageId = "earlier")
+        assertEquals(listOf(old.id), store.detachTurn(42, "old", old.created))
+        val detached = MediaJobStore(context).get(old.id)!!
+        assertNull(detached.sessionId); assertTrue(detached.delivered); assertTrue(detached.failureAnnounced)
+        assertEquals("old", detached.originMessageId); assertEquals(42L, store.get(other.id)!!.sessionId)
+        assertEquals("cancelled", detached.state)
+        assertFalse(store.update(old.copy(state = "completed", path = "/ready.png")))
+        val completed = MediaJobStore(context).get(old.id)!!
+        assertNull(completed.sessionId); assertTrue(completed.delivered); assertEquals("cancelled", completed.state)
+    }
+
+    @Test fun alreadyGeneratedFilesAreKeptButStaleDeliveryCannotReattachTheReplacedTurn() {
+        val context = preferencesContext(); val store = MediaJobStore(context)
+        val old = store.create("image", "gemini", "image", "prompt", "1:1", sessionId = 42, originMessageId = "old")
+        val ready = old.copy(state = "completed", path = "/ready.png")
+        store.update(ready)
+        assertTrue(store.detachTurn(42, "old", old.created).isEmpty())
+        assertTrue(store.update(ready.copy(delivered = true)))
+        val restored = store.get(old.id)!!
+        assertNull(restored.sessionId); assertEquals("/ready.png", restored.path); assertEquals("completed", restored.state)
+        assertTrue(restored.delivered); assertTrue(restored.failureAnnounced)
+    }
+
     // In-memory Android interface fixture: exercises actual serialized store state without a device.
     private fun preferencesContext(): Context {
         val values = mutableMapOf<String, String>()

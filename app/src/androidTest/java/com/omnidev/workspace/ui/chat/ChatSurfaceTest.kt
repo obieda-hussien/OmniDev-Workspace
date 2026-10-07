@@ -2,6 +2,7 @@ package com.omnidev.workspace.ui.chat
 
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
@@ -59,6 +60,32 @@ class ChatSurfaceTest {
         }
         compose.onNodeWithText("Read full message").performClick()
         compose.onNodeWithText(message.content).assertExists()
+    }
+
+    @Test fun lastMessageEditorCancelsWithoutChangingTheMessageAndRejectsBlankSave() {
+        val message = ChatMessage(MessageRole.USER, "original", userInput = "original")
+        var saved: String? = null
+        compose.setContent { MaterialTheme { MessageBubble(message, onEdit = { saved = it }) } }
+        compose.onNodeWithContentDescription("Edit last message").performClick()
+        compose.onNodeWithTag("last-message-text").performTextReplacement("edited")
+        compose.onNodeWithText("Cancel").performClick()
+        compose.runOnIdle { assertEquals(null, saved) }
+        compose.onNodeWithContentDescription("Edit last message").performClick()
+        compose.onNodeWithTag("last-message-text").assertTextContains("original")
+        compose.onNodeWithTag("last-message-text").performTextReplacement(" ")
+        compose.onNodeWithTag("save-regenerate").assertIsNotEnabled()
+        compose.onNodeWithTag("last-message-text").performTextReplacement("الرسالة الجديدة")
+        compose.onNodeWithTag("save-regenerate").performClick()
+        compose.runOnIdle { assertEquals("الرسالة الجديدة", saved) }
+    }
+
+    @Test fun processingDisablesRegenerationAndEditing() {
+        compose.setContent { MaterialTheme { Column {
+            MessageBubble(ChatMessage(MessageRole.ASSISTANT, "answer"), onRegenerate = {}, actionsEnabled = false)
+            MessageBubble(ChatMessage(MessageRole.USER, "question"), onEdit = {}, actionsEnabled = false)
+        } } }
+        compose.onNodeWithContentDescription("Regenerate last response").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Edit last message").assertIsNotEnabled()
     }
 
     @Test fun composerPreventsEmptySendAndKeepsStopAvailableDuringProcessing() {

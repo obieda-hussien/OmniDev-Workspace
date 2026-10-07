@@ -17,7 +17,12 @@ data class ChatMessage(
     val timestamp: Long = System.currentTimeMillis(),
     val messageId: String = java.util.UUID.randomUUID().toString(),
     val replyToMessageId: String? = null,
-    val executionRequest: ExecutionModeRequest? = null
+    val executionRequest: ExecutionModeRequest? = null,
+    /** Exact composer text, separate from generated reply/file context. Null for legacy rows. */
+    val userInput: String? = null,
+    /** Mode selected when this user turn began; survives history reloads. */
+    val userMode: String? = null,
+    val userScopePath: String? = null
 )
 
 @Serializable

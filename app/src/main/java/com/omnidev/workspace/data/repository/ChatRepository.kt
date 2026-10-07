@@ -73,6 +73,14 @@ class ChatRepository(
             AgentConsoleSerializer.serialize(entries), metadata(message))
     }
 
+    suspend fun replaceLastTurn(sessionId: Long, expectedUserId: String, replacement: ChatMessage): Boolean =
+        messageDao.replaceLastTurn(expectedUserId, ChatMessageEntity(
+            sessionId = sessionId, role = replacement.role.name,
+            content = replacement.content.take(MAX_STORED_MESSAGE_CHARS), timestamp = replacement.timestamp,
+            messageId = replacement.messageId, replyToMessageId = replacement.replyToMessageId,
+            metadataJson = metadata(replacement)
+        ))
+
     suspend fun updateMetadata(sessionId: Long, message: ChatMessage) =
         messageDao.updateMetadata(sessionId, message.messageId, metadata(message))
 
@@ -221,7 +229,10 @@ class ChatRepository(
                 messageId = entity.messageId.ifBlank { entity.id.toString() },
                 replyToMessageId = entity.replyToMessageId,
                 executionRequest = decodeMetadata(entity.metadataJson)?.executionRequest,
-                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty()
+                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty(),
+                userInput = decodeMetadata(entity.metadataJson)?.userInput,
+                userMode = decodeMetadata(entity.metadataJson)?.userMode,
+                userScopePath = decodeMetadata(entity.metadataJson)?.userScopePath
             )
         }
         val consoleMap = entities
@@ -245,7 +256,10 @@ class ChatRepository(
             messageId = entity.messageId.ifBlank { entity.id.toString() },
             replyToMessageId = entity.replyToMessageId,
                 executionRequest = decodeMetadata(entity.metadataJson)?.executionRequest,
-                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty()
+                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty(),
+                userInput = decodeMetadata(entity.metadataJson)?.userInput,
+                userMode = decodeMetadata(entity.metadataJson)?.userMode,
+                userScopePath = decodeMetadata(entity.metadataJson)?.userScopePath
         )
     }
 
@@ -263,7 +277,10 @@ class ChatRepository(
                 messageId = entity.messageId.ifBlank { entity.id.toString() },
                 replyToMessageId = entity.replyToMessageId,
                 executionRequest = decodeMetadata(entity.metadataJson)?.executionRequest,
-                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty()
+                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty(),
+                userInput = decodeMetadata(entity.metadataJson)?.userInput,
+                userMode = decodeMetadata(entity.metadataJson)?.userMode,
+                userScopePath = decodeMetadata(entity.metadataJson)?.userScopePath
             )
         }
 
@@ -276,7 +293,10 @@ class ChatRepository(
                 messageId = entity.messageId.ifBlank { entity.id.toString() },
                 replyToMessageId = entity.replyToMessageId,
                 executionRequest = decodeMetadata(entity.metadataJson)?.executionRequest,
-                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty()
+                attachments = decodeMetadata(entity.metadataJson)?.attachments.orEmpty(),
+                userInput = decodeMetadata(entity.metadataJson)?.userInput,
+                userMode = decodeMetadata(entity.metadataJson)?.userMode,
+                userScopePath = decodeMetadata(entity.metadataJson)?.userScopePath
             )
         }
 

@@ -135,13 +135,16 @@ private fun AssistantSignature(status: String? = null) {
 /** User bubbles wrap short messages; assistant text has a quiet, full-width reading surface. */
 @Composable
 internal fun MessageBubble(message: ChatMessage, consoleEntries: List<AgentConsoleEntry>? = null,
-    replyToMessage: ChatMessage? = null, onReply: (ChatMessage) -> Unit = {}, onOpenBrowser: (() -> Unit)? = null) {
+    replyToMessage: ChatMessage? = null, onReply: (ChatMessage) -> Unit = {}, onOpenBrowser: (() -> Unit)? = null,
+    onEdit: ((String) -> Unit)? = null, onRegenerate: (() -> Unit)? = null, actionsEnabled: Boolean = true) {
     val user = message.role == MessageRole.USER
     val mediaOnly = !user && message.attachments.isNotEmpty() && message.content in setOf("Media generation", "File attached.")
     val parsed = remember(message.content, user) { if (user) null else MessageFormatter.parse(message.content) }
     val text = parsed?.cleanText?.ifBlank { null } ?: message.content
     val context = LocalContext.current
     var expanded by rememberSaveable(message.messageId) { mutableStateOf(false) }
+    var editing by rememberSaveable(message.messageId) { mutableStateOf(false) }
+    var editText by rememberSaveable(message.messageId) { mutableStateOf(LastChatTurn.from(listOf(message))?.editableText.orEmpty()) }
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val bubbleWidth = if (user) (maxWidth * .88f).coerceAtMost(560.dp) else maxWidth.coerceAtMost(800.dp)
         Column(Modifier.fillMaxWidth(), horizontalAlignment = if (user) Alignment.End else Alignment.Start,
@@ -177,6 +180,23 @@ internal fun MessageBubble(message: ChatMessage, consoleEntries: List<AgentConso
                 OmniIconButton(onClick = { onReply(message) }) {
                     Icon(Icons.AutoMirrored.Filled.Reply, "Reply to message", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                onEdit?.let {
+                    OmniIconButton(onClick = { editing = true }, enabled = actionsEnabled) {
+                        Icon(Icons.Default.Edit, "Edit last message", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                onRegenerate?.let { regenerate ->
+                    OmniIconButton(onClick = regenerate, enabled = actionsEnabled) {
+                        Icon(Icons.Default.Refresh, "Regenerate last response", Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            if (editing && onEdit != null) {
+                LastUserMessageEditor(editText, { editText = it }, actionsEnabled,
+                    canSave = editText.isNotBlank() || message.attachments.isNotEmpty(),
+                    attachmentCount = message.attachments.size,
+                    onSave = { onEdit(editText) },
+                    onCancel = { editing = false; editText = LastChatTurn.from(listOf(message))?.editableText.orEmpty() })
             }
         }
     }
