@@ -137,6 +137,7 @@ private fun AssistantSignature(status: String? = null) {
 internal fun MessageBubble(message: ChatMessage, consoleEntries: List<AgentConsoleEntry>? = null,
     replyToMessage: ChatMessage? = null, onReply: (ChatMessage) -> Unit = {}, onOpenBrowser: (() -> Unit)? = null) {
     val user = message.role == MessageRole.USER
+    val mediaOnly = !user && message.attachments.isNotEmpty() && message.content in setOf("Media generation", "File attached.")
     val parsed = remember(message.content, user) { if (user) null else MessageFormatter.parse(message.content) }
     val text = parsed?.cleanText?.ifBlank { null } ?: message.content
     val context = LocalContext.current
@@ -145,7 +146,7 @@ internal fun MessageBubble(message: ChatMessage, consoleEntries: List<AgentConso
         val bubbleWidth = if (user) (maxWidth * .88f).coerceAtMost(560.dp) else maxWidth.coerceAtMost(800.dp)
         Column(Modifier.fillMaxWidth(), horizontalAlignment = if (user) Alignment.End else Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!user) AssistantSignature()
+            if (!user && !mediaOnly) AssistantSignature()
             if (!user && !consoleEntries.isNullOrEmpty()) AgentLiveConsole(
                 entries = remember(consoleEntries) { consoleEntries.map(ConsoleRedactor::entry) }, isRunning = false, onOpenBrowser = onOpenBrowser)
             parsed?.thoughtBlocks?.forEach { ExpandableBlock("Thought process", it) }
@@ -160,7 +161,7 @@ internal fun MessageBubble(message: ChatMessage, consoleEntries: List<AgentConso
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     replyToMessage?.let { ReplyQuote(it) }
                     ChatMessageMedia(message)
-                    SelectionContainer {
+                    if (!mediaOnly) SelectionContainer {
                         if (user) Text(if (text.length > 500 && !expanded) text.take(500) + "…" else text,
                             style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content))
                         else MarkdownText(text, style = MaterialTheme.typography.bodyLarge)
@@ -169,7 +170,7 @@ internal fun MessageBubble(message: ChatMessage, consoleEntries: List<AgentConso
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                OmniIconButton(onClick = {
+                if (!mediaOnly) OmniIconButton(onClick = {
                     context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Omni", text))
                     Toast.makeText(context, "Message copied", Toast.LENGTH_SHORT).show()
                 }) { Icon(Icons.Default.ContentCopy, "Copy message", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant) }

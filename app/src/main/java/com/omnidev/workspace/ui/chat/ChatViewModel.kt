@@ -1182,7 +1182,7 @@ class ChatViewModel(
     }
 
     private suspend fun attachToolMedia(toolName: String, output: String, isError: Boolean, sessionId: Long, runId: Long) {
-        if (toolName != "media_generation" || isError) return
+        if (toolName != "media_generation") return
         val context = com.omnidev.workspace.OmniDevApp.instance.applicationContext
         val message = com.omnidev.workspace.data.chatmedia.MediaToolResult.message(toolName, output, isError,
             existingUris = { _uiState.value.messages.flatMap { it.attachments }.map { it.uri }.toSet() },

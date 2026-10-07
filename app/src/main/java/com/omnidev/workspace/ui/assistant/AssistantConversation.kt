@@ -74,6 +74,9 @@ internal fun AssistantConversation(
     LaunchedEffect(screen.visible) { presented = screen.visible }
     val byId = remember(chat.messages) { chat.messages.associateBy { it.messageId } }
     val lastUser = remember(chat.messages) { chat.messages.lastOrNull { it.role == MessageRole.USER }?.messageId }
+    val mediaLayout = remember(chat.messages, chat.messageConsoleEntries, chat.isProcessing) {
+        com.omnidev.workspace.ui.chat.MediaConversationLayout.from(chat.messages, chat.messageConsoleEntries.keys, chat.isProcessing)
+    }
     val follow = rememberTailFollowState(list, chat.currentSessionId,
         Triple(chat.messages.size, chat.streamingContent, chat.consoleEntries.size), lastUser,
         enabled = panel == AssistantPanel.NONE && chat.pendingConfirmation == null && screen.visible)
@@ -152,7 +155,7 @@ internal fun AssistantConversation(
                                             AssistantSuggestion("Help with a task") { suggest("Help me with this task: ") }
                                         }
                                     }
-                                    items(chat.messages, key = { it.messageId }, contentType = { it.role }) { message ->
+                                    items(mediaLayout.transcript, key = { it.messageId }, contentType = { it.role }) { message ->
                                         MessageBubble(message, chat.messageConsoleEntries[message.timestamp],
                                             message.replyToMessageId?.let(byId::get), onReply = { onReply(it); focus.requestFocus(); keyboard?.show() })
                                         message.executionRequest?.let { request ->
@@ -168,6 +171,9 @@ internal fun AssistantConversation(
                                     }
                                     if (console.isNotEmpty() && (chat.isProcessing || chat.messageConsoleEntries.values.none { saved -> saved.any { it.id == chat.consoleEntries.first().id } })) {
                                         item(key = "live-console") { AgentLiveConsole(console, chat.isProcessing) }
+                                    }
+                                    items(mediaLayout.liveOutputs, key = { it.messageId }, contentType = { "media-output" }) { message ->
+                                        MessageBubble(message, onReply = { onReply(it); focus.requestFocus(); keyboard?.show() })
                                     }
                                     if (entries.isNotEmpty()) item(key = "activity-control") {
                                         TextButton(onClick = { tracks = !tracks }) {

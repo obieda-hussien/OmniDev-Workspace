@@ -122,6 +122,9 @@ internal fun ChatConversation(
     }
     val follow = rememberTailFollowState(list, state.currentSessionId,
         Triple(state.messages.size, state.streamingContent, state.consoleEntries.size), forceFollowKey = lastUserId)
+    val mediaLayout = remember(state.messages, state.messageConsoleEntries, state.isProcessing) {
+        MediaConversationLayout.from(state.messages, state.messageConsoleEntries.keys, state.isProcessing)
+    }
     val runningConsole = remember(state.consoleEntries) {
         AgentConsoleSerializer.compact(state.consoleEntries.map(ConsoleRedactor::entry))
     }
@@ -149,7 +152,7 @@ internal fun ChatConversation(
                         if (state.messages.isEmpty() && !state.isProcessing) item(key = "welcome") {
                             EmptyStateContent(state.activeMode) { prompt -> onInputChanged(prompt); focusRequester.requestFocus(); keyboard?.show() }
                         }
-                        items(state.messages, key = { it.messageId }, contentType = { it.role }) { message ->
+                        items(mediaLayout.transcript, key = { it.messageId }, contentType = { it.role }) { message ->
                             MessageBubble(message, state.messageConsoleEntries[message.timestamp],
                                 message.replyToMessageId?.let(messagesById::get), onReply = {
                                     onReply(it); focusRequester.requestFocus(); keyboard?.show()
@@ -176,6 +179,9 @@ internal fun ChatConversation(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 }
                             }
+                        }
+                        items(mediaLayout.liveOutputs, key = { it.messageId }, contentType = { "media-output" }) { message ->
+                            MessageBubble(message, onReply = { onReply(it); focusRequester.requestFocus(); keyboard?.show() }, onOpenBrowser = onBrowser)
                         }
                     }
                     OmniAnimatedVisibility(!follow.following, Modifier.align(Alignment.BottomEnd).padding(12.dp)) {

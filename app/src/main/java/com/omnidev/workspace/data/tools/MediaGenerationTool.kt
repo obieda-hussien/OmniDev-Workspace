@@ -65,13 +65,13 @@ object MediaGenerationTool {
                     val job = store.create(action, MediaModelCatalog.key(config.provider), config.model, composed, config.aspect, config, sessionId,
                         requestText.any { it in '\u0600'..'\u06FF' })
                     MediaGenerationWorker.enqueue(context, job.id)
-                    return result(job)
+                    return result(store.get(job.id) ?: job)
                 }
                 "status", "cancel" -> {
                     val id = args["job_id"] ?: error("Missing job_id.")
                     val job = store.get(id) ?: error("Unknown local generation job.")
                     if (action == "cancel") MediaGenerationWorker.cancel(context, id)
-                    else if (job.state == "failed" && job.operation != null) {
+                    else if (MediaGenerationFailure.canResume(job)) {
                         require(MediaSettingsStore(context).get()[MediaKind.fromAction(job.kind) ?: error("Unknown media kind")].enabled) { "This media type is disabled in Model Selection." }
                         MediaGenerationWorker.enqueue(context, id)
                     }

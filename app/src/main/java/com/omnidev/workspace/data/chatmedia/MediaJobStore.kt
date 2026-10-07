@@ -10,16 +10,17 @@ internal data class MediaJob(val id: String, val kind: String, val provider: Str
     val path: String? = null, val error: String? = null, val created: Long = System.currentTimeMillis(),
     val config: MediaConfig? = null, val sessionId: Long? = null, val arabic: Boolean = false,
     val delivered: Boolean = false, val galleryAttempted: Boolean = false, val galleryUri: String? = null,
-    val lyricsText: String? = null)
+    val lyricsText: String? = null, val phase: String = "queued", val errorCode: String? = null,
+    val failures: Int = 0, val failureAnnounced: Boolean = false)
 
 /** Only non-credential job state. Completion cannot overwrite cancellation. */
 internal class MediaJobStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("chat-media-jobs", Context.MODE_PRIVATE)
-    fun active(): List<MediaJob> = synchronized(gate) { prefs.all.keys.mapNotNull(::get).filter { it.state in setOf("queued", "processing") } }
+    fun active(): List<MediaJob> = synchronized(gate) { prefs.all.keys.mapNotNull(::get).filter { it.state in setOf("queued", "processing", "waiting") } }
     fun create(kind: String, provider: String, model: String, prompt: String, aspect: String,
         config: MediaConfig? = null, sessionId: Long? = null, arabic: Boolean = false): MediaJob = synchronized(gate) {
         val all = prefs.all.keys.mapNotNull(::get)
-        require(all.count { it.state in setOf("queued", "processing") } < 50) {
+        require(all.count { it.state in setOf("queued", "processing", "waiting") } < 50) {
             "Too many active media jobs. Cancel an older job first."
         }
         MediaJob(UUID.randomUUID().toString(), kind, provider, model, prompt, aspect,
@@ -34,7 +35,7 @@ internal class MediaJobStore(context: Context) {
                 j.optString("aspect", "16:9"), j.getString("state"), optional("operation"), optional("path"), optional("error"), j.getLong("created"),
                 j.optJSONObject("config")?.let { MediaPreferencesCodec.config(MediaKind.fromAction(j.getString("kind")) ?: error("Unknown media kind"),
                     kotlinx.serialization.json.Json.parseToJsonElement(it.toString()).jsonObject) },
-                j.optLong("session").takeIf { it > 0 }, j.optBoolean("arabic"), j.optBoolean("delivered"), j.optBoolean("gallery_attempted"), optional("gallery_uri"), optional("lyrics_text"))
+                j.optLong("session").takeIf { it > 0 }, j.optBoolean("arabic"), j.optBoolean("delivered"), j.optBoolean("gallery_attempted"), optional("gallery_uri"), optional("lyrics_text"), j.optString("phase", j.getString("state")), optional("error_code"), j.optInt("failures"), j.optBoolean("failure_announced"))
         }.getOrNull()
     }
     fun update(job: MediaJob): Boolean = synchronized(gate) {
@@ -49,6 +50,7 @@ internal class MediaJobStore(context: Context) {
         put("config", job.config?.let { JSONObject(MediaPreferencesCodec.configJson(it).toString()) })
         put("session", job.sessionId); put("arabic", job.arabic); put("delivered", job.delivered)
         put("gallery_attempted", job.galleryAttempted); put("gallery_uri", job.galleryUri); put("lyrics_text", job.lyricsText)
+        put("phase", job.phase); put("error_code", job.errorCode); put("failures", job.failures); put("failure_announced", job.failureAnnounced)
     }.toString()).commit()
     companion object { private val gate = Any() }
 }

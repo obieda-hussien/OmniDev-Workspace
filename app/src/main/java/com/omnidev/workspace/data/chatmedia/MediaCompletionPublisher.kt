@@ -21,6 +21,16 @@ internal object MediaCompletion {
 
 /** Delivery is idempotent, belongs to the originating chat, and never recreates a deleted chat. */
 internal object MediaCompletionPublisher {
+    suspend fun failure(context: Context, original: MediaJob) {
+        val store = MediaJobStore(context)
+        val job = store.get(original.id) ?: return
+        if (job.state != "failed" || job.failureAnnounced || job.sessionId == null) return
+        val text = if (job.arabic) "توليد الوسائط وقف بسبب خطأ. افتح تفاصيل الكارت للمراجعة.\n${job.error.orEmpty()}" else "${job.kind.replaceFirstChar { it.uppercase() }} generation failed.\n${job.error.orEmpty()}"
+        OmniDevDatabase.getInstance(context).chatMessageDao().insertOnce(ChatMessageEntity(
+            sessionId = job.sessionId, role = "ASSISTANT", content = text, messageId = MediaCompletion.MESSAGE_PREFIX + job.id + ":failed"))
+        store.update(job.copy(failureAnnounced = true))
+    }
+
     suspend fun deliver(context: Context, original: MediaJob) {
         val store = MediaJobStore(context)
         var job = store.get(original.id) ?: return
