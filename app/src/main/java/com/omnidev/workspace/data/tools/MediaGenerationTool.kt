@@ -10,17 +10,32 @@ import org.json.JSONObject
 
 object MediaGenerationTool {
     fun definition() = ToolDefinition("media_generation",
-        "Generate an image (Gemini or OpenAI) or a video with Gemini Veo, and attach it directly to this chat. Uses a separately configured provider API key and its media quota. " +
-            "Generation is asynchronous and persists after the reply: never call queued work completed. status checks an existing job; never create it again to poll. " +
-            "attach sends an accessible local file/path to chat without publishing externally. The user can preview, zoom, play, save and share media. Supports طلبات توليد الصور والفيديو وإرسال الملفات والصور والصوت في الشات.",
-        listOf(ToolParameter("action", "string", "image, video, status, cancel, attach", allowedValues = listOf("image", "video", "status", "cancel", "attach")),
-            ToolParameter("prompt", "string", "Image/video description", false, requiredForActions = listOf("image", "video")),
-            ToolParameter("provider", "string", "gemini or openai; video uses gemini. Default gemini", false, allowedValues = listOf("gemini", "openai")),
-            ToolParameter("model", "string", "Optional image/video model ID; no URL or path", false),
-            ToolParameter("aspect_ratio", "string", "1:1, 16:9 or 9:16; video supports 16:9 or 9:16", false, allowedValues = listOf("1:1", "16:9", "9:16")),
+        "Generate images, videos or music/songs using the user's enabled media models and saved settings in Model Selection. " +
+            "Never bypass a disabled type or change its selected provider/model. Generation persists after the reply: queued is not completed. " +
+            "The chat card becomes playable/viewable when ready and a completion message is posted. status polls an existing job; never generate again to poll. " +
+            "attach sends an accessible phone file/path to chat. Supports توليد الصور والفيديو والموسيقى والأغاني وإرسال الملفات في الشات.",
+        listOf(ToolParameter("action", "string", "image, video, music, status, cancel, attach", allowedValues = listOf("image", "video", "music", "status", "cancel", "attach")),
+            ToolParameter("prompt", "string", "Description to generate using saved defaults", false, requiredForActions = listOf("image", "video", "music")),
+            ToolParameter("aspect_ratio", "string", "Optional request override, if allowed by settings", false),
+            ToolParameter("resolution", "string", "Optional supported resolution", false),
+            ToolParameter("quality", "string", "Optional image quality: auto, low, medium, high", false),
+            ToolParameter("format", "string", "Optional supported image or music format", false),
+            ToolParameter("background", "string", "Optional supported image background: auto, opaque, transparent", false),
+            ToolParameter("compression", "integer", "Optional JPEG/WebP output compression quality, 0–100", false),
+            ToolParameter("duration_seconds", "integer", "Supported video duration or music duration hint", false),
+            ToolParameter("video_audio", "boolean", "xAI video audio override", false),
+            ToolParameter("style", "string", "Optional creative direction", false),
+            ToolParameter("negative_prompt", "string", "Optional things to avoid", false),
+            ToolParameter("lyrics", "string", "Optional song lyrics", false),
+            ToolParameter("instrumental", "boolean", "Music without vocals", false),
+            ToolParameter("tempo_bpm", "integer", "Optional 40–240 BPM music guidance", false),
+            ToolParameter("genre", "string", "Optional music genre", false),
+            ToolParameter("mood", "string", "Optional mood", false),
+            ToolParameter("instruments", "string", "Optional instruments", false),
+            ToolParameter("language", "string", "Optional song lyrics language", false),
             ToolParameter("job_id", "string", "Existing local generation job ID", false, requiredForActions = listOf("status", "cancel")),
             ToolParameter("path", "string", "Accessible phone path, file URI or user-selected content URI", false, requiredForActions = listOf("attach"))))
-    suspend fun execute(context: Context, args: Map<String, String>): ToolExecutionResult {
+    suspend fun execute(context: Context, args: Map<String, String>, sessionId: Long? = null): ToolExecutionResult {
         try {
             val action = args["action"] ?: error("Missing action.")
             val store = MediaJobStore(context)
@@ -33,17 +48,22 @@ object MediaGenerationTool {
                         .put("uri", meta.uri).put("mime_type", meta.mimeType).put("file_name", meta.fileName)))
                     return ToolExecutionResult(payload.toString(), classification = "SUCCESS", backend = "chat-media")
                 }
-                "image", "video" -> {
-                    val provider = args["provider"] ?: "gemini"
-                    require(provider in setOf("gemini", "openai") && (action != "video" || provider == "gemini")) { "Video generation uses Gemini Veo. Configure a Gemini API key." }
-                    val key = ApiKeyRepository(context).getApiKey(if (provider == "gemini") ModelProvider.GEMINI else ModelProvider.OPENAI)
-                    require(!key.isNullOrBlank()) { "Configure the $provider API key in Providers. The selected text model's key does not grant media generation access." }
+                "image", "video", "music" -> {
+                    val kind = MediaKind.fromAction(action) ?: error("Unknown media kind")
+                    val preferences = MediaSettingsStore(context).get()
+                    val selected = preferences[kind]
+                    val connected = if (!ApiKeyRepository(context).getApiKey(selected.provider).isNullOrBlank()) setOf(selected.provider) else emptySet()
+                    val config = MediaRequestPolicy.resolve(kind, preferences, connected, args)
                     val prompt = args["prompt"]?.trim()?.takeIf { it.length in 1..12_000 } ?: error("Provide a description up to 12000 characters.")
-                    val model = args["model"] ?: if (action == "video") "veo-3.1-fast-generate-preview" else if (provider == "gemini") "gemini-3.1-flash-image" else "gpt-image-1.5"
-                    require(model.matches(Regex("[A-Za-z0-9._-]{1,100}"))) { "Invalid media model ID." }
-                    val aspect = args["aspect_ratio"] ?: if (action == "video") "16:9" else "1:1"
-                    require(aspect in if (action == "video") setOf("16:9", "9:16") else setOf("1:1", "16:9", "9:16"))
-                    val job = store.create(action, provider, model, prompt, aspect)
+                    val composed = MediaRequestPolicy.prompt(kind, prompt, if (config.provider == ModelProvider.MINIMAX) config.copy(lyrics = "") else config)
+                    if (config.provider == ModelProvider.MINIMAX) require(composed.length <= 2000) { "MiniMax direction must be under 2000 characters; put lyrics in the lyrics field." }
+                    val requestText = if (sessionId != null && sessionId > 0) {
+                        try { com.omnidev.workspace.data.db.OmniDevDatabase.getInstance(context).chatMessageDao().latestUserContent(sessionId) ?: prompt }
+                        catch (cancelled: CancellationException) { throw cancelled }
+                        catch (_: Exception) { prompt }
+                    } else prompt
+                    val job = store.create(action, MediaModelCatalog.key(config.provider), config.model, composed, config.aspect, config, sessionId,
+                        requestText.any { it in '\u0600'..'\u06FF' })
                     MediaGenerationWorker.enqueue(context, job.id)
                     return result(job)
                 }
@@ -51,7 +71,10 @@ object MediaGenerationTool {
                     val id = args["job_id"] ?: error("Missing job_id.")
                     val job = store.get(id) ?: error("Unknown local generation job.")
                     if (action == "cancel") MediaGenerationWorker.cancel(context, id)
-                    else if (job.state == "failed" && job.operation != null) MediaGenerationWorker.enqueue(context, id)
+                    else if (job.state == "failed" && job.operation != null) {
+                        require(MediaSettingsStore(context).get()[MediaKind.fromAction(job.kind) ?: error("Unknown media kind")].enabled) { "This media type is disabled in Model Selection." }
+                        MediaGenerationWorker.enqueue(context, id)
+                    }
                     return result(store.get(id) ?: job)
                 }
                 else -> error("Unsupported media action.")
@@ -62,7 +85,7 @@ object MediaGenerationTool {
     private fun result(job: MediaJob) = ToolExecutionResult(JSONObject().put("job_id", job.id).put("status", job.state)
         .put("detail", job.error ?: if (job.state == "completed") "Ready in chat." else "Generation submitted. The chat card updates when media is ready; do not claim completion yet.")
         .put("attachments", JSONArray().put(JSONObject().put("uri", "omni-media-job:${job.id}")
-            .put("mime_type", if (job.kind == "video") "video/mp4" else "image/png")
-            .put("file_name", if (job.kind == "video") "Generated video" else "Generated image"))).toString(),
+            .put("mime_type", when(job.kind) { "video" -> "video/mp4"; "music" -> "audio/mpeg"; else -> "image/png" })
+            .put("file_name", "Generated ${job.kind}"))).toString(),
         isError = job.state == "failed", classification = if (job.state == "failed") "MEDIA_GENERATION_FAILED" else "SUCCESS", backend = "chat-media")
 }

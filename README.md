@@ -2,13 +2,17 @@
 
 **مساحة عمل ومساعد Android قابلان للتوسعة**: محادثة، تنفيذ بأدوات، وتنسيق فريق وكلاء، مع فهرسة محلية للكود، ذاكرة محادثات، طبقة سياسات للصلاحيات، وتكاملات للأجهزة والتطبيقات. هذا المستودع يضم التطبيق Android، اختبارات الوحدة، إعدادات البناء، ووثائق التصميم والتكامل.
 
-> **دليل المشروع:** وصف وظائف التطبيق، بنية الملفات، مسارات الصلاحيات والتكامل، وطريقة البناء والتحقق. آخر تحديث: 4 أكتوبر 2026.
+> **دليل المشروع:** وصف وظائف التطبيق، بنية الملفات، مسارات الصلاحيات والتكامل، وطريقة البناء والتحقق. آخر تحديث: 7 أكتوبر 2026.
 
 **المطوّر والمحدّث ومسؤول صيانة وتكامل منظومة Omni:** [عبدالرحمن حسين — Abdelrahman Hussein / Obieda](https://github.com/obieda-hussien). تُحفظ حقوق وأسماء مؤلفي أي مكوّن أصلي أو اعتماد خارجي؛ هذا الدور يخص تطوير Omni وتعديلاته وتكاملاته. راجع [بيان النسب والحقوق](ATTRIBUTION.md).
 
 ## Consented lock-screen access
 
 The device access center provides authenticated opt-ins for screen wake, Android unlock requests, a private assistant panel while locked, lock-screen semantic inspection and sensitive Settings access. Admin adds a device-local encrypted PIN vault with a 15-minute one-shot permit or remembered authorization until revoked. Each requested unlock enters the PIN once; failed or interrupted input pauses remembered attempts. PINs stay out of model arguments, chat and learned tasks. See [Device lock access](docs/DEVICE_LOCK_ACCESS.md) for setup, Android/OEM limits and verification.
+
+## Chat media models
+
+Choose independent image, video and music/song models in **Settings → Model Selection → Media generation**. Each type starts Off; enable a connected supported provider/model, customize its defaults, then request media in ordinary Chat. Finished files appear in the conversation with playback/preview, save/share and an optional ready message; generation continues in the background. See [media setup and provider controls](docs/CHAT_MEDIA_AND_UNLOCK_RECOVERY.md#generation).
 
 ## المحتويات
 
@@ -40,16 +44,16 @@ The device access center provides authenticated opt-ins for screen wake, Android
 
 | المقياس | العدد | طريقة الحساب |
 |---|---:|---|
-| الملفات المتتبعة | **598** | كل الملفات المتتبعة الحالية في `git ls-files` |
-| ملفات المصدر الإنتاجية | **398** | امتدادات Kotlin/Java/AIDL/C/C++/headers خارج مجلدات الاختبارات |
-| سطور المصدر الإنتاجية | **101,782** | سطور فعلية، تشمل الفراغات والتعليقات |
-| ملفات مصدر الاختبارات | **85** | نفس الامتدادات داخل `test` أو `androidTest` |
-| سطور مصدر الاختبارات | **6,598** | بنفس طريقة العدّ |
-| إجمالي ملفات المصدر | **483** | إنتاج + اختبارات |
-| إجمالي سطور المصدر | **108,380** | إنتاج + اختبارات |
-| ملفات Kotlin | **475** | إنتاج واختبارات معًا |
-| سطور Kotlin | **107,607** | إنتاج واختبارات معًا |
-| ملفات Markdown | **42** | الوثائق الأساسية وملفات مهارات الوكيل داخل الموارد |
+| الملفات المتتبعة | **712** | كل الملفات المتتبعة الحالية في `git ls-files` |
+| ملفات المصدر الإنتاجية | **456** | امتدادات Kotlin/Java/AIDL/C/C++/headers خارج مجلدات الاختبارات |
+| سطور المصدر الإنتاجية | **104,607** | سطور فعلية، تشمل الفراغات والتعليقات |
+| ملفات مصدر الاختبارات | **130** | نفس الامتدادات داخل `test` أو `androidTest` |
+| سطور مصدر الاختبارات | **9,759** | بنفس طريقة العدّ |
+| إجمالي ملفات المصدر | **586** | إنتاج + اختبارات |
+| إجمالي سطور المصدر | **114,366** | إنتاج + اختبارات |
+| ملفات Kotlin | **578** | إنتاج واختبارات معًا |
+| سطور Kotlin | **113,593** | إنتاج واختبارات معًا |
+| ملفات Markdown | **47** | الوثائق الأساسية وملفات مهارات الوكيل داخل الموارد |
 | نسخ التطبيق | **5** | `lite`, `norm`, `pro`, `oem`, `admin` |
 | أوضاع التشغيل | **4** | `AUTO`, `CHAT`, `AGENT`, `SWARM` |
 | إصدار قاعدة Room | **17** | `OmniDevDatabase.kt` |

@@ -190,7 +190,7 @@ fun AISettingsScreen(
                     ModelRegistry.modelsByProvider, viewModel::toggleDropdown, viewModel::dismissDropdown,
                     viewModel::selectModelForRole, { providersViewModel?.refreshModels(it) },
                     onNavigateToProviders, onNavigateToIntegrations, onNavigateToLocalModels,
-                    modifier = Modifier.padding(padding).consumeWindowInsets(padding))
+                    modifier = Modifier.padding(padding).consumeWindowInsets(padding), onMediaSave = viewModel::saveMediaConfig)
             } else {
                 key(page) {
                     Column(

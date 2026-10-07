@@ -43,6 +43,23 @@ class MediaJobStoreTest {
         assertNotNull(store.create("image", "gemini", "image", "prompt", "1:1"))
     }
 
+    @Test fun musicJobRetainsSettingsOriginLyricsAndDeliveryAcrossRestart() {
+        val context = preferencesContext(); val store = MediaJobStore(context)
+        val config = MediaConfig.defaults(MediaKind.MUSIC).copy(enabled = true, instrumental = true, autoSaveToGallery = true)
+        val job = store.create("music", "gemini", config.model, "song", "", config, 42, true)
+        store.update(job.copy(state = "completed", path = "/song.mp3", lyricsText = "Lyrics", delivered = true, galleryAttempted = true, galleryUri = "content://media/42"))
+        val restored = MediaJobStore(context).get(job.id)!!
+        assertEquals(config, restored.config); assertEquals(42L, restored.sessionId); assertTrue(restored.arabic)
+        assertTrue(restored.delivered); assertTrue(restored.galleryAttempted); assertEquals("Lyrics", restored.lyricsText)
+        assertEquals("content://media/42", restored.galleryUri)
+    }
+    @Test fun completionCannotBeAnnouncedBeforeFileIsReady() {
+        val queued = MediaJob("id", "music", "gemini", "lyria-3-clip-preview", "song", "", arabic = true)
+        assertTrue(runCatching { MediaCompletion.text(queued) }.isFailure)
+        assertTrue(runCatching { MediaCompletion.text(queued.copy(state = "completed")) }.isFailure)
+        assertTrue(MediaCompletion.text(queued.copy(state = "completed", path = "/song.mp3")).contains("عملتلك"))
+    }
+
     // In-memory Android interface fixture: exercises actual serialized store state without a device.
     private fun preferencesContext(): Context {
         val values = mutableMapOf<String, String>()

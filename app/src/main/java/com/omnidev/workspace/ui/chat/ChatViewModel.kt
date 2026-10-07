@@ -33,6 +33,9 @@ import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -127,6 +130,7 @@ class ChatViewModel(
     init {
         loadTargetContext()
         observeSessions()
+        observeMediaCompletions()
         observeGodMode()
         observeChatSettings()
         wireFileConfirmationGate()
@@ -136,6 +140,25 @@ class ChatViewModel(
         viewModelScope.launch {
             settingsRepository.observeTargetContext().collect { path ->
                 _uiState.update { it.copy(targetContext = path) }
+            }
+        }
+    }
+
+    private fun observeMediaCompletions() {
+        val repo = chatRepository ?: return
+        viewModelScope.launch {
+            _uiState.map { it.currentSessionId }.distinctUntilChanged().collectLatest { session ->
+                if (session == null || session <= 0) return@collectLatest
+                repo.observeMessages(session).collect { rows ->
+                    val ready = rows.filter { it.messageId.startsWith(com.omnidev.workspace.data.chatmedia.MediaCompletion.MESSAGE_PREFIX) }
+                        .map { ChatMessage(role = MessageRole.ASSISTANT, content = it.content, timestamp = it.timestamp, messageId = it.messageId) }
+                    _uiState.update { state ->
+                        if (state.currentSessionId != session) state else {
+                            val known = state.messages.map { it.messageId }.toSet()
+                            state.copy(messages = state.messages + ready.filter { it.messageId !in known })
+                        }
+                    }
+                }
             }
         }
     }

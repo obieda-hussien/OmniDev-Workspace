@@ -11,7 +11,13 @@ class MediaGenerationWorker(context: Context, parameters: WorkerParameters) : Co
         val id = inputData.getString("job") ?: return Result.failure()
         val store = MediaJobStore(applicationContext)
         val job = store.get(id) ?: return Result.failure()
-        if (job.state in setOf("completed", "cancelled")) return Result.success()
+        if (job.state == "cancelled") return Result.success()
+        if (job.state == "completed") return deliver(job)
+        val kind = MediaKind.fromAction(job.kind) ?: return Result.failure()
+        if (!MediaSettingsStore(applicationContext).get()[kind].enabled) {
+            cancel(applicationContext, id)
+            return Result.success()
+        }
         if (runAttemptCount >= 40) {
             store.update(job.copy(state = "failed", error = "Video is taking longer than expected. Check status to continue the existing job."))
             return Result.failure()
@@ -25,7 +31,7 @@ class MediaGenerationWorker(context: Context, parameters: WorkerParameters) : Co
         return try {
             val updated = MediaGenerationClient(applicationContext).step(job)
             if (!store.update(updated)) return Result.success()
-            if (updated.state == "processing") Result.retry() else if (updated.state == "completed") Result.success() else Result.failure()
+            if (updated.state == "processing") Result.retry() else if (updated.state == "completed") deliver(updated) else Result.failure()
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) {
             if (job.operation != null && runAttemptCount < 40) Result.retry()
@@ -35,6 +41,12 @@ class MediaGenerationWorker(context: Context, parameters: WorkerParameters) : Co
             }
         }
     }
+    private suspend fun deliver(job: MediaJob): Result = try {
+        MediaCompletionPublisher.deliver(applicationContext, job)
+        Result.success()
+    } catch (cancelled: CancellationException) { throw cancelled }
+    catch (_: Exception) { if (runAttemptCount < 40) Result.retry() else Result.failure() }
+
     companion object {
         fun enqueue(context: Context, id: String, replace: Boolean = false) {
             val request = OneTimeWorkRequestBuilder<MediaGenerationWorker>().setInputData(workDataOf("job" to id))
@@ -43,7 +55,10 @@ class MediaGenerationWorker(context: Context, parameters: WorkerParameters) : Co
             WorkManager.getInstance(context).enqueueUniqueWork("omni-media-$id", if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP, request)
         }
         fun cancel(context: Context, id: String) {
-            val store = MediaJobStore(context); store.get(id)?.let { store.update(it.copy(state = "cancelled", prompt = "", error = "Cancelled locally. Provider work already submitted may still incur usage.")) }
+            val store = MediaJobStore(context)
+            val job = store.get(id) ?: return
+            if (job.state == "completed") return
+            store.update(job.copy(state = "cancelled", prompt = "", error = "Cancelled locally. Provider work already submitted may still incur usage."))
             WorkManager.getInstance(context).cancelUniqueWork("omni-media-$id")
         }
     }

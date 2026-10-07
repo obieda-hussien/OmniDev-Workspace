@@ -31,6 +31,13 @@ private val Context.settingsDataStore: DataStore<Preferences> by preferencesData
  * scope for file operations.
  */
 class SettingsRepository(private val context: Context) {
+    private val mediaSettings = com.omnidev.workspace.data.chatmedia.MediaSettingsStore(context)
+    fun observeMediaPreferences() = mediaSettings.observe()
+    suspend fun setMediaConfig(kind: com.omnidev.workspace.data.chatmedia.MediaKind, config: com.omnidev.workspace.data.chatmedia.MediaConfig) =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            if (config.enabled) require(!ApiKeyRepository(context).getApiKey(config.provider).isNullOrBlank()) { "Connect this provider first." }
+            mediaSettings.update(kind, config)
+        }
     private val catalogJson = Json { ignoreUnknownKeys = true }
 
     suspend fun saveModelCatalog(provider: ModelProvider, models: List<AIModel>) {

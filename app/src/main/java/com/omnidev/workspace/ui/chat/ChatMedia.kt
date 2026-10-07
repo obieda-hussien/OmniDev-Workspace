@@ -115,7 +115,7 @@ private fun ChatMediaCard(original: AttachmentMeta) {
             }
             if (isJob && actual == null) {
                 if (job?.state in setOf(null, "queued", "processing")) LinearProgressIndicator(Modifier.fillMaxWidth())
-                Text(job?.error ?: "Generating ${if (original.mediaType == AttachmentMediaType.VIDEO) "video" else "image"}… This card updates when ready.", style = MaterialTheme.typography.bodySmall)
+                Text(job?.error ?: "Generating ${when(original.mediaType) { AttachmentMediaType.VIDEO -> "video"; AttachmentMediaType.AUDIO -> "music"; else -> "image" }}… This card updates when ready.", style = MaterialTheme.typography.bodySmall)
                 Row {
                     if (job?.operation != null && job?.state == "failed") TextButton(onClick = {
                         MediaGenerationWorker.enqueue(context, job!!.id)

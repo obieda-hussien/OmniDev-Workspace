@@ -1098,7 +1098,7 @@ class CompositeToolManager(
             }
 
             // ── Device admin tool ──
-            "media_generation" -> context?.let { MediaGenerationTool.execute(it, arguments) }
+            "media_generation" -> context?.let { MediaGenerationTool.execute(it, arguments, currentSessionId) }
                 ?: ToolExecutionResult("Media generation requires Android context.", true)
 
             "device_admin" -> context?.let { DeviceAdminTool.execute(it, arguments) }
