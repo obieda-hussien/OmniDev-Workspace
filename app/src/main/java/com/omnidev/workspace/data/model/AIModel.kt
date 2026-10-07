@@ -58,7 +58,9 @@ data class AIModel(
     val costPer1MOutputTokens: Double? = null,
     val speedTokensPerSecond: Int? = null,
     val shortDescription: String? = null,
-    val isLatest: Boolean = false
+    val isLatest: Boolean = false,
+    /** Provider-declared output capabilities; input vision/video never imply generation. */
+    val outputModalities: Set<String> = emptySet()
 )
 
 /**

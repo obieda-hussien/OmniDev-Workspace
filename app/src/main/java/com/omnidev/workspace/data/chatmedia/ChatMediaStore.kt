@@ -42,8 +42,8 @@ object ChatMediaStore {
         try {
             if (value.startsWith(JOB_PREFIX)) {
                 val job = MediaJobStore(context).get(value.removePrefix(JOB_PREFIX)) ?: return@withContext null
-                return@withContext AttachmentMeta(value, if (job.kind == "video") "video/mp4" else "image/png",
-                    if (job.kind == "video") "Generated video" else "Generated image", 0, if (job.kind == "video") AttachmentMediaType.VIDEO else AttachmentMediaType.IMAGE)
+                return@withContext AttachmentMeta(value, when(job.kind) { "video" -> "video/mp4"; "music" -> "audio/mpeg"; else -> "image/png" },
+                    "Generated ${job.kind}", 0, when(job.kind) { "video" -> AttachmentMediaType.VIDEO; "music" -> AttachmentMediaType.AUDIO; else -> AttachmentMediaType.IMAGE })
             }
             val uri = if (value.startsWith('/')) Uri.fromFile(File(value)) else Uri.parse(value)
             var mime = MediaReferenceParser.mime(value)

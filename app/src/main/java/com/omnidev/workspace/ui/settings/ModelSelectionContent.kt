@@ -30,6 +30,7 @@ import com.omnidev.workspace.ui.components.OmniSearchField
 import com.omnidev.workspace.ui.components.SettingsEmptyState
 import com.omnidev.workspace.ui.motion.OmniIconButton
 import com.omnidev.workspace.ui.providers.ProviderModelCatalog
+import com.omnidev.workspace.data.chatmedia.*
 
 private fun roleTitle(role: ModelRole) = when (role) {
     ModelRole.CHAT -> "Chat"
@@ -49,7 +50,9 @@ internal fun ModelSelectionContent(state: AISettingsUiState, catalogs: Map<Model
     configured: Set<ModelProvider>, registry: Map<ModelProvider, List<AIModel>>,
     onOpen: (ModelRole) -> Unit, onDismiss: () -> Unit, onSelect: (ModelRole, String) -> Unit,
     onRefresh: (ModelProvider) -> Unit, onProviders: () -> Unit, onConnections: () -> Unit,
-    onLocalModels: () -> Unit, modifier: Modifier = Modifier) {
+    onLocalModels: () -> Unit, modifier: Modifier = Modifier,
+    onMediaSave: (MediaKind, MediaConfig) -> Unit = { _, _ -> }) {
+    var mediaPicker by rememberSaveable { mutableStateOf<MediaKind?>(null) }
     val available = remember(configured, catalogs, registry, state.localModelConfigured) {
         availableModelCatalogs(configured, catalogs, registry, state.localModelConfigured)
     }
@@ -75,6 +78,16 @@ internal fun ModelSelectionContent(state: AISettingsUiState, catalogs: Map<Model
                 selected(role)?.provider in available, onClick = { onOpen(role) })
         }
         item {
+            ModelSectionTitle("Media generation")
+            Text("Choose a separate model for images, video and songs. Disabled types cannot be generated in Chat or Agent.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        items(MediaKind.entries, key = { "media:${it.name}" }) { kind ->
+            val config = state.mediaPreferences[kind]
+            MediaAssignmentRow(kind, config, config.provider in configured, state.isSaving,
+                onOpen = { mediaPicker = kind }, onToggle = { onMediaSave(kind, config.copy(enabled = it)) })
+        }
+        item {
             Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
                 Column(Modifier.fillMaxWidth().padding(8.dp)) {
                     TextButton(onClick = onProviders, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
@@ -86,6 +99,11 @@ internal fun ModelSelectionContent(state: AISettingsUiState, catalogs: Map<Model
                 }
             }
         }
+    }
+    mediaPicker?.let { kind ->
+        val models = (catalogs.values.flatMap { it.models } + registry.values.flatten()).distinctBy { it.provider to it.id }
+        MediaModelPickerSheet(kind, state.mediaPreferences[kind], MediaModelCatalog.available(kind, configured, models),
+            configured, state.isSaving, state.modelSaveError, { onMediaSave(kind, it) }, { mediaPicker = null }, onRefresh, onProviders)
     }
     state.expandedDropdownRole?.let { role ->
         ModelPickerSheet(role, state.modelAssignments[role].orEmpty(), available, catalogs, state.isSaving,

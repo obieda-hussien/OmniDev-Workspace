@@ -156,6 +156,25 @@ class ChatToolLoopTest {
         assertNull(result.request)
         assertTrue(result.content.contains("generating"))
     }
+    @Test fun `Arabic and English song requests stay in ordinary chat and expose generation`() = runTest {
+        for (text in listOf("اعمل أغنية عن البحر", "اعمل موسيقي هادية", "Generate an instrumental song")) {
+            var calls = 0
+            val tools = object : ToolManager {
+                override fun getToolDefinitions() = listOf(MediaGenerationTool.definition())
+                override suspend fun executeTool(name: String, arguments: Map<String, String>, scopePath: String?): ToolExecutionResult {
+                    calls++; assertEquals("music", arguments["action"])
+                    return ToolExecutionResult("queued")
+                }
+            }
+            var round = 0
+            val result = ChatToolLoop(tools).run(request.copy(messages = listOf(ChatMessage(MessageRole.USER, text))), emptySet(), "user", complete = {
+                assertTrue(it.tools.orEmpty().any { it.name == "media_generation" })
+                if (round++ == 0) CompletionResponse("", listOf(ToolCall("song", "media_generation", mapOf("action" to "music", "prompt" to text))))
+                else CompletionResponse("Generating music")
+            }, event = {})
+            assertEquals(1, calls); assertNull(result.request)
+        }
+    }
     @Test fun `disabled media capability is not executed from chat`() = runTest {
         var invoked = false
         val tools = object : ToolManager {

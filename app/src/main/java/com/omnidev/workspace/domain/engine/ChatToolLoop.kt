@@ -52,7 +52,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
 
     private fun isMediaRequest(text: String): Boolean =
         !Regex("(?i)implement|debug|repository|project|script|build an app|create an app|video editor|تطبيق|مشروع|برمج|كود|واتساب|whatsapp|telegram|publish").containsMatchIn(text) &&
-        Regex("(?i)image|picture|photo|video|audio|صورة|صوره|صور|فيديو|صوت").containsMatchIn(text) &&
+        Regex("(?i)image|picture|photo|video|audio|music|song|صورة|صوره|صور|فيديو|صوت|موسيقى|موسيقي|أغنية|اغنية|اغاني|أغاني").containsMatchIn(text) &&
             Regex("(?i)generat|create|draw|make|send|attach|generate|ارسم|اعمل|ولّد|ولد|انشئ|أنشئ|ابعت|اعرض").containsMatchIn(text)
 
     data class Result(val content: String, val request: ExecutionModeRequest? = null)

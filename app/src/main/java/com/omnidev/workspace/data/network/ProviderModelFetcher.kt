@@ -113,7 +113,8 @@ class ProviderModelFetcher {
     @Serializable
     private data class OpenRouterArchitecture(
         val modality: String? = null,
-        @SerialName("input_modalities") val inputModalities: List<String>? = null
+        @SerialName("input_modalities") val inputModalities: List<String>? = null,
+        @SerialName("output_modalities") val outputModalities: List<String>? = null
     )
 
     private fun fetchOpenRouter(apiKey: String?): List<AIModel> {
@@ -140,7 +141,8 @@ class ProviderModelFetcher {
                 costPer1MInputTokens = m.pricing?.prompt?.toDoubleOrNull()?.let { it * 1_000_000.0 },
                 costPer1MOutputTokens = m.pricing?.completion?.toDoubleOrNull()?.let { it * 1_000_000.0 },
                 shortDescription = m.description?.take(140),
-                isLatest = false
+                isLatest = false,
+                outputModalities = m.architecture?.outputModalities.orEmpty().toSet()
             )
         }
     }

@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.omnidev.workspace.data.model.AIModel
 import com.omnidev.workspace.data.model.ModelProvider
 import com.omnidev.workspace.data.model.ModelRole
+import com.omnidev.workspace.data.chatmedia.MediaConfig
+import com.omnidev.workspace.data.chatmedia.MediaKind
+import com.omnidev.workspace.data.chatmedia.MediaPreferences
 import com.omnidev.workspace.data.repository.SettingsRepository
 import com.omnidev.workspace.registry.ModelRegistry
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +29,7 @@ data class AISettingsUiState(
         ModelRegistry.getDefaultModelForRole(it).id
     },
     val localModelConfigured: Boolean = false,
+    val mediaPreferences: MediaPreferences = MediaPreferences(),
     /** Whether Deep Thinking mode is enabled globally. */
     val deepThinkingEnabled: Boolean = false,
     /** Whether God Mode (unrestricted file system access) is enabled. */
@@ -56,6 +60,11 @@ class AISettingsViewModel(
 
     init {
         loadSettings()
+        viewModelScope.launch {
+            settingsRepository.observeMediaPreferences().collect { media ->
+                _uiState.update { it.copy(mediaPreferences = media) }
+            }
+        }
     }
 
     /**
@@ -106,6 +115,19 @@ class AISettingsViewModel(
                         modelSaveError = "Could not save this model. Please try again.")
                 }
             } finally { _uiState.update { it.copy(isSaving = false) } }
+        }
+    }
+
+    fun saveMediaConfig(kind: MediaKind, config: MediaConfig) {
+        if (_uiState.value.isSaving) return
+        _uiState.update { it.copy(isSaving = true, modelSaveError = null) }
+        viewModelScope.launch {
+            try {
+                val saved = settingsRepository.setMediaConfig(kind, config)
+                _uiState.update { it.copy(mediaPreferences = saved, statusMessage = "${kind.title} settings saved") }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { _uiState.update { it.copy(modelSaveError = error.message ?: "Could not save media settings.") } }
+            finally { _uiState.update { it.copy(isSaving = false) } }
         }
     }
 

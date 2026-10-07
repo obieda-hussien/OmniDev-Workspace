@@ -30,11 +30,21 @@ Both user and assistant messages use the same renderer, including the floating a
 
 ## Generation
 
-The `media_generation` tool is available in Chat and Agent under the existing tier/tool policy. It supports `image`, `video`, `attach`, `status` and `cancel`. Disabled tools remain disabled.
+In **Settings → Model Selection → Media generation**, choose independent image, video and music/song models from connected Providers. All three types start **Off**. Each can be disabled independently without changing Chat, Agent or Team text-model assignments. Disabled types are rejected in the tool and before worker execution; turning a type off cancels its pending local jobs. Removing a provider key never falls back to another account.
 
-Image providers: Gemini (default `gemini-3.1-flash-image`) or OpenAI (`gpt-image-1.5`). Video: Gemini Veo (`veo-3.1-fast-generate-preview`, 8 seconds, 720p). Explicit model IDs are supported. Keys come from Providers; media access/quota is independent of the conversation's selected text model. No retired OpenAI Sora endpoint is used.
+| Type | Implemented providers | Generation controls |
+|---|---|---|
+| Images | Gemini, OpenAI, xAI, OpenRouter image-output catalog | Aspect ratio; supported resolution/quality; PNG/JPEG/WebP, background and compression where supported |
+| Video | Gemini Veo 3.1, xAI Grok Imagine | Aspect ratio, supported resolution/duration; optional audio for xAI |
+| Music & songs | Gemini Lyria 3 Clip / Lyria 3.5, existing paid MiniMax music API accounts | MP3 or supported WAV, vocals/instrumental, lyrics/language, genre, mood, instruments, tempo and duration guidance |
 
-The tool creates a persistent local job, and immediately attaches its card to the conversation. WorkManager performs generation/polling/download. Completed files are stored before a card becomes playable. A queued/processing operation is never presented as a generated file. Video operation IDs persist so process recreation can poll the existing operation. Job/card records remain available for old conversations. Cancellation prevents late completion from overriding the cancelled card; already-submitted provider work may still incur usage.
+Only implemented generation families are offered. Image/video input support on a text model does not imply generation support. Refresh OpenRouter to discover models declaring image **output**. Built-in IDs are suggestions, not a promise that an account has quota/access. MiniMax music requires an existing paid API account under its current availability rules. Advanced model IDs are validated within the selected provider's supported generation family.
+
+Each type also saves creative direction, things to avoid, whether chat may override supported defaults, whether to announce readiness, and optional automatic device saving (Android 10+). Music length/tempo are prompt guidance rather than exact timing guarantees; Lyria Clip is a fixed 30-second MP3. Jobs snapshot their request settings; changing defaults affects new jobs. The text agent cannot enable a type or substitute its selected provider/model.
+
+The `media_generation` tool supports `image`, `video`, `music`, `attach`, `status` and `cancel` under the existing tier/tool policy. For example, after enabling a video model, ask **اعمل فيديو عن غروب الشمس فوق البحر** in ordinary Chat. The tool creates a persistent job and immediately attaches its card. WorkManager generates/polls/downloads; the card becomes playable only after the complete file is saved. A ready message is inserted once into the originating conversation, including while that conversation is closed; deleted conversations are never recreated. Optional auto-save sends images to Pictures/Omni, video to Movies/Omni and audio to Music/Omni. A save failure preserves the generated chat file and offers manual Save.
+
+Provider operation IDs persist so video polling resumes without another billable create request. Job/card records remain available in old conversations. Cancellation prevents late completion from overriding a cancelled card; provider work already submitted may still incur usage. Queued/processing work is never announced as a completed output.
 
 Creation is not automatically replayed after an ambiguous interruption. HTTP automatic connection retries and credential-bearing redirects are disabled. Only the exact Google file-download host/path receives its key, and external redirects do not receive it. Failed existing video operations can be checked again without generating a second video. Outputs and temporary writes are bounded; partial downloads are removed.
 
@@ -51,3 +61,11 @@ Primary contracts:
 - https://developers.openai.com/api/reference/resources/images/methods/generate
 - https://ai.google.dev/gemini-api/docs/image-generation
 - https://ai.google.dev/gemini-api/docs/veo
+
+Media API contracts:
+- https://ai.google.dev/gemini-api/docs/music-generation
+- https://ai.google.dev/gemini-api/docs/video
+- https://docs.x.ai/developers/model-capabilities/images/generation
+- https://docs.x.ai/developers/model-capabilities/video/generation
+- https://openrouter.ai/docs/guides/overview/multimodal/image-generation
+- https://platform.minimax.io/docs/api-reference/music-generation

@@ -113,4 +113,64 @@ class MediaGenerationClientTest {
             assertTrue(File(dir, "chat-media").listFiles().orEmpty().isEmpty())
         }
     }
+    @Test fun lyriaUsesInteractionsAndSavesPlayableAudioAndLyrics() = runBlocking {
+        inDirectory { context, _ ->
+            val config = MediaConfig.defaults(MediaKind.MUSIC).copy(enabled = true)
+            val client = MediaGenerationClient(context, readKey = { "music-key" }, execute = {
+                assertEquals("/v1beta/interactions", it.url.encodedPath)
+                assertEquals("music-key", it.header("x-goog-api-key"))
+                val buffer = Buffer(); it.body!!.writeTo(buffer)
+                assertEquals("lyria-3-clip-preview", JSONObject(buffer.readUtf8()).getString("model"))
+                response(it, """{"steps":[{"type":"model_output","content":[{"type":"text","text":"Lyrics"},{"type":"audio","mime_type":"audio/mpeg","data":"AQID"}]}]}""")
+            })
+            val result = client.step(job.copy(kind = "music", model = config.model, aspect = "", config = config))
+            assertEquals("completed", result.state); assertTrue(result.path!!.endsWith(".mp3")); assertEquals("Lyrics", result.lyricsText)
+            assertEquals(3L, File(Uri.parse(result.path).path!!).length())
+        }
+    }
+    @Test fun miniMaxMusicUsesSeparateLyricsAndHandlesHttp200ProviderErrors() = runBlocking {
+        inDirectory { context, _ ->
+            val config = MediaConfig.defaults(MediaKind.MUSIC).copy(enabled = true, provider = com.omnidev.workspace.data.model.ModelProvider.MINIMAX, model = "music-3.0", durationSeconds = 120, lyrics = "Hello")
+            var fail = false
+            val client = MediaGenerationClient(context, readKey = { "music-key" }, execute = {
+                assertEquals("/v1/music_generation", it.url.encodedPath); assertEquals("Bearer music-key", it.header("Authorization"))
+                val buffer = Buffer(); it.body!!.writeTo(buffer); val body = JSONObject(buffer.readUtf8())
+                assertEquals("Hello", body.getString("lyrics")); assertFalse(body.has("lyrics_optimizer"))
+                response(it, if (fail) """{"base_resp":{"status_code":1008}}""" else """{"base_resp":{"status_code":0},"data":{"status":2,"audio":"010203"}}""")
+            })
+            val song = job.copy(kind = "music", provider = "minimax", model = config.model, aspect = "", config = config)
+            assertTrue(client.step(song).path!!.endsWith(".mp3"))
+            fail = true; assertTrue(runCatching { client.step(song) }.isFailure)
+        }
+    }
+    @Test fun openRouterUsesDedicatedImageRouteAndSavedOutputSettings() = runBlocking {
+        inDirectory { context, _ ->
+            val config = MediaConfig().copy(enabled = true, provider = com.omnidev.workspace.data.model.ModelProvider.OPEN_ROUTER, model = "vendor/image", format = "webp", resolution = "2K", quality = "high")
+            val client = MediaGenerationClient(context, readKey = { "key" }, execute = {
+                assertEquals("openrouter.ai", it.url.host); assertEquals("/api/v1/images", it.url.encodedPath)
+                val buffer = Buffer(); it.body!!.writeTo(buffer); val body = JSONObject(buffer.readUtf8())
+                assertEquals("vendor/image", body.getString("model")); assertEquals("webp", body.getString("output_format")); assertEquals("2K", body.getString("resolution"))
+                response(it, """{"data":[{"b64_json":"AQID","media_type":"image/webp"}]}""")
+            })
+            assertTrue(client.step(job.copy(kind = "image", provider = "open_router", model = config.model, aspect = config.aspect, config = config)).path!!.endsWith(".webp"))
+        }
+    }
+    @Test fun xaiVideoSavesOperationThenPollsAndNeverForwardsApiKeyToVideoHost() = runBlocking {
+        inDirectory { context, _ ->
+            val config = MediaConfig.defaults(MediaKind.VIDEO).copy(enabled = true, provider = com.omnidev.workspace.data.model.ModelProvider.XAI, model = "grok-imagine-video-1.5", durationSeconds = 12, videoAudio = false)
+            var create = true
+            val client = MediaGenerationClient(context, readKey = { "key" }, execute = {
+                assertEquals("Bearer key", it.header("Authorization")); assertNull(it.header("x-goog-api-key"))
+                if (create) {
+                    assertEquals("POST", it.method); val buffer = Buffer(); it.body!!.writeTo(buffer); val body = JSONObject(buffer.readUtf8())
+                    assertEquals(12, body.getInt("duration")); assertFalse(body.getBoolean("generate_audio"))
+                    response(it, """{"request_id":"uuid-test"}""")
+                } else { assertEquals("GET", it.method); response(it, """{"status":"done","video":{"url":"https://video.example/result.mp4"}}""") }
+            }, download = { uri, key -> assertNull(key); response(Request.Builder().url(uri).build(), "video bytes") })
+            val pending = client.step(job.copy(provider = "xai", model = config.model, config = config))
+            assertEquals("processing", pending.state); assertEquals("uuid-test", pending.operation); assertNull(pending.path)
+            create = false; assertEquals("completed", client.step(pending).state)
+        }
+    }
+
 }

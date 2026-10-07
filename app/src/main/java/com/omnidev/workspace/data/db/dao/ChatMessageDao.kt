@@ -36,6 +36,13 @@ interface ChatMessageDao {
         return insertRow(message)
     }
 
+    /** Idempotent worker delivery; a deleted conversation remains deleted. */
+    @Transaction
+    suspend fun insertOnce(message: ChatMessageEntity): Long {
+        if (!sessionExists(message.sessionId)) return -1L
+        return getByMessageId(message.messageId)?.id ?: insertRow(message)
+    }
+
     @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     fun observeBySession(sessionId: Long): Flow<List<ChatMessageEntity>>
 
@@ -64,6 +71,9 @@ interface ChatMessageDao {
         beforeMessageId: Long?,
         limit: Int
     ): List<ChatMessageSource>
+
+    @Query("SELECT substr(content, 1, 4000) FROM chat_messages WHERE sessionId = :sessionId AND role = 'USER' ORDER BY id DESC LIMIT 1")
+    suspend fun latestUserContent(sessionId: Long): String?
 
     @Query("SELECT * FROM chat_messages WHERE messageId = :messageId LIMIT 1")
     suspend fun getByMessageId(messageId: String): ChatMessageEntity?
