@@ -1104,25 +1104,7 @@ class ChatViewModel(
                 }
             }
             is AgentEvent.ToolResult -> {
-                if (event.toolName == "media_generation" && !event.isError) {
-                    val payload = runCatching { org.json.JSONObject(event.output.substringAfter('{', "").let { "{" + it }) }.getOrNull()
-                    val values = payload?.optJSONArray("attachments")
-                    if (values != null) {
-                        val context = com.omnidev.workspace.OmniDevApp.instance.applicationContext
-                        val media = (0 until minOf(values.length(), 10)).mapNotNull { i ->
-                            val value = values.optJSONObject(i) ?: return@mapNotNull null
-                            val uri = value.optString("uri")
-                            com.omnidev.workspace.data.chatmedia.ChatMediaStore.metadata(context, uri, value.optString("file_name"))
-                        }
-                        val known = _uiState.value.messages.flatMap { it.attachments }.map { it.uri }.toSet()
-                        val fresh = media.filterNot { it.uri in known }
-                        if (fresh.isNotEmpty()) {
-                            val message = ChatMessage(MessageRole.ASSISTANT, if (payload?.optString("status") == "attached") "File attached." else "Media generation", attachments = fresh)
-                            _uiState.update { it.copy(messages = it.messages + message) }
-                            chatRepository?.saveMessage(sessionId, message)
-                        }
-                    }
-                }
+                attachToolMedia(event.toolName, event.output, event.isError, sessionId, runId)
                 val snippet = event.output.lines().firstOrNull()?.take(100).orEmpty()
                 val duration = _uiState.value.consoleEntries
                     .filterIsInstance<AgentConsoleEntry.ToolEntry>()
@@ -1199,7 +1181,18 @@ class ChatViewModel(
         }
     }
 
-    private fun handleSwarmEvent(event: SwarmEvent, sessionId: Long, runId: Long) {
+    private suspend fun attachToolMedia(toolName: String, output: String, isError: Boolean, sessionId: Long, runId: Long) {
+        if (toolName != "media_generation" || isError) return
+        val context = com.omnidev.workspace.OmniDevApp.instance.applicationContext
+        val message = com.omnidev.workspace.data.chatmedia.MediaToolResult.message(toolName, output, isError,
+            existingUris = { _uiState.value.messages.flatMap { it.attachments }.map { it.uri }.toSet() },
+            resolve = { uri, name -> com.omnidev.workspace.data.chatmedia.ChatMediaStore.metadata(context, uri, name) }) ?: return
+        if (runId != activeRunId.get() || _uiState.value.currentSessionId != sessionId) return
+        _uiState.update { it.copy(messages = it.messages + message) }
+        chatRepository?.saveMessage(sessionId, message)
+    }
+
+    private suspend fun handleSwarmEvent(event: SwarmEvent, sessionId: Long, runId: Long) {
         if (runId != activeRunId.get()) return
         when (event) {
             is SwarmEvent.PlanningStarted -> _uiState.update {
@@ -1241,6 +1234,7 @@ class ChatViewModel(
                 }
             }
             is SwarmEvent.WorkerToolResult -> {
+                attachToolMedia(event.toolName, event.output, event.isError, sessionId, runId)
                 val snippet = event.output.lines().firstOrNull()?.take(100).orEmpty()
                 _uiState.update {
                     it.copy(consoleEntries = it.consoleEntries + AgentConsoleEntry.ResultEntry(event.toolName, snippet, event.isError, event.output, 0L))

@@ -12,7 +12,7 @@ The device access center provides authenticated opt-ins for screen wake, Android
 
 ## Chat media models
 
-Choose independent image, video and music/song models in **Settings → Model Selection → Media generation**. Each type starts Off; enable a connected supported provider/model, customize its defaults, then request media in ordinary Chat. Finished files appear in the conversation with playback/preview, save/share and an optional ready message; generation continues in the background. See [media setup and provider controls](docs/CHAT_MEDIA_AND_UNLOCK_RECOVERY.md#generation).
+Choose independent image, video and music/song models in **Settings → Model Selection → Media generation**. Each type starts Off; enable a connected supported provider/model, customize its defaults, then request media in Chat, Agent or Team. Finished files appear in the conversation with playback/preview, save/share and an optional ready message; generation continues in the background. See [media setup and provider controls](docs/CHAT_MEDIA_AND_UNLOCK_RECOVERY.md#generation).
 
 ## المحتويات
 
@@ -44,15 +44,15 @@ Choose independent image, video and music/song models in **Settings → Model Se
 
 | المقياس | العدد | طريقة الحساب |
 |---|---:|---|
-| الملفات المتتبعة | **712** | كل الملفات المتتبعة الحالية في `git ls-files` |
-| ملفات المصدر الإنتاجية | **456** | امتدادات Kotlin/Java/AIDL/C/C++/headers خارج مجلدات الاختبارات |
-| سطور المصدر الإنتاجية | **104,607** | سطور فعلية، تشمل الفراغات والتعليقات |
-| ملفات مصدر الاختبارات | **130** | نفس الامتدادات داخل `test` أو `androidTest` |
-| سطور مصدر الاختبارات | **9,759** | بنفس طريقة العدّ |
-| إجمالي ملفات المصدر | **586** | إنتاج + اختبارات |
-| إجمالي سطور المصدر | **114,366** | إنتاج + اختبارات |
-| ملفات Kotlin | **578** | إنتاج واختبارات معًا |
-| سطور Kotlin | **113,593** | إنتاج واختبارات معًا |
+| الملفات المتتبعة | **714** | كل الملفات المتتبعة الحالية في `git ls-files` |
+| ملفات المصدر الإنتاجية | **457** | امتدادات Kotlin/Java/AIDL/C/C++/headers خارج مجلدات الاختبارات |
+| سطور المصدر الإنتاجية | **104,631** | سطور فعلية، تشمل الفراغات والتعليقات |
+| ملفات مصدر الاختبارات | **131** | نفس الامتدادات داخل `test` أو `androidTest` |
+| سطور مصدر الاختبارات | **9,806** | بنفس طريقة العدّ |
+| إجمالي ملفات المصدر | **588** | إنتاج + اختبارات |
+| إجمالي سطور المصدر | **114,437** | إنتاج + اختبارات |
+| ملفات Kotlin | **580** | إنتاج واختبارات معًا |
+| سطور Kotlin | **113,664** | إنتاج واختبارات معًا |
 | ملفات Markdown | **47** | الوثائق الأساسية وملفات مهارات الوكيل داخل الموارد |
 | نسخ التطبيق | **5** | `lite`, `norm`, `pro`, `oem`, `admin` |
 | أوضاع التشغيل | **4** | `AUTO`, `CHAT`, `AGENT`, `SWARM` |
