@@ -8,7 +8,7 @@ object DeviceConsentPolicy {
         LOCK_OVERLAY("Assistant on the lock screen", "Show the assistant while locked. An existing conversation is hidden until you unlock."),
         LOCK_OBSERVE("Inspect the lock screen", "Allow semantic inspection of visible lock-screen controls. PIN entry and screenshots remain private."),
         SETTINGS("Inspect and operate Settings", "Allow Android Settings inspection and interaction, including sensitive settings exposed by Android. Protected inputs stay private."),
-        VOICE_CREDENTIAL("Enter a spoken unlock code locally", "Allow a private offline voice session to enter one PIN, explicitly spelled password, or numbered 3×3 pattern you provide. Codes never enter chat or a provider. Speaking a code exposes it to anyone nearby; recordings can be replayed. Android/OEM keypad support is required."),
+        VOICE_CREDENTIAL("Enter an unlock code privately", "Allow offline voice or a private local dialog to enter one PIN, password, or numbered 3×3 pattern you provide and confirm. Codes never enter chat or a provider. Speaking a code exposes it to anyone nearby; recordings can be replayed. Android/OEM keypad support is required."),
         SAVED_PIN("Use a local unlock PIN", "Admin only. Store a PIN locally, then authorize one attempt for 15 minutes or remember authorization until revoked. Each request enters it once; failed or interrupted input pauses remembered attempts. The PIN never enters model arguments or chat.")
     }
 

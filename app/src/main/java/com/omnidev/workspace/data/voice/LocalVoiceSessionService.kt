@@ -33,6 +33,7 @@ class LocalVoiceSessionService : Service() {
     private var credential: SpokenCredential? = null
     private var attempted = false
     private var phase = "Starting local voice…"
+    private var stage = "model"
     private val consentListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
         if (!allowed()) { input?.stop(); output?.stop(); stopSelf() }
     }
@@ -63,9 +64,14 @@ class LocalVoiceSessionService : Service() {
             val notification = notification()
             if (Build.VERSION.SDK_INT >= 29) startForeground(ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE) else startForeground(ID, notification)
             check(WakePreferences(this).autoDictation && OfflineVoiceModels(this).ready() && AssistantSettings.isSelected(this) && allowed())
+            com.omnidev.workspace.ui.assistant.VoiceSessionStartActivity.serviceStarted(requestId)
             AssistantRuntime.get(this).listening(true)
             if (session?.isActive != true) session = scope.launch { runSession() }
-        } catch (error: Exception) { update("Local voice unavailable. Open Hi Omni settings and check the model, microphone and permissions."); finishRequest(false); stopSelf() }
+        } catch (error: Exception) {
+            com.omnidev.workspace.ui.assistant.VoiceSessionStartActivity.serviceStarted(requestId)
+            update("Local voice could not start. Check the selected assistant, microphone and model in Hi Omni settings.")
+            finishRequest(false); stopSelf()
+        }
         return START_NOT_STICKY
     }
     private fun allowed(): Boolean {
@@ -83,6 +89,7 @@ class LocalVoiceSessionService : Service() {
         .setContentIntent(PendingIntent.getActivity(this, 0, Intent(this, VoiceWakeActivity::class.java), IMMUTABLE))
         .addAction(0, "Stop", PendingIntent.getService(this, 1, Intent(this, LocalVoiceSessionService::class.java).setAction(STOP), IMMUTABLE)).build()
     private suspend fun say(english: String, arabic: String = english, requireUnlocked: Boolean = false) {
+        stage = "speech_output"
         check(allowed())
         check(!requireUnlocked || !DeviceConsentStore(this).locked())
         update(if (requireUnlocked) "Speaking reply…" else english)
@@ -104,12 +111,27 @@ class LocalVoiceSessionService : Service() {
                 OfflineVoiceModels(this@LocalVoiceSessionService).withModel { model ->
                     input = OfflineSpeech(this@LocalVoiceSessionService, model)
                     output = LocalSpeechOutput(this@LocalVoiceSessionService)
-                    output!!.initialize()
+                    stage = "speech_output"
+                    try { output!!.initialize() }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) {
+                        releaseSpeechOutput()
+                        // Preparation failed before any credential was captured or entered.
+                        if (requestId != null && !attempted) {
+                            handingOff = true
+                            try {
+                                val result = com.omnidev.workspace.ui.assistant.PrivateUnlockActivity.request(this@LocalVoiceSessionService)
+                                update(result); finishRequest(result.startsWith("UNLOCKED:")); return@withModel
+                            } finally { handingOff = false }
+                        }
+                        throw IllegalStateException("Offline speech output unavailable")
+                    }
                     if (requestId == null) say("I'm ready. What would you like?", "أنا جاهز. تحب أعمل إيه؟")
                     repeat(8) {
                         currentCoroutineContext().ensureActive()
                         if (requestId != null) { finishRequest(unlock()); return@withModel }
                         update("Listening locally…")
+                        stage = "microphone"
                         val utterance = try { input?.listen(20) { allowed() && requestId == null } }
                             catch (error: IllegalStateException) { if (requestId != null) null else throw error }
                         if (requestId != null) return@repeat
@@ -138,7 +160,7 @@ class LocalVoiceSessionService : Service() {
             }
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (error: VoiceNativeUnavailableException) { update(error.message ?: "Offline speech library unavailable.") }
-        catch (error: Exception) { update("Voice session stopped. Check the local model, offline voice and device permissions.") }
+        catch (error: Exception) { update(VoiceSessionFailure.describe(stage)) }
         finally {
             credential?.close(); credential = null; privatePhase = false; handingOff = false
             input?.stop(); input = null; releaseSpeechOutput()
@@ -180,6 +202,7 @@ class LocalVoiceSessionService : Service() {
         privatePhase = true; handingOff = true
         val generation = AssistantRuntime.get(this).sessionGeneration
         withContext(Dispatchers.Main.immediate) { AssistantRuntime.hideForUnlock?.invoke() }
+        stage = "native_prompt"
         val nativePrompt = scope.async { DeviceUnlockActivity.request(this@LocalVoiceSessionService, true, voiceSession = true) }
         try {
             withTimeoutOrNull(8_000) {
@@ -199,6 +222,7 @@ class LocalVoiceSessionService : Service() {
                 SpokenCredential.Kind.PATTERN -> "قول نقاط النقش من واحد لتسعة. الصف العلوي واحد اتنين تلاتة."
             })
             update("Private code input · no transcript")
+            stage = "microphone"
             val heard = input?.listen(35) { allowed() && !nativePrompt.isCompleted }
             if (!consent.locked()) return true
             if (nativePrompt.isCompleted) { update(nativePrompt.await()); return false }
@@ -290,6 +314,17 @@ class LocalVoiceSessionService : Service() {
                 consent.enabled(DeviceConsentPolicy.Scope.UNLOCK), consent.enabled(DeviceConsentPolicy.Scope.VOICE_CREDENTIAL),
                 consent.enabled(DeviceConsentPolicy.Scope.LOCK_OVERLAY))
         }
+        internal fun startPendingRequest(context: Context, id: String): Boolean {
+            if (!synchronized(pending) { pending[id]?.isActive == true }) return false
+            return try {
+                ContextCompat.startForegroundService(context, Intent(context, LocalVoiceSessionService::class.java).putExtra(REQUEST, id))
+                true
+            } catch (_: Exception) {
+                synchronized(pending) { pending[id]?.complete("USER_ACTION_REQUIRED: Android blocked the microphone service. Use private local code entry or unlock manually.") }
+                false
+            }
+        }
+        internal fun pendingRequest(id: String) = synchronized(pending) { pending[id]?.isActive == true }
         suspend fun requestUnlock(context: Context): Boolean = requestUnlockResult(context).startsWith("UNLOCKED:")
 
         suspend fun requestUnlockResult(context: Context): String = withContext(Dispatchers.Main.immediate) {
@@ -304,7 +339,7 @@ class LocalVoiceSessionService : Service() {
                 // Its subsequent DeviceUnlockActivity is a handoff, not a second invocation.
                 LockScreenAwake.holdForRequest(context, assistantHandoff = AssistantRuntime.targetingScreen)
                 if (!OmniVoiceInteractionService.showForUnlock(context)) return@withContext "USER_ACTION_REQUIRED: Android could not show the private assistant. Open Omni in the foreground and unlock manually."
-                ContextCompat.startForegroundService(context, Intent(context, LocalVoiceSessionService::class.java).putExtra(REQUEST, id))
+                com.omnidev.workspace.ui.assistant.VoiceSessionStartActivity.launch(context, id)
                 val outcome = withTimeoutOrNull(110_000) { result.await() }
                 if (!consent.locked()) "UNLOCKED: verified with Android keyguard state."
                 else outcome?.takeUnless { it.startsWith("UNLOCKED:") }

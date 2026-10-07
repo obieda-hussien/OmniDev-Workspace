@@ -58,7 +58,7 @@ data class AttachmentMeta(
 
 @Serializable
 enum class AttachmentMediaType {
-    IMAGE, PDF, TEXT, VIDEO, UNKNOWN
+    IMAGE, PDF, TEXT, VIDEO, AUDIO, UNKNOWN
 }
 
 /**

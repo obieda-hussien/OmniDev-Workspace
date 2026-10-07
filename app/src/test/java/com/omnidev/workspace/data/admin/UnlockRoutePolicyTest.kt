@@ -54,4 +54,21 @@ class UnlockRoutePolicyTest {
             fail("Cancellation was swallowed")
         } catch (_: CancellationException) { }
     }
+    @Test fun unavailableVoiceCanRequestPrivateLocalEntryWithoutAnotherCredentialAttempt() = runTest {
+        val result = UnlockRoutePolicy.request(true, false, false,
+            savedPin = { fail("No saved authorization"); "" },
+            voice = { fail("Voice unavailable"); "" },
+            native = { fail("Private entry should be selected"); "" },
+            privateEntryAvailable = true,
+            privateEntry = { "USER_ACTION_REQUIRED: local entry cancelled" })
+        assertEquals("android-private-input", result.backend)
+        assertTrue(result.output.contains("cancelled"))
+    }
+    @Test fun savedFailureNeverFallsBackToPrivateEntry() = runTest {
+        val result = UnlockRoutePolicy.request(true, true, false,
+            savedPin = { "USER_ACTION_REQUIRED: attempts paused" }, voice = { "" }, native = { "" },
+            privateEntryAvailable = true, privateEntry = { fail("Second credential route forbidden"); "" })
+        assertEquals("android-saved-pin", result.backend)
+    }
+
 }

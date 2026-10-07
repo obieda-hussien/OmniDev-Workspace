@@ -322,6 +322,10 @@
                 <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
             </intent-filter>
         </activity-alias>
+        <activity android:name=".ui.assistant.PrivateUnlockActivity" android:exported="false"
+            android:theme="@style/Theme.OmniDevWorkspace" android:excludeFromRecents="true" android:taskAffinity="" />
+        <activity android:name=".ui.assistant.VoiceSessionStartActivity" android:exported="false"
+            android:theme="@style/Theme.OmniDevWorkspace.Assistant" android:excludeFromRecents="true" android:taskAffinity="" />
         <activity android:name=".ui.assistant.DeviceUnlockActivity" android:exported="false"
             android:theme="@style/Theme.OmniDevWorkspace.Assistant" android:excludeFromRecents="true" android:taskAffinity="" />
         <activity android:name=".ui.assistant.DeviceAccessActivity" android:exported="false"
@@ -356,6 +360,10 @@
             </intent-filter>
         </service>
 
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.chatmedia"
+            android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/chat_media_paths" />
+        </provider>
         <provider android:name="rikka.shizuku.ShizukuProvider" android:authorities="${applicationId}.shizuku" android:enabled="true" android:exported="true" android:multiprocess="false" android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
 
         <service android:name=".data.tools.AgentNotificationService" android:exported="true" android:directBootAware="true" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">

@@ -56,6 +56,7 @@ data class ChatUiState(
     val consoleEntries: List<AgentConsoleEntry> = emptyList(),
     val messageConsoleEntries: Map<Long, List<AgentConsoleEntry>> = emptyMap(),
     val pendingAttachments: List<PendingAttachment> = emptyList(),
+    val isImportingAttachments: Boolean = false,
     val sessions: List<ChatSessionEntity> = emptyList(),
     val isDrawerOpen: Boolean = false,
     val currentSessionId: Long? = null,
@@ -94,7 +95,7 @@ class ChatViewModel(
 
     companion object {
         private const val CHAT_SYSTEM_PROMPT =
-            "You are a helpful, concise assistant. Answer questions directly. If the user asks you to write or edit code, be precise and professional."
+            "You are a helpful, concise assistant. Answer questions directly. Use media_generation to create or attach media when requested; queued jobs are not completed outputs. If the user asks you to write or edit code, be precise and professional."
         private const val CHECKPOINT_CONSOLE_TAIL_SIZE = 8
         private const val CHECKPOINT_DEEP_THINKING_PREVIEW_CHARS = 120
         private const val CHECKPOINT_ERROR_PREVIEW_CHARS = 160
@@ -117,6 +118,7 @@ class ChatViewModel(
     private val activeRunId = AtomicLong(0L)
     @Volatile private var currentAgentJob: Job? = null
     private var sessionObservation: Job? = null
+    private var attachmentImportJob: Job? = null
 
     private val modePermissionStore: ModeSwitchPermissionStore by lazy {
         ModeSwitchPermissionStore(com.omnidev.workspace.OmniDevApp.instance.applicationContext)
@@ -248,6 +250,8 @@ class ChatViewModel(
     }
 
     fun loadSession(sessionId: Long) {
+        attachmentImportJob?.cancel()
+        _uiState.update { it.copy(isImportingAttachments = false) }
         val repo = chatRepository ?: return
         modePermissionStore.clearSession(_uiState.value.currentSessionId)
         activeRunId.incrementAndGet()
@@ -274,6 +278,8 @@ class ChatViewModel(
     }
 
     fun newSession() {
+        attachmentImportJob?.cancel()
+        _uiState.update { it.copy(isImportingAttachments = false) }
         compositeToolManager?.assistantActionGuard = null
         _uiState.value.pendingConfirmation?.onDeny?.invoke()
         clearConfirmation()
@@ -381,8 +387,27 @@ class ChatViewModel(
 
     fun addAttachments(uris: List<Uri>, displayNames: List<String>) {
         require(uris.size == displayNames.size)
-        val additions = uris.mapIndexed { index, uri -> PendingAttachment(uri, displayNames[index]) }
-        _uiState.update { it.copy(pendingAttachments = it.pendingAttachments + additions) }
+        if (uris.isEmpty() || _uiState.value.isImportingAttachments) return
+        if (uris.size + _uiState.value.pendingAttachments.size > 10) {
+            _uiState.update { it.copy(errorMessage = "Attach up to 10 files per message.") }; return
+        }
+        if (uris.all { it.scheme == "file" && it.path?.contains("/assistant_workspace/attachments/") == true }) {
+            val additions = uris.mapIndexed { index, uri -> PendingAttachment(uri, displayNames[index]) }
+            _uiState.update { it.copy(pendingAttachments = it.pendingAttachments + additions) }; return
+        }
+        _uiState.update { it.copy(isImportingAttachments = true) }
+        attachmentImportJob = viewModelScope.launch {
+            val context = com.omnidev.workspace.OmniDevApp.instance.applicationContext
+            try {
+                val additions = uris.mapIndexed { index, uri ->
+                    val media = com.omnidev.workspace.data.chatmedia.ChatMediaStore.import(context, uri, displayNames[index])
+                    PendingAttachment(Uri.parse(media.uri), media.fileName)
+                }
+                _uiState.update { it.copy(pendingAttachments = it.pendingAttachments + additions) }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) { _uiState.update { it.copy(errorMessage = error.message ?: "Could not import attachments.") } }
+            finally { _uiState.update { it.copy(isImportingAttachments = false) } }
+        }
     }
 
     fun removeAttachment(uri: Uri) {
@@ -447,6 +472,7 @@ class ChatViewModel(
 
     fun sendMessage() {
         val state = _uiState.value
+        if (state.isImportingAttachments) { _uiState.update { it.copy(errorMessage = "Wait for the selected files to finish importing.") }; return }
         val draft = state.inputText.trim()
         if ((draft.isEmpty() && state.pendingAttachments.isEmpty()) || state.isProcessing) return
         val input = draft.ifEmpty { "Please review the attached files." }
@@ -492,9 +518,15 @@ class ChatViewModel(
 
         currentAgentJob = viewModelScope.launch {
             val sessionId = ensureSession(input)
-            chatRepository?.saveMessage(sessionId, userMessage)
+            val context = com.omnidev.workspace.OmniDevApp.instance.applicationContext
+            val media = attachments.mapNotNull { pending ->
+                com.omnidev.workspace.data.chatmedia.ChatMediaStore.metadata(context, pending.uri.toString(), pending.displayName)
+            } + com.omnidev.workspace.data.chatmedia.ChatMediaStore.references(context, input)
+            val persisted = userMessage.copy(attachments = media.distinctBy { it.uri })
+            _uiState.update { current -> current.copy(messages = current.messages.map { if (it.messageId == userMessage.messageId) persisted else it }) }
+            chatRepository?.saveMessage(sessionId, persisted)
             val imageAttachments = resolveImageAttachments(attachments)
-            val executionInput = if (assistantWorkspace == null) input else input + assistantAttachmentContext(attachments)
+            val executionInput = input + assistantAttachmentContext(attachments)
             val scope = scopePath ?: if (_uiState.value.isGodModeEnabled) "/" else ""
             if (matchingRoutine != null) {
                 executeAgentMode(input, emptyList(), sessionId, scope, runId = runId)
@@ -510,14 +542,14 @@ class ChatViewModel(
                     com.omnidev.workspace.domain.engine.ModeOutcomeLearner.recordAutoDecision(input, baseline, resolved)
                     _uiState.update { it.copy(agentStatus = "🧠 Auto-routed → ${resolved.label}") }
                     when (resolved) {
-                        OmniMode.CHAT, OmniMode.AUTO -> executeChatMode(input, imageAttachments, sessionId, runId)
-                        OmniMode.AGENT -> if (scope.isNotBlank()) executeAgentMode(input, imageAttachments, sessionId, scope, runId = runId)
-                            else executeChatMode(input, imageAttachments, sessionId, runId)
+                        OmniMode.CHAT, OmniMode.AUTO -> executeChatMode(executionInput, imageAttachments, sessionId, runId)
+                        OmniMode.AGENT -> if (scope.isNotBlank()) executeAgentMode(executionInput, imageAttachments, sessionId, scope, runId = runId)
+                            else executeChatMode(executionInput, imageAttachments, sessionId, runId)
                         OmniMode.SWARM -> if (scope.isNotBlank()) executeSwarmMode(input, sessionId, scope, runId)
-                            else executeChatMode(input, imageAttachments, sessionId, runId)
+                            else executeChatMode(executionInput, imageAttachments, sessionId, runId)
                     }
                 }
-                OmniMode.CHAT -> executeChatMode(input, imageAttachments, sessionId, runId)
+                OmniMode.CHAT -> executeChatMode(executionInput, imageAttachments, sessionId, runId)
                 OmniMode.AGENT -> executeAgentMode(executionInput, imageAttachments, sessionId, scope, runId = runId)
                 OmniMode.SWARM -> executeSwarmMode(input, sessionId, scope, runId)
             }
@@ -534,15 +566,24 @@ class ChatViewModel(
 
     private suspend fun resolveImageAttachments(attachments: List<PendingAttachment>): List<AttachmentMeta> {
         val processor = attachmentProcessor ?: return emptyList()
+        var totalBytes = 0L
         return attachments.mapNotNull { pending ->
             val mime = processor.getMimeType(pending.uri) ?: return@mapNotNull null
             if (!mime.startsWith("image/", true)) return@mapNotNull null
+            // Preview/import limits are separate from the bounded model-upload limit.
+            val fileSize = if (pending.uri.scheme == "file") java.io.File(pending.uri.path.orEmpty()).length() else 0L
+            if (fileSize > AttachmentProcessor.MAX_SINGLE_FILE_SIZE_BYTES ||
+                totalBytes + fileSize > AttachmentProcessor.MAX_TOTAL_SIZE_BYTES) return@mapNotNull null
             val base64 = processor.readImageAsBase64(pending.uri) ?: return@mapNotNull null
+            val decodedSize = (base64.length.toLong() / 4 * 3) - base64.takeLast(2).count { it == '=' }
+            if (decodedSize > AttachmentProcessor.MAX_SINGLE_FILE_SIZE_BYTES ||
+                totalBytes + decodedSize > AttachmentProcessor.MAX_TOTAL_SIZE_BYTES) return@mapNotNull null
+            totalBytes += decodedSize
             AttachmentMeta(
                 uri = pending.uri.toString(),
                 mimeType = mime,
                 fileName = pending.displayName,
-                sizeBytes = 0L,
+                sizeBytes = decodedSize,
                 mediaType = AttachmentMediaType.IMAGE,
                 base64Data = base64
             )
@@ -625,7 +666,7 @@ class ChatViewModel(
             .observeModelIdForRole(com.omnidev.workspace.data.model.ModelRole.CHAT).first()
         val model = ModelRegistry.findModelById(modelId) ?: ModelRegistry.getModelById(modelId)
         val original = _uiState.value.messages.lastOrNull { it.role == MessageRole.USER } ?: return
-        val withAttachments = original.copy(attachments = imageAttachments)
+        val withAttachments = original.copy(attachments = (imageAttachments + original.attachments).distinctBy { it.uri })
         _uiState.update { state -> state.copy(messages = state.messages.map {
             if (it.messageId == original.messageId) withAttachments else it
         }) }
@@ -869,9 +910,9 @@ class ChatViewModel(
         if (assistantWorkspace != null) {
             val original = _uiState.value.messages.lastOrNull { it.role == MessageRole.USER }
             if (original != null) {
-                val withAttachments = original.copy(attachments = imageAttachments)
+                val withAttachments = original.copy(attachments = (imageAttachments + original.attachments).distinctBy { it.uri })
                 _uiState.update { state -> state.copy(messages = state.messages.map { if (it.messageId == original.messageId) withAttachments else it }) }
-                chatRepository?.updateMetadata(sessionId, withAttachments.copy(attachments = imageAttachments.map { it.copy(base64Data = null) }))
+                chatRepository?.updateMetadata(sessionId, withAttachments.copy(attachments = withAttachments.attachments.map { it.copy(base64Data = null) }))
             }
         }
         val deepThinking = settingsRepository.observeDeepThinking().first()
@@ -1008,7 +1049,7 @@ class ChatViewModel(
         }
     }
 
-    private fun handleAgentEvent(event: AgentEvent, sessionId: Long, runId: Long) {
+    private suspend fun handleAgentEvent(event: AgentEvent, sessionId: Long, runId: Long) {
         if (runId != activeRunId.get()) return
         when (event) {
             is AgentEvent.Started -> _uiState.update { it.copy(agentStatus = "Agent started...") }
@@ -1040,6 +1081,25 @@ class ChatViewModel(
                 }
             }
             is AgentEvent.ToolResult -> {
+                if (event.toolName == "media_generation" && !event.isError) {
+                    val payload = runCatching { org.json.JSONObject(event.output.substringAfter('{', "").let { "{" + it }) }.getOrNull()
+                    val values = payload?.optJSONArray("attachments")
+                    if (values != null) {
+                        val context = com.omnidev.workspace.OmniDevApp.instance.applicationContext
+                        val media = (0 until minOf(values.length(), 10)).mapNotNull { i ->
+                            val value = values.optJSONObject(i) ?: return@mapNotNull null
+                            val uri = value.optString("uri")
+                            com.omnidev.workspace.data.chatmedia.ChatMediaStore.metadata(context, uri, value.optString("file_name"))
+                        }
+                        val known = _uiState.value.messages.flatMap { it.attachments }.map { it.uri }.toSet()
+                        val fresh = media.filterNot { it.uri in known }
+                        if (fresh.isNotEmpty()) {
+                            val message = ChatMessage(MessageRole.ASSISTANT, if (payload?.optString("status") == "attached") "File attached." else "Media generation", attachments = fresh)
+                            _uiState.update { it.copy(messages = it.messages + message) }
+                            chatRepository?.saveMessage(sessionId, message)
+                        }
+                    }
+                }
                 val snippet = event.output.lines().firstOrNull()?.take(100).orEmpty()
                 val duration = _uiState.value.consoleEntries
                     .filterIsInstance<AgentConsoleEntry.ToolEntry>()

@@ -28,6 +28,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
         val WEB_TOOLS = setOf(
             "web_search", "web_search_deep", "web_scraper", "fetch_page", "scrape_multiple"
         )
+        val CHAT_TOOLS = WEB_TOOLS + "media_generation"
         const val REQUEST_MODE = "request_execution_mode"
         private const val CHAT_TOKEN_BUDGET = 32_000
         private const val MIN_OUTPUT_RESERVE = 256
@@ -48,6 +49,11 @@ class ChatToolLoop(private val tools: ToolManager?) {
             )
         )
     }
+
+    private fun isMediaRequest(text: String): Boolean =
+        !Regex("(?i)implement|debug|repository|project|script|build an app|create an app|video editor|تطبيق|مشروع|برمج|كود|واتساب|whatsapp|telegram|publish").containsMatchIn(text) &&
+        Regex("(?i)image|picture|photo|video|audio|صورة|صوره|صور|فيديو|صوت").containsMatchIn(text) &&
+            Regex("(?i)generat|create|draw|make|send|attach|generate|ارسم|اعمل|ولّد|ولد|انشئ|أنشئ|ابعت|اعرض").containsMatchIn(text)
 
     data class Result(val content: String, val request: ExecutionModeRequest? = null)
 
@@ -87,7 +93,8 @@ class ChatToolLoop(private val tools: ToolManager?) {
             return Result(content, request)
         }
 
-        val localSuggestion = AdaptiveModeRouter.fromChatRequest(userRequest)
+        val mediaRequest = isMediaRequest(userRequest)
+        val localSuggestion = if (mediaRequest) null else AdaptiveModeRouter.fromChatRequest(userRequest)
         if (localSuggestion != null && localSuggestion.confidence >= 0.72f) {
             val request = ExecutionModeRequest(
                 mode = localSuggestion.to.name,
@@ -102,7 +109,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
         }
 
         val definitions = tools?.getToolDefinitions().orEmpty()
-            .filter { it.name in WEB_TOOLS && it.name !in disabled }
+            .filter { it.name in CHAT_TOOLS && it.name !in disabled }
         val allowed = definitions.map { it.name }.toSet()
         val history = base.messages.toMutableList()
         val seen = mutableSetOf<Pair<String, Map<String, String>>>()

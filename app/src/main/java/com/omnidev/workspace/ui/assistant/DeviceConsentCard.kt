@@ -73,6 +73,7 @@ fun DeviceConsentCard() {
                     })
                 }
             }
+            Text("Permissions alone do not provide your device code. For automatic PIN input, save your PIN below and choose Remember PIN authorization. Private local code entry remains available when offline voice is unavailable.", style = MaterialTheme.typography.bodySmall)
             if (store.enabled(DeviceConsentPolicy.Scope.SAVED_PIN)) {
                 Text(if (vault.exists()) "Local PIN saved · ${store.pinAuthorizationStatus()}" else "No local PIN saved", style = MaterialTheme.typography.labelMedium)
                 OutlinedTextField(value = pin, onValueChange = { value ->

@@ -33,7 +33,7 @@ class DevicePinVault(context: Context) {
             throw error
         } finally { bytes.fill(0); pin.fill('\u0000') }
     }
-    internal fun <T> withPin(use: (CharArray) -> T): T {
+    internal suspend fun <T> withPin(use: suspend (CharArray) -> T): T {
         val data = file.openRead().use { it.readBytes() }
         require(data.size in 30..128)
         val ivSize = data[0].toInt()
