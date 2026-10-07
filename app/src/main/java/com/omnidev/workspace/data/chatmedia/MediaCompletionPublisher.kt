@@ -26,8 +26,8 @@ internal object MediaCompletionPublisher {
         val job = store.get(original.id) ?: return
         if (job.state != "failed" || job.failureAnnounced || job.sessionId == null) return
         val text = if (job.arabic) "توليد الوسائط وقف بسبب خطأ. افتح تفاصيل الكارت للمراجعة.\n${job.error.orEmpty()}" else "${job.kind.replaceFirstChar { it.uppercase() }} generation failed.\n${job.error.orEmpty()}"
-        OmniDevDatabase.getInstance(context).chatMessageDao().insertOnce(ChatMessageEntity(
-            sessionId = job.sessionId, role = "ASSISTANT", content = text, messageId = MediaCompletion.MESSAGE_PREFIX + job.id + ":failed"))
+        OmniDevDatabase.getInstance(context).chatMessageDao().insertMediaResult(ChatMessageEntity(
+            sessionId = job.sessionId, role = "ASSISTANT", content = text, messageId = MediaCompletion.MESSAGE_PREFIX + job.id + ":failed", replyToMessageId = job.originMessageId), job.originMessageId, job.created)
         store.update(job.copy(failureAnnounced = true))
     }
 
@@ -47,9 +47,9 @@ internal object MediaCompletionPublisher {
             if (!store.update(job)) return
         }
         if (job.config?.announceCompletion != false && job.sessionId != null) {
-            OmniDevDatabase.getInstance(context).chatMessageDao().insertOnce(ChatMessageEntity(
+            OmniDevDatabase.getInstance(context).chatMessageDao().insertMediaResult(ChatMessageEntity(
                 sessionId = job.sessionId!!, role = "ASSISTANT", content = MediaCompletion.text(job),
-                messageId = MediaCompletion.MESSAGE_PREFIX + job.id))
+                messageId = MediaCompletion.MESSAGE_PREFIX + job.id, replyToMessageId = job.originMessageId), job.originMessageId, job.created)
         }
         store.update(job.copy(delivered = true))
     }

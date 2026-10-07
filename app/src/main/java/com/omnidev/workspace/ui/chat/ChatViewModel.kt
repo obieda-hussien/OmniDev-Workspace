@@ -122,6 +122,7 @@ class ChatViewModel(
     @Volatile private var currentAgentJob: Job? = null
     private var sessionObservation: Job? = null
     private var attachmentImportJob: Job? = null
+    private var stoppedRunSaveJob: Job? = null
 
     private val modePermissionStore: ModeSwitchPermissionStore by lazy {
         ModeSwitchPermissionStore(com.omnidev.workspace.OmniDevApp.instance.applicationContext)
@@ -151,11 +152,15 @@ class ChatViewModel(
                 if (session == null || session <= 0) return@collectLatest
                 repo.observeMessages(session).collect { rows ->
                     val ready = rows.filter { it.messageId.startsWith(com.omnidev.workspace.data.chatmedia.MediaCompletion.MESSAGE_PREFIX) }
-                        .map { ChatMessage(role = MessageRole.ASSISTANT, content = it.content, timestamp = it.timestamp, messageId = it.messageId) }
+                        .map { ChatMessage(role = MessageRole.ASSISTANT, content = it.content, timestamp = it.timestamp, messageId = it.messageId, replyToMessageId = it.replyToMessageId) }
                     _uiState.update { state ->
                         if (state.currentSessionId != session) state else {
                             val known = state.messages.map { it.messageId }.toSet()
-                            state.copy(messages = state.messages + ready.filter { it.messageId !in known })
+                            val latestUser = state.messages.lastOrNull { it.role == MessageRole.USER }
+                            state.copy(messages = state.messages + ready.filter { result ->
+                                result.messageId !in known && (result.replyToMessageId?.let { it in known }
+                                    ?: (latestUser == null || result.timestamp >= latestUser.timestamp))
+                            })
                         }
                     }
                 }
@@ -284,7 +289,9 @@ class ChatViewModel(
         sessionObservation = viewModelScope.launch {
             repo.observeMessages(sessionId).collect {
                 if (_uiState.value.isProcessing) return@collect
+                val observedRun = activeRunId.get()
                 val (messages, consoleMap) = repo.loadMessages(sessionId)
+                if (_uiState.value.isProcessing || observedRun != activeRunId.get()) return@collect
                 compositeToolManager?.currentSessionId = sessionId
                 _uiState.update {
                     it.copy(
@@ -476,6 +483,13 @@ class ChatViewModel(
     fun sendAssistantMessage(text: String, attachments: List<PendingAttachment> = emptyList(), appContext: String = ""): Boolean {
         if (text.isBlank() || _uiState.value.isProcessing) return false
         assistantAppContext = appContext
+        configureAssistantActionGuard(text)
+        _uiState.update { it.copy(inputText = text, pendingAttachments = attachments, activeMode = OmniMode.AGENT) }
+        sendMessage()
+        return true
+    }
+
+    private fun configureAssistantActionGuard(text: String) {
         compositeToolManager?.assistantActionGuard = { name, args ->
             if (!com.omnidev.workspace.data.assistant.AssistantActionPolicy.requiresConsent(name, args, text))
                 com.omnidev.workspace.data.assistant.AssistantRuntime.prepareAction(com.omnidev.workspace.OmniDevApp.instance, name, args)
@@ -488,93 +502,161 @@ class ChatViewModel(
                     "Action denied by the user or flavor policy. Do not retry or bypass this decision.", isError = true, classification = "USER_DENIED")
             }
         }
-        _uiState.update { it.copy(inputText = text, pendingAttachments = attachments, activeMode = OmniMode.AGENT) }
-        sendMessage()
-        return true
     }
 
-    fun sendMessage() {
+    fun sendMessage() = startMessage()
+
+    fun regenerateLastResponse(messageId: String) {
+        val turn = LastChatTurn.from(_uiState.value.messages) ?: return
+        if (turn.lastAssistantId != messageId) return
+        startMessage(turn, turn.editableText)
+    }
+
+    fun editLastUserMessage(messageId: String, text: String) {
+        val turn = LastChatTurn.from(_uiState.value.messages) ?: return
+        if (turn.user.messageId != messageId) return
+        startMessage(turn, text)
+    }
+
+    private fun startMessage(replacing: LastChatTurn? = null, replacementText: String? = null) {
         val state = _uiState.value
         if (state.isImportingAttachments) { _uiState.update { it.copy(errorMessage = "Wait for the selected files to finish importing.") }; return }
-        val draft = state.inputText.trim()
-        if ((draft.isEmpty() && state.pendingAttachments.isEmpty()) || state.isProcessing) return
+        val attachments = replacing?.user?.attachments?.map { PendingAttachment(Uri.parse(it.uri), it.fileName) }
+            ?: state.pendingAttachments
+        val draft = (replacementText ?: state.inputText).trim()
+        if ((draft.isEmpty() && attachments.isEmpty()) || state.isProcessing) return
         val input = draft.ifEmpty { "Please review the attached files." }
 
-        val runId = activeRunId.incrementAndGet()
-        currentAgentJob?.cancel()
-        val mode = state.activeMode
-        val matchingRoutine = if (mode != OmniMode.CHAT && state.pendingAttachments.isEmpty())
+        val mode = replacing?.user?.userMode?.let { name -> runCatching { OmniMode.valueOf(name) }.getOrNull() }
+            ?: state.activeMode
+        val matchingRoutine = if (mode != OmniMode.CHAT && attachments.isEmpty())
             compositeToolManager?.learnedRoutineTool?.let {
                 com.omnidev.workspace.data.routines.RoutineMatcher.match(input, it.hub.store.list())
             } else null
-        val scopePath = assistantWorkspace ?: state.targetContext
+        val scopePath = assistantWorkspace ?: replacing?.user?.userScopePath ?: state.targetContext
         if (mode != OmniMode.CHAT && mode != OmniMode.AUTO && scopePath == null && !state.isGodModeEnabled && matchingRoutine == null && !isLearnedTaskRequest(input)) {
             _uiState.update { it.copy(errorMessage = "Please set a Target Context before sending messages.") }
             return
         }
 
-        val attachments = state.pendingAttachments
+        val runId = activeRunId.incrementAndGet()
+        val previousJob = currentAgentJob
+        val pendingSave = stoppedRunSaveJob
+        previousJob?.cancel()
+        if (assistantWorkspace != null) configureAssistantActionGuard(input)
+
         val attachmentNote = if (attachments.isEmpty()) "" else
             "\n\n[Attached files: ${attachments.joinToString(", ") { if (assistantWorkspace == null) it.displayName else "${it.displayName} (${it.uri.path})" }}]"
-        val replyPrefix = state.replyingTo?.let { ref ->
+        val replyTo = if (replacing == null) state.replyingTo else replacing.user.replyToMessageId?.let { id ->
+            replacing.prefix.find { it.messageId == id }
+        }
+        val replyPrefix = replyTo?.let { ref ->
             val who = if (ref.role == MessageRole.USER) "you" else "OmniDev"
             "[Replying to $who: \"${ref.content.take(150).replace("\n", " ")}\"]\n\n"
         }.orEmpty()
         val userMessage = ChatMessage(
             role = MessageRole.USER,
             content = replyPrefix + input + attachmentNote,
-            replyToMessageId = state.replyingTo?.messageId
+            replyToMessageId = replyTo?.messageId,
+            userInput = input,
+            userMode = mode.name,
+            userScopePath = scopePath ?: if (state.isGodModeEnabled) "/" else null,
+            attachments = replacing?.user?.attachments.orEmpty()
         )
 
         _uiState.update {
             it.copy(
-                messages = it.messages + userMessage,
-                inputText = "",
+                messages = if (replacing == null) it.messages + userMessage else it.messages,
+                inputText = if (replacing == null) "" else it.inputText,
                 isProcessing = true,
                 agentStatus = "Starting ${mode.label}...",
                 errorMessage = null,
                 consoleEntries = emptyList(),
-                pendingAttachments = emptyList(),
-                replyingTo = null
+                pendingAttachments = if (replacing == null) emptyList() else it.pendingAttachments,
+                replyingTo = if (replacing == null) null else it.replyingTo,
+                streamingContent = null
             )
         }
 
         currentAgentJob = viewModelScope.launch {
-            val sessionId = ensureSession(input)
-            val context = com.omnidev.workspace.OmniDevApp.instance.applicationContext
-            val media = attachments.mapNotNull { pending ->
-                com.omnidev.workspace.data.chatmedia.ChatMediaStore.metadata(context, pending.uri.toString(), pending.displayName)
-            } + com.omnidev.workspace.data.chatmedia.ChatMediaStore.references(context, input)
-            val persisted = userMessage.copy(attachments = media.distinctBy { it.uri })
-            _uiState.update { current -> current.copy(messages = current.messages.map { if (it.messageId == userMessage.messageId) persisted else it }) }
-            chatRepository?.saveMessage(sessionId, persisted)
-            val imageAttachments = resolveImageAttachments(attachments)
-            val executionInput = input + assistantAttachmentContext(attachments)
-            val scope = scopePath ?: if (_uiState.value.isGodModeEnabled) "/" else ""
-            if (matchingRoutine != null) {
-                executeAgentMode(input, emptyList(), sessionId, scope, runId = runId)
-                return@launch
-            }
-            when (mode) {
-                OmniMode.AUTO -> {
-                    val baseline = IntentClassifier.classify(input)
-                    // Team mode is text-only; keep screen questions on a vision-capable path.
-                    val classified = classifyTaskComplexity(input)
-                    val resolved = if (imageAttachments.isNotEmpty() && classified == OmniMode.SWARM)
-                        OmniMode.AGENT else classified
-                    com.omnidev.workspace.domain.engine.ModeOutcomeLearner.recordAutoDecision(input, baseline, resolved)
-                    _uiState.update { it.copy(agentStatus = "🧠 Auto-routed → ${resolved.label}") }
-                    when (resolved) {
-                        OmniMode.CHAT, OmniMode.AUTO -> executeChatMode(executionInput, imageAttachments, sessionId, runId)
-                        OmniMode.AGENT -> if (scope.isNotBlank()) executeAgentMode(executionInput, imageAttachments, sessionId, scope, runId = runId)
-                            else executeChatMode(executionInput, imageAttachments, sessionId, runId)
-                        OmniMode.SWARM -> if (scope.isNotBlank()) executeSwarmMode(input, sessionId, scope, runId)
-                            else executeChatMode(executionInput, imageAttachments, sessionId, runId)
+            var replacementCommitted = replacing == null
+            try {
+                // Cancellation checkpoints must finish before deleting the old turn's saved outputs.
+                previousJob?.join()
+                pendingSave?.join()
+                if (runId != activeRunId.get()) return@launch
+                val sessionId = if (replacing == null) ensureSession(input) else
+                    state.currentSessionId ?: throw IllegalStateException("This conversation is no longer available.")
+                val context = com.omnidev.workspace.OmniDevApp.instance.applicationContext
+                val media = attachments.mapNotNull { pending ->
+                    val metadata = com.omnidev.workspace.data.chatmedia.ChatMediaStore.metadata(context, pending.uri.toString(), pending.displayName)
+                    if (replacing != null) checkNotNull(metadata) {
+                        "Attached file ${pending.displayName} is unavailable. Your original message and response were kept."
+                    } else metadata
+                } + com.omnidev.workspace.data.chatmedia.ChatMediaStore.references(context, input)
+                val persisted = userMessage.copy(attachments = media.distinctBy { it.uri })
+                if (replacing == null) _uiState.update { current -> current.copy(messages = current.messages.map { if (it.messageId == userMessage.messageId) persisted else it }) }
+                if (replacing == null) chatRepository?.saveMessage(sessionId, persisted)
+                else {
+                    val replaced = chatRepository?.replaceLastTurn(sessionId, replacing.user.messageId, persisted) ?: true
+                    check(replaced) { "The latest message changed. Reopen it and try again." }
+                    replacementCommitted = true
+                    val removedTimestamps = replacing.outputs.map { it.timestamp }.toSet()
+                    _uiState.update { current ->
+                        if (runId != activeRunId.get()) current else current.copy(
+                            messages = replacing.prefix + persisted,
+                            messageConsoleEntries = current.messageConsoleEntries.filterKeys { it !in removedTimestamps },
+                            replyingTo = current.replyingTo?.let { ref ->
+                                if (ref.messageId == replacing.user.messageId) persisted
+                                else ref.takeUnless { replacing.outputs.any { it.messageId == ref.messageId } }
+                            },
+                            activeMode = mode
+                        )
+                    }
+                    val retiredJobs = com.omnidev.workspace.data.chatmedia.MediaJobStore(context)
+                        .detachTurn(sessionId, replacing.user.messageId, replacing.user.timestamp)
+                    retiredJobs.forEach { id ->
+                        // Store revocation is durable even if WorkManager is temporarily unavailable.
+                        runCatching { androidx.work.WorkManager.getInstance(context).cancelUniqueWork("omni-media-$id") }
                     }
                 }
-                OmniMode.CHAT -> executeChatMode(executionInput, imageAttachments, sessionId, runId)
-                OmniMode.AGENT -> executeAgentMode(executionInput, imageAttachments, sessionId, scope, runId = runId)
-                OmniMode.SWARM -> executeSwarmMode(input, sessionId, scope, runId)
+                val imageAttachments = resolveImageAttachments(attachments)
+                val executionInput = input + assistantAttachmentContext(attachments)
+                val scope = scopePath ?: if (_uiState.value.isGodModeEnabled) "/" else ""
+                if (matchingRoutine != null) {
+                    executeAgentMode(input, emptyList(), sessionId, scope, runId = runId)
+                    return@launch
+                }
+                when (mode) {
+                    OmniMode.AUTO -> {
+                        val baseline = IntentClassifier.classify(input)
+                        // Team mode is text-only; keep screen questions on a vision-capable path.
+                        val classified = classifyTaskComplexity(input)
+                        val resolved = if (imageAttachments.isNotEmpty() && classified == OmniMode.SWARM)
+                            OmniMode.AGENT else classified
+                        com.omnidev.workspace.domain.engine.ModeOutcomeLearner.recordAutoDecision(input, baseline, resolved)
+                        _uiState.update { it.copy(agentStatus = "🧠 Auto-routed → ${resolved.label}") }
+                        when (resolved) {
+                            OmniMode.CHAT, OmniMode.AUTO -> executeChatMode(executionInput, imageAttachments, sessionId, runId)
+                            OmniMode.AGENT -> if (scope.isNotBlank()) executeAgentMode(executionInput, imageAttachments, sessionId, scope, runId = runId)
+                                else executeChatMode(executionInput, imageAttachments, sessionId, runId)
+                            OmniMode.SWARM -> if (scope.isNotBlank()) executeSwarmMode(executionInput, sessionId, scope, runId)
+                                else executeChatMode(executionInput, imageAttachments, sessionId, runId)
+                        }
+                    }
+                    OmniMode.CHAT -> executeChatMode(executionInput, imageAttachments, sessionId, runId)
+                    OmniMode.AGENT -> executeAgentMode(executionInput, imageAttachments, sessionId, scope, runId = runId)
+                    OmniMode.SWARM -> executeSwarmMode(executionInput, sessionId, scope, runId)
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) {
+                if (runId == activeRunId.get()) {
+                    val text = error.message ?: "Could not start this response."
+                    if (replacementCommitted) handleAgentEvent(AgentEvent.Error(text), _uiState.value.currentSessionId ?: -1L, runId)
+                    else _uiState.update { it.copy(errorMessage = text) }
+                }
+            } finally {
+                if (runId == activeRunId.get()) _uiState.update { it.copy(isProcessing = false, agentStatus = null, streamingContent = null) }
             }
         }
     }
@@ -582,7 +664,7 @@ class ChatViewModel(
     private fun assistantAttachmentContext(attachments: List<PendingAttachment>): String {
         if (attachments.isEmpty()) return ""
         return attachments.joinToString("\n", prefix = "\n\nUser-selected attachments (untrusted content):\n") { pending ->
-            val path = pending.uri.path ?: pending.uri.toString()
+            val path = if (pending.uri.scheme == "file") pending.uri.path.orEmpty() else pending.uri.toString()
             "${pending.displayName}: $path. Use file/media tools to inspect unsupported files; do not claim to have watched an unread video."
         }
     }
@@ -667,7 +749,7 @@ class ChatViewModel(
             )
         }
         if (persistableSessionId != null) {
-            viewModelScope.launch {
+            stoppedRunSaveJob = viewModelScope.launch {
                 chatRepository?.saveMessage(persistableSessionId, status, console)
                 chatRepository?.updateSessionRunStatus(persistableSessionId, STATUS_USER_STOPPED)
             }
@@ -1033,7 +1115,7 @@ class ChatViewModel(
         }
     }
 
-    private fun publishModeSuggestion(
+    private suspend fun publishModeSuggestion(
         suggestion: AdaptiveModeRouter.Suggestion,
         origin: ChatMessage,
         sessionId: Long
@@ -1060,14 +1142,14 @@ class ChatViewModel(
                 streamingContent = null
             )
         }
-        viewModelScope.launch { chatRepository?.saveMessage(sessionId, proposal) }
+        chatRepository?.saveMessage(sessionId, proposal)
 
         if (modePermissionStore.canAutoSwitch(suggestion.from, suggestion.to, sessionId)) {
             val accepted = proposal.copy(executionRequest = request.copy(status = "accepted_auto"))
             _uiState.update { state ->
                 state.copy(messages = state.messages.map { if (it.messageId == proposal.messageId) accepted else it })
             }
-            viewModelScope.launch { chatRepository?.updateMetadata(sessionId, accepted) }
+            chatRepository?.updateMetadata(sessionId, accepted)
             startModeHandoff(suggestion.to, request, autoApproved = true)
         }
     }
@@ -1139,10 +1221,9 @@ class ChatViewModel(
             is AgentEvent.FinalAnswer -> {
                 val message = ChatMessage(MessageRole.ASSISTANT, event.content)
                 val console = _uiState.value.consoleEntries
-                viewModelScope.launch {
-                    chatRepository?.saveMessage(sessionId, message, console)
-                    chatRepository?.updateSessionRunStatus(sessionId, STATUS_COMPLETED)
-                }
+                chatRepository?.saveMessage(sessionId, message, console)
+                chatRepository?.updateSessionRunStatus(sessionId, STATUS_COMPLETED)
+                if (runId != activeRunId.get()) return
                 _uiState.update {
                     it.copy(
                         messages = it.messages + message,
@@ -1172,10 +1253,8 @@ class ChatViewModel(
                     )
                 }
                 if (isPersistableSessionId(sessionId)) {
-                    viewModelScope.launch {
-                        chatRepository?.saveMessage(sessionId, status, console)
-                        chatRepository?.updateSessionRunStatus(sessionId, STATUS_INTERRUPTED)
-                    }
+                    chatRepository?.saveMessage(sessionId, status, console)
+                    chatRepository?.updateSessionRunStatus(sessionId, STATUS_INTERRUPTED)
                 }
             }
         }
@@ -1264,10 +1343,9 @@ class ChatViewModel(
             is SwarmEvent.Completed -> {
                 val message = ChatMessage(MessageRole.ASSISTANT, event.summary)
                 val console = _uiState.value.consoleEntries
-                viewModelScope.launch {
-                    chatRepository?.saveMessage(sessionId, message, console)
-                    chatRepository?.updateSessionRunStatus(sessionId, STATUS_COMPLETED)
-                }
+                chatRepository?.saveMessage(sessionId, message, console)
+                chatRepository?.updateSessionRunStatus(sessionId, STATUS_COMPLETED)
+                if (runId != activeRunId.get()) return
                 _uiState.update {
                     it.copy(
                         messages = it.messages + message,
@@ -1299,10 +1377,8 @@ class ChatViewModel(
                     )
                 }
                 if (isPersistableSessionId(sessionId)) {
-                    viewModelScope.launch {
-                        chatRepository?.saveMessage(sessionId, status, _uiState.value.consoleEntries)
-                        chatRepository?.updateSessionRunStatus(sessionId, STATUS_INTERRUPTED)
-                    }
+                    chatRepository?.saveMessage(sessionId, status, _uiState.value.consoleEntries)
+                    chatRepository?.updateSessionRunStatus(sessionId, STATUS_INTERRUPTED)
                 }
             }
         }

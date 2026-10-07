@@ -55,6 +55,7 @@ internal fun AssistantConversation(
     onAccess: () -> Unit = {}, onSetup: () -> Unit = {}, onScreen: (Boolean) -> Unit = {},
     onRemoveImage: () -> Unit = {}, onRemoveFile: (Uri) -> Unit = {},
     onReply: (ChatMessage) -> Unit = {}, onDismissReply: () -> Unit = {},
+    onEditLastUser: (String, String) -> Unit = { _, _ -> }, onRegenerateLast: (String) -> Unit = {},
     onClearError: () -> Unit = {},
     onModeDecision: (String, ModeSwitchPermissionStore.Approval?) -> Unit = { _, _ -> },
     extraContent: @Composable () -> Unit = {}
@@ -74,6 +75,7 @@ internal fun AssistantConversation(
     LaunchedEffect(screen.visible) { presented = screen.visible }
     val byId = remember(chat.messages) { chat.messages.associateBy { it.messageId } }
     val lastUser = remember(chat.messages) { chat.messages.lastOrNull { it.role == MessageRole.USER }?.messageId }
+    val lastTurn = remember(chat.messages) { LastChatTurn.from(chat.messages) }
     val mediaLayout = remember(chat.messages, chat.messageConsoleEntries, chat.isProcessing) {
         com.omnidev.workspace.ui.chat.MediaConversationLayout.from(chat.messages, chat.messageConsoleEntries.keys, chat.isProcessing)
     }
@@ -157,7 +159,10 @@ internal fun AssistantConversation(
                                     }
                                     items(mediaLayout.transcript, key = { it.messageId }, contentType = { it.role }) { message ->
                                         MessageBubble(message, chat.messageConsoleEntries[message.timestamp],
-                                            message.replyToMessageId?.let(byId::get), onReply = { onReply(it); focus.requestFocus(); keyboard?.show() })
+                                            message.replyToMessageId?.let(byId::get), onReply = { onReply(it); focus.requestFocus(); keyboard?.show() },
+                                            onEdit = if (message.messageId == lastTurn?.user?.messageId) ({ text -> onEditLastUser(message.messageId, text) }) else null,
+                                            onRegenerate = if (message.messageId == lastTurn?.lastAssistantId) ({ onRegenerateLast(message.messageId) }) else null,
+                                            actionsEnabled = !busy && !chat.isImportingAttachments)
                                         message.executionRequest?.let { request ->
                                             ModeSwitchRequestCard(request, !busy,
                                                 onOnce = { onModeDecision(message.messageId, ModeSwitchPermissionStore.Approval.ONCE) },
@@ -173,7 +178,9 @@ internal fun AssistantConversation(
                                         item(key = "live-console") { AgentLiveConsole(console, chat.isProcessing) }
                                     }
                                     items(mediaLayout.liveOutputs, key = { it.messageId }, contentType = { "media-output" }) { message ->
-                                        MessageBubble(message, onReply = { onReply(it); focus.requestFocus(); keyboard?.show() })
+                                        MessageBubble(message, onReply = { onReply(it); focus.requestFocus(); keyboard?.show() },
+                                            onRegenerate = if (message.messageId == lastTurn?.lastAssistantId) ({ onRegenerateLast(message.messageId) }) else null,
+                                            actionsEnabled = !busy && !chat.isImportingAttachments)
                                     }
                                     if (entries.isNotEmpty()) item(key = "activity-control") {
                                         TextButton(onClick = { tracks = !tracks }) {

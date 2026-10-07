@@ -1,6 +1,7 @@
 package com.omnidev.workspace.data.db.dao
 
 import androidx.room.Dao
+import androidx.room.Update
 import androidx.room.Insert
 import androidx.room.Transaction
 import androidx.room.Query
@@ -40,6 +41,38 @@ interface ChatMessageDao {
     @Transaction
     suspend fun insertOnce(message: ChatMessageEntity): Long {
         if (!sessionExists(message.sessionId)) return -1L
+        return getByMessageId(message.messageId)?.id ?: insertRow(message)
+    }
+
+    @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId AND role = 'USER' ORDER BY id DESC LIMIT 1")
+    suspend fun latestUser(sessionId: Long): ChatMessageEntity?
+
+    @Query("DELETE FROM chat_messages WHERE sessionId = :sessionId AND id > :userRowId " +
+        "AND NOT (messageId LIKE 'media-result:%' AND replyToMessageId IS NOT NULL AND replyToMessageId != :userMessageId)")
+    suspend fun deleteTurnOutputs(sessionId: Long, userRowId: Long, userMessageId: String)
+
+    @Update
+    suspend fun updateRow(message: ChatMessageEntity)
+
+    /** Replace only the latest user turn. Deletion and edit either both commit or both roll back. */
+    @Transaction
+    suspend fun replaceLastTurn(expectedUserId: String, replacement: ChatMessageEntity): Boolean {
+        val original = latestUser(replacement.sessionId) ?: return false
+        if (original.messageId.ifBlank { original.id.toString() } != expectedUserId) return false
+        require(replacement.role == "USER")
+        deleteTurnOutputs(replacement.sessionId, original.id, original.messageId)
+        updateRow(replacement.copy(id = original.id))
+        return true
+    }
+
+    /** A background media result cannot restore a superseded turn, even during a DB race. */
+    @Transaction
+    suspend fun insertMediaResult(message: ChatMessageEntity, originMessageId: String?, createdAt: Long): Long {
+        if (!sessionExists(message.sessionId)) return -1L
+        if (originMessageId != null) {
+            val origin = getByMessageId(originMessageId) ?: return -1L
+            if (origin.sessionId != message.sessionId || origin.role != "USER") return -1L
+        } else if ((latestUser(message.sessionId)?.timestamp ?: 0L) > createdAt) return -1L
         return getByMessageId(message.messageId)?.id ?: insertRow(message)
     }
 

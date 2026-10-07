@@ -91,6 +91,7 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
                 onBrowser = onOpenBrowser,
                 onAttach = { attachments.launch(arrayOf("*/*")) }, onRemoveAttachment = viewModel::removeAttachment,
                 onReply = viewModel::setReplyingTo, onDismissReply = viewModel::clearReplyingTo,
+                onEditLastUser = viewModel::editLastUserMessage, onRegenerateLast = viewModel::regenerateLastResponse,
                 onUpdateChatSettings = viewModel::updateChatSettings, onClearError = viewModel::clearError,
                 onModeDecision = { id, approval ->
                     if (approval == null) viewModel.denyExecutionMode(id) else viewModel.acceptExecutionMode(id, approval)
@@ -109,6 +110,7 @@ internal fun ChatConversation(
     onChooseScope: () -> Unit = {}, onBrowser: () -> Unit = {},
     onAttach: () -> Unit = {}, onRemoveAttachment: (android.net.Uri) -> Unit = {},
     onReply: (ChatMessage) -> Unit = {}, onDismissReply: () -> Unit = {}, onUpdateChatSettings: (ChatSettings) -> Unit = {},
+    onEditLastUser: (String, String) -> Unit = { _, _ -> }, onRegenerateLast: (String) -> Unit = {},
     onClearError: () -> Unit = {}, onModeDecision: (String, ModeSwitchPermissionStore.Approval?) -> Unit = { _, _ -> }
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -117,6 +119,7 @@ internal fun ChatConversation(
     val list = rememberLazyListState()
     val messagesById = remember(state.messages) { state.messages.associateBy { it.messageId } }
     val lastUserId = remember(state.messages) { state.messages.lastOrNull { it.role == MessageRole.USER }?.messageId }
+    val lastTurn = remember(state.messages) { LastChatTurn.from(state.messages) }
     val title = remember(state.sessions, state.currentSessionId) {
         state.sessions.firstOrNull { it.id == state.currentSessionId }?.title?.ifBlank { "Omni" } ?: "Omni"
     }
@@ -156,7 +159,10 @@ internal fun ChatConversation(
                             MessageBubble(message, state.messageConsoleEntries[message.timestamp],
                                 message.replyToMessageId?.let(messagesById::get), onReply = {
                                     onReply(it); focusRequester.requestFocus(); keyboard?.show()
-                                }, onOpenBrowser = onBrowser)
+                                }, onOpenBrowser = onBrowser,
+                                onEdit = if (message.messageId == lastTurn?.user?.messageId) ({ text -> onEditLastUser(message.messageId, text) }) else null,
+                                onRegenerate = if (message.messageId == lastTurn?.lastAssistantId) ({ onRegenerateLast(message.messageId) }) else null,
+                                actionsEnabled = !state.isProcessing && !state.isImportingAttachments)
                             message.executionRequest?.let { request ->
                                 if (message.role == MessageRole.ASSISTANT) ModeSwitchRequestCard(request, !state.isProcessing,
                                     onOnce = { onModeDecision(message.messageId, ModeSwitchPermissionStore.Approval.ONCE) },
@@ -181,7 +187,9 @@ internal fun ChatConversation(
                             }
                         }
                         items(mediaLayout.liveOutputs, key = { it.messageId }, contentType = { "media-output" }) { message ->
-                            MessageBubble(message, onReply = { onReply(it); focusRequester.requestFocus(); keyboard?.show() }, onOpenBrowser = onBrowser)
+                            MessageBubble(message, onReply = { onReply(it); focusRequester.requestFocus(); keyboard?.show() }, onOpenBrowser = onBrowser,
+                                onRegenerate = if (message.messageId == lastTurn?.lastAssistantId) ({ onRegenerateLast(message.messageId) }) else null,
+                                actionsEnabled = !state.isProcessing && !state.isImportingAttachments)
                         }
                     }
                     OmniAnimatedVisibility(!follow.following, Modifier.align(Alignment.BottomEnd).padding(12.dp)) {

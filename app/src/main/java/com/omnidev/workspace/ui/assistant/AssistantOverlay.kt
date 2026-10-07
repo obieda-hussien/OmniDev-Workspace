@@ -74,6 +74,7 @@ fun AssistantOverlay(
         onAccess = onAccess, onSetup = onSetup, onScreen = controller::useScreen,
         onRemoveImage = controller::removeImage, onRemoveFile = controller::removeFile,
         onReply = controller.chat::setReplyingTo, onDismissReply = controller.chat::clearReplyingTo,
+        onEditLastUser = controller.chat::editLastUserMessage, onRegenerateLast = controller.chat::regenerateLastResponse,
         onClearError = { controller.message(null); controller.chat.clearError() },
         onModeDecision = { id, approval ->
             if (approval == null) controller.chat.denyExecutionMode(id) else controller.chat.acceptExecutionMode(id, approval)

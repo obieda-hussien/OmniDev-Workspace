@@ -10,6 +10,12 @@
 
 The device access center provides authenticated opt-ins for screen wake, Android unlock requests, a private assistant panel while locked, lock-screen semantic inspection and sensitive Settings access. Admin adds a device-local encrypted PIN vault with a 15-minute one-shot permit or remembered authorization until revoked. Each requested unlock enters the PIN once; failed or interrupted input pauses remembered attempts. PINs stay out of model arguments, chat and learned tasks. See [Device lock access](docs/DEVICE_LOCK_ACCESS.md) for setup, Android/OEM limits and verification.
 
+## Edit and regenerate the latest turn
+
+Use **Edit last message** on your most recent user message, then **Save & regenerate**, or **Regenerate last response** on the latest reply. Chat, Agent, Team and the floating assistant replace the previous turn's responses, media cards and activity in the same saved conversation. Attachments, reply context and the original mode/target scope are retained; drafts for the next request remain intact. Editing is disabled while a run or file import is active. Cancel leaves the message unchanged, and failed generation is reported as an error that can be retried.
+
+Replacement updates the user turn and removes its outputs in one database transaction. Late media delivery from a superseded revision is rejected; delayed results belonging to earlier requests are preserved. Regeneration starts a new execution: completed device/file actions remain applied and tools can run again.
+
 ## Chat media models
 
 Choose independent image, video and music/song models in **Settings → Model Selection → Media generation**. Each type starts Off; enable a connected supported provider/model, customize its defaults, then request media in Chat, Agent or Team. Finished files appear in the conversation with playback/preview, save/share and an optional ready message; generation continues in the background. See [media setup and provider controls](docs/CHAT_MEDIA_AND_UNLOCK_RECOVERY.md#generation).

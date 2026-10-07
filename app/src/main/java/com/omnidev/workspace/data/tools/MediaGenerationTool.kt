@@ -57,13 +57,14 @@ object MediaGenerationTool {
                     val prompt = args["prompt"]?.trim()?.takeIf { it.length in 1..12_000 } ?: error("Provide a description up to 12000 characters.")
                     val composed = MediaRequestPolicy.prompt(kind, prompt, if (config.provider == ModelProvider.MINIMAX) config.copy(lyrics = "") else config)
                     if (config.provider == ModelProvider.MINIMAX) require(composed.length <= 2000) { "MiniMax direction must be under 2000 characters; put lyrics in the lyrics field." }
-                    val requestText = if (sessionId != null && sessionId > 0) {
-                        try { com.omnidev.workspace.data.db.OmniDevDatabase.getInstance(context).chatMessageDao().latestUserContent(sessionId) ?: prompt }
+                    val origin = if (sessionId != null && sessionId > 0) {
+                        try { com.omnidev.workspace.data.db.OmniDevDatabase.getInstance(context).chatMessageDao().latestUser(sessionId) }
                         catch (cancelled: CancellationException) { throw cancelled }
-                        catch (_: Exception) { prompt }
-                    } else prompt
+                        catch (_: Exception) { null }
+                    } else null
+                    val requestText = origin?.content ?: prompt
                     val job = store.create(action, MediaModelCatalog.key(config.provider), config.model, composed, config.aspect, config, sessionId,
-                        requestText.any { it in '\u0600'..'\u06FF' })
+                        requestText.any { it in '\u0600'..'\u06FF' }, origin?.messageId?.takeIf { it.isNotBlank() })
                     MediaGenerationWorker.enqueue(context, job.id)
                     return result(store.get(job.id) ?: job)
                 }
