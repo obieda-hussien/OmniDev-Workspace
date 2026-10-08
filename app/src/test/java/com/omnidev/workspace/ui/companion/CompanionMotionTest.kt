@@ -237,4 +237,116 @@ class CompanionMotionTest {
         assertTrue(compressed); assertTrue(rebounded)
         assertTrue(e.pose.stretch in .97f..1.03f)
     }
+
+    @Test fun departureIsSadAndMovesSlowlyUntilTheWholeBodyLeaves() {
+        val e = engine(); val start = e.pose
+        e.hideTemporarily(false)
+        assertEquals(CompanionPresence.LEAVING, e.presence)
+        assertEquals(CompanionMood.SAD, e.pose.mood)
+        advance(e, 2f, working = true, roaming = true)
+        assertEquals(CompanionPresence.LEAVING, e.presence)
+        assertTrue(e.pose.x < scene.width)
+        assertTrue(e.pose.x < start.x + scene.size)
+        repeat(800) { e.step(.025f, true, true, false, CompanionActivity.ERROR) }
+        assertEquals(CompanionPresence.HIDDEN, e.presence)
+        assertEquals(scene.width, e.pose.x, .01f)
+        assertEquals(CompanionMood.SAD, e.pose.mood)
+    }
+
+    @Test fun departureUsesTheNearestPhysicalEdgeAndSurvivesResize() {
+        val e = engine(); e.grab(); e.drag(-240f, 0f); e.release(0f, true)
+        e.hideTemporarily(false); advance(e, 2.5f, roaming = false)
+        e.configure(scene.copy(width = 420f))
+        advance(e, 8f, roaming = false)
+        assertEquals(CompanionPresence.HIDDEN, e.presence)
+        assertEquals(-scene.size, e.pose.x, .01f)
+    }
+
+    @Test fun tapCancelsDepartureAndReturnsWithFastHappyBounces() {
+        val e = engine(); val original = e.pose
+        e.hideTemporarily(false); advance(e, 3f)
+        e.tap(false)
+        assertEquals(CompanionPresence.RETURNING, e.presence)
+        advance(e, .2f, roaming = false)
+        assertEquals(CompanionMood.HAPPY, e.pose.mood)
+        assertTrue(e.pose.sparkle > 0f)
+        advance(e, 1f, roaming = false)
+        assertEquals(CompanionPresence.VISIBLE, e.presence)
+        assertEquals(original.x, e.pose.x, .01f)
+        assertEquals(original.y, e.pose.y, .01f)
+        advance(e, 20f, roaming = false)
+        assertEquals(CompanionPresence.VISIBLE, e.presence)
+    }
+
+    @Test fun grabbingDuringDepartureStaysHappyAndFollowsTheHandUntilRelease() {
+        val e = engine(); e.hideTemporarily(false); advance(e, 2f)
+        e.grab(); val held = e.pose
+        e.drag(-40f, -60f)
+        e.step(.025f, true, true, false)
+        assertEquals(held.x - 40f, e.pose.x, .01f)
+        assertEquals(held.y - 60f, e.pose.y, .01f)
+        assertEquals(CompanionMood.HAPPY, e.pose.mood)
+        assertEquals(CompanionPresence.RETURNING, e.presence)
+        e.release(1800f, false, -800f); advance(e, 1.2f, roaming = false)
+        assertEquals(CompanionPresence.VISIBLE, e.presence)
+        assertEquals("composer", e.perchId)
+    }
+
+    @Test fun lateTouchCanRescueThePartiallyClippedSprite() {
+        val e = engine(); e.hideTemporarily(false)
+        repeat(500) {
+            if (e.pose.x <= scene.width - scene.size) e.step(.025f, false, false, false)
+        }
+        assertTrue(e.pose.x > scene.width - scene.size)
+        assertEquals(CompanionPresence.LEAVING, e.presence)
+        e.grab(); e.release(0f, false); advance(e, 1.2f, roaming = false)
+        assertEquals(CompanionPresence.VISIBLE, e.presence)
+        assertTrue(e.pose.x in 0f..scene.width - scene.size)
+    }
+
+    @Test fun reducedDepartureGivesATouchGracePeriodWithoutMovement() {
+        val e = engine(); val original = e.pose
+        e.hideTemporarily(true); advance(e, 2f, reduced = true)
+        assertEquals(CompanionPresence.LEAVING, e.presence)
+        assertEquals(original.x, e.pose.x, .01f); assertEquals(original.y, e.pose.y, .01f)
+        assertEquals(0f, e.pose.earTilt, .01f)
+        e.tap(true)
+        assertEquals(CompanionPresence.VISIBLE, e.presence)
+        advance(e, 5f, reduced = true)
+        assertEquals(CompanionPresence.VISIBLE, e.presence)
+        e.hideTemporarily(true); advance(e, 3.2f, reduced = true)
+        assertEquals(CompanionPresence.HIDDEN, e.presence)
+    }
+
+    @Test fun curiosityVariesWithoutImmediateRepeatsAndCanRunWithRoamingEnabled() {
+        val e = CompanionMotion(42).apply { configure(scene) }
+        val seen = mutableListOf<CompanionTrick>()
+        var previous = CompanionTrick.NONE
+        repeat(16000) {
+            e.step(.025f, false, true, false)
+            val trick = e.pose.trick
+            if (trick != CompanionTrick.NONE && previous == CompanionTrick.NONE) seen += trick
+            if (previous != CompanionTrick.NONE && trick == CompanionTrick.NONE) e.lookAt(180f, 520f, wake = true)
+            previous = trick
+            if (e.pose.mood == CompanionMood.SLEEPY) e.lookAt(180f, 520f, wake = true)
+        }
+        assertTrue("Expected varied curious moments while roaming; saw $seen", seen.size >= 6)
+        assertTrue(seen.toSet().size >= 3)
+        assertTrue(seen.zipWithNext().all { (a, b) -> a != b })
+    }
+
+    @Test fun curiosityStopsForTouchWorkOrReducedMotion() {
+        fun curious() = CompanionMotion(7).apply {
+            configure(scene)
+            repeat(900) { if (pose.trick == CompanionTrick.NONE) step(.025f, false, false, false) }
+            assertNotEquals(CompanionTrick.NONE, pose.trick)
+        }
+        val touched = curious(); touched.lookAt(180f, 520f, wake = true)
+        assertEquals(CompanionTrick.NONE, touched.pose.trick)
+        val busy = curious(); busy.step(.025f, true, true, false)
+        assertEquals(CompanionTrick.NONE, busy.pose.trick)
+        val reduced = curious(); reduced.step(.025f, false, true, true)
+        assertEquals(CompanionTrick.NONE, reduced.pose.trick)
+        assertEquals(0f, reduced.pose.mouthOpen, .01f)
+    }
 }

@@ -55,6 +55,7 @@ internal fun ChatComposerSurface(
     allowSteering: Boolean = false,
     onFocusChanged: (Boolean) -> Unit = {}
 ) {
+    var focused by remember { mutableStateOf(false) }
     val companionFocus = rememberCompanionEditorFocus()
     val companionGaze = rememberCompanionEditorGaze()
     var fieldState by remember { mutableStateOf(TextFieldValue(inputText, TextRange(inputText.length))) }
@@ -76,8 +77,8 @@ internal fun ChatComposerSurface(
         if (fieldState != fieldValue) fieldState = fieldValue
         companionGaze.value = fieldValue
         companionGaze.publish()
+        companionFocus(focused)
     }
-    var focused by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
     val focus = LocalFocusManager.current
     val motion = LocalOmniMotion.current
