@@ -300,7 +300,7 @@ Synthesize specialist evidence into the answer to the original request.
 
             val workerPipeline = AgentPipeline(
                 toolManager = toolManager,
-                mcpRegistry = if (task.needsConnectedTools || mentionFocus.tools.any { it.startsWith("mcp_") }) {
+                mcpRegistry = if (task.needsConnectedTools || mentionFocus.tools.isNotEmpty()) {
                     com.omnidev.workspace.OmniDevApp.instance.mcpRegistry
                 } else null,
                 completionProvider = completionProvider,

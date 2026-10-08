@@ -8,7 +8,7 @@ class MentionFocusTest {
         val focus = MentionFocus.parse("صلح ده @tool:github_manager @skill:omnidev-quality-gate\n@tool:mcp_docs.read @tool:github_manager")
         assertEquals(setOf("github_manager", "mcp_docs.read"), focus.tools)
         assertEquals(setOf("omnidev-quality-gate"), focus.skills)
-        assertFalse(focus.permitsTool("web_search"))
+        assertTrue(focus.prompt().contains("load additional permitted tools"))
     }
 
     @Test fun `email handles urls and quoted code do not select capabilities`() {
@@ -22,7 +22,7 @@ class MentionFocusTest {
     }
 
     @Test fun `skills alone leave tools available`() {
-        assertTrue(MentionFocus.parse("@skill:quality-gate check").permitsTool("read_file"))
+        assertTrue(MentionFocus.parse("@skill:quality-gate check").tools.isEmpty())
     }
 
     @Test fun `disabled and unknown tools cannot be restored by a mention`() {

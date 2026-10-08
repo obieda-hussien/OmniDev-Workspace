@@ -123,7 +123,7 @@ internal fun ChatComposerSurface(
                             modifier = Modifier.semantics { contentDescription = "Remove ${item.token}" })
                     }
                 }
-                Text(if (selected.tools.isNotEmpty()) "Only selected tools · skills specialize this turn" else "Selected skills preloaded · tools chosen as needed",
+                Text(if (selected.tools.isNotEmpty()) "Mentioned tools first · more tools available as needed" else "Selected skills preloaded · tools chosen as needed",
                     Modifier.padding(horizontal = 16.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary)
             }

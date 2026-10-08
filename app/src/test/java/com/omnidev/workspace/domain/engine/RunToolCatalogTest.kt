@@ -5,14 +5,17 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RunToolCatalogTest {
-    @Test fun `explicit focus loads every selected schema and never retrieves outside it`() {
+    @Test fun `mentions preload priority tools while discovery can load supporting tools`() {
         val selected = (1..12).map { "registered_$it" }.toSet()
-        val catalog = RunToolCatalog(registry, "registered_120", focusedToolNames = selected)
-        assertEquals(selected, catalog.definitions().map { it.name }.toSet())
-        assertFalse(catalog.isPermitted("registered_120"))
+        val catalog = RunToolCatalog(registry, "registered_120", mentionedToolNames = selected)
+        assertEquals(selected + "discover_tools", catalog.definitions().map { it.name }.toSet())
+        assertTrue(catalog.isPermitted("registered_120"))
         catalog.prepare("registered_120", "registered_119")
         catalog.discover("registered_118")
-        assertEquals(selected, catalog.definitions().map { it.name }.toSet())
+        assertTrue(catalog.definitions().any { it.name == "registered_118" })
+        for (number in 13..120) catalog.discover("registered_$number")
+        assertTrue(catalog.definitions().map { it.name }.containsAll(selected))
+        assertTrue(catalog.definitions().size <= 41)
     }
 
     private val registry = (1..120).map { ToolDefinition("registered_$it", "Registered operation $it", listOf(

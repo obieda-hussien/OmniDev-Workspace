@@ -112,8 +112,9 @@ class ChatToolLoop(private val tools: ToolManager?) {
         }
 
         val definitions = tools?.getToolDefinitions().orEmpty()
-            .filter { toolAccessMode != "DISABLED" && it.name in CHAT_TOOLS && it.name !in disabled && mentionFocus.permitsTool(it.name) }
+            .filter { toolAccessMode != "DISABLED" && it.name in CHAT_TOOLS && it.name !in disabled }
         mentionFocus.validateTools(definitions.map { it.name }.toSet())
+        val orderedDefinitions = definitions.sortedBy { it.name !in mentionFocus.tools }
         val allowed = definitions.map { it.name }.toSet()
         val history = base.messages.toMutableList()
         val seen = mutableSetOf<Pair<String, Map<String, String>>>()
@@ -123,7 +124,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
             val toolsAllowedThisRound = round <= MAX_TOOL_ROUNDS && calls < MAX_TOOL_CALLS
             val provisional = base.copy(
                 messages = history.toList(),
-                tools = if (toolsAllowedThisRound) definitions + MODE_TOOL else null,
+                tools = if (toolsAllowedThisRound) orderedDefinitions + MODE_TOOL else null,
                 systemPrompt = base.systemPrompt.orEmpty() + "\n" + mentionFocus.prompt() + if (toolsAllowedThisRound) "" else
                     "\nTool budget exhausted. Summarize verified results and any remaining limitations; do not claim unfinished work is complete."
             )

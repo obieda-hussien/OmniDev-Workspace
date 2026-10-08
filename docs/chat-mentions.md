@@ -7,7 +7,7 @@ You can combine up to 12 tools and 4 installed skills in one message:
 @tool:github_manager @skill:omnidev-quality-gate Review this repository's failed build.
 ```
 
-- Tool mentions create an exclusive tool set for this turn. Every selected schema is loaded in the first model request. Automatic retrieval, operation routing, MCP calls, and learned recipe dependencies cannot widen that set. If another capability is required, adjust the mentions and send a new turn.
+- Tool mentions prioritize tools for this turn. Every mentioned schema is loaded in the first model request and remains available as supporting tools are retrieved. The agent can discover and load additional permitted tools when a concrete task step needs them, including connected MCP tools and learned recipe dependencies. Mentions do not impose an exclusive allowlist; broad exploration and redundant retries are discouraged.
 - Skill mentions preload the selected instructions. They specialize the model but do not select tools or override access settings. Large combined skill bodies are rejected before completion instead of silently truncating instructions.
 - Without mentions, the existing automatic tool and skill selection continues.
 - Disabled tools, flavor restrictions, skill availability, file scope and confirmation gates still apply. Unknown or unavailable selections produce an error before model completion.
