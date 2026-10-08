@@ -1,0 +1,190 @@
+{
+  "repository": "obieda-hussien/OmniDev-Workspace",
+  "title": "OmniDev Workspace",
+  "description": "An Android AI workspace with chat, tool-using agents, multi-agent teams, local code and memory retrieval, learned tasks, voice assistance, media generation, and OmniLink/MCP integrations. Built with Kotlin and Jetpack Compose.",
+  "homepage": "https://github.com/obieda-hussien/OmniDev-Workspace#readme",
+  "topics": [
+    "android",
+    "kotlin",
+    "jetpack-compose",
+    "ai-assistant",
+    "ai-agents",
+    "multi-agent",
+    "agentic-ai",
+    "llm",
+    "on-device-ai",
+    "local-ai",
+    "voice-assistant",
+    "speech-recognition",
+    "mcp",
+    "omnilink",
+    "developer-tools",
+    "automation",
+    "accessibility",
+    "media-generation",
+    "knowledge-management",
+    "android-app"
+  ],
+  "labels": [
+    {
+      "name": "bug",
+      "color": "D73A4A",
+      "description": "A reproducible defect in existing behavior."
+    },
+    {
+      "name": "enhancement",
+      "color": "A2EEEF",
+      "description": "A proposed feature or improvement."
+    },
+    {
+      "name": "documentation",
+      "color": "0075CA",
+      "description": "Documentation, guides, examples or project presentation."
+    },
+    {
+      "name": "question",
+      "color": "D876E3",
+      "description": "A setup or implementation question."
+    },
+    {
+      "name": "good first issue",
+      "color": "7057FF",
+      "description": "A scoped contribution suitable for a new contributor."
+    },
+    {
+      "name": "help wanted",
+      "color": "008672",
+      "description": "Maintainer requests community help or validation."
+    },
+    {
+      "name": "dependencies",
+      "color": "0366D6",
+      "description": "Dependency or build-tool version maintenance."
+    },
+    {
+      "name": "priority:p0",
+      "color": "B60205",
+      "description": "Critical issue requiring immediate maintainer attention."
+    },
+    {
+      "name": "priority:p1",
+      "color": "D93F0B",
+      "description": "High-impact issue prioritized for the next fix."
+    },
+    {
+      "name": "priority:p2",
+      "color": "FBCA04",
+      "description": "Normal-priority maintenance or improvement."
+    },
+    {
+      "name": "priority:p3",
+      "color": "C5DEF5",
+      "description": "Lower-urgency improvement or polish."
+    },
+    {
+      "name": "status:needs-triage",
+      "color": "EDEDED",
+      "description": "Needs scope, severity and ownership assessment."
+    },
+    {
+      "name": "status:needs-reproduction",
+      "color": "FEF2C0",
+      "description": "Needs a reliable reproduction or more evidence."
+    },
+    {
+      "name": "status:blocked",
+      "color": "BFDADC",
+      "description": "Cannot proceed until a named dependency is resolved."
+    },
+    {
+      "name": "area:agent",
+      "color": "8E8DE5",
+      "description": "Single-agent routing, tool execution and runtime recovery."
+    },
+    {
+      "name": "area:team",
+      "color": "7067CF",
+      "description": "Team planning, worker scheduling, budgets and handoff."
+    },
+    {
+      "name": "area:chat",
+      "color": "BFD4F2",
+      "description": "Conversation, history, composer, replay and message rendering."
+    },
+    {
+      "name": "area:ui",
+      "color": "C5DEF5",
+      "description": "Compose layouts, RTL, keyboard, navigation and motion."
+    },
+    {
+      "name": "area:assistant",
+      "color": "D4C5F9",
+      "description": "Floating/native assistant windows and session lifecycle."
+    },
+    {
+      "name": "area:voice",
+      "color": "C2E0C6",
+      "description": "Wake enrollment, local recognition and speech output."
+    },
+    {
+      "name": "area:media",
+      "color": "F9D0C4",
+      "description": "Image, video, music, attachments, playback and job delivery."
+    },
+    {
+      "name": "area:device-access",
+      "color": "FEC1C1",
+      "description": "Android permissions, backends and lock-screen consent."
+    },
+    {
+      "name": "area:learned-tasks",
+      "color": "BFE5BF",
+      "description": "Reviewed task recipes, teaching, checkpoints and replay."
+    },
+    {
+      "name": "area:memory",
+      "color": "D4E5F9",
+      "description": "Knowledge, conversation recall, local learning and persistence."
+    },
+    {
+      "name": "area:repository",
+      "color": "0E8A16",
+      "description": "Project indexing, source retrieval, Git and GitHub operations."
+    },
+    {
+      "name": "area:omnilink",
+      "color": "1D76DB",
+      "description": "Connected-app identity, capabilities, context and payloads."
+    },
+    {
+      "name": "area:mcp",
+      "color": "5319E7",
+      "description": "MCP transport, external tool catalogs and dispatch."
+    },
+    {
+      "name": "area:integrations",
+      "color": "006B75",
+      "description": "Messaging, publishing and configured service integrations."
+    },
+    {
+      "name": "area:build",
+      "color": "0052CC",
+      "description": "Gradle, toolchains, CI, signing and APK packaging."
+    },
+    {
+      "name": "area:local-ai",
+      "color": "BFDADC",
+      "description": "Native model setup, local inference and resource use."
+    },
+    {
+      "name": "area:performance",
+      "color": "84B6EB",
+      "description": "Measured latency, memory, battery and rendering behavior."
+    },
+    {
+      "name": "area:security",
+      "color": "B60205",
+      "description": "Safe public security maintenance; private reports use SECURITY.md."
+    }
+  ]
+}

@@ -39,3 +39,9 @@ v3.0.0 protocol and trust primitives; there is no new SDK release or ABI change 
 [Vosk API](https://github.com/alphacep/vosk-api) 0.3.75 is developed by Alpha Cephei and upstream contributors under Apache-2.0. Its Android library uses [JNA](https://github.com/java-native-access/jna) 5.18.1 (Apache-2.0/LGPL-2.1 dual licensing). Omni's microphone/session/credential integration is separate application code.
 
 The optional official [vosk-model-small-en-us-0.15 and vosk-model-ar-mgb2-0.4](https://alphacephei.com/vosk/models) releases are listed under Apache-2.0 by their publishers. The Arabic model is repackaged from Kaldi MGB2 training. Model archives are downloaded on user request; their bundled READMEs and original notices are retained. Download hashes in the application identify the exact archives used. Omni does not claim authorship of their pretrained weights, training data or recognition research.
+
+## AI-assisted development history
+
+The maintainer began development with assistance from Claude, Gemini, Jules and GitHub Copilot. Continued development with ChatGPT/OpenAI Codex included extensive debugging, build/CI repair, interface redesign and code/logic improvement and rewriting across the Workspace and its integrations.
+
+[CONTRIBUTORS.md](CONTRIBUTORS.md) records that collaboration. AI assistance credits do not replace the maintainer's responsibility for review, change upstream rights or prove that every defect is resolved. Original third-party authors and notices remain credited separately.

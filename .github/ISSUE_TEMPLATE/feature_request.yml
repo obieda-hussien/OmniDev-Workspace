@@ -1,0 +1,29 @@
+name: Feature request
+description: Propose a concrete user workflow or improvement.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: User problem
+      description: Who needs this behavior, and what currently makes the task difficult?
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Proposed workflow
+      description: Describe the trigger, user-visible steps and successful outcome.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Editions, permissions and integrations
+      description: Identify affected flavors, local/remote models, Android access or connected apps if known.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and acceptance criteria
+      description: Existing workarounds, design examples and how the completed feature could be verified.

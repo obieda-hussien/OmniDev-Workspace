@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security policy and private reporting
+    url: https://github.com/obieda-hussien/OmniDev-Workspace/blob/main/SECURITY.md
+    about: Read the private reporting instructions before posting vulnerability details.
+  - name: Setup and troubleshooting
+    url: https://github.com/obieda-hussien/OmniDev-Workspace/blob/main/SUPPORT.md
+    about: Find useful diagnostics and feature setup guides.
