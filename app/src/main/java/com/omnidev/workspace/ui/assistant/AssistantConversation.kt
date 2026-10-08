@@ -61,6 +61,7 @@ internal fun AssistantConversation(
     onEditLastUser: (String, String) -> Unit = { _, _ -> }, onRegenerateLast: (String) -> Unit = {},
     onClearError: () -> Unit = {},
     onModeDecision: (String, ModeSwitchPermissionStore.Approval?) -> Unit = { _, _ -> },
+    mentionLoader: suspend () -> List<com.omnidev.workspace.domain.engine.MentionCandidate> = { emptyList() },
     extraContent: @Composable () -> Unit = {}
 ) {
     val colors = MaterialTheme.colorScheme
@@ -210,7 +211,7 @@ internal fun AssistantConversation(
                                     onTools = { panel = if (panel == AssistantPanel.NONE) AssistantPanel.ATTACHMENTS else AssistantPanel.NONE },
                                     sendEnabled = screen.input.isNotBlank(), focusRequester = focus, compact = compact,
                                     editorEnabled = !blocked, toolsEnabled = !busy, actionEnabled = !blocked,
-                                    toolsDescription = "Assistant tools", sendDescription = "Send question", stopDescription = "Stop request", allowSteering = chat.canSteer)
+                                    mentionLoader = mentionLoader, toolsDescription = "Assistant tools", sendDescription = "Send question", stopDescription = "Stop request", allowSteering = chat.canSteer)
                                 LiveSteeringHint(chat.isProcessing && chat.canSteer, chat.submittedSteeringRevision, chat.appliedSteeringRevision)
                             }
                         }

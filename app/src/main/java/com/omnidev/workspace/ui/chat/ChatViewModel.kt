@@ -524,6 +524,27 @@ class ChatViewModel(
         }
     }
 
+    /** One lookup when opening @ suggestions; never downloads or enables capabilities. */
+    suspend fun loadMentionCandidates(): List<com.omnidev.workspace.domain.engine.MentionCandidate> =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val settings = _uiState.value.chatSettings
+            val local = if (settings.toolAccessMode.name == "DISABLED") emptyList() else
+                compositeToolManager?.getToolDefinitions().orEmpty().filter { it.name !in settings.disabledToolNames() }
+            val connected = if (settings.toolAccessMode.name == "DISABLED" || _uiState.value.activeMode == OmniMode.CHAT) emptyList() else
+                kotlinx.coroutines.withTimeoutOrNull(8_000) {
+                    try { com.omnidev.workspace.OmniDevApp.instance.mcpRegistry.fetchAllAvailableTools() }
+                    catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { emptyList() }
+                }.orEmpty().filter { it.name !in settings.disabledToolNames() }
+            val definitions = (local + connected).distinctBy { it.name }.filter {
+                (_uiState.value.activeMode != OmniMode.CHAT || it.name in com.omnidev.workspace.domain.engine.ChatToolLoop.CHAT_TOOLS) &&
+                    com.omnidev.workspace.data.tools.TierToolGate.denyReason(it.name) == null
+            }
+            definitions.map { com.omnidev.workspace.domain.engine.MentionCandidate("tool", it.name, it.description) } +
+                com.omnidev.workspace.data.skills.SkillManager(com.omnidev.workspace.OmniDevApp.instance.applicationContext)
+                    .listChatEligibleSkills().map { com.omnidev.workspace.domain.engine.MentionCandidate("skill", it.name, it.description) }
+        }
+
     fun sendMessage() {
         if (_uiState.value.isProcessing) submitSteering(_uiState.value.inputText, _uiState.value.pendingAttachments)
         else startMessage()
@@ -537,6 +558,12 @@ class ChatViewModel(
         if (state.isImportingAttachments || attachments.isNotEmpty()) {
             _uiState.update { it.copy(errorMessage = "Live follow-ups support text. Remove the selected files or send them after this run.") }
             return false
+        }
+        val focus = try { com.omnidev.workspace.domain.engine.MentionFocus.parse(text) } catch (error: IllegalArgumentException) {
+            _uiState.update { it.copy(errorMessage = error.message) }; return false
+        }
+        if (focus.active) {
+            _uiState.update { it.copy(errorMessage = "Tool and skill selection is fixed for the active run. Stop it, then send the new mentions.") }; return false
         }
         val update = try { control.submit(text) } catch (error: IllegalArgumentException) {
             _uiState.update { it.copy(errorMessage = error.message) }; return false
@@ -599,12 +626,19 @@ class ChatViewModel(
 
         // Editing/regenerating is a new execution with the user's current mode.
         // The original request only supplies its text, files and reply reference.
+        val focus = try { com.omnidev.workspace.domain.engine.MentionFocus.parse(input) } catch (error: IllegalArgumentException) {
+            _uiState.update { it.copy(errorMessage = error.message) }; return
+        }
         val mode = state.activeMode
-        val matchingRoutine = if (mode != OmniMode.CHAT && attachments.isEmpty())
+        val matchingRoutine = if (!focus.active && mode != OmniMode.CHAT && attachments.isEmpty())
             compositeToolManager?.learnedRoutineTool?.let {
                 com.omnidev.workspace.data.routines.RoutineMatcher.match(input, it.hub.store.list())
             } else null
         val scopePath = assistantWorkspace ?: state.targetContext
+        if (mode == OmniMode.AUTO && focus.tools.any { it !in com.omnidev.workspace.domain.engine.ChatToolLoop.CHAT_TOOLS } &&
+            scopePath == null && !state.isGodModeEnabled) {
+            _uiState.update { it.copy(errorMessage = "These tools need Agent mode. Set a Target Context before sending.") }; return
+        }
         if (mode != OmniMode.CHAT && mode != OmniMode.AUTO && scopePath == null && !state.isGodModeEnabled && matchingRoutine == null && !isLearnedTaskRequest(input)) {
             _uiState.update { it.copy(errorMessage = "Please set a Target Context before sending messages.") }
             return
@@ -715,7 +749,8 @@ class ChatViewModel(
                         val baseline = IntentClassifier.classify(input)
                         // Team mode is text-only; keep screen questions on a vision-capable path.
                         val classified = classifyTaskComplexity(input)
-                        val resolved = if (imageAttachments.isNotEmpty() && classified == OmniMode.SWARM)
+                        val resolved = if (focus.tools.any { it !in com.omnidev.workspace.domain.engine.ChatToolLoop.CHAT_TOOLS }) OmniMode.AGENT
+                            else if (imageAttachments.isNotEmpty() && classified == OmniMode.SWARM)
                             OmniMode.AGENT else classified
                         com.omnidev.workspace.domain.engine.ModeOutcomeLearner.recordAutoDecision(input, baseline, resolved)
                         _uiState.update { it.copy(agentStatus = "🧠 Auto-routed → ${resolved.label}") }
@@ -849,6 +884,11 @@ class ChatViewModel(
             input, IntentClassifier.classify(input)
         )
 
+    private fun turnMentionFocus(fallback: String): com.omnidev.workspace.domain.engine.MentionFocus {
+        val origin = _uiState.value.messages.find { it.messageId == runOriginMessageId }
+        return com.omnidev.workspace.domain.engine.MentionFocus.parse(origin?.userInput ?: origin?.content ?: fallback)
+    }
+
     private suspend fun executeChatMode(
         input: String,
         imageAttachments: List<AttachmentMeta>,
@@ -886,6 +926,10 @@ class ChatViewModel(
             modelId = modelId,
             messages = _uiState.value.messages.takeLast(20),
             systemPrompt = CHAT_SYSTEM_PROMPT +
+                turnMentionFocus(input).let { focus ->
+                    focus.prompt() + if (focus.skills.isEmpty()) "" else com.omnidev.workspace.data.skills.SkillManager(
+                        com.omnidev.workspace.OmniDevApp.instance.applicationContext).buildMentionedPromptContext(focus.skills)
+                } +
                 "\nChat can use its supplied research tools directly. Request AGENT only when execution tools are required, and TEAM only when independent parallel work is materially useful. A request is a proposal, never permission.",
             maxTokens = minOf(model.maxOutputTokens, 4096),
             enableThinking = settingsRepository.observeDeepThinking().first() && model.supportsThinking,
@@ -897,6 +941,8 @@ class ChatViewModel(
                 base = request,
                 disabled = _uiState.value.chatSettings.disabledToolNames(),
                 originMessageId = original.messageId,
+                mentionFocus = turnMentionFocus(input),
+                toolAccessMode = _uiState.value.chatSettings.toolAccessMode.name,
                 complete = { next ->
                     if (runId != activeRunId.get()) throw CancellationException("Run superseded")
                     runPartial = null
@@ -1139,6 +1185,7 @@ class ChatViewModel(
 
         agentPipeline.execute(
             userMessage = input,
+            mentionFocus = turnMentionFocus(input),
             conversationHistory = runHistory,
             modelId = modelId,
             scopePath = scopePath,
@@ -1206,11 +1253,14 @@ class ChatViewModel(
         try {
             orchestrator.execute(
                 userMessage = input,
+                mentionFocus = turnMentionFocus(input),
                 orchestratorModelId = orchestratorModelId,
                 workerModelId = workerModelId,
                 scopePath = scopePath,
                 enableDeepThinking = deepThinking,
                 godModeEnabled = godMode,
+                disabledToolNames = _uiState.value.chatSettings.disabledToolNames(),
+                toolAccessMode = _uiState.value.chatSettings.toolAccessMode.name,
                 steering = control
             ).collect { event ->
                 handleSwarmEvent(event, sessionId, runId)

@@ -62,7 +62,10 @@ class ChatToolLoop(private val tools: ToolManager?) {
         disabled: Set<String>,
         originMessageId: String,
         complete: suspend (CompletionRequest) -> CompletionResponse,
-        event: suspend (AgentEvent) -> Unit
+        event: suspend (AgentEvent) -> Unit,
+        toolAccessMode: String = "ON_DEMAND",
+        mentionFocus: MentionFocus = MentionFocus.parse(base.messages.lastOrNull { it.role == MessageRole.USER }?.userInput
+            ?: base.messages.lastOrNull { it.role == MessageRole.USER }?.content.orEmpty())
     ): Result {
         val userRequest = base.messages.lastOrNull { it.role == MessageRole.USER }?.content.orEmpty()
         val startedAt = System.currentTimeMillis()
@@ -94,7 +97,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
         }
 
         val mediaRequest = isMediaRequest(userRequest)
-        val localSuggestion = if (mediaRequest) null else AdaptiveModeRouter.fromChatRequest(userRequest)
+        val localSuggestion = if (mediaRequest || mentionFocus.active) null else AdaptiveModeRouter.fromChatRequest(userRequest)
         if (localSuggestion != null && localSuggestion.confidence >= 0.72f) {
             val request = ExecutionModeRequest(
                 mode = localSuggestion.to.name,
@@ -109,7 +112,8 @@ class ChatToolLoop(private val tools: ToolManager?) {
         }
 
         val definitions = tools?.getToolDefinitions().orEmpty()
-            .filter { it.name in CHAT_TOOLS && it.name !in disabled }
+            .filter { toolAccessMode != "DISABLED" && it.name in CHAT_TOOLS && it.name !in disabled && mentionFocus.permitsTool(it.name) }
+        mentionFocus.validateTools(definitions.map { it.name }.toSet())
         val allowed = definitions.map { it.name }.toSet()
         val history = base.messages.toMutableList()
         val seen = mutableSetOf<Pair<String, Map<String, String>>>()
@@ -120,7 +124,7 @@ class ChatToolLoop(private val tools: ToolManager?) {
             val provisional = base.copy(
                 messages = history.toList(),
                 tools = if (toolsAllowedThisRound) definitions + MODE_TOOL else null,
-                systemPrompt = base.systemPrompt.orEmpty() + if (toolsAllowedThisRound) "" else
+                systemPrompt = base.systemPrompt.orEmpty() + "\n" + mentionFocus.prompt() + if (toolsAllowedThisRound) "" else
                     "\nTool budget exhausted. Summarize verified results and any remaining limitations; do not claim unfinished work is complete."
             )
 

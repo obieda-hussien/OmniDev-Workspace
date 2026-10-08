@@ -223,13 +223,15 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
         return ToolExecutionResult("🗑️ Omni Memory entry id=$id deleted permanently.")
     }
 
-    suspend fun buildKnowledgeContext(): String? = withContext(Dispatchers.IO) {
+    suspend fun buildKnowledgeContext(selectedSkillNames: Set<String> = emptySet(), includeSkills: Boolean = true): String? = withContext(Dispatchers.IO) {
         val projectRules = knowledgeDao.findByCategory("project_rule").take(MAX_INJECTED_RULES)
         val userPrefs = knowledgeDao.findByCategory("user_preference").take(MAX_INJECTED_PREFS)
         val archNotes = knowledgeDao.findByCategory("architecture").take(5)
         val all = projectRules + userPrefs + archNotes
-        val skillContext = runCatching {
-            SkillManager(OmniDevApp.instance.applicationContext).buildEnabledPromptContext()
+        val skillContext = if (!includeSkills) "" else if (selectedSkillNames.isNotEmpty()) {
+            SkillManager(OmniDevApp.instance.applicationContext).buildMentionedPromptContext(selectedSkillNames)
+        } else runCatching {
+            SkillManager(OmniDevApp.instance.applicationContext).buildEnabledPromptContext(selectedNames = selectedSkillNames)
         }.getOrDefault("")
 
         if (all.isEmpty() && skillContext.isBlank()) return@withContext null

@@ -5,6 +5,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class RunToolCatalogTest {
+    @Test fun `explicit focus loads every selected schema and never retrieves outside it`() {
+        val selected = (1..12).map { "registered_$it" }.toSet()
+        val catalog = RunToolCatalog(registry, "registered_120", focusedToolNames = selected)
+        assertEquals(selected, catalog.definitions().map { it.name }.toSet())
+        assertFalse(catalog.isPermitted("registered_120"))
+        catalog.prepare("registered_120", "registered_119")
+        catalog.discover("registered_118")
+        assertEquals(selected, catalog.definitions().map { it.name }.toSet())
+    }
+
     private val registry = (1..120).map { ToolDefinition("registered_$it", "Registered operation $it", listOf(
         ToolParameter("path", "string", "Exact target path")
     )) }

@@ -64,7 +64,7 @@ fun AssistantOverlay(
         onApprove = { pending.onApprove(); controller.chat.clearConfirmation() },
         onDeny = { pending.onDeny(); controller.chat.clearConfirmation() }) }
     AssistantConversation(screen, chat.copy(pendingConfirmation = reviewed), controller.flavor,
-        onInputChanged = controller::input, onSend = { controller.send() }, onStop = { controller.chat.cancelCurrentRun() },
+        mentionLoader = controller.chat::loadMentionCandidates, onInputChanged = controller::input, onSend = { controller.send() }, onStop = { controller.chat.cancelCurrentRun() },
         onDismiss = ::dismiss, onExpand = onExpand, onMinimize = onMinimize,
         onMicrophone = onMicrophone, onAttach = onAttach, onSystemVoice = onSystemVoice,
         onAccess = onAccess, onSetup = onSetup, onScreen = controller::useScreen,

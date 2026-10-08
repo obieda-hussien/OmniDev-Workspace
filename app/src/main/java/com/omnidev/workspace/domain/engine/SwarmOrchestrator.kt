@@ -105,8 +105,24 @@ Synthesize specialist evidence into the answer to the original request.
         scopePath: String,
         enableDeepThinking: Boolean = false,
         godModeEnabled: Boolean = false,
-        steering: RunSteering? = null
+        steering: RunSteering? = null,
+        mentionFocus: MentionFocus = MentionFocus.parse(userMessage),
+        disabledToolNames: Set<String> = emptySet(),
+        toolAccessMode: String = "ON_DEMAND"
     ): Flow<SwarmEvent> = channelFlow {
+        val focusContext = try {
+            if (mentionFocus.tools.isNotEmpty()) {
+                val local = if (toolAccessMode == "DISABLED") emptyList() else toolManager.getToolDefinitions().filter { it.name !in disabledToolNames }
+                val connected = if (toolAccessMode != "DISABLED" && mentionFocus.tools.any { name -> local.none { it.name == name } })
+                    com.omnidev.workspace.OmniDevApp.instance.mcpRegistry.fetchAllAvailableTools().filter { it.name !in disabledToolNames }
+                    else emptyList()
+                mentionFocus.validateTools((local + connected).map { it.name }.toSet())
+            }
+            if (mentionFocus.skills.isEmpty()) "" else com.omnidev.workspace.data.skills.SkillManager(
+                com.omnidev.workspace.OmniDevApp.instance.applicationContext).buildMentionedPromptContext(mentionFocus.skills)
+        } catch (error: IllegalArgumentException) {
+            send(SwarmEvent.Error(error.message ?: "Invalid capability mention")); return@channelFlow
+        }
         val teamStartedAt = System.currentTimeMillis()
         val observedTeamTokens = AtomicInteger(0)
         val evidence = TeamSteeringEvidence()
@@ -117,7 +133,7 @@ Synthesize specialist evidence into the answer to the original request.
             try {
                 executeAttempt(objective + evidence.context(), orchestratorModelId, workerModelId,
                     scopePath, enableDeepThinking, godModeEnabled, steering, revision,
-                    teamStartedAt, observedTeamTokens).collect { event ->
+                    teamStartedAt, observedTeamTokens, mentionFocus, disabledToolNames, toolAccessMode, focusContext).collect { event ->
                     evidence.record(event)
                     send(event)
                 }
@@ -140,7 +156,11 @@ Synthesize specialist evidence into the answer to the original request.
         steering: RunSteering?,
         revision: Long,
         teamStartedAt: Long,
-        observedTeamTokens: AtomicInteger
+        observedTeamTokens: AtomicInteger,
+        mentionFocus: MentionFocus,
+        disabledToolNames: Set<String>,
+        toolAccessMode: String,
+        focusContext: String
     ): Flow<SwarmEvent> = channelFlow {
         steering?.check(revision)
         if (observedTeamTokens.get() >= TEAM_TOTAL_TOKEN_HARD_LIMIT - SYNTHESIS_TOKEN_RESERVE) {
@@ -159,6 +179,8 @@ Synthesize specialist evidence into the answer to the original request.
             messages = listOf(ChatMessage(MessageRole.USER, userMessage)),
             systemPrompt = buildString {
                 appendLine(ORCHESTRATOR_SYSTEM_PROMPT.trimIndent())
+                appendLine(mentionFocus.prompt())
+                appendLine(focusContext)
                 appendLine("RUNTIME CLOCK: $runtimeClock")
                 if (godModeEnabled) {
                     appendLine("God Mode flag is enabled, but actual privilege still depends on runtime tool evidence.")
@@ -278,7 +300,7 @@ Synthesize specialist evidence into the answer to the original request.
 
             val workerPipeline = AgentPipeline(
                 toolManager = toolManager,
-                mcpRegistry = if (task.needsConnectedTools) {
+                mcpRegistry = if (task.needsConnectedTools || mentionFocus.tools.any { it.startsWith("mcp_") }) {
                     com.omnidev.workspace.OmniDevApp.instance.mcpRegistry
                 } else null,
                 completionProvider = completionProvider,
@@ -307,7 +329,9 @@ Synthesize specialist evidence into the answer to the original request.
                     scopePath = scopePath,
                     enableDeepThinking = enableDeepThinking,
                     workerPersona = task.requiredPersona.takeIf(String::isNotBlank),
-                    toolAccessMode = "ON_DEMAND",
+                    toolAccessMode = toolAccessMode,
+                    disabledToolNames = disabledToolNames,
+                    mentionFocus = mentionFocus,
                     steering = steering,
                     steeringRevision = revision
                 ).collect { event ->

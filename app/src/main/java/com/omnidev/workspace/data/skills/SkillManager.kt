@@ -135,7 +135,8 @@ class SkillManager(context: Context) {
      * - ON_DEMAND: compact selected catalog only; body loads through skill:<name>.
      * - ALWAYS_LOADED: selected skill bodies are injected up-front under a hard cap.
      */
-    fun buildEnabledPromptContext(maxChars: Int = DEFAULT_PROMPT_BUDGET): String {
+    fun buildEnabledPromptContext(maxChars: Int = DEFAULT_PROMPT_BUDGET, selectedNames: Set<String> = emptySet()): String {
+        if (selectedNames.isNotEmpty()) return buildMentionedPromptContext(selectedNames)
         val policy = ChatCapabilityStore.read(appContext)
         val eligible = listChatEligibleSkills()
         if (policy.skillAccessMode == SkillAccessMode.DISABLED || eligible.isEmpty()) return ""
@@ -171,6 +172,19 @@ class SkillManager(context: Context) {
             appendLine("--- END AGENT SKILLS ---")
         }
         return text.take(maxChars.coerceAtLeast(512))
+    }
+
+    /** Explicit selection preloads bodies and fails closed before spending model tokens. */
+    fun buildMentionedPromptContext(names: Set<String>): String {
+        require(names.size <= 4) { "Select at most 4 skills per message." }
+        val eligible = listChatEligibleSkills().map { it.name }.toSet()
+        val missing = names - eligible
+        require(missing.isEmpty()) { "Mentioned skills are unavailable or disabled: ${missing.joinToString()}." }
+        val bodies = names.map { buildInvocation(it).getOrThrow() }
+        require(bodies.sumOf { it.length } <= 16_000) {
+            "Selected skill instructions are too large for one focused turn. Select fewer skills."
+        }
+        return bodies.joinToString("\n\n")
     }
 
     private fun readBounded(uri: Uri): ByteArray {

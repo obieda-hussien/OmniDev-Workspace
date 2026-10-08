@@ -63,6 +63,9 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-${{ env.ANDROID_API_LEVEL }} build-tools;${{ env.ANDROID_BUILD_TOOLS }}'
 
+      - name: Test Gradle dependency retry policy
+        run: python3 .github/scripts/test-gradle-with-retry.py
+
       - name: Install and verify Android CMake with retry/backoff
         run: bash .github/scripts/install-android-cmake.sh
 
@@ -85,7 +88,7 @@ jobs:
 
       - name: Fast quality compile gate
         run: |
-          ./gradlew --no-daemon --max-workers 1 \
+          bash .github/scripts/gradle-with-retry.sh --no-daemon --max-workers 1 \
             -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
             -Pkotlin.compiler.execution.strategy=in-process \
             -Pkotlin.incremental=false \
@@ -98,12 +101,12 @@ jobs:
         run: |
           TASKS="$(./gradlew tasks --all --no-daemon --console=plain)"
           if echo "$TASKS" | grep -qE '^ktlintCheck( |$)'; then
-            ./gradlew --no-daemon --max-workers 1 ktlintCheck
+            bash .github/scripts/gradle-with-retry.sh --no-daemon --max-workers 1 ktlintCheck
           else
             echo "ktlintCheck task not found; skipping."
           fi
           if echo "$TASKS" | grep -qE '^detekt( |$)'; then
-            ./gradlew --no-daemon --max-workers 1 detekt
+            bash .github/scripts/gradle-with-retry.sh --no-daemon --max-workers 1 detekt
           else
             echo "detekt task not found; skipping."
           fi
@@ -151,7 +154,7 @@ jobs:
 
       - name: Lint all debug flavors
         run: |
-          ./gradlew --no-daemon --max-workers 1 \
+          bash .github/scripts/gradle-with-retry.sh --no-daemon --max-workers 1 \
             -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
             -Pkotlin.compiler.execution.strategy=in-process \
             -Pkotlin.incremental=false \
@@ -218,7 +221,7 @@ jobs:
 
       - name: Compile and run unit tests for all flavors
         run: |
-          ./gradlew --no-daemon --max-workers 1 \
+          bash .github/scripts/gradle-with-retry.sh --no-daemon --max-workers 1 \
             -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
             -Pkotlin.compiler.execution.strategy=in-process \
             -Pkotlin.incremental=false \
@@ -286,7 +289,7 @@ jobs:
       # ADMIN is a private developer flavor: never publish its APK as a public CI artifact.
       - name: Build distributable release APKs
         run: |
-          ./gradlew --no-daemon --max-workers 1 \
+          bash .github/scripts/gradle-with-retry.sh --no-daemon --max-workers 1 \
             -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
             -Pkotlin.compiler.execution.strategy=in-process \
             -Pkotlin.incremental=false \
@@ -467,7 +470,7 @@ jobs:
             unsigned_arg+=("-POMNI_ADMIN_UNSIGNED_RELEASE=true")
           fi
 
-          ./gradlew --no-daemon --max-workers 1 \
+          bash .github/scripts/gradle-with-retry.sh --no-daemon --max-workers 1 \
             -Dorg.gradle.jvmargs="$CI_GRADLE_JVMARGS" \
             -Pkotlin.compiler.execution.strategy=in-process \
             -Pkotlin.incremental=false \
