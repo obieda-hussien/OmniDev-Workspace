@@ -114,7 +114,7 @@ internal fun ChatComposerSurface(
                         if (inputText.isEmpty()) Text(if (isProcessing && allowSteering) "Correct or add an instruction…" else if (isProcessing) "Write your next message…" else "Message Omni…",
                             style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Box(Modifier.heightIn(max = maxTextHeight).verticalScroll(editorScroll)
+                        Box(Modifier.fillMaxWidth().heightIn(max = maxTextHeight).verticalScroll(editorScroll)
                             .onGloballyPositioned { companionGaze.coordinates = it; companionGaze.publish() }) { field() }
                     }
                 })
