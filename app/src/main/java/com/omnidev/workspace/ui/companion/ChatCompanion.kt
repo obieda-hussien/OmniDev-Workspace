@@ -5,12 +5,12 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
@@ -22,6 +22,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -38,6 +40,9 @@ private class AnchorRegistry {
     // Pointer/focus updates are read by the sprite ticker, without recomposing the transcript.
     var look: LookTarget? = null
     var editorFocused = false
+    var caret: Offset? = null
+    var keyboard: Offset? = null
+    var editedAt = 0L
 }
 private val LocalCompanionAnchors = staticCompositionLocalOf<AnchorRegistry?> { null }
 
@@ -66,6 +71,36 @@ internal fun rememberCompanionEditorFocus(): (Boolean) -> Unit {
     return remember(registry) { { focused -> registry?.editorFocused = focused } }
 }
 
+/** The inner text origin and shaped cursor rect handle RTL, mixed text and line wrapping. */
+internal class CompanionEditorGaze(private val report: (Offset?, Boolean) -> Unit) {
+    var coordinates: LayoutCoordinates? = null
+    var layout: TextLayoutResult? = null
+    var value: TextFieldValue = TextFieldValue()
+    fun publish(edited: Boolean = false) {
+        if (edited) report(null, true)
+        val coordinates = coordinates?.takeIf { it.isAttached } ?: return
+        val layout = layout ?: return
+        // Wait for layout after text changes; offsets from the old paragraph would be wrong.
+        if (layout.layoutInput.text.text != value.text) return
+        val cursor = layout.getCursorRect(value.selection.end.coerceIn(0, value.text.length))
+        val bounds = coordinates.boundsInRoot()
+        val point = coordinates.localToRoot(cursor.center)
+        report(Offset(point.x.coerceIn(bounds.left, bounds.right), point.y.coerceIn(bounds.top, bounds.bottom)), false)
+    }
+    fun clear() { report(null, false); coordinates = null; layout = null }
+}
+
+@Composable
+internal fun rememberCompanionEditorGaze(): CompanionEditorGaze {
+    val registry = LocalCompanionAnchors.current
+    val gaze = remember(registry) { CompanionEditorGaze { point, edited ->
+        registry?.caret = point
+        if (edited) registry?.editedAt = System.nanoTime()
+    } }
+    DisposableEffect(gaze) { onDispose { gaze.clear() } }
+    return gaze
+}
+
 private fun LayoutCoordinates.unclippedRootRect(): Rect {
     val p = localToRoot(Offset.Zero)
     return Rect(p.x, p.y, p.x + size.width, p.y + size.height)
@@ -81,6 +116,8 @@ internal fun ChatCompanionHost(
     val preferences by rememberCompanionPreferences()
     val registry = remember(sessionKey) { AnchorRegistry() }
     var parent by remember { mutableStateOf<Rect?>(null) }
+    val imeHeight = WindowInsets.ime.getBottom(LocalDensity.current)
+    SideEffect { registry.keyboard = parent?.takeIf { imeHeight > 0 }?.let { Offset(it.width / 2, it.height + imeHeight * .45f) } }
     Box(modifier.onGloballyPositioned { parent = it.unclippedRootRect() }.pointerInput(registry) {
         awaitPointerEventScope {
             while (true) {
@@ -109,7 +146,7 @@ internal fun ChatCompanionHost(
                         val console = consoles.firstOrNull { it.id == "live-console" }
                             ?: consoles.filter(base::valid).maxByOrNull { it.top }
                         val others = anchors.filter { it.kind == CompanionAnchor.MESSAGE }.map(::perch) + consoles.filter { it.id != console?.id }
-                        CompanionOverlay(sessionKey, base.copy(console = console, messages = others), working, preferences.roaming, activity, registry)
+                        CompanionOverlay(sessionKey, base.copy(console = console, messages = others), working, preferences.roaming, activity, registry, area.topLeft)
                     }
                 }
             }
@@ -118,8 +155,8 @@ internal fun ChatCompanionHost(
 }
 
 @Composable
-private fun CompanionOverlay(sessionKey: Any?, scene: CompanionScene, working: Boolean, roaming: Boolean,
-    activity: CompanionActivity, registry: AnchorRegistry) {
+private fun BoxScope.CompanionOverlay(sessionKey: Any?, scene: CompanionScene, working: Boolean, roaming: Boolean,
+    activity: CompanionActivity, registry: AnchorRegistry, origin: Offset) {
     val motion = LocalOmniMotion.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val engine = remember(sessionKey) { CompanionMotion() }
@@ -128,6 +165,7 @@ private fun CompanionOverlay(sessionKey: Any?, scene: CompanionScene, working: B
     val currentRoaming by rememberUpdatedState(roaming)
     val currentActivity by rememberUpdatedState(activity)
     val currentScene by rememberUpdatedState(scene)
+    val currentOrigin by rememberUpdatedState(origin)
     SideEffect { engine.configure(scene, motion.reduced); pose.value = engine.step(0f, working, roaming, motion.reduced, activity) }
     LaunchedEffect(engine, lifecycle, motion) {
         if (!motion.reduced) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -137,11 +175,18 @@ private fun CompanionOverlay(sessionKey: Any?, scene: CompanionScene, working: B
                 delay(if (motion.compact) 34L else 17L)
                 val now = System.nanoTime()
                 val look = registry.look
-                if (look != null && look.time != observedLook && now - look.time < 2_000_000_000L) {
+                val caret = registry.caret?.minus(currentOrigin)
+                if (registry.editorFocused && caret != null && now - registry.editedAt < 900_000_000L) {
+                    engine.lookAt(caret.x, caret.y, wake = true)
+                } else if (look != null && look.time != observedLook && now - look.time < 2_000_000_000L) {
                     engine.lookAt(look.point.x, look.point.y, wake = true); observedLook = look.time
                 } else if (look == null || now - look.time > 2_000_000_000L) {
-                    val target = if (registry.editorFocused) currentScene.composer else if (currentWorking) currentScene.console else null
-                    target?.let { engine.lookAt((it.left + it.right) / 2, it.top + currentScene.size * .7f) }
+                    if (registry.editorFocused) {
+                        val target = registry.keyboard ?: caret ?: Offset((currentScene.composer.left + currentScene.composer.right) / 2, currentScene.composer.top)
+                        engine.lookAt(target.x, target.y)
+                    } else currentScene.console?.takeIf { currentWorking }?.let {
+                        engine.lookAt((it.left + it.right) / 2, it.top + currentScene.size * .7f)
+                    }
                 }
                 pose.value = engine.step((now - previous) / 1_000_000_000f, currentWorking, currentRoaming, false, currentActivity)
                 previous = now
@@ -150,7 +195,10 @@ private fun CompanionOverlay(sessionKey: Any?, scene: CompanionScene, working: B
     }
     val slop = LocalViewConfiguration.current.touchSlop
     val feedback = LocalHapticFeedback.current
-    CompanionArtwork(Modifier.offset { IntOffset(pose.value.x.roundToInt(), pose.value.y.roundToInt()) }
+    val coordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    // Physical coordinates everywhere, independent of the application's layout direction.
+    CompanionArtwork(Modifier.align(AbsoluteAlignment.TopLeft).absoluteOffset { IntOffset(pose.value.x.roundToInt(), pose.value.y.roundToInt()) }
+        .onGloballyPositioned { coordinates[0] = it }
         .size(60.dp).testTag("omni-companion")
         .semantics {
             contentDescription = "Omni companion"
@@ -169,16 +217,20 @@ private fun CompanionOverlay(sessionKey: Any?, scene: CompanionScene, working: B
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 val tracker = VelocityTracker()
-                fun worldPoint(point: Offset) = point + Offset(engine.pose.x, engine.pose.y)
+                fun worldPoint(point: Offset) = coordinates[0]?.takeIf { it.isAttached }?.localToRoot(point)
+                    ?: (point + Offset(engine.pose.x, engine.pose.y) + currentOrigin)
                 tracker.addPosition(down.uptimeMillis, worldPoint(down.position))
+                var previous = worldPoint(down.position)
                 var distance = Offset.Zero
                 var grabbed = false
                 var ended = false
+                engine.grab(); pose.value = engine.pose; down.consume()
                 try {
                     while (!ended) {
                         val event = awaitPointerEvent()
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                        tracker.addPosition(change.uptimeMillis, worldPoint(change.position))
+                        val point = worldPoint(change.position)
+                        tracker.addPosition(change.uptimeMillis, point)
                         if (!change.pressed) {
                             if (grabbed) {
                                 val velocity = tracker.calculateVelocity()
@@ -186,17 +238,19 @@ private fun CompanionOverlay(sessionKey: Any?, scene: CompanionScene, working: B
                             } else { engine.tap(motion.reduced); feedback.performHapticFeedback(HapticFeedbackType.LongPress) }
                             change.consume(); ended = true
                         } else {
-                            val delta = change.positionChange()
+                            val delta = point - previous
                             distance += delta
-                            if (!grabbed && distance.getDistance() > slop) { engine.grab(); engine.drag(distance.x, distance.y); grabbed = true }
+                            if (!grabbed && distance.getDistance() > slop) { engine.drag(distance.x, distance.y); grabbed = true }
                             else if (grabbed) engine.drag(delta.x, delta.y)
                             change.consume()
                         }
+                        previous = point
                         pose.value = engine.pose
                     }
                 } finally {
-                    if (grabbed && !ended) { engine.release(0f, motion.reduced); pose.value = engine.pose }
+                    if (!ended) { engine.release(0f, motion.reduced); pose.value = engine.pose }
                 }
             }
         }, pose = { pose.value })
 }
+

@@ -56,7 +56,7 @@ private fun DrawScope.drawCompanion(pose: CompanionPose, art: CompanionArt) {
             drawLine(color, point - Offset(radius, 0f), point + Offset(radius, 0f), 1.3f, StrokeCap.Round)
             drawLine(color, point - Offset(0f, radius), point + Offset(0f, radius), 1.3f, StrokeCap.Round)
         }
-        rotate(pose.rotation, Offset(32f, 34f)) {
+        rotate(pose.rotation + pose.bodyTilt, Offset(32f, 34f)) {
             scale(1f / pose.stretch, pose.stretch, Offset(32f, 61f)) {
                 rotate(pose.earTilt, Offset(25f, 22f)) {
                     drawPath(art.leftEar, art.fill); drawPath(art.leftEar, Color(0xFFB7ADF2), style = Stroke(.8f))
@@ -72,8 +72,8 @@ private fun DrawScope.drawCompanion(pose: CompanionPose, art: CompanionArt) {
                 drawOval(Color(0xFFEFC7F3).copy(alpha = .6f), Offset(41f, 45f), Size(7f, 3.5f))
                 val sleepy = pose.mood == CompanionMood.SLEEPY || pose.blink
                 for (eye in listOf(25f, 39f)) {
-                    val x = eye + pose.lookX * 1.8f
-                    val y = 40f + pose.lookY * 1.2f
+                    val x = eye + pose.lookX * 2.2f
+                    val y = 40f + pose.lookY * 1.8f
                     if (sleepy) drawLine(ink, Offset(x - 2.5f, y), Offset(x + 2.5f, y), 2f, StrokeCap.Round)
                     else if (pose.mood == CompanionMood.HAPPY) {
                         withTransform({ translate(x, y) }) { drawPath(art.happyEye, ink, style = line) }

@@ -5,6 +5,14 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.layout.onGloballyPositioned
 import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
 import androidx.compose.material3.MaterialTheme
@@ -145,5 +153,88 @@ class ChatCompanionTest {
         }
         compose.onNodeWithTag("omni-companion").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Something needs attention"))
         compose.onNodeWithContentDescription("Send").assertExists()
+    }
+
+    @Test fun physicalDraggingFollowsTheFingerInRtl() = checkPhysicalDragging(LayoutDirection.Rtl)
+    @Test fun physicalDraggingFollowsTheFingerInLtr() = checkPhysicalDragging(LayoutDirection.Ltr)
+
+    private fun checkPhysicalDragging(direction: LayoutDirection) {
+        compose.setContent { MaterialTheme { CompositionLocalProvider(
+            LocalLayoutDirection provides direction, LocalOmniMotion provides MotionPolicy(reduced = true)) {
+            ChatCompanionHost("direction", false, modifier = Modifier.width(380.dp).height(450.dp).testTag("pet-host")) {
+                Column(Modifier.fillMaxSize()) {
+                    Spacer(Modifier.weight(1f))
+                    ChatComposerSurface("", {}, {}, {}, false, {}, false)
+                }
+            }
+        } } }
+        fun bounds() = compose.onNodeWithTag("omni-companion").fetchSemanticsNode().boundsInRoot
+        val start = bounds()
+        val host = compose.onNodeWithTag("pet-host").fetchSemanticsNode().boundsInRoot
+        assertTrue("Physical initial position must not mirror", start.left > host.center.x)
+        assertTrue(start.right <= host.right)
+        compose.onNodeWithTag("omni-companion").performTouchInput { down(center); moveBy(Offset(-70f, -70f)) }
+        val left = bounds()
+        assertEquals(start.left - 70f, left.left, 2f)
+        assertEquals(start.top - 70f, left.top, 2f)
+        compose.onNodeWithTag("omni-companion").performTouchInput { moveBy(Offset(100f, 30f)) }
+        val right = bounds()
+        assertEquals(left.left + 100f, right.left, 2f)
+        assertEquals(left.top + 30f, right.top, 2f)
+        compose.onNodeWithTag("omni-companion").performTouchInput { up() }
+        compose.onNode(hasSetTextAction()).assertExists()
+    }
+
+    @Test fun shapedCaretMovesRightForEnglishLeftForArabicAndDownForNewlines() {
+        val value = mutableStateOf(TextFieldValue("hello", TextRange.Zero))
+        var point: Offset? = null
+        val gaze = CompanionEditorGaze { next, _ -> if (next != null) point = next }
+        compose.setContent { MaterialTheme { CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+            SideEffect { gaze.value = value.value; gaze.publish() }
+            Box(Modifier.padding(24.dp)) {
+                BasicTextField(value.value, { value.value = it },
+                    Modifier.width(280.dp).onGloballyPositioned { gaze.coordinates = it; gaze.publish() },
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content),
+                    onTextLayout = { gaze.layout = it; gaze.publish() })
+            }
+        } } }
+        val englishStart = compose.runOnIdle { requireNotNull(point) }
+        compose.runOnIdle { value.value = value.value.copy(selection = TextRange(5)) }
+        val englishEnd = compose.runOnIdle { requireNotNull(point) }
+        assertTrue(englishEnd.x > englishStart.x + 10f)
+        compose.runOnIdle { value.value = TextFieldValue("مرحبا", TextRange.Zero) }
+        val arabicStart = compose.runOnIdle { requireNotNull(point) }
+        compose.runOnIdle { value.value = value.value.copy(selection = TextRange(5)) }
+        val arabicEnd = compose.runOnIdle { requireNotNull(point) }
+        assertTrue(arabicEnd.x < arabicStart.x - 10f)
+        compose.runOnIdle { value.value = TextFieldValue("Omni مرحبا\nsecond سطر", TextRange.Zero) }
+        val firstLine = compose.runOnIdle { requireNotNull(point) }
+        compose.runOnIdle { value.value = value.value.copy(selection = TextRange(value.value.text.length)) }
+        val secondLine = compose.runOnIdle { requireNotNull(point) }
+        assertTrue(secondLine.y > firstLine.y + 10f)
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    @Test fun sharedEditorPreservesBilingualSelectionAndAcceptsExternalDraftReplacement() {
+        val draft = mutableStateOf("")
+        compose.setContent { MaterialTheme { CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
+            ChatCompanionHost("typing", false, modifier = Modifier.width(340.dp).height(520.dp)) {
+                Column(Modifier.fillMaxSize()) {
+                    Spacer(Modifier.weight(1f))
+                    ChatComposerSurface(draft.value, { draft.value = it }, {}, {}, false, {}, true)
+                }
+            }
+        } } }
+        val editor = compose.onNode(hasSetTextAction())
+        editor.performTextInput("Omni عربي")
+        editor.performTextInputSelection(TextRange(0))
+        editor.performTextInput("Hi ")
+        compose.runOnIdle { assertEquals("Hi Omni عربي", draft.value) }
+        editor.performTextInput("\n" + "سطر English\n".repeat(8))
+        compose.onNodeWithTag("omni-companion").assertIsDisplayed()
+        compose.runOnIdle { draft.value = "External تعديل" }
+        editor.assertTextEquals("External تعديل")
+        editor.performTextInput("!")
+        compose.runOnIdle { assertEquals("External تعديل!", draft.value) }
     }
 }
