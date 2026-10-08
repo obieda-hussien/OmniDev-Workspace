@@ -25,6 +25,9 @@ env:
 jobs:
   run-quality:
     name: Run Quality
+    # Only existing repository write access can supply a same-repository branch.
+    # Public forks must not consume the Android build pipeline.
+    if: github.repository == 'obieda-hussien/OmniDev-Workspace' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
 

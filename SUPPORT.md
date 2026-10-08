@@ -1,5 +1,7 @@
 # Support and useful diagnostics
 
+This proprietary project is maintained through owner-authorized development. GitHub issue creation is restricted to collaborators; public readers should use an available contact on the [maintainer profile](https://github.com/obieda-hussien) to request support or permission. Do not use forks or unsolicited PRs as an authorization route.
+
 Start with the [README](README.md) and the guide for the feature you are configuring. Use repository issues for reproducible application problems and feature requests. Maintainer responses depend on availability; the project does not promise a support SLA.
 
 ## Where to ask

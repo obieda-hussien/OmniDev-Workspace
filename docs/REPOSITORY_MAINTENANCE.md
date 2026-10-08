@@ -1,6 +1,8 @@
 # Repository identity, topics and labels
 
-The intended public identity is **OmniDev Workspace**. The GitHub repository path remains `obieda-hussien/OmniDev-Workspace` so established links and integrations keep their current destination.
+The intended product identity is **OmniDev Workspace**. The GitHub repository path remains `obieda-hussien/OmniDev-Workspace` so established links and integrations keep their current destination.
+
+This is a proprietary project hosted publicly at the owner's request. Public discovery metadata grants no additional software license or contribution permission. See [ownership notice](../LICENSE.md), [repository security](REPOSITORY_SECURITY.md) and [size snapshot](REPOSITORY_STATS.md).
 
 ## Versioned metadata
 
