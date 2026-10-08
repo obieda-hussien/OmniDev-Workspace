@@ -16,6 +16,9 @@ import androidx.compose.ui.unit.dp
 internal fun CompanionSettingsCard() {
     val preferences by rememberCompanionPreferences()
     val context = LocalContext.current
+    val memory = remember(context) { CompanionLearningStore.get(context) }
+    val learned by memory.observations.collectAsState()
+    val saveFailed by memory.saveFailed.collectAsState()
     var previewIndex by remember { mutableStateOf(0) }
     val previewMood = CompanionMood.entries[previewIndex]
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -38,9 +41,40 @@ internal fun CompanionSettingsCard() {
                 CompanionToggle("Hopping & roaming", "Let Omni explore the message box, your messages and agent console", preferences.roaming, preferences.enabled) {
                     CompanionPreferenceStore.write(context, preferences.copy(roaming = it))
                 }
+                HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .4f))
+                CompanionToggle("Learn my habits", "Remember gentle placements and your feedback across chats", preferences.learning) {
+                    CompanionPreferenceStore.write(context, preferences.copy(learning = it))
+                }
+                HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .4f))
+                CompanionToggle("Expressive moods", "A little joy, curiosity and occasional need for space", preferences.expressive, preferences.enabled) {
+                    CompanionPreferenceStore.write(context, preferences.copy(expressive = it))
+                }
             }
         }
-        Text("Tap Omni for a playful tumble, or drag and throw it. Long press for controls and a five-minute break. Touch it before it leaves to welcome it back. Its eyes follow your typing, and it explores with occasional curious looks, sniffs, stretches and yawns. It follows your device’s reduced motion setting.",
+        Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Personality", style = MaterialTheme.typography.titleSmall)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (personality in CompanionPersonality.entries) FilterChip(
+                        selected = preferences.personality == personality,
+                        onClick = { CompanionPreferenceStore.write(context, preferences.copy(personality = personality)) },
+                        label = { Text(personality.name.lowercase().replaceFirstChar { it.uppercase() }) })
+                }
+                Text("Resting corner", style = MaterialTheme.typography.titleSmall)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (corner in CompanionRestCorner.entries) FilterChip(selected = preferences.restCorner == corner,
+                        onClick = { CompanionPreferenceStore.write(context, preferences.copy(restCorner = corner)) },
+                        label = { Text(corner.name.lowercase().replaceFirstChar { it.uppercase() }) })
+                }
+                Text("Learned feedback: $learned", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Habits stay on this device. Turning learning off keeps existing memories and pauses their use and updates.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (saveFailed) Text("Memories could not be saved. They are available for now; saving will retry after your next interaction.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                TextButton(onClick = memory::reset) { Text("Forget learned habits & moods") }
+            }
+        }
+        Text("Tap Omni for a playful tumble, or drag and throw it. Repeated quick taps can make it want a little space; it settles with time. Long press to pet it gently, give feedback or take a five-minute break. Touch it before it leaves to welcome it back. Its eyes follow your typing, and it explores with occasional curious looks, sniffs, stretches and yawns. It follows your device’s reduced motion setting.",
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

@@ -4,6 +4,8 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material3.*
@@ -22,6 +24,7 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.platform.testTag
@@ -162,7 +165,7 @@ internal fun ChatCompanionHost(
                         val console = consoles.firstOrNull { it.id == "live-console" }
                             ?: consoles.filter(base::valid).maxByOrNull { it.top }
                         val others = anchors.filter { it.kind == CompanionAnchor.MESSAGE }.map(::perch) + consoles.filter { it.id != console?.id }
-                        CompanionOverlay(sessionKey, base.copy(console = console, messages = others), working, preferences.roaming, activity, registry, area.topLeft,
+                        CompanionOverlay(sessionKey, base.copy(console = console, messages = others), working, preferences, activity, registry, area.topLeft,
                             onHidden = { temporarilyHidden = true })
                     }
                 }
@@ -172,11 +175,17 @@ internal fun ChatCompanionHost(
 }
 
 @Composable
-private fun BoxScope.CompanionOverlay(sessionKey: Any?, scene: CompanionScene, working: Boolean, roaming: Boolean,
+private fun BoxScope.CompanionOverlay(sessionKey: Any?, scene: CompanionScene, working: Boolean, preferences: CompanionPreferences,
     activity: CompanionActivity, registry: AnchorRegistry, origin: Offset, onHidden: () -> Unit) {
     val motion = LocalOmniMotion.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val engine = remember(sessionKey) { CompanionMotion() }
+    val context = LocalContext.current
+    val memory = remember(context) { CompanionLearningStore.get(context) }
+    val ready by memory.ready.collectAsState()
+    val epoch by memory.epoch.collectAsState()
+    val mind = remember(sessionKey, epoch) { memory.session() }
+    val engine = remember(mind) { CompanionMotion(mind = mind) }
+    val roaming = preferences.roaming
     val pose = remember(engine) { mutableStateOf(CompanionPose()) }
     var menuOpen by remember { mutableStateOf(false) }
     var animateExit by remember { mutableStateOf(false) }
@@ -202,7 +211,12 @@ private fun BoxScope.CompanionOverlay(sessionKey: Any?, scene: CompanionScene, w
     val currentMenuOpen by rememberUpdatedState(menuOpen)
     val currentOnHidden by rememberUpdatedState(onHidden)
     SideEffect {
+        mind.learning = preferences.learning; mind.expressive = preferences.expressive; mind.personality = preferences.personality
+        val restored = ready && mind.restore(memory.currentFeeling())
+        engine.typing = registry.editorFocused
+        engine.restCorner = preferences.restCorner
         engine.configure(scene, motion.reduced)
+        if (restored) engine.restoreRestingCorner()
         if (!menuOpen) engine.step(0f, working, roaming, motion.reduced, activity)
         syncPose()
         registry.onTouch = { point ->
@@ -212,20 +226,25 @@ private fun BoxScope.CompanionOverlay(sessionKey: Any?, scene: CompanionScene, w
         }
     }
     DisposableEffect(registry) { onDispose { registry.onTouch = null } }
+    DisposableEffect(engine) { onDispose { engine.flushMemory() } }
     LaunchedEffect(engine, lifecycle, motion, animateExit) {
-        if (!motion.reduced || animateExit) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             var previous = System.nanoTime()
             var observedLook = 0L
+            try {
             while (true) {
-                delay(if (motion.compact) 34L else 17L)
+                delay(if (motion.reduced && !animateExit) 250L else if (motion.compact) 34L else 17L)
                 val now = System.nanoTime()
                 if (currentMenuOpen) { previous = now; continue }
                 val look = registry.look
+                engine.typing = registry.editorFocused
                 val caret = registry.caret?.minus(currentOrigin)
                 if (registry.editorFocused && caret != null && now - registry.editedAt < 900_000_000L) {
                     engine.lookAt(caret.x, caret.y, wake = true)
                 } else if (look != null && look.time != observedLook && now - look.time < 2_000_000_000L) {
-                    engine.lookAt(look.point.x, look.point.y, wake = true); observedLook = look.time
+                    engine.lookAt(look.point.x, look.point.y, wake = true)
+                    engine.noticePointer(look.point.x, look.point.y, currentRoaming, motion.reduced)
+                    observedLook = look.time
                 } else if (look == null || now - look.time > 2_000_000_000L) {
                     if (registry.editorFocused) {
                         val target = registry.keyboard ?: caret ?: Offset((currentScene.composer.left + currentScene.composer.right) / 2, currentScene.composer.top)
@@ -239,6 +258,7 @@ private fun BoxScope.CompanionOverlay(sessionKey: Any?, scene: CompanionScene, w
                 if (engine.presence == CompanionPresence.HIDDEN) currentOnHidden()
                 previous = now
             }
+            } finally { engine.flushMemory() }
         }
     }
     val slop = LocalViewConfiguration.current.touchSlop
@@ -255,6 +275,9 @@ private fun BoxScope.CompanionOverlay(sessionKey: Any?, scene: CompanionScene, w
             stateDescription = when {
                 presence == CompanionPresence.LEAVING -> "Leaving for a little break"
                 presence == CompanionPresence.RETURNING -> "Happy you called me back"
+                !working && pose.value.mood == CompanionMood.ANNOYED -> "Annoyed, taking a little space"
+                !working && pose.value.mood == CompanionMood.GUARDED -> "Would like a quiet moment"
+                !working && pose.value.mood == CompanionMood.SAD -> "Feeling a little down"
                 else -> when (activity) {
                 CompanionActivity.WAITING -> "Waiting for your decision"
                 CompanionActivity.LISTENING -> "Listening with you"
@@ -299,7 +322,7 @@ private fun BoxScope.CompanionOverlay(sessionKey: Any?, scene: CompanionScene, w
                             if (longPressed) { /* The controls stay open after the finger is released. */ }
                             else if (grabbed) {
                                 val velocity = tracker.calculateVelocity()
-                                engine.release(velocity.x, motion.reduced, velocity.y)
+                                engine.release(velocity.x, motion.reduced, velocity.y, teachPlacement = true)
                             } else { engine.tap(motion.reduced); feedback.performHapticFeedback(HapticFeedbackType.LongPress) }
                             change.consume(); ended = true
                         } else {
@@ -322,19 +345,36 @@ private fun BoxScope.CompanionOverlay(sessionKey: Any?, scene: CompanionScene, w
         val density = LocalDensity.current
         val width = with(density) { minOf(224.dp.toPx(), (scene.width - 24.dp.toPx()).coerceAtLeast(1f)).toDp() }
         val menuWidth = with(density) { width.toPx() }
-        val menuHeight = with(density) { 168.dp.toPx() }
+        val menuHeight = with(density) { minOf(320.dp.toPx(), (scene.height - 16.dp.toPx()).coerceAtLeast(1f)) }
         Surface(Modifier.align(AbsoluteAlignment.TopLeft).absoluteOffset {
             IntOffset((engine.pose.x - menuWidth / 2 + scene.size / 2).coerceIn(0f, (scene.width - menuWidth).coerceAtLeast(0f)).roundToInt(),
                 (engine.pose.y - menuHeight - 8.dp.toPx()).coerceIn(0f, (scene.height - menuHeight).coerceAtLeast(0f)).roundToInt())
         }.width(width).onGloballyPositioned { menuBounds[0] = it.unclippedRootRect().translate(-origin) }.testTag("companion-controls"),
             shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp) {
-            Column(Modifier.padding(8.dp)) {
+            Column(Modifier.heightIn(max = with(density) { menuHeight.toDp() }).verticalScroll(rememberScrollState()).padding(8.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Little Omni", Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.titleSmall)
                     TextButton(onClick = { menuOpen = false }) { Text("Close") }
                 }
+                Text(when (activity) {
+                    CompanionActivity.THINKING -> "Thinking alongside you"
+                    CompanionActivity.TOOL -> "Following the agent's work"
+                    CompanionActivity.WAITING -> "Waiting for your decision"
+                    CompanionActivity.LISTENING -> "Listening with you"
+                    CompanionActivity.SUCCESS -> "The task is complete"
+                    CompanionActivity.ERROR -> "Something needs attention"
+                    CompanionActivity.IDLE -> if (mind.wantsSpace) "Taking a quiet moment" else "Ready to keep you company"
+                }, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 TextButton(onClick = { menuOpen = false; engine.returnToComposer(motion.reduced); syncPose() }, Modifier.fillMaxWidth()) { Text("Back to message box") }
                 TextButton(onClick = ::hideForNow, Modifier.fillMaxWidth()) { Text("Hide for 5 minutes") }
+                TextButton(onClick = { menuOpen = false; engine.settle(); syncPose() }, Modifier.fillMaxWidth()) { Text("Pet gently") }
+                Row(Modifier.fillMaxWidth()) {
+                    TextButton(onClick = { engine.feedback(true); menuOpen = false }, Modifier.weight(1f), enabled = mind.canFeedback) { Text("More like this") }
+                    TextButton(onClick = { engine.feedback(false); menuOpen = false }, Modifier.weight(1f), enabled = mind.canFeedback) { Text("Less like this") }
+                }
+                Text("Habits stay on this device", Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

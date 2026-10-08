@@ -50,6 +50,10 @@ private fun DrawScope.drawCompanion(pose: CompanionPose, art: CompanionArt) {
     scale(unit, unit, Offset.Zero) {
         val shadow = (1f - pose.lift / size.width.coerceAtLeast(1f)).coerceIn(.25f, 1f)
         drawOval(Color(0xFF7974B7).copy(alpha = .16f * shadow), Offset(15f, 60f), Size(34f, 4f))
+        if (pose.mood == CompanionMood.SLEEPY) {
+            drawRoundRect(Color(0xFFE7DDFB), Offset(9f, 57f), Size(46f, 6f), androidx.compose.ui.geometry.CornerRadius(3f))
+            drawLine(Color(0xFFB6A5E3), Offset(13f, 62f), Offset(51f, 62f), 1.2f, StrokeCap.Round)
+        }
         if (pose.sparkle > 0f) for (point in listOf(Offset(8f, 26f), Offset(54f, 16f), Offset(57f, 50f))) {
             val radius = pose.sparkle * 2.5f
             val color = Color(0xFFF0D391).copy(alpha = pose.sparkle)
@@ -78,10 +82,15 @@ private fun DrawScope.drawCompanion(pose: CompanionPose, art: CompanionArt) {
                     else if (pose.mood == CompanionMood.HAPPY) {
                         withTransform({ translate(x, y) }) { drawPath(art.happyEye, ink, style = line) }
                     } else {
-                        val h = when (pose.mood) { CompanionMood.SURPRISED, CompanionMood.WAITING -> 8f; CompanionMood.FOCUSED -> 5.5f; else -> 6.5f }
+                        val h = when (pose.mood) { CompanionMood.SURPRISED, CompanionMood.WAITING -> 8f; CompanionMood.FOCUSED -> 5.5f;
+                            CompanionMood.GUARDED -> 4.8f; CompanionMood.ANNOYED -> 3.5f; else -> 6.5f }
                         drawOval(ink, Offset(x - 2.4f, y - 3f), Size(4.8f, h))
                         drawCircle(Color.White.copy(alpha = .9f), 1f, Offset(x - .4f + pose.lookX * .5f, y - 1.3f + pose.lookY * .3f))
                     }
+                }
+                if (pose.mood == CompanionMood.ANNOYED) {
+                    drawLine(ink, Offset(22f, 33f), Offset(28f, 36f), 1.3f, StrokeCap.Round)
+                    drawLine(ink, Offset(36f, 36f), Offset(42f, 33f), 1.3f, StrokeCap.Round)
                 }
                 if (pose.mood in listOf(CompanionMood.FOCUSED, CompanionMood.CONCERNED, CompanionMood.WAITING, CompanionMood.SAD)) {
                     val worried = pose.mood == CompanionMood.CONCERNED || pose.mood == CompanionMood.SAD
@@ -92,6 +101,7 @@ private fun DrawScope.drawCompanion(pose: CompanionPose, art: CompanionArt) {
                 else when (pose.mood) {
                     CompanionMood.SURPRISED -> drawOval(ink, Offset(30f, 47f), Size(4f, 5f))
                     CompanionMood.CONCERNED, CompanionMood.SAD -> drawPath(art.frown, ink, style = line)
+                    CompanionMood.ANNOYED, CompanionMood.GUARDED -> drawLine(ink, Offset(29f, 49f), Offset(35f, 49f), 1.4f, StrokeCap.Round)
                     else -> drawPath(art.smile, ink.copy(alpha = .85f), style = line)
                 }
                 val badge = when (pose.mood) {

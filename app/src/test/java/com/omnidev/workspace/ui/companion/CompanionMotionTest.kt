@@ -4,6 +4,49 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class CompanionMotionTest {
+    @Test fun annoyedCompanionCanRetreatButDraggingAlwaysTracksTheFinger() {
+        val mind = CompanionMind(CompanionFeeling(irritation = .9f))
+        val e = CompanionMotion(42, mind); e.configure(scene)
+        e.step(.025f, false, true, false)
+        e.tap(false)
+        assertTrue(e.isAirborne)
+        e.grab(); val before = e.pose
+        e.drag(-30f, -20f)
+        assertEquals(before.x - 30f, e.pose.x, .001f)
+        assertEquals(before.y - 20f, e.pose.y, .001f)
+        e.noticePointer(e.pose.x, e.pose.y, true, false)
+        assertEquals(before.x - 30f, e.pose.x, .001f)
+    }
+    @Test fun annoyedCompanionRespectsReducedMotionAndNoRoaming() {
+        val mind = CompanionMind(CompanionFeeling(irritation = .9f))
+        val e = CompanionMotion(42, mind); e.configure(scene)
+        e.step(.025f, false, false, true)
+        val before = e.pose
+        e.tap(true); e.step(.025f, false, false, true)
+        assertEquals(CompanionMood.ANNOYED, e.pose.mood)
+        assertEquals(before.x, e.pose.x, .001f)
+        assertEquals(0f, e.pose.rotation, 0f); assertEquals(0f, e.pose.earTilt, 0f)
+        e.noticePointer(e.pose.x, e.pose.y, true, true)
+        assertFalse(e.isAirborne)
+    }
+    @Test fun gentlePettingCalmsMoodAndReturnRescueStillOverridesIrritation() {
+        val e = CompanionMotion(42, CompanionMind(CompanionFeeling(irritation = .9f)))
+        e.configure(scene); e.settle(); e.step(.025f, false, false, true)
+        assertEquals(CompanionMood.HAPPY, e.pose.mood)
+        e.hideTemporarily(true); e.grab(); e.release(0f, true)
+        assertEquals(CompanionPresence.VISIBLE, e.presence)
+        assertEquals(CompanionMood.HAPPY, e.pose.mood)
+    }
+    @Test fun restCornerUsesPhysicalCoordinatesAndSleepingReturnsToIt() {
+        val e = CompanionMotion(42, CompanionMind())
+        e.restCorner = CompanionRestCorner.LEFT; e.configure(scene)
+        assertTrue(e.pose.x < scene.width / 2)
+        e.grab(); e.drag(150f, -40f); e.release(0f, false)
+        advance(e, 30f, roaming = true)
+        assertEquals(CompanionMood.SLEEPY, e.pose.mood)
+        assertEquals("composer", e.perchId)
+        assertTrue(e.pose.x < scene.width / 2)
+    }
     private val scene = CompanionScene(360f, 600f, 60f, CompanionPerch(12f, 348f, 520f), CompanionPerch(20f, 340f, 270f))
     private fun engine() = CompanionMotion().apply { configure(scene) }
     private fun advance(engine: CompanionMotion, seconds: Float, working: Boolean = false, roaming: Boolean = true, reduced: Boolean = false) {
