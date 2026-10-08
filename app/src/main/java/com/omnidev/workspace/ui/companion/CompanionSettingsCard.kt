@@ -16,15 +16,17 @@ import androidx.compose.ui.unit.dp
 internal fun CompanionSettingsCard() {
     val preferences by rememberCompanionPreferences()
     val context = LocalContext.current
-    var previewWorking by remember { mutableStateOf(false) }
+    var previewIndex by remember { mutableStateOf(0) }
+    val previewMood = CompanionMood.entries[previewIndex]
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
             Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                CompanionArtwork(Modifier.size(96.dp)) { CompanionPose(mood = if (previewWorking) CompanionMood.WORKING else CompanionMood.AWAKE) }
+                CompanionArtwork(Modifier.size(96.dp)) { CompanionPose(mood = previewMood, lookX = .25f) }
                 Text("Meet little Omni", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 Text("A tiny companion with a curious spark.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick = { previewWorking = !previewWorking }) { Text(if (previewWorking) "Preview idle" else "Preview working") }
+                Text(previewMood.name.lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                TextButton(onClick = { previewIndex = (previewIndex + 1) % CompanionMood.entries.size }) { Text("Next expression") }
             }
         }
         Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -33,12 +35,12 @@ internal fun CompanionSettingsCard() {
                     CompanionPreferenceStore.write(context, preferences.copy(enabled = it))
                 }
                 HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .4f))
-                CompanionToggle("Hopping & roaming", "Let Omni explore the message box and agent console", preferences.roaming, preferences.enabled) {
+                CompanionToggle("Hopping & roaming", "Let Omni explore the message box, your messages and agent console", preferences.roaming, preferences.enabled) {
                     CompanionPreferenceStore.write(context, preferences.copy(roaming = it))
                 }
             }
         }
-        Text("Tap Omni for a playful tumble, or drag and release to move it. It rests when you stop interacting and follows your device’s reduced motion setting.",
+        Text("Tap Omni for a playful tumble, or drag and throw it. Its eyes follow your touch and it jumps to a visible perch when you scroll. It rests during idle time and follows your device’s reduced motion setting.",
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

@@ -147,7 +147,7 @@ fun AgentLiveConsole(
     }
 
     Card(
-        modifier = modifier.fillMaxWidth().companionAnchor(CompanionAnchor.CONSOLE),
+        modifier = modifier.fillMaxWidth().companionAnchor(CompanionAnchor.CONSOLE, if (isRunning) "live-console" else "console-${entries.firstOrNull()?.id}"),
         shape    = RoundedCornerShape(12.dp),
         colors   = CardDefaults.cardColors(containerColor = TerminalBg),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
