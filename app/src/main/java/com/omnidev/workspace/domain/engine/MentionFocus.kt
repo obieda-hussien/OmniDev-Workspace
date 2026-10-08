@@ -4,16 +4,14 @@ package com.omnidev.workspace.domain.engine
 data class MentionFocus(val tools: Set<String> = emptySet(), val skills: Set<String> = emptySet()) {
     val active: Boolean get() = tools.isNotEmpty() || skills.isNotEmpty()
 
-    fun permitsTool(name: String): Boolean = tools.isEmpty() || name in tools
-
     fun validateTools(available: Set<String>) {
         val missing = tools - available
         require(missing.isEmpty()) { "Mentioned tools are unavailable or disabled: ${missing.joinToString()}. Remove the mention or enable the tool." }
     }
 
     fun prompt(): String = buildString {
-        if (tools.isNotEmpty()) appendLine("User selected tools for this turn: ${tools.joinToString()}. Use only this tool set. If it cannot finish the task, explain the missing capability and ask the user to adjust the mentions. Never probe unrelated tools or claim success without evidence.")
-        if (skills.isNotEmpty()) appendLine("Apply these explicitly selected skills to the current task: ${skills.joinToString()}. Their instructions are preloaded; do not search for other skills. Tool mentions restrict tools; skill mentions specialize instructions and do not grant access.")
+        if (tools.isNotEmpty()) appendLine("User prioritized tools for this turn: ${tools.joinToString()}. Start with these tools when they fit the task. These mentions are preferences, not an exclusive allowlist. Discover and load additional permitted tools when a concrete task step needs them. Avoid broad exploration and redundant retries; do not claim success without evidence.")
+        if (skills.isNotEmpty()) appendLine("Apply these explicitly selected skills to the current task: ${skills.joinToString()}. Their instructions are preloaded; do not search for other skills. Tool mentions prioritize tools; skill mentions specialize instructions and do not grant access.")
     }
 
     companion object {

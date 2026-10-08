@@ -201,7 +201,7 @@ Do not use tools. Do not rewrite merely for style.
             .filter { it.name !in disabledToolNames }
             .toList()
         val mcpTools = try {
-            (if (toolAccessMode == "DISABLED" || mentionFocus.tools.isNotEmpty() && mentionFocus.tools.all { name -> localTools.any { it.name == name } }) emptyList()
+            (if (toolAccessMode == "DISABLED") emptyList()
                 else mcpRegistry?.fetchAllAvailableTools().orEmpty())
                 .filter { it.name !in disabledToolNames }
         } catch (cancelled: CancellationException) {
@@ -225,7 +225,7 @@ Do not use tools. Do not rewrite merely for style.
         try { mentionFocus.validateTools(eligibleDefinitions.map { it.name }.toSet()) } catch (error: IllegalArgumentException) {
             send(AgentEvent.Error(error.message ?: "Invalid tool mention")); return@channelFlow
         }
-        val permittedDefinitions = eligibleDefinitions.filter { mentionFocus.permitsTool(it.name) }
+        val permittedDefinitions = eligibleDefinitions
         val selectedSkillContext = try {
             if (mentionFocus.skills.isEmpty()) null else com.omnidev.workspace.data.skills.SkillManager(
                 com.omnidev.workspace.OmniDevApp.instance.applicationContext).buildMentionedPromptContext(mentionFocus.skills)
@@ -762,7 +762,7 @@ Do not use tools. Do not rewrite merely for style.
                 "Skipped: the user redirected this run before this action started. Re-plan using the latest instruction.",
                 true, classification = "RUN_REDIRECTED", retryable = false)
             if (call.name != RunToolCatalog.DISCOVER.name && !runCatalog.isPermitted(call.name)) return ToolExecutionResult(
-                "Tool is outside this turn's selected capabilities.", true, classification = "TOOL_NOT_SELECTED")
+                "Tool is unavailable under the current access policy.", true, classification = "TOOL_NOT_AVAILABLE")
             if (call.name == RunToolCatalog.DISCOVER.name) return runCatalog.discover(call.arguments.getValue("query"))
             toolCallEligibility?.invoke(call)?.let { reason ->
                 return ToolExecutionResult(reason, true, classification = "TOOL_POLICY_DENIED")
