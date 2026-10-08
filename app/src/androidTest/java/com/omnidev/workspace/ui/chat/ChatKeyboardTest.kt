@@ -43,19 +43,39 @@ class ChatKeyboardTest {
             ChatConversation(state.value, onInputChanged = { state.value = state.value.copy(inputText = it) }, onStop = { stops++ })
         } }
         val controller = WindowInsetsControllerCompat(compose.activity.window, compose.activity.window.decorView)
+        val density = context.resources.displayMetrics.density
+        fun awaitKeyboardPlacement() {
+            var lastSample: Triple<Int, Int, Int>? = null
+            var stableSamples = 0
+            var gap = Float.NaN
+            // IME visibility changes before the platform animation and Compose's inset layout finish.
+            // Sample in pixels, then require several consistent frames; do not widen the overlap limit.
+            compose.waitUntil(10_000) {
+                val insets = ViewCompat.getRootWindowInsets(root)
+                if (insets?.isVisible(WindowInsetsCompat.Type.ime()) != true) return@waitUntil false
+                val bounds = compose.onNodeWithTag("conversation-composer").fetchSemanticsNode().boundsInRoot
+                val location = IntArray(2)
+                val visible = Rect()
+                InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                    root.getLocationOnScreen(location)
+                    root.getWindowVisibleDisplayFrame(visible)
+                }
+                gap = visible.bottom - (location[1] + bounds.bottom)
+                val sample = Triple(visible.bottom, (location[1] + bounds.bottom).toInt(), insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
+                val adjacent = gap >= -2f && gap <= 12 * density
+                stableSamples = if (adjacent && sample == lastSample) stableSamples + 1 else 0
+                lastSample = sample
+                stableSamples >= 3
+            }
+            assertTrue("Composer should meet the keyboard, without overlap or a blank IME-height gap: $gap px", gap >= -2f && gap <= 12 * density)
+        }
         repeat(2) { cycle ->
             compose.onNodeWithContentDescription("Message Omni").performClick()
             compose.activity.runOnUiThread { controller.show(WindowInsetsCompat.Type.ime()) }
             compose.waitUntil(10_000) { ViewCompat.getRootWindowInsets(root)?.isVisible(WindowInsetsCompat.Type.ime()) == true }
             compose.onNodeWithContentDescription("Message Omni").performTextInput(if (cycle == 0) "رسالة عربية English" else "\nالمهمة التالية")
             compose.waitForIdle()
-            val bounds = compose.onNodeWithTag("conversation-composer").getUnclippedBoundsInRoot()
-            val location = IntArray(2)
-            val visible = Rect()
-            compose.runOnIdle { root.getLocationOnScreen(location); root.getWindowVisibleDisplayFrame(visible) }
-            val density = context.resources.displayMetrics.density
-            val gap = visible.bottom - (location[1] + bounds.bottom.value * density)
-            assertTrue("Composer should meet the keyboard, without overlap or a blank IME-height gap: $gap px", gap >= -2f && gap <= 12 * density)
+            awaitKeyboardPlacement()
             compose.onNodeWithContentDescription("Stop agent").assertIsDisplayed().performClick()
             compose.runOnIdle { assertEquals(cycle + 1, stops); assertTrue(state.value.inputText.contains("رسالة عربية")) }
             if (cycle == 0) {
