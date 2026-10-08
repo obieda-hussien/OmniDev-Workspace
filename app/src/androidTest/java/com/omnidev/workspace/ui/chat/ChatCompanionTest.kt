@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
@@ -39,9 +40,76 @@ class ChatCompanionTest {
     private lateinit var original: CompanionPreferences
     @Before fun setup() {
         original = CompanionPreferenceStore.read(CompanionPreferenceStore.preferences(context))
-        CompanionPreferenceStore.write(context, CompanionPreferences(enabled = true, roaming = false))
+        CompanionPreferenceStore.write(context, CompanionPreferences(enabled = true, roaming = false, learning = false, expressive = false))
     }
     @After fun restore() { CompanionPreferenceStore.write(context, original) }
+
+    @Test fun annoyedCompanionKeepsDraggingControlsAndTypingAvailable() {
+        CompanionPreferenceStore.write(context, CompanionPreferences(roaming = false, learning = false, expressive = true))
+        val text = mutableStateOf("")
+        compose.setContent { MaterialTheme { CompositionLocalProvider(LocalOmniMotion provides MotionPolicy(reduced = true)) {
+            ChatCompanionHost("moods", false, modifier = Modifier.width(340.dp).height(520.dp)) {
+                Column(Modifier.fillMaxSize()) {
+                    Spacer(Modifier.weight(1f))
+                    ChatComposerSurface(text.value, { text.value = it }, {}, {}, false, {}, true)
+                }
+            }
+        } } }
+        val pet = compose.onNodeWithTag("omni-companion")
+        pet.performTouchInput { repeat(4) { click(); advanceEventTime(90) } }
+        pet.assert(SemanticsMatcher("Needs a little space") { node ->
+            node.config.getOrNull(SemanticsProperties.StateDescription) in listOf("Annoyed, taking a little space", "Would like a quiet moment")
+        })
+        val before = pet.fetchSemanticsNode().boundsInRoot
+        pet.performTouchInput { down(center); moveBy(Offset(-40f, -30f)) }
+        val held = pet.fetchSemanticsNode().boundsInRoot
+        assertEquals(before.left - 40f, held.left, 2f)
+        pet.performTouchInput { up() }
+        pet.performTouchInput { longClick() }
+        compose.onNodeWithText("Pet gently").performClick()
+        pet.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Your chat companion"))
+        compose.onNode(hasSetTextAction()).performTextInput("Space respected")
+        compose.onNodeWithContentDescription("Send").assertIsEnabled()
+    }
+
+    @Test fun learnedPlacementSurvivesChatChangeAndMemoryResetKeepsHostUsable() {
+        val memory = CompanionLearningStore.get(context)
+        compose.waitUntil(5_000) { memory.ready.value }
+        val epoch = memory.epoch.value
+        memory.reset(); compose.waitUntil(5_000) { memory.epoch.value > epoch }
+        CompanionPreferenceStore.write(context, CompanionPreferences(roaming = false))
+        val session = mutableStateOf("memory-one")
+        compose.setContent { MaterialTheme { CompositionLocalProvider(LocalOmniMotion provides MotionPolicy(reduced = true)) {
+            ChatCompanionHost(session.value, false, modifier = Modifier.width(340.dp).height(520.dp)) {
+                Column(Modifier.fillMaxSize()) {
+                    Spacer(Modifier.weight(1f))
+                    ChatComposerSurface("", {}, {}, {}, false, {}, true)
+                }
+            }
+        } } }
+        val pet = compose.onNodeWithTag("omni-companion")
+        pet.performTouchInput { down(center); moveBy(Offset(-70f, -30f)); advanceEventTime(250); up() }
+        compose.waitUntil(5_000) { memory.observations.value > 0 }
+        val learned = memory.observations.value
+        compose.runOnIdle { session.value = "memory-two" }
+        pet.assertIsDisplayed()
+        assertEquals(learned, memory.observations.value)
+        val file = java.io.File(context.noBackupFilesDir, "companion-mind-v1.bin")
+        compose.waitUntil(5_000) {
+            runCatching { CompanionLearner.decode(file.readBytes())?.observations == learned }.getOrDefault(false)
+        }
+        val nextEpoch = memory.epoch.value
+        val staleSession = memory.session()
+        memory.reset(); compose.waitUntil(5_000) { memory.epoch.value > nextEpoch && memory.observations.value == 0 }
+        pet.assertIsDisplayed(); compose.onNodeWithContentDescription("Send").assertIsEnabled()
+        staleSession.context(CompanionMindContext()); staleSession.pickup(); staleSession.placed(.1f, true); staleSession.flush()
+        val freshSession = memory.session()
+        freshSession.context(CompanionMindContext()); freshSession.pickup(); freshSession.placed(.9f, true)
+        compose.waitUntil(5_000) {
+            runCatching { CompanionLearner.decode(file.readBytes())?.observations == 1 }.getOrDefault(false)
+        }
+        assertEquals(1, memory.observations.value)
+    }
 
     @Test fun companionStaysAboveEditorAfterWindowResizeAndDoesNotBlockSend() {
         val height = mutableStateOf(520.dp)

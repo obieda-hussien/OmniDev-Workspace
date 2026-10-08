@@ -31,9 +31,9 @@ internal data class CompanionScene(
 }
 
 internal enum class CompanionActivity { IDLE, THINKING, TOOL, WAITING, LISTENING, SUCCESS, ERROR }
-internal enum class CompanionMood { AWAKE, WORKING, FOCUSED, WAITING, LISTENING, HAPPY, CONCERNED, SLEEPY, SURPRISED, SAD }
+internal enum class CompanionMood { AWAKE, WORKING, FOCUSED, WAITING, LISTENING, HAPPY, CONCERNED, SLEEPY, SURPRISED, SAD, GUARDED, ANNOYED }
 internal enum class CompanionPresence { VISIBLE, LEAVING, RETURNING, HIDDEN }
-internal enum class CompanionTrick { NONE, PEEK, SNIFF, YAWN, STRETCH }
+internal enum class CompanionTrick { NONE, PEEK, SNIFF, YAWN, STRETCH, GROOM }
 internal data class CompanionPose(
     val x: Float = 0f, val y: Float = 0f, val lift: Float = 0f, val rotation: Float = 0f,
     val stretch: Float = 1f, val blink: Boolean = false, val mood: CompanionMood = CompanionMood.AWAKE,
@@ -42,7 +42,7 @@ internal data class CompanionPose(
 )
 
 /** Stable platform identities survive scrolling; geometry updates never restart unrelated flights. */
-internal class CompanionMotion(seed: Int = Random.nextInt()) {
+internal class CompanionMotion(seed: Int = Random.nextInt(), private val mind: CompanionMind? = null) {
     private enum class Motion { REST, HOP, TUMBLE, THROW, DRAG, EXIT }
     var pose = CompanionPose(); private set
     var perchId: String? = null; private set
@@ -80,6 +80,29 @@ internal class CompanionMotion(seed: Int = Random.nextInt()) {
     private var previousRare = CompanionTrick.NONE
     private var rareElapsed = 0f
     private var rareDirection = 1f
+    var typing = false
+    var restCorner = CompanionRestCorner.LEARNED
+    private var sleepDocked = false
+    private var retreatCooldown = 0f
+    private var userRoaming = true
+    private var petting = 0f
+
+    private fun mindContext(s: CompanionScene, working: Boolean, roaming: Boolean, reduced: Boolean) = CompanionMindContext(
+        working, typing, roaming, reduced, s.console?.let(s::safe) == true, s.messages.any(s::safe),
+        pose.x / (s.width - s.size).coerceAtLeast(1f), pose.y / s.height.coerceAtLeast(1f),
+        when (perchId) { "composer", null -> 0; s.console?.id, "console" -> 1; else -> 2 })
+
+    fun restoreRestingCorner() {
+        if (motion != Motion.REST || perchId != "composer" || presence != CompanionPresence.VISIBLE) return
+        val s = scene ?: return
+        val side = when (restCorner) {
+            CompanionRestCorner.LEFT -> CompanionAction.LEFT
+            CompanionRestCorner.RIGHT -> CompanionAction.RIGHT
+            CompanionRestCorner.LEARNED -> mind?.startingSide() ?: return
+        }
+        pose = pose.copy(x = s.x(if (side == CompanionAction.LEFT) s.composer.left + s.size * .3f
+            else s.composer.right - s.size * 1.8f))
+    }
 
     fun configure(next: CompanionScene, reduced: Boolean = false) {
         if (next == scene) return
@@ -90,6 +113,10 @@ internal class CompanionMotion(seed: Int = Random.nextInt()) {
         if (first) {
             perchId = composer.id
             pose = pose.copy(x = next.x(composer.right - next.size * 1.8f), y = next.y(composer))
+            mind?.context(mindContext(next, false, true, reduced))
+            if (restCorner == CompanionRestCorner.LEFT || restCorner == CompanionRestCorner.LEARNED &&
+                mind?.startingSide() == CompanionAction.LEFT)
+                pose = pose.copy(x = next.x(composer.left + next.size * .3f))
             return
         }
         pose = pose.copy(x = if (motion == Motion.EXIT) pose.x else pose.x.coerceIn(0f, (next.width - next.size).coerceAtLeast(0f)),
@@ -137,6 +164,19 @@ internal class CompanionMotion(seed: Int = Random.nextInt()) {
         if (presence == CompanionPresence.LEAVING || presence == CompanionPresence.RETURNING) {
             welcomeBack(); resumeReturn(reduced); return
         }
+        val welcoming = mind?.tap() != false
+        mind?.cancelledPickup()
+        if (!welcoming) {
+            cancelRare(); idle = 0f
+            pose = pose.copy(mood = mind.mood ?: CompanionMood.GUARDED, earTilt = if (reduced) 0f else -12f)
+            if (!reduced && userRoaming) retreat(reduced)
+            else {
+                val s = scene ?: return
+                val p = s.platforms.firstOrNull { it.id == perchId && s.safe(it) } ?: escapeTarget(s)
+                land(p)
+            }
+            return
+        }
         cancelRare()
         idle = 0f; resting = 0f; elapsed = 0f
         val s = scene ?: return
@@ -150,10 +190,11 @@ internal class CompanionMotion(seed: Int = Random.nextInt()) {
 
     fun grab() {
         if (presence == CompanionPresence.LEAVING) welcomeBack()
+        mind?.pickup()
         cancelRare()
         motion = Motion.DRAG; idle = 0f; perchId = null; targetId = null
         pose = pose.copy(rotation = 0f, bodyTilt = 0f, lift = 0f, stretch = 1.08f,
-            mood = if (presence == CompanionPresence.RETURNING) CompanionMood.HAPPY else CompanionMood.SURPRISED)
+            mood = if (presence == CompanionPresence.RETURNING) CompanionMood.HAPPY else mind?.mood ?: CompanionMood.SURPRISED)
     }
     fun drag(dx: Float, dy: Float) {
         val s = scene ?: return
@@ -161,9 +202,13 @@ internal class CompanionMotion(seed: Int = Random.nextInt()) {
             y = (pose.y + dy).coerceIn(s.viewportTop.coerceAtMost((s.composer.top - s.size).coerceAtLeast(0f)), (s.composer.top - s.size).coerceAtLeast(0f)),
             earTilt = (-dx / s.size * 60f).coerceIn(-18f, 18f))
     }
-    fun release(velocityX: Float, reduced: Boolean, velocityY: Float = 0f) {
+    fun release(velocityX: Float, reduced: Boolean, velocityY: Float = 0f, teachPlacement: Boolean = false) {
         if (presence == CompanionPresence.RETURNING) { resumeReturn(reduced); return }
         val s = scene ?: return
+        val gentle = abs(velocityX) + abs(velocityY) < s.size * 2
+        if (teachPlacement) {
+            if (gentle) mind?.placed((pose.x + s.size / 2) / s.width, true) else mind?.tossed()
+        } else mind?.cancelledPickup()
         idle = 0f; resting = 0f; elapsed = 0f
         val p = s.platforms.filter(s::safe).minByOrNull { abs(s.y(it) - pose.y) + abs(s.x(pose.x, it) - pose.x) * .3f } ?: s.platforms.first()
         if (reduced || (abs(velocityX) + abs(velocityY) < s.size * 2)) {
@@ -188,6 +233,7 @@ internal class CompanionMotion(seed: Int = Random.nextInt()) {
     fun hideTemporarily(reduced: Boolean) {
         val s = scene ?: return
         if (presence == CompanionPresence.HIDDEN || presence == CompanionPresence.LEAVING) return
+        mind?.hidden()
         cancelRare(); celebration = 0f; idle = 0f
         departureOrigin = pose; departurePerch = perchId ?: targetId
         presence = CompanionPresence.LEAVING; motion = Motion.EXIT
@@ -201,10 +247,31 @@ internal class CompanionMotion(seed: Int = Random.nextInt()) {
     }
 
     private fun welcomeBack() {
+        mind?.welcomed()
         if (presence == CompanionPresence.LEAVING) {
             presence = CompanionPresence.RETURNING; returnBounces = 2; celebration = 2.8f
         }
         idle = 0f; pose = pose.copy(mood = CompanionMood.HAPPY, earTilt = 0f, rotation = 0f, bodyTilt = 0f)
+    }
+
+    fun settle() { mind?.settle(); petting = 1.6f; idle = 0f; pose = pose.copy(mood = CompanionMood.HAPPY) }
+    fun feedback(liked: Boolean) = mind?.feedback(liked) ?: false
+    fun flushMemory() { mind?.flush() }
+
+    /** A near pointer can start a short retreat, but captured drags always follow the finger. */
+    fun noticePointer(x: Float, y: Float, roaming: Boolean, reduced: Boolean) {
+        if (mind?.wantsSpace != true || !roaming || reduced || motion != Motion.REST ||
+            presence != CompanionPresence.VISIBLE || retreatCooldown > 0f) return
+        val s = scene ?: return
+        if (abs(x - pose.x - s.size / 2) < s.size * 1.5f && abs(y - pose.y - s.size / 2) < s.size * 1.5f) retreat(false)
+    }
+    private fun retreat(reduced: Boolean) {
+        val s = scene ?: return
+        retreatCooldown = 3f
+        val p = s.platforms.filter(s::safe).maxByOrNull { abs(s.y(it) - pose.y) + abs(s.x(pose.x, it) - pose.x) }
+            ?: s.platforms.first()
+        val x = if (pose.x + s.size / 2 > s.width / 2) p.left else p.right - s.size
+        hop(p, x, reduced, immediate = false)
     }
 
     private fun resumeReturn(reduced: Boolean) {
@@ -254,7 +321,9 @@ internal class CompanionMotion(seed: Int = Random.nextInt()) {
         if (rare == CompanionTrick.NONE) {
             if (rareClock < rareDue) return false
             val options = CompanionTrick.entries.filter { it != CompanionTrick.NONE && it != previousRare }
-            rare = options[random.nextInt(options.size)]; previousRare = rare
+            val choices = options.map { CompanionAction.valueOf(it.name) }
+            val learned = mind?.choose(choices)
+            rare = learned?.let { CompanionTrick.valueOf(it.name) } ?: options[random.nextInt(options.size)]; previousRare = rare
             rareElapsed = 0f; rareDirection = if (random.nextBoolean()) 1f else -1f
         }
         rareElapsed += dt
@@ -269,6 +338,8 @@ internal class CompanionMotion(seed: Int = Random.nextInt()) {
             CompanionTrick.YAWN -> pose.copy(trick = rare, bodyTilt = -pulse * 4f, blink = pulse > .4f,
                 earTilt = -pulse * 13f, mouthOpen = pulse)
             CompanionTrick.STRETCH -> pose.copy(trick = rare, stretch = 1f + pulse * .14f, earTilt = pulse * 7f, blink = pulse > .8f)
+            CompanionTrick.GROOM -> pose.copy(trick = rare, bodyTilt = -pulse * 4f + sin(t * PI.toFloat() * 6) * pulse * 2f,
+                earTilt = -pulse * 16f, lookX = -pulse * .35f, lookY = -pulse * .5f, blink = pulse > .4f, stretch = 1f + pulse * .04f)
             CompanionTrick.NONE -> pose
         }
         if (t >= 1f) cancelRare()
@@ -296,6 +367,10 @@ internal class CompanionMotion(seed: Int = Random.nextInt()) {
         activity: CompanionActivity = if (working) CompanionActivity.THINKING else CompanionActivity.IDLE): CompanionPose {
         val s = scene ?: return pose
         val dt = seconds.coerceIn(0f, .05f)
+        userRoaming = roaming
+        mind?.context(mindContext(s, working, roaming, reduced)); mind?.step(if (reduced) seconds.coerceIn(0f, .25f) else dt)
+        retreatCooldown = (retreatCooldown - dt).coerceAtLeast(0f)
+        petting = (petting - dt).coerceAtLeast(0f)
         if (presence == CompanionPresence.HIDDEN) return pose
         if (motion == Motion.EXIT) return stepDeparture(dt, reduced)
         time += dt
@@ -321,8 +396,17 @@ internal class CompanionMotion(seed: Int = Random.nextInt()) {
             celebration > 0f -> CompanionMood.HAPPY
             activity == CompanionActivity.TOOL -> CompanionMood.FOCUSED
             working -> CompanionMood.WORKING
+            mind?.mood != null -> mind.mood!!
             idle > 24f -> CompanionMood.SLEEPY
             else -> CompanionMood.AWAKE
+        }
+        if (mood != CompanionMood.SLEEPY) sleepDocked = false
+        if (mood == CompanionMood.SLEEPY && !sleepDocked && motion == Motion.REST && roaming && !reduced && mind != null) {
+            sleepDocked = true
+            val left = restCorner == CompanionRestCorner.LEFT || restCorner == CompanionRestCorner.LEARNED &&
+                mind.choose(listOf(CompanionAction.LEFT, CompanionAction.RIGHT)) == CompanionAction.LEFT
+            val composer = s.platforms.first()
+            hop(composer, if (left) composer.left + s.size * .2f else composer.right - s.size * 1.2f, false)
         }
         if (reduced) {
             cancelRare()
@@ -336,7 +420,8 @@ internal class CompanionMotion(seed: Int = Random.nextInt()) {
         }
         pose = pose.copy(mood = mood, sparkle = if (celebration > 0f) celebration / 1.8f else 0f)
         // The interval spans automatic hops too; otherwise roaming can starve all rare moments.
-        if (mood == CompanionMood.AWAKE && idle > 4f && presence == CompanionPresence.VISIBLE) rareClock += dt
+        if (mood == CompanionMood.AWAKE && idle > 4f && presence == CompanionPresence.VISIBLE) rareClock += dt *
+            when (mind?.personality) { CompanionPersonality.CALM -> .65f; CompanionPersonality.PLAYFUL -> 1.3f; else -> 1f }
         when (motion) {
             Motion.HOP, Motion.TUMBLE -> {
                 elapsed += dt
@@ -388,18 +473,37 @@ internal class CompanionMotion(seed: Int = Random.nextInt()) {
                 val breath = sin(time * if (sleeping) 1.6f else 2.4f) * if (sleeping) .022f else .012f
                 val curious = if (mood == CompanionMood.AWAKE && resting > 2f) sin(time * .9f) * 2f else 0f
                 val twitch = if (mood == CompanionMood.AWAKE && time % 9.2f > 8.6f) sin((time % 9.2f - 8.6f) * 18f) * 6f else 0f
-                pose = pose.copy(stretch = 1f + spring + breath, bodyTilt = curious,
-                    blink = !sleeping && time % 4.6f > 4.42f,
-                    earTilt = when (mood) { CompanionMood.LISTENING -> sin(time * 5f) * 5f; CompanionMood.SLEEPY -> -7f; else -> twitch })
+                val guarded = mood == CompanionMood.GUARDED || mood == CompanionMood.ANNOYED
+                pose = pose.copy(stretch = 1f + spring + breath, bodyTilt = if (guarded) pose.lookX * -4f else curious,
+                    blink = !sleeping && (time % 4.6f > 4.42f || mood == CompanionMood.HAPPY && time % 3.8f > 3.3f),
+                    earTilt = when (mood) { CompanionMood.LISTENING -> sin(time * 5f) * 5f; CompanionMood.SLEEPY -> -7f;
+                        CompanionMood.ANNOYED -> -15f; CompanionMood.GUARDED, CompanionMood.SAD -> -9f; else -> twitch })
                 val inspecting = curiousMoment(dt, !working && mood == CompanionMood.AWAKE && gazeRemaining <= 0f && idle > 4f)
+                if (petting > 0f && !working && mind?.expressive != false) {
+                    val purr = sin(petting * PI.toFloat() / 1.6f)
+                    pose = pose.copy(bodyTilt = purr * 5f, stretch = 1f + purr * .035f,
+                        blink = purr > .4f, earTilt = purr * 4f)
+                }
                 if (roaming && mood != CompanionMood.SLEEPY && mood != CompanionMood.WAITING && mood != CompanionMood.LISTENING && mood != CompanionMood.CONCERNED &&
-                    !inspecting &&
-                    resting > if (working) 3.5f else 6f) {
+                    !inspecting && petting <= 0f &&
+                    resting > if (working) 3.5f else when (mind?.personality) {
+                        CompanionPersonality.CALM -> 10f; CompanionPersonality.PLAYFUL -> 4.5f; else -> 6f }) {
                     hops++
+                    val allowed = mutableListOf(CompanionAction.REST, CompanionAction.LEFT, CompanionAction.RIGHT)
+                    if (s.console?.let(s::safe) == true) allowed.add(CompanionAction.CONSOLE)
+                    if (s.messages.any(s::safe)) allowed.add(CompanionAction.MESSAGE)
+                    val choice = mind?.choose(allowed)
+                    if (choice == CompanionAction.REST) { resting = 0f; return pose }
                     val options = (listOfNotNull(if (working) s.platforms.firstOrNull { it.id == s.console?.id || it.id == "console" } else null) +
                         s.messages.filter(s::safe) + s.platforms.first()).filter(s::safe)
-                    val p = options[(hops - 1) % options.size]
-                    hop(p, reduced = false)
+                    val p = when (choice) {
+                        CompanionAction.CONSOLE -> s.console?.takeIf(s::safe) ?: s.platforms.first()
+                        CompanionAction.MESSAGE -> s.messages.filter(s::safe).let { it[(hops - 1) % it.size] }
+                        CompanionAction.LEFT, CompanionAction.RIGHT -> s.platforms.first()
+                        else -> options[(hops - 1) % options.size]
+                    }
+                    val x = when (choice) { CompanionAction.LEFT -> p.left + s.size * .2f; CompanionAction.RIGHT -> p.right - s.size * 1.2f; else -> null }
+                    hop(p, x, reduced = false)
                     lookAt(p.left + (p.right - p.left) / 2, p.top)
                 }
             }
