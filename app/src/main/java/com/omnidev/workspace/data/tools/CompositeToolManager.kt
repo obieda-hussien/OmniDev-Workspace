@@ -117,6 +117,8 @@ class CompositeToolManager(
     var currentSessionId: Long? = null
     /** Assistant-only consent is checked before routing any device side effect. */
     var assistantActionGuard: (suspend (String, Map<String, String>) -> ToolExecutionResult?)? = null
+    /** Semantic task reuse needs a user decision even in flavors that auto-approve device access. */
+    var learnedRoutineConfirmationGate: com.omnidev.workspace.core.policy.ConfirmationGate? = null
 
     val learnedRoutineTool = context?.let { ctx ->
         com.omnidev.workspace.data.routines.LearnedRoutineTool(ctx,

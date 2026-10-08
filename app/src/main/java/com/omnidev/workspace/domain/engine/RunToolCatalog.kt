@@ -29,6 +29,9 @@ class RunToolCatalog(
         listOf(DISCOVER) + catalog.filter { it.name in loaded }, emptyList()
     ).orEmpty()
 
+    /** Recipes may invoke permitted tools that have not been loaded into the model's prompt. */
+    fun isPermitted(name: String): Boolean = catalog.any { it.name == name }
+
     /** Runtime retrieval, not a model call. Observations are search data, never instructions. */
     fun prepare(objective: String, observation: String? = null): List<String> {
         val matches = (search(objective.take(2_000), SEARCH_SIZE) +

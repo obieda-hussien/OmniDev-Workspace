@@ -11,7 +11,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -71,25 +70,18 @@ internal fun AssistantConversation(
     val keyboard = LocalSoftwareKeyboardController.current
     var panel by rememberSaveable { mutableStateOf(AssistantPanel.NONE) }
     var filePath by rememberSaveable { mutableStateOf("") }
-    var tracks by rememberSaveable { mutableStateOf(false) }
     var presented by remember { mutableStateOf(false) }
     LaunchedEffect(screen.visible) { presented = screen.visible }
-    val byId = remember(chat.messages) { chat.messages.associateBy { it.messageId } }
     val lastUser = remember(chat.messages) { chat.messages.lastOrNull { it.role == MessageRole.USER }?.messageId }
-    val lastTurn = remember(chat.messages) { LastChatTurn.from(chat.messages) }
     val mediaLayout = remember(chat.messages, chat.messageConsoleEntries, chat.isProcessing) {
         com.omnidev.workspace.ui.chat.MediaConversationLayout.from(chat.messages, chat.messageConsoleEntries.keys, chat.isProcessing)
     }
     val follow = rememberTailFollowState(list, chat.currentSessionId,
         Triple(chat.messages.size, chat.streamingContent, chat.consoleEntries.size), lastUser,
         enabled = panel == AssistantPanel.NONE && chat.pendingConfirmation == null && screen.visible)
-    val entries = remember(chat.messageConsoleEntries, chat.consoleEntries) {
-        (chat.messageConsoleEntries.values.flatten() + chat.consoleEntries).distinctBy { it.id }
-            .sortedWith(compareBy<AgentConsoleEntry> { it.timestamp }.thenBy { it.id })
-            .filter { it is AgentConsoleEntry.ToolEntry || it is AgentConsoleEntry.ResultEntry || it is AgentConsoleEntry.PhaseEntry || it is AgentConsoleEntry.ErrorEntry }
-            .map(ConsoleRedactor::entry)
+    val console = remember(chat.consoleEntries) {
+        AgentConsoleSerializer.compact(chat.consoleEntries.map(ConsoleRedactor::entry))
     }
-    val console = remember(chat.consoleEntries) { chat.consoleEntries.map(ConsoleRedactor::entry) }
     LaunchedEffect(busy, chat.pendingConfirmation) {
         if (busy || chat.pendingConfirmation != null) panel = AssistantPanel.NONE
     }
@@ -148,62 +140,16 @@ internal fun AssistantConversation(
                             if (panel == AssistantPanel.NONE) {
                                 LazyColumn(Modifier.fillMaxSize().testTag("assistant-messages"), state = list,
                                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                                    item(key = "local-work") { extraContent() }
-                                    if (chat.messages.isEmpty() && !busy) item(key = "welcome") {
-                                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                            Text("A little help,\nright where you are.", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                                            Text("Ask about your screen or give Omni a task.", style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
-                                            AssistantSuggestion("Ask about this screen") { suggest("Explain what's on this screen.", true) }
-                                            AssistantSuggestion("Help with a task") { suggest("Help me with this task: ") }
-                                        }
-                                    }
-                                    items(mediaLayout.transcript, key = { it.messageId }, contentType = { it.role }) { message ->
-                                        MessageBubble(message, chat.messageConsoleEntries[message.timestamp],
-                                            message.replyToMessageId?.let(byId::get), onReply = { onReply(it); focus.requestFocus(); keyboard?.show() },
-                                            onEdit = if (message.messageId == lastTurn?.user?.messageId) ({ text -> onEditLastUser(message.messageId, text) }) else null,
-                                            onRegenerate = if (message.messageId == lastTurn?.lastAssistantId) ({ onRegenerateLast(message.messageId) }) else null,
-                                            actionsEnabled = !busy && !chat.isImportingAttachments)
-                                        message.executionRequest?.let { request ->
-                                            ModeSwitchRequestCard(request, !busy,
-                                                onOnce = { onModeDecision(message.messageId, ModeSwitchPermissionStore.Approval.ONCE) },
-                                                onAlwaysTransition = { onModeDecision(message.messageId, ModeSwitchPermissionStore.Approval.ALWAYS_THIS_TRANSITION) },
-                                                onAllSession = { onModeDecision(message.messageId, ModeSwitchPermissionStore.Approval.ALL_THIS_SESSION) },
-                                                onDeny = { onModeDecision(message.messageId, null) })
-                                        }
-                                    }
-                                    chat.streamingContent?.takeIf { it.isNotBlank() }?.let { content ->
-                                        item(key = "streaming") { StreamingMessageBubble(content) }
-                                    }
-                                    if (console.isNotEmpty() && (chat.isProcessing || chat.messageConsoleEntries.values.none { saved -> saved.any { it.id == chat.consoleEntries.first().id } })) {
-                                        item(key = "live-console") { AgentLiveConsole(console, chat.isProcessing) }
-                                    }
-                                    items(mediaLayout.liveOutputs, key = { it.messageId }, contentType = { "media-output" }) { message ->
-                                        MessageBubble(message, onReply = { onReply(it); focus.requestFocus(); keyboard?.show() },
-                                            onRegenerate = if (message.messageId == lastTurn?.lastAssistantId) ({ onRegenerateLast(message.messageId) }) else null,
-                                            actionsEnabled = !busy && !chat.isImportingAttachments)
-                                    }
-                                    if (entries.isNotEmpty()) item(key = "activity-control") {
-                                        TextButton(onClick = { tracks = !tracks }) {
-                                            Icon(Icons.Default.Timeline, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
-                                            Text(if (tracks) "Hide activity" else "Activity · ${entries.size} events")
-                                        }
-                                    }
-                                    if (tracks) items(entries, key = { "track_${it.id}" }) { AssistantTrack(it) }
-                                    if (busy && chat.streamingContent.isNullOrBlank()) item(key = "progress") {
-                                        LinearProgressIndicator(Modifier.fillMaxWidth())
-                                    }
-                                    (screen.message ?: chat.errorMessage)?.let { message -> item(key = "error") {
-                                        Surface(shape = RoundedCornerShape(16.dp), color = colors.errorContainer) {
-                                            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                Text(message, style = MaterialTheme.typography.bodySmall, color = colors.onErrorContainer)
-                                                Row {
-                                                    if (screen.screenshot == null && message.contains("screen", true)) TextButton(onClick = onSetup) { Text("Screen access settings") }
-                                                    TextButton(onClick = onClearError) { Text("Dismiss") }
-                                                }
-                                            }
-                                        }
-                                    } }
+                                    verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                                    conversationItems(chat.copy(errorMessage = screen.message ?: chat.errorMessage), mediaLayout, console,
+                                        onSuggestion = { prompt -> suggest(prompt, prompt == "Explain what's on this screen.") },
+                                        onReply = { onReply(it); focus.requestFocus(); keyboard?.show() },
+                                        onEditLastUser = onEditLastUser, onRegenerateLast = onRegenerateLast,
+                                        onClearError = onClearError, onModeDecision = onModeDecision,
+                                        actionsEnabled = !busy && !chat.isImportingAttachments,
+                                        leadingContent = extraContent,
+                                        welcomeSuggestions = listOf("Ask about this screen" to "Explain what's on this screen.",
+                                            "Help with a task" to "Help me with this task: "))
                                 }
                                 if (!follow.following && (chat.messages.isNotEmpty() || chat.isProcessing)) {
                                     FilledTonalIconButton(onClick = { follow.resume(); scope.launch {
@@ -264,16 +210,6 @@ internal fun AssistantConversation(
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun AssistantSuggestion(title: String, onClick: () -> Unit) {
-    Surface(onClick = onClick, shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surfaceContainerLow) {
-        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-            Icon(Icons.Default.NorthEast, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

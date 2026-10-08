@@ -17,15 +17,19 @@ internal data class MediaCardStatus(val stage: MediaStage, val title: String, va
             if (monitorError) return MediaCardStatus(MediaStage.WAITING, "Task status unavailable", "Could not read background execution state. Reopen the app or check background execution settings.", "STATUS_UNAVAILABLE")
             if (job.state == "waiting" || worker in setOf("ENQUEUED", "BLOCKED") && job.state != "queued")
                 return MediaCardStatus(MediaStage.WAITING, "Waiting to continue", job.error ?: "Waiting for connection or the next provider status check.", job.errorCode)
-            if (job.state == "queued") return MediaCardStatus(MediaStage.QUEUED, "Waiting to start", "Android has not started this request yet. Check your connection or tap Start now. No provider request has been sent.")
+            if (job.state == "queued") return if (job.phase == "starting")
+                MediaCardStatus(MediaStage.QUEUED, "Starting your request", "Starting media creation directly from your request…")
+                else MediaCardStatus(MediaStage.QUEUED, "Waiting to start", "Android has not started this request yet. Check your connection or tap Start now. No provider request has been sent.")
             if (job.phase == "downloading") return MediaCardStatus(MediaStage.DOWNLOADING, "Saving your creation", "Downloading the completed provider output…")
             return MediaCardStatus(MediaStage.GENERATING, if (job.phase == "requesting") "Sending your request" else if (job.error != null) "Checking existing creation" else "Creating your ${job.kind}", job.error ?: "The provider is working. This is an animated placeholder, not a generated preview.", job.errorCode)
         }
         fun reconcile(job: MediaJob, worker: String?, workLoaded: Boolean, now: Long): MediaJob {
             if (job.state !in setOf("queued", "processing", "waiting")) return job
+            if (job.state == "queued" && job.phase == "starting" && now - job.queuedAt < MediaQueuePolicy.PROMOTE_AFTER_MS)
+                return job // The immediate service is starting; a previous worker's result is stale.
             if (MediaQueuePolicy.expired(job, worker, workLoaded, now)) return job.copy(state = "failed", phase = "failed",
                 errorCode = "QUEUE_TIMEOUT", error = "Android did not start this request within five minutes. Check your connection and battery restrictions, then tap Start now. No provider request was sent.")
-            val orphaned = workLoaded && worker == null && now - job.created > 30_000
+            val orphaned = workLoaded && worker == null && now - (if (job.state == "queued") job.queuedAt else job.created) > 30_000
             if (!orphaned && worker !in setOf("FAILED", "CANCELLED", "SUCCEEDED")) return job
             return job.copy(state = "failed", phase = "failed", prompt = if (job.state == "queued" && job.operation == null) job.prompt else "", errorCode = if (orphaned) "SCHEDULING_FAILED" else "WORK_STOPPED",
                 error = if (orphaned) "No background worker is scheduled for this creation. Reopen the app and start a new request explicitly."

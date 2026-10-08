@@ -352,7 +352,8 @@ private fun ChatToolRow(title: String, description: String, icon: androidx.compo
 }
 
 @Composable
-internal fun EmptyStateContent(mode: OmniMode, onSuggestion: (String) -> Unit) {
+internal fun EmptyStateContent(mode: OmniMode, onSuggestion: (String) -> Unit,
+    customSuggestions: List<Pair<String, String>>? = null) {
     Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(vertical = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         Box(Modifier.size(56.dp).background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(20.dp)), contentAlignment = Alignment.Center) {
             OmniMark(Modifier.size(36.dp))
@@ -365,7 +366,7 @@ internal fun EmptyStateContent(mode: OmniMode, onSuggestion: (String) -> Unit) {
                 else -> "Ask a question, work through a problem, or start with an idea."
             }, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        val suggestions = when (mode) {
+        val suggestions = customSuggestions ?: when (mode) {
             OmniMode.AGENT -> listOf("Review my project" to "Review the selected project and suggest the most useful improvements.",
                 "Investigate a bug" to "Help me investigate this bug: ")
             OmniMode.SWARM -> listOf("Plan a feature" to "Plan and implement this feature with coordinated agents: ",

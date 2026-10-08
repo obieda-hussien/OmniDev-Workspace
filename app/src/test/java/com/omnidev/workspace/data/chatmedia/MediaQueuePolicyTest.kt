@@ -6,6 +6,17 @@ import org.junit.Test
 class MediaQueuePolicyTest {
     private val queued = MediaJob("song", "music", "gemini", "lyria-3-clip-preview", "song", "", created = 1000)
 
+    @Test fun `manual start resets the queue clock before or after the five minute timeout`() {
+        for (job in listOf(queued, queued.copy(state = "failed", errorCode = "QUEUE_TIMEOUT"),
+            queued.copy(state = "failed", errorCode = "START_FAILED"))) {
+            val starting = MediaQueuePolicy.restart(job, 3_601_000).copy(phase = "starting")
+            for (worker in listOf(null, "FAILED", "CANCELLED", "SUCCEEDED"))
+                assertEquals(starting, MediaCardStatus.reconcile(starting, worker, true, 3_601_001))
+            assertEquals("Starting your request", MediaCardStatus.from(starting, true, false).title)
+            assertEquals(queued.prompt, starting.prompt)
+        }
+    }
+
     @Test fun `hour old enqueued music stops waiting and can start its original request`() {
         val failed = MediaCardStatus.reconcile(queued, "ENQUEUED", true, 3_601_000)
         assertEquals("failed", failed.state)

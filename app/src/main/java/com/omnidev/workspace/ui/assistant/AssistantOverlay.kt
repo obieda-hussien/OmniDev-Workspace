@@ -22,13 +22,9 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.omnidev.workspace.data.assistant.AssistantController
-import com.omnidev.workspace.ui.chat.AgentConsoleEntry
 import com.omnidev.workspace.ui.motion.LocalOmniMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
 
@@ -110,25 +106,6 @@ fun AssistantOverlay(
                 }
             }
         })
-}
-
-/** Only real operational events are shown here; no generated reasoning or invented progress. */
-@Composable
-internal fun AssistantTrack(entry: AgentConsoleEntry) {
-    val title = when (entry) {
-        is AgentConsoleEntry.ToolEntry -> "Started · ${entry.toolName}"
-        is AgentConsoleEntry.ResultEntry -> "${if (entry.isError) "Failed" else "Completed"} · ${entry.toolName} · ${entry.durationMs} ms"
-        is AgentConsoleEntry.PhaseEntry -> entry.phase
-        is AgentConsoleEntry.ErrorEntry -> "Error · ${entry.message}"
-        else -> return
-    }
-    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.width(2.dp).height(28.dp).background(MaterialTheme.colorScheme.primary))
-        Column(Modifier.weight(1f).padding(start = 10.dp)) {
-            Text(title, style = MaterialTheme.typography.labelMedium)
-            Text(remember(entry.timestamp) { SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(entry.timestamp)) }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
 }
 
 @Composable

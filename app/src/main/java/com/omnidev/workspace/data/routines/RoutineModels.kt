@@ -76,8 +76,10 @@ object RoutineMatcher {
         text = bind(selector.text, parameters), description = bind(selector.description, parameters))
 
     fun match(message: String, routines: List<LearnedRoutine>): Pair<LearnedRoutine, Map<String, String>>? {
+        if (!RoutineInvocationPolicy.canReplayAutomatically(message)) return null
         val hits = routines.filter { it.enabled }.flatMap { routine ->
             routine.triggers.mapNotNull { alias -> matchAlias(message.trim(), alias.trim()) }
+                .filter { bindings -> required(routine).all { !bindings[it].isNullOrBlank() } }
                 .distinct().map { bindings -> routine to bindings }
         }
         return hits.singleOrNull()
@@ -87,6 +89,9 @@ object RoutineMatcher {
         if (alias.isBlank()) return null
         val slots = slot.findAll(alias).toList()
         if (slots.isEmpty()) return if (normalize(message) == normalize(alias)) emptyMap() else null
+        // A wildcard must describe a value, never stand in for the entire user's intention.
+        if (slots.first().range.first == 0 ||
+            normalize(slot.replace(alias, " ")).split(' ').count { it.any(Char::isLetter) } < 2) return null
         if (slots.map { it.groupValues[1] }.distinct().size != slots.size) return null
         if (slots.zipWithNext().any { (a, b) -> a.range.last + 1 == b.range.first }) return null
         val pattern = buildString {
@@ -100,9 +105,10 @@ object RoutineMatcher {
             append(Regex.escape(alias.substring(end))).append("$")
         }
         val match = Regex(pattern, RegexOption.IGNORE_CASE).matchEntire(message) ?: return null
-        return slots.mapIndexed { index, s -> s.groupValues[1] to match.groupValues[index + 1].trim() }.toMap()
+        val bindings = slots.mapIndexed { index, s -> s.groupValues[1] to match.groupValues[index + 1].trim() }.toMap()
+        return bindings.takeIf { it.values.all(RoutineInvocationPolicy::isAtomicValue) }
     }
-    private fun normalize(s: String) = s.trim().lowercase(java.util.Locale.ROOT)
+    internal fun normalize(s: String) = s.trim().lowercase(java.util.Locale.ROOT)
         .replace(Regex("[\\u064B-\\u065F\\u0670]"), "")
         .replace(Regex("[أإآ]"), "ا").replace(Regex("\\s+"), " ")
 }

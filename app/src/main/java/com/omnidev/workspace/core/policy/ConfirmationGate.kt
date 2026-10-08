@@ -52,6 +52,9 @@ fun interface ConfirmationGate {
  * share it across layers because the policy layer MUST NOT depend on Compose.
  */
 enum class ConfirmationKind {
+    /** Review semantic reuse of a recipe, independently from device privilege approval. */
+    LEARNED_TASK,
+
     /** A proposed screen-assistant action; the active flavor supplies the gate. */
     ASSISTANT_ACTION,
 

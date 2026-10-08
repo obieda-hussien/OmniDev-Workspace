@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -117,9 +116,7 @@ internal fun ChatConversation(
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     val list = rememberLazyListState()
-    val messagesById = remember(state.messages) { state.messages.associateBy { it.messageId } }
     val lastUserId = remember(state.messages) { state.messages.lastOrNull { it.role == MessageRole.USER }?.messageId }
-    val lastTurn = remember(state.messages) { LastChatTurn.from(state.messages) }
     val title = remember(state.sessions, state.currentSessionId) {
         state.sessions.firstOrNull { it.id == state.currentSessionId }?.title?.ifBlank { "Omni" } ?: "Omni"
     }
@@ -152,45 +149,11 @@ internal fun ChatConversation(
                 Box(Modifier.weight(1f).fillMaxWidth()) {
                     LazyColumn(Modifier.fillMaxSize().testTag("conversation-messages"), state = list,
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                        if (state.messages.isEmpty() && !state.isProcessing) item(key = "welcome") {
-                            EmptyStateContent(state.activeMode) { prompt -> onInputChanged(prompt); focusRequester.requestFocus(); keyboard?.show() }
-                        }
-                        items(mediaLayout.transcript, key = { it.messageId }, contentType = { it.role }) { message ->
-                            MessageBubble(message, state.messageConsoleEntries[message.timestamp],
-                                message.replyToMessageId?.let(messagesById::get), onReply = {
-                                    onReply(it); focusRequester.requestFocus(); keyboard?.show()
-                                }, onOpenBrowser = onBrowser,
-                                onEdit = if (message.messageId == lastTurn?.user?.messageId) ({ text -> onEditLastUser(message.messageId, text) }) else null,
-                                onRegenerate = if (message.messageId == lastTurn?.lastAssistantId) ({ onRegenerateLast(message.messageId) }) else null,
-                                actionsEnabled = !state.isProcessing && !state.isImportingAttachments)
-                            message.executionRequest?.let { request ->
-                                if (message.role == MessageRole.ASSISTANT) ModeSwitchRequestCard(request, !state.isProcessing,
-                                    onOnce = { onModeDecision(message.messageId, ModeSwitchPermissionStore.Approval.ONCE) },
-                                    onAlwaysTransition = { onModeDecision(message.messageId, ModeSwitchPermissionStore.Approval.ALWAYS_THIS_TRANSITION) },
-                                    onAllSession = { onModeDecision(message.messageId, ModeSwitchPermissionStore.Approval.ALL_THIS_SESSION) },
-                                    onDeny = { onModeDecision(message.messageId, null) })
-                            }
-                        }
-                        state.errorMessage?.let { error -> item(key = "error", contentType = "error") { ChatErrorBanner(error, onClearError) } }
-                        if (state.isProcessing && runningConsole.isNotEmpty()) item(key = "live-console", contentType = "console") {
-                            AgentLiveConsole(runningConsole, true, onOpenBrowser = onBrowser)
-                        }
-                        if (state.isProcessing) {
-                            val content = state.streamingContent
-                            if (!content.isNullOrBlank()) item(key = "streaming", contentType = "streaming") { StreamingMessageBubble(content) }
-                            else item(key = "working", contentType = "status") {
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Icon(Icons.Default.MoreHoriz, null, tint = MaterialTheme.colorScheme.primary)
-                                    Text(state.agentStatus ?: "Omni is thinking…", style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                }
-                            }
-                        }
-                        items(mediaLayout.liveOutputs, key = { it.messageId }, contentType = { "media-output" }) { message ->
-                            MessageBubble(message, onReply = { onReply(it); focusRequester.requestFocus(); keyboard?.show() }, onOpenBrowser = onBrowser,
-                                onRegenerate = if (message.messageId == lastTurn?.lastAssistantId) ({ onRegenerateLast(message.messageId) }) else null,
-                                actionsEnabled = !state.isProcessing && !state.isImportingAttachments)
-                        }
+                        conversationItems(state, mediaLayout, runningConsole,
+                            onSuggestion = { prompt -> onInputChanged(prompt); focusRequester.requestFocus(); keyboard?.show() },
+                            onReply = { onReply(it); focusRequester.requestFocus(); keyboard?.show() },
+                            onEditLastUser = onEditLastUser, onRegenerateLast = onRegenerateLast,
+                            onClearError = onClearError, onModeDecision = onModeDecision, onBrowser = onBrowser)
                     }
                     OmniAnimatedVisibility(!follow.following, Modifier.align(Alignment.BottomEnd).padding(12.dp)) {
                         SmallFloatingActionButton(onClick = { follow.resume() }, containerColor = MaterialTheme.colorScheme.secondaryContainer) {
@@ -212,19 +175,25 @@ internal fun ChatConversation(
 }
 
 @Composable
-private fun ChatErrorBanner(error: String, onDismiss: () -> Unit) {
+internal fun ChatErrorBanner(error: String, onDismiss: () -> Unit) {
     var details by rememberSaveable(error) { mutableStateOf(false) }
-    if (details) AlertDialog(onDismissRequest = { details = false }, title = { Text("Conversation error") },
-        text = { SelectionContainer { Text(error, Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) } },
-        confirmButton = { TextButton(onClick = { details = false }) { Text("Close") } })
     Surface(color = MaterialTheme.colorScheme.errorContainer, shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
-        Row(Modifier.padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
-                Text(error, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                TextButton(onClick = { details = true }, contentPadding = PaddingValues(horizontal = 0.dp)) { Text("Details") }
+        Column {
+            Row(Modifier.padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                    Text(error, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    TextButton(onClick = { details = !details }, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                        Text(if (details) "Hide details" else "Details")
+                    }
+                }
+                OmniIconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Dismiss error") }
             }
-            OmniIconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Dismiss error") }
+            // Inline details also work inside the native assistant's existing window.
+            if (details) SelectionContainer {
+                Text(error, Modifier.fillMaxWidth().heightIn(max = 320.dp).verticalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
 }
