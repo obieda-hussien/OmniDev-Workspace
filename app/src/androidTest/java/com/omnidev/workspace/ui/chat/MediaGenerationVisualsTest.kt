@@ -24,13 +24,18 @@ class MediaGenerationVisualsTest {
     private val progress = SemanticsMatcher.keyIsDefined(SemanticsProperties.ProgressBarRangeInfo)
 
     @Test fun failureReplacesLiveGenerationAndRemovesEveryProgressIndicator() {
+        // The atmosphere intentionally requests frames forever. Freeze its clock
+        // while asserting stage changes; motion is exercised separately below.
+        compose.mainClock.autoAdvance = false
         val status = mutableStateOf(MediaCardStatus(MediaStage.GENERATING, "Creating your video", "Provider is working"))
         compose.setContent { MaterialTheme {
             MediaGenerationPreview(status.value, AttachmentMediaType.VIDEO, Modifier.height(260.dp))
         } }
+        compose.mainClock.advanceTimeByFrame()
         compose.onNodeWithTag("media-creation-generating").assertExists()
         compose.onAllNodes(progress).assertCountEquals(2)
         compose.runOnIdle { status.value = MediaCardStatus(MediaStage.FAILED, "Creation failed", "Provider access denied", "HTTP_401") }
+        compose.mainClock.advanceTimeByFrame()
         compose.onNodeWithTag("media-creation-generating").assertDoesNotExist()
         compose.onNodeWithTag("media-creation-failed").assertExists()
         compose.onNodeWithText("Creation failed").assertIsDisplayed()
@@ -45,12 +50,15 @@ class MediaGenerationVisualsTest {
         compose.onAllNodes(progress).assertCountEquals(1)
     }
     @Test fun waitingAndCancellationHaveDistinctTruthfulLabels() {
+        compose.mainClock.autoAdvance = false
         val status = mutableStateOf(MediaCardStatus(MediaStage.WAITING, "Waiting to continue", "Connection interrupted"))
         compose.setContent { MaterialTheme {
             MediaGenerationPreview(status.value, AttachmentMediaType.AUDIO, Modifier.height(260.dp))
         } }
+        compose.mainClock.advanceTimeByFrame()
         compose.onNodeWithText("WAITING TO CONTINUE").assertIsDisplayed()
         compose.runOnIdle { status.value = MediaCardStatus(MediaStage.CANCELLED, "Creation cancelled", "Stopped") }
+        compose.mainClock.advanceTimeByFrame()
         compose.onNodeWithText("STOPPED ON THIS DEVICE").assertIsDisplayed()
         compose.onAllNodes(progress).assertCountEquals(0)
     }

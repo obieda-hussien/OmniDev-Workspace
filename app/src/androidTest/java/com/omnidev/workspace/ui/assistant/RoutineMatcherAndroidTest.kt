@@ -13,8 +13,12 @@ class RoutineMatcherAndroidTest {
         assertTrue(RoutineMatcher.variables("{{9bad}} {{bad-name}} {single}").isEmpty())
     }
     @Test fun exactParameterizedAliasKeepsLiteralRegexCharacters() {
+        val routine = LearnedRoutine("r", "Search", listOf("Search for [{{query}}]."), emptyList(), enabled = true)
+        assertEquals("hello+world", RoutineMatcher.match("Search for [hello+world].", listOf(routine))?.second?.get("query"))
+        assertNull(RoutineMatcher.match("Search for hello+world", listOf(routine)))
+    }
+    @Test fun underspecifiedWildcardAliasCannotReplayAutomatically() {
         val routine = LearnedRoutine("r", "Search", listOf("Search [{{query}}]."), emptyList(), enabled = true)
-        assertEquals("hello+world", RoutineMatcher.match("Search [hello+world].", listOf(routine))?.second?.get("query"))
-        assertNull(RoutineMatcher.match("Search hello+world", listOf(routine)))
+        assertNull(RoutineMatcher.match("Search [hello+world].", listOf(routine)))
     }
 }
