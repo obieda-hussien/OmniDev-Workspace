@@ -96,12 +96,13 @@ internal fun ChatMediaCard(original: AttachmentMeta) {
                         try {
                             val infos = androidx.work.WorkManager.getInstance(context).getWorkInfosForUniqueWork("omni-media-$id").get(2, java.util.concurrent.TimeUnit.SECONDS)
                             val active = infos.firstOrNull { !it.state.isFinished }
+                            if (job?.state == "queued" && active != null) MediaGenerationWorker.promoteQueued(context, job, active, System.currentTimeMillis())
                             worker = (active ?: infos.maxByOrNull { info -> info.tags.firstOrNull { it.startsWith("omni-media-created:") }?.substringAfter(':')?.toLongOrNull() ?: 0L })?.state?.name
                             workLoaded = true
                         } catch (cancelled: CancellationException) { throw cancelled }
                         catch (_: Exception) { unavailable = true }
                         val reconciled = MediaCardStatus.reconcile(job!!, worker, workLoaded, System.currentTimeMillis())
-                        if (reconciled != job && store.update(reconciled)) {
+                        if (reconciled != job && store.compareAndUpdate(job, reconciled)) {
                             job = reconciled
                             try { MediaCompletionPublisher.failure(context, reconciled) }
                             catch (cancelled: CancellationException) { throw cancelled }
@@ -168,7 +169,7 @@ internal fun ChatMediaCard(original: AttachmentMeta) {
                             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Surface(shape = CircleShape, color = if (status.stage == MediaStage.FAILED) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer) {
-                        Text(if (status.stage == MediaStage.READY) "READY" else if (status.stage == MediaStage.FAILED) "FAILED" else if (status.stage == MediaStage.CANCELLED) "STOPPED" else "IN PROGRESS",
+                        Text(when (status.stage) { MediaStage.READY -> "READY"; MediaStage.FAILED -> "FAILED"; MediaStage.CANCELLED -> "STOPPED"; MediaStage.QUEUED -> "QUEUED"; MediaStage.WAITING -> "WAITING"; else -> "IN PROGRESS" },
                             Modifier.padding(horizontal = 9.dp, vertical = 6.dp), style = MaterialTheme.typography.labelSmall)
                     }
                 }
@@ -177,6 +178,7 @@ internal fun ChatMediaCard(original: AttachmentMeta) {
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }.testTag("media-status-detail"))
                     status.code?.let { Text("$it" + if ((job?.failures ?: 0) > 0) " · status attempts ${job?.failures}" else "", style = MaterialTheme.typography.labelSmall) }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (job != null && MediaQueuePolicy.canStart(job)) FilledTonalButton(onClick = { action { MediaGenerationWorker.enqueue(context, job.id) } }, enabled = !busy) { Text("Start now") }
                         if (job != null && MediaGenerationFailure.canResume(job)) FilledTonalButton(onClick = { action { MediaGenerationWorker.enqueue(context, job.id) } }, enabled = !busy) { Text("Check existing job") }
                         if (job?.state in setOf("queued", "processing", "waiting")) OutlinedButton(onClick = { action { MediaGenerationWorker.cancel(context, job!!.id) } }, enabled = !busy) { Text("Cancel") }
                     }

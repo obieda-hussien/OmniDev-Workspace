@@ -590,13 +590,14 @@ class ChatViewModel(
         if ((draft.isEmpty() && attachments.isEmpty()) || state.isProcessing) return
         val input = draft.ifEmpty { "Please review the attached files." }
 
-        val mode = replacing?.user?.userMode?.let { name -> runCatching { OmniMode.valueOf(name) }.getOrNull() }
-            ?: state.activeMode
+        // Editing/regenerating is a new execution with the user's current mode.
+        // The original request only supplies its text, files and reply reference.
+        val mode = state.activeMode
         val matchingRoutine = if (mode != OmniMode.CHAT && attachments.isEmpty())
             compositeToolManager?.learnedRoutineTool?.let {
                 com.omnidev.workspace.data.routines.RoutineMatcher.match(input, it.hub.store.list())
             } else null
-        val scopePath = assistantWorkspace ?: replacing?.user?.userScopePath ?: state.targetContext
+        val scopePath = assistantWorkspace ?: state.targetContext
         if (mode != OmniMode.CHAT && mode != OmniMode.AUTO && scopePath == null && !state.isGodModeEnabled && matchingRoutine == null && !isLearnedTaskRequest(input)) {
             _uiState.update { it.copy(errorMessage = "Please set a Target Context before sending messages.") }
             return

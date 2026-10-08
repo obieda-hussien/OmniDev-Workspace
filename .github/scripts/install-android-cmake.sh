@@ -33,7 +33,14 @@ is_valid_cmake() {
   revision="$(awk -F= '/^[[:space:]]*Pkg\.Revision[[:space:]]*=/{gsub(/[[:space:]]/, "", $2); print $2; exit}' "$SOURCE_PROPERTIES")"
   [[ "$revision" == "$ANDROID_CMAKE_VERSION" ]] || return 1
   cmake_version="$("$CMAKE_DIR/bin/cmake" --version)" || return 1
-  [[ "${cmake_version%%$'\n'*}" == "cmake version $ANDROID_CMAKE_VERSION" ]] || return 1
+  # Android's CMake binary includes a build suffix (e.g. 3.22.1-g37088a8).
+  # Keep the exact release pinned while accepting that upstream build metadata.
+  local reported="${cmake_version%%$'\n'*}"
+  reported="${reported#cmake version }"
+  [[ "${reported%%-*}" == "$ANDROID_CMAKE_VERSION" ]] || {
+    echo "Unexpected CMake binary version: $reported"
+    return 1
+  }
   "$CMAKE_DIR/bin/ninja" --version >/dev/null
 }
 
