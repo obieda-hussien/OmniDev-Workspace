@@ -174,7 +174,7 @@ class CompanionMotionTest {
     @Test fun eyesFollowThePointerThenReturnToNeutral() {
         val e = engine(); e.lookAt(1000f, -1000f)
         advance(e, .4f, roaming = false)
-        assertTrue(e.pose.lookX > .9f); assertTrue(e.pose.lookY < -.9f)
+        assertTrue(e.pose.lookX > .4f); assertTrue(e.pose.lookY < -.7f)
         advance(e, 3f, roaming = false)
         assertTrue(kotlin.math.abs(e.pose.lookX) < .01f)
     }
@@ -200,5 +200,41 @@ class CompanionMotionTest {
         assertEquals(0f, e.pose.sparkle, .001f); assertFalse(e.isAirborne)
         e.step(.025f, false, false, false, CompanionActivity.LISTENING)
         assertEquals(CompanionMood.LISTENING, e.pose.mood)
+    }
+
+    @Test fun distantCaretMovementChangesTheViewingAngleInsteadOfSaturating() {
+        val e = engine()
+        e.lookAt(0f, 650f); advance(e, .3f, roaming = false)
+        val left = e.pose.lookX
+        e.lookAt(220f, 650f); advance(e, .3f, roaming = false)
+        assertTrue(e.pose.lookX > left + .3f)
+        assertTrue(e.pose.lookY > 0f)
+        e.lookAt(360f, 650f); advance(e, .3f, roaming = false)
+        assertTrue(e.pose.lookX > 0f)
+    }
+
+    @Test fun idleBreathingAndCuriousTiltStaySubtleAndReducedMotionDisablesThem() {
+        val e = engine(); advance(e, 2.5f, roaming = false)
+        assertTrue(e.pose.stretch in .97f..1.03f)
+        assertTrue(kotlin.math.abs(e.pose.bodyTilt) in .1f..2.1f)
+        e.step(.025f, false, false, true)
+        assertEquals(1f, e.pose.stretch, .001f)
+        assertEquals(0f, e.pose.bodyTilt, .001f)
+        assertEquals(0f, e.pose.earTilt, .001f)
+    }
+
+    @Test fun landingCompressesThenReboundsBeforeSettling() {
+        val e = engine(); e.grab(); e.drag(-120f, -200f); e.release(0f, false)
+        var compressed = false
+        var rebounded = false
+        repeat(100) {
+            e.step(.01f, false, false, false)
+            if (e.perchId != null) {
+                compressed = compressed || e.pose.stretch < .9f
+                rebounded = rebounded || e.pose.stretch > 1.04f
+            }
+        }
+        assertTrue(compressed); assertTrue(rebounded)
+        assertTrue(e.pose.stretch in .97f..1.03f)
     }
 }

@@ -3,6 +3,8 @@ package com.omnidev.workspace.ui.chat
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +30,12 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.input.TextFieldValue
+import com.omnidev.workspace.ui.companion.rememberCompanionEditorGaze
 import com.omnidev.workspace.ui.companion.rememberCompanionEditorFocus
 import com.omnidev.workspace.ui.companion.CompanionAnchor
 import com.omnidev.workspace.ui.companion.companionAnchor
@@ -48,6 +56,27 @@ internal fun ChatComposerSurface(
     onFocusChanged: (Boolean) -> Unit = {}
 ) {
     val companionFocus = rememberCompanionEditorFocus()
+    val companionGaze = rememberCompanionEditorGaze()
+    var fieldState by remember { mutableStateOf(TextFieldValue(inputText, TextRange(inputText.length))) }
+    // Keep IME composition/selection locally while preserving the shared String draft API.
+    val fieldValue = if (fieldState.text == inputText) fieldState else TextFieldValue(inputText, TextRange(inputText.length))
+    val editorScroll = rememberScrollState()
+    var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val maxTextHeight = with(LocalDensity.current) { MaterialTheme.typography.bodyLarge.lineHeight.toDp() } * if (compact) 3 else 5
+    val maxTextHeightPx = with(LocalDensity.current) { maxTextHeight.toPx() }
+    // Own the vertical viewport so the caret's root position includes the actual scroll offset.
+    LaunchedEffect(fieldValue.text, fieldValue.selection, textLayout, maxTextHeightPx) {
+        val layout = textLayout?.takeIf { it.layoutInput.text.text == fieldValue.text } ?: return@LaunchedEffect
+        val cursor = layout.getCursorRect(fieldValue.selection.end)
+        val scroll = editorScroll.value
+        if (cursor.bottom > scroll + maxTextHeightPx) editorScroll.scrollTo((cursor.bottom - maxTextHeightPx).toInt())
+        else if (cursor.top < scroll) editorScroll.scrollTo(cursor.top.toInt().coerceAtLeast(0))
+    }
+    SideEffect {
+        if (fieldState != fieldValue) fieldState = fieldValue
+        companionGaze.value = fieldValue
+        companionGaze.publish()
+    }
     var focused by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
     val focus = LocalFocusManager.current
@@ -61,11 +90,22 @@ internal fun ChatComposerSurface(
             OmniIconButton(onClick = { focus.clearFocus(); keyboard?.hide(); onTools() }, enabled = toolsEnabled) {
                 Icon(Icons.Default.Add, toolsDescription, tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            BasicTextField(value = inputText, onValueChange = onInputChanged, enabled = editorEnabled,
+            BasicTextField(value = fieldValue, onValueChange = { next ->
+                val changed = fieldState.text != next.text
+                val moved = fieldState.selection != next.selection
+                fieldState = next
+                companionGaze.value = next
+                companionGaze.publish(edited = changed || moved)
+                if (changed) onInputChanged(next.text)
+            }, onTextLayout = {
+                textLayout = it
+                companionGaze.layout = it
+                companionGaze.publish()
+            }, enabled = editorEnabled,
                 modifier = Modifier.weight(1f).heightIn(min = 48.dp).focusRequester(focusRequester)
                     .onFocusChanged { focused = it.isFocused; onFocusChanged(it.isFocused); companionFocus(it.isFocused) }
                     .semantics { contentDescription = editorDescription },
-                minLines = 1, maxLines = if (compact) 3 else 5,
+                minLines = 1, maxLines = Int.MAX_VALUE,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface, textDirection = TextDirection.Content),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -74,7 +114,8 @@ internal fun ChatComposerSurface(
                         if (inputText.isEmpty()) Text(if (isProcessing && allowSteering) "Correct or add an instruction…" else if (isProcessing) "Write your next message…" else "Message Omni…",
                             style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        field()
+                        Box(Modifier.fillMaxWidth().heightIn(max = maxTextHeight).verticalScroll(editorScroll)
+                            .onGloballyPositioned { companionGaze.coordinates = it; companionGaze.publish() }) { field() }
                     }
                 })
             if (isProcessing && allowSteering) {

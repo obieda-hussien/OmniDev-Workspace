@@ -3,6 +3,8 @@ package com.omnidev.workspace.ui.companion
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
+import kotlin.math.cos
+import kotlin.math.sqrt
 
 internal data class CompanionPerch(val left: Float, val right: Float, val top: Float, val id: String = "")
 internal data class CompanionScene(
@@ -32,7 +34,8 @@ internal enum class CompanionMood { AWAKE, WORKING, FOCUSED, WAITING, LISTENING,
 internal data class CompanionPose(
     val x: Float = 0f, val y: Float = 0f, val lift: Float = 0f, val rotation: Float = 0f,
     val stretch: Float = 1f, val blink: Boolean = false, val mood: CompanionMood = CompanionMood.AWAKE,
-    val lookX: Float = 0f, val lookY: Float = 0f, val earTilt: Float = 0f, val sparkle: Float = 0f
+    val lookX: Float = 0f, val lookY: Float = 0f, val earTilt: Float = 0f, val sparkle: Float = 0f,
+    val bodyTilt: Float = 0f
 )
 
 /** Stable platform identities survive scrolling; geometry updates never restart unrelated flights. */
@@ -99,8 +102,12 @@ internal class CompanionMotion {
     fun lookAt(x: Float, y: Float, wake: Boolean = false) {
         if (wake) idle = 0f
         val s = scene ?: return
-        gazeX = ((x - pose.x - s.size / 2) / s.size).coerceIn(-1f, 1f)
-        gazeY = ((y - pose.y - s.size * .6f) / s.size).coerceIn(-1f, 1f)
+        val dx = x - pose.x - s.size / 2
+        val dy = y - pose.y - s.size * .6f
+        // Follow the viewing angle, rather than saturating both eyes at +/-1 for every distant target.
+        val distance = sqrt(dx * dx + dy * dy + s.size * s.size * .36f)
+        gazeX = dx / distance
+        gazeY = dy / distance
         gazeRemaining = 1.8f
     }
 
@@ -117,7 +124,7 @@ internal class CompanionMotion {
 
     fun grab() {
         motion = Motion.DRAG; idle = 0f; perchId = null; targetId = null
-        pose = pose.copy(rotation = 0f, lift = 0f, stretch = 1.08f, mood = CompanionMood.SURPRISED)
+        pose = pose.copy(rotation = 0f, bodyTilt = 0f, lift = 0f, stretch = 1.08f, mood = CompanionMood.SURPRISED)
     }
     fun drag(dx: Float, dy: Float) {
         val s = scene ?: return
@@ -144,7 +151,7 @@ internal class CompanionMotion {
     }
     private fun hop(p: CompanionPerch, x: Float? = null, reduced: Boolean, immediate: Boolean = false) {
         val s = scene ?: return
-        pose = pose.copy(lift = 0f, rotation = 0f, stretch = 1f, earTilt = 0f)
+        pose = pose.copy(lift = 0f, rotation = 0f, bodyTilt = 0f, stretch = 1f, earTilt = 0f)
         from = pose; targetId = p.id; perchId = null
         destination = pose.copy(x = s.x(x ?: (p.left + (p.right - p.left - s.size) * if (hops % 2 == 1) .22f else .72f), p),
             y = s.y(p), rotation = 0f, lift = 0f, stretch = 1f, earTilt = 0f)
@@ -193,7 +200,7 @@ internal class CompanionMotion {
                 val p = s.platforms.firstOrNull { it.id == targetId && s.safe(it) } ?: escapeTarget(s)
                 land(p)
             }
-            pose = pose.copy(rotation = 0f, lift = 0f, stretch = 1f, earTilt = 0f, blink = false, sparkle = 0f, mood = mood)
+            pose = pose.copy(rotation = 0f, bodyTilt = 0f, lift = 0f, stretch = 1f, earTilt = 0f, blink = false, sparkle = 0f, mood = mood)
             return pose
         }
         pose = pose.copy(mood = mood, sparkle = if (celebration > 0f) celebration / 1.8f else 0f)
@@ -236,9 +243,14 @@ internal class CompanionMotion {
             }
             Motion.REST -> {
                 resting += dt; landing = (landing + dt * 5f).coerceAtMost(1f)
-                val spring = if (landing < 1f) -sin((1f - landing) * PI.toFloat() / 2) * .18f else 0f
-                pose = pose.copy(stretch = 1f + spring, blink = mood != CompanionMood.SLEEPY && time % 4.6f > 4.42f,
-                    earTilt = if (mood == CompanionMood.LISTENING) sin(time * 5f) * 5f else 0f)
+                val spring = if (landing < 1f) -cos(landing * PI.toFloat() * 3) * (1f - landing) * .18f else 0f
+                val sleeping = mood == CompanionMood.SLEEPY
+                val breath = sin(time * if (sleeping) 1.6f else 2.4f) * if (sleeping) .022f else .012f
+                val curious = if (mood == CompanionMood.AWAKE && resting > 2f) sin(time * .9f) * 2f else 0f
+                val twitch = if (mood == CompanionMood.AWAKE && time % 9.2f > 8.6f) sin((time % 9.2f - 8.6f) * 18f) * 6f else 0f
+                pose = pose.copy(stretch = 1f + spring + breath, bodyTilt = curious,
+                    blink = !sleeping && time % 4.6f > 4.42f,
+                    earTilt = when (mood) { CompanionMood.LISTENING -> sin(time * 5f) * 5f; CompanionMood.SLEEPY -> -7f; else -> twitch })
                 if (roaming && mood != CompanionMood.SLEEPY && mood != CompanionMood.WAITING && mood != CompanionMood.LISTENING && mood != CompanionMood.CONCERNED &&
                     resting > if (working) 3.5f else 6f) {
                     hops++
