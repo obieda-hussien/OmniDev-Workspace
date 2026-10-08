@@ -23,6 +23,8 @@ class LearnedRoutineTool(
         "Durable local executable skills. Actions: list, inspect, save_draft, run, status, resume, pause, teach_start, teach_decision, teach_stop, video_frame. " +
             "UI selectors use packageName + viewId/text/description, never N IDs/coordinates. Drafts require user review and activation in Agent Skills. " +
             "Use {{parameter}} for typed values. DECISION/USER steps pause; solve only the pending step using current evidence. " +
+            "Never run a recipe just because its name or trigger appears in conversation. Match the latest user's intent, " +
+            "bound values and constraints; inspect candidates first. Non-exact run/resume proposals require user review. " +
             "Resume advances only when expected selector is present. Never claim an imported video is fully understood from sparse samples.",
         listOf(ToolParameter("action", "string", "Action", true),
             ToolParameter("routine_id", "string", "Saved recipe ID", false),

@@ -11,6 +11,40 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MediaJobStoreTest {
+    @Test fun manualStartLaunchesDirectExecutionBeforeAndAfterQueueExpiry() = kotlinx.coroutines.runBlocking {
+        for (expired in listOf(false, true)) {
+            val context = preferencesContext(); val store = MediaJobStore(context)
+            val queued = store.create("music", "gemini", "lyria-3-clip-preview", "song", "")
+            if (expired) store.compareAndUpdate(queued,
+                MediaCardStatus.reconcile(queued, "ENQUEUED", true, queued.created + 3_600_000))
+            var starts = 0
+            MediaGenerationService.startNow(context, queued.id) { _, id -> starts++; assertEquals(queued.id, id) }
+            assertEquals(1, starts)
+            val current = store.get(queued.id)!!
+            assertEquals("queued", current.state); assertEquals("starting", current.phase)
+            assertEquals("song", current.prompt); assertNull(current.errorCode)
+        }
+    }
+
+    @Test fun directStartFailureIsVisibleAndRetainsTheUnsubmittedRequest() = kotlinx.coroutines.runBlocking {
+        val context = preferencesContext(); val store = MediaJobStore(context)
+        val queued = store.create("image", "gemini", "image", "prompt", "1:1")
+        MediaGenerationService.startNow(context, queued.id) { _, _ -> error("Service rejected") }
+        val failed = store.get(queued.id)!!
+        assertEquals("START_FAILED", failed.errorCode); assertEquals("prompt", failed.prompt)
+        assertTrue(MediaQueuePolicy.canStart(failed))
+    }
+
+    @Test fun manualStartCannotReviveCancellationOrReplayAnAlreadyClaimedRequest() = kotlinx.coroutines.runBlocking {
+        for (state in listOf("cancelled", "processing")) {
+            val context = preferencesContext(); val store = MediaJobStore(context)
+            val queued = store.create("video", "gemini", "veo", "prompt", "16:9")
+            store.update(queued.copy(state = state))
+            MediaGenerationService.startNow(context, queued.id) { _, _ -> fail("Submitted an ineligible request") }
+            assertEquals(state, store.get(queued.id)!!.state)
+        }
+    }
+
     @Test fun staleQueueMonitorCannotFailARequestClaimedByTheWorker() {
         val context = preferencesContext(); val store = MediaJobStore(context)
         val queued = store.create("music", "gemini", "lyria-3-clip-preview", "song", "")

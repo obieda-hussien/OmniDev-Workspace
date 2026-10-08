@@ -215,6 +215,7 @@ class ChatViewModel(
         val uiGate = com.omnidev.workspace.core.policy.ConfirmationGate { kind, preview, diff ->
             val deferred = CompletableDeferred<Boolean>()
             val confirmationType = when (kind) {
+                com.omnidev.workspace.core.policy.ConfirmationKind.LEARNED_TASK -> ConfirmationType.LEARNED_TASK
                 com.omnidev.workspace.core.policy.ConfirmationKind.ASSISTANT_ACTION -> ConfirmationType.ASSISTANT_ACTION
                 com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_PATCH -> ConfirmationType.GOD_MODE_FILE_PATCH
                 com.omnidev.workspace.core.policy.ConfirmationKind.GOD_MODE_FILE_WRITE -> ConfirmationType.GOD_MODE_FILE_WRITE
@@ -235,7 +236,8 @@ class ChatViewModel(
                             tier = com.omnidev.workspace.core.policy.TierPolicyHolder.current.tier,
                             autoApproved = false,
                             kind = kind,
-                            preview = preview,
+                            preview = if (kind == com.omnidev.workspace.core.policy.ConfirmationKind.LEARNED_TASK)
+                                "User approved learned task proposal; runtime values omitted" else preview,
                             diffContent = diff
                         )
                         deferred.complete(true)
@@ -257,6 +259,11 @@ class ChatViewModel(
             effectiveGate.request(kind, preview, diffContent)
         }
         compositeToolManager?.confirmationGate = effectiveGate
+        val routineReview = kotlinx.coroutines.sync.Mutex()
+        compositeToolManager?.learnedRoutineConfirmationGate = com.omnidev.workspace.core.policy.ConfirmationGate { kind, preview, diff ->
+            routineReview.lock()
+            try { uiGate.request(kind, preview, diff) } finally { routineReview.unlock() }
+        }
     }
 
     fun showConfirmation(confirmation: PendingConfirmation) {
@@ -1135,7 +1142,7 @@ class ChatViewModel(
             conversationHistory = runHistory,
             modelId = modelId,
             scopePath = scopePath,
-            enableDeepThinking = deepThinking && assistantWorkspace == null,
+            enableDeepThinking = deepThinking,
             userAttachments = directImages,
             customSystemPrompt = null,
             userContext = if (assistantWorkspace == null) userPersona else listOfNotNull(userPersona,

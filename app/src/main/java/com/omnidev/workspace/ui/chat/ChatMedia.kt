@@ -101,6 +101,8 @@ internal fun ChatMediaCard(original: AttachmentMeta) {
                             workLoaded = true
                         } catch (cancelled: CancellationException) { throw cancelled }
                         catch (_: Exception) { unavailable = true }
+                        // Immediate user work runs outside WorkManager; its liveness is authoritative.
+                        if (MediaGenerationService.isActive(id)) { worker = "RUNNING"; workLoaded = true; unavailable = false }
                         val reconciled = MediaCardStatus.reconcile(job!!, worker, workLoaded, System.currentTimeMillis())
                         if (reconciled != job && store.compareAndUpdate(job, reconciled)) {
                             job = reconciled
@@ -178,7 +180,7 @@ internal fun ChatMediaCard(original: AttachmentMeta) {
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }.testTag("media-status-detail"))
                     status.code?.let { Text("$it" + if ((job?.failures ?: 0) > 0) " · status attempts ${job?.failures}" else "", style = MaterialTheme.typography.labelSmall) }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (job != null && MediaQueuePolicy.canStart(job)) FilledTonalButton(onClick = { action { MediaGenerationWorker.enqueue(context, job.id) } }, enabled = !busy) { Text("Start now") }
+                        if (job != null && MediaQueuePolicy.canStart(job)) FilledTonalButton(onClick = { action { MediaGenerationService.startNow(context, job.id) } }, enabled = !busy) { Text(if (busy) "Starting…" else "Start now") }
                         if (job != null && MediaGenerationFailure.canResume(job)) FilledTonalButton(onClick = { action { MediaGenerationWorker.enqueue(context, job.id) } }, enabled = !busy) { Text("Check existing job") }
                         if (job?.state in setOf("queued", "processing", "waiting")) OutlinedButton(onClick = { action { MediaGenerationWorker.cancel(context, job!!.id) } }, enabled = !busy) { Text("Cancel") }
                     }

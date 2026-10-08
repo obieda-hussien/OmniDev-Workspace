@@ -281,6 +281,8 @@
 
         <service android:name="androidx.work.impl.foreground.SystemForegroundService"
             android:foregroundServiceType="dataSync" ns0:node="merge" />
+        <service android:name=".data.chatmedia.MediaGenerationService" android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
 
         <profileable android:shell="true" />

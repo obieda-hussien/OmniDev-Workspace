@@ -57,6 +57,7 @@ data class PendingConfirmation(
 )
 
 enum class ConfirmationType {
+    LEARNED_TASK,
     ASSISTANT_ACTION,
     SHIZUKU_COMMAND,
     ANDROID_INTENT,
@@ -69,6 +70,7 @@ enum class ConfirmationType {
 
 private val ConfirmationType.title: String
     get() = when (this) {
+        ConfirmationType.LEARNED_TASK -> "Use this learned task?"
         ConfirmationType.ASSISTANT_ACTION -> "Allow this action?"
         ConfirmationType.SHIZUKU_COMMAND -> "⚡ Execute Shell Command?"
         ConfirmationType.ANDROID_INTENT -> "📱 Launch Android Intent?"
@@ -80,6 +82,8 @@ private val ConfirmationType.title: String
 
 private val ConfirmationType.subtitle: String
     get() = when (this) {
+        ConfirmationType.LEARNED_TASK ->
+            "Review how this saved task fits your current request, including its steps and values."
         ConfirmationType.ASSISTANT_ACTION ->
             "Omni wants to act on your behalf. Review the action before allowing it."
         ConfirmationType.SHIZUKU_COMMAND ->

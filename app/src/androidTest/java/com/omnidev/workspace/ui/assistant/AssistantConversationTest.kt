@@ -37,6 +37,46 @@ internal fun assistantTestFlavor(deviceActions: Boolean = true) = AssistantFlavo
 class AssistantConversationTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun liveConsolePrecedesStreamingAndHasNoSeparateActivityFeed() {
+        compose.setContent { OmniDevTheme(dynamicColor = false) {
+            Box(Modifier.width(400.dp).height(760.dp)) {
+                AssistantConversation(AssistantScreenState(visible = true), ChatUiState(
+                    isProcessing = true, streamingContent = "Checking the selected screen.",
+                    consoleEntries = listOf(AgentConsoleEntry.ThinkingEntry(1),
+                        AgentConsoleEntry.ToolEntry("semantic_ui", "action=dump_tree", 1))), assistantTestFlavor())
+            }
+        } }
+        val console = compose.onNodeWithText("Agent Console").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val output = compose.onNodeWithText("Checking the selected screen.").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        assertTrue(console.bottom < output.top)
+        compose.onNodeWithText("Activity ·", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Hide activity").assertDoesNotExist()
+        compose.onNodeWithText("Started · semantic_ui").assertDoesNotExist()
+    }
+
+    @Test fun savedConsoleAppearsOnceWithinTheAssistantResponse() {
+        val response = ChatMessage(MessageRole.ASSISTANT, "Screen checked.", timestamp = 123L)
+        val entries = listOf(AgentConsoleEntry.ThinkingEntry(1), AgentConsoleEntry.ResultEntry("semantic_ui", "ok", false))
+        compose.setContent { OmniDevTheme(dynamicColor = false) {
+            AssistantConversation(AssistantScreenState(visible = true), ChatUiState(messages = listOf(response),
+                consoleEntries = entries, messageConsoleEntries = mapOf(response.timestamp to entries)), assistantTestFlavor())
+        } }
+        compose.onAllNodesWithText("Agent Console").assertCountEquals(1)
+        compose.onNodeWithText("Screen checked.").assertIsDisplayed()
+        compose.onNodeWithText("Activity ·", substring = true).assertDoesNotExist()
+    }
+
+    @Test fun errorDetailsStayInsideTheAssistantWindow() {
+        compose.setContent { OmniDevTheme(dynamicColor = false) {
+            AssistantConversation(AssistantScreenState(visible = true), ChatUiState(
+                messages = listOf(ChatMessage(MessageRole.USER, "Check this screen")), errorMessage = "Screen access unavailable"),
+                assistantTestFlavor())
+        } }
+        compose.onNodeWithText("Details").performScrollTo().performClick()
+        compose.onNodeWithText("Hide details").assertExists()
+        compose.onAllNodes(isDialog()).assertCountEquals(0)
+    }
+
     @Test fun toolsUseTheOriginalWindowAndRouteScreenFilesVoiceAndAccess() {
         var screens = 0; var areas = 0; var files = 0; var voices = 0; var accesses = 0
         compose.setContent {
