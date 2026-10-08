@@ -1,383 +1,1256 @@
 # OmniDev Workspace
 
-**مساحة عمل ومساعد Android قابلان للتوسعة**: محادثة، تنفيذ بأدوات، وتنسيق فريق وكلاء، مع فهرسة محلية للكود، ذاكرة محادثات، طبقة سياسات للصلاحيات، وتكاملات للأجهزة والتطبيقات. هذا المستودع يضم التطبيق Android، اختبارات الوحدة، إعدادات البناء، ووثائق التصميم والتكامل.
+### An Android AI workspace for conversation, tool execution, local knowledge and connected apps
 
-> **دليل المشروع:** وصف وظائف التطبيق، بنية الملفات، مسارات الصلاحيات والتكامل، وطريقة البناء والتحقق. آخر تحديث: 7 أكتوبر 2026.
+[![Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/workflows/android-ci.yml/badge.svg?branch=main)](https://github.com/obieda-hussien/OmniDev-Workspace/actions/workflows/android-ci.yml)
+[![Public repository security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/workflows/security-gate.yml/badge.svg?branch=main)](https://github.com/obieda-hussien/OmniDev-Workspace/actions/workflows/security-gate.yml)
 
-**المطوّر والمحدّث ومسؤول صيانة وتكامل منظومة Omni:** [عبدالرحمن حسين — Abdelrahman Hussein / Obieda](https://github.com/obieda-hussien). تُحفظ حقوق وأسماء مؤلفي أي مكوّن أصلي أو اعتماد خارجي؛ هذا الدور يخص تطوير Omni وتعديلاته وتكاملاته. راجع [بيان النسب والحقوق](ATTRIBUTION.md).
+**OmniDev Workspace brings a configurable AI assistant, an agent runtime and a developer workspace onto an Android device.** It combines ordinary conversation, tool-assisted tasks, coordinated agent teams, source-backed conversation recall, local code retrieval, reusable learned tasks, on-screen assistance and integrations with the Omni ecosystem.
 
-## Consented lock-screen access
+Choose your providers and models, choose the task scope, and decide which tools and device capabilities are available. The application can answer a question, inspect a local project, carry out a supported action, coordinate independent investigations, or replay an approved local routine without calling a language model.
 
-The device access center provides authenticated opt-ins for screen wake, Android unlock requests, a private assistant panel while locked, lock-screen semantic inspection and sensitive Settings access. Admin adds a device-local encrypted PIN vault with a 15-minute one-shot permit or remembered authorization until revoked. Each requested unlock enters the PIN once; failed or interrupted input pauses remembered attempts. PINs stay out of model arguments, chat and learned tasks. See [Device lock access](docs/DEVICE_LOCK_ACCESS.md) for setup, Android/OEM limits and verification.
+The repository contains the Android application, native inference integration, JVM and Android tests, build automation, a companion WhatsApp bridge and technical documentation. It is under active development. Source availability, a declared capability and a successful unit test each describe a different thing; actual operation depends on the installed edition, Android version, granted access, connected services and model account.
 
-## Edit and regenerate the latest turn
+**Developer and maintainer:** [Abdelrahman Hussein / Obieda](https://github.com/obieda-hussien). Original authors of dependencies, connected applications and inherited components retain their credits and rights. See [Attribution](ATTRIBUTION.md), [Third-party notices](THIRD_PARTY_NOTICES.md) and [Licensing status](LICENSE.md).
 
-Use **Edit last message** on your most recent user message, then **Save & regenerate**, or **Regenerate last response** on the latest reply. Chat, Agent, Team and the floating assistant replace the previous turn's responses, media cards and activity in the same saved conversation. Attachments and reply context are retained; regeneration and editing execute with the currently selected mode and target scope; drafts for the next request remain intact. Editing is disabled while a run or file import is active. Cancel leaves the message unchanged, and failed generation is reported as an error that can be retried.
+**Development collaboration:** early work was assisted by Claude, Gemini, Jules and GitHub Copilot; continued development with ChatGPT / OpenAI Codex brought extensive debugging, interface redesign and code/logic revision. See [Contributors and development history](CONTRIBUTORS.md).
 
-## Live follow-ups and steering
+**Start here:** [Quick start](#quick-start) · [Choose an edition](#editions-and-capability-policy) · [Build from source](#build-from-source) · [Documentation map](#documentation-map) · [Contribute](CONTRIBUTING.md) · [Get help](SUPPORT.md) · [Report a vulnerability](SECURITY.md)
 
-While **Agent**, **Team**, or the floating assistant works, type a correction or an additional requirement and use **Send follow-up**. The instruction joins the current task and saved conversation. A received/applied indicator tracks the latest follow-up; **Stop** remains a separate control. Model generation is interrupted, unstarted actions from the old route are skipped, and in-flight tools settle before continuation. Team mode replans remaining work with completed-task and tool evidence. Live follow-ups currently accept text; learned tasks running without a model retain their own pause/resume flow. See [runtime behavior and limits](docs/LIVE_AGENT_STEERING.md).
+> This README describes the implementation reviewed on **8 October 2026**. Current source and completed CI results take precedence over older planning documents. A repository-wide open-source license has not been adopted; see [LICENSE.md](LICENSE.md) before reusing or distributing project code.
 
-Replacement updates the user turn and removes its outputs in one database transaction. Late media delivery from a superseded revision is rejected; delayed results belonging to earlier requests are preserved. Regeneration starts a new execution: completed device/file actions remain applied and tools can run again.
+## Contents
 
-## Chat media models
+- [What OmniDev Workspace does](#what-omnidev-workspace-does)
+- [Quick start](#quick-start)
+- [Editions and capability policy](#editions-and-capability-policy)
+- [Conversation and execution modes](#conversation-and-execution-modes)
+- [Model providers and configuration](#model-providers-and-configuration)
+- [Conversation experience](#conversation-experience)
+- [Live agent follow-ups](#live-agent-follow-ups)
+- [Images, video, music and attachments](#images-video-music-and-attachments)
+- [On-screen assistant](#on-screen-assistant)
+- [Hi Omni and local voice](#hi-omni-and-local-voice)
+- [Device access and lock-screen behavior](#device-access-and-lock-screen-behavior)
+- [Learned tasks and reusable skills](#learned-tasks-and-reusable-skills)
+- [Architecture and request lifecycle](#architecture-and-request-lifecycle)
+- [Tool discovery and execution contracts](#tool-discovery-and-execution-contracts)
+- [Team planning and concurrency](#team-planning-and-concurrency)
+- [Repository context and developer tools](#repository-context-and-developer-tools)
+- [Local Git and GitHub access](#local-git-and-github-access)
+- [Memory, history and local learning](#memory-history-and-local-learning)
+- [OmniLink and connected applications](#omnilink-and-connected-applications)
+- [MCP and external tools](#mcp-and-external-tools)
+- [Messaging and service integrations](#messaging-and-service-integrations)
+- [Android tools and scheduling](#android-tools-and-scheduling)
+- [Data, privacy and trust boundaries](#data-privacy-and-trust-boundaries)
+- [Interface motion and device performance](#interface-motion-and-device-performance)
+- [Build from source](#build-from-source)
+- [Testing and validation](#testing-and-validation)
+- [CI, artifacts and signing](#ci-artifacts-and-signing)
+- [Troubleshooting](#troubleshooting)
+- [Project layout and source navigation](#project-layout-and-source-navigation)
+- [Documentation map](#documentation-map)
+- [Current limits and development directions](#current-limits-and-development-directions)
+- [Contributing, support and repository maintenance](#contributing-support-and-repository-maintenance)
+- [Ownership, licensing and acknowledgments](#ownership-licensing-and-acknowledgments)
 
-Choose independent image, video and music/song models in **Settings → Model Selection → Media generation**. Each type starts Off; enable a connected supported provider/model, customize its defaults, then request media in Chat, Agent or Team. Finished files appear in the conversation with playback/preview, save/share and an optional ready message; generation continues in the background. See [media setup and provider controls](docs/CHAT_MEDIA_AND_UNLOCK_RECOVERY.md#generation).
+## What OmniDev Workspace does
 
-## المحتويات
+OmniDev is organized around a shared conversation and execution environment. The main workspace, floating assistant and connected-app entry points reuse application services while retaining their own session and authorization boundaries.
 
-ميزة **Hi Omni** تضيف تنبيهًا صوتيًا محليًا بعبارة يختارها المستخدم، مع تدريب واختبار مباشر من تسجيلاته، مع ملف صوتي مشفّر وإعدادات للاستماع وشاشة القفل والحذف. جلسة الصوت تستخدم Vosk محليًا دون أصوات بدء Google، مع ردود صوتية وفتح اختياري بـPIN أو كلمة مرور مهجّاة أو نقش مرقّم، واستئناف أدوات الجهاز بعد التحقق من الفتح. الكشف تجريبي ويحتاج تقييمًا على الجهاز؛ ليس بصمة أمان لفتح القفل. تُسمح السكرين شوت للمحادثة العائمة العادية، ويُحسب سياق الصور مستقلًا عن حجم Base64 مع دعم عشرة مرفقات ضمن حدود الحجم. الإعداد والحدود موضحان في [دليل Hi Omni](docs/HI_OMNI_LOCAL_WAKE.md).
-
-- [المشروع بالأرقام](#المشروع-بالأرقام)
-- [ماذا يفعل التطبيق](#ماذا-يفعل-التطبيق)
-- [المساعد العائم على الشاشة](#المساعد-العائم-على-الشاشة)
-- [تعليم المهام وتشغيلها محليًا](#تعليم-المهام-وتشغيلها-محليًا)
-- [البنية ومسار الطلب](#البنية-ومسار-الطلب)
-- [الأوضاع وقرارات الوكيل](#الأوضاع-وقرارات-الوكيل)
-- [الاسترجاع المحلي واقتصاد التوكنز](#الاسترجاع-المحلي-واقتصاد-التوكنز)
-- [الأدوات والصلاحيات](#الأدوات-والصلاحيات)
-- [البيانات والواجهات والتكاملات](#البيانات-والواجهات-والتكاملات)
-- [تكامل Omni Launcher](#تكامل-omni-launcher)
-- [النسب وحقوق المؤلفين](#النسب-وحقوق-المؤلفين)
-- [نسخ البناء والتشغيل](#نسخ-البناء-والتشغيل)
-- [الاختبار والتحقق](#الاختبار-والتحقق)
-- [خريطة الملفات والوثائق](#خريطة-الملفات-والوثائق)
-- [الحدود وخارطة الطريق](#الحدود-وخارطة-الطريق)
-
-حزمة WhatsApp Bridge للتشغيل داخل Termux وخطوات التثبيت والربط موضحة في [دليل الجسر](whatsapp-bridge/README.md).
-
-إعداد بوت Telegram وربط المالك والأوامر وحدود استقبال الوسائط موضحة في [دليل تكامل Telegram](TELEGRAM_INTEGRATION.md).
-
-## المشروع بالأرقام
-
-الأرقام التالية **مستخرجة من الملفات المتتبعة بـ Git في المستودع**، وليست تقديرات تسويقية أو حجم الملفات الناتجة عن البناء. شغّل `python3 scripts/repo_metrics.py` بعد أي تغيير لتحديثها.
-
-| المقياس | العدد | طريقة الحساب |
-|---|---:|---|
-| الملفات المتتبعة | **731** | كل الملفات المتتبعة الحالية في `git ls-files` |
-| ملفات المصدر الإنتاجية | **465** | امتدادات Kotlin/Java/AIDL/C/C++/headers خارج مجلدات الاختبارات |
-| سطور المصدر الإنتاجية | **105,618** | سطور فعلية، تشمل الفراغات والتعليقات |
-| ملفات مصدر الاختبارات | **139** | نفس الامتدادات داخل `test` أو `androidTest` |
-| سطور مصدر الاختبارات | **10,489** | بنفس طريقة العدّ |
-| إجمالي ملفات المصدر | **604** | إنتاج + اختبارات |
-| إجمالي سطور المصدر | **116,107** | إنتاج + اختبارات |
-| ملفات Kotlin | **596** | إنتاج واختبارات معًا |
-| سطور Kotlin | **115,334** | إنتاج واختبارات معًا |
-| ملفات Markdown | **48** | الوثائق الأساسية وملفات مهارات الوكيل داخل الموارد |
-| نسخ التطبيق | **5** | `lite`, `norm`, `pro`, `oem`, `admin` |
-| أوضاع التشغيل | **4** | `AUTO`, `CHAT`, `AGENT`, `SWARM` |
-| إصدار قاعدة Room | **17** | `OmniDevDatabase.kt` |
-| Android SDK | **min 24 / target 36 / compile 36** | `app/build.gradle.kts` |
-
-> **الدقة والتكرار:** يعتمد السكربت على `git ls-files -z` ويقرأ سطور ملفات المصدر في الشجرة المحلية، فلا يدخل `build/`، الملفات غير المتتبعة، الاعتمادات الثنائية، أو كود التوليد. هذه أعداد **سطور في الملفات** وليست “سطور منطقية” بعد حذف التعليقات والفراغات. أرقام Markdown تتغير مع أي تعديل توثيقي؛ لهذا لا ننشر عدد سطورها هنا كرقم ثابت. الأرقام أعلاه تخص ملفات المشروع في لحظة تحديث الوثيقة، وليست إحصاءات الإصدار المنشور.
-
-## ماذا يفعل التطبيق
-
-| القدرة | التنفيذ الأساسي | ملاحظات الاستخدام |
+| Area | Current implementation | What you need |
 |---|---|---|
-| المحادثة | `ChatScreen`, `ChatViewModel`, `CompletionService` | يحدد المستخدم موفّر النموذج وإعداداته |
-| تنفيذ المهام | `AgentPipeline`, `AgentRuntime`, `CompositeToolManager` | دورة تخطيط/استدعاء أدوات/ملاحظة ضمن حدود التنفيذ |
-| فريق الوكلاء | `SwarmOrchestrator`, `TeamExecutionPolicy`, `TeamBudgetAllocator` | تقسيم المهام عندما توجد أجزاء مستقلة قابلة للعمل |
-| الاسترجاع من المستودع | `RepoIndexer`, `RepoContextEngine`, `LocalCodeRetriever` | فهرسة محلية، مقاطع كود قصيرة مع مسار وسطور |
-| استرجاع المحادثات | أدوات الجلسات والرسائل مع Room | نصوص أصلية ومعرّفات مرجعية؛ راجع [التفاصيل](CHAT_HISTORY_RECALL.md) |
-| أدوات الهاتف | إشعارات، منبه، واجهة وصول، ملفات وأدوات نظام | تختلف الإتاحة حسب النسخة وإذن Android؛ راجع [حدود الإشعارات والمنبه](NOTIFICATION_ALARM_TOOLS.md) |
-| الذاكرة والبيانات | Room، مستودعات البيانات، إعدادات محلية | السجل المحلي ومعلومات التشغيل يخضعان لحدود الاحتفاظ المعرّفة في الكود |
-| الربط الخارجي | OmniLink، MCP، وخدمات أو تطبيقات مفعّلة | يحتاج بعض المسارات تثبيتًا أو ربط حساب وصلاحيات منفصلة |
+| Conversation | Configurable text models, streaming replies, saved sessions, reply context and attachments | A configured remote provider or a supported local model |
+| Single-agent work | A bounded planning/tool/observation loop with runtime validation and visible activity | An edition and task scope that permit the requested tools |
+| Agent teams | Coordinator planning, worker execution, shared budgets and evidence-based handoff | Independent work suitable for delegation and configured model assignments |
+| Code context | Local repository indexing, symbol lookup and ranked excerpts with file/line references | A readable local project and a selected scope |
+| Conversation recall | Search and paging over original locally saved messages | Existing records in the device database |
+| Persistent knowledge | Knowledge snippets, execution history, episodic records and lessons | Local storage; configured model access when interpretation is required |
+| Learned tasks | Reviewed, versioned recipes with local replay and decision checkpoints | User approval, reliable selectors and current tool/device permissions |
+| Screen assistant | Native Android assistant panel, optional restoration bubble and shared agent runtime | Assistant role; additional access for live screen actions |
+| Local voice | Custom wake phrase, few-shot acoustic enrollment, Vosk recognition and offline Android TTS | Compatible edition, microphone access and explicitly installed speech/voice assets |
+| Media generation | Independently configured image, video and music jobs with persistent cards | A selected supported media provider/model and account access |
+| App interoperability | OmniLink capability discovery, receiver-enforced trust and bounded context exchange | Compatible apps, verified identity and the required local consent |
+| External tools | MCP clients and configured service integrations | A reachable server/account and applicable tool permissions |
+| Device operations | Supported Accessibility, intents, notifications, terminal and privileged backends | Edition eligibility plus actual Android/backend authorization |
 
-### رحلة مهمة نموذجيّة
+### Example workflows
 
-1. يختار المستخدم وضعًا أو يتركه `AUTO`، فتقرأ الواجهة الرسالة مع إعدادات النموذج والجلسة.
-2. يصنف `IntentClassifier` قصد السؤال أو التنفيذ؛ يحافظ المسار على اختيار المستخدم وسياسة التحويل.
-3. في `AGENT`، يبني `AgentPipeline` الخطوة التالية ويطلب تعريفات الأدوات المناسبة للسياق؛ في `SWARM` يوزع `SwarmOrchestrator` الأجزاء التي تسمح بخطة عملية.
-4. قبل تنفيذ أداة، تُطبَّق حدود النسخة والصلاحية والنطاق وسياسة التأكيد. تُعاد نتيجة محدودة الحجم إلى الوكيل ثم تُضغط عند الحاجة.
-5. تحفظ الجلسة والأحداث المسموح بها محليًا، ويمكن ربط النتيجة بصورة المهمة لتغذية القرار لاحقًا؛ النتيجة غير المتحققة تعطى وزنًا أضعف.
+**Understand a project:** select a local repository as Target Context, index it, ask where a behavior is implemented, inspect the retrieved file references and request a scoped change in Agent mode. Source retrieval reduces how much unrelated code must be sent to the model; it does not replace reading the implementation or running checks.
 
-طريق التنفيذ يتغير حسب الأداة والنسخة وحالة الجهاز. أسماء الدوال في هذا المسار موجودة في `domain/engine/`, `data/tools/`, و`core/policy/`، وليس المقصود أن كل رسالة تستدعي جميع هذه الطبقات بالترتيب نفسه.
+**Investigate several independent problems:** use Team mode when separate components can be examined independently. Read workers can run concurrently. Mutations and tools whose effects are unknown are serialized under the runtime's policy.
 
-وجود مدير أداة في المصدر **لا يعني** أن كل أداة متاحة في كل نسخة، جهاز، حساب، أو جلسة. `TierToolGate` والسياسات وفحوصات التشغيل يحددون الإتاحة الفعلية؛ العدد الظاهر للأدوات يتغير حسب السياق، لذا لا نضع رقمًا ثابتًا غير قابل للتحقق.
+**Continue a task while it runs:** send a follow-up such as “Use Kotlin instead” or “Also verify the Arabic layout.” The existing task retains completed work and execution evidence while the remaining plan is revised.
 
-## المساعد العائم على الشاشة
+**Reuse a demonstrated action:** teach or capture a task, review its selectors and expected outcomes, approve the recipe, then run it by its exact trigger or the local Run control. Fully supported recipe steps need no language-model request. Uncertain steps pause for help.
 
-من **AI Settings → Omni on your screen → Set up assistant** اختار Omni كمساعد رقمي افتراضي، واسمح بمحتوى الشاشة ولقطات الشاشة في إعدادات Android. زر الإعداد يستخدم طلب دور المساعد مع متابعة النتيجة وبدائل إعدادات Android لو واجهة الشركة رفضته أو لم تدعمه. ضغطة Home المطوّلة أو إيماءة المساعد تفتح كارت عائم بأيقونة OmniDev فوق التطبيق الحالي.
+**Generate media:** enable the desired media type in Model Selection and request it from Chat, Agent or Team. The generated file belongs to the originating conversation, with an explicit job state rather than a simulated completed output.
 
-المساعد يستخدم **وضع AGENT ونموذج الوكيل وأدواته**، مع نفس عارض رسائل الشات والـMarkdown والكونسول. مسار Activity يعرض مراحل التنفيذ واستدعاءات الأدوات ونتائجها بتوقيتاتها الحقيقية. طلب كتابة بيانات صريح يسمح بالإدخال العادي؛ في Norm وPro الطلبات التفسيرية أو الأفعال غير المحددة تعرض زر موافقة قبل التنفيذ؛ OEM وAdmin يتبعان سياسة الموافقة التلقائية مع التدقيق. Lite يستخدم أدوات البحث والذاكرة والمرفقات دون تحكم مباشر في التطبيقات. صلاحيات Android وحدود النسخة وإعدادات الأدوات تظل سارية.
+**Ask from another app:** invoke Omni through Android's assistant gesture or a launcher question handoff. Public launcher input becomes a draft; privileged connected-app operations use a separate authenticated capability path.
 
-زر **+** يفتح خيارات الإرفاق داخل الكارت؛ منتقي الملفات والصور والفيديوهات يرجع للمحادثة العائمة دون فتح الشات الرئيسي، وإدخال مسار الملف والموافقات يظهران داخل نفس نافذة المساعد لتجنب `BadTokenException`. أيقونة الدرع تفتح **Device access** لتجهيز الصلاحيات ومراجعة حالة الوصول، ثم تعيدك إلى المحادثة الحالية. الصور تستخدم نموذجًا يدعم الرؤية؛ الأنواع غير المدعومة تُرفق بمسارات حقيقية للأدوات دون ادعاء تحليل فيديو كامل. في النسخ التي تدعم التحكم في التطبيقات، زر **−** يصغّر المساعد إلى كورة OmniDev قابلة للسحب تحتاج صلاحية الظهور فوق التطبيقات. التصغير ينتظر تأكيد اتصال الكورة بالشاشة، ويرفض تنفيذ الإيماءات لو فشلت أو انفصلت. التوسيع يتوقف أثناء التنفيذ أو انتظار الموافقة حتى لا تختفي أزرار القرار. الضغط عليها يكمل المحادثة الحالية. كل استدعاء جديد يبدأ محادثة جديدة، بينما المحادثات السابقة ونتائج التنفيذ تظل محفوظة في هيستوري التطبيق.
+## Quick start
 
-الصوت يستخدم لغة الجهاز ومحركات خارجية مع بدائل ورسائل أخطاء محددة، وإدخال الصوت من النظام إذا فشل المحرك الداخلي. لقطة الشاشة من `VoiceInteractionSession` تخص الجزء الظاهر عند الاستدعاء، والتطبيقات المحمية قد تمنعها. تفاصيل التنفيذ وحدود التشغيل وفحوصات الجهاز في [دليل المساعد](docs/SCREEN_ASSISTANT.md).
+### 1. Obtain a suitable build
 
-## تعليم المهام وتشغيلها محليًا
+Use APK artifacts from a completed [Android CI run](https://github.com/obieda-hussien/OmniDev-Workspace/actions/workflows/android-ci.yml), or [build your selected edition](#build-from-source). Check the revision, edition and signing identity before installing. CI artifacts and a published release are different distribution surfaces; this README does not promise a store listing or a continuously available packaged release.
 
-من **Settings → Agent Skills → Learned tasks** يمكن مراجعة مهام تعلّمها الوكيل، تعليم مهمة مباشرة من تفاعلات الشاشة، أو استيراد فيديو لعرض لقطات ومساعدة نموذج يدعم الصور في تفسيرها مرة واحدة. المهمة تتحفظ كمسودة غير مفعّلة؛ المستخدم يراجع الأهداف والمدخلات والنتائج ثم يفعّلها.
+The minimum declared Android version is **Android 7.0 / API 24**. The current compile and target SDK are **36**. Features introduced by newer Android versions remain conditional. Lite and Standard target `arm64-v8a`; native-enabled editions also include `x86_64` in the build configuration. Consult [the edition matrix](#editions-and-capability-policy) before choosing an APK.
 
-التشغيل المعتاد يستخدم وصف المهمة المحفوظ وعناصر الواجهة الحالية، ويمكن أن يستهلك **صفر توكينز للنموذج**. يدعم جمل تشغيل محددة ومعاملات متغيرة مثل `Search for {{query}}`، وأهدافًا دلالية تتحمل تغيير موضع الزر، وفتح التطبيقات وقدرات OmniLink المثبتة على امتداد محدد. عند قرار، أو اختفاء/تكرار هدف، أو نتيجة غير مؤكدة، يحفظ مكانه ويقف للتدخل اليدوي أو طلب مساعدة الوكيل للخطوة الحالية. زر إيقاف وتولي المهمة متاح أيضًا في المساعد العائم.
+Admin is an internal developer testing identity and is excluded from public APK artifact delivery. OEM is intended for properly provisioned system integration; sideloading an OEM APK does not grant system privileges.
 
-الفيديو ليس سجل إجراءات دقيقًا: الاستيراد يأخذ ثماني لقطات من مقطع حتى خمس دقائق، والخطوات تبدأ كنقاط قرار للمراجعة. التعلم هنا يبني وصفات تنفيذ؛ لا يدرب أوزان نموذج. الأدوات غير المدعومة وعمليات shell تبقى خطوات تحتاج الوكيل، وجميع بوابات الصلاحيات والتأكيد الحالية مستمرة. راجع [دليل المهام المتعلّمة وحدودها والتحقق منها](docs/LEARNED_TASKS.md).
+### 2. Configure a text provider
 
-## البنية ومسار الطلب
+Open the **Providers** screen, configure the relevant API key or supported account connection, refresh its catalog when appropriate and choose text models in **Model Selection**. Custom OpenAI-compatible servers need an explicit base URL. GitHub Copilot/Models credentials and **GitHub Agent Access** serve separate purposes.
+
+A configured key does not prove that every listed model is accessible. Check the provider/account, selected model, quota and capability metadata if a request fails. Remote model usage is billed and governed by that provider; the application does not include an API subscription.
+
+### 3. Start with a small task
+
+Use Chat for an explanation. For a file or device task, select Agent and establish a concrete Target Context where applicable. Enable the tools required for the task and inspect any action preview before approval. Team is useful for independent work rather than automatically preferable for every request.
+
+A useful initial repository question is:
+
+```text
+Inspect this project and explain its entry points. Cite the files you actually read.
+Do not modify anything yet.
+```
+
+After reviewing the evidence, request a specific change and the relevant verification. Avoid interpreting a fluent answer or a green tool-discovery result as proof that a mutation succeeded.
+
+### 4. Enable optional capabilities deliberately
+
+| Goal | Setup surface | First check |
+|---|---|---|
+| Generate images/video/music | Settings → Model Selection → Media generation | The individual type is enabled and its selected account/model is usable |
+| Use Omni over another app | AI Settings → Omni on your screen | Omni is selected as the default Android digital assistant |
+| Read/control the visible UI | Device access | Supported edition and connected Accessibility service |
+| Use a restoration bubble | Screen-assistant/device access settings | Overlay access and successful bubble attachment |
+| Use a local wake phrase | Voice activation | Enrollment completes, microphone access is present and listening is explicitly started |
+| Speak and hear local commands | Voice activation | A local recognition model and offline Android TTS voice are installed |
+| Replay a learned task | Settings → Agent Skills → Learned tasks | Recipe reviewed, approved and enabled |
+| Access GitHub repositories | Integrations & Linked Accounts → GitHub Agent Access | Separate repository credentials and the intended read/write mode |
+| Connect an Omni app | OmniLink integration/settings | Compatible app, verified signer and receiver consent |
+| Receive Telegram requests | Telegram integration | A paired private owner chat and foreground listener |
+| Run a local WhatsApp bridge | WhatsApp Bridge integration | Same-phone loopback bridge, bearer key and linked own-account chat |
+
+The exact wording of navigation labels may evolve. The linked feature guides explain prerequisites and implementation boundaries in greater detail.
+
+## Editions and capability policy
+
+The Android application has one Gradle module, `:app`, and five product flavors in the `tier` dimension. Shared packages under `core/`, `domain/`, `data/` and `ui/` are application architecture layers, not separate Gradle modules.
+
+| Flavor | Display name | Application ID | Intended use |
+|---|---|---|---|
+| `lite` | OmniDev Lite | `com.omnidev.workspace` | Reduced device access, conversation, retrieval and supported knowledge/media tools |
+| `norm` | OmniDev Standard | `com.omnidev.workspace.norm` | Ordinary device assistance with Accessibility and terminal tooling |
+| `pro` | OmniDev Pro | `com.omnidev.workspace.pro` | Privileged tooling, local inference and advanced authorized workflows |
+| `oem` | OmniDev OEM | `com.omnidev.workspace.oem` | Provisioned OEM/system integration |
+| `admin` | OmniDev Admin | `com.omnidev.workspace.admin` | Internal broad-capability developer testing |
+
+Separate application IDs mean separate installations and app data. Installing another edition does not automatically transfer conversations, credentials or learned recipes. In particular, older Admin builds using the base package are not silently migrated into `.admin`.
+
+### Compile-time capability flags
+
+This table reflects `app/build.gradle.kts` and the `TierPolicy` contract. A **Yes** enables the application path; it does not supply the corresponding Android permission, root session, backend, entitlement or connected-app grant.
+
+| Capability | Lite | Standard | Pro | OEM | Admin |
+|---|---|---|---|---|---|
+| Root backend eligibility | No | No | Yes | No | Yes |
+| Shizuku backend eligibility | No | No | Yes | No | Yes |
+| Accessibility eligibility | No | Yes | Yes | Yes | Yes |
+| Deep-security tooling flag | No | No | Yes | No | Yes |
+| Device-admin wipe flag | No | No | Yes | No | Yes |
+| Local llama.cpp inference | No | No | Yes | Yes | Yes |
+| System-integration flag | No | No | No | Yes | Yes |
+| Automatic application confirmation | No | No | No | Yes | Yes |
+| Continuous local wake/enrollment | No | Yes | Yes | Yes | Yes |
+| Configured native ABI set | arm64 | arm64 | arm64 + x86_64 | arm64 + x86_64 | arm64 + x86_64 |
+
+Tools are additionally filtered by `TierToolGate`, chat capability preferences, assistant policy and backend checks. A family appearing in this table is not an exhaustive per-tool availability list. For example, a tool catalog can expose a definition while its own backend still refuses a disallowed or unsupported operation.
+
+Lite uses an explicit tool allowlist. Standard removes the Pro-only tool group. OEM excludes Shizuku-dependent operations and relies on properly provisioned system paths. Calls are checked again at dispatch; hiding a tool in the UI is not the only boundary.
+
+OEM/Admin automatic confirmation applies to the application's normal tier gates and is audited. It does **not** automatically grant separately authenticated lock-screen scopes, another application's local consent or operating-system access. Admin's package identity also does not make an ordinary APK a platform-signed system application.
+
+Shared flavor sources include `liteNorm/`, `proOem/` and `proOemAdmin/`; manifests can remove or override components for individual editions. The Shizuku library remains on the shared main dependency classpath, even though runtime access and manifest components are flavor-gated. Physical dependency isolation is a development direction, not a completed modularization claim.
+
+## Conversation and execution modes
+
+The UI can refer to a coordinated team as **Team**; the corresponding internal execution mode is `SWARM`.
+
+| Mode | Behavior | Suitable requests |
+|---|---|---|
+| `AUTO` | Classifies the request and chooses an execution route under switching policy | Mixed workloads where a preliminary routing choice is useful |
+| `CHAT` | Direct conversational completion, with explicitly supported and permitted auxiliary paths | Questions, explanations and ordinary discussion |
+| `AGENT` | One agent performs a bounded sequence of tool proposals and observations | Interdependent tasks, repository changes and supported device operations |
+| `SWARM` / Team | A coordinator distributes a plan and combines worker evidence | Several independent components or investigations |
+
+Chat is not the full agent loop, but it can use supported web/media paths when enabled. An Agent run is not guaranteed to call a tool on every iteration. Team adds planning and coordination overhead; more workers do not automatically improve a task that is fundamentally sequential.
+
+### Adaptive routing and local outcome learning
+
+`IntentClassifier` extracts execution, modification, verification, breadth, parallelism and domain signals. `AdaptiveModeRouter` considers these signals together with run state and practical team structure. `ModeSwitchPermissionStore` separates a recommendation from permission to switch. Explicit user selection remains important.
+
+`ModeDecisionModel` is a small local model with twelve numeric features and bounded incremental updates. `ModeOutcomeLearner` records outcomes and available latency, repetition and token evidence in local preferences. The stored decision history is not a raw prompt archive. Outcome learning influences recommendations within defined bounds rather than changing the permissions of a task.
+
+An infrastructure failure, denied access or a task requiring user input is not resolved simply by adding more agents. Sparse samples and unverified success reports are weak training evidence. This mechanism is local outcome-guided adaptation, not chat-model fine-tuning or a benchmarked guarantee of the best mode.
+
+See [Decision engine](DECISION_ENGINE.md) for feature signals, safeguards, learning boundaries and evaluation considerations.
+
+## Model providers and configuration
+
+### Text-completion paths
+
+`CompletionService` implements an Anthropic-specific message path, OpenAI-compatible completion paths, streaming handling and local execution routing. The code contains provider configurations for OpenAI, Anthropic, Gemini, xAI, DeepSeek, Mistral, Groq, Cerebras, Cohere, Together, Fireworks, Perplexity, NVIDIA, MiniMax, Vercel AI Gateway, Hugging Face, GitHub Copilot, GitHub Models, OpenRouter, ZenMux, Z.AI and a custom OpenAI-compatible endpoint, plus Local Edge.
+
+These are implemented adapter/configuration entries, not a promise of identical features or current account availability across every provider. Catalog IDs, account permissions, native tool support, vision support, reasoning controls and billing can differ. The selected provider's actual response and capability metadata govern a request.
+
+| Configuration | Purpose | Practical distinction |
+|---|---|---|
+| Provider connection | Store an API key or supported account identity | A saved credential is separate from a successful authenticated request |
+| Model catalog | Enumerate built-in or provider-returned model entries | An entry is not proof of entitlement or quota |
+| Text-model assignment | Choose conversation, agent and team-role models | Team configuration can add planner/worker costs |
+| Custom endpoint | Point an OpenAI-compatible provider at a configured base URL | Server compatibility and data handling remain the server operator's responsibility |
+| Media-model assignment | Choose independent image/video/music providers | Text/vision input support does not establish generation support |
+| Local Edge | Use the native local inference path in eligible editions | Requires a real native build, a usable model file and adequate memory |
+
+### Local inference
+
+The application integrates C++/JNI with the `llama.cpp` submodule. Lite and Standard disable the native inference build path. Pro, OEM and Admin enable local SLM eligibility and native ABIs, but still need a valid model and a successfully built native implementation.
+
+The Gradle setup attempts to initialize the submodule before a native build. If initialization fails, its fallback may compile a stub. A stub library or enabled flag is not proof that on-device inference is available. Initialize the pinned submodule explicitly for a reproducible native build, and check the produced APK and runtime.
+
+Local inference performance depends on model size, quantization, context length, ABI, CPU and available memory. This repository does not publish verified latency, memory or quality numbers for every model/device combination. Local inference and local voice are independent features: installing a Vosk speech model does not install a chat model.
+
+### Cost and credentials
+
+The application records token/cost evidence when available and exposes analytics. Providers may omit usage metadata, use different accounting, or continue billing an accepted request after local cancellation. Estimates should be distinguished from a provider invoice.
+
+GitHub Copilot/Models access is for model completion; GitHub Agent Access is for repository operations. A provider API key is not a repository permission, and a repository token is not automatically a model subscription. Changing an application preference does not enlarge a credential's service-side authorization.
+
+For a storage-focused description, read [Privacy](PRIVACY.md). Provider API keys currently use a dedicated app-private Preferences DataStore; this is **not** a blanket claim that every credential store is Keystore-encrypted.
+
+## Conversation experience
+
+### Saved sessions and evidence
+
+Conversations and messages are persisted in the local Room database. Sessions can carry source context for in-app, connected-app and messaging workflows. Message references and original text support later retrieval; a saved assistant assertion is still an assertion that should be checked against current tool or repository state.
+
+The main chat and floating assistant use separate controllers backed by shared repositories. Starting a floating conversation does not overwrite the main chat's next-message draft. A fresh assistant invocation starts a new conversation, while minimization and activity-result handoffs preserve the current invocation.
+
+### Editing and regeneration
+
+Use **Edit last message → Save & regenerate** for the latest user turn, or **Regenerate last response** for the latest answer. The replacement applies within the same saved conversation across Chat, Agent, Team and the assistant.
+
+- The current selected mode and Target Context govern the replacement execution.
+- Attachments and reply context belonging to the edited turn are retained.
+- The prior turn's responses, console activity and media outputs are replaced together.
+- A draft prepared for the next request is retained.
+- Editing is disabled while an execution or file import is active; cancelling the edit leaves the stored turn unchanged.
+- Failed generation remains an explicit failure rather than an indefinitely active replacement.
+
+Turn replacement updates the database transactionally. Late media from a superseded turn revision cannot overwrite the replacement, while unrelated earlier media jobs keep their own identity. Regeneration launches a new execution; completed file/device/service side effects do not automatically roll back and can occur again if requested again.
+
+### Reading long replies
+
+The chat follows the latest content while the user remains at the bottom. Dragging into history pauses automatic following; the jump-to-latest control resumes it. The composer accounts for keyboard insets, and saved console panels can be reopened with historical messages.
+
+Markdown, code rendering and reply lookup reuse work when their inputs have not changed. Streaming still changes text and therefore still requires rendering updates. Very large messages should be profiled on real devices rather than assumed to be free because caching exists.
+
+## Live agent follow-ups
+
+A running Agent, Team or floating-assistant task accepts text corrections through **Send follow-up**. **Stop** remains a separate cancellation control.
+
+```text
+Use the existing settings design.
+Also test portrait and landscape with the phone language set to Arabic.
+Keep the database schema unchanged.
+```
+
+The follow-up joins the current task and is saved as another user message. Received/applied indicators describe its progress. Ordered updates retain the original objective; a later correction overrides an earlier conflicting requirement.
+
+At the runtime boundary, a follow-up interrupts model generation and retry waits. Actions from an obsolete revision that have not started are skipped. Already-running tools settle under their existing timeouts; the application cannot promise to undo an external operation already accepted by a backend.
+
+Team workers share the revised instruction generation. The coordinator waits for the previous wave, retains completed-task and public tool evidence, then replans remaining work within the same logical budget. Private reasoning and partial model drafts are not carried as verified execution evidence.
+
+Current follow-ups are text-only, with per-message and per-run bounds. Remove pending attachments before sending a live correction. Local learned routines retain their own pause/resume boundary; a correction during routine execution requests a pause between steps before model continuation.
+
+See [Live agent steering](docs/LIVE_AGENT_STEERING.md) for revision sealing, persistence order, concurrency barriers and limits.
+
+## Images, video, music and attachments
+
+### Configure each generation type separately
+
+Open **Settings → Model Selection → Media generation**. Image, video and music/song generation each start **Off**. A type must be explicitly configured and enabled before its tool/worker can generate output.
+
+| Type | Implemented generation families in the current source | Controls and qualifications |
+|---|---|---|
+| Image | Gemini, OpenAI, xAI and OpenRouter models declaring image output | Supported aspect ratio, resolution, quality, format and provider-specific output options |
+| Video | Gemini Veo and xAI Grok Imagine | Supported duration/resolution/aspect ratio; audio where supported |
+| Music/song | Gemini Lyria and the MiniMax music account path | Vocals/instrumental, lyrics, language, style and supported format; timing/tempo can be prompt guidance |
+
+The detailed feature guide records the currently implemented model families and contracts. Catalog suggestions do not guarantee provider access, and the application does not claim every model accepting image/video input can create images/video. Provider availability and billing must be checked for the actual configured account.
+
+Each media type stores defaults, creative direction, content to avoid, permitted chat overrides, readiness announcement preferences and optional device saving. Jobs snapshot settings at creation; later configuration changes affect new jobs. The agent cannot silently enable a disabled type or switch to another selected account.
+
+Disabling a type cancels pending local jobs for that type. Removing a provider key does not authorize fallback to another provider. A remote job already accepted by a service can still consume quota after local cancellation.
+
+### Persistent job lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Queued
+    Queued --> Generating: Worker claims request
+    Queued --> Failed: Queue expires
+    Generating --> Waiting: Remote operation accepted
+    Waiting --> Downloading: Output available
+    Generating --> Downloading: Immediate output
+    Downloading --> Completed: File committed
+    Generating --> Failed: Request fails
+    Waiting --> Failed: Polling cannot continue
+    Downloading --> Failed: Transfer fails
+    Queued --> Cancelled
+    Generating --> Cancelled
+    Waiting --> Cancelled
+    Downloading --> Cancelled
+    Completed --> [*]
+    Cancelled --> [*]
+    Failed --> [*]
+```
+
+A persistent job and its conversation card are created together with a usable request identity. WorkManager submits, polls where applicable, downloads within bounds and commits a complete file before the card becomes playable. A readiness or terminal-failure message is inserted once into the originating conversation. Deleted conversations are not recreated by late delivery.
+
+Provider operation IDs are persisted for supported video jobs so status checks can resume without a second creation request. **Check existing job** checks a known remote operation. It is different from submitting a new billable request.
+
+Unexpected exceptions, access/quota problems, invalid responses, worker interruption, missing files and stale scheduling are represented by curated terminal or recoverable job states. Raw provider response bodies and arbitrary exception strings are not presented as user diagnostics.
+
+Interactive scheduling uses expedited work with a quota fallback. A visible request that has remained unstarted for more than five minutes can enter `QUEUE_TIMEOUT`; **Start now** restarts the local queued request under its retained identity. Requests with an uncertain already-submitted outcome are not automatically recreated through that action.
+
+### Live presentation and playback
+
+Active cards use type-specific decorative motion: image sheets, a moving video film strip, or a music equalizer and rings. The animation communicates activity; it is not generated preview content or an invented percentage. Reduced-motion settings freeze the scene, and compact devices use fewer primitives and a lower animation rate. Frame updates stop with the foreground lifecycle.
+
+Cards appear beneath the current or saved run console. Images use sampled previews and a full-screen zoom/pan viewer. Videos open with explicit platform playback controls and visible codec errors. Audio supports play/pause, seeking, duration and stop, with a shared playback owner preventing overlapping chat audio.
+
+### Import, save and share
+
+Imported attachment files are copied into app storage so a temporary picker grant does not become the sole long-term file reference. A stored or previewable video does not establish that the selected text model can understand it. Model-bound image payloads are limited independently from file storage and display.
+
+Supported readable file references include shared storage and the app's designated media/assistant attachment directories. Private credential data is excluded from automatic rendering/export. Public HTTPS media retrieval has bounded sizes and redirects, private-network checks and separate credential-free download handling.
+
+On Android 10 and later, device saving uses pending MediaStore entries that are published only after a complete copy. Older Android uses a document picker. Sharing uses scoped FileProvider paths and temporary read grants. Optional generated-file saving targets Pictures/Omni, Movies/Omni and Music/Omni; a save failure preserves the conversation file for manual retry.
+
+Read [Chat media and unlock recovery](docs/CHAT_MEDIA_AND_UNLOCK_RECOVERY.md) for provider controls, recovery semantics, output delivery and device acceptance checks.
+
+## On-screen assistant
+
+### Invocation and sessions
+
+Select Omni as Android's default digital assistant and invoke the supported Home/assistant gesture. The native `VoiceInteractionSession` hosts a floating card above the current application. A supported optional bubble can minimize and restore the current session when overlay access is available.
+
+The assistant shares the conversation renderer and agent execution stack, while using an app-private default file scope and assistant-specific policy. It receives a current access snapshot so missing prerequisites can be surfaced without guessing.
+
+| Interaction | Behavior |
+|---|---|
+| New Home/assistant invocation | Start a new assistant conversation |
+| Minimize to bubble and restore | Continue the same assistant invocation |
+| File, voice or permission activity handoff | Retain session state and reject results belonging to an older invocation |
+| Open a setup page | Preserve the running session while Android handles the user action |
+| Submit a live correction | Continue the active task through the same steering path |
+| Close explicitly | Cancel/close the current interaction under its normal lifecycle |
+
+### Screen context and action approval
+
+Screenshots, selected images, files and semantic Accessibility observations can provide evidence. They do not grant authority to perform unrelated actions. Android or another application's protected-window policy can prevent captures or hide overlays.
+
+The action guard combines the current request, edition policy, tool settings, visible window state and action approval. Lite provides attached-context assistance without live UI control or the restoration bubble. Standard allows ordinary Accessibility assistance; Pro adds permitted privileged backends. OEM/Admin use their existing audited automatic application gates when the underlying capability is actually available.
+
+The native assistant window is service-hosted. Attachment choices and action confirmation therefore render in its existing panel, avoiding assumptions about an Activity dialog token. A proposed file patch can expose its diff before approval. A successful request to start a bubble service does not itself prove that a bubble attached; execution waits for the attachment acknowledgment and checks the visible restoration path.
+
+### Assistant lifecycle boundaries
+
+The assistant looks through its own window to observe the target application rather than treating its own composer as the target. Activity-result bridges carry the current conversation generation. Missing handlers, rejected windows and failed bubble startup produce actionable results instead of silently authorizing actions.
+
+Normal assistant conversation captures and private credential entry have different visibility rules. While locked, the private panel does not expose prior messages, attachments or console history. See [Screen assistant](docs/SCREEN_ASSISTANT.md) and [Floating assistant design](docs/floating-assistant-design.md).
+
+## Hi Omni and local voice
+
+### Enrollment and listening
+
+Available in Standard, Pro, OEM and Admin. Lite excludes continuous microphone listening and the wake enrollment Activity, while retaining its ordinary assistant gesture path.
+
+1. Open **Voice activation** under the screen-assistant settings.
+2. Select Omni as the Android digital assistant and grant microphone access. Enable notification visibility for listening controls.
+3. Keep **Hi Omni** or save a short custom phrase.
+4. Record five positive examples of that phrase and two different short negative phrases.
+5. Complete a fresh held-out validation recording. A successful flow ends at **Wake phrase ready**.
+6. Start listening explicitly from the foreground settings page. Stop through settings or the persistent notification.
+7. If wanted, enable local voice conversation, install the recognition language model and select an installed offline Android TTS voice.
+
+Contrast recordings are not additional wake tests; they must differ from the selected phrase. Separation errors identify a recording to replace while retaining other examples. Bounded validation failures pause with explicit retry/retraining choices rather than demanding endless recordings. A saved profile remains available during retraining until its replacement passes.
+
+Changing the phrase stops listening and replaces its acoustic profile. **Test saved wake phrase** evaluates a fresh sample without launching a conversation or retaining raw audio. Android permission grants alone neither enroll the phrase nor start listening.
+
+### What the wake engine learns
+
+The wake engine uses local 16 kHz mono PCM capture, energy-based segmentation, MFCC/delta features and bounded time-warp template matching. Five positives and two contrasts calibrate phrase separation; a separate coarse acoustic voice profile can influence matching. The validation sample is excluded from training.
+
+It is an experimental few-shot acoustic classifier. It does not fine-tune a large speech model, verify that the recording literally contains the typed words, or supply a secure voice biometric. Similar voices, recordings, changed microphone distance and noise can produce failures or false matches. No measured false-accept rate or battery claim is published here.
+
+Profiles are versioned, bounded and encrypted with device-local AndroidKeyStore keys under credential-encrypted `noBackupFilesDir`. Enrollment is user-operated on an unlocked protected Activity. Raw wake recordings stay transient and are cleared after extraction/cancellation. The agent has no tool to export a profile or silently enroll/start listening.
+
+### Recognition and speech output
+
+Command and private credential recognition use **Vosk** with direct `AudioRecord` PCM. The local path does not invoke Google's recognizer startup tones. Offline Android TTS voices speak prompts and responses; a missing or network-only voice is not silently accepted as offline output.
+
+Recognition and speech alternate rather than recording over the assistant's own response. Wake capture pauses while a conversation is active and around calls, playback, consent changes and cooldowns. Ordinary unlocked dictation can still use a separately selected system voice input picker.
+
+| Recognition model configured by the application | Language | Resource considerations |
+|---|---|---|
+| `vosk-model-small-en-us-0.15` | English | Approximately 40 MB download / 71 MB installed; preferable for constrained RAM |
+| `vosk-model-ar-mgb2-0.4` | Arabic | Approximately 318 MB download / 665 MiB installed; substantially heavier |
+
+These are source-configured downloads, not weights bundled into the repository or APK. Downloading is explicit, HTTPS-only, size-bounded and SHA-256 verified. Each language has a separate durable install. Staged replacement and resumable transfer preserve the prior valid installation. Arabic dialect and spelling quality still require device-specific evaluation.
+
+### Android lifecycle
+
+Listening uses a microphone foreground service with visible Stop controls. It is non-sticky: a reboot, force-stop or terminated service does not trigger a hidden automatic restart. Start it again from settings after unlock. Continuous software listening consumes battery and is not a hardware DSP hotword implementation.
+
+Microphone privacy switches, while-in-use restrictions, assistant-role changes and OEM battery management can block capture or invocation. A native assistant invocation is preferred; a detected-phrase notification offers the supported fallback when the service is unavailable.
+
+The chosen chat model remains separate from recognition. An ordinary spoken request can reach a remote completion provider after unlock if that is the selected model; “local voice” does not mean the entire assistant request is always offline.
+
+See [Hi Omni local wake](docs/HI_OMNI_LOCAL_WAKE.md) for enrollment algorithms, model integrity checks, exact lifecycle limits and physical-device verification.
+
+## Device access and lock-screen behavior
+
+### Device access center
+
+The access center discovers declarations in the installed merged manifest, reads actual grant state and exposes ordinary permissions, special access and available execution backends. Its bulk setup route coordinates applicable requests rather than assuming a fixed number of permissions can be granted on every Android device.
+
+| Access class | Typical setup | Why it is separate |
+|---|---|---|
+| Runtime permission | Foreground Android permission dialog | Depends on OS version, declaration and current grant state |
+| Special app access | Dedicated Android settings page | Overlay, all-files, notification, DND or similar access is not a normal permission batch |
+| Accessibility | User enables the exact service | Required for eligible semantic UI operations |
+| Input method | User selects/enables the application input path | An app cannot treat registration as activation |
+| Shizuku | Running Shizuku and approved application access | Shell-identity backend, independent from root |
+| Root | Available and authorized `su` backend | Root is not obtained by selecting Pro/Admin |
+| System entitlement | Correct provisioning/signing/installation | An OEM package name does not create platform authority |
+| Device/Profile Owner | Android-managed provisioning | Device administrator and owner roles have different privileges |
+| Sensitive lock-screen scope | Explanation plus Android identity confirmation | Separately authenticated consent, disabled by default |
+
+`PermissionRequestPlan` handles version-aware batching and background prerequisites. `DeviceAccessCatalog` examines installed components and service matches. Allowlisted own-app AppOps and privileged grants are read back after changes; an attempted command is not evidence that a grant succeeded.
+
+A large manifest includes optional, privileged and API-specific declarations. Their presence does not establish implemented data collection or permit Android to grant signature permissions to an ordinary app. For example, the access center does not itself implement a Health Connect record reader or companion-device pairing merely because related access can be described.
+
+### Separate lock-screen scopes
+
+Lock-screen/sensitive scopes start disabled. Enable them through Device access with local explanation and Android identity confirmation. Revocation takes effect immediately; revoking all also deletes the locally saved PIN.
+
+| Scope | Supported purpose | Important boundary |
+|---|---|---|
+| Wake the screen | Ask Android to turn on the display and verify interactive state | Display wake does not authenticate the user |
+| Request Android unlock | Present native authentication and verify keyguard state | Android remains the credential authority |
+| Assistant on lock screen | Show the private native/translucent assistant host | Existing conversation content stays hidden |
+| Inspect lock screen | Observe permitted semantic controls | Raw dumps, screenshots and general credential readers are blocked while locked |
+| Operate sensitive Settings | Supported observations/interactions with Android Settings | Protected-window and credential restrictions remain |
+| Use a saved local PIN | Admin-only encrypted local vault and explicitly selected permit | Supported genuine SystemUI PIN controls; no guessing or arbitrary shell input |
+| Enter spoken code locally | Offline PIN, spelled password or numbered pattern with explicit confirmation | One supported native submission; no transcript or cloud credential fallback |
+
+### Unlock routing and authorization duration
+
+`device_admin(action=request_unlock)` chooses one authentication route: an authorized saved PIN, a configured private voice session, private local code entry where permitted, or Android's native prompt. A failed selected credential attempt does not cascade into another credential attempt.
+
+The saved-PIN vault supports a **15-minute one-shot permit** or **remembered authorization until revoked**. Failed or interrupted remembered input pauses further attempts until the user resumes authorization. Remembered authorization is tied to the installation and device-local encrypted storage; removing the PIN, clearing app data or uninstalling revokes that local state.
+
+Private voice/local entry keeps codes out of chat, model arguments, tool output, clipboard and learned tasks. A spoken PIN is not voice biometric authentication; anyone hearing or replaying it can possess the credential. Unsupported keypads or low-confidence recognition require user handoff. Android's actual unlocked state establishes success, even when native callbacks arrive in a different order.
+
+### Screen wake and platform limits
+
+With the relevant consent, a lock-screen assistant/authentication session holds the display for up to **120 seconds** using a monotonic lease. Host changes and recreation preserve the original deadline. Explicit screen-off, unlock, close or revoked grants release it.
+
+Root, Shizuku, Device Admin and a matching application signer do not invent a missing lock credential. First unlock after reboot is controlled by Android; credential-encrypted application data is unavailable beforehand. Protected system pages can hide overlays, and OEM keypads can differ from supported native controls. Physical keyguard testing is still required for the intended phone.
+
+Read [Device access](DEVICE_ACCESS.md), [Device lock access](docs/DEVICE_LOCK_ACCESS.md) and [Private unlock recovery](docs/CHAT_MEDIA_AND_UNLOCK_RECOVERY.md).
+
+## Learned tasks and reusable skills
+
+### Three distinct mechanisms
+
+| Mechanism | What it stores | Model use |
+|---|---|---|
+| Prompt skill / `SKILL.md` | Guidance for a model's task behavior | Usually interpreted by a model |
+| Task manager/todo item | A tracked task description/state | Not itself an executable recipe |
+| Learned task | Reviewed, versioned actions/selectors and decision checkpoints | Local replay needs no model; interpretation/help can use a model |
+
+Learning compiles a reusable recipe rather than changing model weights. Old process-local coordinate macros are different from durable learned tasks.
+
+### Teach, review and approve
+
+Open **Settings → Agent Skills → Learned tasks**. Drafts can originate from completed agent activity, a live demonstration or sampled video evidence. Agent capture can be disabled. New drafts do not enable themselves; a final assistant answer is not sufficient proof that every captured step succeeded.
+
+Live teaching records semantic UI identities in the target application, with explicit notification/assistant controls to save, discard or insert a decision. Captured editable content becomes a runtime parameter. Credential, OTP and payment-like fields require user handoff rather than copying private values into a recipe.
+
+Video import samples eight frames from a clip of up to five minutes. Local import, editing and sampling do not call a model. **Interpret samples with Omni** explicitly sends selected samples to the chosen vision-capable model and can incur usage. Video pixels alone do not prove every intermediate action or stable view ID, so imported steps begin as decision checkpoints.
+
+Review allows editing trigger phrases, action kinds, target package, text/accessibility label/view ID, runtime inputs and expected-result identity. Approve and enable only after the recipe describes what should actually happen.
+
+### Exact triggers and local replay
+
+A trigger such as `Search for {{query}}` can bind a variable, provided the recipe's input step uses the same parameter. Ambiguous or unmatched wording goes through ordinary routing rather than selecting a guessed recipe.
+
+The local fast path runs before provider resolution, API-key loading, memory retrieval and prompt compilation. Explicit local Run also bypasses the completion provider. **A fully local approved replay makes zero language-model requests and uses zero model tokens.** Tool/backend network traffic and external service usage can still occur; this is not a promise that every operation is offline or free.
+
+Every action freshly resolves package-scoped selectors. Multiple matches are ambiguous; transient node IDs and raw coordinates are not durable targets. A moved semantic control can remain addressable, while inaccessible canvas UI or an application redesign can invalidate the recipe.
+
+Supported replay includes conservative semantic actions/observations, app launch and explicitly pinned OmniLink capabilities. Arbitrary scripts, destructive app management, browser mutations and unsupported tools remain decisions. Current edition, device permission and connected-app grants are checked again during replay.
+
+### Pause, verify and resume
+
+A checkpoint is saved before a mutation. Process interruption restores unfinished work as paused; uncertain effects are not blindly repeated. Parameter values remain transient and must be re-entered after process restart. Recipe revision changes invalidate old cursors.
+
+Missing/ambiguous targets, unknown outcomes and failed steps preserve a checkpoint. **Help with step / Ask Omni** supplies that cursor and current instructions so the model can inspect state instead of restarting the entire task. Expected results must be observed before agent-assisted progression; explicit user takeover is a separate reviewed action.
+
+Only one local runner controls the screen at a time. Recipe deletion removes related checkpoints/video evidence. A demonstration not yet saved remains process-local and must be repeated if interrupted.
+
+See [Learned tasks](docs/LEARNED_TASKS.md) and the `data/routines/` implementation for storage, matching, replay boundaries and teaching controls.
+
+## Architecture and request lifecycle
+
+### Current application structure
 
 ```mermaid
 flowchart TD
-    UI["واجهة Compose"] --> VM["ChatViewModel"]
-    VM --> R["تصنيف المهمة وتحديد الوضع"]
-    R --> C["CHAT: إجابة مباشرة"]
-    R --> A["AGENT: AgentPipeline"]
-    R --> S["SWARM: SwarmOrchestrator"]
-    A --> T["الأدوات والسياسات"]
-    S --> T
-    T --> D["Room والملفات والجهاز والتكاملات"]
+    UI["Compose surfaces and ChatViewModel"] --> Runtime["WorkspaceChatRuntime"]
+    Runtime --> Route["Mode selection and context"]
+    Route --> Chat["Direct completion"]
+    Route --> Agent["AgentPipeline"]
+    Route --> Team["SwarmOrchestrator"]
+    Agent --> Tools["Validated tool execution"]
+    Team --> Tools
+    Tools --> Policy["Tier, scope and consent checks"]
+    Policy --> Local["Files, Android and local data"]
+    Policy --> Connected["OmniLink and MCP"]
+    Chat --> Models["CompletionService / local inference"]
+    Agent --> Models
+    Team --> Models
+    Local --> Storage["Room and app-private storage"]
 ```
 
-| الطبقة | مواقع مهمة | المسؤولية |
+The graph summarizes responsibilities rather than a fixed sequence for every request. Media workers, local routines and activity-result continuations have their own lifecycles and may continue outside a single model call.
+
+| Layer | Primary package/root | Responsibility |
 |---|---|---|
-| واجهة التطبيق | `app/src/main/java/com/omnidev/workspace/ui/`, `MainActivity.kt` | شاشات Compose، أحداث التنفيذ والإعدادات |
-| مجال التنفيذ | `domain/engine/` | الأوضاع، القرار، سير الوكيل، الميزانيات والضغط |
-| الأدوات | `data/tools/`, `core/tools/` | تعريفات الأدوات، التوجيه، التنفيذ والحواجز |
-| البيانات | `data/db/`, `data/repo/`, `data/repository/` | Room، فهرس الرموز واسترجاع السياق |
-| سياسة النسخ | `core/policy/`, `core/privileged/`, مصادر `app/src/<flavor>/` | تقييد القدرات والموافقات وعزل المسارات المميزة |
-| الشبكة والنماذج | `data/network/`, `data/model/`, `registry/` | مزودو الاستكمال، النماذج وتحضير سياقها |
+| UI | `ui/` | Conversation, settings, providers, assistant, memory, analytics and browser surfaces |
+| Application graph | `OmniDevApp`, `WorkspaceChatRuntime` | Service composition, runtime construction and policy installation |
+| Engine | `domain/engine/` | Routing, single-agent/team execution, budgets, compression and recovery |
+| Tool implementation | `data/tools/`, `core/tools/` | Schemas, dispatch, backend results and execution semantics |
+| Policy | `core/policy/`, `core/privileged/` | Edition capability and privileged execution boundaries |
+| Models/network | `data/model/`, `data/network/`, `registry/` | Provider configuration, model metadata and completion transport |
+| Local context | `data/repo/`, `data/brain/`, `data/routines/` | Repository retrieval, knowledge and reusable execution |
+| Storage | `data/db/`, `data/repository/` | Room records, settings and credentials |
+| Interoperability | `data/ipc/`, `data/mcp/`, `data/integration/` | Connected applications, external tools and services |
+| Native | `app/src/main/cpp/` | JNI/C++ local inference and pinned llama.cpp integration |
 
-هيكل Gradle الحالي **وحدة `:app` واحدة بخمس نسخ**؛ الرسم المستهدف لوحدات `:core:*` و`:tools:*` في [خطة التفكيك](MODULARIZATION_ROADMAP.md) لم يُنفذ بعد. [المعمارية التفصيلية](PROJECT_ARCHITECTURE.md) تربط المسارات ببعضها.
+### A typical agent request
 
-### دليل التنقل في شجرة المشروع
+1. The user selects a mode, model, scope and allowed capabilities, then submits the message and supported attachments.
+2. The conversation controller establishes the run identity and checks local learned-task matching when applicable.
+3. The runtime assembles bounded original history, relevant knowledge/repository excerpts, model settings and permitted tool contracts.
+4. The completion provider returns a proposed action or answer. Native and explicit text-protocol tool proposals enter the same validation boundary.
+5. The runtime validates the complete batch, checks edition/scope/backend/consent and executes permitted operations with effect-aware ordering.
+6. Tool observations return with bounded output and explicit outcome semantics. Discovery alone is not task completion.
+7. The run continues within iteration/time/token limits, responds to live steering, or pauses for user access/verification when required.
+8. The final response, permitted console evidence and usage records are saved into the originating conversation. Persistent media and checkpoint work keep their independent identities.
 
-| المسار من الجذر | ماذا ستجد | سؤال شائع |
+Repository access, screen access and provider access remain separate at every stage. A tool can be schema-valid and still fail because the backend is missing; a backend can return success while the requested business outcome still needs verification.
+
+The application has historical architecture/specification files describing possible future modules. `settings.gradle.kts` currently includes only `:app`. See [Project architecture](PROJECT_ARCHITECTURE.md), [Project files](docs/PROJECT_FILES.md) and [Modularization roadmap](MODULARIZATION_ROADMAP.md).
+
+## Tool discovery and execution contracts
+
+### Bounded real-tool discovery
+
+`RunToolCatalog` indexes permitted local and connected tool definitions per run. Retrieval considers names, words, descriptions, parameters and task domains, with bounded historical-quality guidance. Exact names dominate; unavailable tools are excluded before indexing.
+
+Agent starts with at most **24 operation schemas plus `discover_tools`**. The runtime refreshes a bounded relevant set before model requests; it does not rely entirely on the model knowing to ask for discovery. At most **40 operation schemas** remain loaded. Manual discovery returns real definitions for a later request and never executes the matches.
+
+The automatic router has a limited recovery budget for missing/unexposed proposals. It supplies current definitions and requires a new proposal. It does not silently repair arguments, redirect an invented name or retry a failed mutation.
+
+### Preflight and whole-batch validation
+
+`ToolCallPreflight` checks exact tool identity, parameter keys, required arguments, types, declared enums and action-dependent requirements. `ToolArgumentCodec` preserves malformed transport input instead of quietly turning invalid JSON into an empty argument object.
+
+`ValidatedToolBatchExecutor` validates the entire proposed batch before any dispatcher runs. One invalid or unauthorized call blocks the batch. IDs must be nonempty and unique; duplicate mutations are rejected. The batch is limited to eight calls, with up to four independent reads in flight.
+
+Equivalent reads can share a result within that batch. A mutation invalidates this reuse so subsequent verification sees fresh state. Unknown effects, including arbitrary MCP tools without trusted metadata, are serialized. Following a sequential failure, later mutations need new observation/planning rather than running through a stale plan.
+
+Repeated malformed batches stop the run. A final success claim after an unresolved execution failure is treated as unverified. This reduces executable-contract errors; it does not prove that every schema-valid call reflects the user's intention.
+
+### Models without native tool calling
+
+An eligible text-only/local model can propose one explicit whole-response envelope:
+
+```json
+{"omni_tool_call":{"name":"discover_tools","arguments":{"query":"read a project file"}}}
+```
+
+Alternatively, an explicit operation intent can request lexical matching against permitted real definitions:
+
+```json
+{"omni_operation":{"intent":"Search messages","arguments":{"query":"build failure"}}}
+```
+
+Ordinary prose, embedded examples and arbitrary JSON are not scanned as commands. Weak matches, ties, missing definitions or unloaded schemas produce feedback/resubmission rather than guessed execution. Native calls take precedence when present. The exact same argument validation, effect rules and authorization apply to the accepted proposal.
+
+`ToolTextProtocol` supplies current schemas as prompt text when native function calling is unavailable. Schema text still consumes context and token budget. The local flat parameter contract does not implement every nested JSON Schema feature of a remote server.
+
+### Outcome handling
+
+Tool output distinguishes a successful verified operation, a runtime/backend failure and a user-action requirement. Permission failures, authentication needs, missing capability and unknown effects are different classes of problem. Recovery should inspect current state and the actual error, not repeat the same unsupported strategy indefinitely.
+
+Read [Tool execution contract](docs/TOOL_EXECUTION_CONTRACT.md) before adding a tool, changing schema ingestion or modifying runtime recovery.
+
+## Team planning and concurrency
+
+`SwarmOrchestrator`, `TeamExecutionPolicy` and `TeamBudgetAllocator` manage coordinated execution, supported by bounded worker context and handoff compression. A team plan carries tasks and dependencies, not an unlimited instruction to parallelize every action.
+
+Parallel-safe workers receive a runtime **read-only** call guard. A planner label alone cannot authorize a write. Tasks using connected tools whose effects are unknown serialize. A read worker's attempted mutation is blocked before dispatch.
+
+After a read wave, a blocked worker may resume once serially only when the original objective actually permits mutation under the task classifier. A read-only objective cannot be promoted into modification work. Receiver/backend authorization remains required, and recovery uses the remaining logical team budget.
+
+Handoffs preserve selected completed-task and tool evidence, with bounded/redacted payloads. They do not transform a worker's guess into a verified fact. Follow-up replanning waits for the old wave and checks existing state before repeating a side effect.
+
+Use Team when separate read investigations or independent components justify coordination. Use Agent for tightly coupled edits, single-screen manipulation or a sequence whose next action depends on the result of the previous one. Measure success, latency and usage on representative tasks before treating a particular configuration as superior.
+
+## Repository context and developer tools
+
+### Select a real local scope
+
+Target Context identifies the project/file scope for developer work. Remote GitHub repository browsing and local filesystem access are different paths: knowing `owner/repo` does not mean its files are cloned or readable on the phone.
+
+`RepoIndexer` bounds file/byte/symbol work and validates scope containment. `LocalCodeRetriever` ranks local candidates using names, paths, query words and small synonym mappings. Retrieval is primarily lexical; it is not a claim of a complete embedding index over all code.
+
+| Tool | Purpose | Typical use |
 |---|---|---|
-| `app/src/main/java/com/omnidev/workspace/ui/assistant/` | نافذة المساعد، الإعداد، اختيار منطقة الشاشة ومركز الوصول | كيف أفتح الصلاحيات وأعود للمحادثة؟ |
-| `app/src/main/java/com/omnidev/workspace/data/assistant/` | حالة الجلسة، خدمة الصوت والكورة، وسياسة الأفعال | من يحافظ على المحادثة العائمة؟ |
-| `app/src/main/java/com/omnidev/workspace/ui/chat/` | الشاشة، ViewModel، أحداث وكشف الوكيل | كيف ظهرت نتيجة الأداة للمستخدم؟ |
-| `app/src/main/java/com/omnidev/workspace/domain/engine/` | القرار، Agent/Team، ميزانية التوكنز، الضغط | لماذا اختير الوضع أو توقف الدور؟ |
-| `app/src/main/java/com/omnidev/workspace/data/tools/` | مدير الأدوات وعائلاتها وسياسة الإتاحة | لماذا لم تظهر أداة أو فشل تنفيذها؟ |
-| `app/src/main/java/com/omnidev/workspace/data/repo/` | فهرسة المشروع واسترجاع مقاطع الكود | من أين جاءت مقتطفات `repo_find_context`؟ |
-| `app/src/main/java/com/omnidev/workspace/data/db/` | Room، entities، DAOs، migrations | أين يخزن الحدث أو كيف يهاجر الجدول؟ |
-| `app/src/main/java/com/omnidev/workspace/data/ipc/` | خدمات واجهات الربط والامتيازات | من يتصل بخدمة أو تطبيق خارجي؟ |
-| `app/src/main/java/com/omnidev/workspace/data/mcp/` | اتصالات وتهيئة MCP | أين تعرّف نقطة MCP؟ |
-| `app/src/main/java/com/omnidev/workspace/data/network/` | مزود الاستكمال وتهيئة endpoints | من أين يصل الرد للنموذج؟ |
-| `app/src/main/java/com/omnidev/workspace/core/` | عقود الأدوات والسياسات والتجريد المميز | أين حارس حدود النسخة؟ |
-| `app/src/test/java/` | اختبارات JVM | أين اختبار الانتقال أو الاسترجاع؟ |
-| `app/src/main/aidl/` | عقود Binder | هل التوقيع متوافق مع الطرف الآخر؟ |
-| `app/src/main/assets/agent-skills/` | مهارات مرفقة | أي تعليمات تخصصية محملة؟ |
-| `.github/workflows/` | مهام CI | ما الذي يتحقق في PR؟ |
-| `scripts/` | فحص المستودع والبيانات وإحصاء المصادر | كيف أكرر الرقم في README؟ |
+| `repo_index_scope` | Build/update file and symbol context for a scope | First exploration or substantial source changes |
+| `repo_search_symbols` | Find indexed symbols by name | Locate a known class/function |
+| `repo_find_context` | Return ranked code excerpts with path/line evidence | Explain behavior or assemble a focused change context |
+| `repo_symbols_by_kind` | Filter symbols by their kind | Explore structure |
+| `repo_file_symbols` | Inspect symbols in one file | Navigate a large implementation |
+| `repo_stats` | Describe local index coverage | Check what was indexed or skipped |
 
-خريطة الملفات التفصيلية وتصنيف الوثائق ونقاط الدخول موجودة في [دليل ملفات المشروع](docs/PROJECT_FILES.md).
+These operations require an actual `scope_path` in execution even where an older schema may mark it optional. `repo_find_context` bounds results to 1–12, defaulting to six. No match can mean stale/incomplete indexing, an unfamiliar term or omitted files; verify before claiming the code does not exist.
 
-طبقات `data/` و`domain/` و`core/` هنا أسماء حزم داخل `:app` وليست وحدات Gradle منفصلة. هذا الفارق مهم عند إضافة اعتماد جديد أو توقع وجود `:core:shared` في البناء.
+A snippet gives relevant source evidence, not proof that omitted callers or neighboring code do not matter. After changing an indexed file, refresh it or the relevant scope before relying on new retrieval results.
 
-## الأوضاع وقرارات الوكيل
+### Build diagnostics and rollback
 
-| الوضع | معناه في الكود | متى يفيد |
+The project includes Build Doctor, logcat/build diagnostics, scope-aware file tools and rollback/snapshot records. They support diagnosing and reviewing changes, but the availability of a diagnostic record does not establish that a full build ran. A rollback snapshot protects its supported local operations; it cannot reverse every device, service or external side effect.
+
+When asking an agent to fix code, specify the intended behavior, permissible files and verification. Compare the resulting diff and reported check output. A passing focused test differs from a complete APK build and from an on-device acceptance check.
+
+### Context and token controls
+
+Repository excerpts, bounded tool schemas, compact observations and team handoff compression aim to reduce unrelated model context. They preserve file/message identities where possible so the agent can request more evidence rather than receiving the entire project every turn.
+
+Compression can omit detail. A shortened result should be treated as partial and followed by a targeted read when precision matters. No universal token-saving percentage, quality uplift or cost benchmark is asserted here. Compare verified task success, provider usage and elapsed time for matched workloads.
+
+## Local Git and GitHub access
+
+### Embedded Git versus GitHub REST
+
+| Path | Implementation | Data source |
 |---|---|---|
-| `AUTO` | يصنّف الطلب ويختار أحد الأوضاع التنفيذية | عندما يريد المستخدم اختيارًا مبدئيًا آليًا |
-| `CHAT` | رد محادثة مباشر دون دورة أدوات الوكيل | أسئلة أو شرح لا يحتاج تنفيذًا |
-| `AGENT` | وكيل واحد ينفذ بأدوات وحدود تشغيل | مهمة مترابطة تحتاج قراءة أو تعديل أو تحقق |
-| `SWARM` | مخطِّط وعمال لتقسيم العمل | مهام مستقلة تسمح بتوزيع فعلي، مع تكلفة تنسيق إضافية |
+| `git_manager` | Embedded JGit | Local repository under Target Context; GitHub HTTPS remote when configured |
+| `github_manager` | Typed/bounded GitHub REST operations | Authorized GitHub repository/API resources |
+| Copilot/Models completion | Model-provider integration | Chat/model requests, separate from repository access |
 
-القرار ليس مجرد مطابقة كلمات: `IntentClassifier` يستخرج إشارات تنفيذ وتعديل وتحقق وتوازٍ واتساع ومجالات، و`AdaptiveModeRouter` يوازنها مع حالة التنفيذ وتعثره وخطة الفريق. عند وجود مهمة ذرية أو مهمتين متسلسلتين فعليًا قد يقترح الرجوع إلى Agent؛ وعند تعثر Agent مع أجزاء مستقلة قد يقترح Team. مشاكل البنية التحتية أو الإجراءات التي تحتاج المستخدم لا تُعالج تلقائيًا بإضافة وكلاء. **التوصية ليست إذنًا**: `ModeSwitchPermissionStore` يفصل السماح بالتحويل عن درجة الثقة، واختيار المستخدم الصريح له أولوية.
+Local Git supports status, diff, log, staging, commit, branch, checkout and stash without requiring a system Git executable in Termux. A commit requires a configured author or user-supplied author name/email.
 
-التعلم المحلي في `ModeOutcomeLearner` يحفظ إحصاءات نجاح/فشل/توقف، وقياسات زمن وتكرار وتوكنز *عندما تكون متاحة*. نموذج `ModeDecisionModel` صغير: **12 إشارة رقمية**، وأوزان محدودة لكل وضع، وتحديث تدريجي محدود من النتائج؛ تُخزن الأوزان وإحصاءات مجموعات المهام في `SharedPreferences` محليًا. لا يحتاج تنزيل نموذج ضخم ولا تدريبًا سحابيًا. تأثير خبرة التنفيذ على ثقة اقتراح التحويل محدود بـ **±0.12**؛ ولتغيير ترشيح Agent/Team بناءً على توقع النموذج تُطلب عينات كافية لكليهما وهامش واضح ونجاح وتكلفة مقارنان. السجل الدائري للاختيارات لا يحفظ النص الخام للطلب. هذا **تعلم تدريجي موجّه بالنتائج** وليس ضمانًا لتوقع صحيح؛ فبيانات قليلة أو غير محققة تعطي إشارة ضعيفة.
+Remote status/fetch/pull/push use the separate **GitHub Agent Access** account. Read mode permits fetch/pull; push requires application write mode and actual credential permission. Application toggles cannot expand server-side token repositories or privileges.
 
-`AgentDecisionPolicy` و`ContextCompressor` و`TeamHandoffCompressor` يحدّون حجم الملاحظات وتسليم السياق، و`ToolSchemaCompactor` يختار تعريفات أدوات مناسبة للطلب قبل إرسالها للنموذج. [شرح القرار والقياس بالتفصيل](DECISION_ENGINE.md).
+The remote path validates a real repository root and a credential-free `https://github.com/owner/repo[.git]` URL. It does not accept an arbitrary SSH/external host as a token destination. Pull is fast-forward-only. Push targets the corresponding current branch; the implementation does not silently change its destination to an unrelated branch.
 
-## الاسترجاع المحلي واقتصاد التوكنز
+### Typed repository reads
 
-`repo_find_context` يبحث في فهرس محلي لملفات المستودع والرموز ثم يعيد مقتطفات قصيرة مع مسار وأرقام سطور. `RepoIndexer` يحدّ الملفات والحجم والرموز، ويتحقق من حدود مسار النطاق عند الفهرسة؛ `LocalCodeRetriever` يرتب المرشحين بمفردات السؤال والاسم والمسار ومرادفات صغيرة. يمكن إعادة فهرسة ملف بدل إعادة المشروع كاملًا. الاسترجاع **معجمي محلي** وليس بحث embeddings شاملًا، ولذلك ينبغي التحقق من المصدر عند غموض الأسماء أو عدم ظهور نتيجة.
+`github_manager` supports typed repository metadata, repository enumeration, directory listing and file reads. Names with punctuation, such as `Omni-AndroidIDE-`, are preserved. File output uses numbered line pages and announces continuation. Omitting a ref lets GitHub resolve the repository's default branch.
 
-الهدف من مقاطع الكود، ترتيب الأدوات، الحدود على المخرجات وضغط تسليم الفريق هو تقليل السياق المرسل بلا خسارة الدليل الضروري. لا يوجد في المستودع حتى الآن قياس إنتاجي موثوق يثبت نسبة توفير توكنز أو تحسن جودة عام؛ المقارنة الصحيحة هي عدد التوكنز والزمن والنجاح المتحقق لكل مهمة قبل وبعد التغيير، وعلى أنواع مهام مختلفة.
+Repository enumeration is discovery, not evidence that its files were inspected. A per-run failed-resource ledger keeps blocked identities across unrelated successes, preventing a successful list operation from erasing a failed read's significance.
 
-استرجاع المحادثات يفصل طلب المستخدم السابق عن ادعاءات المساعد السابقة، ويستخدم `[session:ID message:ID]` مرجعًا للنص الأصلي. حذف قاعدة الجهاز أو عدم وجود الرسالة يعني عدم إمكان استعادتها. راجع [التصميم والقيود](CHAT_HISTORY_RECALL.md).
+Advanced REST requests separate endpoint and method and require explicit mutation endpoints. Host escapes, traversal and conflicting legacy/new fields are rejected. Responses are bounded; oversized transport output is not treated as a complete resource.
 
-## الأدوات والصلاحيات
+### Permission diagnostics
 
-الوكيل يبدأ بحد أقصى ٢٤ أداة مناسبة مع `discover_tools` لتحميل تعريفات إضافية عند الحاجة. الاستدعاءات تمر بتحقق من الاسم والمدخلات قبل التنفيذ؛ أي استدعاء غير صالح يوقف دفعته بالكامل. النماذج التي لا تدعم استدعاء الأدوات الأصلي تستخدم صيغة JSON محددة تخضع لنفس التحقق، ووكلاء القراءة في الفريق لا يملكون تنفيذ الكتابة أثناء التوازي. التفاصيل والاختبارات والحدود في [عقد تنفيذ الأدوات](docs/TOOL_EXECUTION_CONTRACT.md).
+A saved credential differs from verified repository access. The settings UI can test metadata/root-directory access at user request. HTTP 401, denied scope, rate limiting and missing/hidden resources have distinct guidance. A 404 alone cannot establish whether a repository is absent or hidden from the credential.
 
-افتح **Device access and permissions** من إعدادات المساعد أو أيقونة الدرع في نافذته. المركز يكتشف صلاحيات النسخة المثبتة، ويعرض حالة الوصول الفعلية، ويتيح تفعيل Accessibility والإشعارات والكيبورد والملفات والميديا وDo Not Disturb وShizuku والتحقق من الروت. طلبات الخلفية منفصلة حسب إصدار أندرويد، ووجود صلاحية في Manifest أو اسم Admin لا يعني أنها ممنوحة. تفاصيل المسارات والحدود والأوامر في [دليل الوصول والصلاحيات](DEVICE_ACCESS.md).
+If a repository read fails, check the linked Agent Access account, selected token repositories, service-side permissions and local read/write policy. Reauthorizing a model provider is not a substitute for repository authorization. The agent does not replace a token or enlarge OAuth scope on its own.
 
+See the GitHub section in [Tool execution contract](docs/TOOL_EXECUTION_CONTRACT.md#github-repository-reads).
 
-| عائلة الأدوات | مواقع أو أمثلة | حدّ مهم |
+## Memory, history and local learning
+
+### Original-message recall
+
+The history tools read locally saved originals with references such as `[session:ID message:ID]`.
+
+| Tool | Purpose |
+|---|---|
+| `list_chat_sessions` | Find/paginate sessions by title and related context |
+| `search_messages` | Rank original user/assistant messages |
+| `read_chat_session` | Page source messages from a selected session |
+| `read_chat_message` | Read a long original message in bounded chunks |
+
+A user message establishes what was requested. A previous assistant answer describes what it claimed. Neither substitutes for checking a current repository, file or tool state. Automatic recall injects bounded original excerpts for explicit past-work cues; summaries are not silently elevated into authoritative facts.
+
+Search uses bounded lexical candidates with Arabic spelling normalization and title matching. Very broad queries can miss results; use distinctive terms or inspect a selected session. Deleted or never-saved records cannot be recovered from the local archive. Connected-app/messaging contexts can be restricted to their own conversation.
+
+### Knowledge and Agent Brain
+
+The memory layer contains knowledge snippets, system observations, tool execution records, episodic records and reflexion lessons. Related tools can search, update or inspect knowledge and prior outcomes under policy. There are also local vector/knowledge-store tool paths; their existence does not make repository retrieval a fully semantic embedding search.
+
+Lessons and prior tool results can guide future execution, but their timestamps and provenance matter. An old device permission snapshot can be stale. A final answer without verification should not become strong success evidence. Local logs and analytics are user/device data, not a public dataset.
+
+### Room schema
+
+`OmniDevDatabase` currently declares **version 17**. Current entities include:
+
+| Domain | Representative records |
+|---|---|
+| Conversations | `ChatSessionEntity`, `ChatMessageEntity` |
+| Execution/environment | `ToolExecutionEntry`, `SystemKnowledgeEntry` |
+| Knowledge | `KnowledgeSnippet` |
+| Episodes/lessons | `EpisodicMemoryEntry`, `ReflexionLessonEntry` |
+| Repository index | `RepoFileIndexEntry`, `RepoSymbolEntry` |
+| Diagnostics/rollback | `BuildDiagnosticEntry`, `RollbackSnapshotEntry` |
+| Scheduling | `ScheduledTaskEntity` |
+| Connected-app memory | `SharedMemoryRecordEntity` |
+
+The source contains incremental Room migrations. Older documents mentioning “v7 Agent Brain” refer to a historical stage, not the current database version. Schema changes need updated migrations and upgrade verification. Learned-task files and media-job persistence have their own storage contracts; not every durable record is a Room entity.
+
+See [Chat history recall](CHAT_HISTORY_RECALL.md), [Project architecture](PROJECT_ARCHITECTURE.md) and [Privacy](PRIVACY.md).
+
+## OmniLink and connected applications
+
+### SDK integration and identity
+
+Workspace depends on **OmniLinkSDK v3.0.0**:
+
+```kotlin
+implementation("com.github.obieda-hussien.OmniLinkSDK:omni-link-sdk:v3.0.0")
+```
+
+Compatible peers negotiate a mutually supported protocol; the v3 integration can negotiate protocol 5. The SDK version, wire protocol and app version are different identifiers. Updating one application does not automatically update another installed peer.
+
+Privileged Android Binder access requires real verified package/signing identity and receiver authorization. Copying an AAR, package name, action or capability manifest does not grant first-party authority. The receiver repeats its own policy even when a caller bypasses a UI tool gate.
+
+Capability discovery describes available operations. A manifest does not grant consent. Risk checks, local opt-ins, tier ceilings, package/signer verification and current receiver state remain separate prerequisites.
+
+### Shared context and payloads
+
+Connected applications retain ownership of their live state. Workspace receives bounded/versioned project context, diagnostics and caller-provenanced memory records rather than another app's database file or unlimited editor contents.
+
+Large supported Android payloads use grant-scoped Content URIs/descriptors with length/checksum validation, background streaming and quotas. Binder is not used to return arbitrarily large file bytes. Grants can expire or fail after source/process changes; retries may require a new grant.
+
+The SDK also has desktop/network transport capabilities, but this Workspace integration does not install an always-on desktop server or prove every Android↔desktop transport path end to end. Refer to the SDK's own source/contracts for transport-specific features.
+
+### Launcher search and control are separate
+
+| Path | Result | Authorization |
 |---|---|---|
-| الملفات والمستودع | `FileToolManager`, `RepoContextTools`, Git tools | مسارات العمل وحدود القراءة/الكتابة وسياسة النسخة |
-| الويب والبحث | أدوات البحث والمتصفح واستخراج الصفحة | تتطلب الشبكة؛ نتائج الويب مدخلات غير موثوقة |
-| Android والواجهة | أدوات UI وAccessibility وShizuku عند توافرها | صلاحيات نظام أو خدمة مفعّلة وقدرات النسخة |
-| الاتصال والتكامل | OmniLink، MCP، قنوات التواصل | الربط وإذن المستخدم وحالة التطبيق المقابل |
-| التذكر والجدولة | Room، البحث في السجل، `planner_tool` | محلي ومحدود؛ فتح محرر أو Intent ليس إثباتًا للحفظ |
-| الإشعارات | `read_notifications` | يحتاج Notification Access؛ ذاكرة مؤقتة، وإخفاء الأكواد الشائعة |
+| Ask Omni / public search handoff | Open Workspace and import a question draft | User presses Send; matching signer is not required for this public draft ingress |
+| Authenticated `launcher.*` control | Inspect or operate supported launcher capabilities | Verified signer, exact package, receiver consent, edition policy and action approval |
 
-طبقة `CompositeToolManager` تجمع التعريفات، ثم يأتي الترشيح حسب النسخة والسياسة والإتاحة. البيانات المستخرجة من أداة أو إشعار أو صفحة **ليست تعليمات مخولة** لتغيير الموافقات. عمليات الجهاز الحساسة تخضع لسياسة النسخة وطبقة التأكيد ذات الصلة. لا تفترض أن وجود علم `ALLOW_*` في بناء معيّن يمنح إذن Android فعليًا.
+Public ingress validates size and request kind, preserves an existing composer draft/current run and consumes a handoff once. It cannot inject a tier, tool, grant, session or autorun instruction through public extras.
 
-### Git المحلي وربط GitHub
+Workspace's current launcher policy includes health, settings/app reads, selected search preferences, app opening and drawer opening. Exact accepted capabilities and flavor ceilings live in `OmniLinkTierCapabilityPolicy` and the receiver. A newer launcher may advertise more capabilities than this Workspace build accepts; discovery is not evidence that every advertised action is authorized.
 
-`git_manager` يستخدم JGit المضمّن في التطبيق، لذلك لا يحتاج تنفيذ Git من عملية Android أو تثبيته داخل Termux. ينفذ `status`, `diff`, `log`, `add`, `commit`, `branch`, `checkout`, و`stash` داخل **Target Context** المحلي. أفعال `remote_status`, `fetch`, `pull`, و`push` تستخدم الحساب المنفصل في **Settings → Integrations & Linked Accounts → GitHub Agent Access**؛ ولا تستخدم اعتماد Copilot/Models. لا يكفي تمكين الإعداد وحده: يجب ربط حساب GitHub أيضًا. يسمح وضع القراءة بـ`fetch` و`pull`، ويتطلب `push` تفعيل الكتابة. لا تمنح الأداة نفسها صلاحيات إضافية للتوكن؛ قيود GitHub الفعلية تظل سارية.
+Read [OmniLink v3 integration](OMNILINK_V3_INTEGRATION.md), [Link protocol](LINK_PROTOCOL.md) and [Launcher integration](docs/LAUNCHER_INTEGRATION.md). [OmniLink v2 integration](OMNILINK_V2_INTEGRATION.md) is historical context.
 
-يتحقق المسار البعيد من أن Target Context هو جذر مستودع Git، وأن اسم الـremote مضبوط، وأن عنوانه `https://github.com/owner/repo[.git]` بلا اعتماد مضمن. يرفض SSH والعناوين الخارجية، ويقصر تقديم التوكن على نفس المستودع المصرح به دون تمريره في أوامر طرفية. يجلب `fetch` الفرع الحالي افتراضيًا، ويستخدم `pull` الدمج السريع فقط (`--ff-only`)، ويدفع `push` الفرع الحالي إلى الفرع المناظر له. يمكن تحديد اسم remote أو فرع آمن عند الجلب؛ رفض الدفع إلى فرع مختلف يحمي من تغيير الوجهة بالخطأ. `commit` يهيئ التغييرات ثم يحتاج هوية مؤلف مضبوطة في المستودع أو `authorName` و`authorEmail` مقدمين من المستخدم. `github_manager` مستقل لعمليات REST مثل القضايا وطلبات الدمج؛ سياسة GitHub Agent Access نفسها تحكم الاثنين.
+## MCP and external tools
 
-### أدوات سياق المستودع بالتفصيل
+The `data/mcp/` implementation configures and communicates with external tool servers. Connected definitions join the same catalog and tier/chat capability filtering used by native tools. Dispatch checks apply to both paths, including calls that were not exposed in the current request.
 
-| الأداة | النتيجة | متى تستخدمها |
+A successful server connection does not authorize all tools. Remote descriptions/results are untrusted evidence, and unknown side effects are serialized. Parameter metadata and declared enums survive schema ingestion where supported; the local flat parameter model is not full nested JSON Schema validation.
+
+Before enabling a server, understand what data and credentials it receives and what operations its backend can perform. A remote server may retain requests according to its own policy. Revoking local tool access prevents local dispatch; it cannot undo an external side effect already accepted.
+
+An integration problem should be diagnosed in layers: transport reachability, authentication, catalog registration, local capability policy, preflight and backend result. A model claiming a tool exists is weaker evidence than the actual permitted catalog.
+
+## Messaging and service integrations
+
+### Telegram private-owner listener
+
+The Telegram integration supports outgoing publishing and an optional incoming foreground listener. An outgoing Chat ID/channel is a destination; it is not permission for incoming agent control.
+
+Pair the owner through a short-lived single-use code sent to the bot in a private chat. The listener checks both the linked user and private chat. Other users, groups, edits and bot messages are ignored. Replacing the token removes the old owner link.
+
+Agent/Team commands need a specific non-root Target Context. Media messages currently supply a description/file ID rather than downloaded image/audio bytes; the model cannot claim to have inspected attachment content that was never fetched.
+
+The listener persists a token-bound update cursor, while its in-memory mode/context resets on service restart. A crash between processing and cursor persistence can repeat an effect or leave delivery uncertain. Telegram commands do not provide guaranteed exactly-once execution. See [Telegram integration](TELEGRAM_INTEGRATION.md).
+
+### Same-phone WhatsApp bridge
+
+The companion [WhatsApp bridge](whatsapp-bridge/README.md) runs under Node.js in Termux on the same phone. It binds to `127.0.0.1:3000` and requires a generated bearer key. The own-account private chat is the accepted request/reply destination; groups, other contacts and media are ignored.
+
+Pair through WhatsApp Linked Devices, then configure the loopback URL, own number and matching key in Workspace. The local bridge, foreground listener and network connection must remain available. The personal Baileys-based bridge is separate from WhatsApp Business Cloud API tooling.
+
+Queue records survive server restarts and the app stores a cursor. Delivery is at least once across failures, so a crash at the reply/cursor boundary can repeat a reply. Local authentication/config/queue files stay out of Git. A linked-device session uses the third-party protocol/library behavior and can require updates when that protocol changes.
+
+### Other configured integrations
+
+The source includes tool/service integrations for areas such as Discord, Slack, email/publishing, Notion, n8n and social/service workflows. Availability depends on the current catalog, edition, configured account, service endpoint and operation. Presence of a class is not a promise that a service is enabled or that every supported account flow has device-level acceptance coverage.
+
+External sending/publishing is a mutation. Confirm the destination and requested effect, and verify the returned backend result. Connected content cannot authorize a new send or change repository/device permissions merely by containing instructions.
+
+## Android tools and scheduling
+
+### Tool families
+
+| Family | Representative source area | Operational boundary |
 |---|---|---|
-| `repo_index_scope` | ملفات ورموز تمت فهرستها أو تخطيها | أول استكشاف أو بعد تغيرات كبيرة |
-| `repo_search_symbols` | أسماء الرموز ومواقعها من الفهرس | عندما تعرف اسم class أو function |
-| `repo_find_context` | مقتطفات محلية قصيرة مع سطور | سؤال عن سلوك يتطلب دليلًا من الكود |
-| `repo_symbols_by_kind` | رموز بحسب النوع | استكشاف بنية الحزم والأنواع |
-| `repo_file_symbols` | قائمة رموز ملف | فهم ملف كبير بسرعة |
-| `repo_stats` | إحصاءات الفهرس المحلي | تقدير تغطية النطاق المفهرس |
+| Files and project context | `FileToolManager`, `RepoContextTools`, scope/file utilities | Readable paths, containment, size limits and mutation approval |
+| Web/search/page reading | Search providers, scrapers, page readers and browser utilities | Network access, bounded content and untrusted page data |
+| UI observation/action | Accessibility, semantic UI, input and visual tools | Fresh target identity, actual service access and protected windows |
+| Terminal/build environments | Termux bridges, script/environment/build helpers | A real backend and concrete execution scope |
+| Privileged Android | Shizuku, root, device admin and system facades | Edition eligibility plus independently authorized backend |
+| Local knowledge | Memory, history, episode and vector-store tools | Local availability, provenance and bounded retrieval |
+| Media | `MediaGenerationTool` and chat-media workers | Explicitly enabled type and selected provider/account |
+| Connected apps | OmniLink and MCP dispatch | Verified receiver/server state and current authorization |
+| Scheduling | Planner/scheduler tools and background workers | Android scheduling limits and supported action verification |
 
-تنفيذ الأدوات الست في `RepoContextTools.kt` يتطلب `scope_path` فعليًا حتى إذا ظهر وسيط النطاق اختياريًا في بعض تعريفات الأدوات؛ هذا فارق يجب ملاحظته عند استخدام API مباشرة. `repo_find_context` يقيّد عدد النتائج إلى **1–12** والافتراضي **6**. عدم العثور على نتيجة قد يعني فهرسًا ناقصًا، وليس غياب الكود. إحصاء `repo_stats` للمشروع المفهرس يختلف عن إحصاء ملفات Git في جدول README.
+The visible catalog can change during setup, permission revocation, account changes or peer disconnection. Tool counts are therefore not advertised as a fixed capability total.
 
-### سياسة الإشعارات والمنبه
+### Notifications and alarms
 
-`read_notifications` يعرض حالة وصول Android أو يقرأ/يلخص الإشعارات بعد تصفية التطبيق والكلمة والوقت؛ يحتفظ بحد أقصى **150** إدخالًا في ذاكرة العملية ويمسحها عند قطع اتصال الـlistener. الإرسال والإلغاء يخص إشعارات OmniDev نفسها. `planner_tool` يقرأ المنبه التالي، ويفتح شاشة المنبهات أو يرسل Intent لإنشاء منبه خلال 24 ساعة، ويفتح محرر تقويم للمراجعة. إرسال Intent لا يثبت أن المستخدم حفظ المنبه. [الحدود الدقيقة](NOTIFICATION_ALARM_TOOLS.md).
+`read_notifications` requires Android Notification Access and keeps a bounded in-process cache, currently up to 150 entries. Disconnecting the listener clears that cache. Filtering/redaction reduces exposure of common codes; it is not a guarantee that every possible sensitive notification format is recognized.
 
-### سلاسة الواجهة والأداء
+Posting/cancelling notifications concerns OmniDev's own notifications, not unrestricted deletion of every app's notifications. Planner functionality can read the next alarm, open alarm screens, issue a supported alarm intent within its defined time bounds, or open a calendar editor for review. Opening the editor or sending an intent does not prove the user saved the alarm/event.
 
-الواجهة تستخدم انتقالات تنقل موحّدة تدعم RTL، استجابة خفيفة للأيقونات عند الضغط، وحركة أقصر للأجهزة حتى 4 GiB ووضع توفير البطارية. تحترم تعطيل الأنيميشن من النظام، وتوقف تحديثات الواجهة في الخلفية مع استمرار الوكيل. الشات يحافظ على موضع القراءة أثناء البث، ويوفر زر العودة لآخر رسالة ومراعاة لوحة المفاتيح. تحليل الرسائل والكود يُخزّن حسب النص، وأقسام التحليلات تُرسم عند ظهورها، ويُحدّ من إعادة تجهيز المتصفح وحسابات السجل. تفاصيل سياسة الحركة ومسارات الأداء وطريقة القياس في [دليل الأداء والحركة](UI_PERFORMANCE.md).
+Persistent task records and WorkManager support background work. Android/OEM timing, battery and foreground-service rules still matter; scheduling a job is not a real-time execution guarantee. See [Notification and alarm tools](NOTIFICATION_ALARM_TOOLS.md).
 
-## البيانات والواجهات والتكاملات
+## Data, privacy and trust boundaries
 
-- **Room v17:** `OmniDevDatabase.kt` يضم الجلسات والرسائل، سجل الأدوات، المعرفة، عناصر ذاكرة الوكيل، فهرس المستودعات، تشخيص البناء، المهام المجدولة والذاكرة المشتركة. الهجرات متدرجة؛ الرجوع إلى “v7” في بعض وثائق التصميم القديمة يشير لمرحلة تاريخية.
-- **تكوين محلي:** إعدادات المستخدم والتفضيلات وسجل نتائج اختيار الوضع محفوظة محليًا؛ تفاصيل الموفر والشبكة تتوقف على الإعدادات التي يفعلها المستخدم.
-- **واجهات Compose:** الشاشة الرئيسية والمحادثة، الموفرون، إعدادات الذكاء الاصطناعي والمهارات، متصفح، شاشة الذاكرة والتحليلات؛ راجع شجرة `ui/` للحالة الفعلية لكل شاشة.
-- **OmniLink/AIDL:** راجع [البروتوكول](LINK_PROTOCOL.md) و[تكامل v3](OMNILINK_V3_INTEGRATION.md). [وثيقة v2](OMNILINK_V2_INTEGRATION.md) تاريخية للمقارنة، وليست مرجع تنفيذ جديد.
+### Where data lives
 
-### دليل البيانات في Room
-
-| المجال | Entity أو DAO حالي | ما يلزم عند تعديل الشكل |
+| Data | Local implementation/storage | External exposure boundary |
 |---|---|---|
-| الجلسات والرسائل | `ChatSessionEntity`, `ChatMessageEntity`, `ChatSessionDao`, `ChatMessageDao` | اختبر البحث والتصفح وحذف الجلسة ومفاتيح المصدر |
-| التنفيذ والمعرفة | `ToolExecutionEntry`, `SystemKnowledgeEntry`, `ToolExecutionDao` | راجع احتفاظ البيانات وعرض الأدلة للوكيل |
-| فهرس المستودع | `RepoFileIndexEntry`, `RepoSymbolEntry`, `RepoIndexDao` | تحقق من نطاق المشروع وتغيير الملفات |
-| ذاكرة الوكيل | `EpisodicMemoryEntry`, `ReflexionLessonEntry` | تجنب ترقية استنتاجات سابقة إلى حقائق مؤكدة |
-| الرجوع وتشخيص البناء | `RollbackSnapshotEntry`, `BuildDiagnosticEntry` | افحص حجم التخزين وفشل استعادة النسخة |
-| الجدولة والذاكرة المشتركة | `ScheduledTaskEntity`, `SharedMemoryRecordEntity` | راجع أثر الهجرة وتناسق البيانات |
+| Conversations and history | Room database in app-private storage | Relevant selected context can be sent to the configured model |
+| Provider API keys | Dedicated app-private Preferences DataStore | Used for the selected provider's authenticated request; not universally Keystore-encrypted |
+| User/model/tool preferences | Local preferences/DataStore stores | Only request-relevant settings should leave through configured paths |
+| Repository context | Local index and readable project files | Retrieved excerpts/tool results can enter model context |
+| Learned recipes/checkpoints | Atomic app-private versioned files | Interpretation/help can use a model; local replay does not |
+| Wake profile | AndroidKeyStore-encrypted local profile, backup-excluded | No profile export/model submission tool |
+| Offline speech assets | Verified local model installation, backup-excluded | Explicit initial download; recognition remains local |
+| Saved unlock PIN | Admin-only AndroidKeyStore/AES-GCM local vault | Dedicated private input path; excluded from model/chat/recipe context |
+| Generated/imported media | Designated app-private media storage and optional device copy | Selected provider creation, explicit save/share or supported model attachment |
+| Messaging credentials/state | Integration-specific local stores; Telegram pairing uses encrypted preferences | Required service/bridge requests under their own account rules |
+| Diagnostics and usage | Local execution/analytics records and configured CI reports | Explicit export/reporting can disclose data and needs redaction |
 
-كل entity مذكور مسجل في `OmniDevDatabase.kt`، والإصدار المعلن **17**. وجود هجرة من v6 إلى v7 يشرح النص التاريخي “Agent Brain v7”، لكنه لا يجعل v7 الإصدار الحالي. سلسلة `MIGRATION_*` في الملف وقائمة `addMigrations(...)` هما مرجع تغيير المخطط؛ حدّثهما مع أي تعديل schema، ثم اختبر فتح قاعدة بيانات مستخدم قديم.
+Local storage is not equivalent to end-to-end encryption of every record. The Room database and provider-key DataStore are not described here as universally encrypted. A rooted/compromised device, screenshots, shared logs and enabled external services can change the exposure boundary.
 
-### الربط والنماذج
+### Task evidence versus instructions
 
-- `CompletionService.kt` نقطة مهمة لاستدعاءات الاستكمال؛ `ProviderEndpoint.kt` و`ProviderModelFetcher.kt` يتعاملان مع إعدادات endpoint ومعلومات النماذج. `ModelRegistry.kt` يعرض سجل النماذج. توفر نموذج بعينه يعود للمزود والإعداد وليس لاسم الوضع.
-- `data/ipc/` يتضمن خدمات مثل `OmniCoreService`, `WorkspaceLinkService`, `ExtensionConnectionManager`, `LauncherConnectionManager` ومسار Shell المميز؛ AIDL يحدد العقد البيني. مراجعة هوية التوقيع والصلاحية لازمة عند تغيير الربط.
-- `data/mcp/` يحتوي إعدادات واتصالات MCP. نجاح اتصال واحد لا يعني إتاحة جميع الأدوات؛ تخضع الأسماء للتسجيل والتصفية وحدود السياسة والسياق.
-- خدمة VPN أو Accessibility قد تتطلب تفعيل Android منفصلًا؛ لا يعطي flag في Gradle هذه الأذونات وحده.
+Webpages, repository comments, MCP output, notification text, connected-app data and retrieved historical messages can contain instruction-like content. They are observations, not authority to alter grants or perform unrelated mutations. Current user intent and runtime/receiver policy govern execution.
 
-## تكامل Omni Launcher
+Public launcher input is a draft, capability manifests are descriptions and a discovered schema is an interface contract. None of these alone establish the right to act. Protected credential collection is separated from ordinary observation, capture and learning.
 
-التكامل المقترح يستخدم OmniLinkSDK **v3.0.0** الموجود؛ لا يضيف إصدار SDK أو ترتيب معاملات AIDL جديدًا. توجد بوابتان منفصلتان:
+### Deletion and revocation
 
-| المسار | ما يحدث | الشروط |
-|---|---|---|
-| شريط Omni أو «اسأل Omni» | ينتقل السؤال إلى مسودة الشات في Workspace؛ يراجعه المستخدم ويضغط إرسال | تحديث اللانشر وWorkspace؛ لا يلزم نفس التوقيع |
-| تحكم Workspace في اللانشر | اكتشاف قدرات `launcher.*` واستدعاؤها بأداة `omni_link` | نفس شهادة توقيع APK، تفعيل محلي في اللانشر، سقف النسخة، وموافقة على التغييرات |
+Deleting a local conversation removes its local records under the database contract; it cannot erase provider/service copies already submitted. Deleting a recipe removes related checkpoints/evidence. Deleting a wake profile stops listening and removes its local profile/key. Disabling lock scopes takes effect immediately; clearing app data/uninstalling removes local installation state.
 
-شريط البحث يدعم اختيار Omni بدل المزوّد الحالي. الاقتراح يظهر في البحث المحلي/بحث التطبيقات عند غياب نتيجة محلية، ويمكن إظهاره دائمًا أو تعطيله. الكتابة وحدها لا ترسل سؤالًا إلى Omni. استقبال السؤال يحافظ على المسودة السابقة والتشغيل الجاري، ويستهلك طلب الانتقال مرة واحدة. اختيار نسخة Workspace متاح عند تثبيت أكثر من نسخة.
+Removing an API key stops future use of that saved key but does not revoke it at the provider. If a key has leaked, revoke/rotate it at the issuing service. Cancelling an external task may leave already accepted work running; inspect backend status when the outcome is uncertain.
 
-| القدرة | الوظيفة | ADMIN / PRO / OEM | NORM | LITE |
-|---|---|---|---|---|
-| `launcher.health` | حالة الاتصال والموافقة المحلية | نعم | نعم | نعم |
-| `launcher.get_settings` | إعدادات البحث المقروءة | نعم | نعم | لا |
-| `launcher.list_apps` | التطبيقات الظاهرة في بروفايل المستخدم بصفحات محدودة | نعم | نعم | لا |
-| `launcher.set_preference` | تعديل مزوّد البحث أو خيارات اقتراح Omni | بموافقة | لا | لا |
-| `launcher.open_app` / `launcher.open_drawer` | فتح تطبيق محدد أو الدرج عندما تكون Home في المقدمة | بموافقة | بموافقة | لا |
+Read [Privacy](PRIVACY.md), [Security policy](SECURITY.md) and [Third-party notices](THIRD_PARTY_NOTICES.md). The security policy describes reporting and maintenance; it is not a certification or a claim that every described boundary has been independently audited.
 
-اللانشر يكرر حدود النسخة من جهته، ويستبعد التطبيقات المخفية ويرفض تمكين التحكم عن بُعد. البحث عبر ASI وخلاصة Google وSmartspace أسطح مستقلة. اختبارات السياسة المشتركة نجحت: **13 اختبار Kotlin/JUnit مباشرًا**، بدون ادعاء أنها بناء APK أو اختبارات جهاز. [دليل التفعيل والحمولات والأخطاء والتحقق](docs/LAUNCHER_INTEGRATION.md).
+## Interface motion and device performance
 
-## نسخ البناء والتشغيل
+The Compose interface uses a shared motion policy for navigation, response transitions, pressed icons and disclosure panels. RTL mirrors navigation direction. Compact policy is selected for low-RAM devices, physical memory up to 4 GiB and battery saver. Disabled system animation scaling removes custom movement.
 
-| النسخة | الهدف | مصدر الضبط |
-|---|---|---|
-| `lite` | مسار مستهلك أخف | `app/build.gradle.kts`, `app/src/lite/` |
-| `norm` | قدرات استخدام قياسية أوسع | `app/src/norm/`, `app/src/liteNorm/` |
-| `pro` | قدرات متقدمة حيث تسمح السياسة والجهاز | `app/src/pro/`, `app/src/proOem/` |
-| `oem` | تكامل OEM مع سياسات وتوقيع مناسبين | `app/src/oem/`, `app/src/proOemAdmin/` |
-| `admin` | بناء اختبار مطوّر واسع الصلاحيات، غير موجّه للتوزيع العام | `app/src/admin/`, إعدادات التوقيع المحمية |
+Standard navigation/response durations are currently 260/180 ms; compact durations are 180/120 ms. Press effects scale visual content while preserving ripple, touch targets and semantics. Animation is a presentation layer and does not delay the intended action.
 
-### أعلام القدرات بحسب البناء
+Chat tail-follow coalesces updates instead of restarting scroll animation for every streamed token. Message parsing/highlighting and reply maps reuse results for unchanged inputs. Analytics lazily composes visible sections; history grouping/filtering caches by relevant inputs; browser preparation follows session/activity changes rather than every loading tick.
 
-هذه قيم `BuildConfig` من `app/build.gradle.kts`، وليست بيانًا بأن نظام Android منح الأذونات أو أن خدمة خارجية تعمل.
+UI flows collect with lifecycle awareness, pausing below the foreground state without automatically cancelling an agent. Media activity scenes also stop frame updates when the host stops. Reduced motion and compact motion have explicit paths rather than relying on a fast phone to hide expensive work.
 
-| العلم | Lite | Norm | Pro | OEM | Admin |
-|---|:---:|:---:|:---:|:---:|:---:|
-| `ALLOW_ROOT` | لا | لا | نعم | لا | نعم |
-| `ALLOW_SHIZUKU` | لا | لا | نعم | لا | نعم |
-| `ALLOW_ACCESSIBILITY` | لا | نعم | نعم | نعم | نعم |
-| `ALLOW_DEEP_SECURITY` | لا | لا | نعم | لا | نعم |
-| `AUTO_APPROVE_CONFIRMATIONS` | لا | لا | لا | نعم | نعم |
-| `ALLOW_DEVICE_ADMIN_WIPE` | لا | لا | نعم | لا | نعم |
-| `ENABLE_LOCAL_SLM` | لا | لا | نعم | نعم | نعم |
-| `ALLOW_SYSTEM_INTEGRATION` | لا | لا | لا | نعم | نعم |
+These are implemented policies and identified hot-path changes. No universal FPS, startup-time, battery or memory improvement has been measured. Profile a release build on the target phone, especially with long messages, large histories, voice listening and local inference together. See [UI performance](UI_PERFORMANCE.md).
 
-راجع `TierPolicy`, `ConfirmationGate`, `TierToolGate` وmanifest النهائي لمسار كل flavor. خصوصًا `AUTO_APPROVE_CONFIRMATIONS` لا يُقرأ باعتباره موافقة عامة من مستخدم Lite/Norm/Pro. ناتج OEM وAdmin موجّه لبيئة وثقة مختلفتين.
+## Build from source
 
-المتطلبات: JDK 17، Android SDK المناسب لـ `compileSdk 36`، وGradle Wrapper **8.14.5** مع تحقق SHA-256 من التوزيع، واتصال قادر على تنزيل الاعتمادات. بعض بناءات التكامل تحتاج اعتماد OmniLink بحسب إعداد `settings.gradle.kts` وخطوات CI. لا تضع مفاتيح التوقيع أو بيانات الاعتماد في المستودع. أوامر سريعة من جذر المشروع:
+### Current toolchain
 
-```bash
+The build files and CI define the versions below. Use the checked-in wrapper/catalog rather than substituting an unrelated global Gradle installation.
+
+| Component | Configured version/source |
+|---|---|
+| Java/JVM target | 17 |
+| Gradle wrapper | 8.14.5, with configured distribution SHA-256 |
+| Android Gradle Plugin | 8.10.1 |
+| Kotlin Android/Compose | 2.4.10 |
+| Kotlin serialization plugin | 2.4.20 |
+| Android compile / target / min | 36 / 36 / 24 |
+| CI Android Build Tools | 35.0.0 |
+| CI NDK | 27.0.12077973 |
+| Native CMake | 3.22.1 |
+| OmniLinkSDK | v3.0.0 |
+| Database schema | Room version 17 |
+
+`gradle/libs.versions.toml` is the dependency/plugin catalog. CI environment values live in `.github/workflows/android-ci.yml`. Catalog versions and the serialization plugin are recorded exactly as configured; this table is not a claim that every combination has been built locally for this documentation change.
+
+### Clone and initialize
+
+```sh
+git clone --recurse-submodules https://github.com/obieda-hussien/OmniDev-Workspace.git
+cd OmniDev-Workspace
+chmod +x gradlew
+```
+
+For an existing checkout:
+
+```sh
+git submodule update --init --recursive --depth 1
+```
+
+Use the pinned submodule commit. Do not update `llama.cpp` to an arbitrary newer revision as part of setup; that is a separate dependency change requiring native verification.
+
+### Install Android SDK components
+
+Set up JDK 17 and an Android SDK. With Android command-line tools available:
+
+```sh
+sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0" "cmake;3.22.1" "ndk;27.0.12077973"
+```
+
+Accept SDK licenses through the normal Android tooling and point Gradle at the SDK through `ANDROID_HOME` or a local `sdk.dir` setting. Keep `local.properties`, signing configuration and credentials out of Git. Android Studio can select a configured SDK and Gradle JDK through its project settings.
+
+### Build your selected edition
+
+```sh
 ./gradlew :app:assembleLiteDebug
 ./gradlew :app:assembleNormDebug
-./gradlew :app:testNormDebugUnitTest
-./gradlew :app:lintNormDebug
+```
+
+For native-enabled editions with the submodule/toolchain ready:
+
+```sh
+./gradlew :app:assembleProDebug
+./gradlew :app:assembleOemDebug
+```
+
+For a release APK or bundle:
+
+```sh
+./gradlew :app:assembleNormRelease
+./gradlew :app:bundleNormRelease
+```
+
+Select only the variants you need. Building all native/release variants is more expensive than a scoped compile/unit-test check. Typical output roots are `app/build/outputs/apk/<flavor>/<buildType>/` and `app/build/outputs/bundle/`; inspect the actual output rather than assuming a hardcoded final filename.
+
+### OmniLink artifact resolution
+
+The build searches Google/Maven Central, the local `ci-m2` staging repository and JitPack. CI stages the actual OmniLink Android/JVM modules with retry/backoff because transient artifact resolution can otherwise block builds.
+
+For the same staging route locally:
+
+```sh
+bash .github/scripts/fetch-omnilink.sh
+```
+
+A missing/transient artifact is different from a Kotlin source error. Inspect which dependency/module failed and retain the tagged version. Do not replace a trusted dependency with a random binary to bypass resolution failure.
+
+### Signing
+
+Shared debug/release signing is optional configuration supplied through Gradle properties, environment variables or local properties. The supported names are:
+
+| Debug signer | Release signer |
+|---|---|
+| `OMNI_SHARED_DEBUG_STORE_FILE` | `OMNI_SHARED_RELEASE_STORE_FILE` |
+| `OMNI_SHARED_DEBUG_STORE_PASSWORD` | `OMNI_SHARED_RELEASE_STORE_PASSWORD` |
+| `OMNI_SHARED_DEBUG_KEY_ALIAS` | `OMNI_SHARED_RELEASE_KEY_ALIAS` |
+| `OMNI_SHARED_DEBUG_KEY_PASSWORD` | `OMNI_SHARED_RELEASE_KEY_PASSWORD` |
+
+Do not commit private keys, passwords, local property files or base64 keystores. A release build can fall back to configured debug signing for non-Admin variants; a `Release` filename/build type alone does not prove production signing. Verify the actual certificate using Android build tools before distribution.
+
+Trusted same-signer Omni integrations need the intended common certificate in the installed APKs. Different ordinary developer debug keys will not establish that relationship. Public launcher draft handoff remains a separate unprivileged path.
+
+Admin release packaging requires explicit shared release credentials, or the deliberate `OMNI_ADMIN_UNSIGNED_RELEASE=true` option for internal local signing. That option is restricted to Admin release tasks. An unsigned APK must be signed before installation and cannot be treated as an already trusted Omni identity.
+
+For detailed development workflows and validation scope, read [Development guide](docs/DEVELOPMENT.md).
+
+## Testing and validation
+
+### Choose checks that match the change
+
+Documentation-only work needs link/structure/metadata validation and the repository guard. Runtime, schema, device and native changes need broader checks appropriate to their effect. A test result should always name the tested revision and scope.
+
+| Change | Initial check | Additional evidence when applicable |
+|---|---|---|
+| Shared Kotlin/runtime | Compile and focused JVM tests | Relevant flavor suites and actual provider/device path |
+| Tool/schema policy | Discovery/preflight/dispatch regressions | Denied/allowed tiers and backend failure behavior |
+| Team scheduling | Read guard, batch ordering and steering tests | Shared-budget/dependency scenarios |
+| Room entity/schema | Migration changes and upgrade checks | Open a database from the prior supported state |
+| Compose UI | Kotlin compile and relevant instrumented UI tests | Small phone, keyboard, RTL and rotation |
+| Wake/voice/unlock | Local policy/parsing/lifecycle tests | Real microphone, offline voice and genuine target keyguard |
+| Media | Job/provider-contract/revision tests | Actual account, download, codec, gallery and cancellation |
+| OmniLink | Identity/capability/payload policy tests | Both installed peers, signer mismatch/revocation and receiver refusal |
+| Native inference | Native-enabled APK build | Model load/inference on the target ABI and memory tier |
+
+### Local unit and compile commands
+
+A useful Standard check is:
+
+```sh
+./gradlew :app:compileNormDebugKotlin :app:testNormDebugUnitTest :app:lintNormDebug
+```
+
+Focused assistant tests can be selected explicitly:
+
+```sh
+./gradlew :app:testNormDebugUnitTest \
+  --tests 'com.omnidev.workspace.data.assistant.*' \
+  --tests 'com.omnidev.workspace.domain.engine.AssistantToolEligibilityTest'
+```
+
+For all edition JVM suites:
+
+```sh
+./gradlew :app:testLiteDebugUnitTest :app:testNormDebugUnitTest \
+  :app:testProDebugUnitTest :app:testOemDebugUnitTest :app:testAdminDebugUnitTest
+```
+
+Tests can exercise shared code under different generated flavor identities. Passing one edition is not automatically equivalent to building/testing all five.
+
+### Android instrumentation
+
+With a configured emulator/device:
+
+```sh
+./gradlew :app:connectedLiteDebugAndroidTest
+./gradlew :app:connectedNormDebugAndroidTest
+```
+
+The screen-assistant guide includes a targeted native-window controls command. CI's UI regression runner uses an API-30 emulator, the Lite UI test package and exported debug test captures. A Lite UI test job does not cover every Pro/Admin privileged backend or actual OEM lock widget.
+
+### Repository security and reproducible metrics
+
+```sh
+python3 scripts/public_repo_guard.py
+python3 scripts/public_repo_guard.py --history
 python3 scripts/repo_metrics.py
 ```
 
-اسم الحزمة والخصائص والأذونات تختلف حسب flavor وmanifest؛ افحص **البناء المقصود** قبل توزيعه. إعدادات التوقيع المشتركة ونسخة Admin في `app/build.gradle.kts` وCI. لا تُعامل بناء Admin كتوزيع للمستخدمين.
+The guard checks tracked files, sensitive filenames, high-confidence credential patterns, workflow hardening and optionally Git history. It avoids printing matched secret values. Passing its pattern checks is not a guarantee that no secret or vulnerability exists.
 
-نسخة Admin تُرسل فقط إلى محادثة Telegram المضبوطة في أسرار بيئة `copilot` بعد بناء `main` والتحقق من التوقيع. إذا تجاوز الـAPK حد الرفع البالغ **50,000,000 بايت**، يضغطه CI داخل **ZIP واحد يحتوي APK كاملًا**، ويتحقق من تطابق SHA-256 بعد فك الضغط ثم يقيس حجم الـZIP قبل الإرسال. فك الملف أولًا؛ لو اسمه `unsigned`، وقّعه محليًا بالمفتاح المشترك قبل التثبيت. الضغط لا يغيّر الـAPK أو توقيعه ولا يحذف أي ميزة أو معمارية؛ لا يوجد تقسيم أو نشر لنسخة Admin في artifacts عامة. إذا ظل الـZIP فوق الحد، تفشل خطوة التسليم برسالة تعرض الحجمين لأن تغيير الامتداد لا يتجاوز حد Telegram.
+The metrics script counts tracked files and physical source lines, including comments/blanks, while separating test/production sources. It does not count generated build output or untracked files. We deliberately avoid a stale README source-line total: run the script for the checked-out revision, and distinguish repository metrics from a locally indexed project's `repo_stats`.
 
-## الاختبار والتحقق
+### What a result proves
 
-اختبارات الوحدة موجودة في `app/src/test/` للاختيار التكيفي، إشارات النية، النموذج الصغير، ضغط السياق، الفريق، حراسة الأدوات، استرجاع الكود والسجل، وسياسات النسخ. `android-ci.yml` يعرّف مهام جودة وlint واختبارات للنسخ الخمس وتجميع إصدار؛ نتائج البناء والاختبارات تُراجع في GitHub Actions؛ تعريف المهمة في YAML وحده لا يثبت نجاح تنفيذها. للاختبار المركز:
+A mocked/intercepted provider test validates request construction and selected error handling, not a live billable endpoint. A focused Kotlin compile with isolated collaborators differs from an application Gradle build. An emulator test differs from the intended phone's audio, battery and SystemUI behavior.
 
-```bash
-./gradlew :app:testNormDebugUnitTest --tests 'com.omnidev.workspace.domain.engine.*'
-./gradlew :app:compileNormDebugKotlin :app:compileAdminDebugKotlin
-```
+When reporting a change, say which checks ran and what remains untested. Do not describe synthetic speech examples as a real-world accuracy result or decorative media animation as generation progress.
 
-أي ادعاء بتحسن الدقة أو توفير التوكنز يحتاج تجربة ممثلة مع نتائج قابلة للمقارنة، خصوصًا على المهام العربية، الملفات الكبيرة، الطلبات الغامضة، وحالات فشل الأدوات. تفاصيل توقعات السلوك في [وثيقة المحرك](DECISION_ENGINE.md).
+## CI, artifacts and signing
 
-### دليل تغيير آمن وسريع
+### Android CI stages
 
-| إذا غيّرت | افحص بالتبعية | تحقق مناسب |
-|---|---|---|
-| إشارات أو عتبات AUTO | `IntentClassifier`, `AdaptiveModeRouter`, `ModeOutcomeLearner`, `ChatViewModel` | حالات عربية/إنجليزية، اختيار المستخدم، فشل البنية، المهمة الذرية |
-| ترتيب أدوات النموذج | `ToolSchemaCompactor`, `CompositeToolManager`, `TierToolGate` | جودة الأدوات المعروضة وحدود schema ورفض النسخة |
-| استرجاع المشروع | `RepoIndexer`, `RepoContextEngine`, `LocalCodeRetriever` | ربط symlink ونطاق المشروع، تحديث ملف، مقتطفات وأرقام سطور |
-| محادثة قديمة | DAOs والبحث في السجل و`ChatViewModel` | مرجع الجلسة/الرسالة، حذفها، النص الطويل وعزل المصدر |
-| Service أو صلاحية | `AndroidManifest.xml` لكل flavor والسياسات | الـmerged manifest، رفض الإذن، تجربة جهاز |
-| Entity أو schema | `OmniDevDatabase.kt`, DAO, migration | فتح قاعدة قديمة وحفظ بياناتها |
-| بروتوكول OmniLink | ملفات AIDL وخدمات `data/ipc/` | ABI، الهوية، انقطاع Binder، خطأ الطرف المقابل |
+The main [Android CI workflow](.github/workflows/android-ci.yml) runs for configured PR/push/manual events. Its jobs are separated so their results can be inspected independently.
 
-نتائج اختبار وحدة معزولة لا تغطي سلوك جهاز فعلي أو manifest merger أو مشكلة إصدار سابق. لهذا يقسم CI إلى جودة وlint واختبارات وتجميع. نجاح build لا يثبت جودة قرارات الوكيل؛ هذه تقاس على مهام بنواتج متحققة.
-
-## خريطة الملفات والوثائق
-
-| ابدأ هنا | لو تريد |
+| Stage | Current purpose |
 |---|---|
-| [docs/PROJECT_FILES.md](docs/PROJECT_FILES.md) | تصنيف ملفات المشروع ونقاط الدخول ومسؤولية كل مجموعة |
-| [DEVICE_ACCESS.md](DEVICE_ACCESS.md) | تصريحات الصلاحيات، تهيئة الوصول، مسارات التنفيذ والتحقق |
-| [docs/SCREEN_ASSISTANT.md](docs/SCREEN_ASSISTANT.md) | المساعد العائم والصوت والإرفاق والعودة للجلسة |
-| [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md) | حدود الطبقات وتدفق الطلب وسياسات البناء |
-| [MENTAL_MAP.md](MENTAL_MAP.md) | خريطة سريعة لنقاط الدخول وسيناريوهات القرار |
-| [DECISION_ENGINE.md](DECISION_ENGINE.md) | تفاصيل نموذج القرار والتعلم والحدود ومقاييس الجودة |
-| [CHAT_HISTORY_RECALL.md](CHAT_HISTORY_RECALL.md) | استرجاع محادثة مصدرها Room وحدود الإثبات |
-| [NOTIFICATION_ALARM_TOOLS.md](NOTIFICATION_ALARM_TOOLS.md) | قدرات وإذونات الإشعارات والمنبه |
-| [MODULARIZATION_ROADMAP.md](MODULARIZATION_ROADMAP.md) | خطة مستقبلية لفصل `:app` إلى وحدات Gradle |
-| [OMNIDEV_VISION_AND_ROADMAP.md](OMNIDEV_VISION_AND_ROADMAP.md) | أفكار مستقبلية ومقترحات المنتج، ليست كلها منفذة |
-| [OMNILINK_V3_INTEGRATION.md](OMNILINK_V3_INTEGRATION.md), [LINK_PROTOCOL.md](LINK_PROTOCOL.md) | بروتوكول وتكامل OmniLink |
-| [docs/LAUNCHER_INTEGRATION.md](docs/LAUNCHER_INTEGRATION.md) | مسودة السؤال وصلاحيات التحكم في اللانشر |
-| [ATTRIBUTION.md](ATTRIBUTION.md) | دور المطوّر وحفظ حقوق المكوّنات الأصلية |
-| [00_INTEGRATION_ORDER.md](00_INTEGRATION_ORDER.md), `01_...` إلى `08_..._PROMPT.md` | مواد تخطيط وتكامل تاريخية لمشروعات المنظومة؛ قارنها بالكود قبل التنفيذ |
-| [mcp_plan.md](mcp_plan.md), [.circleci/README.md](.circleci/README.md) | خطط/إعدادات تكامل إضافية بحسب سياقها |
+| Run Quality | Signing/delivery/toolchain helper self-checks, OmniLink staging and Lite release Kotlin compile |
+| Lint | Debug lint tasks across Lite, Standard, Pro, OEM and Admin |
+| Tests | JVM unit tests across all five flavors |
+| Release APK | Build the four distributable release variants and verify voice native packaging |
+| UI regression tests | API-30 emulator UI regressions and report/capture artifacts |
+| Private Admin Release | Protected main-only internal Admin build and configured Telegram delivery |
+| Pipeline Summary | Summarize stage outcomes, including skips/failures |
 
-## الحدود وخارطة الطريق
+Native voice APK verification checks that Vosk/JNA artifacts survive release shrinking and packaging. It is distinct from actual speech recognition and microphone behavior on a device. Optional ktlint/detekt tasks are inspected if present; lint is configured with `abortOnError=false`, and optional analysis stages should not be mistaken for a strict zero-warning guarantee.
 
-- **الدقة:** تصنيف النية واسترجاع الكود تقريبيان؛ نجاحهما يعتمد على النص، الفهرس، البيانات والتغطية. لا تتعامل مع درجة الثقة كتأكيد من النموذج الأساسي.
-- **التعلم:** بيانات البداية قليلة وقد تكون متحيزة. النموذج المحلي لا يملك بيانات تدريب خارجية افتراضيًا، ولا يملك سلطة تجاوز اختيار المستخدم أو أذونات التحويل.
-- **الكلفة:** ضغط السياق وانتقاء الأدوات يقللان الحمل المتوقع، لكن لا توجد نسبة توفير مثبتة منشورة. سجّل تكلفة النتائج المتحققة قبل إطلاق ادعاءات كمية.
-- **الفصل المعماري:** التطبيق ما زال وحدة Gradle واحدة؛ [خطة التفكيك](MODULARIZATION_ROADMAP.md) تسرد الاعتماديات وخطوات النقل والتحقق.
-- **المواصفات السابقة:** وثائق الـPROMPT والرؤية تمثل نوايا وخططًا، ولا تثبت أن القدرة دخلت إصدارًا أو أن تكاملًا خارجيًا متاح حاليًا.
+### Public artifacts versus private Admin delivery
 
-عند تعديل عدد الملفات أو المسارات أو أوضاع التشغيل، أعد تشغيل `scripts/repo_metrics.py` وحدّث هذا الجدول والوثائق المعمارية معه؛ الأرقام توثّق الملفات الحالية ويعاد حسابها مع تغيّر المشروع.
+The public release artifact path includes Lite, Standard, Pro and OEM APKs and omits Admin. Reports and dependency staging use separate artifacts with configured retention. An artifact can expire; always inspect a completed relevant run and its stage outcome.
 
+The protected Admin job is not run with environment secrets on arbitrary PRs or non-main dispatches. It validates signing credentials when available; otherwise its explicit internal path can deliver an unsigned APK for local signing. APK/signature identity, expected output count, packaging and delivered file size/checksum are checked independently.
 
+The internal delivery helper produces a single suitable document/APK or ZIP rather than publishing an Admin APK as a public GitHub artifact. The configured destination is part of the maintainer's protected CI setup, not an end-user download channel.
 
-## النسب وحقوق المؤلفين
+### Security gate and dependency updates
 
-تطوير OmniDev Workspace وتحديثاته وتعديلاته وتكاملاته من مسؤولية **عبدالرحمن حسين / Obieda**. تظل حقوق مؤلفي المكوّنات الأصلية والمكتبات والتطبيقات المتصلة محفوظة بحسب تراخيصها وترويساتها. Omni Launcher مبني على Lawnchair وAOSP؛ الربط به لا ينقل ملكية أساسه إلى Workspace. يظل ترخيص OmniLinkSDK مستقلًا. [بيان النسب والحقوق](ATTRIBUTION.md) يوضح حدود هذا النسب دون إضافة ترخيص جديد للمستودع.
+The [public security gate](.github/workflows/security-gate.yml) checks the current tree and full history with a read-only checkout token. Existing actions are pinned to commit SHAs and sensitive automation has owners. Dependabot is configured for weekly GitHub Actions and Gradle updates.
+
+Dependency updates still need review: an update can affect native packaging, the Kotlin toolchain, Android behavior or protocol compatibility. A passing repository guard does not constitute a full dependency audit. The OWASP plugin is configured with nonfatal/error-tolerant behavior and automatic updates disabled; its presence is not evidence of a continuously refreshed complete vulnerability scan.
+
+A separate [runtime repair verification workflow](.github/workflows/repair-verification.yml) targets specific repair branches/manual runs. Its scope should not be confused with the main CI suite.
+
+## Troubleshooting
+
+| Symptom | Check first | Interpretation/action |
+|---|---|---|
+| Model request has no configured key | Providers and assigned model | Configure that provider; a different linked service credential is not a substitute |
+| A listed model is rejected | Actual provider response, account/quota and model ID | Catalog presence does not prove access; do not silently switch accounts |
+| A tool is missing | Edition, Add-to-chat tool policy and current catalog | Discover permitted definitions; do not invent a tool name |
+| A tool exists but refuses execution | Scope, current permission/backend and action consent | Availability and authorization are separate |
+| GitHub returns 404 on a known repo | GitHub Agent Access and token repository selection | The resource may be absent or hidden; listing repos does not prove that file was read |
+| Git push fails | Write mode, real token rights, branch and HTTPS remote | Local write preference cannot grant GitHub permission |
+| Repository search misses code | Correct scope, index coverage and query | Reindex/read the source before concluding it is absent |
+| A media card waits too long | Queue/worker state and card diagnostics | Use Start now for expired unstarted work; use Check existing job for a known operation |
+| Generation fails after provider acceptance | Stored operation ID and error detail | Avoid a second create request unless its effect is understood |
+| Media will not play | Complete local file, format/codec and host lifecycle | Preview/storage success does not ensure a device codec can decode it |
+| Wake enrollment rejects examples | Consistent positive phrase and truly different contrasts | Replace the identified sample; held-out checks are separate from training |
+| Wake listening stopped after reboot | Foreground listening status and assistant role | Start the non-sticky listener explicitly after unlock |
+| Arabic speech is inaccurate/heavy | Selected language, model resource use and offline voice | Test dialect/spelling on-device; English model has a smaller resource footprint |
+| Assistant appears but cannot tap | Accessibility connection, edition and genuine target window | Protected/ambiguous controls require handoff |
+| Bubble minimization fails | Overlay access and actual attachment acknowledgment | Do not treat service start as a visible restoration surface |
+| Unlock opens the keypad but cannot enter | Lock scopes, supported SystemUI controls and private input prerequisites | Admin/root access is not the credential; unsupported OEM widgets need manual entry |
+| A remembered PIN is paused | Prior failed/interrupted attempt and authorization state | Resume locally after inspecting the failure; no automatic guessing/retry |
+| A learned task stops | Checkpoint, recipe revision, target identity and expected outcome | Resolve the pending step; do not restart uncertain mutations blindly |
+| A connected app is discovered but denied | Real signer, receiver consent and exact accepted capability | Manifest discovery does not authorize control |
+| WhatsApp bridge cannot connect | Same-phone loopback server, key and own number | LAN/other-recipient requests are deliberately outside this bridge |
+| CI fails downloading OmniLink/CMake/NDK | Artifact/toolchain download stage and retry diagnostics | Distinguish infrastructure resolution from a source compiler error |
+| Local inference library loads but inference is absent | Submodule, native build and model | A fallback stub is not real inference |
+
+For a bug report, include the edition, app revision/build, Android version, device, selected mode, relevant provider/model and a redacted reproduction. For UI issues also include phone language, orientation, keyboard state and motion settings. Never post a PIN, provider key, bot token or full private repository content. Use [Support](SUPPORT.md) and the repository's structured issue forms.
+
+## Project layout and source navigation
+
+### Repository roots
+
+| Path | Contents |
+|---|---|
+| `app/` | Android source, resources, manifests, AIDL, native code and tests |
+| `gradle/`, `gradlew`, `gradlew.bat` | Pinned wrapper and version catalog |
+| `settings.gradle.kts` | Repository resolution and the current single `:app` module |
+| `build.gradle.kts`, `app/build.gradle.kts` | Plugins, application variants, native build, signing and dependencies |
+| `.github/workflows/` | Android, repair and public security CI |
+| `.github/scripts/` | Toolchain setup, dependency staging, signing/delivery and verification helpers |
+| `.github/ISSUE_TEMPLATE/` | Android-focused issue intake |
+| `scripts/` | Repository metrics/security and metadata maintenance utilities |
+| `docs/` | Operational feature contracts and development/maintenance guides |
+| `whatsapp-bridge/` | Local Termux/Node companion bridge |
+| Root technical Markdown | Architecture, policy, interoperability and historical planning |
+| `LICENSE.md`, `ATTRIBUTION.md`, `THIRD_PARTY_NOTICES.md` | Licensing status, maintainer scope and dependency provenance |
+| `CONTRIBUTING.md`, `SECURITY.md`, `PRIVACY.md`, `SUPPORT.md` | Contribution, reporting and data-handling guidance |
+
+### Application entry points
+
+The following paths are relative to `app/src/main/java/com/omnidev/workspace/`.
+
+| File/package | Start here for |
+|---|---|
+| `OmniDevApp.kt` | Application initialization and policy/service graph |
+| `MainActivity.kt` | Main navigation, ingress and activity results |
+| `WorkspaceChatRuntime.kt` | Construction of shared chat/assistant execution environments |
+| `ui/chat/ChatViewModel.kt` | Conversation send/replay, selected mode, tools and approvals |
+| `domain/engine/AgentPipeline.kt` | Agent loop, context, tool proposals and bounded recovery |
+| `domain/engine/SwarmOrchestrator.kt` | Coordinator/worker planning and team evidence |
+| `data/tools/CompositeToolManager.kt` | Tool aggregation and dispatch |
+| `data/tools/TierToolGate.kt` | Current tier/chat catalog filtering and dispatch denial |
+| `core/policy/TierPolicy.kt` | Edition-level capability contract |
+| `data/db/OmniDevDatabase.kt` | Current schema, entities and migration registration |
+| `data/network/CompletionService.kt` | Completion transport, streaming and local routing |
+| `registry/ModelRegistry.kt` | Model catalog/metadata |
+| `data/repo/` | Scope indexing and local code context |
+| `data/routines/` | Learned-task models, storage, runner and teaching |
+| `data/chatmedia/` | Media clients, persistent work and failure handling |
+| `data/assistant/`, `ui/assistant/` | Screen sessions, voice, wake, private access and window controls |
+| `data/ipc/` | OmniLink services, identity/capability policy and payload handling |
+| `data/mcp/` | MCP transport/configuration |
+| `ui/motion/`, `ui/analytics/`, `ui/brain/` | Presentation policy, usage analytics and knowledge inspection |
+
+### Source sets
+
+| Source root | Purpose |
+|---|---|
+| `app/src/main/` | Shared application code/resources/manifests |
+| `app/src/lite/`, `norm/`, `pro/`, `oem/`, `admin/` | Flavor-specific policies and manifest changes |
+| `app/src/liteNorm/` | Shared consumer-tier code |
+| `app/src/proOem/`, `proOemAdmin/` | Shared native/privileged implementation groups |
+| `app/src/main/aidl/` | Binder contracts; package/signature identity determines compatibility |
+| `app/src/main/cpp/` | JNI/native integration and llama.cpp submodule |
+| `app/src/main/assets/agent-skills/` | Bundled prompt-skill guidance |
+| `app/src/test/` | JVM policy/runtime/tool/storage tests |
+| `app/src/androidTest/` | Android/Compose/device-dependent tests |
+
+A similarly named AIDL file is not automatically a duplicate. Check its package, signature and callers before consolidating protocol code. Flavor source movement should be validated in the affected build variants.
+
+## Documentation map
+
+Some historical technical documents are in Arabic. This README and the new contribution/security/privacy/development/maintenance files provide English entry points; existing historical material retains its original language and provenance.
+
+| Goal | Document |
+|---|---|
+| Build, develop and choose validation scope | [Development guide](docs/DEVELOPMENT.md) |
+| Submit code or documentation | [Contributing](CONTRIBUTING.md) |
+| Get help or file a useful issue | [Support](SUPPORT.md) |
+| Report a vulnerability | [Security policy](SECURITY.md) |
+| Understand local/external data boundaries | [Privacy](PRIVACY.md) |
+| Understand licensing and third-party provenance | [Licensing status](LICENSE.md), [Attribution](ATTRIBUTION.md), [Third-party notices](THIRD_PARTY_NOTICES.md) |
+| Navigate the current application | [Project files](docs/PROJECT_FILES.md), [Mental map](MENTAL_MAP.md) |
+| Understand architecture | [Project architecture](PROJECT_ARCHITECTURE.md) |
+| Understand AUTO/routing/outcomes | [Decision engine](DECISION_ENGINE.md) |
+| Understand actual tool contracts | [Tool execution contract](docs/TOOL_EXECUTION_CONTRACT.md) |
+| Use the floating assistant | [Screen assistant](docs/SCREEN_ASSISTANT.md), [Assistant design](docs/floating-assistant-design.md) |
+| Configure device access | [Device access](DEVICE_ACCESS.md) |
+| Configure sensitive lock/unlock behavior | [Device lock access](docs/DEVICE_LOCK_ACCESS.md) |
+| Enroll/start local voice | [Hi Omni](docs/HI_OMNI_LOCAL_WAKE.md) |
+| Learn/replay reviewed tasks | [Learned tasks](docs/LEARNED_TASKS.md) |
+| Correct an active run | [Live agent steering](docs/LIVE_AGENT_STEERING.md) |
+| Configure media and inspect recovery | [Chat media and unlock recovery](docs/CHAT_MEDIA_AND_UNLOCK_RECOVERY.md) |
+| Inspect conversation recall | [Chat history recall](CHAT_HISTORY_RECALL.md) |
+| Review Android notification/alarm limits | [Notification/alarm tools](NOTIFICATION_ALARM_TOOLS.md) |
+| Connect Omni apps | [OmniLink v3](OMNILINK_V3_INTEGRATION.md), [Link protocol](LINK_PROTOCOL.md) |
+| Integrate launcher handoff/control | [Launcher integration](docs/LAUNCHER_INTEGRATION.md) |
+| Pair Telegram or run WhatsApp locally | [Telegram](TELEGRAM_INTEGRATION.md), [WhatsApp bridge](whatsapp-bridge/README.md) |
+| Review motion/performance behavior | [UI performance](UI_PERFORMANCE.md), [Chat experience](docs/chat-experience.md) |
+| Understand keyboard/model-selection changes | [Chat keyboard and model selection](docs/chat-keyboard-and-model-selection.md) |
+| Review proposed modularization | [Modularization roadmap](MODULARIZATION_ROADMAP.md) |
+| Review long-term vision | [Vision and roadmap](OMNIDEV_VISION_AND_ROADMAP.md) |
+| Maintain description/topics/labels | [Repository maintenance](docs/REPOSITORY_MAINTENANCE.md) |
+
+Numbered integration prompts (`00_INTEGRATION_ORDER.md`, `01_...` through `08_..._PROMPT.md`) are planning/history material. They are not proof that every proposed ecosystem feature is implemented. Validate those proposals against current code and runtime contracts before using them as an implementation specification.
+
+## Current limits and development directions
+
+### Current boundaries
+
+- The application is actively developed, with feature/device acceptance coverage that varies by subsystem.
+- It is one Gradle module today; package layers do not imply completed multi-module isolation.
+- Tool preflight prevents many interface errors, but cannot prove user-intent correctness or backend availability.
+- Model availability, quotas, prices and capabilities belong to the selected provider/account.
+- Native inference needs the real submodule/native implementation, a compatible model and enough memory.
+- Local wake detection is experimental acoustic matching, not secure voice authentication or a measured accuracy claim.
+- Lock-screen operation depends on supported genuine Android/OEM controls and explicit authenticated consent.
+- A reviewed semantic recipe can survive moved controls, but arbitrary redesigns/hidden state can force a checkpoint.
+- Repository/history retrieval is bounded and can miss relevant evidence.
+- External side effects, messaging delivery and accepted provider jobs are not generally exactly-once or reversible.
+- Background scheduling and audio capture remain subject to Android/OEM lifecycle restrictions.
+- Some dependency/tooling checks are advisory/nonfatal rather than strict vulnerability or zero-warning gates.
+- Performance policies are implemented, but universal device benchmarks are not published.
+- Source visibility is separate from permission to reuse/distribute it; repository-wide licensing remains unresolved.
+
+### Documented development directions
+
+The architecture/vision documents discuss further module separation, stronger physical dependency isolation, expanded measured device/provider evaluation and additional interoperability workflows. Treat them as development directions with individual prerequisites, not announced shipped capabilities or guaranteed release dates.
+
+Useful contributions include reproducible low-memory/RTL/device reports, real native/backend acceptance evidence, migration/permission regressions, clearer integration contracts and fixes that retain the established tier/scope/identity boundaries.
+
+## Contributing, support and repository maintenance
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before changing code. Keep contributions scoped to a concrete behavior, preserve third-party notices, run relevant checks and disclose validation limits. Changes to protocol identity, credential input, permission handling, signing and background delivery deserve explicit review.
+
+Use the issue forms for reproducible bugs and feature proposals, and the PR template for concrete problem/behavior/validation information. Consult [SUPPORT.md](SUPPORT.md) for diagnostic details and the private vulnerability-reporting route in [SECURITY.md](SECURITY.md).
+
+The repository identity and intended metadata are versioned in `.github/repository-metadata.json`. [Repository maintenance](docs/REPOSITORY_MAINTENANCE.md) explains how to inspect/apply the description, topics and issue-label taxonomy. File changes do not automatically update GitHub's About panel or repository labels; those are separate API/UI settings.
+
+## Ownership, licensing and acknowledgments
+
+OmniDev Workspace development and Omni integration maintenance are attributed to **Abdelrahman Hussein / Obieda**. That credit does not transfer ownership of upstream applications, protocols, libraries or models, and does not imply endorsement by their maintainers.
+
+The repository has not adopted a general open-source license for its original code. [LICENSE.md](LICENSE.md) makes that status explicit; it is not a replacement MIT/Apache/GPL license. GitHub viewing/forking permissions and separately licensed third-party components remain governed by their applicable terms.
+
+OmniLinkSDK has its own license/notices. The llama.cpp submodule, Vosk/JNA, Android/Jetpack components, JGit, networking libraries and the WhatsApp bridge dependencies retain their respective licenses. Downloaded model weights may have terms distinct from the inference library. Connected projects such as the Lawnchair/AOSP-derived Omni Launcher and AndroidIDE keep their own authorship and licensing.
+
+Keep original notices and review [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) when changing dependencies or redistributing binaries. The dependency guide is a starting inventory, not an assertion that every transitive license obligation has been automatically audited.

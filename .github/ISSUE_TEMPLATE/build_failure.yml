@@ -1,0 +1,37 @@
+name: Build or CI failure
+description: Report a toolchain, dependency, compile, test or packaging failure.
+title: "[Build]: "
+labels: [bug]
+body:
+  - type: input
+    id: revision
+    attributes:
+      label: Branch and commit
+    validations:
+      required: true
+  - type: input
+    id: task
+    attributes:
+      label: Failing Gradle task or workflow job
+      description: Include the exact task; a workflow/job URL is useful for CI.
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: First actionable error
+      description: Paste a redacted excerpt, not an environment dump or signing credentials.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Toolchain and dependency state
+      description: OS, JDK, wrapper, SDK/NDK/CMake, flavor, submodule and OmniLink staging state. Say whether failure was local or on GitHub Actions.
+    validations:
+      required: true
+  - type: textarea
+    id: checks
+    attributes:
+      label: Reproduction and completed checks
+      description: Steps attempted and results. Distinguish download failures from source/test errors.

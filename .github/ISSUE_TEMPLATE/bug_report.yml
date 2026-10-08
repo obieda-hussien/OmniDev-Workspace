@@ -1,0 +1,54 @@
+name: Android bug report
+description: Report a reproducible application, assistant or agent problem.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For vulnerabilities or private data exposure, use SECURITY.md instead. Redact keys, PINs, private conversations and project content.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+      description: Explain the concrete problem and what should have happened.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the starting screen/state and whether the problem repeats.
+    validations:
+      required: true
+  - type: dropdown
+    id: edition
+    attributes:
+      label: Installed edition
+      options: [Lite, Standard / Norm, Pro, OEM, Admin, Unknown]
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: App build or commit
+      description: Version/build, commit SHA or the CI run that produced the APK.
+    validations:
+      required: true
+  - type: textarea
+    id: device
+    attributes:
+      label: Device and Android environment
+      description: Device/OEM, Android version/API, phone language, orientation, keyboard and battery/motion settings if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: runtime
+    attributes:
+      label: Mode, model, tools and access
+      description: Selected Chat/Agent/Team/Auto mode, provider/model, Target Context type and relevant actual permission/backend states. Do not include keys or private paths.
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted logs or screenshots
+      description: Include the first actionable error and relevant evidence. Explain whether any external action may already have happened.

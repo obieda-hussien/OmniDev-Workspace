@@ -1,0 +1,18 @@
+name: Documentation correction
+description: Report missing, inaccurate or difficult-to-follow documentation.
+title: "[Docs]: "
+labels: [documentation]
+body:
+  - type: input
+    id: page
+    attributes:
+      label: Document and section
+    validations:
+      required: true
+  - type: textarea
+    id: correction
+    attributes:
+      label: Problem and suggested correction
+      description: Include the source/build evidence when a behavior or version is inaccurate.
+    validations:
+      required: true
