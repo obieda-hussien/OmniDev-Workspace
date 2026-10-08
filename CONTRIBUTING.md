@@ -1,12 +1,14 @@
-# Contributing to OmniDev Workspace
+# Authorized development of OmniDev Workspace
 
-Thank you for helping improve the Android workspace, its runtime and its documentation. Contributions should describe a concrete problem, preserve the application's access boundaries and include evidence appropriate to the change.
+OmniDev Workspace is a proprietary project with publicly visible source. Development is controlled by the owner, **Obieda**, and expressly authorized integrations/collaborators. Unsolicited code contributions are not accepted. The following instructions apply to authorized project work; public visibility is not an open contribution or reuse license.
+
+GitHub is configured to allow new pull requests and issues from collaborators only. The owner remains able to use those features. Installed applications are governed by their real installation permissions and GitHub's application rules; merely using the name Codex, Claude, Gemini, Jules or Copilot does not authorize an account. Use a branch in this repository for authorized work. See [Repository security](docs/REPOSITORY_SECURITY.md) for the hosting limitations and controls.
 
 Start with the [README](README.md), [development guide](docs/DEVELOPMENT.md), [project architecture](PROJECT_ARCHITECTURE.md) and [licensing status](LICENSE.md). The current Gradle project contains a single `:app` module and five product flavors.
 
 ## Before proposing a change
 
-Search existing issues and pull requests for the same behavior. For a larger architectural change, explain the problem and affected interfaces in an issue before investing in an implementation. Use the feature-request form to describe the user journey, prerequisites and success criteria.
+Confirm that the owner has authorized the work, then search existing issues and pull requests for the same behavior. For a larger architectural change, agree on the problem and affected interfaces before implementation. Authorized collaborators can use the feature-request form to describe the user journey, prerequisites and success criteria.
 
 Report security vulnerabilities through [SECURITY.md](SECURITY.md), rather than placing exploit details or credentials in a public issue. Use [SUPPORT.md](SUPPORT.md) for ordinary setup and diagnostic questions.
 
@@ -75,7 +77,7 @@ Check generated API names, permission assumptions, source attributions and depen
 
 ## Licensing and contribution terms
 
-The repository has not adopted a repository-wide open-source license or a contributor license agreement. Do not assume an MIT, Apache or GPL grant for original Workspace code. Existing third-party licenses and notices remain applicable.
+Original Workspace material is proprietary and rights are reserved under [LICENSE.md](LICENSE.md). Do not assume an MIT, Apache or GPL grant. Existing third-party licenses, previously valid permissions and notices remain applicable; no contributor ownership assignment is implied by this guide.
 
 Make sure you have authority to submit your contribution and identify any imported third-party material and its terms. Discuss substantial externally authored code or a licensing change with the maintainer before submission. A PR does not justify silently relicensing existing code or removing notices.
 

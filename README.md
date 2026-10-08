@@ -15,12 +15,13 @@ The repository contains the Android application, native inference integration, J
 
 **Development collaboration:** early work was assisted by Claude, Gemini, Jules and GitHub Copilot; continued development with ChatGPT / OpenAI Codex brought extensive debugging, interface redesign and code/logic revision. See [Contributors and development history](CONTRIBUTORS.md).
 
-**Start here:** [Quick start](#quick-start) · [Choose an edition](#editions-and-capability-policy) · [Build from source](#build-from-source) · [Documentation map](#documentation-map) · [Contribute](CONTRIBUTING.md) · [Get help](SUPPORT.md) · [Report a vulnerability](SECURITY.md)
+**Start here:** [Quick start](#quick-start) · [Choose an edition](#editions-and-capability-policy) · [Build from source](#build-from-source) · [Documentation map](#documentation-map) · [Authorized development](CONTRIBUTING.md) · [Get help](SUPPORT.md) · [Report a vulnerability](SECURITY.md)
 
-> This README describes the implementation reviewed on **8 October 2026**. Current source and completed CI results take precedence over older planning documents. A repository-wide open-source license has not been adopted; see [LICENSE.md](LICENSE.md) before reusing or distributing project code.
+> This README describes the implementation reviewed on **8 October 2026**. Current source and completed CI results take precedence over older planning documents. OmniDev Workspace is **proprietary**, with publicly visible source and controlled development. Rights in original project material are reserved; see [LICENSE.md](LICENSE.md) before any reuse or distribution.
 
 ## Contents
 
+- [Repository size and source statistics](#repository-size-and-source-statistics)
 - [What OmniDev Workspace does](#what-omnidev-workspace-does)
 - [Quick start](#quick-start)
 - [Editions and capability policy](#editions-and-capability-policy)
@@ -54,6 +55,34 @@ The repository contains the Android application, native inference integration, J
 - [Current limits and development directions](#current-limits-and-development-directions)
 - [Contributing, support and repository maintenance](#contributing-support-and-repository-maintenance)
 - [Ownership, licensing and acknowledgments](#ownership-licensing-and-acknowledgments)
+
+## Repository size and source statistics
+
+The following reproducible snapshot counts committed content at `2e36a4d6939b32380e2b87cac989138ee002e918`, immediately before the ownership/security/statistics update on **8 October 2026**.
+
+| Metric | Count |
+| --- | ---: |
+| Tracked files | 753 |
+| UTF-8 text files | 742 |
+| Physical text lines | 127,290 |
+| Nonblank text lines | 114,403 |
+| Source/script files | 625 |
+| Source/script physical lines | 118,956 |
+| App Kotlin files, including tests | 599 |
+| App Kotlin physical lines, including tests | 115,700 |
+| Test source files | 142 |
+| Test source physical lines | 10,715 |
+| Tracked blob bytes | 6,552,619 |
+
+Physical lines include comments and blank lines; nonblank lines still include comments. These counts are not comment-free SLOC, a code-quality score or a device performance measurement. Source/script counts exclude XML/resources, data and documentation. Test totals overlap source totals. Untracked/generated files, downloaded models, caches and submodule contents are excluded; tracked binary assets count as files/bytes only.
+
+See the [full format breakdown and counting method](docs/REPOSITORY_STATS.md). To measure any committed revision without counting local caches:
+
+```sh
+python3 scripts/repository_stats.py --ref HEAD --format markdown
+```
+
+For repository access, installed integrations, Actions controls and public-source limitations, see [Repository security](docs/REPOSITORY_SECURITY.md).
 
 ## What OmniDev Workspace does
 
@@ -1229,19 +1258,19 @@ Numbered integration prompts (`00_INTEGRATION_ORDER.md`, `01_...` through `08_..
 - Background scheduling and audio capture remain subject to Android/OEM lifecycle restrictions.
 - Some dependency/tooling checks are advisory/nonfatal rather than strict vulnerability or zero-warning gates.
 - Performance policies are implemented, but universal device benchmarks are not published.
-- Source visibility is separate from permission to reuse/distribute it; repository-wide licensing remains unresolved.
+- Original project material is proprietary. Public hosting cannot prevent source cloning, downloading or on-platform forking; access controls protect the upstream project and its secrets, not the confidentiality of published source.
 
 ### Documented development directions
 
 The architecture/vision documents discuss further module separation, stronger physical dependency isolation, expanded measured device/provider evaluation and additional interoperability workflows. Treat them as development directions with individual prerequisites, not announced shipped capabilities or guaranteed release dates.
 
-Useful contributions include reproducible low-memory/RTL/device reports, real native/backend acceptance evidence, migration/permission regressions, clearer integration contracts and fixes that retain the established tier/scope/identity boundaries.
+Authorized development priorities include reproducible low-memory/RTL/device reports, real native/backend acceptance evidence, migration/permission regressions, clearer integration contracts and fixes that retain the established tier/scope/identity boundaries.
 
 ## Contributing, support and repository maintenance
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md) before changing code. Keep contributions scoped to a concrete behavior, preserve third-party notices, run relevant checks and disclose validation limits. Changes to protocol identity, credential input, permission handling, signing and background delivery deserve explicit review.
+Development is limited to the owner and expressly authorized collaborators/integrations. New PRs and issues are restricted to collaborators in GitHub settings; this is not an open contribution program. Read [CONTRIBUTING.md](CONTRIBUTING.md) before authorized changes. Keep contributions scoped to a concrete behavior, preserve third-party notices, run relevant checks and disclose validation limits. Changes to protocol identity, credential input, permission handling, signing and background delivery deserve explicit review.
 
-Use the issue forms for reproducible bugs and feature proposals, and the PR template for concrete problem/behavior/validation information. Consult [SUPPORT.md](SUPPORT.md) for diagnostic details and the private vulnerability-reporting route in [SECURITY.md](SECURITY.md).
+Authorized collaborators use the issue forms for reproducible bugs and feature proposals, and the PR template for concrete problem/behavior/validation information. Consult [SUPPORT.md](SUPPORT.md) for diagnostic details and the private vulnerability-reporting route in [SECURITY.md](SECURITY.md).
 
 The repository identity and intended metadata are versioned in `.github/repository-metadata.json`. [Repository maintenance](docs/REPOSITORY_MAINTENANCE.md) explains how to inspect/apply the description, topics and issue-label taxonomy. File changes do not automatically update GitHub's About panel or repository labels; those are separate API/UI settings.
 
@@ -1249,7 +1278,7 @@ The repository identity and intended metadata are versioned in `.github/reposito
 
 OmniDev Workspace development and Omni integration maintenance are attributed to **Abdelrahman Hussein / Obieda**. That credit does not transfer ownership of upstream applications, protocols, libraries or models, and does not imply endorsement by their maintainers.
 
-The repository has not adopted a general open-source license for its original code. [LICENSE.md](LICENSE.md) makes that status explicit; it is not a replacement MIT/Apache/GPL license. GitHub viewing/forking permissions and separately licensed third-party components remain governed by their applicable terms.
+Original Workspace material is **proprietary, with all rights reserved** by its applicable rights holders. [LICENSE.md](LICENSE.md) records the permissions boundary. GitHub viewing/on-platform forking rights and separately licensed third-party components retain their applicable terms; this notice cannot override them. Public source can be copied technically, so no copyright notice or upstream rule is described as an anti-clone guarantee.
 
 OmniLinkSDK has its own license/notices. The llama.cpp submodule, Vosk/JNA, Android/Jetpack components, JGit, networking libraries and the WhatsApp bridge dependencies retain their respective licenses. Downloaded model weights may have terms distinct from the inference library. Connected projects such as the Lawnchair/AOSP-derived Omni Launcher and AndroidIDE keep their own authorship and licensing.
 

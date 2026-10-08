@@ -1,5 +1,7 @@
 # Security policy
 
+OmniDev Workspace is a proprietary project hosted publicly. Repository access and workflow protections are documented in [Repository security](docs/REPOSITORY_SECURITY.md). Public hosting permits reading and copying published source; those controls do not promise clone/fork prevention. Rights in original material are reserved under [LICENSE.md](LICENSE.md), subject to applicable platform and third-party permissions.
+
 OmniDev Workspace combines model requests, local files, Android capabilities and connected services. Security reports should identify the actual trust boundary and reproducible effect, rather than relying only on a tool/model description.
 
 ## Maintained scope
@@ -10,11 +12,11 @@ All five flavors can be relevant to a report. Distinguish edition eligibility fr
 
 ## Report privately
 
-Use the repository's **Security → Report a vulnerability** route when GitHub private vulnerability reporting is enabled:
+GitHub private vulnerability reporting was enabled and verified on **8 October 2026**. Use the repository's **Security → Report a vulnerability** route:
 
 [Open the private vulnerability-reporting form](https://github.com/obieda-hussien/OmniDev-Workspace/security/advisories/new).
 
-The existence of this file does not itself enable GitHub's private reporting setting. If the form is unavailable, use a private contact explicitly listed by the [maintainer](https://github.com/obieda-hussien). If no such contact is available, open a public issue titled **Security contact requested**, with no exploit, credential, affected-user details or private evidence, and request a private route.
+If the form becomes unavailable, use a private contact explicitly listed by the [maintainer](https://github.com/obieda-hussien). New repository issues are restricted to collaborators, so an external reporter should not rely on the issue tracker as a fallback. If no private contact is available, retain the report privately until a suitable route is available; do not publish exploit details to request contact.
 
 Do not disclose an unresolved exploit in a public PR/issue or upload private files as public attachments. Coordinate publication of technical details with the maintainer after impact and a fix have been assessed. This project does not currently advertise a bounty program or a guaranteed response deadline.
 
