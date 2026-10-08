@@ -8,6 +8,7 @@ import android.os.Build
 import android.widget.MediaController
 import android.widget.Toast
 import android.widget.VideoView
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateContentSize
@@ -49,6 +50,22 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.omnidev.workspace.data.chatmedia.*
 import com.omnidev.workspace.data.model.*
 import kotlinx.coroutines.*
+
+/** VoiceInteractionSession has no Activity result registry; its host supplies a real picker bridge. */
+internal val LocalChatMediaSaveAs = staticCompositionLocalOf<((AttachmentMeta) -> Unit)?> { null }
+internal val LocalChatMediaExternalActivity = staticCompositionLocalOf<((Intent) -> Unit)?> { null }
+
+/** Service contexts need a new task, including the outer sharing chooser. */
+internal fun startChatMediaActivity(context: Context, intent: Intent) {
+    var host = context
+    while (host is ContextWrapper && host !is android.app.Activity) {
+        val base = host.baseContext
+        if (base === host) break
+        host = base
+    }
+    if (host !is android.app.Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    context.startActivity(intent)
+}
 
 /** Only one user-started chat player can own audio; leaving a card/window always stops it. */
 private object ChatPlayback {
@@ -135,12 +152,22 @@ internal fun ChatMediaCard(original: AttachmentMeta) {
             finally { busy = false }
         }
     }
-    val saveAs = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(meta.mimeType)) { uri ->
-        if (uri != null) action {
-            try { ChatMediaStore.export(context, meta, uri); Toast.makeText(context, "File saved", Toast.LENGTH_SHORT).show() }
-            catch (error: Exception) { runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri) }; throw error }
-        }
+    val externalActivity = LocalChatMediaExternalActivity.current
+    fun openExternal(intent: Intent) {
+        if (externalActivity != null) externalActivity(intent) else startChatMediaActivity(context, intent)
     }
+    val registryOwner = LocalActivityResultRegistryOwner.current
+    val saveBridge = LocalChatMediaSaveAs.current
+    val saveAs: (() -> Unit)? = if (registryOwner != null) {
+        val launcher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(meta.mimeType)) { uri ->
+            if (uri != null) action {
+                try { ChatMediaStore.export(context, meta, uri); Toast.makeText(context, "File saved", Toast.LENGTH_SHORT).show() }
+                catch (error: Exception) { runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri) }; throw error }
+            }
+        }
+        val launch: () -> Unit = { launcher.launch(ChatMediaStore.safeName(meta.fileName)) }
+        launch
+    } else saveBridge?.let { bridge -> { bridge(meta) } }
     val motion = LocalOmniMotion.current
     val shape = RoundedCornerShape(24.dp)
     val ratio = job?.aspect?.split(':')?.let { parts -> if (parts.size == 2) parts[0].toFloatOrNull()?.let { a -> parts[1].toFloatOrNull()?.takeIf { it > 0 }?.let { a / it } } else null }
@@ -186,8 +213,8 @@ internal fun ChatMediaCard(original: AttachmentMeta) {
                     }
                 } else {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilledTonalButton(enabled = !busy, onClick = {
-                            if (Build.VERSION.SDK_INT < 29) saveAs.launch(ChatMediaStore.safeName(meta.fileName))
+                        FilledTonalButton(enabled = !busy && (Build.VERSION.SDK_INT >= 29 || saveAs != null), onClick = {
+                            if (Build.VERSION.SDK_INT < 29) action { checkNotNull(saveAs).invoke() }
                             else action { ChatMediaStore.save(context, meta); Toast.makeText(context, "Saved to device", Toast.LENGTH_SHORT).show() }
                         }) { Icon(Icons.Default.Download, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Save") }
                         Text(if (meta.sizeBytes > 0) mediaFileSize(meta.sizeBytes) else meta.mimeType.substringAfter('/'), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -198,16 +225,16 @@ internal fun ChatMediaCard(original: AttachmentMeta) {
                                     menu = false; action {
                                         val uri = ChatMediaStore.shareUri(context, meta)
                                         val send = Intent(Intent.ACTION_SEND).setType(meta.mimeType).putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).apply { clipData = ClipData.newRawUri("File", uri) }
-                                        context.startActivity(Intent.createChooser(send, "Share file"))
+                                        openExternal(Intent.createChooser(send, "Share file"))
                                     }
                                 })
                                 DropdownMenuItem(text = { Text("Open with…") }, leadingIcon = { Icon(Icons.Default.OpenInNew, null) }, onClick = {
                                     menu = false; action {
                                         val uri = ChatMediaStore.shareUri(context, meta)
-                                        context.startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, meta.mimeType).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).apply { clipData = ClipData.newRawUri("File", uri) })
+                                        openExternal(Intent(Intent.ACTION_VIEW).setDataAndType(uri, meta.mimeType).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION).apply { clipData = ClipData.newRawUri("File", uri) })
                                     }
                                 })
-                                DropdownMenuItem(text = { Text("Save as…") }, leadingIcon = { Icon(Icons.Default.FolderOpen, null) }, onClick = { menu = false; saveAs.launch(ChatMediaStore.safeName(meta.fileName)) })
+                                DropdownMenuItem(text = { Text("Save as…") }, enabled = !busy && saveAs != null, leadingIcon = { Icon(Icons.Default.FolderOpen, null) }, onClick = { menu = false; action { checkNotNull(saveAs).invoke() } })
                             }
                         }
                     }

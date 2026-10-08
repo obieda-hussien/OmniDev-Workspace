@@ -9,6 +9,9 @@ import android.speech.RecognizerIntent
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import com.omnidev.workspace.data.chatmedia.ChatMediaStore
+import com.omnidev.workspace.data.model.AttachmentMeta
 import androidx.activity.result.contract.ActivityResultContracts
 import com.omnidev.workspace.data.assistant.*
 
@@ -17,6 +20,7 @@ class AssistantInputActivity : ComponentActivity() {
     private val controller by lazy { AssistantRuntime.get(this) }
     private val generation by lazy { intent.getIntExtra(GENERATION, -1) }
     private fun isCurrent() = generation == controller.sessionGeneration
+    private var savingMedia = false
 
     private val files = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (!isCurrent()) { finish(); return@registerForActivityResult }
@@ -42,11 +46,52 @@ class AssistantInputActivity : ComponentActivity() {
         if (Settings.canDrawOverlays(this)) minimize()
         else { controller.message("Allow display over other apps to use the floating bubble."); resume() }
     }
+    private val saveMedia = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val uri = result.data?.data?.takeIf { result.resultCode == RESULT_OK }
+        if (uri == null) { resume(); return@registerForActivityResult }
+        if (!isCurrent()) {
+            runCatching { android.provider.DocumentsContract.deleteDocument(contentResolver, uri) }
+            finish(); return@registerForActivityResult
+        }
+        savingMedia = true
+        lifecycleScope.launch {
+            try {
+                val source = intent.getStringExtra(MEDIA_URI) ?: error("Missing source file")
+                val meta = ChatMediaStore.metadata(this@AssistantInputActivity, source,
+                    intent.getStringExtra(MEDIA_NAME)) ?: error("Source file unavailable")
+                check(isCurrent()) { "Assistant session changed" }
+                ChatMediaStore.export(this@AssistantInputActivity, meta, uri)
+                savingMedia = false
+                android.widget.Toast.makeText(this@AssistantInputActivity, "File saved", android.widget.Toast.LENGTH_SHORT).show()
+                resume()
+            } catch (cancelled: CancellationException) {
+                runCatching { android.provider.DocumentsContract.deleteDocument(contentResolver, uri) }
+                throw cancelled
+            } catch (_: Exception) {
+                runCatching { android.provider.DocumentsContract.deleteDocument(contentResolver, uri) }
+                savingMedia = false
+                if (isCurrent()) controller.message("Could not save this file. Check file access and available storage, then try again.")
+                resume()
+            }
+        }
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (!isCurrent()) { finish(); return }
-        if (savedInstanceState != null) return
+        if (savedInstanceState != null) {
+            if (savedInstanceState.getBoolean(SAVING_MEDIA)) {
+                controller.message("Saving was interrupted. Please choose Save as again.")
+                resume()
+            }
+            return
+        }
         when (intent.getStringExtra(ACTION)) {
+            SAVE_MEDIA -> external("The save picker could not open. Try Save or open the full conversation.") {
+                require(!intent.getStringExtra(MEDIA_URI).isNullOrBlank())
+                saveMedia.launch(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType(intent.getStringExtra(MEDIA_MIME) ?: "application/octet-stream")
+                    .putExtra(Intent.EXTRA_TITLE, ChatMediaStore.safeName(intent.getStringExtra(MEDIA_NAME).orEmpty())))
+            }
             FILES -> external("The Android file picker could not open. Use File path, or enable a document provider.") { files.launch(arrayOf("*/*")) }
             MICROPHONE -> external("Microphone permission could not be requested. You can still type your question.") { microphone.launch(Manifest.permission.RECORD_AUDIO) }
             ACCESS -> external("Device access could not open. Open OmniDev settings and choose Device access.") { settings.launch(Intent(this, DeviceAccessActivity::class.java)) }
@@ -60,6 +105,10 @@ class AssistantInputActivity : ComponentActivity() {
             }
             else -> systemVoice()
         }
+    }
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean(SAVING_MEDIA, savingMedia)
+        super.onSaveInstanceState(outState)
     }
     private fun external(error: String, launch: () -> Unit) {
         runCatching(launch).onFailure { controller.message(error); resume() }
@@ -79,12 +128,20 @@ class AssistantInputActivity : ComponentActivity() {
     companion object {
         private const val GENERATION = "assistant_input_generation"
         const val ACTION = "assistant_input_action"
+        const val SAVE_MEDIA = "save_media"
+        private const val SAVING_MEDIA = "assistant_saving_media"
+        private const val MEDIA_URI = "assistant_media_uri"
+        private const val MEDIA_MIME = "assistant_media_mime"
+        private const val MEDIA_NAME = "assistant_media_name"
         const val FILES = "files"
         const val MICROPHONE = "microphone"
         const val BUBBLE = "bubble"
         const val SETTINGS = "settings"
         const val ACCESS = "access"
         const val VOICE = "voice"
+        fun saveMediaIntent(context: android.content.Context, meta: AttachmentMeta) = intent(context, SAVE_MEDIA)
+            .putExtra(MEDIA_URI, meta.uri).putExtra(MEDIA_MIME, meta.mimeType)
+            .putExtra(MEDIA_NAME, ChatMediaStore.safeName(meta.fileName))
         fun intent(context: android.content.Context, action: String) = Intent(context, AssistantInputActivity::class.java).putExtra(ACTION, action).putExtra(GENERATION, AssistantRuntime.get(context).sessionGeneration)
     }
 }

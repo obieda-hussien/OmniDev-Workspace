@@ -10,6 +10,10 @@ import android.service.voice.VoiceInteractionSession
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import androidx.compose.runtime.CompositionLocalProvider
+import com.omnidev.workspace.ui.chat.LocalChatMediaSaveAs
+import com.omnidev.workspace.ui.chat.LocalChatMediaExternalActivity
+import com.omnidev.workspace.data.model.AttachmentMeta
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.Lifecycle
@@ -40,11 +44,13 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
     private var composition: ComposeView? = null
     private var preserveOnHide = false
     private var userDismissed = false
-    private fun handoff(action: String): Boolean {
+    private fun handoff(action: String, media: AttachmentMeta? = null): Boolean = handoff(
+        if (media == null) AssistantInputActivity.intent(context, action) else AssistantInputActivity.saveMediaIntent(context, media))
+    private fun handoff(intent: Intent): Boolean {
         speech.stop()
-        return runCatching { startAssistantActivity(AssistantInputActivity.intent(context, action)) }
+        return runCatching { startAssistantActivity(intent) }
             .onSuccess { preserveOnHide = true; hide() }
-            .onFailure { controller.message("Could not open the system picker. Try again or use File path.") }.isSuccess
+            .onFailure { controller.message("Could not open this window. Try again or open the full conversation.") }.isSuccess
     }
 
     init { setTheme(R.style.Theme_OmniDevWorkspace_Assistant) }
@@ -71,27 +77,32 @@ class OmniVoiceSession(context: Context) : VoiceInteractionSession(context) {
             setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         }
         view.setContent {
-            OmniDevTheme(dynamicColor = false) {
-                AssistantOverlay(controller, onDismiss = { userDismissed = true; preserveOnHide = false; hide() }, onExpand = {
-                    controller.openConversation {
-                        preserveOnHide = true
-                        startAssistantActivity(Intent(context, MainActivity::class.java)
-                            .putExtra("open_assistant_conversation", true)
-                            .putExtra("assistant_session_id", controller.chat.uiState.value.currentSessionId ?: -1L))
-                        hide()
-                    }
-                }, onSetup = { handoff(AssistantInputActivity.SETTINGS) },
-                    onAccess = { handoff(AssistantInputActivity.ACCESS) },
-                    onAttach = { handoff(AssistantInputActivity.FILES) },
-                    onSystemVoice = { handoff(AssistantInputActivity.VOICE) },
-                    onMinimize = {
-                        if (!Settings.canDrawOverlays(context)) handoff(AssistantInputActivity.BUBBLE)
-                        else uiScope.launch { AssistantRuntime.minimizeForAction?.invoke() }
-                    },
-                    onMicrophone = {
-                        speech.toggle({ handoff(AssistantInputActivity.MICROPHONE) }, { handoff(AssistantInputActivity.VOICE) })
-                    }
-                )
+            CompositionLocalProvider(
+                LocalChatMediaSaveAs provides { meta -> handoff(AssistantInputActivity.SAVE_MEDIA, meta); Unit },
+                LocalChatMediaExternalActivity provides { intent -> handoff(intent); Unit }
+            ) {
+                OmniDevTheme(dynamicColor = false) {
+                    AssistantOverlay(controller, onDismiss = { userDismissed = true; preserveOnHide = false; hide() }, onExpand = {
+                        controller.openConversation {
+                            preserveOnHide = true
+                            startAssistantActivity(Intent(context, MainActivity::class.java)
+                                .putExtra("open_assistant_conversation", true)
+                                .putExtra("assistant_session_id", controller.chat.uiState.value.currentSessionId ?: -1L))
+                            hide()
+                        }
+                    }, onSetup = { handoff(AssistantInputActivity.SETTINGS) },
+                        onAccess = { handoff(AssistantInputActivity.ACCESS) },
+                        onAttach = { handoff(AssistantInputActivity.FILES) },
+                        onSystemVoice = { handoff(AssistantInputActivity.VOICE) },
+                        onMinimize = {
+                            if (!Settings.canDrawOverlays(context)) handoff(AssistantInputActivity.BUBBLE)
+                            else uiScope.launch { AssistantRuntime.minimizeForAction?.invoke() }
+                        },
+                        onMicrophone = {
+                            speech.toggle({ handoff(AssistantInputActivity.MICROPHONE) }, { handoff(AssistantInputActivity.VOICE) })
+                        }
+                    )
+                }
             }
         }
     }
