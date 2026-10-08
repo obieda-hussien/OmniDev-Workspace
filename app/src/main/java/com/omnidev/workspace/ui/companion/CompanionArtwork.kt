@@ -83,14 +83,15 @@ private fun DrawScope.drawCompanion(pose: CompanionPose, art: CompanionArt) {
                         drawCircle(Color.White.copy(alpha = .9f), 1f, Offset(x - .4f + pose.lookX * .5f, y - 1.3f + pose.lookY * .3f))
                     }
                 }
-                if (pose.mood in listOf(CompanionMood.FOCUSED, CompanionMood.CONCERNED, CompanionMood.WAITING)) {
-                    val worried = pose.mood == CompanionMood.CONCERNED
+                if (pose.mood in listOf(CompanionMood.FOCUSED, CompanionMood.CONCERNED, CompanionMood.WAITING, CompanionMood.SAD)) {
+                    val worried = pose.mood == CompanionMood.CONCERNED || pose.mood == CompanionMood.SAD
                     drawLine(ink.copy(alpha = .7f), Offset(23f, if (worried) 34f else 33f), Offset(27f, if (worried) 32f else 34f), 1.1f, StrokeCap.Round)
                     drawLine(ink.copy(alpha = .7f), Offset(37f, if (worried) 32f else 34f), Offset(41f, if (worried) 34f else 33f), 1.1f, StrokeCap.Round)
                 }
-                when (pose.mood) {
+                if (pose.mouthOpen > .05f) drawOval(ink, Offset(29f, 47f), Size(6f, 2f + pose.mouthOpen * 6f))
+                else when (pose.mood) {
                     CompanionMood.SURPRISED -> drawOval(ink, Offset(30f, 47f), Size(4f, 5f))
-                    CompanionMood.CONCERNED -> drawPath(art.frown, ink, style = line)
+                    CompanionMood.CONCERNED, CompanionMood.SAD -> drawPath(art.frown, ink, style = line)
                     else -> drawPath(art.smile, ink.copy(alpha = .85f), style = line)
                 }
                 val badge = when (pose.mood) {

@@ -237,4 +237,58 @@ class ChatCompanionTest {
         editor.performTextInput("!")
         compose.runOnIdle { assertEquals("External تعديل!", draft.value) }
     }
+
+    @Test fun longPressControlsCanDismissWithoutBlockingTypingAndHideCanBeRescued() {
+        val text = mutableStateOf("")
+        compose.setContent { MaterialTheme { CompositionLocalProvider(LocalOmniMotion provides MotionPolicy(reduced = true)) {
+            ChatCompanionHost("controls", false, modifier = Modifier.width(340.dp).height(520.dp)) {
+                Column(Modifier.fillMaxSize()) {
+                    Spacer(Modifier.weight(1f))
+                    ChatComposerSurface(text.value, { text.value = it }, {}, {}, false, {}, true)
+                }
+            }
+        } } }
+        val pet = compose.onNodeWithTag("omni-companion")
+        pet.performTouchInput { longClick() }
+        compose.onNodeWithTag("companion-controls").assertIsDisplayed()
+        compose.onNode(hasSetTextAction()).performTouchInput { click() }
+        compose.onNodeWithTag("companion-controls").assertDoesNotExist()
+        compose.onNode(hasSetTextAction()).performTextInput("Still available")
+        compose.runOnIdle { assertEquals("Still available", text.value) }
+        pet.performTouchInput { longClick() }
+        compose.onNodeWithText("Hide for 5 minutes").performClick()
+        pet.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Leaving for a little break"))
+        pet.performTouchInput { click() }
+        pet.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Your chat companion"))
+        pet.assertIsDisplayed()
+        pet.performTouchInput { longClick() }
+        compose.onNodeWithText("Hide for 5 minutes").performClick()
+        compose.waitUntil(5_000) { compose.onAllNodesWithTag("omni-companion").fetchSemanticsNodes().isEmpty() }
+        compose.onNode(hasSetTextAction()).assertExists()
+        compose.onNodeWithContentDescription("Send").assertIsEnabled()
+    }
+
+    @Test fun grabbingDuringDepartureRescuesAndRetainsPhysicalRtlDragging() {
+        compose.setContent { MaterialTheme { CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl,
+            LocalOmniMotion provides MotionPolicy(reduced = true)) {
+            ChatCompanionHost("rescue", false, modifier = Modifier.width(340.dp).height(520.dp)) {
+                Column(Modifier.fillMaxSize()) {
+                    Spacer(Modifier.weight(1f))
+                    ChatComposerSurface("", {}, {}, {}, false, {}, false)
+                }
+            }
+        } } }
+        val pet = compose.onNodeWithTag("omni-companion")
+        pet.performTouchInput { longClick() }
+        compose.onNodeWithText("Hide for 5 minutes").performClick()
+        val start = pet.fetchSemanticsNode().boundsInRoot
+        pet.performTouchInput { down(center); moveBy(Offset(-70f, -70f)) }
+        pet.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Happy you called me back"))
+        val held = pet.fetchSemanticsNode().boundsInRoot
+        assertEquals(start.left - 70f, held.left, 2f)
+        assertEquals(start.top - 70f, held.top, 2f)
+        pet.performTouchInput { up() }
+        pet.assertIsDisplayed()
+        pet.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Your chat companion"))
+    }
 }

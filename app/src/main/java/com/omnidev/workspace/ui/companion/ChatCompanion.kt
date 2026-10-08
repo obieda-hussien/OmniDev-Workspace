@@ -3,6 +3,12 @@ package com.omnidev.workspace.ui.companion
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.material3.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.AbsoluteAlignment
@@ -43,18 +49,22 @@ private class AnchorRegistry {
     var caret: Offset? = null
     var keyboard: Offset? = null
     var editedAt = 0L
+    var onTouch: ((Offset) -> Unit)? = null
 }
 private val LocalCompanionAnchors = staticCompositionLocalOf<AnchorRegistry?> { null }
 
 /** Stable keys follow LazyColumn items. User bubbles share the existing 24dp item gap as headroom. */
 @Composable
 internal fun Modifier.companionAnchor(kind: CompanionAnchor, id: String? = null): Modifier {
-    val registry = LocalCompanionAnchors.current ?: return this
+    val registry = LocalCompanionAnchors.current
+    val policy = LocalOmniMotion.current
+    val headroom by animateDpAsState(if (registry == null) 0.dp else if (kind == CompanionAnchor.MESSAGE) 36.dp else 60.dp,
+        tween(if (policy.reduced) 0 else policy.responseMillis), label = "companion headroom")
     val token = remember(kind, id) { Any() }
     val stableId = id ?: if (kind == CompanionAnchor.COMPOSER) "composer" else "${kind.name}-${System.identityHashCode(token)}"
-    DisposableEffect(registry, token) { onDispose { registry.positions.remove(token) } }
-    return padding(top = if (kind == CompanionAnchor.MESSAGE) 36.dp else 60.dp).onGloballyPositioned {
-        if (it.isAttached) registry.positions[token] = AnchorPosition(kind, it.unclippedRootRect(), stableId)
+    DisposableEffect(registry, token) { onDispose { registry?.positions?.remove(token) } }
+    return padding(top = headroom).onGloballyPositioned {
+        if (registry != null && it.isAttached) registry.positions[token] = AnchorPosition(kind, it.unclippedRootRect(), stableId)
     }
 }
 
@@ -115,6 +125,11 @@ internal fun ChatCompanionHost(
 ) {
     val preferences by rememberCompanionPreferences()
     val registry = remember(sessionKey) { AnchorRegistry() }
+    var temporarilyHidden by remember(sessionKey) { mutableStateOf(false) }
+    LaunchedEffect(temporarilyHidden) {
+        if (temporarilyHidden) { delay(5 * 60_000L); temporarilyHidden = false }
+    }
+    LaunchedEffect(preferences.enabled) { if (preferences.enabled) temporarilyHidden = false }
     var parent by remember { mutableStateOf<Rect?>(null) }
     val imeHeight = WindowInsets.ime.getBottom(LocalDensity.current)
     SideEffect { registry.keyboard = parent?.takeIf { imeHeight > 0 }?.let { Offset(it.width / 2, it.height + imeHeight * .45f) } }
@@ -123,12 +138,13 @@ internal fun ChatCompanionHost(
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
                 event.changes.firstOrNull { it.pressed }?.let { registry.look = LookTarget(it.position, System.nanoTime()) }
+                event.changes.firstOrNull { it.pressed && !it.previousPressed }?.let { registry.onTouch?.invoke(it.position) }
                 // Observe touches for gaze; scrolling, selection and controls keep their own gestures.
             }
         }
     }) {
-        CompositionLocalProvider(LocalCompanionAnchors provides if (preferences.enabled && visible) registry else null) { content() }
-        if (preferences.enabled && visible) {
+        CompositionLocalProvider(LocalCompanionAnchors provides if (preferences.enabled && visible && !temporarilyHidden) registry else null) { content() }
+        if (preferences.enabled && visible && !temporarilyHidden) {
             val size = with(LocalDensity.current) { 60.dp.toPx() }
             val area = parent
             val anchors = registry.positions.values.toList()
@@ -146,7 +162,8 @@ internal fun ChatCompanionHost(
                         val console = consoles.firstOrNull { it.id == "live-console" }
                             ?: consoles.filter(base::valid).maxByOrNull { it.top }
                         val others = anchors.filter { it.kind == CompanionAnchor.MESSAGE }.map(::perch) + consoles.filter { it.id != console?.id }
-                        CompanionOverlay(sessionKey, base.copy(console = console, messages = others), working, preferences.roaming, activity, registry, area.topLeft)
+                        CompanionOverlay(sessionKey, base.copy(console = console, messages = others), working, preferences.roaming, activity, registry, area.topLeft,
+                            onHidden = { temporarilyHidden = true })
                     }
                 }
             }
@@ -156,24 +173,53 @@ internal fun ChatCompanionHost(
 
 @Composable
 private fun BoxScope.CompanionOverlay(sessionKey: Any?, scene: CompanionScene, working: Boolean, roaming: Boolean,
-    activity: CompanionActivity, registry: AnchorRegistry, origin: Offset) {
+    activity: CompanionActivity, registry: AnchorRegistry, origin: Offset, onHidden: () -> Unit) {
     val motion = LocalOmniMotion.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val engine = remember(sessionKey) { CompanionMotion() }
     val pose = remember(engine) { mutableStateOf(CompanionPose()) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var animateExit by remember { mutableStateOf(false) }
+    var presence by remember { mutableStateOf(CompanionPresence.VISIBLE) }
+    val menuBounds = remember { arrayOfNulls<Rect>(1) }
+    fun syncPose() {
+        pose.value = engine.pose; presence = engine.presence
+        if (engine.presence == CompanionPresence.HIDDEN) onHidden()
+        if (motion.reduced && engine.presence != CompanionPresence.LEAVING) animateExit = false
+    }
+    fun openMenu() {
+        engine.release(0f, true)
+        menuOpen = true; syncPose()
+    }
+    fun hideForNow() {
+        menuOpen = false; engine.hideTemporarily(motion.reduced); animateExit = true; syncPose()
+    }
     val currentWorking by rememberUpdatedState(working)
     val currentRoaming by rememberUpdatedState(roaming)
     val currentActivity by rememberUpdatedState(activity)
     val currentScene by rememberUpdatedState(scene)
     val currentOrigin by rememberUpdatedState(origin)
-    SideEffect { engine.configure(scene, motion.reduced); pose.value = engine.step(0f, working, roaming, motion.reduced, activity) }
-    LaunchedEffect(engine, lifecycle, motion) {
-        if (!motion.reduced) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+    val currentMenuOpen by rememberUpdatedState(menuOpen)
+    val currentOnHidden by rememberUpdatedState(onHidden)
+    SideEffect {
+        engine.configure(scene, motion.reduced)
+        if (!menuOpen) engine.step(0f, working, roaming, motion.reduced, activity)
+        syncPose()
+        registry.onTouch = { point ->
+            val p = engine.pose
+            val sprite = Rect(p.x, p.y, p.x + scene.size, p.y + scene.size)
+            if (menuOpen && !sprite.contains(point) && menuBounds[0]?.contains(point) != true) menuOpen = false
+        }
+    }
+    DisposableEffect(registry) { onDispose { registry.onTouch = null } }
+    LaunchedEffect(engine, lifecycle, motion, animateExit) {
+        if (!motion.reduced || animateExit) lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             var previous = System.nanoTime()
             var observedLook = 0L
             while (true) {
                 delay(if (motion.compact) 34L else 17L)
                 val now = System.nanoTime()
+                if (currentMenuOpen) { previous = now; continue }
                 val look = registry.look
                 val caret = registry.caret?.minus(currentOrigin)
                 if (registry.editorFocused && caret != null && now - registry.editedAt < 900_000_000L) {
@@ -188,30 +234,39 @@ private fun BoxScope.CompanionOverlay(sessionKey: Any?, scene: CompanionScene, w
                         engine.lookAt((it.left + it.right) / 2, it.top + currentScene.size * .7f)
                     }
                 }
-                pose.value = engine.step((now - previous) / 1_000_000_000f, currentWorking, currentRoaming, false, currentActivity)
+                pose.value = engine.step((now - previous) / 1_000_000_000f, currentWorking, currentRoaming, motion.reduced, currentActivity)
+                presence = engine.presence
+                if (engine.presence == CompanionPresence.HIDDEN) currentOnHidden()
                 previous = now
             }
         }
     }
     val slop = LocalViewConfiguration.current.touchSlop
+    val longPressTime = LocalViewConfiguration.current.longPressTimeoutMillis
     val feedback = LocalHapticFeedback.current
     val coordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
     // Physical coordinates everywhere, independent of the application's layout direction.
+    Box(Modifier.matchParentSize().clipToBounds()) {
     CompanionArtwork(Modifier.align(AbsoluteAlignment.TopLeft).absoluteOffset { IntOffset(pose.value.x.roundToInt(), pose.value.y.roundToInt()) }
         .onGloballyPositioned { coordinates[0] = it }
         .size(60.dp).testTag("omni-companion")
         .semantics {
             contentDescription = "Omni companion"
-            stateDescription = when (activity) {
+            stateDescription = when {
+                presence == CompanionPresence.LEAVING -> "Leaving for a little break"
+                presence == CompanionPresence.RETURNING -> "Happy you called me back"
+                else -> when (activity) {
                 CompanionActivity.WAITING -> "Waiting for your decision"
                 CompanionActivity.LISTENING -> "Listening with you"
                 CompanionActivity.ERROR -> "Something needs attention"
                 else -> if (working) "Working alongside you" else "Your chat companion"
+                }
             }
-            onClick("Play with Omni") { engine.tap(motion.reduced); pose.value = engine.pose; true }
-            customActions = listOf(CustomAccessibilityAction("Return to message box") {
-                engine.returnToComposer(motion.reduced); pose.value = engine.pose; true
-            })
+            onClick("Play with Omni") { engine.tap(motion.reduced); syncPose(); true }
+            onLongClick("Companion controls") { openMenu(); true }
+            customActions = listOf(
+                CustomAccessibilityAction("Return to message box") { engine.returnToComposer(motion.reduced); syncPose(); true },
+                CustomAccessibilityAction("Hide for 5 minutes") { hideForNow(); true })
         }
         .pointerInput(engine, motion.reduced) {
             awaitEachGesture {
@@ -221,18 +276,28 @@ private fun BoxScope.CompanionOverlay(sessionKey: Any?, scene: CompanionScene, w
                     ?: (point + Offset(engine.pose.x, engine.pose.y) + currentOrigin)
                 tracker.addPosition(down.uptimeMillis, worldPoint(down.position))
                 var previous = worldPoint(down.position)
+                var previousEventTime = down.uptimeMillis
                 var distance = Offset.Zero
                 var grabbed = false
+                var longPressed = false
                 var ended = false
-                engine.grab(); pose.value = engine.pose; down.consume()
+                menuOpen = false; engine.grab(); syncPose(); down.consume()
+                val deadline = down.uptimeMillis + longPressTime
                 try {
                     while (!ended) {
-                        val event = awaitPointerEvent()
+                        val event = if (!grabbed && !longPressed) withTimeoutOrNull((deadline - previousEventTime).coerceAtLeast(1L)) { awaitPointerEvent() }
+                            else awaitPointerEvent()
+                        if (event == null) { longPressed = true; openMenu(); feedback.performHapticFeedback(HapticFeedbackType.LongPress); continue }
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
                         val point = worldPoint(change.position)
                         tracker.addPosition(change.uptimeMillis, point)
+                        if (!grabbed && !longPressed && change.uptimeMillis >= deadline &&
+                            (distance + point - previous).getDistance() <= slop) {
+                            longPressed = true; openMenu(); feedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                        }
                         if (!change.pressed) {
-                            if (grabbed) {
+                            if (longPressed) { /* The controls stay open after the finger is released. */ }
+                            else if (grabbed) {
                                 val velocity = tracker.calculateVelocity()
                                 engine.release(velocity.x, motion.reduced, velocity.y)
                             } else { engine.tap(motion.reduced); feedback.performHapticFeedback(HapticFeedbackType.LongPress) }
@@ -240,17 +305,39 @@ private fun BoxScope.CompanionOverlay(sessionKey: Any?, scene: CompanionScene, w
                         } else {
                             val delta = point - previous
                             distance += delta
-                            if (!grabbed && distance.getDistance() > slop) { engine.drag(distance.x, distance.y); grabbed = true }
-                            else if (grabbed) engine.drag(delta.x, delta.y)
+                            if (!longPressed && !grabbed && distance.getDistance() > slop) { engine.drag(distance.x, distance.y); grabbed = true }
+                            else if (!longPressed && grabbed) engine.drag(delta.x, delta.y)
                             change.consume()
                         }
                         previous = point
-                        pose.value = engine.pose
+                        previousEventTime = change.uptimeMillis
+                        syncPose()
                     }
                 } finally {
-                    if (!ended) { engine.release(0f, motion.reduced); pose.value = engine.pose }
+                    if (!ended && !longPressed) { engine.release(0f, motion.reduced); syncPose() }
                 }
             }
         }, pose = { pose.value })
+    if (menuOpen) {
+        val density = LocalDensity.current
+        val width = with(density) { minOf(224.dp.toPx(), (scene.width - 24.dp.toPx()).coerceAtLeast(1f)).toDp() }
+        val menuWidth = with(density) { width.toPx() }
+        val menuHeight = with(density) { 168.dp.toPx() }
+        Surface(Modifier.align(AbsoluteAlignment.TopLeft).absoluteOffset {
+            IntOffset((engine.pose.x - menuWidth / 2 + scene.size / 2).coerceIn(0f, (scene.width - menuWidth).coerceAtLeast(0f)).roundToInt(),
+                (engine.pose.y - menuHeight - 8.dp.toPx()).coerceIn(0f, (scene.height - menuHeight).coerceAtLeast(0f)).roundToInt())
+        }.width(width).onGloballyPositioned { menuBounds[0] = it.unclippedRootRect().translate(-origin) }.testTag("companion-controls"),
+            shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, shadowElevation = 6.dp) {
+            Column(Modifier.padding(8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Little Omni", Modifier.weight(1f).padding(start = 8.dp), style = MaterialTheme.typography.titleSmall)
+                    TextButton(onClick = { menuOpen = false }) { Text("Close") }
+                }
+                TextButton(onClick = { menuOpen = false; engine.returnToComposer(motion.reduced); syncPose() }, Modifier.fillMaxWidth()) { Text("Back to message box") }
+                TextButton(onClick = ::hideForNow, Modifier.fillMaxWidth()) { Text("Hide for 5 minutes") }
+            }
+        }
+    }
+    }
 }
 

@@ -40,7 +40,7 @@ internal fun CompanionSettingsCard() {
                 }
             }
         }
-        Text("Tap Omni for a playful tumble, or drag and throw it. Its eyes follow your touch and it jumps to a visible perch when you scroll. It rests during idle time and follows your device’s reduced motion setting.",
+        Text("Tap Omni for a playful tumble, or drag and throw it. Long press for controls and a five-minute break. Touch it before it leaves to welcome it back. Its eyes follow your typing, and it explores with occasional curious looks, sniffs, stretches and yawns. It follows your device’s reduced motion setting.",
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
