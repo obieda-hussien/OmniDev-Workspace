@@ -279,6 +279,9 @@
                 ns0:node="remove" />
         </provider>
 
+        <service android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync" ns0:node="merge" />
+
 
         <profileable android:shell="true" />
 

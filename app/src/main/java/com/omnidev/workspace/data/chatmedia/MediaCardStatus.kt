@@ -3,6 +3,7 @@ package com.omnidev.workspace.data.chatmedia
 internal enum class MediaStage { LOADING, QUEUED, GENERATING, DOWNLOADING, WAITING, READY, FAILED, CANCELLED }
 internal data class MediaCardStatus(val stage: MediaStage, val title: String, val detail: String, val code: String? = null) {
     val animated get() = stage in setOf(MediaStage.LOADING, MediaStage.GENERATING, MediaStage.DOWNLOADING)
+    val ambientAnimated get() = !terminal
     val terminal get() = stage in setOf(MediaStage.FAILED, MediaStage.CANCELLED, MediaStage.READY)
     companion object {
         fun from(job: MediaJob?, loaded: Boolean, fileReady: Boolean, worker: String? = null, monitorError: Boolean = false): MediaCardStatus {
@@ -16,15 +17,17 @@ internal data class MediaCardStatus(val stage: MediaStage, val title: String, va
             if (monitorError) return MediaCardStatus(MediaStage.WAITING, "Task status unavailable", "Could not read background execution state. Reopen the app or check background execution settings.", "STATUS_UNAVAILABLE")
             if (job.state == "waiting" || worker in setOf("ENQUEUED", "BLOCKED") && job.state != "queued")
                 return MediaCardStatus(MediaStage.WAITING, "Waiting to continue", job.error ?: "Waiting for connection or the next provider status check.", job.errorCode)
-            if (job.state == "queued") return MediaCardStatus(MediaStage.QUEUED, "Creation queued", "Waiting for a connection and an available background worker.")
+            if (job.state == "queued") return MediaCardStatus(MediaStage.QUEUED, "Waiting to start", "Android has not started this request yet. Check your connection or tap Start now. No provider request has been sent.")
             if (job.phase == "downloading") return MediaCardStatus(MediaStage.DOWNLOADING, "Saving your creation", "Downloading the completed provider output…")
             return MediaCardStatus(MediaStage.GENERATING, if (job.phase == "requesting") "Sending your request" else if (job.error != null) "Checking existing creation" else "Creating your ${job.kind}", job.error ?: "The provider is working. This is an animated placeholder, not a generated preview.", job.errorCode)
         }
         fun reconcile(job: MediaJob, worker: String?, workLoaded: Boolean, now: Long): MediaJob {
             if (job.state !in setOf("queued", "processing", "waiting")) return job
+            if (MediaQueuePolicy.expired(job, worker, workLoaded, now)) return job.copy(state = "failed", phase = "failed",
+                errorCode = "QUEUE_TIMEOUT", error = "Android did not start this request within five minutes. Check your connection and battery restrictions, then tap Start now. No provider request was sent.")
             val orphaned = workLoaded && worker == null && now - job.created > 30_000
             if (!orphaned && worker !in setOf("FAILED", "CANCELLED", "SUCCEEDED")) return job
-            return job.copy(state = "failed", phase = "failed", prompt = "", errorCode = if (orphaned) "SCHEDULING_FAILED" else "WORK_STOPPED",
+            return job.copy(state = "failed", phase = "failed", prompt = if (job.state == "queued" && job.operation == null) job.prompt else "", errorCode = if (orphaned) "SCHEDULING_FAILED" else "WORK_STOPPED",
                 error = if (orphaned) "No background worker is scheduled for this creation. Reopen the app and start a new request explicitly."
                 else "Background work stopped without saving its result. Check device background restrictions; no unconfirmed request is automatically repeated.")
         }

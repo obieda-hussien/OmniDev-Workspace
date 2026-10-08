@@ -12,7 +12,7 @@ The device access center provides authenticated opt-ins for screen wake, Android
 
 ## Edit and regenerate the latest turn
 
-Use **Edit last message** on your most recent user message, then **Save & regenerate**, or **Regenerate last response** on the latest reply. Chat, Agent, Team and the floating assistant replace the previous turn's responses, media cards and activity in the same saved conversation. Attachments, reply context and the original mode/target scope are retained; drafts for the next request remain intact. Editing is disabled while a run or file import is active. Cancel leaves the message unchanged, and failed generation is reported as an error that can be retried.
+Use **Edit last message** on your most recent user message, then **Save & regenerate**, or **Regenerate last response** on the latest reply. Chat, Agent, Team and the floating assistant replace the previous turn's responses, media cards and activity in the same saved conversation. Attachments and reply context are retained; regeneration and editing execute with the currently selected mode and target scope; drafts for the next request remain intact. Editing is disabled while a run or file import is active. Cancel leaves the message unchanged, and failed generation is reported as an error that can be retried.
 
 ## Live follow-ups and steering
 

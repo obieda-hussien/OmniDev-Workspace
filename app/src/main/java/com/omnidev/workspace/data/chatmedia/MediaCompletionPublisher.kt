@@ -28,7 +28,7 @@ internal object MediaCompletionPublisher {
         val text = if (job.arabic) "توليد الوسائط وقف بسبب خطأ. افتح تفاصيل الكارت للمراجعة.\n${job.error.orEmpty()}" else "${job.kind.replaceFirstChar { it.uppercase() }} generation failed.\n${job.error.orEmpty()}"
         OmniDevDatabase.getInstance(context).chatMessageDao().insertMediaResult(ChatMessageEntity(
             sessionId = job.sessionId, role = "ASSISTANT", content = text, messageId = MediaCompletion.MESSAGE_PREFIX + job.id + ":failed", replyToMessageId = job.originMessageId), job.originMessageId, job.created)
-        store.update(job.copy(failureAnnounced = true))
+        store.compareAndUpdate(job, job.copy(failureAnnounced = true))
     }
 
     suspend fun deliver(context: Context, original: MediaJob) {

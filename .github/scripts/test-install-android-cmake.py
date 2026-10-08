@@ -35,7 +35,7 @@ if mode == "always_fail" or (mode == "corrupt_once" and count == 1):
 (target / "source.properties").write_text("Pkg.Revision=3.22.1\n")
 if mode == "incomplete_once" and count == 1:
     sys.exit(0)
-version = "3.18.1" if mode == "wrong_binary_once" and count == 1 else "3.22.1"
+version = "3.18.1" if mode == "wrong_binary_once" and count == 1 else "3.22.1-g37088a8"
 for name, output in (("cmake", f"cmake version {version}"), ("ninja", "1.10.2")):
     binary = target / "bin" / name
     binary.write_text(f"#!/bin/sh\necho '{output}'\n")

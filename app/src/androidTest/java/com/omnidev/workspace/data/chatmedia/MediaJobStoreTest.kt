@@ -11,6 +11,27 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class MediaJobStoreTest {
+    @Test fun staleQueueMonitorCannotFailARequestClaimedByTheWorker() {
+        val context = preferencesContext(); val store = MediaJobStore(context)
+        val queued = store.create("music", "gemini", "lyria-3-clip-preview", "song", "")
+        val claimed = queued.copy(state = "processing", phase = "requesting")
+        assertTrue(store.compareAndUpdate(queued, claimed))
+        val expired = MediaCardStatus.reconcile(queued, "ENQUEUED", true, queued.created + 3_600_000)
+        assertFalse(store.compareAndUpdate(queued, expired))
+        assertEquals("processing", MediaJobStore(context).get(queued.id)!!.state)
+        assertFalse(store.compareAndUpdate(queued, claimed))
+    }
+
+    @Test fun restartedQueueDeadlineSurvivesReopeningTheApp() {
+        val context = preferencesContext(); val store = MediaJobStore(context)
+        val queued = store.create("music", "gemini", "lyria-3-clip-preview", "song", "")
+        val failed = MediaCardStatus.reconcile(queued, "ENQUEUED", true, queued.created + 3_600_000)
+        assertTrue(store.compareAndUpdate(queued, failed))
+        val restarted = MediaQueuePolicy.restart(failed, queued.created + 3_600_100)
+        assertTrue(store.compareAndUpdate(failed, restarted))
+        assertEquals(restarted, MediaJobStore(context).get(queued.id))
+    }
+
     @Test fun recreatedStoreRetainsOperationAndCompletedFileForOldConversations() {
         val context = preferencesContext()
         val first = MediaJobStore(context)
