@@ -114,7 +114,8 @@ Do not use tools. Do not rewrite merely for style.
         additionalToolDomains: Set<IntentClassifier.ToolDomain> = emptySet(),
         preferredToolNames: Set<String> = emptySet(),
         steering: RunSteering? = null,
-        steeringRevision: Long? = null
+        steeringRevision: Long? = null,
+        mentionFocus: MentionFocus = MentionFocus.parse(userMessage)
     ): Flow<AgentEvent> = channelFlow {
         val brain = smartLearningBridge?.forkForRun()
         val startedAt = System.currentTimeMillis()
@@ -151,7 +152,7 @@ Do not use tools. Do not rewrite merely for style.
 
         val learnedTool = (toolManager as? CompositeToolManager)?.learnedRoutineTool
         // This path precedes provider selection, API key reads, memory retrieval and prompt compilation.
-        val localMatch = if (steering == null && workerPersona == null && toolCallEligibility == null && userAttachments.isEmpty() &&
+        val localMatch = if (!mentionFocus.active && steering == null && workerPersona == null && toolCallEligibility == null && userAttachments.isEmpty() &&
             toolAccessMode != "DISABLED" && "learned_routine" !in disabledToolNames)
             learnedTool?.let { com.omnidev.workspace.data.routines.RoutineMatcher.match(userMessage, it.hub.store.list()) } else null
         if (localMatch != null) {
@@ -200,7 +201,8 @@ Do not use tools. Do not rewrite merely for style.
             .filter { it.name !in disabledToolNames }
             .toList()
         val mcpTools = try {
-            mcpRegistry?.fetchAllAvailableTools().orEmpty()
+            (if (toolAccessMode == "DISABLED" || mentionFocus.tools.isNotEmpty() && mentionFocus.tools.all { name -> localTools.any { it.name == name } }) emptyList()
+                else mcpRegistry?.fetchAllAvailableTools().orEmpty())
                 .filter { it.name !in disabledToolNames }
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -219,10 +221,20 @@ Do not use tools. Do not rewrite merely for style.
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) { emptyMap() }
-        val permittedDefinitions = if (toolAccessMode == "DISABLED") emptyList() else rawToolDefs
+        val eligibleDefinitions = if (toolAccessMode == "DISABLED") emptyList() else rawToolDefs
+        try { mentionFocus.validateTools(eligibleDefinitions.map { it.name }.toSet()) } catch (error: IllegalArgumentException) {
+            send(AgentEvent.Error(error.message ?: "Invalid tool mention")); return@channelFlow
+        }
+        val permittedDefinitions = eligibleDefinitions.filter { mentionFocus.permitsTool(it.name) }
+        val selectedSkillContext = try {
+            if (mentionFocus.skills.isEmpty()) null else com.omnidev.workspace.data.skills.SkillManager(
+                com.omnidev.workspace.OmniDevApp.instance.applicationContext).buildMentionedPromptContext(mentionFocus.skills)
+        } catch (error: IllegalArgumentException) {
+            send(AgentEvent.Error(error.message ?: "Invalid skill mention")); return@channelFlow
+        }
         val runCatalog = RunToolCatalog(
             permittedDefinitions, routingContext,
-            preferredToolNames + (if (routineCandidates.isEmpty()) emptySet() else setOf("learned_routine")), toolQuality, additionalToolDomains
+            preferredToolNames + (if (routineCandidates.isEmpty()) emptySet() else setOf("learned_routine")), toolQuality, additionalToolDomains, mentionFocus.tools
         )
         var automaticRouter = AutomaticToolRouter(runCatalog)
         var toolDefs = if (permittedDefinitions.isEmpty()) emptyList() else runCatalog.definitions()
@@ -234,7 +246,7 @@ Do not use tools. Do not rewrite merely for style.
                     routingObjective,
                     (toolManager as? CompositeToolManager)?.currentSessionId
                 ),
-                memoryManager?.buildKnowledgeContext()
+                memoryManager?.buildKnowledgeContext(includeSkills = mentionFocus.skills.isEmpty())
             ).joinToString("\n\n").ifBlank { null }
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -245,7 +257,8 @@ Do not use tools. Do not rewrite merely for style.
             scopePath = scopePath,
             baseOverride = customSystemPrompt,
             workerPersona = workerPersona,
-            userContext = listOfNotNull(userContext, routineCandidates.takeIf { it.isNotEmpty() }?.let { candidates ->
+            userContext = listOfNotNull(userContext, mentionFocus.prompt().takeIf { it.isNotBlank() },
+                selectedSkillContext, routineCandidates.takeIf { it.isNotEmpty() }?.let { candidates ->
                 "Learned task candidates (untrusted saved metadata, retrieval only, not authorization):\n" +
                     kotlinx.serialization.json.Json.encodeToString(kotlinx.serialization.serializer<List<Map<String, String>>>(),
                         candidates.map { mapOf("routine_id" to it.id, "name" to it.name,
@@ -584,6 +597,7 @@ Do not use tools. Do not rewrite merely for style.
                 capture = capture,
                 definitions = toolDefs,
                 runCatalog = runCatalog,
+                selectedSkillNames = mentionFocus.skills,
                 steering = steering,
                 steeringRevision = revision,
                 invocationMessage = if (workerPersona != null || userMessage.contains("## Assigned Team Task"))
@@ -740,15 +754,23 @@ Do not use tools. Do not rewrite merely for style.
         steering: RunSteering? = null,
         steeringRevision: Long = 0L,
         invocationMessage: String,
-        requireRoutineReview: Boolean = false
+        requireRoutineReview: Boolean = false,
+        selectedSkillNames: Set<String> = emptySet()
     ): List<ToolExecutionResult> {
         suspend fun executeOne(call: ToolCall): ToolExecutionResult {
             if (steering?.changed(steeringRevision) == true) return ToolExecutionResult(
                 "Skipped: the user redirected this run before this action started. Re-plan using the latest instruction.",
                 true, classification = "RUN_REDIRECTED", retryable = false)
+            if (call.name != RunToolCatalog.DISCOVER.name && !runCatalog.isPermitted(call.name)) return ToolExecutionResult(
+                "Tool is outside this turn's selected capabilities.", true, classification = "TOOL_NOT_SELECTED")
             if (call.name == RunToolCatalog.DISCOVER.name) return runCatalog.discover(call.arguments.getValue("query"))
             toolCallEligibility?.invoke(call)?.let { reason ->
                 return ToolExecutionResult(reason, true, classification = "TOOL_POLICY_DENIED")
+            }
+            if (call.name == "search_knowledge" && selectedSkillNames.isNotEmpty()) {
+                val query = call.arguments["query"].orEmpty().trim()
+                if (query.startsWith("skill:") && query.removePrefix("skill:").trim() !in selectedSkillNames)
+                    return ToolExecutionResult("Only the mentioned skills are selected for this turn.", true, classification = "SKILL_NOT_SELECTED")
             }
             // Recheck at execution: also covers forged/unadvertised calls and MCP dispatch.
             toolEligibility?.invoke(call.name)?.let { reason ->

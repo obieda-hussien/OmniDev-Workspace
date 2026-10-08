@@ -10,9 +10,10 @@ class RunToolCatalog(
     objective: String,
     preferred: Set<String> = emptySet(),
     private val quality: Map<String, Float> = emptyMap(),
-    private val additionalDomains: Set<IntentClassifier.ToolDomain> = emptySet()
+    private val additionalDomains: Set<IntentClassifier.ToolDomain> = emptySet(),
+    private val focusedToolNames: Set<String> = emptySet()
 ) {
-    private val catalog = definitions.filter { it.name != DISCOVER.name }.distinctBy { it.name }
+    private val catalog = definitions.filter { it.name != DISCOVER.name && (focusedToolNames.isEmpty() || it.name in focusedToolNames) }.distinctBy { it.name }
     private val terms = catalog.associate { tool -> tool.name to words(
         tool.name + " " + tool.description + " " + tool.parameters.joinToString(" ") { it.name + " " + it.description }
     ) }
@@ -21,12 +22,12 @@ class RunToolCatalog(
     private val loaded = linkedSetOf<String>()
 
     init {
-        loaded += catalog.filter { it.name in preferred }.take(8).map { it.name }
+        loaded += catalog.filter { it.name in focusedToolNames || it.name in preferred }.take(if (focusedToolNames.isEmpty()) 8 else 12).map { it.name }
         loaded += search(objective, INITIAL_SIZE - loaded.size).map { it.name }
     }
 
     fun definitions(): List<ToolDefinition> = ToolSchemaCompactor.compact(
-        listOf(DISCOVER) + catalog.filter { it.name in loaded }, emptyList()
+        (if (focusedToolNames.isEmpty()) listOf(DISCOVER) else emptyList()) + catalog.filter { it.name in loaded }, emptyList()
     ).orEmpty()
 
     /** Recipes may invoke permitted tools that have not been loaded into the model's prompt. */

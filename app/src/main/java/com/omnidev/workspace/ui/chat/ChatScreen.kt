@@ -86,7 +86,7 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToSettings: () -> Unit = {}, 
                 }
             }
         }) {
-            ChatConversation(state = state, onInputChanged = viewModel::onInputChanged, onSend = viewModel::sendMessage,
+            ChatConversation(state = state, mentionLoader = viewModel::loadMentionCandidates, onInputChanged = viewModel::onInputChanged, onSend = viewModel::sendMessage,
                 onStop = { viewModel.cancelCurrentRun() }, onModeSelected = viewModel::setMode,
                 onOpenConversations = { scope.launch { drawer.open() } }, onNewConversation = viewModel::newSession,
                 onChooseScope = { directoryPicker.launch(null) },
@@ -113,6 +113,7 @@ internal fun ChatConversation(
     onAttach: () -> Unit = {}, onRemoveAttachment: (android.net.Uri) -> Unit = {},
     onReply: (ChatMessage) -> Unit = {}, onDismissReply: () -> Unit = {}, onUpdateChatSettings: (ChatSettings) -> Unit = {},
     onEditLastUser: (String, String) -> Unit = { _, _ -> }, onRegenerateLast: (String) -> Unit = {},
+    mentionLoader: suspend () -> List<com.omnidev.workspace.domain.engine.MentionCandidate> = { emptyList() },
     onClearError: () -> Unit = {}, onModeDecision: (String, ModeSwitchPermissionStore.Approval?) -> Unit = { _, _ -> }
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -172,7 +173,7 @@ internal fun ChatConversation(
                         onChooseScope = onChooseScope, compact = compactComposer,
                         showScopeChooser = state.activeMode != OmniMode.CHAT && !state.isGodModeEnabled,
                         allowSteering = state.canSteer, submittedRevision = state.submittedSteeringRevision,
-                        appliedRevision = state.appliedSteeringRevision)
+                        appliedRevision = state.appliedSteeringRevision, mentionLoader = mentionLoader)
                 }
             }
         }

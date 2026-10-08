@@ -4,6 +4,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import com.omnidev.workspace.domain.engine.MentionFocus
+import com.omnidev.workspace.domain.engine.MentionCandidate
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -53,7 +56,8 @@ internal fun ChatComposerSurface(
     toolsDescription: String = "Conversation tools", editorDescription: String = "Message Omni",
     sendDescription: String = "Send", stopDescription: String = "Stop agent",
     allowSteering: Boolean = false,
-    onFocusChanged: (Boolean) -> Unit = {}
+    onFocusChanged: (Boolean) -> Unit = {},
+    mentionLoader: suspend () -> List<MentionCandidate> = { emptyList() }
 ) {
     var focused by remember { mutableStateOf(false) }
     val companionFocus = rememberCompanionEditorFocus()
@@ -61,6 +65,24 @@ internal fun ChatComposerSurface(
     var fieldState by remember { mutableStateOf(TextFieldValue(inputText, TextRange(inputText.length))) }
     // Keep IME composition/selection locally while preserving the shared String draft API.
     val fieldValue = if (fieldState.text == inputText) fieldState else TextFieldValue(inputText, TextRange(inputText.length))
+    val mentionQuery = if (focused && !isProcessing && fieldValue.selection.collapsed)
+        MentionFocus.query(fieldValue.text, fieldValue.selection.end) else null
+    var candidates by remember { mutableStateOf<List<MentionCandidate>>(emptyList()) }
+    var loadingMentions by remember { mutableStateOf(false) }
+    var mentionError by remember { mutableStateOf<String?>(null) }
+    // Fetch once per opening, not on each keystroke or model iteration.
+    LaunchedEffect(mentionQuery != null) {
+        if (mentionQuery != null) {
+            loadingMentions = true
+            mentionError = null
+            try { candidates = mentionLoader() }
+            catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (_: Exception) { mentionError = "Could not load capabilities. Type an exact @tool:name or @skill:name." }
+            finally { loadingMentions = false }
+        }
+    }
+    val selected = remember(inputText) { runCatching { MentionFocus.parse(inputText) }.getOrDefault(MentionFocus()) }
+    val suggestions = mentionQuery?.let { MentionCandidate.search(candidates, it.text) }.orEmpty()
     val editorScroll = rememberScrollState()
     var textLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val maxTextHeight = with(LocalDensity.current) { MaterialTheme.typography.bodyLarge.lineHeight.toDp() } * if (compact) 3 else 5
@@ -87,6 +109,47 @@ internal fun ChatComposerSurface(
         animationSpec = tween(motion.responseMillis, easing = OmniEasing), label = "composer focus")
     Surface(modifier = Modifier.companionAnchor(CompanionAnchor.COMPOSER), shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(1.dp, borderColor)) {
+        Column {
+            if (selected.active) {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    (selected.tools.map { MentionCandidate("tool", it, "") } + selected.skills.map { MentionCandidate("skill", it, "") }).forEach { item ->
+                        InputChip(selected = true, onClick = {
+                            val next = MentionFocus.remove(inputText, item)
+                            fieldState = TextFieldValue(next, TextRange(next.length))
+                            onInputChanged(next)
+                        }, label = { Text(item.token, maxLines = 1) },
+                            trailingIcon = { Text("×", modifier = Modifier.semantics { contentDescription = "Remove ${item.token}" }) },
+                            modifier = Modifier.semantics { contentDescription = "Remove ${item.token}" })
+                    }
+                }
+                Text(if (selected.tools.isNotEmpty()) "Only selected tools · skills specialize this turn" else "Selected skills preloaded · tools chosen as needed",
+                    Modifier.padding(horizontal = 16.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary)
+            }
+            if (mentionQuery != null) {
+                Column(Modifier.fillMaxWidth().heightIn(max = if (compact) 150.dp else 210.dp)
+                    .verticalScroll(rememberScrollState()).padding(horizontal = 8.dp)) {
+                    Text("Mention tools or skills", Modifier.padding(8.dp), style = MaterialTheme.typography.labelMedium)
+                    if (loadingMentions) Text("Loading available capabilities…", Modifier.padding(8.dp), style = MaterialTheme.typography.bodySmall)
+                    else if (suggestions.isEmpty()) Text(mentionError ?: "No matching enabled capability", Modifier.padding(8.dp), style = MaterialTheme.typography.bodySmall)
+                    suggestions.forEach { candidate ->
+                        Surface(onClick = {
+                            val query = mentionQuery ?: return@Surface
+                            val next = fieldValue.text.replaceRange(query.start, query.end, candidate.token + " ")
+                            fieldState = TextFieldValue(next, TextRange(query.start + candidate.token.length + 1))
+                            onInputChanged(next)
+                            focusRequester.requestFocus()
+                        }, shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp).semantics { contentDescription = "Mention ${candidate.token}" }) {
+                            Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                                Text(candidate.token, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                Text(candidate.description, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+            }
         Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.Bottom) {
             OmniIconButton(onClick = { focus.clearFocus(); keyboard?.hide(); onTools() }, enabled = toolsEnabled) {
                 Icon(Icons.Default.Add, toolsDescription, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -112,7 +175,7 @@ internal fun ChatComposerSurface(
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 decorationBox = { field ->
                     Box(Modifier.padding(horizontal = 8.dp, vertical = 12.dp)) {
-                        if (inputText.isEmpty()) Text(if (isProcessing && allowSteering) "Correct or add an instruction…" else if (isProcessing) "Write your next message…" else "Message Omni…",
+                        if (inputText.isEmpty()) Text(if (isProcessing && allowSteering) "Correct or add an instruction…" else if (isProcessing) "Write your next message…" else "Message Omni…  @ tools / skills",
                             style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Box(Modifier.fillMaxWidth().heightIn(max = maxTextHeight).verticalScroll(editorScroll)
@@ -137,6 +200,7 @@ internal fun ChatComposerSurface(
                     Icon(if (processing) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send, null, Modifier.size(22.dp))
                 }
             }
+        }
         }
     }
 }

@@ -254,7 +254,8 @@ internal fun ChatInputBar(inputText: String, onInputChanged: (String) -> Unit, o
     chatSettings: ChatSettings = ChatSettings(), onUpdateChatSettings: (ChatSettings) -> Unit = {},
     focusRequester: FocusRequester = remember { FocusRequester() }, scopeLabel: String? = null,
     onChooseScope: () -> Unit = {}, compact: Boolean = false, showScopeChooser: Boolean = true,
-    allowSteering: Boolean = false, submittedRevision: Long = 0L, appliedRevision: Long = 0L) {
+    allowSteering: Boolean = false, submittedRevision: Long = 0L, appliedRevision: Long = 0L,
+    mentionLoader: suspend () -> List<com.omnidev.workspace.domain.engine.MentionCandidate> = { emptyList() }) {
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showTools by rememberSaveable { mutableStateOf(false) }
     var focused by remember { mutableStateOf(false) }
@@ -314,7 +315,7 @@ internal fun ChatInputBar(inputText: String, onInputChanged: (String) -> Unit, o
         ChatComposerSurface(inputText, onInputChanged, onSend, onStop, isProcessing,
             onTools = { showTools = true },
             sendEnabled = inputText.isNotBlank() || pendingAttachments.isNotEmpty(),
-            focusRequester = focusRequester, compact = compact, onFocusChanged = { focused = it }, allowSteering = allowSteering)
+            focusRequester = focusRequester, compact = compact, mentionLoader = mentionLoader, onFocusChanged = { focused = it }, allowSteering = allowSteering)
         LiveSteeringHint(isProcessing && allowSteering, submittedRevision, appliedRevision)
     }
 }
