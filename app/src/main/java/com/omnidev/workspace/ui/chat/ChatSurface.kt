@@ -44,6 +44,8 @@ import com.omnidev.workspace.data.model.ChatMessage
 import com.omnidev.workspace.data.model.MessageRole
 import com.omnidev.workspace.domain.engine.OmniMode
 import com.omnidev.workspace.domain.model.ChatSettings
+import com.omnidev.workspace.ui.companion.CompanionAnchor
+import com.omnidev.workspace.ui.companion.companionAnchor
 import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility
 import com.omnidev.workspace.ui.motion.OmniIconButton
 
@@ -160,7 +162,7 @@ internal fun MessageBubble(message: ChatMessage, consoleEntries: List<AgentConso
             Surface(shape = RoundedCornerShape(22.dp),
                 color = if (user) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
                 contentColor = if (user) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.widthIn(max = bubbleWidth)) {
+                modifier = Modifier.widthIn(max = bubbleWidth).then(if (user) Modifier.companionAnchor(CompanionAnchor.MESSAGE, "message-${message.messageId}") else Modifier).testTag("message-surface-${message.messageId}")) {
                 Column(Modifier.padding(horizontal = if (user) 16.dp else 0.dp, vertical = if (user) 12.dp else 4.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     replyToMessage?.let { ReplyQuote(it) }

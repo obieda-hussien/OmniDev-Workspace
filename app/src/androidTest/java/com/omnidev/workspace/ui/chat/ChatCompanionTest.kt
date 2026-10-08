@@ -2,6 +2,11 @@ package com.omnidev.workspace.ui.chat
 
 import android.content.Context
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.platform.testTag
+import com.omnidev.workspace.data.model.ChatMessage
+import com.omnidev.workspace.data.model.MessageRole
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -93,5 +98,52 @@ class ChatCompanionTest {
         compose.runOnIdle { visible.value = true }
         compose.onNodeWithTag("omni-companion").assertDoesNotExist()
         compose.onNode(hasSetTextAction()).assertExists()
+    }
+
+    @Test fun userBubblesAreRealPerchesAndScrollingAwayFindsAnotherVisibleSurface() {
+        val messages = (0..7).map { ChatMessage(MessageRole.USER, "User message $it", messageId = "perch-$it") }
+        compose.setContent {
+            MaterialTheme { CompositionLocalProvider(LocalOmniMotion provides MotionPolicy(reduced = true)) {
+                ChatCompanionHost("messages", false, modifier = Modifier.width(340.dp).height(520.dp)) {
+                    Column(Modifier.fillMaxSize()) {
+                        LazyColumn(Modifier.weight(1f).fillMaxWidth().companionViewport().testTag("pet-transcript"),
+                            contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                            items(messages, key = { it.messageId }) { MessageBubble(it) }
+                        }
+                        ChatComposerSurface("", {}, {}, {}, false, {}, false)
+                    }
+                }
+            } }
+        }
+        val bubble = compose.onNodeWithTag("message-surface-perch-1").fetchSemanticsNode().boundsInRoot
+        val start = compose.onNodeWithTag("omni-companion").fetchSemanticsNode().boundsInRoot
+        val delta = androidx.compose.ui.geometry.Offset(bubble.center.x - start.center.x, bubble.top - start.bottom)
+        compose.onNodeWithTag("omni-companion").performTouchInput {
+            down(center); moveBy(delta); advanceEventTime(200); up()
+        }
+        val perched = compose.onNodeWithTag("omni-companion").fetchSemanticsNode().boundsInRoot
+        assertTrue("Feet must land on the user bubble, not inside its text", kotlin.math.abs(perched.bottom - bubble.top) <= 2f)
+        compose.onNodeWithTag("pet-transcript").performScrollToIndex(7)
+        compose.onNodeWithTag("omni-companion").assertIsDisplayed()
+        val escaped = compose.onNodeWithTag("omni-companion").fetchSemanticsNode().boundsInRoot
+        val viewport = compose.onNodeWithTag("pet-transcript").fetchSemanticsNode().boundsInRoot
+        val editor = compose.onNode(hasSetTextAction()).fetchSemanticsNode().boundsInRoot
+        assertTrue(escaped.top >= viewport.top)
+        assertTrue(escaped.bottom <= editor.top)
+        compose.onNodeWithTag("message-surface-perch-1").assertDoesNotExist()
+    }
+
+    @Test fun conversationEventsDriveTheCompanionWithoutASeparateAgent() {
+        val state = mutableStateOf(ChatUiState(isProcessing = true,
+            consoleEntries = listOf(AgentConsoleEntry.ToolEntry("test_tool", "{}", iteration = 1))))
+        compose.setContent { MaterialTheme { CompositionLocalProvider(LocalOmniMotion provides MotionPolicy(reduced = true)) {
+            ChatConversation(state.value)
+        } } }
+        compose.onNodeWithTag("omni-companion").assertExists()
+        compose.runOnIdle {
+            state.value = state.value.copy(isProcessing = false, errorMessage = "Needs attention")
+        }
+        compose.onNodeWithTag("omni-companion").assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Something needs attention"))
+        compose.onNodeWithContentDescription("Send").assertExists()
     }
 }

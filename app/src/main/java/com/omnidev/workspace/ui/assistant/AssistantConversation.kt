@@ -45,6 +45,8 @@ import com.omnidev.workspace.ui.motion.OmniEasing
 import com.omnidev.workspace.ui.motion.OmniIconButton
 import kotlinx.coroutines.launch
 import com.omnidev.workspace.ui.companion.ChatCompanionHost
+import com.omnidev.workspace.ui.companion.companionViewport
+import com.omnidev.workspace.ui.companion.companionActivity
 
 /** Presentation shared by the VoiceInteractionSession and translucent Activity. No dialog windows. */
 @Composable
@@ -107,7 +109,7 @@ internal fun AssistantConversation(
                 shape = RoundedCornerShape(28.dp), color = colors.surface, shadowElevation = 8.dp) {
                 ChatCompanionHost(chat.currentSessionId, chat.isProcessing,
                     visible = screen.visible && panel == AssistantPanel.NONE && chat.pendingConfirmation == null && !blocked && panelHeight >= 360.dp,
-                    modifier = Modifier.fillMaxSize()) {
+                    modifier = Modifier.fillMaxSize(), activity = companionActivity(chat, screen.listening)) {
                     Column {
                         Box(Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp).size(32.dp, 3.dp)
                             .background(colors.outlineVariant, CircleShape))
@@ -142,7 +144,7 @@ internal fun AssistantConversation(
                         } else {
                             Box(Modifier.weight(1f).fillMaxWidth()) {
                                 if (panel == AssistantPanel.NONE) {
-                                    LazyColumn(Modifier.fillMaxSize().testTag("assistant-messages"), state = list,
+                                    LazyColumn(Modifier.fillMaxSize().companionViewport().testTag("assistant-messages"), state = list,
                                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
                                         verticalArrangement = Arrangement.spacedBy(24.dp)) {
                                         conversationItems(chat.copy(errorMessage = screen.message ?: chat.errorMessage), mediaLayout, console,

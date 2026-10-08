@@ -36,6 +36,8 @@ import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility
 import com.omnidev.workspace.ui.motion.OmniIconButton
 import kotlinx.coroutines.launch
 import com.omnidev.workspace.ui.companion.ChatCompanionHost
+import com.omnidev.workspace.ui.companion.companionViewport
+import com.omnidev.workspace.ui.companion.companionActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -146,10 +148,10 @@ internal fun ChatConversation(
     }) { insets ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets)) {
             val compactComposer = maxHeight < 280.dp
-            ChatCompanionHost(state.currentSessionId, state.isProcessing, visible = state.pendingConfirmation == null && !compactComposer, modifier = Modifier.fillMaxSize()) {
+            ChatCompanionHost(state.currentSessionId, state.isProcessing, visible = state.pendingConfirmation == null && !compactComposer, modifier = Modifier.fillMaxSize(), activity = companionActivity(state)) {
                 Column(Modifier.fillMaxSize()) {
                     Box(Modifier.weight(1f).fillMaxWidth()) {
-                        LazyColumn(Modifier.fillMaxSize().testTag("conversation-messages"), state = list,
+                        LazyColumn(Modifier.fillMaxSize().companionViewport().testTag("conversation-messages"), state = list,
                             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
                             conversationItems(state, mediaLayout, runningConsole,
                                 onSuggestion = { prompt -> onInputChanged(prompt); focusRequester.requestFocus(); keyboard?.show() },

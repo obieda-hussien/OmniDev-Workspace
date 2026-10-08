@@ -6,11 +6,11 @@ Little Omni is a native, lilac companion in the main chat and floating assistant
 
 The illustration shows the drawing and intended placement, not a device screenshot.
 
-- Hops along the actual composer and, while the agent works, onto a visible console.
-- Tap for a tumble and recovery; drag and release to land on the nearest available perch.
-- Shows a working expression and rests after idle time.
+- Hops along the actual composer, visible agent consoles and the top edges of your message bubbles. Stable message/console keys let it ride a platform during scrolling. It jumps to another safe surface before its perch reaches a viewport edge, and escapes if a LazyColumn item disappears.
+- Tap for a tumble and recovery; drag gently to choose a nearby perch, or fling it for a short gravity-driven flight with wall bounces. Landings squash the body and the ears sway with movement. It stays above the editor and within the transcript viewport.
+- Eyes follow touches, the focused editor and the working console. Expressions use actual run events for thinking, tools, confirmation, listening and errors. A short celebration follows a successful run; opening an old completed conversation or pressing Stop does not trigger one. It sleeps after idle time and wakes when you interact.
 - Settings → Virtual companion controls visibility and automatic hopping. Preferences apply to both chat hosts.
-- Reserves headroom above perches, pauses when the host lifecycle stops, follows system reduced motion, and uses a 30 fps ticker on compact devices. Very short windows and assistant confirmation/tool panels hide it.
-- Pointer input belongs only to the 60 dp sprite, with a semantic play action and a return-to-composer accessibility action. There are no extra windows, model calls or Activity result launchers.
+- Reserves 60 dp above the composer/console and adds 36 dp above user bubbles, sharing the existing 24 dp transcript gap. It pauses when the host lifecycle stops, follows system reduced motion, and uses a 30 fps ticker on compact devices. Very short windows and assistant confirmation/tool panels hide it. Settings also offer a static expression preview.
+- Only the 60 dp sprite consumes pointer input. The host observes touches for gaze without consuming scroll, selection or control gestures. Semantic actions support playing and returning to the composer. There are no extra windows, model calls or Activity result launchers.
 
-`CompanionMotionTest` covers perches, jumps, drag/throw bounds, recovery, resize, reduced motion and sleeping. `ChatCompanionTest` covers real editor geometry, send/stop availability, preference changes and hidden/tiny hosts; the API 30 UI regression workflow runs it with the existing chat and assistant tests.
+`CompanionMotionTest` has 23 cases covering moving/disappearing perches, viewport escape, small bubbles, flight continuity, throw/bounce/landing, gaze, run reactions, reduced motion, recovery, resize and sleeping. The five `ChatCompanionTest` cases cover real editor geometry, send/stop availability, preferences, hidden/tiny hosts, landing on a real user bubble and scrolling it out of the LazyColumn, and live conversation events. The API 30 UI regression workflow runs them with the existing chat and assistant tests.

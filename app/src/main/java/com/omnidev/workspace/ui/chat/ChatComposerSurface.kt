@@ -28,6 +28,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.omnidev.workspace.ui.companion.rememberCompanionEditorFocus
 import com.omnidev.workspace.ui.companion.CompanionAnchor
 import com.omnidev.workspace.ui.companion.companionAnchor
 import com.omnidev.workspace.ui.motion.LocalOmniMotion
@@ -46,6 +47,7 @@ internal fun ChatComposerSurface(
     allowSteering: Boolean = false,
     onFocusChanged: (Boolean) -> Unit = {}
 ) {
+    val companionFocus = rememberCompanionEditorFocus()
     var focused by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
     val focus = LocalFocusManager.current
@@ -61,7 +63,7 @@ internal fun ChatComposerSurface(
             }
             BasicTextField(value = inputText, onValueChange = onInputChanged, enabled = editorEnabled,
                 modifier = Modifier.weight(1f).heightIn(min = 48.dp).focusRequester(focusRequester)
-                    .onFocusChanged { focused = it.isFocused; onFocusChanged(it.isFocused) }
+                    .onFocusChanged { focused = it.isFocused; onFocusChanged(it.isFocused); companionFocus(it.isFocused) }
                     .semantics { contentDescription = editorDescription },
                 minLines = 1, maxLines = if (compact) 3 else 5,
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
