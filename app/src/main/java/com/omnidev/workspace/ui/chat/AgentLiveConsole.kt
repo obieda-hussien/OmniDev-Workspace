@@ -64,6 +64,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility as AnimatedVisibility
 import com.omnidev.workspace.ui.motion.OmniIconButton
+import com.omnidev.workspace.ui.companion.CompanionAnchor
+import com.omnidev.workspace.ui.companion.companionAnchor
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -145,7 +147,7 @@ fun AgentLiveConsole(
     }
 
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().companionAnchor(CompanionAnchor.CONSOLE),
         shape    = RoundedCornerShape(12.dp),
         colors   = CardDefaults.cardColors(containerColor = TerminalBg),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)

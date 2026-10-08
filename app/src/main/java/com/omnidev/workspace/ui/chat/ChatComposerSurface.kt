@@ -28,6 +28,8 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.omnidev.workspace.ui.companion.CompanionAnchor
+import com.omnidev.workspace.ui.companion.companionAnchor
 import com.omnidev.workspace.ui.motion.LocalOmniMotion
 import com.omnidev.workspace.ui.motion.OmniEasing
 import com.omnidev.workspace.ui.motion.OmniIconButton
@@ -51,7 +53,7 @@ internal fun ChatComposerSurface(
     val borderColor by animateColorAsState(
         if (focused) MaterialTheme.colorScheme.primary.copy(alpha = .45f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = .65f),
         animationSpec = tween(motion.responseMillis, easing = OmniEasing), label = "composer focus")
-    Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerLow,
+    Surface(modifier = Modifier.companionAnchor(CompanionAnchor.COMPOSER), shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(1.dp, borderColor)) {
         Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.Bottom) {
             OmniIconButton(onClick = { focus.clearFocus(); keyboard?.hide(); onTools() }, enabled = toolsEnabled) {

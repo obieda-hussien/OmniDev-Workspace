@@ -128,6 +128,7 @@ private fun SettingsDestination.icon(): ImageVector = when (this) {
     SettingsDestination.DEVICE_ACCESS -> Icons.Default.Security
     SettingsDestination.ACCESSIBILITY -> Icons.Default.AccessibilityNew
     SettingsDestination.FILE_ACCESS -> Icons.Default.FolderOpen
+    SettingsDestination.COMPANION -> Icons.Default.AutoAwesome
     SettingsDestination.PROFILE -> Icons.Default.PersonOutline
     SettingsDestination.MEMORY -> Icons.Default.Bookmarks
     SettingsDestination.INTEGRATIONS -> Icons.Default.Link
