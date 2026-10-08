@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" viewBox="0 0 800 500">
+<defs><linearGradient id="lilac" x1="20" y1="12" x2="48" y2="63" gradientUnits="userSpaceOnUse"><stop stop-color="#F1ECFF"/><stop offset=".33" stop-color="#B8AAF4"/><stop offset=".66" stop-color="#8E8DE5"/><stop offset="1" stop-color="#7063C4"/></linearGradient><g id="pet"><ellipse fill="#7974B7" opacity=".16" cx="32" cy="62" rx="17" ry="2"/><path d="M12 40 C12 29 17 22 21 20 C17 10 19 3 24 5 C28 6 29 15 30 18 C32 17 34 17 36 18 C36 9 40 3 44 6 C48 9 46 18 44 23 C50 29 53 39 52 47 C52 56 44 61 32 61 C19 61 11 56 12 40Z" fill="url(#lilac)" stroke="#B7ADF2" stroke-width=".8"/><ellipse cx="26.5" cy="27" rx="7.5" ry="3" fill="white" opacity=".45"/><path d="M22 11L24 17M41 11L40 18" stroke="white" opacity=".45" stroke-width="2" stroke-linecap="round"/><g fill="#EFC7F3" opacity=".6"><ellipse cx="20.5" cy="46.75" rx="3.5" ry="1.75"/><ellipse cx="44.5" cy="46.75" rx="3.5" ry="1.75"/></g><g fill="#302950"><ellipse cx="25" cy="40.25" rx="2.4" ry="3.25"/><ellipse cx="39" cy="40.25" rx="2.4" ry="3.25"/></g><g fill="white" opacity=".9"><circle cx="24.6" cy="38.7" r="1"/><circle cx="38.6" cy="38.7" r="1"/></g><path d="M29 47.5Q32 51 35 47.5" fill="none" stroke="#302950" stroke-width="1.5" stroke-linecap="round"/></g></defs>
+<rect width="800" height="500" fill="#111118"/>
+<text x="44" y="52" fill="#ece8fa" font-size="25" font-family="sans-serif">Little Omni</text><text x="44" y="82" fill="#ada6c4" font-size="15" font-family="sans-serif">Native vector artwork · lilac glass · no legs</text>
+<g transform="translate(54 127) scale(3.7)"><use href="#pet"/></g>
+<rect x="330" y="145" width="410" height="104" rx="18" fill="#1b1b24" stroke="#353140"/>
+<text x="350" y="179" fill="#c2bbd5" font-family="sans-serif" font-size="15">Agent console</text><text x="350" y="213" fill="#78d9cd" font-family="monospace" font-size="13">Working on your task…</text>
+<g transform="translate(590 85)"><use href="#pet"/><circle cx="47" cy="28" r="2.4" fill="#60E1D8"/></g>
+<rect x="330" y="359" width="410" height="65" rx="27" fill="#20202b" stroke="#454057"/>
+<text x="393" y="397" fill="#a39bb4" font-size="15" font-family="sans-serif">Message Omni…</text><circle cx="704" cy="391" r="21" fill="#8E8DE5"/>
+<g transform="translate(505 299)"><use href="#pet"/></g>
+<text x="78" y="429" fill="#ada6c4" font-family="sans-serif" font-size="14">Artwork at 3.7×</text>
+<text x="330" y="470" fill="#a39bb4" font-size="13" font-family="sans-serif">Placement illustration; not a device screenshot.</text>
+</svg>

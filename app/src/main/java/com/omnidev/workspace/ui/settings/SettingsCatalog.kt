@@ -10,7 +10,7 @@ internal enum class SettingsGroup(val title: String, val description: String) {
     INSIGHTS("Usage & diagnostics", "Costs, agent activity and troubleshooting")
 }
 
-internal enum class SettingsDestination { PROVIDERS, MODELS, REASONING, LOCAL_MODELS, ASSISTANT, VOICE, DEVICE_ACCESS, ACCESSIBILITY, FILE_ACCESS, PROFILE, MEMORY, INTEGRATIONS, MCP, SCHEDULE, SKILLS, ANALYTICS, BRAIN, DEBUG }
+internal enum class SettingsDestination { PROVIDERS, MODELS, REASONING, LOCAL_MODELS, ASSISTANT, VOICE, DEVICE_ACCESS, ACCESSIBILITY, FILE_ACCESS, COMPANION, PROFILE, MEMORY, INTEGRATIONS, MCP, SCHEDULE, SKILLS, ANALYTICS, BRAIN, DEBUG }
 
 internal data class SettingsEntry(
     val destination: SettingsDestination,
@@ -31,6 +31,7 @@ internal object SettingsCatalog {
         SettingsEntry(SettingsDestination.DEVICE_ACCESS, SettingsGroup.ASSISTANT, "Device access & permissions", "Review and grant the access Omni needs", "shizuku root lock screen صلاحيات اذونات أذونات شيزوكو روت قفل"),
         SettingsEntry(SettingsDestination.ACCESSIBILITY, SettingsGroup.ASSISTANT, "Accessibility service", "Let Omni read and interact with app screens", "semantic ui control الوصول تحكم"),
         SettingsEntry(SettingsDestination.FILE_ACCESS, SettingsGroup.ASSISTANT, "Extended file access", "Allow file tools outside the selected project", "god mode filesystem storage ملفات تخزين"),
+        SettingsEntry(SettingsDestination.COMPANION, SettingsGroup.PERSONAL, "Virtual companion", "A playful little Omni in your conversations", "pet hopping character buddy animation رفيق افتراضي تنطيط شخصية ارنب أرنب"),
         SettingsEntry(SettingsDestination.PROFILE, SettingsGroup.PERSONAL, "Your profile", "Tell Omni about yourself and your preferences", "user name identity personalization بروفايل ملف شخصي اسم"),
         SettingsEntry(SettingsDestination.MEMORY, SettingsGroup.PERSONAL, "Knowledge & memory", "Browse, search and edit saved memories", "knowledge base explorer context ذاكرة ذكريات معرفة سياق"),
         SettingsEntry(SettingsDestination.INTEGRATIONS, SettingsGroup.AUTOMATION, "Linked accounts", "Connect GitHub, Telegram and other platforms", "integrations whatsapp bridge github agent access ربط تكامل حسابات تيليجرام واتساب"),

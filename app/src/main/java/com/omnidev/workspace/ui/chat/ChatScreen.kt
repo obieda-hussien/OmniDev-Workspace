@@ -35,6 +35,7 @@ import com.omnidev.workspace.domain.model.ChatSettings
 import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility
 import com.omnidev.workspace.ui.motion.OmniIconButton
 import kotlinx.coroutines.launch
+import com.omnidev.workspace.ui.companion.ChatCompanionHost
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -145,30 +146,32 @@ internal fun ChatConversation(
     }) { insets ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets)) {
             val compactComposer = maxHeight < 280.dp
-            Column(Modifier.fillMaxSize()) {
-                Box(Modifier.weight(1f).fillMaxWidth()) {
-                    LazyColumn(Modifier.fillMaxSize().testTag("conversation-messages"), state = list,
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                        conversationItems(state, mediaLayout, runningConsole,
-                            onSuggestion = { prompt -> onInputChanged(prompt); focusRequester.requestFocus(); keyboard?.show() },
-                            onReply = { onReply(it); focusRequester.requestFocus(); keyboard?.show() },
-                            onEditLastUser = onEditLastUser, onRegenerateLast = onRegenerateLast,
-                            onClearError = onClearError, onModeDecision = onModeDecision, onBrowser = onBrowser)
-                    }
-                    OmniAnimatedVisibility(!follow.following, Modifier.align(Alignment.BottomEnd).padding(12.dp)) {
-                        SmallFloatingActionButton(onClick = { follow.resume() }, containerColor = MaterialTheme.colorScheme.secondaryContainer) {
-                            Icon(Icons.Default.KeyboardArrowDown, "Jump to latest message")
+            ChatCompanionHost(state.currentSessionId, state.isProcessing, visible = state.pendingConfirmation == null && !compactComposer, modifier = Modifier.fillMaxSize()) {
+                Column(Modifier.fillMaxSize()) {
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                        LazyColumn(Modifier.fillMaxSize().testTag("conversation-messages"), state = list,
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                            conversationItems(state, mediaLayout, runningConsole,
+                                onSuggestion = { prompt -> onInputChanged(prompt); focusRequester.requestFocus(); keyboard?.show() },
+                                onReply = { onReply(it); focusRequester.requestFocus(); keyboard?.show() },
+                                onEditLastUser = onEditLastUser, onRegenerateLast = onRegenerateLast,
+                                onClearError = onClearError, onModeDecision = onModeDecision, onBrowser = onBrowser)
+                        }
+                        OmniAnimatedVisibility(!follow.following, Modifier.align(Alignment.BottomEnd).padding(12.dp)) {
+                            SmallFloatingActionButton(onClick = { follow.resume() }, containerColor = MaterialTheme.colorScheme.secondaryContainer) {
+                                Icon(Icons.Default.KeyboardArrowDown, "Jump to latest message")
+                            }
                         }
                     }
+                    ChatInputBar(state.inputText, onInputChanged, onSend, onStop, state.isProcessing, state.pendingAttachments, onAttach,
+                        onRemoveAttachment, state.replyingTo, onDismissReply, state.chatSettings, onUpdateChatSettings, focusRequester,
+                        scopeLabel = if (state.activeMode == OmniMode.CHAT || state.isGodModeEnabled) null
+                            else state.targetContextDisplayName ?: state.targetContext?.substringAfterLast('/')?.ifBlank { state.targetContext },
+                        onChooseScope = onChooseScope, compact = compactComposer,
+                        showScopeChooser = state.activeMode != OmniMode.CHAT && !state.isGodModeEnabled,
+                        allowSteering = state.canSteer, submittedRevision = state.submittedSteeringRevision,
+                        appliedRevision = state.appliedSteeringRevision)
                 }
-                ChatInputBar(state.inputText, onInputChanged, onSend, onStop, state.isProcessing, state.pendingAttachments, onAttach,
-                    onRemoveAttachment, state.replyingTo, onDismissReply, state.chatSettings, onUpdateChatSettings, focusRequester,
-                    scopeLabel = if (state.activeMode == OmniMode.CHAT || state.isGodModeEnabled) null
-                        else state.targetContextDisplayName ?: state.targetContext?.substringAfterLast('/')?.ifBlank { state.targetContext },
-                    onChooseScope = onChooseScope, compact = compactComposer,
-                    showScopeChooser = state.activeMode != OmniMode.CHAT && !state.isGodModeEnabled,
-                    allowSteering = state.canSteer, submittedRevision = state.submittedSteeringRevision,
-                    appliedRevision = state.appliedSteeringRevision)
             }
         }
     }

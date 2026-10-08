@@ -44,6 +44,7 @@ import com.omnidev.workspace.ui.motion.OmniAnimatedVisibility
 import com.omnidev.workspace.ui.motion.OmniEasing
 import com.omnidev.workspace.ui.motion.OmniIconButton
 import kotlinx.coroutines.launch
+import com.omnidev.workspace.ui.companion.ChatCompanionHost
 
 /** Presentation shared by the VoiceInteractionSession and translucent Activity. No dialog windows. */
 @Composable
@@ -104,108 +105,112 @@ internal fun AssistantConversation(
                 slideOutVertically(tween(motion.navigationMillis, easing = OmniEasing)) { it / 8 }) {
             Surface(Modifier.widthIn(max = 560.dp).fillMaxWidth().height(panelHeight).testTag("floating-assistant"),
                 shape = RoundedCornerShape(28.dp), color = colors.surface, shadowElevation = 8.dp) {
-                Column {
-                    Box(Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp).size(32.dp, 3.dp)
-                        .background(colors.outlineVariant, CircleShape))
-                    Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
-                        .testTag("assistant-header"), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(36.dp).background(colors.primaryContainer, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                            OmniMark(Modifier.size(26.dp))
+                ChatCompanionHost(chat.currentSessionId, chat.isProcessing,
+                    visible = screen.visible && panel == AssistantPanel.NONE && chat.pendingConfirmation == null && !blocked && panelHeight >= 360.dp,
+                    modifier = Modifier.fillMaxSize()) {
+                    Column {
+                        Box(Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp).size(32.dp, 3.dp)
+                            .background(colors.outlineVariant, CircleShape))
+                        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+                            .testTag("assistant-header"), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(36.dp).background(colors.primaryContainer, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                                OmniMark(Modifier.size(26.dp))
+                            }
+                            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                                Text("Omni", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(when {
+                                    screen.listening -> "Listening…"
+                                    screen.minimizing -> "Starting bubble…"
+                                    screen.saving -> "Saving…"
+                                    chat.isProcessing -> chat.agentStatus ?: "Working…"
+                                    else -> "Here to help"
+                                }, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            if (flavor.allowBubble) OmniIconButton(onClick = onMinimize, enabled = !blocked) {
+                                Icon(Icons.Default.Remove, "Minimize to floating bubble")
+                            }
+                            AssistantExpandButton(screen.saving, screen.minimizing, chat.isProcessing, chat.pendingConfirmation != null, onExpand)
+                            OmniIconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Close and save conversation") }
                         }
-                        Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                            Text("Omni", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(when {
-                                screen.listening -> "Listening…"
-                                screen.minimizing -> "Starting bubble…"
-                                screen.saving -> "Saving…"
-                                chat.isProcessing -> chat.agentStatus ?: "Working…"
-                                else -> "Here to help"
-                            }, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        if (flavor.allowBubble) OmniIconButton(onClick = onMinimize, enabled = !blocked) {
-                            Icon(Icons.Default.Remove, "Minimize to floating bubble")
-                        }
-                        AssistantExpandButton(screen.saving, screen.minimizing, chat.isProcessing, chat.pendingConfirmation != null, onExpand)
-                        OmniIconButton(onClick = onDismiss) { Icon(Icons.Default.Close, "Close and save conversation") }
-                    }
-                    val confirmation = chat.pendingConfirmation
-                    if (confirmation != null) {
-                        Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                            ConfirmationGateCard(confirmation, Modifier.fillMaxSize())
-                        }
-                    } else {
-                        Box(Modifier.weight(1f).fillMaxWidth()) {
-                            if (panel == AssistantPanel.NONE) {
-                                LazyColumn(Modifier.fillMaxSize().testTag("assistant-messages"), state = list,
-                                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                                    conversationItems(chat.copy(errorMessage = screen.message ?: chat.errorMessage), mediaLayout, console,
-                                        onSuggestion = { prompt -> suggest(prompt, prompt == "Explain what's on this screen.") },
-                                        onReply = { onReply(it); focus.requestFocus(); keyboard?.show() },
-                                        onEditLastUser = onEditLastUser, onRegenerateLast = onRegenerateLast,
-                                        onClearError = onClearError, onModeDecision = onModeDecision,
-                                        actionsEnabled = !busy && !chat.isImportingAttachments,
-                                        leadingContent = extraContent,
-                                        welcomeSuggestions = listOf("Ask about this screen" to "Explain what's on this screen.",
-                                            "Help with a task" to "Help me with this task: "))
-                                }
-                                if (!follow.following && (chat.messages.isNotEmpty() || chat.isProcessing)) {
-                                    FilledTonalIconButton(onClick = { follow.resume(); scope.launch {
-                                        if (list.layoutInfo.totalItemsCount > 0) list.scrollToItem(list.layoutInfo.totalItemsCount - 1)
-                                    } }, modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp)) {
-                                        Icon(Icons.Default.KeyboardArrowDown, "Jump to latest assistant message")
+                        val confirmation = chat.pendingConfirmation
+                        if (confirmation != null) {
+                            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                ConfirmationGateCard(confirmation, Modifier.fillMaxSize())
+                            }
+                        } else {
+                            Box(Modifier.weight(1f).fillMaxWidth()) {
+                                if (panel == AssistantPanel.NONE) {
+                                    LazyColumn(Modifier.fillMaxSize().testTag("assistant-messages"), state = list,
+                                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                                        conversationItems(chat.copy(errorMessage = screen.message ?: chat.errorMessage), mediaLayout, console,
+                                            onSuggestion = { prompt -> suggest(prompt, prompt == "Explain what's on this screen.") },
+                                            onReply = { onReply(it); focus.requestFocus(); keyboard?.show() },
+                                            onEditLastUser = onEditLastUser, onRegenerateLast = onRegenerateLast,
+                                            onClearError = onClearError, onModeDecision = onModeDecision,
+                                            actionsEnabled = !busy && !chat.isImportingAttachments,
+                                            leadingContent = extraContent,
+                                            welcomeSuggestions = listOf("Ask about this screen" to "Explain what's on this screen.",
+                                                "Help with a task" to "Help me with this task: "))
+                                    }
+                                    if (!follow.following && (chat.messages.isNotEmpty() || chat.isProcessing)) {
+                                        FilledTonalIconButton(onClick = { follow.resume(); scope.launch {
+                                            if (list.layoutInfo.totalItemsCount > 0) list.scrollToItem(list.layoutInfo.totalItemsCount - 1)
+                                        } }, modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp)) {
+                                            Icon(Icons.Default.KeyboardArrowDown, "Jump to latest assistant message")
+                                        }
+                                    }
+                                } else AssistantInlinePanel(panel, filePath, { filePath = it },
+                                    onAddPath = { onInputChanged(screen.input + "\n[User-provided file path: ${filePath.trim()}]"); filePath = ""; panel = AssistantPanel.NONE },
+                                    onChoosePath = { panel = AssistantPanel.FILE_PATH },
+                                    onAttach = { panel = AssistantPanel.NONE; onAttach() },
+                                    onSystemVoice = { panel = AssistantPanel.NONE; onSystemVoice() },
+                                    onClose = { panel = AssistantPanel.NONE }, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                                    onMicrophone = { panel = AssistantPanel.NONE; onMicrophone() },
+                                    onScreen = { panel = AssistantPanel.NONE; onScreen(false) },
+                                    onSelectArea = { panel = AssistantPanel.NONE; onScreen(true) },
+                                    onAccess = if (flavor.allowScreenActions) ({ panel = AssistantPanel.NONE; onAccess() }) else null)
+                            }
+                            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).testTag("assistant-composer"),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                if (chat.replyingTo != null || screen.attachment != null || screen.files.isNotEmpty()) {
+                                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        chat.replyingTo?.let { reply ->
+                                            InputChip(false, onDismissReply, label = { Text("Replying to ${if (reply.role == MessageRole.USER) "you" else "Omni"}") },
+                                                modifier = Modifier.semantics { contentDescription = "Cancel reply" }, trailingIcon = { Icon(Icons.Default.Close, null, Modifier.size(16.dp)) })
+                                        }
+                                        if (screen.attachment != null) InputChip(false, onRemoveImage, enabled = !busy,
+                                            label = { Text("Screen attached") }, modifier = Modifier.semantics { contentDescription = "Remove screen image" },
+                                            leadingIcon = { Icon(Icons.Default.Screenshot, null, Modifier.size(16.dp)) }, trailingIcon = { Icon(Icons.Default.Close, null, Modifier.size(16.dp)) })
+                                        screen.files.forEach { file -> key(file.uri) {
+                                            InputChip(false, { onRemoveFile(file.uri) }, enabled = !busy,
+                                                label = { Text(file.displayName, Modifier.widthIn(max = 160.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                                modifier = Modifier.semantics { contentDescription = "Remove ${file.displayName}" },
+                                                leadingIcon = { Icon(Icons.Default.AttachFile, null, Modifier.size(16.dp)) }, trailingIcon = { Icon(Icons.Default.Close, null, Modifier.size(16.dp)) })
+                                        } }
                                     }
                                 }
-                            } else AssistantInlinePanel(panel, filePath, { filePath = it },
-                                onAddPath = { onInputChanged(screen.input + "\n[User-provided file path: ${filePath.trim()}]"); filePath = ""; panel = AssistantPanel.NONE },
-                                onChoosePath = { panel = AssistantPanel.FILE_PATH },
-                                onAttach = { panel = AssistantPanel.NONE; onAttach() },
-                                onSystemVoice = { panel = AssistantPanel.NONE; onSystemVoice() },
-                                onClose = { panel = AssistantPanel.NONE }, modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                                onMicrophone = { panel = AssistantPanel.NONE; onMicrophone() },
-                                onScreen = { panel = AssistantPanel.NONE; onScreen(false) },
-                                onSelectArea = { panel = AssistantPanel.NONE; onScreen(true) },
-                                onAccess = if (flavor.allowScreenActions) ({ panel = AssistantPanel.NONE; onAccess() }) else null)
-                        }
-                        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).testTag("assistant-composer"),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            if (chat.replyingTo != null || screen.attachment != null || screen.files.isNotEmpty()) {
-                                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    chat.replyingTo?.let { reply ->
-                                        InputChip(false, onDismissReply, label = { Text("Replying to ${if (reply.role == MessageRole.USER) "you" else "Omni"}") },
-                                            modifier = Modifier.semantics { contentDescription = "Cancel reply" }, trailingIcon = { Icon(Icons.Default.Close, null, Modifier.size(16.dp)) })
+                                if (!compact || screen.listening) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    if (!compact) {
+                                        AssistChip({ onScreen(false) }, { Text("Screen") }, enabled = !busy,
+                                            leadingIcon = { Icon(Icons.Default.Screenshot, null, Modifier.size(16.dp)) })
+                                        AssistChip({ onScreen(true) }, { Text("Select area") }, enabled = !busy,
+                                            leadingIcon = { Icon(Icons.Default.CropFree, null, Modifier.size(16.dp)) })
                                     }
-                                    if (screen.attachment != null) InputChip(false, onRemoveImage, enabled = !busy,
-                                        label = { Text("Screen attached") }, modifier = Modifier.semantics { contentDescription = "Remove screen image" },
-                                        leadingIcon = { Icon(Icons.Default.Screenshot, null, Modifier.size(16.dp)) }, trailingIcon = { Icon(Icons.Default.Close, null, Modifier.size(16.dp)) })
-                                    screen.files.forEach { file -> key(file.uri) {
-                                        InputChip(false, { onRemoveFile(file.uri) }, enabled = !busy,
-                                            label = { Text(file.displayName, Modifier.widthIn(max = 160.dp), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                            modifier = Modifier.semantics { contentDescription = "Remove ${file.displayName}" },
-                                            leadingIcon = { Icon(Icons.Default.AttachFile, null, Modifier.size(16.dp)) }, trailingIcon = { Icon(Icons.Default.Close, null, Modifier.size(16.dp)) })
-                                    } }
+                                    AssistChip(onMicrophone, { Text(if (screen.listening) "Listening…" else "Voice") }, enabled = screen.listening || !busy,
+                                        modifier = Modifier.semantics { contentDescription = if (screen.listening) "Stop listening" else "Speak your question" },
+                                        leadingIcon = { Icon(if (screen.listening) Icons.Default.MicOff else Icons.Default.Mic, null, Modifier.size(16.dp)) })
                                 }
+                                ChatComposerSurface(screen.input, onInputChanged, onSend, onStop, chat.isProcessing,
+                                    onTools = { panel = if (panel == AssistantPanel.NONE) AssistantPanel.ATTACHMENTS else AssistantPanel.NONE },
+                                    sendEnabled = screen.input.isNotBlank(), focusRequester = focus, compact = compact,
+                                    editorEnabled = !blocked, toolsEnabled = !busy, actionEnabled = !blocked,
+                                    toolsDescription = "Assistant tools", sendDescription = "Send question", stopDescription = "Stop request", allowSteering = chat.canSteer)
+                                LiveSteeringHint(chat.isProcessing && chat.canSteer, chat.submittedSteeringRevision, chat.appliedSteeringRevision)
                             }
-                            if (!compact || screen.listening) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                if (!compact) {
-                                    AssistChip({ onScreen(false) }, { Text("Screen") }, enabled = !busy,
-                                        leadingIcon = { Icon(Icons.Default.Screenshot, null, Modifier.size(16.dp)) })
-                                    AssistChip({ onScreen(true) }, { Text("Select area") }, enabled = !busy,
-                                        leadingIcon = { Icon(Icons.Default.CropFree, null, Modifier.size(16.dp)) })
-                                }
-                                AssistChip(onMicrophone, { Text(if (screen.listening) "Listening…" else "Voice") }, enabled = screen.listening || !busy,
-                                    modifier = Modifier.semantics { contentDescription = if (screen.listening) "Stop listening" else "Speak your question" },
-                                    leadingIcon = { Icon(if (screen.listening) Icons.Default.MicOff else Icons.Default.Mic, null, Modifier.size(16.dp)) })
-                            }
-                            ChatComposerSurface(screen.input, onInputChanged, onSend, onStop, chat.isProcessing,
-                                onTools = { panel = if (panel == AssistantPanel.NONE) AssistantPanel.ATTACHMENTS else AssistantPanel.NONE },
-                                sendEnabled = screen.input.isNotBlank(), focusRequester = focus, compact = compact,
-                                editorEnabled = !blocked, toolsEnabled = !busy, actionEnabled = !blocked,
-                                toolsDescription = "Assistant tools", sendDescription = "Send question", stopDescription = "Stop request", allowSteering = chat.canSteer)
-                            LiveSteeringHint(chat.isProcessing && chat.canSteer, chat.submittedSteeringRevision, chat.appliedSteeringRevision)
                         }
                     }
                 }

@@ -209,6 +209,7 @@ fun AISettingsScreen(
                             SettingsDestination.REASONING -> DeepThinkingCard(uiState.deepThinkingEnabled, viewModel::toggleDeepThinking)
                             SettingsDestination.FILE_ACCESS -> GodModeCard(uiState.godModeEnabled, viewModel::toggleGodMode)
                             SettingsDestination.ACCESSIBILITY -> AccessibilityServiceCard(viewModel::showStatusMessage)
+                            SettingsDestination.COMPANION -> com.omnidev.workspace.ui.companion.CompanionSettingsCard()
                             SettingsDestination.ASSISTANT -> com.omnidev.workspace.ui.assistant.AssistantSettingsCard(showAccessLinks = false)
                             else -> Unit
                         }
