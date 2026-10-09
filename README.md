@@ -61,21 +61,21 @@ The repository contains the Android application, native inference integration, J
 
 ## Repository size and source statistics
 
-This reproducible snapshot counts committed content at `144c8e0f28f961356841fbe708c734abb8d159be` on **9 October 2026**, including profile reference photos, reply personalization, tool/skill mentions, independent selected-skill context budgets and the locally learning virtual companion. The following statistics-only update is not included in that fixed snapshot.
+This reproducible snapshot counts committed content at `211149522fd3545e93e4690c0139d82eaed3762a` on **9 October 2026**, including profile reference photos, reply personalization, tool/skill mentions, independent selected-skill context budgets, the locally learning virtual companion, English project prose, built-in catalog counts and the five MCP defaults. The following statistics-only update is not included in that fixed snapshot.
 
 | Metric | Count |
 | --- | ---: |
-| Tracked files | 796 |
-| UTF-8 text files | 784 |
-| Physical text lines | 132,443 |
-| Nonblank text lines | 119,224 |
-| Source/script files | 661 |
-| Source/script physical lines | 123,737 |
-| App Kotlin files, including tests | 632 |
-| App Kotlin physical lines, including tests | 120,275 |
-| Test source files | 155 |
-| Test source physical lines | 12,537 |
-| Tracked blob bytes | 6,923,762 |
+| Tracked files | 803 |
+| UTF-8 text files | 791 |
+| Physical text lines | 132,409 |
+| Nonblank text lines | 119,136 |
+| Source/script files | 665 |
+| Source/script physical lines | 123,409 |
+| App Kotlin files, including tests | 634 |
+| App Kotlin physical lines, including tests | 119,735 |
+| Test source files | 156 |
+| Test source physical lines | 12,551 |
+| Tracked blob bytes | 6,906,422 |
 
 Physical lines include comments and blank lines; nonblank lines still include comments. These counts are not comment-free SLOC, a code-quality score or a device performance measurement. Source/script counts exclude XML/resources, data and documentation. Test totals overlap source totals. Untracked/generated files, downloaded models, caches and submodule contents are excluded; tracked binary assets count as files/bytes only.
 
