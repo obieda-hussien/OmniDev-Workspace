@@ -1,6 +1,6 @@
 # Repository statistics
 
-Snapshot commit: `0deb0278f78ca3b2d5a3e72169833247fb50577c`.
+Snapshot commit: `144c8e0f28f961356841fbe708c734abb8d159be`.
 
 | Metric | Count |
 | --- | ---: |
@@ -8,15 +8,15 @@ Snapshot commit: `0deb0278f78ca3b2d5a3e72169833247fb50577c`.
 | UTF-8 text files | 784 |
 | Binary/non-UTF-8 files | 12 |
 | Symbolic links | 0 |
-| Total tracked blob bytes | 6,921,264 |
-| Physical text lines | 132,404 |
-| Nonblank text lines | 119,188 |
+| Total tracked blob bytes | 6,923,762 |
+| Physical text lines | 132,443 |
+| Nonblank text lines | 119,224 |
 | Source/script files | 661 |
-| Source/script physical lines | 123,702 |
+| Source/script physical lines | 123,737 |
 | App Kotlin files (including tests) | 632 |
-| App Kotlin physical lines (including tests) | 120,240 |
+| App Kotlin physical lines (including tests) | 120,275 |
 | Test source files | 155 |
-| Test source physical lines | 12,521 |
+| Test source physical lines | 12,537 |
 
 ## Text breakdown
 
@@ -26,9 +26,9 @@ Snapshot commit: `0deb0278f78ca3b2d5a3e72169833247fb50577c`.
 | JSON | 4 | 326 | 326 | 9,117 |
 | Java | 1 | 8 | 8 | 353 |
 | JavaScript | 3 | 284 | 268 | 12,552 |
-| Kotlin | 632 | 120,240 | 109,451 | 5,912,749 |
+| Kotlin | 632 | 120,275 | 109,485 | 5,914,653 |
 | Kotlin build scripts | 3 | 526 | 471 | 23,323 |
-| Markdown | 62 | 5,081 | 3,464 | 552,497 |
+| Markdown | 62 | 5,085 | 3,466 | 553,091 |
 | Other text | 22 | 705 | 617 | 31,006 |
 | Properties | 2 | 37 | 32 | 1,724 |
 | Python | 12 | 1,490 | 1,292 | 64,004 |
@@ -48,7 +48,7 @@ This report remains tied to the exact commit above; it is not a live size badge.
 Reproduce this snapshot:
 
 ```sh
-python3 scripts/repository_stats.py --ref 0deb0278f78ca3b2d5a3e72169833247fb50577c --format markdown
+python3 scripts/repository_stats.py --ref 144c8e0f28f961356841fbe708c734abb8d159be --format markdown
 ```
 
 Count the currently checked-out commit:
