@@ -1327,3 +1327,8 @@ Original Workspace material is **proprietary, with all rights reserved** by its 
 OmniLinkSDK has its own license/notices. The llama.cpp submodule, Vosk/JNA, Android/Jetpack components, JGit, networking libraries and the WhatsApp bridge dependencies retain their respective licenses. Downloaded model weights may have terms distinct from the inference library. Connected projects such as the Lawnchair/AOSP-derived Omni Launcher and AndroidIDE keep their own authorship and licensing.
 
 Keep original notices and review [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) when changing dependencies or redistributing binaries. The dependency guide is a starting inventory, not an assertion that every transitive license obligation has been automatically audited.
+
+
+### Extended personalization controls
+
+Your profile includes occupation, custom response instructions, quick answers, local suggested prompts, Markdown/plain-text replies, saved-memory use and independent automatic chat-history recall. Behavior controls apply to the shared chat/screen-assistant transcript; profile instructions reach Chat, Agent and Team. Memory opt-out blocks canonical fact tools and legacy vector aliases without deleting saved entries or disabling explicitly selected skills. Memory summary and management provides category counts, preference excerpts and source editing/deletion. See [Profile personalization](docs/PROFILE_PERSONALIZATION.md).

@@ -8,6 +8,8 @@ import com.omnidev.workspace.data.skills.ChatCapabilityStore
 import com.omnidev.workspace.data.skills.SkillManager
 import com.omnidev.workspace.data.repository.GroundedChatRecall
 import com.omnidev.workspace.domain.model.SkillAccessMode
+import kotlinx.coroutines.flow.first
+import com.omnidev.workspace.data.repository.SettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -18,6 +20,9 @@ import kotlinx.coroutines.withContext
  * Retrieval is hybrid and multilingual; vectors are a search strategy, not a second memory store.
  */
 class MemoryManager(private val knowledgeDao: KnowledgeDao) {
+
+    private suspend fun preferences() = SettingsRepository(OmniDevApp.instance.applicationContext)
+        .observeProfilePersonalization().first()
 
     companion object {
         private const val MAX_INJECTED_RULES = 10
@@ -68,6 +73,7 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
 
     suspend fun executeTool(name: String, arguments: Map<String, String>): ToolExecutionResult =
         withContext(Dispatchers.IO) {
+            if (!preferences().permitsMemoryTool(name, arguments)) return@withContext ToolExecutionResult("Saved memory is disabled. Enable Use saved memories in Your profile to store or search facts.", isError = true)
             when (name) {
                 "remember_fact" -> rememberFact(arguments)
                 "search_knowledge" -> searchKnowledge(arguments)
@@ -224,9 +230,10 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
     }
 
     suspend fun buildKnowledgeContext(selectedSkillNames: Set<String> = emptySet(), includeSkills: Boolean = true): String? = withContext(Dispatchers.IO) {
-        val projectRules = knowledgeDao.findByCategory("project_rule").take(MAX_INJECTED_RULES)
-        val userPrefs = knowledgeDao.findByCategory("user_preference").take(MAX_INJECTED_PREFS)
-        val archNotes = knowledgeDao.findByCategory("architecture").take(5)
+        val useMemory = preferences().memoryEnabled
+        val projectRules = if (!useMemory) emptyList() else knowledgeDao.findByCategory("project_rule").take(MAX_INJECTED_RULES)
+        val userPrefs = if (!useMemory) emptyList() else knowledgeDao.findByCategory("user_preference").take(MAX_INJECTED_PREFS)
+        val archNotes = if (!useMemory) emptyList() else knowledgeDao.findByCategory("architecture").take(5)
         val all = projectRules + userPrefs + archNotes
         val skillContext = if (!includeSkills) "" else if (selectedSkillNames.isNotEmpty()) {
             SkillManager(OmniDevApp.instance.applicationContext).buildMentionedPromptContext(selectedSkillNames)
@@ -265,6 +272,7 @@ class MemoryManager(private val knowledgeDao: KnowledgeDao) {
      */
     suspend fun buildHistoryContext(query: String, activeSessionId: Long?): String? =
         withContext(Dispatchers.IO) {
+            if (!preferences().referenceChatHistory) return@withContext null
             if (!HISTORY_CUE.containsMatchIn(query)) return@withContext null
             val terms = GroundedChatRecall.terms(query)
             if (terms.isEmpty()) return@withContext null

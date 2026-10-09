@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun UserProfileScreen(settingsRepository: SettingsRepository, onNavigateBack: () -> Unit) {
+fun UserProfileScreen(settingsRepository: SettingsRepository, onNavigateBack: () -> Unit, onNavigateMemory: () -> Unit = {}) {
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     // A non-null snapshot distinguishes an empty saved profile from storage that has not loaded yet.
@@ -119,6 +119,44 @@ fun UserProfileScreen(settingsRepository: SettingsRepository, onNavigateBack: ()
                         minLines = 4, enabled = seeded && !saving, modifier = Modifier.fillMaxWidth())
                 }
             }
+            Card(shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Personal context", style = MaterialTheme.typography.titleMedium)
+                    OutlinedTextField(preferences.occupation, { preferenceDraft = preferences.copy(occupation = it.take(240)).encode() },
+                        label = { Text("Occupation or role") }, singleLine = true, enabled = seeded && !saving,
+                        modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(preferences.customInstructions, { preferenceDraft = preferences.copy(customInstructions = it.take(2400)).encode() },
+                        label = { Text("Custom instructions") }, minLines = 4, enabled = seeded && !saving,
+                        supportingText = { Text("${preferences.customInstructions.length}/2400 · Applies to Chat, Agent and Team replies.") },
+                        modifier = Modifier.fillMaxWidth())
+                }
+            }
+            Card(shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Response experience", style = MaterialTheme.typography.titleMedium)
+                    ProfileToggle("Quick answers", "Prefer brief replies for simple questions while keeping verification for changing facts and actions.", preferences.quickAnswers, seeded && !saving) {
+                        preferenceDraft = preferences.copy(quickAnswers = it).encode()
+                    }
+                    ProfileToggle("Suggested prompts", "Show local starter prompts. Connected services are only queried when you send a request.", preferences.suggestedPrompts, seeded && !saving) {
+                        preferenceDraft = preferences.copy(suggestedPrompts = it).encode()
+                    }
+                    ProfileToggle("Rich responses", "Render Markdown in assistant replies. Attachments and action controls remain available in plain mode.", preferences.richResponses, seeded && !saving) {
+                        preferenceDraft = preferences.copy(richResponses = it).encode()
+                    }
+                }
+            }
+            Card(shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Memory and continuity", style = MaterialTheme.typography.titleMedium)
+                    ProfileToggle("Use saved memories", "Allow memory tools and automatic recall of saved facts and preferences. Turning this off keeps existing entries for review and deletion.", preferences.memoryEnabled, seeded && !saving) {
+                        preferenceDraft = preferences.copy(memoryEnabled = it).encode()
+                    }
+                    ProfileToggle("Reference chat history", "Use relevant excerpts from older conversations in agent runs. Current conversation context remains available.", preferences.referenceChatHistory, seeded && !saving) {
+                        preferenceDraft = preferences.copy(referenceChatHistory = it).encode()
+                    }
+                    TextButton(onClick = onNavigateMemory, enabled = !saving) { Text("Memory summary and management") }
+                }
+            }
             ProfileReferenceCard()
             Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -160,5 +198,16 @@ private fun <T> ProfileChoice(label: String, options: List<T>, selected: T, disp
                 options.forEach { option -> DropdownMenuItem(text = { Text(display(option)) }, onClick = { expanded = false; change(option) }) }
             }
         }
+    }
+}
+
+@Composable
+private fun ProfileToggle(title: String, detail: String, checked: Boolean, enabled: Boolean, change: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked, change, enabled = enabled)
     }
 }

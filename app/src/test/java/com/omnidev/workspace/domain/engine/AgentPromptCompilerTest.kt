@@ -21,8 +21,21 @@ class AgentPromptCompilerTest {
         )
         assertTrue(prompt.contains(skill))
         assertTrue(prompt.contains("Prioritize mentioned tool github_manager"))
-        assertFalse(prompt.contains("PROFILE ".repeat(300)))
+        assertFalse(prompt.contains("PROFILE ".repeat(800)))
         assertTrue(prompt.indexOf("FINAL_SKILL_REQUIREMENT") < prompt.indexOf("USER CONTEXT"))
+    }
+
+    @Test fun `complete custom instructions fit independently of selected skill guidance`() {
+        val preferences = com.omnidev.workspace.data.model.ProfilePersonalization(
+            customInstructions = "C".repeat(2380) + "FINAL_PROFILE_RULE", occupation = "Developer")
+        val prompt = AgentPromptCompiler.compile(
+            tier = ModelTier.EXECUTOR, scopePath = "/workspace", baseOverride = null,
+            workerPersona = null, userContext = preferences.prompt("Name", "B".repeat(900)), memoryContext = null,
+            brainContext = null, toolDefinitions = emptyList(), toolAccessMode = "ON_DEMAND",
+            enableDeepThinking = false, supportsThinking = true, selectedSkillContext = "SKILL_END_RULE"
+        )
+        assertTrue(prompt.contains("FINAL_PROFILE_RULE"))
+        assertTrue(prompt.contains("SKILL_END_RULE"))
     }
 
     private val verboseTool = ToolDefinition(

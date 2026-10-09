@@ -247,7 +247,8 @@ fun AppNavigation(
         composable(Routes.PROFILE) {
             UserProfileScreen(
                 settingsRepository = settingsRepository,
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateMemory = { navController.navigate(Routes.MEMORY_EXPLORER) }
             )
         }
 

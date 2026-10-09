@@ -35,14 +35,14 @@ internal fun LazyListScope.conversationItems(
     val lastTurn = LastChatTurn.from(state.messages)
     leadingContent?.let { item(key = "local-work") { it() } }
     if (state.messages.isEmpty() && !state.isProcessing) item(key = "welcome") {
-        EmptyStateContent(state.activeMode, onSuggestion, welcomeSuggestions)
+        EmptyStateContent(state.activeMode, onSuggestion, welcomeSuggestions, state.personalization.suggestedPrompts)
     }
     items(layout.transcript, key = { it.messageId }, contentType = { it.role }) { message ->
         MessageBubble(message, state.messageConsoleEntries[message.timestamp], message.replyToMessageId?.let(byId::get),
             onReply = onReply, onOpenBrowser = onBrowser,
             onEdit = if (message.messageId == lastTurn?.user?.messageId) ({ text -> onEditLastUser(message.messageId, text) }) else null,
             onRegenerate = if (message.messageId == lastTurn?.lastAssistantId) ({ onRegenerateLast(message.messageId) }) else null,
-            actionsEnabled = actionsEnabled)
+            actionsEnabled = actionsEnabled, richResponses = state.personalization.richResponses)
         message.executionRequest?.let { request ->
             if (message.role == MessageRole.ASSISTANT) ModeSwitchRequestCard(request, actionsEnabled,
                 onOnce = { onModeDecision(message.messageId, ModeSwitchPermissionStore.Approval.ONCE) },
@@ -57,7 +57,7 @@ internal fun LazyListScope.conversationItems(
     }
     if (state.isProcessing) {
         val content = state.streamingContent
-        if (!content.isNullOrBlank()) item(key = "streaming", contentType = "streaming") { StreamingMessageBubble(content) }
+        if (!content.isNullOrBlank()) item(key = "streaming", contentType = "streaming") { StreamingMessageBubble(content, state.personalization.richResponses) }
         else item(key = "working", contentType = "status") {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Default.MoreHoriz, null, tint = MaterialTheme.colorScheme.primary)
@@ -69,6 +69,6 @@ internal fun LazyListScope.conversationItems(
     items(layout.liveOutputs, key = { it.messageId }, contentType = { "media-output" }) { message ->
         MessageBubble(message, onReply = onReply, onOpenBrowser = onBrowser,
             onRegenerate = if (message.messageId == lastTurn?.lastAssistantId) ({ onRegenerateLast(message.messageId) }) else null,
-            actionsEnabled = actionsEnabled)
+            actionsEnabled = actionsEnabled, richResponses = state.personalization.richResponses)
     }
 }
