@@ -220,7 +220,8 @@ class BackgroundChatRecoveryExecutor(private val context: Context) {
             modelId = modelId,
             messages = history + ChatMessage(MessageRole.USER, resumePrompt),
             systemPrompt = "You are Omni. Continue the interrupted in-app conversation from its durable checkpoint. " +
-                "Use chat web tools when useful. Never repeat an already-finished external action merely because the process restarted.",
+                "Use chat web tools when useful. Never repeat an already-finished external action merely because the process restarted.\n" +
+                runtime.settingsRepository.observeUserPromptContext().first(),
             maxTokens = minOf(model.maxOutputTokens, 8_192),
             enableThinking = runtime.settingsRepository.observeDeepThinking().first() && model.supportsThinking,
             apiKey = runtime.apiKeyRepository.getApiKey(model.provider)
@@ -260,7 +261,7 @@ class BackgroundChatRecoveryExecutor(private val context: Context) {
             scopePath = scope,
             enableDeepThinking = runtime.settingsRepository.observeDeepThinking().first(),
             userAttachments = origin.attachments,
-            userContext = runtime.settingsRepository.observeUserPersona().first(),
+            userContext = runtime.settingsRepository.observeUserPromptContext().first(),
             disabledToolNames = settings.disabledToolNames(),
             toolAccessMode = settings.toolAccessMode.name
         ).collect { event ->
@@ -292,7 +293,8 @@ class BackgroundChatRecoveryExecutor(private val context: Context) {
             workerModelId = worker,
             scopePath = scope,
             enableDeepThinking = runtime.settingsRepository.observeDeepThinking().first(),
-            godModeEnabled = runtime.settingsRepository.observeGodMode().first()
+            godModeEnabled = runtime.settingsRepository.observeGodMode().first(),
+            userContext = runtime.settingsRepository.observeUserPromptContext().first()
         ).collect { event ->
             when (event) {
                 is SwarmEvent.Completed -> final = event.summary

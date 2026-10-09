@@ -925,7 +925,7 @@ class ChatViewModel(
         val request = CompletionRequest(
             modelId = modelId,
             messages = _uiState.value.messages.takeLast(20),
-            systemPrompt = CHAT_SYSTEM_PROMPT +
+            systemPrompt = CHAT_SYSTEM_PROMPT + "\n" + settingsRepository.observeUserPromptContext().first() + "\n" +
                 turnMentionFocus(input).let { focus ->
                     focus.prompt() + if (focus.skills.isEmpty()) "" else com.omnidev.workspace.data.skills.SkillManager(
                         com.omnidev.workspace.OmniDevApp.instance.applicationContext).buildMentionedPromptContext(focus.skills)
@@ -1173,7 +1173,7 @@ class ChatViewModel(
             }
         }
         val deepThinking = settingsRepository.observeDeepThinking().first()
-        val userPersona = settingsRepository.observeUserPersona().first()
+        val userPersona = settingsRepository.observeUserPromptContext().first()
         val chatSettings = _uiState.value.chatSettings
         val flavor = com.omnidev.workspace.data.assistant.AssistantFlavorPolicy(com.omnidev.workspace.core.policy.TierPolicyHolder.current)
         val accessContext = if (assistantWorkspace != null && flavor.allowScreenActions) {
@@ -1261,6 +1261,7 @@ class ChatViewModel(
                 godModeEnabled = godMode,
                 disabledToolNames = _uiState.value.chatSettings.disabledToolNames(),
                 toolAccessMode = _uiState.value.chatSettings.toolAccessMode.name,
+                userContext = settingsRepository.observeUserPromptContext().first(),
                 steering = control
             ).collect { event ->
                 handleSwarmEvent(event, sessionId, runId)

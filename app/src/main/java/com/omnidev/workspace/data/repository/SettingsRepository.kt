@@ -127,6 +127,7 @@ class SettingsRepository(private val context: Context) {
         // User Profile
         val USER_NAME = stringPreferencesKey("user_name")
         val USER_PERSONA = stringPreferencesKey("user_persona")
+        val PROFILE_PERSONALIZATION = stringPreferencesKey("profile_personalization")
         val USER_EMAIL = stringPreferencesKey("user_email")
         val USER_PHONE = stringPreferencesKey("user_phone")
         val USER_ADDRESS = stringPreferencesKey("user_address")
@@ -657,9 +658,10 @@ class SettingsRepository(private val context: Context) {
     }
 
     /** Save both profile fields in a single DataStore transaction. */
-    suspend fun setUserProfile(name: String, persona: String) {
+    suspend fun setUserProfile(name: String, persona: String, personalization: com.omnidev.workspace.data.model.ProfilePersonalization? = null) {
         context.settingsDataStore.edit { prefs ->
             if (name.isBlank()) prefs.remove(Keys.USER_NAME) else prefs[Keys.USER_NAME] = name.trim()
+            personalization?.let { prefs[Keys.PROFILE_PERSONALIZATION] = it.encode() }
             if (persona.isBlank()) prefs.remove(Keys.USER_PERSONA) else prefs[Keys.USER_PERSONA] = persona.trim()
         }
     }
@@ -677,6 +679,15 @@ class SettingsRepository(private val context: Context) {
             if (persona.isNullOrBlank()) prefs.remove(Keys.USER_PERSONA)
             else prefs[Keys.USER_PERSONA] = persona
         }
+    }
+
+    fun observeProfilePersonalization(): Flow<com.omnidev.workspace.data.model.ProfilePersonalization> =
+        context.settingsDataStore.data.map { com.omnidev.workspace.data.model.ProfilePersonalization.decode(it[Keys.PROFILE_PERSONALIZATION]) }
+
+    /** One atomic preference snapshot; photographs and local paths are never included. */
+    fun observeUserPromptContext(): Flow<String> = context.settingsDataStore.data.map {
+        com.omnidev.workspace.data.model.ProfilePersonalization.decode(it[Keys.PROFILE_PERSONALIZATION])
+            .prompt(it[Keys.USER_NAME], it[Keys.USER_PERSONA])
     }
 
     /** Optional email used by autofill assistant. */

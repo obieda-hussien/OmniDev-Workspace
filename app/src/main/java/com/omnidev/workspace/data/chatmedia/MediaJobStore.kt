@@ -12,20 +12,20 @@ internal data class MediaJob(val id: String, val kind: String, val provider: Str
     val delivered: Boolean = false, val galleryAttempted: Boolean = false, val galleryUri: String? = null,
     val lyricsText: String? = null, val phase: String = "queued", val errorCode: String? = null,
     val failures: Int = 0, val failureAnnounced: Boolean = false, val originMessageId: String? = null,
-    val queuedAt: Long = created)
+    val queuedAt: Long = created, val profileReferences: List<String> = emptyList())
 
 /** Only non-credential job state. Completion cannot overwrite cancellation. */
 internal class MediaJobStore(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("chat-media-jobs", Context.MODE_PRIVATE)
     fun active(): List<MediaJob> = synchronized(gate) { prefs.all.keys.mapNotNull(::get).filter { it.state in setOf("queued", "processing", "waiting") } }
     fun create(kind: String, provider: String, model: String, prompt: String, aspect: String,
-        config: MediaConfig? = null, sessionId: Long? = null, arabic: Boolean = false, originMessageId: String? = null): MediaJob = synchronized(gate) {
+        config: MediaConfig? = null, sessionId: Long? = null, arabic: Boolean = false, originMessageId: String? = null, profileReferences: List<String> = emptyList()): MediaJob = synchronized(gate) {
         val all = prefs.all.keys.mapNotNull(::get)
         require(all.count { it.state in setOf("queued", "processing", "waiting") } < 50) {
             "Too many active media jobs. Cancel an older job first."
         }
         MediaJob(UUID.randomUUID().toString(), kind, provider, model, prompt, aspect,
-            config = config, sessionId = sessionId?.takeIf { it > 0 }, arabic = arabic, originMessageId = originMessageId).also { check(save(it)) }
+            config = config, sessionId = sessionId?.takeIf { it > 0 }, arabic = arabic, originMessageId = originMessageId, profileReferences = profileReferences).also { check(save(it)) }
     }
     fun get(id: String): MediaJob? = synchronized(gate) {
         val value = prefs.getString(id, null) ?: return@synchronized null
@@ -36,7 +36,11 @@ internal class MediaJobStore(context: Context) {
                 j.optString("aspect", "16:9"), j.getString("state"), optional("operation"), optional("path"), optional("error"), j.getLong("created"),
                 j.optJSONObject("config")?.let { MediaPreferencesCodec.config(MediaKind.fromAction(j.getString("kind")) ?: error("Unknown media kind"),
                     kotlinx.serialization.json.Json.parseToJsonElement(it.toString()).jsonObject) },
-                j.optLong("session").takeIf { it > 0 }, j.optBoolean("arabic"), j.optBoolean("delivered"), j.optBoolean("gallery_attempted"), optional("gallery_uri"), optional("lyrics_text"), j.optString("phase", j.getString("state")), optional("error_code"), j.optInt("failures"), j.optBoolean("failure_announced"), optional("origin_message_id"), j.optLong("queued_at", j.getLong("created")))
+                j.optLong("session").takeIf { it > 0 }, j.optBoolean("arabic"), j.optBoolean("delivered"), j.optBoolean("gallery_attempted"), optional("gallery_uri"), optional("lyrics_text"), j.optString("phase", j.getString("state")), optional("error_code"), j.optInt("failures"), j.optBoolean("failure_announced"), optional("origin_message_id"), j.optLong("queued_at", j.getLong("created")),
+                j.optJSONArray("profile_references")?.let { refs ->
+                    require(refs.length() <= 2)
+                    (0 until refs.length()).map { refs.getString(it).also { name -> require(ProfileReferencePolicy.validFile(name)) } }
+                }.orEmpty())
         }.getOrNull()
     }
     fun update(job: MediaJob): Boolean = synchronized(gate) {
@@ -68,6 +72,7 @@ internal class MediaJobStore(context: Context) {
     }
 
     private fun save(job: MediaJob) = prefs.edit().putString(job.id, JSONObject().apply {
+        put("profile_references", org.json.JSONArray(job.profileReferences))
         put("kind", job.kind); put("provider", job.provider); put("model", job.model); put("prompt", job.prompt)
         put("aspect", job.aspect); put("state", job.state); put("operation", job.operation); put("path", job.path)
         put("error", job.error); put("created", job.created); put("queued_at", job.queuedAt)

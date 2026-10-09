@@ -11,11 +11,12 @@ import org.json.JSONObject
 object MediaGenerationTool {
     fun definition() = ToolDefinition("media_generation",
         "Generate images, videos or music/songs using the user's enabled media models and saved settings in Model Selection. " +
-            "Never bypass a disabled type or change its selected provider/model. Generation persists after the reply: queued is not completed. " +
+            "For images of the user, set use_profile_references=true only when the user requests their likeness or saved reference photos. Never use their photos for unrelated images. Profile use must be enabled in Your profile; currently supports Gemini image and OpenAI GPT Image, not video/music. Never bypass a disabled type or change its selected provider/model. Generation persists after the reply: queued is not completed. " +
             "The chat card becomes playable/viewable when ready and a completion message is posted. status polls an existing job; never generate again to poll. " +
             "attach sends an accessible phone file/path to chat. Supports توليد الصور والفيديو والموسيقى والأغاني وإرسال الملفات في الشات.",
         listOf(ToolParameter("action", "string", "image, video, music, status, cancel, attach", allowedValues = listOf("image", "video", "music", "status", "cancel", "attach")),
             ToolParameter("prompt", "string", "Description to generate using saved defaults", false, requiredForActions = listOf("image", "video", "music")),
+            ToolParameter("use_profile_references", "boolean", "Use saved face/full-body references for an explicitly requested image of the user; default false. Requires profile consent and a supported selected image model.", false),
             ToolParameter("aspect_ratio", "string", "Optional request override, if allowed by settings", false),
             ToolParameter("resolution", "string", "Optional supported resolution", false),
             ToolParameter("quality", "string", "Optional image quality: auto, low, medium, high", false),
@@ -55,6 +56,13 @@ object MediaGenerationTool {
                     val connected = if (!ApiKeyRepository(context).getApiKey(selected.provider).isNullOrBlank()) setOf(selected.provider) else emptySet()
                     val config = MediaRequestPolicy.resolve(kind, preferences, connected, args)
                     val prompt = args["prompt"]?.trim()?.takeIf { it.length in 1..12_000 } ?: error("Provide a description up to 12000 characters.")
+                    val references = if (args["use_profile_references"] == "true") {
+                        ProfileReferencePolicy.validate(action, MediaModelCatalog.key(config.provider), config.model)
+                        val saved = ProfileReferenceStore(context).get()
+                        val files = saved.files()
+                        ProfileReferencePolicy.validateSelection(files, saved.allowed, files.toSet())
+                        files
+                    } else emptyList()
                     val composed = MediaRequestPolicy.prompt(kind, prompt, if (config.provider == ModelProvider.MINIMAX) config.copy(lyrics = "") else config)
                     if (config.provider == ModelProvider.MINIMAX) require(composed.length <= 2000) { "MiniMax direction must be under 2000 characters; put lyrics in the lyrics field." }
                     val origin = if (sessionId != null && sessionId > 0) {
@@ -64,7 +72,7 @@ object MediaGenerationTool {
                     } else null
                     val requestText = origin?.content ?: prompt
                     val job = store.create(action, MediaModelCatalog.key(config.provider), config.model, composed, config.aspect, config, sessionId,
-                        requestText.any { it in '\u0600'..'\u06FF' }, origin?.messageId?.takeIf { it.isNotBlank() })
+                        requestText.any { it in '\u0600'..'\u06FF' }, origin?.messageId?.takeIf { it.isNotBlank() }, profileReferences = references)
                     MediaGenerationWorker.enqueue(context, job.id)
                     return result(store.get(job.id) ?: job)
                 }

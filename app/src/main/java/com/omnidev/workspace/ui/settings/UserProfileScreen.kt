@@ -17,6 +17,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.omnidev.workspace.data.repository.SettingsRepository
+import com.omnidev.workspace.data.model.ProfilePersonalization
+import com.omnidev.workspace.data.model.ReplyStyle
+import com.omnidev.workspace.data.model.ReplyLevel
 import com.omnidev.workspace.ui.motion.OmniIconButton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.combine
@@ -27,25 +30,27 @@ import kotlinx.coroutines.launch
 fun UserProfileScreen(settingsRepository: SettingsRepository, onNavigateBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
-    // A non-null pair distinguishes an empty saved profile from storage that has not loaded yet.
+    // A non-null snapshot distinguishes an empty saved profile from storage that has not loaded yet.
     val profile = remember(settingsRepository) {
-        combine(settingsRepository.observeUserName(), settingsRepository.observeUserPersona()) { name, persona ->
-            name.orEmpty() to persona.orEmpty()
+        combine(settingsRepository.observeUserName(), settingsRepository.observeUserPersona(), settingsRepository.observeProfilePersonalization()) { name, persona, preferences ->
+            Triple(name.orEmpty(), persona.orEmpty(), preferences)
         }
     }
     val saved by profile.collectAsStateWithLifecycle(initialValue = null)
     var name by rememberSaveable { mutableStateOf("") }
     var persona by rememberSaveable { mutableStateOf("") }
+    var preferenceDraft by rememberSaveable { mutableStateOf(ProfilePersonalization().encode()) }
+    val preferences = ProfilePersonalization.decode(preferenceDraft)
     var seeded by rememberSaveable { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var discard by remember { mutableStateOf(false) }
     LaunchedEffect(saved) {
         if (!seeded && saved != null) {
-            name = saved!!.first; persona = saved!!.second; seeded = true
+            name = saved!!.first; persona = saved!!.second; preferenceDraft = saved!!.third.encode(); seeded = true
         }
     }
-    val dirty = seeded && saved != null && (name.trim() != saved!!.first || persona.trim() != saved!!.second)
+    val dirty = seeded && saved != null && (name.trim() != saved!!.first || persona.trim() != saved!!.second || preferences != saved!!.third)
     fun leave() { if (saving) return; if (dirty) discard = true else onNavigateBack() }
     BackHandler { leave() }
     if (discard) AlertDialog(
@@ -68,7 +73,7 @@ fun UserProfileScreen(settingsRepository: SettingsRepository, onNavigateBack: ()
                         saving = true; error = null
                         scope.launch {
                             try {
-                                settingsRepository.setUserProfile(nameToSave, personaToSave)
+                                settingsRepository.setUserProfile(nameToSave, personaToSave, preferences)
                                 saving = false
                                 snackbar.showSnackbar("Profile saved")
                             } catch (cancelled: CancellationException) { throw cancelled }
@@ -114,8 +119,46 @@ fun UserProfileScreen(settingsRepository: SettingsRepository, onNavigateBack: ()
                         minLines = 4, enabled = seeded && !saving, modifier = Modifier.fillMaxWidth())
                 }
             }
+            ProfileReferenceCard()
+            Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Personalize replies", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                        Switch(preferences.enabled, { preferenceDraft = preferences.copy(enabled = it).encode() }, enabled = seeded && !saving)
+                    }
+                    Text("Your name, preferences and reply style apply to new Chat, Agent and Team runs. Turning this off stops including them; saved details remain editable.", style = MaterialTheme.typography.bodySmall)
+                    ProfileChoice("Base style", ReplyStyle.entries, preferences.style, { it.label }, seeded && !saving && preferences.enabled) {
+                        preferenceDraft = preferences.copy(style = it).encode()
+                    }
+                    for ((label, selected) in listOf("Warmth" to preferences.warmth, "Enthusiasm" to preferences.enthusiasm,
+                        "Headings and lists" to preferences.structure, "Emoji" to preferences.emoji)) {
+                        ProfileChoice(label, ReplyLevel.entries, selected, { it.label }, seeded && !saving && preferences.enabled) { value ->
+                            preferenceDraft = when (label) {
+                                "Warmth" -> preferences.copy(warmth = value)
+                                "Enthusiasm" -> preferences.copy(enthusiasm = value)
+                                "Headings and lists" -> preferences.copy(structure = value)
+                                else -> preferences.copy(emoji = value)
+                            }.encode()
+                        }
+                    }
+                }
+            }
             Text("These details are included in assistant prompts to personalize answers. Add only what you want to share with the selected model provider.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun <T> ProfileChoice(label: String, options: List<T>, selected: T, display: (T) -> String, enabled: Boolean, change: (T) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Column {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+        Box {
+            OutlinedButton(onClick = { expanded = true }, enabled = enabled, modifier = Modifier.fillMaxWidth()) { Text(display(selected)) }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                options.forEach { option -> DropdownMenuItem(text = { Text(display(option)) }, onClick = { expanded = false; change(option) }) }
+            }
         }
     }
 }

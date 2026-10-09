@@ -666,7 +666,7 @@ class TelegramPollingService : Service() {
             val modelId = settingsRepository.observeModelIdForRole(ModelRole.CHAT).first()
             val model = ModelRegistry.findModelById(modelId)
             val apiKey = model?.let { apiKeyRepository.getApiKey(it.provider) }
-            val persona = settingsRepository.observeUserPersona().first()
+            val persona = settingsRepository.observeUserPromptContext().first()
             val systemPrompt = if (!persona.isNullOrBlank())
                 "$TELEGRAM_SYSTEM_PROMPT\n\n## User Context\n$persona"
             else TELEGRAM_SYSTEM_PROMPT
@@ -723,7 +723,7 @@ class TelegramPollingService : Service() {
         return try {
             val scope = configuredScope() ?: return "⚠️ Set a specific Target Context in OmniDev settings."
             val modelId = settingsRepository.observeModelIdForRole(ModelRole.AGENT).first()
-            val persona = settingsRepository.observeUserPersona().first()
+            val persona = settingsRepository.observeUserPromptContext().first()
             val history = sessionHistory.getOrPut(chatId) { mutableListOf() }
 
             val replyBuilder = StringBuilder()

@@ -34,6 +34,9 @@ OmniDev Workspace تطبيق Android يضم المحادثة، وكيل الأد
 
 | المجموعة | الحزم | ملفات أو وظائف مهمة |
 |---|---|---|
+| التخصيص والصور المرجعية | `ui/settings/`, `data/model/`, `data/chatmedia/` | `UserProfileScreen`, `ProfilePersonalization`, `ProfileReferenceStore` وإرسال الصور المصرّح بها للتوليد |
+| الرفيق الافتراضي | `ui/companion/` | الرسم والحركة والمزاج وشبكتان عصبيتان وتعلّم محلي وذاكرة ممتدة |
+| منشن الأدوات والمهارات | `ui/chat/`, `domain/engine/` | `MentionFocus` واختيار أكثر من أداة ومهارة من محرر الرسالة بأولوية دون تقييد الأدوات المساندة |
 | واجهة التطبيق | `ui/chat/`, `ui/settings/`, `ui/providers/`, `ui/navigation/` | المحادثة، الإعدادات، الموفرون ومسارات التنقل |
 | المساعد العائم | `ui/assistant/`, `data/assistant/` | النافذة، الجلسة، الصوت، الكورة، الإرفاق والعودة من إعدادات Android |
 | الصلاحيات والامتيازات | `core/policy/`, `core/privileged/`, `data/tools/`, `data/ipc/` | `PermissionManagerTool`, `DeviceAccessCatalog`, `PermissionRequestPlan`, `AppOpAccessPlan`, `PrivilegedExecutionManager` |
@@ -67,6 +70,10 @@ OmniDev Workspace تطبيق Android يضم المحادثة، وكيل الأد
 
 | الهدف | الوثيقة |
 |---|---|
+| التخصيص وصور المستخدم المرجعية | [التخصيص والصور](PROFILE_PERSONALIZATION.md) |
+| منشن الأدوات والمهارات | [منشن الشات](chat-mentions.md) |
+| الرفيق والتعلّم المحلي | [الرفيق الافتراضي](virtual-companion.md) |
+| عدد الملفات والسطور | [إحصاءات المستودع](REPOSITORY_STATS.md) |
 | فهم التطبيق وإعداده | [README](../README.md) |
 | فهم الطبقات والعقود | [المعمارية](../PROJECT_ARCHITECTURE.md) |
 | العثور بسرعة على نقطة الدخول | [الخريطة الذهنية](../MENTAL_MAP.md) |

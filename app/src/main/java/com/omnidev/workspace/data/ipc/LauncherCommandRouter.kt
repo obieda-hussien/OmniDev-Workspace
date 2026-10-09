@@ -214,7 +214,7 @@ class LauncherCommandRouter(
         val modelId = settingsRepository.observeModelIdForRole(ModelRole.AGENT).first()
         val scopePath = settingsRepository.observeTargetContext().first().orEmpty()
         val deepThinking = settingsRepository.observeDeepThinking().first()
-        val userPersona = settingsRepository.observeUserPersona().first()
+        val userPersona = settingsRepository.observeUserPromptContext().first()
         return AgentRuntimeConfig(
             modelId = modelId,
             scopePath = scopePath,

@@ -108,9 +108,10 @@ Synthesize specialist evidence into the answer to the original request.
         steering: RunSteering? = null,
         mentionFocus: MentionFocus = MentionFocus.parse(userMessage),
         disabledToolNames: Set<String> = emptySet(),
-        toolAccessMode: String = "ON_DEMAND"
+        toolAccessMode: String = "ON_DEMAND",
+        userContext: String = ""
     ): Flow<SwarmEvent> = channelFlow {
-        val focusContext = try {
+        val focusContext = userContext.take(1500) + "\n" + try {
             if (mentionFocus.tools.isNotEmpty()) {
                 val local = if (toolAccessMode == "DISABLED") emptyList() else toolManager.getToolDefinitions().filter { it.name !in disabledToolNames }
                 val connected = if (toolAccessMode != "DISABLED" && mentionFocus.tools.any { name -> local.none { it.name == name } })
@@ -329,6 +330,7 @@ Synthesize specialist evidence into the answer to the original request.
                     scopePath = scopePath,
                     enableDeepThinking = enableDeepThinking,
                     workerPersona = task.requiredPersona.takeIf(String::isNotBlank),
+                    userContext = focusContext.take(1500),
                     toolAccessMode = toolAccessMode,
                     disabledToolNames = disabledToolNames,
                     mentionFocus = mentionFocus,
@@ -485,6 +487,7 @@ Synthesize specialist evidence into the answer to the original request.
                 scopePath = scopePath,
                 enableThinking = enableDeepThinking && orchestratorModel.supportsThinking,
                 observedTokens = observedTeamTokens,
+                profileContext = focusContext.take(1500),
                 onStart = { send(SwarmEvent.SynthesisStarted) }
             ) ?: deterministicEvidenceSummary(completed, failed, skipped)
         }
@@ -610,6 +613,7 @@ Synthesize specialist evidence into the answer to the original request.
         scopePath: String,
         enableThinking: Boolean,
         observedTokens: AtomicInteger,
+        profileContext: String,
         onStart: suspend () -> Unit
     ): String? {
         val evidence = buildSynthesisContext(completed, failed, skipped)
@@ -620,7 +624,7 @@ Synthesize specialist evidence into the answer to the original request.
                 ChatMessage(MessageRole.ASSISTANT, "Team evidence:\n$evidence"),
                 ChatMessage(MessageRole.USER, "Produce the final answer from the evidence above.")
             ),
-            systemPrompt = SYNTHESIS_PROMPT.trimIndent(),
+            systemPrompt = SYNTHESIS_PROMPT.trimIndent() + "\n" + profileContext,
             maxTokens = minOf(modelMaxOutput, SYNTHESIS_MAX_OUTPUT_TOKENS),
             enableThinking = enableThinking,
             targetContext = scopePath,

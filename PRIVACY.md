@@ -10,6 +10,16 @@ Local persistence enables history, retrieval and interruption recovery. It does 
 
 A rooted or compromised device can undermine application-private storage. Exported logs, screenshots, shared media and backups have separate exposure paths. Review the installed build and Android backup configuration before relying on a particular backup behavior.
 
+## Profile personalization and reference photos
+
+Saved profile names, free-text preferences and response style can enter model prompts. The **Personalize replies** switch stops their inclusion in new in-app Chat, Agent and Team runs without deleting the fields. It does not remove old messages or separately saved knowledge; an already submitted request is not recalled.
+
+Face and full-body reference photos are imported through the system picker. The app bounds input size, samples the image, applies EXIF orientation and writes a JPEG without the original metadata. The normalized photos and separate reference-use permission live under `noBackupFilesDir/profile-references`; they are not put in the normal attachment gallery, ordinary text prompts or Android backups. They are app-private files, not claimed to be encrypted or protected from root/device compromise.
+
+Reference use starts disabled. Enabling **Use for images of me** permits reference-enabled image requests to send the selected photos to the configured supported Gemini image or OpenAI GPT Image provider. Queued jobs store the selected local filenames, not photo bytes. The client rechecks permission and whether those exact files still belong to the profile before building a request. Removal/replacement or disabling use blocks unsent jobs using the old selection; deletion cannot undo an upload already sent to the provider. Photos are not used to train a local likeness model or authenticate the user. See [Profile personalization](docs/PROFILE_PERSONALIZATION.md).
+
+Little Omni's local neural weights, bounded replay and moods also use backup-excluded local storage. Its checkpoint contains no transcript text, screenshots or conversation/session identifiers, and its learning does not call a remote model. The companion reset removes learned habits/moods independently of profile photos and conversation memory.
+
 ## Configured model providers
 
 A remote request can send the submitted message, relevant saved history/knowledge, selected attachments, repository excerpts, loaded tool definitions and permitted tool observations to the configured provider. Team tasks can make additional planner/worker requests. Provider retention, training options, regional processing and billing are governed by that provider/account.
