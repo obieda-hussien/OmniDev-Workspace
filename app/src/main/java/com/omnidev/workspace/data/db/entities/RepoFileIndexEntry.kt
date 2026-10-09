@@ -4,17 +4,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/**
- * RepoFileIndexEntry — سجل كل ملف في Live Repository Context Engine.
- *
- * يستخدم لكشف التغييرات تدريجياً (incremental indexing): نُعيد تحليل الملف
- * فقط لو تغيّرت mtime أو الحجم — يوفر اجتياح كامل لمشروع 5000 ملف على
- * أجهزة Android الضعيفة.
- *
- * @property scopePath جذر المشروع المُفهرس (يدعم تعدد المشاريع المتزامنة)
- * @property contentHash SHA-256 مقطوع (16 hex) للكشف عن تغييرات السطر-السطر
- * @property skipReason لو الملف مُتجاهَل (binary/large/excluded) → نسجل السبب
- */
+/** RepoFileIndexEntry tracks files for incremental indexing, reprocessing when mtime or size changes. scopePath identifies a project; contentHash is a truncated 16-hex SHA-256; skipReason records binary, large or excluded files. */
 @Entity(
     tableName = "repo_file_index",
     indices = [

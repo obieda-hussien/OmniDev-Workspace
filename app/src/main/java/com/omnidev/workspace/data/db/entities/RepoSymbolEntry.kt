@@ -4,17 +4,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/**
- * RepoSymbolEntry — رمز (class/function/variable...) مُستخرج من ملف مصدر.
- *
- * Mobile-first:
- * - استخراج خفيف بـ regex (لا Tree-sitter ولا Compiler) — يلائم 2 GB RAM
- * - snippet ≤ 240 حرف (سطر التعريف فقط)
- * - 5000 رمز كحد أقصى لكل scope مع LRU eviction
- *
- * @property symbolKind class | object | interface | function | variable | property | enum
- * @property qualifiedName اسم كامل للبحث الدقيق (e.g. "com.example.Foo.bar")
- */
+/** RepoSymbolEntry stores a source symbol extracted by regex without a compiler. Snippets are bounded to 240 characters and scopes to 5000 symbols with LRU eviction. symbolKind covers class/object/interface/function/variable/property/enum; qualifiedName enables precise lookup such as com.example.Foo.bar. */
 @Entity(
     tableName = "repo_symbols",
     indices = [

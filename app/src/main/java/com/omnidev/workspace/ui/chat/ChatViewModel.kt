@@ -50,6 +50,7 @@ import java.util.concurrent.atomic.AtomicLong
 data class PendingAttachment(val uri: Uri, val displayName: String)
 
 data class ChatUiState(
+    val personalization: com.omnidev.workspace.data.model.ProfilePersonalization = com.omnidev.workspace.data.model.ProfilePersonalization(),
     val messages: List<ChatMessage> = emptyList(),
     val inputText: String = "",
     val targetContext: String? = null,
@@ -139,6 +140,11 @@ class ChatViewModel(
     }
 
     init {
+        viewModelScope.launch {
+            settingsRepository.observeProfilePersonalization().collect { preferences ->
+                _uiState.update { it.copy(personalization = preferences) }
+            }
+        }
         loadTargetContext()
         observeSessions()
         observeMediaCompletions()

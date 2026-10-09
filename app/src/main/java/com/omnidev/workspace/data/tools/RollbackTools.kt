@@ -4,54 +4,54 @@ import com.omnidev.workspace.data.rollback.RollbackManager
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * RollbackTools — أدوات Agent لإدارة Rollback (Brain 2.0)
+ * RollbackTools — Agent tools for rollback management (Brain 2.0)
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * تعرض قدرات [RollbackManager] للـ Agent عبر أربع أدوات:
- *   - rollback_list_recent: عرض آخر snapshots
- *   - rollback_list_groups: عرض groups مع ملخص (للاختيار قبل rollback)
- *   - rollback_apply_group: استعادة كل ملفات group ذرّياً
- *   - rollback_apply_one: استعادة snapshot بعينه
+ * Exposes [RollbackManager] capabilities to the agent through four tools:
+ *   - rollback_list_recent: List recent snapshots
+ *   - rollback_list_groups: List groups with summaries for rollback selection
+ *   - rollback_apply_group: Restore all files in a group atomically
+ *   - rollback_apply_one: Restore a specific snapshot
  *
- * Mobile-first: كل العمليات تعمل بدون root وتعتمد فقط على File API.
+ * Mobile-first: All operations use the File API without requiring root.
  */
 class RollbackTools(private val rollbackManager: RollbackManager) {
 
     fun getDefinitions(): List<ToolDefinition> = listOf(
         ToolDefinition(
             name = "rollback_list_recent",
-            description = "عرض آخر N rollback snapshots مع المسار والسبب. " +
-                "استخدم قبل rollback_apply_one لمعرفة الـ snapshot id.",
+            description = "List the last N rollback snapshots with their paths and reasons. " +
+                "Use before rollback_apply_one to obtain a snapshot ID.",
             parameters = listOf(
-                ToolParameter("limit", "integer", "عدد العناصر (1-50، الافتراضي 20)", required = false)
+                ToolParameter("limit", "integer", "Number of items (1-50; default: 20)", required = false)
             )
         ),
         ToolDefinition(
             name = "rollback_list_groups",
-            description = "عرض آخر action groups مع عدد الملفات في كل group. " +
-                "استخدم قبل rollback_apply_group.",
+            description = "List recent action groups with their file counts. " +
+                "Use before rollback_apply_group.",
             parameters = listOf(
-                ToolParameter("limit", "integer", "عدد العناصر (1-50، الافتراضي 20)", required = false)
+                ToolParameter("limit", "integer", "Number of items (1-50; default: 20)", required = false)
             )
         ),
         ToolDefinition(
             name = "rollback_apply_group",
-            description = "إلغاء كل التغييرات في action group واحد ذرّياً. " +
-                "يستعيد كل الملفات إلى حالتها قبل العملية. تأكد قبل الاستخدام!",
+            description = "Atomically undo all changes in one action group. " +
+                "Restores every file to its state before the action. Confirm before use!",
             parameters = listOf(
-                ToolParameter("group_id", "string", "معرّف الـ action group من rollback_list_groups")
+                ToolParameter("group_id", "string", "Action group ID from rollback_list_groups")
             )
         ),
         ToolDefinition(
             name = "rollback_apply_one",
-            description = "استعادة snapshot واحد فقط (ملف واحد) من سجل الـ rollback.",
+            description = "Restore one file snapshot from the rollback history.",
             parameters = listOf(
-                ToolParameter("snapshot_id", "integer", "معرّف الـ snapshot من rollback_list_recent")
+                ToolParameter("snapshot_id", "integer", "Snapshot ID from rollback_list_recent")
             )
         )
     )
 
-    /** يُرجع null إذا الأداة ليست مملوكة لهذا الـ wrapper (لتمرير fall-through). */
+    /** Returns null for tools not handled by this wrapper, allowing fall-through. */
     suspend fun execute(name: String, args: Map<String, String>): ToolExecutionResult? {
         if (name !in HANDLED) return null
         return try {
@@ -59,46 +59,46 @@ class RollbackTools(private val rollbackManager: RollbackManager) {
                 "rollback_list_recent" -> {
                     val limit = args["limit"]?.toIntOrNull()?.coerceIn(1, 50) ?: 20
                     val items = rollbackManager.listRecent(limit)
-                    if (items.isEmpty()) ToolExecutionResult("لا توجد snapshots مسجّلة.")
+                    if (items.isEmpty()) ToolExecutionResult("No snapshots have been recorded.")
                     else ToolExecutionResult(buildString {
-                        appendLine("📜 آخر ${items.size} snapshot:")
+                        appendLine("📜 Last ${items.size} snapshots:")
                         for (s in items) {
-                            val rolled = if (s.rolledBack) " [مُستعاد]" else ""
+                            val rolled = if (s.rolledBack) " [restored]" else ""
                             val pinned = if (s.pinned) " 📌" else ""
                             appendLine("  #${s.id}$pinned$rolled — ${s.toolName} → ${s.filePath}")
-                            if (s.reason.isNotBlank()) appendLine("       السبب: ${s.reason.take(120)}")
+                            if (s.reason.isNotBlank()) appendLine("       Reason: ${s.reason.take(120)}")
                         }
                     })
                 }
                 "rollback_list_groups" -> {
                     val limit = args["limit"]?.toIntOrNull()?.coerceIn(1, 50) ?: 20
                     val groups = rollbackManager.listGroups(limit)
-                    if (groups.isEmpty()) ToolExecutionResult("لا توجد action groups مسجّلة.")
+                    if (groups.isEmpty()) ToolExecutionResult("No action groups have been recorded.")
                     else ToolExecutionResult(buildString {
-                        appendLine("📦 آخر ${groups.size} action group:")
+                        appendLine("📦 Last ${groups.size} action groups:")
                         for (g in groups) {
-                            appendLine("  ${g.actionGroupId} — ${g.fileCount} ملف | ${g.toolName ?: "?"}")
+                            appendLine("  ${g.actionGroupId} — ${g.fileCount} files | ${g.toolName ?: "?"}")
                             if (!g.reason.isNullOrBlank()) appendLine("       ${g.reason.take(120)}")
                         }
                     })
                 }
                 "rollback_apply_group" -> {
                     val gid = args["group_id"]?.trim()
-                        ?: return ToolExecutionResult("group_id مطلوب", isError = true)
+                        ?: return ToolExecutionResult("group_id is required", isError = true)
                     val res = rollbackManager.rollbackGroup(gid)
                     val errs = if (res.errors.isEmpty()) "" else
-                        "\n⚠️ أخطاء (${res.errors.size}):\n${res.errors.joinToString("\n").take(800)}"
+                        "\n⚠️ Errors (${res.errors.size}):\n${res.errors.joinToString("\n").take(800)}"
                     ToolExecutionResult(
-                        "✅ تمت استعادة ${res.restored}/${res.attempted} ملف من group $gid$errs",
+                        "✅ Restored ${res.restored}/${res.attempted} files from group $gid$errs",
                         isError = res.restored == 0
                     )
                 }
                 "rollback_apply_one" -> {
                     val sid = args["snapshot_id"]?.toLongOrNull()
-                        ?: return ToolExecutionResult("snapshot_id رقمي مطلوب", isError = true)
+                        ?: return ToolExecutionResult("A numeric snapshot_id is required", isError = true)
                     val ok = rollbackManager.rollbackById(sid)
-                    if (ok) ToolExecutionResult("✅ تمت استعادة snapshot #$sid")
-                    else ToolExecutionResult("❌ فشل استعادة snapshot #$sid", isError = true)
+                    if (ok) ToolExecutionResult("✅ Restored snapshot #$sid")
+                    else ToolExecutionResult("❌ Failed to restore snapshot #$sid", isError = true)
                 }
                 else -> ToolExecutionResult("Unknown tool: $name", isError = true)
             }

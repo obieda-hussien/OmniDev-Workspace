@@ -10,40 +10,23 @@ import kotlinx.coroutines.yield
 import java.io.File
 import java.security.MessageDigest
 
-/**
- * ══════════════════════════════════════════════════════════════════════════════
- * RepoIndexer — مفهرس المستودع التدريجي (Live Repository Context Engine)
- * ══════════════════════════════════════════════════════════════════════════════
- *
- * Mobile-first design — يلائم 2-4 GB RAM، يعمل في الخلفية بدون إبطاء UI:
- *
- *   1) **Incremental indexing**: نقرأ كل ملف فقط لو تغيّر mtime أو الحجم.
- *      مشروع 5000 ملف يُفهرس أول مرة في ~10 ثوانٍ، التحديثات اللاحقة في < 1s.
- *
- *   2) **Yield + chunking**: نُعالج الملفات في chunks صغيرة (50 ملف) مع
- *      `yield()` بين كل chunk حتى لا نُجمّد الـ Garbage Collector.
- *
- *   3) **Skip rules**: نتجاوز binaries، الملفات > 500 KB، .git, node_modules,
- *      build/, .gradle/, etc. (لا فائدة في فهرستها).
- *
- *   4) **5000 رمز/scope** كحد أقصى مع LRU eviction (حماية ذاكرة DB).
- */
+/** RepoIndexer incrementally indexes files when mtime or size changes. Processes chunks of 50 with yield between chunks, skips binary files, files above 500 KB and excluded directories, and limits stored symbols to 5000 per scope with LRU eviction. */
 class RepoIndexer(
     private val dao: RepoIndexDao,
-    /** أقصى حجم ملف نقرأه — أي شيء أكبر يُتجاوز. */
+    /** Maximum file size to read; larger files are skipped. */
     private val maxFileSizeBytes: Long = 500L * 1024,
-    /** أقصى عدد رموز محفوظة لكل scope. */
+    /** Maximum stored symbols per scope. */
     private val maxSymbolsPerScope: Int = 5000,
-    /** chunk size — يلائم 2 GB RAM (لا تحميل أكثر من 50 ملف بالتوازي). */
+    /** Chunk size for memory-constrained devices (50 files per chunk). */
     private val chunkSize: Int = 50,
-    /** delay بين chunks (ms) لتقليل الضغط على CPU/IO على الأجهزة الضعيفة. */
+    /** Delay between chunks in milliseconds to reduce CPU and IO pressure. */
     private val chunkDelayMs: Long = 25
 ) {
 
     companion object {
         private const val TAG = "RepoIndexer"
 
-        /** المسارات المُتجاهلة عالمياً (لا فائدة لفهرستها). */
+        /** Globally excluded directories. */
         private val IGNORED_DIRS = setOf(
             ".git", "node_modules", "build", ".gradle", ".idea",
             "dist", "out", "target", ".next", ".cache",
@@ -51,7 +34,7 @@ class RepoIndexer(
             "Pods", "DerivedData"
         )
 
-        /** ملفات نتجاهلها بالامتداد. */
+        /** File extensions excluded from indexing. */
         private val IGNORED_EXTENSIONS = setOf(
             "png", "jpg", "jpeg", "gif", "bmp", "ico", "svg", "webp",
             "mp3", "mp4", "mov", "wav", "flac", "ogg", "webm",
@@ -77,10 +60,7 @@ class RepoIndexer(
     // Public API
     // ──────────────────────────────────────────────────────────────────
 
-    /**
-     * يُفهرس scope بأكمله بشكل تدريجي.
-     * @param onProgress callback اختياري للتقدم (يُستدعى كل chunk)
-     */
+    /** Incrementally index an entire scope; onProgress is an optional callback invoked after each chunk. */
     suspend fun indexScope(
         scopePath: String,
         onProgress: ((IndexProgress) -> Unit)? = null
@@ -91,7 +71,7 @@ class RepoIndexer(
             return@withContext IndexProgress(0, 0, 0, 0, 0, 0, 0)
         }
 
-        // 1) جمع كل الملفات (lazy walk)
+        // 1) Collect files with a lazy walk.
         val files = collectFiles(root)
         Log.d(TAG, "📁 Scanning ${files.size} files in $scopePath")
 
@@ -101,7 +81,7 @@ class RepoIndexer(
         var unchanged = 0
         var symbols = 0
 
-        // 2) معالجة في chunks
+        // 2) Process in chunks.
         for ((cidx, chunk) in files.chunked(chunkSize).withIndex()) {
             for (file in chunk) {
                 try {
@@ -117,7 +97,7 @@ class RepoIndexer(
                     skipped++
                 }
             }
-            // تنفس بين chunks (يحمي UI)
+            // Yield between chunks to keep the UI responsive.
             yield()
             if (chunkDelayMs > 0) delay(chunkDelayMs)
 
@@ -134,7 +114,7 @@ class RepoIndexer(
             )
         }
 
-        // 3) enforce symbol quota للـ scope
+        // 3) Enforce the scope's symbol quota.
         enforceSymbolQuota(scopePath)
 
         IndexProgress(
@@ -148,7 +128,7 @@ class RepoIndexer(
         )
     }
 
-    /** يُحدّث ملف واحد (مفيد للـ live updates عند الـ save). */
+    /** Update one file, for example after a save. */
     suspend fun reindexFile(scopePath: String, filePath: String) =
         withContext(Dispatchers.IO) {
             try {
@@ -164,7 +144,7 @@ class RepoIndexer(
             }
         }
 
-    /** يحذف كل بيانات scope (مفيد عند تبديل المشروع). */
+    /** Delete all indexed data for a scope when switching projects. */
     suspend fun clearScope(scopePath: String) = withContext(Dispatchers.IO) {
         dao.clearScope(scopePath)
         dao.clearSymbolsForScope(scopePath)
@@ -192,16 +172,16 @@ class RepoIndexer(
         if (ext in IGNORED_EXTENSIONS) return FileResult.Skipped
 
         val existing = dao.getFile(scopePath, relativePath)
-        // incremental: لو نفس mtime + size → تخطّي (لا قراءة)
+        // Incremental indexing: skip unchanged mtime and size without reading.
         if (existing != null && existing.fileMtime == mtime && existing.fileSize == size) {
             return FileResult.Unchanged
         }
 
-        // قراءة المحتوى
+        // Read content.
         val content = try {
             file.readText(Charsets.UTF_8)
         } catch (t: Throwable) {
-            // ربما binary → نتخطى
+            // Skip possible binary content.
             return FileResult.Skipped
         }
 
@@ -226,7 +206,7 @@ class RepoIndexer(
                 indexedAt = System.currentTimeMillis()
             )
         )
-        // استبدال الرموز القديمة للملف ثم إدخال الجديدة
+        // Replace old file symbols with newly extracted symbols.
         dao.deleteSymbolsForFile(scopePath, relativePath)
         if (symbols.isNotEmpty()) dao.insertSymbols(symbols)
 
@@ -234,7 +214,7 @@ class RepoIndexer(
         else FileResult.Updated(symbols.size)
     }
 
-    /** Walk recursive مع تجاوز IGNORED_DIRS مبكراً. */
+    /** Walk recursively, pruning IGNORED_DIRS early. */
     private fun collectFiles(root: File): List<File> {
         val out = ArrayList<File>(1024)
         val stack = ArrayDeque<File>()

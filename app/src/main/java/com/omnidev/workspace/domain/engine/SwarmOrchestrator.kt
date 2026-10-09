@@ -135,7 +135,7 @@ Synthesize specialist evidence into the answer to the original request.
                 executeAttempt(objective + evidence.context(), orchestratorModelId, workerModelId,
                     scopePath, enableDeepThinking, godModeEnabled, steering, revision,
                     teamStartedAt, observedTeamTokens, mentionFocus, disabledToolNames, toolAccessMode,
-                    focusContext, userContext.take(1500)).collect { event ->
+                    focusContext, userContext.take(5000)).collect { event ->
                     evidence.record(event)
                     send(event)
                 }

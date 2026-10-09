@@ -4,9 +4,7 @@ import androidx.room.*
 import com.omnidev.workspace.data.db.entities.SystemKnowledgeEntry
 import kotlinx.coroutines.flow.Flow
 
-/**
- * SystemKnowledgeDao — واجهة الوصول لقاعدة معرفة النظام
- */
+/** Data access for system knowledge. */
 @Dao
 interface SystemKnowledgeDao {
 

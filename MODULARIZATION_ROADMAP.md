@@ -1,16 +1,16 @@
-# خطة فصل وحدات OmniDev Workspace
+# OmniDev Workspace modularization roadmap
 
-> **الحالة: تصميم مقترح، 29 سبتمبر 2026.** `settings.gradle.kts` يضم `:app` فقط. خمس نسخ بناء موجودة (`lite/norm/pro/oem/admin`) ومجلدات مشاركة (`liteNorm/proOem/proOemAdmin`). الرسم التالي هدف محتمل، وليس وحدات مبنية حاليًا. راجع [المعمارية الحالية](PROJECT_ARCHITECTURE.md) و[أرقام المستودع](README.md#المشروع-بالأرقام).
+> **Proposed design, September 29, 2026.** `settings.gradle.kts` currently includes only `:app`. Five flavors (`lite/norm/pro/oem/admin`) and shared sources (`liteNorm/proOem/proOemAdmin`) exist today. The diagram is a possible target, not the current module layout. See [current architecture](PROJECT_ARCHITECTURE.md) and [repository counts](README.md#repository-size-and-source-statistics).
 
-## لماذا نفصل؟
+## Motivation
 
-المشروع يجمع واجهة المستخدم، قاعدة البيانات، السياسات، أدوات الجهاز والتكاملات في وحدة واحدة. الفصل قد يوضح حدود الاعتماد ويتيح عزل القدرات المميزة بين flavors، لكنه يغير AIDL وmanifest وKSP ومسارات المصدر معًا. ينبغي تنفيذه على مراحل قابلة للبناء، دون افتراض أن نقل ملف وحده يمنع وصول أداة غير مناسبة لنسخة Lite؛ سياسة التشغيل وبيان التطبيق يظلان جزءًا من الحماية.
+UI, storage, policies, device tools and integrations share one module. Separation could clarify dependencies and isolate privileged capabilities between flavors, but it also changes AIDL, manifests, KSP and source paths. Migrate in buildable stages. Moving a file alone does not prevent privileged access in Lite; runtime policies and manifests still enforce boundaries.
 
-## المخطط المستهدف
+## Proposed structure
 
 ```mermaid
 flowchart TD
-    App[":app: UI + flavor wiring"] --> Core[":core:shared"]
+    App[":app: UI and flavor wiring"] --> Core[":core:shared"]
     App --> Lite[":tools:lite"]
     App --> Standard[":tools:standard"]
     App --> Advanced[":tools:advanced"]
@@ -20,32 +20,32 @@ flowchart TD
     Advanced --> Core
 ```
 
-| الوحدة المقترحة | المسؤولية | شرط الفصل |
-|---|---|---|
-| `:core:shared` | عقود الأدوات، نماذج المجال، السياسات المشتركة | لا يعتمد على UI أو خدمة Android خاصة بنسخة |
-| `:core:ipc` | عقود وواجهات OmniLink/AIDL | تثبيت package والتواقيع وهوية الطرف الآخر |
-| `:tools:lite` | أدوات متاحة لمسارات المستهلك | مراجعة التصريحات والأذونات، لا مجرد أسماء الأدوات |
-| `:tools:standard` | أدوات الاستخدام الأوسع | فصل استدعاءات القدرات المميزة خلف واجهة |
-| `:tools:advanced` | تكاملات الجهاز المميزة | ربط Pro/OEM/Admin المقصود، واختبار فشل الصلاحية |
-| `:app` | Compose وApplication وتهيئة النسخ | تحافظ على خيارات المستخدم وتوجيه الأدوات |
+| Proposed module | Responsibility | Separation requirement |
+| --- | --- | --- |
+| `:core:shared` | Tool contracts, domain models and shared policies | No UI or flavor-specific Android service dependency |
+| `:core:ipc` | OmniLink/AIDL contracts | Stable packages, signatures and peer identity |
+| `:tools:lite` | Consumer-facing tools | Review declarations and permissions, not just tool names |
+| `:tools:standard` | Broader-use tools | Put privileged calls behind an interface |
+| `:tools:advanced` | Privileged device integrations | Explicit Pro/OEM/Admin wiring and denied-access tests |
+| `:app` | Compose, Application and flavor setup | Preserve user choices and routing |
 
-هذه القائمة **فرضية تقسيم**؛ استخرج رسم الاعتماد الحقيقي قبل نقل `AgentPipeline` أو Room أو `CompositeToolManager`. خلط DAO مع واجهات الخدمات أو واجهة UI قد يخلق دورات Gradle؛ عالجها بعقود أصغر.
+This is a partitioning hypothesis. Extract the real dependency graph before moving `AgentPipeline`, Room or `CompositeToolManager`. Smaller contracts can prevent Gradle cycles between DAOs, service interfaces and UI.
 
-## خطوات التنفيذ
+## Migration steps
 
-1. **جرد حقيقي:** شغّل `python3 scripts/repo_metrics.py`، اقرأ `settings.gradle.kts` و`app/build.gradle.kts` وملفات `app/src/*/`، واجمع استيرادات الوحدات وخدمات Manifest وAIDL واعتماد KSP. تجنب قوائم مسارات ثابتة تصبح قديمة.
-2. **العقود المشتركة:** انقل واجهات وأكواد نموذج مستقلة إلى `:core:shared` مع اختبارات وحدة مناسبة؛ ابق تطبيقات Android التي تحتاج Context في مكانها حتى توجد واجهة واضحة.
-3. **IPC:** انقل عقود AIDL مع مراعاة مسار الحزمة وأسماء الواجهات ومتطلبات الربط والمستدعين الخارجيين. اختبر إعادة الاتصال وفقدان العملية.
-4. **مساهمات الأدوات:** عرّف تسجيل أدوات لكل وحدة عبر `ToolContribution`، ثم اجعل `CompositeToolManager` يوزع على المساهمين مع حفظ `TierToolGate` وسياسات التأكيد. امنع تضارب أسماء الأدوات والتوجيه الصامت.
-5. **فصل القدرات:** انقل مجموعات الأدوات على دفعات صغيرة، وثبّت اعتماد كل flavor المقصود؛ تحقق من manifest النهائي وAPK، وتأكد أن النسخ غير المميزة لا تحتفظ بمسار تنفيذ مميز عن طريق آخر.
-6. **تدقيق التكامل:** أعد بناء واختبار الأنواع الخمسة واسترجاع المحادثات وسياق المستودع والقرار المحلي وOmniLink قبل الدمج.
+1. Inventory sources with `python3 scripts/repo_metrics.py`. Review Gradle configuration, flavor sources, imports, manifest services, AIDL and KSP dependencies.
+2. Move independent interfaces and model code into `:core:shared` with appropriate unit tests. Keep Context-dependent Android implementations in place until their interfaces are clear.
+3. Move AIDL contracts while preserving package paths, interface names, binding requirements and external callers. Test reconnect and process loss.
+4. Register module tools through `ToolContribution`; route contributions through `CompositeToolManager` while retaining `TierToolGate` and confirmation policies. Reject duplicate names and silent routing conflicts.
+5. Move tool families in small batches and make each flavor dependency explicit. Inspect merged manifests and APK contents so an unprivileged flavor cannot reach privileged execution through an alternate route.
+6. Build and test all five flavors, chat recall, repository context, local decisions and OmniLink before merging.
 
-## بوابات قبول
+## Acceptance checks
 
-```bash
+```sh
 ./gradlew :app:compileLiteDebugKotlin :app:compileNormDebugKotlin :app:compileProDebugKotlin :app:compileOemDebugKotlin :app:compileAdminDebugKotlin
 ./gradlew :app:testLiteDebugUnitTest :app:testNormDebugUnitTest :app:testProDebugUnitTest :app:testOemDebugUnitTest :app:testAdminDebugUnitTest
 ./gradlew :app:lintLiteDebug :app:lintNormDebug :app:lintProDebug :app:lintOemDebug :app:lintAdminDebug
 ```
 
-افحص أذونات merged manifests والمسارات الموجودة داخل كل APK، ونتائج السياسات عند غياب root أو Shizuku. أي هدف لحجم APK أو سرعة بناء يحتاج baseline مقاسًا من نفس الجهاز والإعدادات قبل أن يصبح معيار قبول. يتطلب ترحيل Room اختبار فتح بيانات إصدار سابق؛ نجاح اختبارات JVM وحده لا يغطي ذلك.
+Inspect merged permissions, APK execution paths and policy behavior without root or Shizuku. APK-size and build-speed goals require a measured baseline on the same device and configuration. Room migration acceptance includes opening data from a previous version; JVM tests alone do not cover it.

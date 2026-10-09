@@ -59,7 +59,7 @@ existing draft/active run, signer mismatch, revoked consent, hidden apps and for
 ## Maintainer and original authors
 
 Workspace integration development, updates and maintenance are attributed to
-**Abdelrahman Hussein (عبدالرحمن حسين / Obieda)**. Omni Launcher remains a Lawnchair/AOSP-derived
+**Abdelrahman Hussein (Obieda)**. Omni Launcher remains a Lawnchair/AOSP-derived
 fork whose original authors retain their credits and licenses. The SDK also retains its separate
 owner notices and license. See [ATTRIBUTION.md](../ATTRIBUTION.md). Existing rights notices and
 historical documents are preserved; this guide describes only the new application contract.

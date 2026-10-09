@@ -1,41 +1,41 @@
 # Repository statistics
 
-Snapshot commit: `144c8e0f28f961356841fbe708c734abb8d159be`.
+Snapshot commit: `c2fe7afd1a311d0fca474927b9774f65bdfbcd15`.
 
 | Metric | Count |
 | --- | ---: |
-| Tracked files | 796 |
-| UTF-8 text files | 784 |
+| Tracked files | 808 |
+| UTF-8 text files | 796 |
 | Binary/non-UTF-8 files | 12 |
 | Symbolic links | 0 |
-| Total tracked blob bytes | 6,923,762 |
-| Physical text lines | 132,443 |
-| Nonblank text lines | 119,224 |
-| Source/script files | 661 |
-| Source/script physical lines | 123,737 |
-| App Kotlin files (including tests) | 632 |
-| App Kotlin physical lines (including tests) | 120,275 |
-| Test source files | 155 |
-| Test source physical lines | 12,537 |
+| Total tracked blob bytes | 6,942,581 |
+| Physical text lines | 132,986 |
+| Nonblank text lines | 119,675 |
+| Source/script files | 670 |
+| Source/script physical lines | 123,954 |
+| App Kotlin files (including tests) | 639 |
+| App Kotlin physical lines (including tests) | 120,280 |
+| Test source files | 159 |
+| Test source physical lines | 12,884 |
 
 ## Text breakdown
 
 | Format | Files | Physical lines | Nonblank lines | Bytes |
 | --- | ---: | ---: | ---: | ---: |
 | C++ | 2 | 680 | 582 | 29,745 |
-| JSON | 4 | 326 | 326 | 9,117 |
+| JSON | 5 | 436 | 436 | 17,239 |
 | Java | 1 | 8 | 8 | 353 |
 | JavaScript | 3 | 284 | 268 | 12,552 |
-| Kotlin | 632 | 120,275 | 109,485 | 5,914,653 |
-| Kotlin build scripts | 3 | 526 | 471 | 23,323 |
-| Markdown | 62 | 5,085 | 3,466 | 553,091 |
-| Other text | 22 | 705 | 617 | 31,006 |
+| Kotlin | 639 | 120,280 | 109,460 | 5,909,651 |
+| Kotlin build scripts | 3 | 526 | 471 | 23,075 |
+| Markdown | 64 | 5,298 | 3,640 | 558,724 |
+| Other text | 22 | 705 | 617 | 30,978 |
 | Properties | 2 | 37 | 32 | 1,724 |
-| Python | 12 | 1,490 | 1,292 | 64,004 |
+| Python | 14 | 1,702 | 1,482 | 74,359 |
 | Shell | 8 | 474 | 410 | 18,284 |
-| TOML | 1 | 89 | 84 | 5,859 |
+| TOML | 1 | 89 | 84 | 5,723 |
 | XML | 22 | 1,192 | 1,055 | 83,165 |
-| YAML | 10 | 1,272 | 1,128 | 47,395 |
+| YAML | 10 | 1,275 | 1,130 | 47,518 |
 
 ## Method and scope
 
@@ -48,7 +48,7 @@ This report remains tied to the exact commit above; it is not a live size badge.
 Reproduce this snapshot:
 
 ```sh
-python3 scripts/repository_stats.py --ref 144c8e0f28f961356841fbe708c734abb8d159be --format markdown
+python3 scripts/repository_stats.py --ref c2fe7afd1a311d0fca474927b9774f65bdfbcd15 --format markdown
 ```
 
 Count the currently checked-out commit:

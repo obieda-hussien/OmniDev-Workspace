@@ -4,6 +4,7 @@ import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.tools.ToolParameter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.Response
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
@@ -61,46 +62,48 @@ class StreamableMcpConnection(
         }
         session?.let { builder.header("Mcp-Session-Id", it) }
         builder.post(payload.toString().toRequestBody("application/json".toMediaType()))
-        client.newCall(builder.build()).execute().use { response ->
-            if (!response.isSuccessful) throw IOException("MCP $method failed with HTTP ${response.code}")
-            if (method == "initialize") session = response.header("Mcp-Session-Id")
-            if (notification) return@withContext buildJsonObject {}
-            val body = response.body ?: throw IOException("Empty MCP response")
-            fun decode(text: String): JsonObject? {
-                val envelope = Json.parseToJsonElement(text).jsonObject
-                if (envelope["id"]?.jsonPrimitive?.longOrNull != id) return null
-                envelope["error"]?.let { throw IOException("MCP error: $it") }
-                return envelope["result"]?.jsonObject ?: throw IOException("MCP response missing result")
-            }
-            if (response.header("Content-Type").orEmpty().contains("text/event-stream")) {
-                val reader = body.charStream().buffered()
-                val event = StringBuilder()
-                var received = 0
-                while (true) {
-                    val line = reader.readLine() ?: break
-                    received += line.length
-                    if (received > 2_000_000) throw IOException("MCP response exceeds size limit")
-                    if (line.isBlank() && event.isNotEmpty()) {
-                        decode(event.toString())?.let { return@withContext it }
-                        event.setLength(0)
-                    } else if (line.startsWith("data:")) {
-                        if (event.isNotEmpty()) event.append('\n')
-                        event.append(line.substringAfter(':').trimStart())
-                    }
-                }
-                throw IOException("MCP stream ended without a matching response")
-            }
-            val reader = body.charStream()
-            val text = StringBuilder()
-            val buffer = CharArray(8192)
-            while (true) {
-                val count = reader.read(buffer)
-                if (count < 0) break
-                if (text.length + count > 2_000_000) throw IOException("MCP response exceeds size limit")
-                text.append(buffer, 0, count)
-            }
-            decode(text.toString()) ?: throw IOException("MCP response ID mismatch")
+        client.readCancellable(builder.build()) { response -> decodeResponse(response, method, id, notification) }
+    }
+
+    private fun decodeResponse(response: Response, method: String, id: Long, notification: Boolean): JsonObject {
+        if (!response.isSuccessful) throw IOException("MCP $method failed with HTTP ${response.code}")
+        if (method == "initialize") session = response.header("Mcp-Session-Id")
+        if (notification) return buildJsonObject {}
+        val body = response.body ?: throw IOException("Empty MCP response")
+        fun decode(text: String): JsonObject? {
+            val envelope = Json.parseToJsonElement(text).jsonObject
+            if (envelope["id"]?.jsonPrimitive?.longOrNull != id) return null
+            envelope["error"]?.let { throw IOException("MCP error: $it") }
+            return envelope["result"]?.jsonObject ?: throw IOException("MCP response missing result")
         }
+        if (response.header("Content-Type").orEmpty().contains("text/event-stream")) {
+            val reader = body.charStream().buffered()
+            val event = StringBuilder()
+            var received = 0
+            while (true) {
+                val line = reader.readLine() ?: break
+                received += line.length
+                if (received > 2_000_000) throw IOException("MCP response exceeds size limit")
+                if (line.isBlank() && event.isNotEmpty()) {
+                    decode(event.toString())?.let { return it }
+                    event.setLength(0)
+                } else if (line.startsWith("data:")) {
+                    if (event.isNotEmpty()) event.append('\n')
+                    event.append(line.substringAfter(':').trimStart())
+                }
+            }
+            throw IOException("MCP stream ended without a matching response")
+        }
+        val reader = body.charStream()
+        val text = StringBuilder()
+        val buffer = CharArray(8192)
+        while (true) {
+            val count = reader.read(buffer)
+            if (count < 0) break
+            if (text.length + count > 2_000_000) throw IOException("MCP response exceeds size limit")
+            text.append(buffer, 0, count)
+        }
+        return decode(text.toString()) ?: throw IOException("MCP response ID mismatch")
     }
 
     override suspend fun getSupportedTools(serverName: String): List<ToolDefinition> {

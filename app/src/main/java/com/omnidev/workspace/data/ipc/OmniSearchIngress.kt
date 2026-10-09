@@ -1,4 +1,4 @@
-// Copyright 2026 Abdelrahman Hussein (عبدالرحمن حسين). Original Omni integration contribution.
+// Copyright 2026 Abdelrahman Hussein. Original Omni integration contribution.
 
 package com.omnidev.workspace.data.ipc
 

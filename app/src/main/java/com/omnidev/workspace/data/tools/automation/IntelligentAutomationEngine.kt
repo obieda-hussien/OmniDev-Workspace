@@ -5,18 +5,7 @@ import org.json.JSONObject
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.min
 
-/**
- * 🤖 **Intelligent Automation Engine**
- * 
- * نظام أتمتة ذكي يتعلم من سلوك المستخدم وينفذ مهام معقدة بشكل مستقل.
- * 
- * **القدرات:**
- * - تعلم الأنماط السلوكية للمستخدم
- * - تنفيذ Workflows معقدة بناءً على Triggers
- * - التكيف الذكي مع الأخطاء
- * - التنبؤ بالمهام القادمة
- * - التحسين الذاتي للأداء
- */
+/** IntelligentAutomationEngine records user events, detects behavioral patterns, executes trigger-based workflows, handles failures and exposes task and performance statistics. */
 object IntelligentAutomationEngine {
     
     private const val TAG = "IntelligentAutomation"
@@ -165,9 +154,7 @@ object IntelligentAutomationEngine {
     private val patternEventBuffer = mutableListOf<PatternEvent>()
     private val patternLearningScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     
-    /**
-     * تسجيل حدث للتعلم من الأنماط
-     */
+    /** Record an event for pattern learning. */
     fun recordEvent(eventType: String, data: Map<String, Any>) {
         synchronized(patternEventBuffer) {
             patternEventBuffer.add(
@@ -178,7 +165,7 @@ object IntelligentAutomationEngine {
                 )
             )
             
-            // تحليل الأنماط كل 50 حدث
+            // Analyze patterns every 50 events.
             if (patternEventBuffer.size >= 50) {
                 patternLearningScope.launch {
                     analyzeAndLearnPatterns()
@@ -187,9 +174,7 @@ object IntelligentAutomationEngine {
         }
     }
     
-    /**
-     * تحليل الأحداث واكتشاف الأنماط
-     */
+    /** Analyze events and detect patterns. */
     private suspend fun analyzeAndLearnPatterns() = withContext(Dispatchers.Default) {
         val events = synchronized(patternEventBuffer) {
             val copy = patternEventBuffer.toList()
@@ -197,46 +182,46 @@ object IntelligentAutomationEngine {
             copy
         }
         
-        // اكتشاف تسلسلات الأحداث المتكررة
+        // Detect recurring event sequences.
         val sequences = findSequentialPatterns(events)
         
-        // اكتشاف أنماط زمنية
+        // Detect temporal patterns.
         val temporalPatterns = findTemporalPatterns(events)
         
-        // اكتشاف أنماط سياقية
+        // Detect contextual patterns.
         val contextualPatterns = findContextualPatterns(events)
         
-        // دمج الأنماط المكتشفة
+        // Merge detected patterns.
         (sequences + temporalPatterns + contextualPatterns).forEach { pattern ->
             val existingPattern = learnedPatterns[pattern.id]
             if (existingPattern != null) {
-                // تحديث النمط الموجود
+                // Update an existing pattern.
                 learnedPatterns[pattern.id] = existingPattern.copy(
                     frequency = existingPattern.frequency + 1,
                     confidence = min(existingPattern.confidence + 0.05, 1.0),
                     lastSeen = System.currentTimeMillis()
                 )
             } else {
-                // إضافة نمط جديد
+                // Add a new pattern.
                 learnedPatterns[pattern.id] = pattern
             }
         }
         
-        // تنظيف الأنماط القديمة (لم تُشاهد منذ 30 يوم)
+        // Remove patterns not seen for 30 days.
         val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
         learnedPatterns.entries.removeIf { it.value.lastSeen < thirtyDaysAgo }
     }
     
     private fun findSequentialPatterns(events: List<PatternEvent>): List<UserPattern> {
         val patterns = mutableListOf<UserPattern>()
-        val windowSize = 5 // حجم النافذة للتسلسل
+        val windowSize = 5 // Sequence window size.
         
         if (events.size < windowSize) return patterns
         for (i in 0..events.size - windowSize) {
             val sequence = events.subList(i, i + windowSize)
             val typeSequence = sequence.map { it.eventType }
             
-            // تحقق من تكرار التسلسل
+            // Check sequence frequency.
             val occurrences = countSequenceOccurrences(events, typeSequence)
             if (occurrences >= 3) {
                 patterns.add(
@@ -268,7 +253,7 @@ object IntelligentAutomationEngine {
     private fun findTemporalPatterns(events: List<PatternEvent>): List<UserPattern> {
         val patterns = mutableListOf<UserPattern>()
         
-        // مثال: اكتشاف أحداث تحدث في نفس الوقت من اليوم
+        // Example: detect events occurring at the same time of day.
         val eventsByHour = events.groupBy { 
             java.util.Calendar.getInstance().apply {
                 timeInMillis = it.timestamp
@@ -302,7 +287,7 @@ object IntelligentAutomationEngine {
     private fun findContextualPatterns(events: List<PatternEvent>): List<UserPattern> {
         val patterns = mutableListOf<UserPattern>()
         
-        // مثال: أحداث مرتبطة ببيانات سياقية معينة
+        // Example: events associated with specific context data.
         val eventsByContext = events.groupBy { event ->
             event.data.entries.sortedBy { it.key }
                 .joinToString(",") { "${it.key}=${it.value}" }
@@ -336,13 +321,11 @@ object IntelligentAutomationEngine {
     private val executionHistory = mutableListOf<WorkflowExecution>()
     private val executionScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     
-    /**
-     * تسجيل Workflow جديد
-     */
+    /** Register a workflow. */
     fun registerWorkflow(workflow: AutomationWorkflow): Boolean {
         workflows[workflow.id] = workflow
         
-        // بدء المراقبة للـ Triggers
+        // Start monitoring triggers.
         when (workflow.trigger) {
             is WorkflowTrigger.TimeBasedTrigger -> scheduleTimedWorkflow(workflow)
             is WorkflowTrigger.EventTrigger -> subscribeToEvents(workflow)
@@ -353,9 +336,7 @@ object IntelligentAutomationEngine {
         return true
     }
     
-    /**
-     * تنفيذ Workflow
-     */
+    /** Execute a workflow. */
     suspend fun executeWorkflow(
         workflowId: String,
         context: Map<String, Any> = emptyMap()
@@ -378,14 +359,14 @@ object IntelligentAutomationEngine {
         activeExecutions[executionId] = execution
         
         try {
-            // التحقق من الشروط
+            // Check conditions.
             if (!evaluateConditions(workflow.conditions, context)) {
                 execution.status = ExecutionStatus.CANCELLED
                 execution.logs.add("Conditions not met")
                 return@withContext execution
             }
             
-            // تنفيذ الإجراءات
+            // Execute actions.
             workflow.actions.forEach { action ->
                 val actionResult = executeAction(action, context, execution)
                 execution.actionResults.add(actionResult)
@@ -399,7 +380,7 @@ object IntelligentAutomationEngine {
             
             execution.status = ExecutionStatus.COMPLETED
             
-            // التعلم من التنفيذ
+            // Learn from execution.
             if (workflow.learnFromExecution) {
                 learnFromExecution(execution, workflow)
             }
@@ -413,7 +394,7 @@ object IntelligentAutomationEngine {
             activeExecutions.remove(executionId)
             synchronized(executionHistory) {
                 executionHistory.add(execution)
-                // الاحتفاظ بآخر 1000 تنفيذ فقط
+                // Retain only the last 1000 executions.
                 if (executionHistory.size > 1000) {
                     executionHistory.removeAt(0)
                 }
@@ -474,7 +455,7 @@ object IntelligentAutomationEngine {
             }
         }
         
-        // إذا فشلت كل المحاولات، تجربة fallback
+        // Try the fallback after all attempts fail.
         if (action.fallbackAction != null) {
             execution.logs.add("Executing fallback for ${action.id}")
             return executeAction(action.fallbackAction, context, execution)
@@ -513,7 +494,7 @@ object IntelligentAutomationEngine {
         
         val toolParams = action.parameters["params"] as? Map<String, Any> ?: emptyMap()
         
-        // هنا يمكن الاتصال بـ CompositeToolManager لتنفيذ الأداة
+        // CompositeToolManager can be connected here to execute the tool.
         return "Tool $toolName executed with params: $toolParams"
     }
     
@@ -528,7 +509,7 @@ object IntelligentAutomationEngine {
         val headers = action.parameters["headers"] as? Map<String, String> ?: emptyMap()
         val body = action.parameters["body"] as? String
         
-        // تنفيذ API call (يمكن استخدام NetworkRequestTool هنا)
+        // Execute an API call; NetworkRequestTool can be connected here.
         return "API call to $url executed"
     }
     
@@ -539,7 +520,7 @@ object IntelligentAutomationEngine {
         val title = action.parameters["title"] as? String ?: "Automation"
         val message = action.parameters["message"] as? String ?: ""
         
-        // إرسال إشعار
+        // Send a notification.
         return "Notification sent: $title - $message"
     }
     
@@ -552,7 +533,7 @@ object IntelligentAutomationEngine {
         
         val data = action.parameters["data"]
         
-        // معالجة البيانات حسب نوع العملية
+        // Process data according to the operation type.
         return when (operation) {
             "transform" -> transformData(data, action.parameters)
             "filter" -> filterData(data, action.parameters)
@@ -562,17 +543,17 @@ object IntelligentAutomationEngine {
     }
     
     private fun transformData(data: Any?, params: Map<String, Any>): Any? {
-        // تحويل البيانات
+        // Transform data.
         return data
     }
     
     private fun filterData(data: Any?, params: Map<String, Any>): Any? {
-        // تصفية البيانات
+        // Filter data.
         return data
     }
     
     private fun aggregateData(data: Any?, params: Map<String, Any>): Any? {
-        // تجميع البيانات
+        // Aggregate data.
         return data
     }
     
@@ -583,7 +564,7 @@ object IntelligentAutomationEngine {
         val condition = action.parameters["condition"] as? String
             ?: throw IllegalArgumentException("Condition required")
         
-        // تقييم الشرط وتنفيذ الفرع المناسب
+        // Evaluate the condition and execute the matching branch.
         return "Branch evaluated"
     }
     
@@ -595,7 +576,7 @@ object IntelligentAutomationEngine {
         val loopAction = action.parameters["action"] as? WorkflowAction
             ?: throw IllegalArgumentException("Loop action required")
         
-        // تنفيذ الحلقة
+        // Execute the loop.
         return "Loop executed $iterations times"
     }
     
@@ -640,7 +621,7 @@ object IntelligentAutomationEngine {
         
         val language = action.parameters["language"] as? String ?: "javascript"
         
-        // تنفيذ Script مخصص
+        // Run a custom script.
         return "Custom script executed: $language"
     }
     
@@ -651,7 +632,7 @@ object IntelligentAutomationEngine {
     private fun scheduleTimedWorkflow(workflow: AutomationWorkflow) {
         val trigger = workflow.trigger as WorkflowTrigger.TimeBasedTrigger
         
-        // جدولة تنفيذ بناءً على CRON
+        // Schedule execution using CRON.
         executionScope.launch {
             while (isActive) {
                 val nextExecution = calculateNextCronExecution(trigger.cronExpression)
@@ -670,19 +651,19 @@ object IntelligentAutomationEngine {
     private fun subscribeToEvents(workflow: AutomationWorkflow) {
         val trigger = workflow.trigger as WorkflowTrigger.EventTrigger
         
-        // الاشتراك في الأحداث
+        // Subscribe to events.
         executionScope.launch {
-            // هنا يمكن الاشتراك في event bus
+            // An event bus can be connected here.
         }
     }
     
     private fun monitorPatterns(workflow: AutomationWorkflow) {
         val trigger = workflow.trigger as WorkflowTrigger.PatternTrigger
         
-        // مراقبة الأنماط المتعلمة
+        // Monitor learned patterns.
         executionScope.launch {
             while (isActive) {
-                delay(60_000L) // فحص كل دقيقة
+                delay(60_000L) // Check once per minute.
                 
                 val pattern = learnedPatterns[trigger.patternId]
                 if (pattern != null && pattern.confidence >= trigger.confidence) {
@@ -695,8 +676,8 @@ object IntelligentAutomationEngine {
     }
     
     private fun calculateNextCronExecution(cronExpression: String): Long {
-        // تحليل CRON expression وحساب الوقت القادم
-        // هذا مثال بسيط - يمكن استخدام مكتبة CRON متقدمة
+        // Parse the CRON expression and calculate the next execution time.
+        // Simplified example; a complete CRON library can replace it.
         return System.currentTimeMillis() + 60_000L
     }
     
@@ -736,31 +717,31 @@ object IntelligentAutomationEngine {
     
     private fun learnFromExecution(execution: WorkflowExecution, workflow: AutomationWorkflow) {
         executionScope.launch {
-            // تحليل نجاح/فشل التنفيذ
+            // Analyze execution success and failure.
             val successRate = execution.actionResults.count { it.success }.toDouble() / 
                              execution.actionResults.size.toDouble()
             
-            // تسجيل الأداء
+            // Record performance.
             val avgDuration = execution.actionResults.map { it.duration }.average()
             
-            // اقتراح تحسينات
+            // Suggest improvements.
             if (successRate < 0.8) {
                 suggestWorkflowImprovements(workflow, execution)
             }
             
-            // تحديث أولوية الـ workflow بناءً على الأداء
+            // Update workflow priority based on performance.
             if (successRate > 0.95 && avgDuration < 5000) {
-                // هذا workflow جيد - زيادة أولويته
+                // Increase priority for a well-performing workflow.
             }
         }
     }
     
     private fun suggestWorkflowImprovements(workflow: AutomationWorkflow, execution: WorkflowExecution) {
-        // تحليل الأخطاء واقتراح حلول
+        // Analyze errors and suggest solutions.
         val failedActions = execution.actionResults.filter { !it.success }
         
         failedActions.forEach { actionResult ->
-            // اقتراح زيادة timeout أو تغيير retry policy
+            // Suggest a longer timeout or a different retry policy.
         }
     }
     

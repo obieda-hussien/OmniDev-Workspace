@@ -54,16 +54,7 @@ class McpConfigManager(private val context: Context) {
 
     private fun getServersWrapper(): McpConfigWrapper {
         val jsonString = sharedPreferences.getString(KEY_CONFIG, null)
-        return if (jsonString != null) {
-            try {
-                json.decodeFromString<McpConfigWrapper>(jsonString)
-            } catch (e: Exception) {
-                e.printStackTrace()
-                McpConfigWrapper()
-            }
-        } else {
-            McpConfigWrapper()
-        }
+        return McpDefaults.readSaved(jsonString, json)
     }
 
     private fun saveConfig(config: McpConfigWrapper) {

@@ -44,8 +44,8 @@ class AgentRuntime(context: Context) {
     val notionPublisherTool = com.omnidev.workspace.data.tools.NotionPublisherTool(settingsRepository)
 
         // ── Agent Brain 2.0 + Action Insurance + Repo Context + Build Doctor Pro ──
-        // المحركات تُهيَّأ في OmniDevApp.onCreate() — هنا فقط نلتقط مراجعها ونغلّفها
-        // كأدوات يستدعيها الـ Agent عبر الـ ReAct loop.
+        // Engines are initialized in OmniDevApp.onCreate(); capture and wrap their references here.
+        // Expose them as tools through the agent's ReAct loop.
     val app = OmniDevApp.instance
     val agentBrainTools = AgentBrainTools(
             reflexion = app.reflexionEngine,

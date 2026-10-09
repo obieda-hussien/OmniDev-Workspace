@@ -101,6 +101,6 @@ limits, and the distinction from legacy LauncherConnectionManager. Both callers 
 apply the policy. Search is a user-visible draft handoff, not a privileged agent submission.
 The integration uses the existing SDK protocol without changing its ABI. Both applications need compatible installed APKs; verify shared signing, policy tests and device behavior when updating either side.
 
-Integration development/updates are maintained by Abdelrahman Hussein (عبدالرحمن حسين / Obieda).
+Integration development/updates are maintained by Abdelrahman Hussein (Obieda).
 Lawnchair, AOSP, AndroidIDE and other upstream components retain their own authors and rights;
 [ATTRIBUTION.md](ATTRIBUTION.md) records this scope without replacing upstream notices.

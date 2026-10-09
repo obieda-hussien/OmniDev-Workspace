@@ -13,28 +13,28 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * SemanticUITool — أداة التحكم الدلالي المتقدمة
+ * SemanticUITool — Advanced semantic UI control tool
  *
- * الجيل الثاني: ذكاء اصطناعي كامل في التفاعل
+ * Second-generation semantic UI interaction
  * ─────────────────────────────────────────────────────────────────────────────
- * إجراءات جديدة:
+ * Additional actions:
  * ─────────────────────────────────────────────────────────────────────────────
- * • `find_element` — يبحث عن عنصر بالنص بدون dump_tree كامل (أسرع بكثير)
- * • `wait_for`     — ينتظر حتى يظهر نص/عنصر على الشاشة (timeout قابل للضبط)
- * • `smart_fill`   — يملأ نموذجاً كاملاً دفعةً واحدة بناءً على كشف النموذج
- * • `get_summary`  — يُرجع الملخص التنفيذي بدون شجرة كاملة
- * • `get_text`     — يستخرج النص من عقدة بدون dump_tree
- * • `verify`       — يتحقق أن عقدة موجودة وتملك الحالة المتوقعة
- * • `chain`        — تسلسل إجراءات في استدعاء واحد
- * • `record_start` / `record_stop` / `macro_play` — نظام الماكرو
- * • `scroll_to`    — تمرير ذكي حتى ظهور نص
- * • `describe`     — يصف العنصر بالـ node_id وصفاً دلالياً كاملاً
+ * • `find_element` — Find an element by text without a full dump_tree
+ * • `wait_for`     — Wait for text or an element with a configurable timeout
+ * • `smart_fill`   — Fill a detected form in one call
+ * • `get_summary`  — Return a screen summary without a full tree
+ * • `get_text`     — Extract text from a node without dump_tree
+ * • `verify`       — Check node existence and expected state
+ * • `chain`        — Sequence actions in one call
+ * • `record_start` / `record_stop` / `macro_play` — Macro recording and playback
+ * • `scroll_to`    — Scroll until text appears
+ * • `describe`     — Describe an element semantically by node_id
  *
- * تحسينات على الإجراءات القديمة:
+ * Improvements to existing actions:
  * ─────────────────────────────────────────────────────────────────────────────
- * • كل `click`  الآن يتحقق أن الواجهة تغيّرت بعده
- * • `type` الآن يدعم clear_first لمسح النص القديم
- * • `dump_tree` يُرجع الملخص + كشف النماذج + عناصر التنقل
+ * • Each `click` checks whether the UI changed afterward
+ * • `type` supports clear_first to remove existing text
+ * • `dump_tree` returns a summary, detected forms and navigation elements
  */
 object SemanticUITool {
 
@@ -54,66 +54,66 @@ object SemanticUITool {
         ToolDefinition(
             name = "semantic_ui",
             description = """
-أداة التحكم الدلالي الأقوى لـ Android. تتيح للوكيل رؤية الشاشة والتفاعل معها.
-الإجراءات المتاحة:
+Semantic UI control for Android: inspect the screen and interact with its elements.
+Available actions:
 
-📋 القراءة:
-• dump_tree    — الشجرة الكاملة مع كشف النماذج والتنقل
-• get_summary  — ملخص سريع للشاشة بدون الشجرة الكاملة
-• find_element — ابحث عن عنصر بنصه مباشرة
-• get_text     — استخرج نص من عقدة بـ node_id
-• describe     — صف عنصراً وصفاً دلالياً شاملاً
-• verify       — تحقق من حالة عنصر
+📋 Reading:
+• dump_tree    — Full tree with form and navigation detection
+• get_summary  — Quick screen summary without the full tree
+• find_element — Find an element directly by its text
+• get_text     — Extract node text by node_id
+• describe     — Describe an element semantically
+• verify       — Check an element's state
 
-⚡ التفاعل:
-• click / long_click — نقر عادي / طويل بالـ node_id
-• type          — كتابة نص في حقل إدخال
-• scroll        — تمرير عقدة
-• smart_fill    — ملء نموذج كامل بمجموعة {nodeId: text}
-• chain         — تسلسل إجراءات (tap+type+tap في خطوة واحدة)
+⚡ Interaction:
+• click / long_click — Click or long-click by node_id
+• type          — Type text in an input field
+• scroll        — Scroll a node
+• smart_fill    — Fill a form using a {nodeId: text} map
+• chain         — Sequence actions (tap+type+tap in one call)
 
-⏱️ الانتظار:
-• wait_for      — انتظر ظهور نص على الشاشة
-• scroll_to     — مرّر حتى يظهر نص مستهدف
+⏱️ Waiting:
+• wait_for      — Wait for text to appear on screen
+• scroll_to     — Scroll until target text appears
 
 🔧 Shizuku God-Mode:
 • force_click / force_long_click / force_type
-• auto_enable   — تفعيل خدمة الـ accessibility تلقائياً
+• auto_enable   — Enable the accessibility service automatically
 
-📼 الماكرو:
+📼 Macros:
 • record_start / record_stop / macro_play / macro_list
 
-🌍 التنقل:
+🌍 Navigation:
 • back / home / recents
 • swipe / tap_xy
 """.trimIndent(),
             parameters = listOf(
                 ToolParameter("action", "string",
-                    "الإجراء المطلوب (انظر الوصف أعلاه)", required = true),
+                    "Requested action (see description above)", required = true),
                 ToolParameter("node_id", "string",
-                    "معرّف العقدة من dump_tree (مثل N3). مطلوب لـ: click, type, scroll, etc."),
+                    "Node ID from dump_tree (for example N3). Required for click, type, scroll, etc."),
                 ToolParameter("text", "string",
-                    "نص للكتابة (type/force_type) أو للبحث (find_element/wait_for)"),
+                    "Text to enter (type/force_type) or search for (find_element/wait_for)"),
                 ToolParameter("direction", "string",
-                    "اتجاه التمرير/السحب: forward/backward/up/down/left/right"),
+                    "Scroll or swipe direction: forward/backward/up/down/left/right"),
                 ToolParameter("timeout_ms", "string",
-                    "مهلة الانتظار بالمللي ثانية (لـ wait_for). افتراضي: 10000"),
+                    "Timeout in milliseconds for wait_for (default: 10000)"),
                 ToolParameter("clear_first", "string",
-                    "true لمسح الحقل قبل الكتابة (لـ type)"),
+                    "true to clear the field before type"),
                 ToolParameter("verify_change", "string",
-                    "false لتعطيل التحقق من تغيير الواجهة بعد النقر"),
+                    "false to disable the post-click UI change check"),
                 ToolParameter("form_data", "string",
-                    "JSON: {\"N1\":\"text1\",\"N2\":\"text2\"} لـ smart_fill"),
+                    "JSON: {\"N1\":\"text1\",\"N2\":\"text2\"} for smart_fill"),
                 ToolParameter("chain_steps", "string",
-                    "JSON array للإجراءات المتسلسلة لـ chain"),
+                    "JSON array of sequential actions for chain"),
                 ToolParameter("macro_name", "string",
-                    "اسم الماكرو لـ record_start/record_stop/macro_play"),
+                    "Macro name for record_start/record_stop/macro_play"),
                 ToolParameter("expected_state", "string",
-                    "الحالة المتوقعة للتحقق (Checked/Focused/Enabled/etc.) لـ verify"),
-                ToolParameter("duration_ms", "string", "مدة الـ swipe بالمللي ثانية"),
-                ToolParameter("distance_ratio", "string", "نسبة مسافة الـ swipe (0.1..0.9)"),
-                ToolParameter("x", "string", "إحداثي X لـ tap_xy"),
-                ToolParameter("y", "string", "إحداثي Y لـ tap_xy")
+                    "Expected state (Checked/Focused/Enabled/etc.) for verify"),
+                ToolParameter("duration_ms", "string", "Swipe duration in milliseconds"),
+                ToolParameter("distance_ratio", "string", "Swipe distance ratio (0.1..0.9)"),
+                ToolParameter("x", "string", "X coordinate for tap_xy"),
+                ToolParameter("y", "string", "Y coordinate for tap_xy")
             )
         )
     )
@@ -132,9 +132,9 @@ object SemanticUITool {
                 }
                 if (!AccessibilityStateManager.isServiceConnected.value) {
                     return@withContext ToolExecutionResult(
-                        "⚠️ خدمة الـ Accessibility غير مفعّلة. " +
-                            "اذهب إلى الإعدادات → إمكانية الوصول → OmniDev وفعّلها، " +
-                            "أو استخدم الإجراء 'auto_enable'.",
+                        "⚠️ Accessibility service is not enabled. " +
+                            "Go to Settings → Accessibility → OmniDev and enable it, " +
+                            "or use the 'auto_enable' action.",
                         isError = true
                     )
                 }
@@ -170,17 +170,17 @@ object SemanticUITool {
                 "macro_play"       -> playMacro(params["macro_name"])
                 "macro_list"       -> listMacros()
                 else -> ToolExecutionResult(
-                    "إجراء غير معروف: '$action'. استخدم dump_tree لبدء التفاعل.",
+                    "Unknown action: '$action'. Use dump_tree to start interacting.",
                     isError = true
                 )
             }
         }
 
-    // ── الإجراءات ─────────────────────────────────────────────────────────────
+    // ── Actions ─────────────────────────────────────────────────────────────
 
     private fun dumpTree(): ToolExecutionResult {
         val root = AccessibilityStateManager.rootNode.value
-            ?: return ToolExecutionResult("لا تتوفر شجرة واجهة. قد تكون الشاشة مطفأة.", isError = true)
+            ?: return ToolExecutionResult("No UI tree is available. The screen may be off.", isError = true)
 
         return try {
             val result = SemanticTreeParser.parse(
@@ -191,12 +191,12 @@ object SemanticUITool {
             lastParseResult = result
 
             val output = buildString {
-                append("📋 الملخص: ${result.summary}\n\n")
+                append("📋 Summary: ${result.summary}\n\n")
                 append(result.semanticTree)
-                append("\n\n── إحصاءات: ${result.extractedNodes} عقدة دلالية / ${result.totalRawNodes} إجمالي ──")
+                append("\n\n── Statistics: ${result.extractedNodes} semantic nodes / ${result.totalRawNodes} total ──")
 
                 if (result.detectedForms.isNotEmpty()) {
-                    append("\n\n📝 نماذج مكتشفة:")
+                    append("\n\n📝 Detected forms:")
                     result.detectedForms.forEach { form ->
                         append("\n  • ${form.groupName}: ")
                         append(form.fields.joinToString(", ") { "[${it.nodeId}]${it.fieldType.name}" })
@@ -204,17 +204,17 @@ object SemanticUITool {
                 }
 
                 if (result.priorityOrder.isNotEmpty()) {
-                    append("\n⭐ أولوية التفاعل: ${result.priorityOrder.take(8).joinToString(" → ")}")
+                    append("\n⭐ Interaction priority: ${result.priorityOrder.take(8).joinToString(" → ")}")
                 }
 
                 if (AccessibilityStateManager.shouldWaitForUI()) {
-                    append("\n\n⏳ الواجهة تتغيّر بسرعة. يُنصح بالانتظار قبل التفاعل.")
+                    append("\n\n⏳ The UI is changing rapidly. Wait before interacting.")
                 }
             }
 
             ToolExecutionResult(output, truncated = result.extractedNodes >= 150)
         } catch (e: Exception) {
-            ToolExecutionResult("فشل تحليل الشجرة: ${e.message}", isError = true)
+            ToolExecutionResult("Tree analysis failed: ${e.message}", isError = true)
         }
     }
 
@@ -224,12 +224,12 @@ object SemanticUITool {
                 append(AccessibilityStateManager.buildContextSummary())
                 val result = lastParseResult
                 if (result != null) {
-                    append("\n\n📋 آخر شجرة محلّلة: ${result.extractedNodes} عقدة")
+                    append("\n\n📋 Last analyzed tree: ${result.extractedNodes} nodes")
                     if (result.detectedForms.isNotEmpty()) {
-                        append("\n📝 نماذج: ${result.detectedForms.joinToString(", ") { it.groupName }}")
+                        append("\n📝 Forms: ${result.detectedForms.joinToString(", ") { it.groupName }}")
                     }
                 } else {
-                    append("\n\n💡 لم تُحلَّل الشجرة بعد. استخدم dump_tree.")
+                    append("\n\n💡 The tree has not been analyzed yet. Use dump_tree.")
                 }
             }
         )
@@ -237,10 +237,10 @@ object SemanticUITool {
 
     private fun findElement(text: String?): ToolExecutionResult {
         if (text.isNullOrBlank()) {
-            return ToolExecutionResult("يجب تحديد 'text' للبحث.", isError = true)
+            return ToolExecutionResult("Provide 'text' to search.", isError = true)
         }
         val found = AccessibilityStateManager.findNodeByText(text)
-            ?: return ToolExecutionResult("❌ لم يُعثر على '$text' في الواجهة الحالية.", isError = true)
+            ?: return ToolExecutionResult("❌ '$text' was not found in the current UI.", isError = true)
 
         val bounds = Rect().also { found.getBoundsInScreen(it) }
         val className = found.className?.toString()?.substringAfterLast('.') ?: "View"
@@ -249,19 +249,19 @@ object SemanticUITool {
 
         return ToolExecutionResult(
             buildString {
-                append("✅ وُجد '$text'\n")
-                append("النوع: $className\n")
-                append("الحدود: [${bounds.left}, ${bounds.top}, ${bounds.right}, ${bounds.bottom}]\n")
-                if (isClickable) append("قابل للنقر: نعم\n")
-                if (isEditable) append("قابل للتحرير: نعم\n")
-                append("\nلاستخدامه: قم بـ dump_tree واحصل على node_id المناسب.")
+                append("✅ Found '$text'\n")
+                append("Type: $className\n")
+                append("Bounds: [${bounds.left}, ${bounds.top}, ${bounds.right}, ${bounds.bottom}]\n")
+                if (isClickable) append("Clickable: yes\n")
+                if (isEditable) append("Editable: yes\n")
+                append("\nUse dump_tree to obtain the matching node_id.")
             }
         )
     }
 
     private suspend fun waitFor(text: String?, timeoutMs: Long): ToolExecutionResult {
         if (text.isNullOrBlank()) {
-            return ToolExecutionResult("يجب تحديد 'text' للانتظار.", isError = true)
+            return ToolExecutionResult("Provide 'text' to wait for.", isError = true)
         }
 
         val startTime = System.currentTimeMillis()
@@ -277,10 +277,10 @@ object SemanticUITool {
 
         val elapsed = System.currentTimeMillis() - startTime
         return if (found == true) {
-            ToolExecutionResult("✅ ظهر '$text' بعد ${elapsed}ms")
+            ToolExecutionResult("✅ '$text' appeared after ${elapsed}ms")
         } else {
             ToolExecutionResult(
-                "⏱️ لم يظهر '$text' خلال ${timeoutMs}ms. الشاشة الحالية: ${AccessibilityStateManager.activePackage.value}",
+                "⏱️ '$text' did not appear within ${timeoutMs}ms. Current screen: ${AccessibilityStateManager.activePackage.value}",
                 isError = true
             )
         }
@@ -288,7 +288,7 @@ object SemanticUITool {
 
     private suspend fun scrollToText(text: String?, direction: String?): ToolExecutionResult {
         if (text.isNullOrBlank()) {
-            return ToolExecutionResult("يجب تحديد 'text' للتمرير إليه.", isError = true)
+            return ToolExecutionResult("Provide 'text' to scroll to.", isError = true)
         }
         val result = withContext(Dispatchers.IO) {
             GodModeAccessibility.scrollUntilVisible(text, direction ?: "down")
@@ -299,13 +299,13 @@ object SemanticUITool {
     private suspend fun smartFill(formDataJson: String?): ToolExecutionResult {
         if (formDataJson.isNullOrBlank()) {
             return ToolExecutionResult(
-                "يجب تحديد 'form_data' كـ JSON: {\"N1\":\"value1\",\"N2\":\"value2\"}",
+                "Provide 'form_data' as JSON: {\"N1\":\"value1\",\"N2\":\"value2\"}",
                 isError = true
             )
         }
 
         val parseResult = lastParseResult
-            ?: return ToolExecutionResult("استخدم dump_tree أولاً للحصول على node_ids.", isError = true)
+            ?: return ToolExecutionResult("Use dump_tree first to obtain node_ids.", isError = true)
 
         return try {
             val data = parseJsonMap(formDataJson)
@@ -315,23 +315,23 @@ object SemanticUITool {
             for ((nodeId, value) in data) {
                 val node = parseResult.nodeMap[nodeId.uppercase()]
                 if (node == null) {
-                    results.add("⚠️ $nodeId: عقدة غير موجودة")
+                    results.add("⚠️ $nodeId: Node not found")
                     continue
                 }
                 if (node.isPassword) { results.add("Protected input: user handoff required for $nodeId"); continue }
                 if (!node.isEditable) {
-                    results.add("⚠️ $nodeId: غير قابل للتحرير")
+                    results.add("⚠️ $nodeId: Not editable")
                     continue
                 }
 
                 val service = OmniAccessibilityService.instance
-                    ?: return ToolExecutionResult("خدمة الـ accessibility غير نشطة.", isError = true)
+                    ?: return ToolExecutionResult("Accessibility service is inactive.", isError = true)
 
-                // انقر على الحقل أولاً
+                // Click the field first
                 service.clickNode(node)
                 delay(200)
 
-                // اكتب القيمة
+                // Enter the value
                 val typed = service.typeIntoNode(node, value)
                 if (typed) {
                     results.add("✅ $nodeId ← \"$value\"")
@@ -348,19 +348,19 @@ object SemanticUITool {
             }
 
             ToolExecutionResult(
-                "📝 smart_fill: $successCount/${data.size} حقل\n${results.joinToString("\n")}"
+                "📝 smart_fill: $successCount/${data.size} fields\n${results.joinToString("\n")}"
             )
         } catch (e: Exception) {
-            ToolExecutionResult("❌ خطأ في smart_fill: ${e.message}", isError = true)
+            ToolExecutionResult("❌ smart_fill error: ${e.message}", isError = true)
         }
     }
 
     private fun getNodeText(nodeId: String?): ToolExecutionResult {
         if (nodeId.isNullOrBlank()) {
-            return ToolExecutionResult("يجب تحديد 'node_id'.", isError = true)
+            return ToolExecutionResult("Provide 'node_id'.", isError = true)
         }
         val node = lastParseResult?.nodeMap?.get(nodeId.uppercase())
-            ?: return ToolExecutionResult("[$nodeId] غير موجود. استخدم dump_tree.", isError = true)
+            ?: return ToolExecutionResult("[$nodeId] Not found. Use dump_tree.", isError = true)
         if (node.isPassword || node.viewIdResourceName?.substringAfterLast('/') in setOf("pinEntry", "passwordEntry"))
             return ToolExecutionResult("Protected input: value unavailable.", true)
 
@@ -371,35 +371,35 @@ object SemanticUITool {
 
     private fun describeNode(nodeId: String?): ToolExecutionResult {
         if (nodeId.isNullOrBlank()) {
-            return ToolExecutionResult("يجب تحديد 'node_id'.", isError = true)
+            return ToolExecutionResult("Provide 'node_id'.", isError = true)
         }
         val node = lastParseResult?.nodeMap?.get(nodeId.uppercase())
-            ?: return ToolExecutionResult("[$nodeId] غير موجود. استخدم dump_tree.", isError = true)
+            ?: return ToolExecutionResult("[$nodeId] Not found. Use dump_tree.", isError = true)
         if (node.isPassword || node.viewIdResourceName?.substringAfterLast('/') in setOf("pinEntry", "passwordEntry"))
             return ToolExecutionResult("Protected input: value unavailable.", true)
 
         val bounds = Rect().also { node.getBoundsInScreen(it) }
         return ToolExecutionResult(buildString {
-            append("وصف [$nodeId]:\n")
-            append("الفئة: ${node.className?.toString()?.substringAfterLast('.') ?: "Unknown"}\n")
-            append("النص: ${node.text ?: "(لا يوجد)"}\n")
-            append("الوصف: ${node.contentDescription ?: "(لا يوجد)"}\n")
-            append("قابل للنقر: ${node.isClickable}\n")
-            append("قابل للتحرير: ${node.isEditable}\n")
-            append("قابل للتمرير: ${node.isScrollable}\n")
-            append("مفعّل: ${node.isEnabled}\n")
-            append("مرئي: ${node.isVisibleToUser}\n")
-            append("مركزه: (${bounds.centerX()}, ${bounds.centerY()})\n")
-            append("الحدود: [${bounds.left}, ${bounds.top}] → [${bounds.right}, ${bounds.bottom}]")
+            append("Description of [$nodeId]:\n")
+            append("Class: ${node.className?.toString()?.substringAfterLast('.') ?: "Unknown"}\n")
+            append("Text: ${node.text ?: "(none)"}\n")
+            append("Description: ${node.contentDescription ?: "(none)"}\n")
+            append("Clickable: ${node.isClickable}\n")
+            append("Editable: ${node.isEditable}\n")
+            append("Scrollable: ${node.isScrollable}\n")
+            append("Enabled: ${node.isEnabled}\n")
+            append("Visible: ${node.isVisibleToUser}\n")
+            append("Center: (${bounds.centerX()}, ${bounds.centerY()})\n")
+            append("Bounds: [${bounds.left}, ${bounds.top}] → [${bounds.right}, ${bounds.bottom}]")
         })
     }
 
     private fun verifyNode(nodeId: String?, expectedState: String?): ToolExecutionResult {
         if (nodeId.isNullOrBlank()) {
-            return ToolExecutionResult("يجب تحديد 'node_id'.", isError = true)
+            return ToolExecutionResult("Provide 'node_id'.", isError = true)
         }
         val node = lastParseResult?.nodeMap?.get(nodeId.uppercase())
-            ?: return ToolExecutionResult("[$nodeId] غير موجود. الواجهة قد تغيّرت — استخدم dump_tree.", isError = true)
+            ?: return ToolExecutionResult("[$nodeId] Not found. The UI may have changed; use dump_tree.", isError = true)
         if (node.isPassword || node.viewIdResourceName?.substringAfterLast('/') in setOf("pinEntry", "passwordEntry"))
             return ToolExecutionResult("Protected input: value unavailable.", true)
 
@@ -423,8 +423,8 @@ object SemanticUITool {
         }
 
         return ToolExecutionResult(
-            if (stateMatch) "✅ [$nodeId] التحقق نجح${expectedState?.let { ": $it" } ?: ""}"
-            else "❌ [$nodeId] التحقق فشل. الحالة المتوقعة: $expectedState",
+            if (stateMatch) "✅ [$nodeId] Verification passed${expectedState?.let { ": $it" } ?: ""}"
+            else "❌ [$nodeId] Verification failed. Expected state: $expectedState",
             isError = !stateMatch
         )
     }
@@ -432,7 +432,7 @@ object SemanticUITool {
     private suspend fun executeChain(chainStepsJson: String?): ToolExecutionResult {
         if (chainStepsJson.isNullOrBlank()) {
             return ToolExecutionResult(
-                "يجب تحديد 'chain_steps' كـ JSON array: [{\"action\":\"click\",\"node_id\":\"N3\"},{\"action\":\"type\",\"node_id\":\"N4\",\"text\":\"hello\"}]",
+                "Provide 'chain_steps' as a JSON array: [{\"action\":\"click\",\"node_id\":\"N3\"},{\"action\":\"type\",\"node_id\":\"N4\",\"text\":\"hello\"}]",
                 isError = true
             )
         }
@@ -447,65 +447,65 @@ object SemanticUITool {
                 results.add("${index + 1}. [$stepAction] ${stepResult.output.take(80)}")
                 if (stepResult.isError) {
                     return ToolExecutionResult(
-                        "❌ فشل في الخطوة ${index + 1} ($stepAction):\n${results.joinToString("\n")}",
+                        "❌ Failed at step ${index + 1} ($stepAction):\n${results.joinToString("\n")}",
                         isError = true
                     )
                 }
                 delay(200)
             }
 
-            ToolExecutionResult("✅ chain نجحت (${steps.size} خطوة):\n${results.joinToString("\n")}")
+            ToolExecutionResult("✅ chain succeeded (${steps.size} steps):\n${results.joinToString("\n")}")
         } catch (e: Exception) {
-            ToolExecutionResult("❌ خطأ في chain: ${e.message}", isError = true)
+            ToolExecutionResult("❌ chain error: ${e.message}", isError = true)
         }
     }
 
-    // ── الإجراءات الأساسية (محسّنة) ──────────────────────────────────────────
+    // ── Enhanced basic actions ──────────────────────────────────────────
 
     private suspend fun clickNode(nodeId: String?, verifyChange: Boolean = true): ToolExecutionResult {
-        if (nodeId.isNullOrBlank()) return ToolExecutionResult("يجب تحديد 'node_id'.", isError = true)
+        if (nodeId.isNullOrBlank()) return ToolExecutionResult("Provide 'node_id'.", isError = true)
         val node = resolveNode(nodeId) ?: return ToolExecutionResult(
-            "[$nodeId] غير موجود. استخدم dump_tree لتحديث الشجرة.", isError = true)
+            "[$nodeId] Not found. Use dump_tree to refresh the tree.", isError = true)
 
         val preTime = AccessibilityStateManager.lastUpdateTime.value
         val service = OmniAccessibilityService.instance
-            ?: return ToolExecutionResult("خدمة الـ accessibility غير نشطة.", isError = true)
+            ?: return ToolExecutionResult("Accessibility service is inactive.", isError = true)
 
         val success = service.clickNode(node)
-        if (!success) return ToolExecutionResult("❌ فشل النقر على [$nodeId].", isError = true)
+        if (!success) return ToolExecutionResult("❌ Failed to click [$nodeId].", isError = true)
 
         if (verifyChange) {
             delay(POST_ACTION_VERIFY_MS.toLong())
             val postTime = AccessibilityStateManager.lastUpdateTime.value
             val changed = postTime > preTime
             return ToolExecutionResult(
-                if (changed) "✅ تم النقر على [$nodeId] — الواجهة تغيّرت"
-                else "✅ تم النقر على [$nodeId] — (الواجهة لم تتغيّر بعد النقر، قد يكون طبيعياً)"
+                if (changed) "✅ Clicked [$nodeId]; the UI changed"
+                else "✅ Clicked [$nodeId]; the UI did not change, which may be expected"
             )
         }
-        return ToolExecutionResult("✅ تم النقر على [$nodeId]")
+        return ToolExecutionResult("✅ Clicked [$nodeId]")
     }
 
     private fun longClickNode(nodeId: String?): ToolExecutionResult {
-        if (nodeId.isNullOrBlank()) return ToolExecutionResult("يجب تحديد 'node_id'.", isError = true)
-        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] غير موجود.", isError = true)
+        if (nodeId.isNullOrBlank()) return ToolExecutionResult("Provide 'node_id'.", isError = true)
+        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] Not found.", isError = true)
         val service = OmniAccessibilityService.instance
-            ?: return ToolExecutionResult("خدمة الـ accessibility غير نشطة.", isError = true)
+            ?: return ToolExecutionResult("Accessibility service is inactive.", isError = true)
 
-        return if (service.longClickNode(node)) ToolExecutionResult("✅ نقر طويل على [$nodeId]")
-        else ToolExecutionResult("❌ فشل النقر الطويل على [$nodeId].", isError = true)
+        return if (service.longClickNode(node)) ToolExecutionResult("✅ Long-clicked [$nodeId]")
+        else ToolExecutionResult("❌ Failed to long-click [$nodeId].", isError = true)
     }
 
     private suspend fun typeText(nodeId: String?, text: String?, clearFirst: Boolean): ToolExecutionResult {
-        if (nodeId.isNullOrBlank()) return ToolExecutionResult("يجب تحديد 'node_id'.", isError = true)
-        if (text == null) return ToolExecutionResult("يجب تحديد 'text'.", isError = true)
-        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] غير موجود.", isError = true)
+        if (nodeId.isNullOrBlank()) return ToolExecutionResult("Provide 'node_id'.", isError = true)
+        if (text == null) return ToolExecutionResult("Provide 'text'.", isError = true)
+        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] Not found.", isError = true)
         val service = OmniAccessibilityService.instance
-            ?: return ToolExecutionResult("خدمة الـ accessibility غير نشطة.", isError = true)
+            ?: return ToolExecutionResult("Accessibility service is inactive.", isError = true)
 
         if (node.isPassword) return ToolExecutionResult("Protected input: user handoff required.", isError = true)
         if (!node.isEditable) {
-            return ToolExecutionResult("[$nodeId] غير قابل للتحرير. استخدم force_type بدلاً من ذلك.", isError = true)
+            return ToolExecutionResult("[$nodeId] Not editable. Use force_type instead.", isError = true)
         }
 
         if (clearFirst) {
@@ -519,7 +519,7 @@ object SemanticUITool {
         }
 
         return if (service.typeIntoNode(node, text)) {
-            ToolExecutionResult("✅ كُتب في [$nodeId]: \"${text.take(50)}\"")
+            ToolExecutionResult("✅ Typed into [$nodeId]: \"${text.take(50)}\"")
         } else {
             // Fallback: Shizuku
             service.clickNode(node)
@@ -527,29 +527,29 @@ object SemanticUITool {
             val shizukuResult = withContext(Dispatchers.IO) {
                 GodModeAccessibility.hybridType(text, node, clearFirst)
             }
-            ToolExecutionResult("⚠️ Accessibility type فشل. $shizukuResult")
+            ToolExecutionResult("⚠️ Accessibility typing failed. $shizukuResult")
         }
     }
 
     private fun scrollNode(nodeId: String?, direction: String?): ToolExecutionResult {
         val forward = direction?.lowercase() != "backward" && direction?.lowercase() != "up"
         val service = OmniAccessibilityService.instance
-            ?: return ToolExecutionResult("خدمة الـ accessibility غير نشطة.", isError = true)
+            ?: return ToolExecutionResult("Accessibility service is inactive.", isError = true)
 
         if (!nodeId.isNullOrBlank()) {
-            val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] غير موجود.", isError = true)
+            val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] Not found.", isError = true)
             return if (service.scrollNode(node, forward))
-                ToolExecutionResult("✅ تمرير [$nodeId] ${if (forward) "للأمام" else "للخلف"}")
-            else ToolExecutionResult("❌ فشل التمرير على [$nodeId].", isError = true)
+                ToolExecutionResult("✅ Scrolled [$nodeId] ${if (forward) "forward" else "backward"}")
+            else ToolExecutionResult("❌ Failed to scroll [$nodeId].", isError = true)
         }
 
         val root = AccessibilityStateManager.rootNode.value
-            ?: return ToolExecutionResult("لا تتوفر شجرة واجهة.", isError = true)
+            ?: return ToolExecutionResult("No UI tree is available.", isError = true)
         val scrollable = findFirstScrollable(root)
-            ?: return ToolExecutionResult("لا يوجد عنصر قابل للتمرير.", isError = true)
+            ?: return ToolExecutionResult("No scrollable element was found.", isError = true)
         return if (service.scrollNode(scrollable, forward))
-            ToolExecutionResult("✅ تمرير الشاشة ${if (forward) "للأمام" else "للخلف"}")
-        else ToolExecutionResult("❌ فشل التمرير.", isError = true)
+            ToolExecutionResult("✅ Scrolled screen ${if (forward) "forward" else "backward"}")
+        else ToolExecutionResult("❌ Scrolling failed.", isError = true)
     }
 
     private fun pressBack() = performGlobal("BACK") { OmniAccessibilityService.instance?.pressBack() }
@@ -558,37 +558,37 @@ object SemanticUITool {
 
     private fun performGlobal(name: String, action: () -> Boolean?): ToolExecutionResult {
         val service = OmniAccessibilityService.instance
-            ?: return ToolExecutionResult("خدمة الـ accessibility غير نشطة.", isError = true)
+            ?: return ToolExecutionResult("Accessibility service is inactive.", isError = true)
         return if (action() == true) ToolExecutionResult("✅ $name")
-        else ToolExecutionResult("❌ فشل $name.", isError = true)
+        else ToolExecutionResult("❌ $name failed.", isError = true)
     }
 
     private fun tapXY(x: String?, y: String?): ToolExecutionResult {
-        val xVal = x?.toFloatOrNull() ?: return ToolExecutionResult("x غير صحيح.", isError = true)
-        val yVal = y?.toFloatOrNull() ?: return ToolExecutionResult("y غير صحيح.", isError = true)
+        val xVal = x?.toFloatOrNull() ?: return ToolExecutionResult("Invalid x coordinate.", isError = true)
+        val yVal = y?.toFloatOrNull() ?: return ToolExecutionResult("Invalid y coordinate.", isError = true)
         val service = OmniAccessibilityService.instance
-            ?: return ToolExecutionResult("خدمة الـ accessibility غير نشطة.", isError = true)
-        return if (service.tapAtCoordinates(xVal, yVal)) ToolExecutionResult("✅ نقر في ($xVal, $yVal)")
-        else ToolExecutionResult("❌ فشل النقر.", isError = true)
+            ?: return ToolExecutionResult("Accessibility service is inactive.", isError = true)
+        return if (service.tapAtCoordinates(xVal, yVal)) ToolExecutionResult("✅ Tapped at ($xVal, $yVal)")
+        else ToolExecutionResult("❌ Tap failed.", isError = true)
     }
 
     private fun swipe(direction: String?, durationMs: String?, distanceRatio: String?, nodeId: String?): ToolExecutionResult {
         val service = OmniAccessibilityService.instance
-            ?: return ToolExecutionResult("خدمة الـ accessibility غير نشطة.", isError = true)
+            ?: return ToolExecutionResult("Accessibility service is inactive.", isError = true)
         val dir = direction?.lowercase() ?: "forward"
         val duration = durationMs?.toLongOrNull()?.coerceIn(120L, 2500L) ?: 320L
         val ratio = distanceRatio?.toFloatOrNull()?.coerceIn(0.1f, 0.9f) ?: 0.35f
 
         val area = if (nodeId.isNullOrBlank()) {
             val root = AccessibilityStateManager.rootNode.value
-                ?: return ToolExecutionResult("لا تتوفر شجرة واجهة.", isError = true)
+                ?: return ToolExecutionResult("No UI tree is available.", isError = true)
             Rect().apply { root.getBoundsInScreen(this) }
         } else {
-            val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] غير موجود.", isError = true)
+            val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] Not found.", isError = true)
             Rect().apply { node.getBoundsInScreen(this) }
         }
 
-        if (area.isEmpty) return ToolExecutionResult("الحدود غير صحيحة.", isError = true)
+        if (area.isEmpty) return ToolExecutionResult("Invalid bounds.", isError = true)
 
         val dx = area.width() * ratio; val dy = area.height() * ratio
         val cx = area.exactCenterX(); val cy = area.exactCenterY()
@@ -601,7 +601,7 @@ object SemanticUITool {
         }
         return if (service.swipeGesture(sx, sy, ex, ey, duration))
             ToolExecutionResult("✅ swipe $dir")
-        else ToolExecutionResult("❌ فشل الـ swipe.", isError = true)
+        else ToolExecutionResult("❌ Swipe failed.", isError = true)
     }
 
     private suspend fun autoEnable(): ToolExecutionResult {
@@ -610,21 +610,21 @@ object SemanticUITool {
     }
 
     private suspend fun forceClick(nodeId: String?): ToolExecutionResult {
-        if (nodeId.isNullOrBlank()) return ToolExecutionResult("يجب تحديد 'node_id'.", isError = true)
-        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] غير موجود.", isError = true)
+        if (nodeId.isNullOrBlank()) return ToolExecutionResult("Provide 'node_id'.", isError = true)
+        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] Not found.", isError = true)
         val result = withContext(Dispatchers.IO) { GodModeAccessibility.hybridTap(node) }
         return ToolExecutionResult(result, isError = result.startsWith("❌"))
     }
 
     private suspend fun forceLongClick(nodeId: String?): ToolExecutionResult {
-        if (nodeId.isNullOrBlank()) return ToolExecutionResult("يجب تحديد 'node_id'.", isError = true)
-        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] غير موجود.", isError = true)
+        if (nodeId.isNullOrBlank()) return ToolExecutionResult("Provide 'node_id'.", isError = true)
+        val node = resolveNode(nodeId) ?: return ToolExecutionResult("[$nodeId] Not found.", isError = true)
         val result = withContext(Dispatchers.IO) { GodModeAccessibility.hybridLongPress(node) }
         return ToolExecutionResult(result, isError = result.startsWith("❌"))
     }
 
     private suspend fun forceType(text: String?, nodeId: String?): ToolExecutionResult {
-        if (text.isNullOrBlank()) return ToolExecutionResult("يجب تحديد 'text'.", isError = true)
+        if (text.isNullOrBlank()) return ToolExecutionResult("Provide 'text'.", isError = true)
         val fallbackNode = nodeId?.let { resolveNode(it) }
         if (com.omnidev.workspace.data.assistant.AssistantRuntime.targetingScreen && (fallbackNode == null || fallbackNode.isPassword))
             return ToolExecutionResult("A non-protected target node is required; hand protected inputs to the user.", isError = true)
@@ -633,19 +633,19 @@ object SemanticUITool {
     }
 
     private fun startRecording(macroName: String?): ToolExecutionResult {
-        if (macroName.isNullOrBlank()) return ToolExecutionResult("يجب تحديد 'macro_name'.", isError = true)
+        if (macroName.isNullOrBlank()) return ToolExecutionResult("Provide 'macro_name'.", isError = true)
         GodModeAccessibility.startRecording(macroName)
-        return ToolExecutionResult("🎬 بدأ تسجيل الماكرو '$macroName'")
+        return ToolExecutionResult("🎬 Started recording macro '$macroName'")
     }
 
     private fun stopRecording(macroName: String?): ToolExecutionResult {
-        if (macroName.isNullOrBlank()) return ToolExecutionResult("يجب تحديد 'macro_name'.", isError = true)
+        if (macroName.isNullOrBlank()) return ToolExecutionResult("Provide 'macro_name'.", isError = true)
         val count = GodModeAccessibility.stopRecording(macroName)
-        return ToolExecutionResult("⏹️ حُفظ الماكرو '$macroName': $count إجراء")
+        return ToolExecutionResult("⏹️ Saved macro '$macroName': $count actions")
     }
 
     private suspend fun playMacro(macroName: String?): ToolExecutionResult {
-        if (macroName.isNullOrBlank()) return ToolExecutionResult("يجب تحديد 'macro_name'.", isError = true)
+        if (macroName.isNullOrBlank()) return ToolExecutionResult("Provide 'macro_name'.", isError = true)
         val result = GodModeAccessibility.playMacro(macroName)
         return ToolExecutionResult(result, isError = result.startsWith("❌"))
     }
@@ -675,7 +675,7 @@ object SemanticUITool {
         return null
     }
 
-    /** يُحلّل JSON بسيط من نوع {key: value} */
+    /** Parse a simple {key: value} JSON object */
     private fun parseJsonMap(json: String): Map<String, String> {
         val result = mutableMapOf<String, String>()
         val cleaned = json.trim().removePrefix("{").removeSuffix("}")
@@ -690,10 +690,10 @@ object SemanticUITool {
         return result
     }
 
-    /** يُحلّل JSON array بسيطاً من نوع [{key: value}] */
+    /** Parse a simple [{key: value}] JSON array */
     private fun parseJsonArrayOfMaps(json: String): List<Map<String, String>> {
         val result = mutableListOf<Map<String, String>>()
-        // تحليل بسيط بدون مكتبة خارجية
+        // Simple parsing without an external library
         val cleaned = json.trim().removePrefix("[").removeSuffix("]")
         var depth = 0
         var start = 0

@@ -7,26 +7,7 @@ import com.omnidev.workspace.data.rollback.DiffUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/**
- * ══════════════════════════════════════════════════════════════════════════════
- * BuildDoctorPro — طبيب البناء الذكي (Brain 2.0)
- * ══════════════════════════════════════════════════════════════════════════════
- *
- * Mobile-first: قاعدة معرفة محلية تتعلم من فشل/نجاح إصلاحات سابقة:
- *
- *   1) **Fingerprint-based dedup**: نفس الخطأ المتكرر يُحفظ مرة واحدة، عدّاد
- *      تكراراته يزداد.
- *
- *   2) **Solution memory**: لو نجح إصلاح سابقاً (الـ Agent عدّل الكود وبنى بنجاح)،
- *      نخزن الـ diff مضغوطاً Deflate ونسترجعه بثقة في المرة التالية.
- *
- *   3) **Confidence ranking**: الحلول مع successfulFixCount > 0 تُقدَّم أولاً.
- *      الحلول التي فشلت أكثر من مرة تُعاقب.
- *
- *   4) **500 سجل max + LRU eviction** (مساحة < 5 MB إجمالاً).
- *
- *   5) **No external deps**: لا API calls، لا LLM. خوارزميات regex + SQL فقط.
- */
+/** BuildDoctorPro stores local build-fix knowledge. Fingerprints deduplicate recurring errors, Deflate-compressed diffs retain successful fixes and success/failure counters rank confidence. Keeps at most 500 records with LRU eviction. Uses regex and SQL without external API or LLM calls. */
 class BuildDoctorPro(
     private val dao: BuildDiagnosticDao,
     private val maxEntries: Int = 500
@@ -37,7 +18,7 @@ class BuildDoctorPro(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Diagnose — تحليل + إعادة استخدام حلول سابقة
+    // Diagnose build output and reuse previous solutions.
     // ──────────────────────────────────────────────────────────────────
 
     data class Diagnosis(
@@ -59,12 +40,7 @@ class BuildDoctorPro(
         val explanation: String
     )
 
-    /**
-     * يُحلل output الـ build، يُرجع:
-     *   - الأخطاء المُحلَّلة
-     *   - الحلول المعروفة (لأخطاء سبق رؤيتها)
-     *   - الأخطاء الجديدة (لم تُسجَّل من قبل)
-     */
+    /** Analyze build output and return parsed errors, known solutions and newly encountered errors. */
     suspend fun diagnose(
         buildOutput: String,
         buildCommand: String = ""
@@ -107,7 +83,7 @@ class BuildDoctorPro(
                     )
                 }
             } else {
-                // سجل خطأ جديد بدون حل
+                // Record a new error without a solution.
                 val files = if (err.filePath.isNotBlank()) err.filePath.take(200) else ""
                 val now = System.currentTimeMillis()
                 val entry = BuildDiagnosticEntry(
@@ -148,15 +124,10 @@ class BuildDoctorPro(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Solution recording (يُستدعى بعد محاولة إصلاح)
+    // Record solutions after a fix attempt.
     // ──────────────────────────────────────────────────────────────────
 
-    /**
-     * يُسجل أن الإصلاح نجح: نخزن الـ diff الذي قاد للنجاح.
-     * @param fingerprint بصمة الخطأ
-     * @param solutionDiff الـ diff الذي طبّقه الـ Agent (سيُضغط)
-     * @param explanation شرح بشري قصير (≤ 200 حرف)
-     */
+    /** Record a successful fix. fingerprint identifies the error; solutionDiff is compressed for storage; explanation is a short human-readable description (up to 200 characters). */
     suspend fun recordSuccessfulFix(
         fingerprint: String,
         solutionDiff: String,
@@ -182,7 +153,7 @@ class BuildDoctorPro(
         }
     }
 
-    /** يُسجل فشل المحاولة (لا يحذف الحل، فقط يخفض ثقته). */
+    /** Record a failed attempt, reducing confidence without deleting the solution. */
     suspend fun recordFailedFix(fingerprint: String) = withContext(Dispatchers.IO) {
         try {
             val existing = dao.findByFingerprint(fingerprint) ?: return@withContext

@@ -53,3 +53,22 @@ Removing a photo or disabling reference use cannot recall a request already sent
 Live-provider likeness, image costs and real-device picker/RTL acceptance require device/account testing; mock payload tests do not establish generation quality.
 
 Mentioned skill bodies have their own bounded prompt section in Agent/Team workers. Profile context cannot consume that budget; Team planning and final synthesis also keep selected skill guidance separate from profile preferences.
+
+
+## Response experience and continuity
+
+Occupation/role and a separate custom-instructions field add personal context. Custom instructions accept up to 2,400 characters, role up to 240; these fit the independent 5,000-character Agent/Team profile budget. Skill guidance keeps its separate budget. Fields and toggles save atomically; version-one tone settings migrate on reading. Unicode, newlines and pipe characters survive storage.
+
+| Control | Behavior |
+| --- | --- |
+| Quick answers | Requests concise answers for simple questions; changing facts, execution and required checks still require verification. Model guidance cannot guarantee latency. |
+| Suggested prompts | Shows or hides local welcome starters in full chat and screen assistant. Connected services are not searched automatically. |
+| Rich responses | Uses Markdown or plain text in completed and streaming assistant bubbles; attachments, console and action controls remain available. |
+| Use saved memories | Gates automatic injection of canonical facts/preferences, remember/search tools and vector aliases. Skills remain available. Existing entries remain editable and deletable. |
+| Reference chat history | Independently enables source-backed automatic recall of older conversations in Agent/Team runs. Current conversation context and explicitly requested history tools remain available. |
+
+These behavior controls remain effective when Personalize replies is off; that switch excludes name, background, occupation, custom instructions and tone from model prompts. Memory controls govern canonical Omni Memory and automatic conversation recall; they do not erase operational brain state, learned routines, files or chat history.
+
+Memory summary and management opens Omni Memory with category counts and saved preference excerpts carrying entry IDs. No new personal facts are inferred. Search, read full entries, edit or delete them there, including while memory use is disabled. Profile details are edited separately.
+
+Verification includes nine JVM personalization regressions and an Android instrumentation regression for DataStore recreation, canonical/legacy memory gates, automatic injection, history opt-out, retained entries, re-enabling memory and deletion while disabled. Instrumentation requires an Android device/emulator.

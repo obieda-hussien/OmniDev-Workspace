@@ -4,6 +4,7 @@ import com.omnidev.workspace.data.db.dao.KnowledgeDao
 import com.omnidev.workspace.data.db.entities.KnowledgeSnippet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 
 /**
  * Legacy vector-memory compatibility facade.
@@ -53,6 +54,9 @@ class VectorMemoryManager(private val knowledgeDao: KnowledgeDao) {
         name: String,
         arguments: Map<String, String>
     ): ToolExecutionResult = withContext(Dispatchers.IO) {
+        val preferences = com.omnidev.workspace.data.repository.SettingsRepository(
+            com.omnidev.workspace.OmniDevApp.instance.applicationContext).observeProfilePersonalization().first()
+        if (!preferences.memoryEnabled) return@withContext ToolExecutionResult("Saved memory is disabled. Enable Use saved memories in Your profile.", isError = true)
         when (name) {
             "vector_store" -> vectorStore(arguments)
             "vector_search" -> vectorSearch(arguments)

@@ -8,10 +8,7 @@ import androidx.room.Update
 import com.omnidev.workspace.data.db.entities.BuildDiagnosticEntry
 import kotlinx.coroutines.flow.Flow
 
-/**
- * DAO لقاعدة معرفة Build Doctor Pro. يتعرف على الأخطاء المتكررة عبر
- * fingerprint ويعيد استخدام الحلول الناجحة سابقاً.
- */
+/** DAO for Build Doctor Pro knowledge; fingerprints identify recurring errors and retrieve previously successful solutions. */
 @Dao
 interface BuildDiagnosticDao {
 
@@ -24,7 +21,7 @@ interface BuildDiagnosticDao {
     @Query("SELECT * FROM build_diagnostics WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): BuildDiagnosticEntry?
 
-    /** البحث الأساسي: عبر fingerprint للكشف عن نفس الخطأ المتكرر. */
+    /** Primary lookup by fingerprint for recurring errors. */
     @Query("SELECT * FROM build_diagnostics WHERE errorFingerprint = :fingerprint LIMIT 1")
     suspend fun findByFingerprint(fingerprint: String): BuildDiagnosticEntry?
 
@@ -36,7 +33,7 @@ interface BuildDiagnosticDao {
     """)
     suspend fun findByCategory(category: String, limit: Int = 20): List<BuildDiagnosticEntry>
 
-    /** الحلول التي نجحت أكثر من مرة (لاقتراحها بثقة). */
+    /** Solutions with repeated successful fixes for higher-confidence suggestions. */
     @Query("""
         SELECT * FROM build_diagnostics
         WHERE successfulFixCount >= 1 AND LENGTH(solutionDiff) > 0
@@ -65,7 +62,7 @@ interface BuildDiagnosticDao {
     @Query("SELECT COUNT(*) FROM build_diagnostics")
     suspend fun count(): Int
 
-    /** LRU eviction: حذف الأضعف (الأقدم وأقل نجاحاً). */
+    /** Evict older, less successful records. */
     @Query("""
         DELETE FROM build_diagnostics
         WHERE id IN (

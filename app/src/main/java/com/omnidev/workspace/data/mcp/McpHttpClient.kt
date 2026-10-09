@@ -2,6 +2,7 @@ package com.omnidev.workspace.data.mcp
 
 import com.omnidev.workspace.data.tools.ToolDefinition
 import com.omnidev.workspace.data.tools.ToolParameter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -46,11 +47,13 @@ class McpHttpClient(private val client: OkHttpClient = OkHttpClient.Builder()
         }
 
         try {
-            client.newCall(requestBuilder.build()).execute().use { response ->
+            client.readCancellable(requestBuilder.build()) { response ->
                 if (!response.isSuccessful) {
                     println("MCP Initialize failed: ${response.code}")
                 }
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -72,52 +75,46 @@ class McpHttpClient(private val client: OkHttpClient = OkHttpClient.Builder()
 
         val request = requestBuilder.build()
 
-        return@withContext try {
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    println("MCP Fetch Tools failed for $serverName: ${response.code}")
-                    return@use emptyList()
-                }
-
-                val responseBody = response.body?.string() ?: return@use emptyList()
-                val mcpResponse = json.decodeFromString<McpToolsResponse>(responseBody)
-
-                mcpResponse.tools.map { mcpTool ->
-                    val prefixedName = "mcp_${serverName}_${mcpTool.name}"
-
-                    val parameters = mutableListOf<ToolParameter>()
-
-                    // Parse inputSchema if present (simplified assumption of schema structure)
-                    mcpTool.inputSchema?.jsonObject?.get("properties")?.jsonObject?.forEach { (propName, propDesc) ->
-                        val propObj = propDesc.jsonObject
-                        val type = propObj["type"]?.jsonPrimitive?.content ?: "string"
-                        val desc = propObj["description"]?.jsonPrimitive?.content ?: ""
-
-                        // Check if required
-                        val requiredList = mcpTool.inputSchema.jsonObject["required"]?.jsonArray
-                        val isRequired = requiredList?.any { it.jsonPrimitive.content == propName } ?: false
-
-                        parameters.add(ToolParameter(
-                            name = propName,
-                            type = type,
-                            description = desc,
-                            required = isRequired,
-                            allowedValues = if (type == "string") (propObj["enum"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull {
-                                (it as? JsonPrimitive)?.takeIf { value -> value.isString }?.content
-                            }.orEmpty() else emptyList()
-                        ))
-                    }
-
-                    ToolDefinition(
-                        name = prefixedName,
-                        description = mcpTool.description,
-                        parameters = parameters
-                    )
-                }
+        return@withContext client.readCancellable(request) { response ->
+            if (!response.isSuccessful) {
+                throw IOException("MCP tool discovery failed with HTTP ${response.code}")
             }
-        } catch (e: IOException) {
-            e.printStackTrace()
-            emptyList()
+
+            val responseBody = response.body?.string() ?: throw IOException("Empty MCP tool discovery response")
+            val mcpResponse = json.decodeFromString<McpToolsResponse>(responseBody)
+
+            mcpResponse.tools.map { mcpTool ->
+                val prefixedName = "mcp_${serverName}_${mcpTool.name}"
+
+                val parameters = mutableListOf<ToolParameter>()
+
+                // Parse inputSchema if present (simplified assumption of schema structure)
+                mcpTool.inputSchema?.jsonObject?.get("properties")?.jsonObject?.forEach { (propName, propDesc) ->
+                    val propObj = propDesc.jsonObject
+                    val type = propObj["type"]?.jsonPrimitive?.content ?: "string"
+                    val desc = propObj["description"]?.jsonPrimitive?.content ?: ""
+
+                    // Check if required
+                    val requiredList = mcpTool.inputSchema.jsonObject["required"]?.jsonArray
+                    val isRequired = requiredList?.any { it.jsonPrimitive.content == propName } ?: false
+
+                    parameters.add(ToolParameter(
+                        name = propName,
+                        type = type,
+                        description = desc,
+                        required = isRequired,
+                        allowedValues = if (type == "string") (propObj["enum"] as? kotlinx.serialization.json.JsonArray)?.mapNotNull {
+                            (it as? JsonPrimitive)?.takeIf { value -> value.isString }?.content
+                        }.orEmpty() else emptyList()
+                    ))
+                }
+
+                ToolDefinition(
+                    name = prefixedName,
+                    description = mcpTool.description,
+                    parameters = parameters
+                )
+            }
         }
     }
 
@@ -146,7 +143,7 @@ class McpHttpClient(private val client: OkHttpClient = OkHttpClient.Builder()
         requestBuilder.post(body)
 
         return@withContext try {
-            client.newCall(requestBuilder.build()).execute().use { response ->
+            client.readCancellable(requestBuilder.build()) { response ->
                 if (!response.isSuccessful) {
                     "Error: MCP Server returned HTTP ${response.code}\n${response.body?.string()}"
                 } else {

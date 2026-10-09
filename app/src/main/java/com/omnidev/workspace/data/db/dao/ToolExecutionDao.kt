@@ -4,9 +4,7 @@ import androidx.room.*
 import com.omnidev.workspace.data.db.entities.ToolExecutionEntry
 import kotlinx.coroutines.flow.Flow
 
-/**
- * ToolExecutionDao — واجهة الوصول لسجل تنفيذ الأدوات
- */
+/** Data access for the tool execution log. */
 @Dao
 interface ToolExecutionDao {
 
@@ -31,7 +29,7 @@ interface ToolExecutionDao {
     @Query("SELECT * FROM tool_execution_log WHERE flaggedForReview = 1 ORDER BY timestamp DESC")
     suspend fun getFlagged(): List<ToolExecutionEntry>
 
-    // ─── الإحصائيات ──────────────────────────────────────────────────
+    // Statistics.
 
     @Query("""
         SELECT toolName, 
@@ -77,7 +75,7 @@ interface ToolExecutionDao {
     @Query("SELECT * FROM tool_execution_log WHERE toolName = :toolName AND success = 0 ORDER BY timestamp DESC LIMIT 5")
     suspend fun getRecentFailures(toolName: String): List<ToolExecutionEntry>
 
-    // ─── تنظيف ───────────────────────────────────────────────────────
+    // Cleanup.
 
     @Query("DELETE FROM tool_execution_log WHERE timestamp < :before AND flaggedForReview = 0")
     suspend fun deleteOldEntries(before: Long)
@@ -91,13 +89,13 @@ interface ToolExecutionDao {
     @Query("DELETE FROM tool_execution_log")
     suspend fun clearAll()
 
-    // ─── Flow للواجهة ────────────────────────────────────────────────
+    // UI flows.
 
     @Query("SELECT * FROM tool_execution_log ORDER BY timestamp DESC LIMIT 50")
     fun observeRecent(): Flow<List<ToolExecutionEntry>>
 }
 
-// ─── Data Classes للإحصائيات ──────────────────────────────────────────
+// Statistics data classes.
 
 data class ToolUsageStats(
     val toolName: String,

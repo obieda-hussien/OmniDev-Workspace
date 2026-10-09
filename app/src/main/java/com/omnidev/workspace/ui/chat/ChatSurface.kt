@@ -139,7 +139,7 @@ private fun AssistantSignature(status: String? = null) {
 @Composable
 internal fun MessageBubble(message: ChatMessage, consoleEntries: List<AgentConsoleEntry>? = null,
     replyToMessage: ChatMessage? = null, onReply: (ChatMessage) -> Unit = {}, onOpenBrowser: (() -> Unit)? = null,
-    onEdit: ((String) -> Unit)? = null, onRegenerate: (() -> Unit)? = null, actionsEnabled: Boolean = true) {
+    onEdit: ((String) -> Unit)? = null, onRegenerate: (() -> Unit)? = null, actionsEnabled: Boolean = true, richResponses: Boolean = true) {
     val user = message.role == MessageRole.USER
     val mediaOnly = !user && message.attachments.isNotEmpty() && message.content in setOf("Media generation", "File attached.")
     val parsed = remember(message.content, user) { if (user) null else MessageFormatter.parse(message.content) }
@@ -170,7 +170,8 @@ internal fun MessageBubble(message: ChatMessage, consoleEntries: List<AgentConso
                     if (!mediaOnly) SelectionContainer {
                         if (user) Text(if (text.length > 500 && !expanded) text.take(500) + "…" else text,
                             style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Content))
-                        else MarkdownText(text, style = MaterialTheme.typography.bodyLarge)
+                        else if (richResponses) MarkdownText(text, style = MaterialTheme.typography.bodyLarge)
+                        else Text(text, style = MaterialTheme.typography.bodyLarge)
                     }
                     if (user && text.length > 500) TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Show less" else "Read full message") }
                 }
@@ -218,11 +219,14 @@ private fun ReplyQuote(message: ChatMessage) {
 }
 
 @Composable
-internal fun StreamingMessageBubble(content: String) {
+internal fun StreamingMessageBubble(content: String, richResponses: Boolean = true) {
     val displayed = rememberStreamedText(content)
     Column(Modifier.widthIn(max = 800.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         AssistantSignature("Responding")
-        SelectionContainer { MarkdownText(displayed, style = MaterialTheme.typography.bodyLarge) }
+        SelectionContainer {
+            if (richResponses) MarkdownText(displayed, style = MaterialTheme.typography.bodyLarge)
+            else Text(displayed, style = MaterialTheme.typography.bodyLarge)
+        }
     }
 }
 
@@ -356,7 +360,7 @@ private fun ChatToolRow(title: String, description: String, icon: androidx.compo
 
 @Composable
 internal fun EmptyStateContent(mode: OmniMode, onSuggestion: (String) -> Unit,
-    customSuggestions: List<Pair<String, String>>? = null) {
+    customSuggestions: List<Pair<String, String>>? = null, suggestedPrompts: Boolean = true) {
     Column(Modifier.widthIn(max = 640.dp).fillMaxWidth().padding(vertical = 32.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         Box(Modifier.size(56.dp).background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(20.dp)), contentAlignment = Alignment.Center) {
             OmniMark(Modifier.size(36.dp))
@@ -369,7 +373,7 @@ internal fun EmptyStateContent(mode: OmniMode, onSuggestion: (String) -> Unit,
                 else -> "Ask a question, work through a problem, or start with an idea."
             }, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        val suggestions = customSuggestions ?: when (mode) {
+        val suggestions = if (!suggestedPrompts) emptyList() else customSuggestions ?: when (mode) {
             OmniMode.AGENT -> listOf("Review my project" to "Review the selected project and suggest the most useful improvements.",
                 "Investigate a bug" to "Help me investigate this bug: ")
             OmniMode.SWARM -> listOf("Plan a feature" to "Plan and implement this feature with coordinated agents: ",

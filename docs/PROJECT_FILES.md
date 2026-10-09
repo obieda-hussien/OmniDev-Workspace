@@ -1,91 +1,93 @@
-# دليل ملفات OmniDev Workspace
+# OmniDev Workspace file guide
 
-OmniDev Workspace تطبيق Android يضم المحادثة، وكيل الأدوات، تنسيق الفرق، المساعد العائم، ذاكرة المحادثات والتكاملات. البناء وحدة Gradle واحدة `:app`؛ تقسيم `core/` و`domain/` و`data/` و`ui/` هو تنظيم حزم داخلها.
+OmniDev Workspace combines chat, tool agents, teams, a floating assistant, chat memory and integrations. Gradle builds one `:app` module; `core/`, `domain/`, `data/` and `ui/` are package boundaries inside it.
 
-## الملفات على مستوى المستودع
+## Repository layout
 
-| المجموعة | المسار | المحتوى |
-|---|---|---|
-| وصف التطبيق | `README.md` | الوظائف، الأرقام، الإعداد، البناء وخريطة الوثائق |
-| تطبيق Android | `app/` | كود Kotlin، الموارد، Manifest، AIDL، C++ والاختبارات |
-| إدارة البناء | `settings.gradle.kts`, `build.gradle.kts`, `app/build.gradle.kts`, `gradle/` | الوحدات، نسخ التطبيق، الاعتمادات وGradle Wrapper |
-| التحقق والإصدارات | `.github/workflows/`, `.github/scripts/` | جودة، اختبارات، lint، بناء، توقيع وتجهيز الاعتمادات |
-| أدوات الصيانة | `scripts/` | إحصاء الملفات والمصادر وفحوص أمان المستودع |
-| جسر WhatsApp | `whatsapp-bridge/` | جسر Termux، الإعداد والتشغيل |
-| أدلة التشغيل والتكامل | `docs/` والوثائق المتخصصة في الجذر | المساعد، الوصول، الذاكرة، الأداء وبروتوكول OmniLink |
-| مواد التخطيط | `00_INTEGRATION_ORDER.md`, `01_...` إلى `08_..._PROMPT.md` | مواصفات منظومة Omni التاريخية؛ تُقارن بالكود قبل استخدامها كتوجيه تنفيذ |
+| Area | Path | Contents |
+| --- | --- | --- |
+| Application overview | `README.md` | Features, counts, setup, builds and documentation links |
+| Android application | `app/` | Kotlin, resources, manifests, AIDL, C++ and tests |
+| Build management | `settings.gradle.kts`, `build.gradle.kts`, `app/build.gradle.kts`, `gradle/` | Modules, flavors, dependencies and wrapper |
+| Validation and releases | `.github/workflows/`, `.github/scripts/` | Quality, tests, lint, builds, signing and dependency preparation |
+| Maintenance | `scripts/` | Source metrics, tool/skill inventory and repository security checks |
+| WhatsApp bridge | `whatsapp-bridge/` | Termux bridge, setup and execution |
+| Operating and integration guides | `docs/` and specialized root documents | Assistant, access, memory, performance and OmniLink |
+| Planning materials | `00_INTEGRATION_ORDER.md`, `01_...` through `08_..._PROMPT.md` | Historical Omni specifications; compare with source before implementation |
 
-## نقاط الدخول
+## Entry points
 
-المسارات التالية تبدأ من `app/src/main/java/com/omnidev/workspace/`.
+Paths below start at `app/src/main/java/com/omnidev/workspace/`.
 
-| الملف | المسؤولية |
-|---|---|
-| `OmniDevApp.kt` | تهيئة التطبيق والسياسات والخدمات المشتركة |
-| `MainActivity.kt` | واجهة التطبيق، التنقل، استقبال النتائج والطلبات |
-| `WorkspaceChatRuntime.kt` | إنشاء بيئتي المحادثة الرئيسية والمساعد وإعداد الأدوات والمحرك |
-| `ui/chat/ChatViewModel.kt` | إرسال الرسائل، تنفيذ الوضع المختار، نتائج الأدوات والموافقات |
-| `domain/engine/AgentPipeline.kt` | دورة الوكيل واستدعاءات الأدوات ومعالجة النتائج |
-| `domain/engine/SwarmOrchestrator.kt` | خطة الفريق وتوزيع العمل وتجميع الناتج |
-| `data/tools/CompositeToolManager.kt` | تجميع تعريفات الأدوات والتوجيه إلى منفذ كل أداة |
-| `core/policy/TierPolicy.kt` | قدرات نسخة البناء وحدود الموافقة |
+| File | Responsibility |
+| --- | --- |
+| `OmniDevApp.kt` | Initialize application policies and shared services |
+| `MainActivity.kt` | UI, navigation, results and incoming requests |
+| `WorkspaceChatRuntime.kt` | Create main/assistant chat environments and wire tools and engines |
+| `ui/chat/ChatViewModel.kt` | Send messages, run selected modes, handle tool results and approvals |
+| `domain/engine/AgentPipeline.kt` | Agent loop, tool calls and result handling |
+| `domain/engine/SwarmOrchestrator.kt` | Team planning, work distribution and synthesis |
+| `data/tools/CompositeToolManager.kt` | Collect definitions and dispatch tool execution |
+| `core/policy/TierPolicy.kt` | Flavor capabilities and approval boundaries |
 
-## تصنيف الكود حسب المسؤولية
+## Code by responsibility
 
-| المجموعة | الحزم | ملفات أو وظائف مهمة |
-|---|---|---|
-| التخصيص والصور المرجعية | `ui/settings/`, `data/model/`, `data/chatmedia/` | `UserProfileScreen`, `ProfilePersonalization`, `ProfileReferenceStore` وإرسال الصور المصرّح بها للتوليد |
-| الرفيق الافتراضي | `ui/companion/` | الرسم والحركة والمزاج وشبكتان عصبيتان وتعلّم محلي وذاكرة ممتدة |
-| منشن الأدوات والمهارات | `ui/chat/`, `domain/engine/` | `MentionFocus` واختيار أكثر من أداة ومهارة من محرر الرسالة بأولوية دون تقييد الأدوات المساندة |
-| واجهة التطبيق | `ui/chat/`, `ui/settings/`, `ui/providers/`, `ui/navigation/` | المحادثة، الإعدادات، الموفرون ومسارات التنقل |
-| المساعد العائم | `ui/assistant/`, `data/assistant/` | النافذة، الجلسة، الصوت، الكورة، الإرفاق والعودة من إعدادات Android |
-| الصلاحيات والامتيازات | `core/policy/`, `core/privileged/`, `data/tools/`, `data/ipc/` | `PermissionManagerTool`, `DeviceAccessCatalog`, `PermissionRequestPlan`, `AppOpAccessPlan`, `PrivilegedExecutionManager` |
-| قرار الوضع | `domain/engine/` | `IntentClassifier`, `AdaptiveModeRouter`, `ModeDecisionModel`, `ModeOutcomeLearner` |
-| ميزانيات واستمرارية الوكيل | `domain/engine/` | ضغط السياق، توكنز، نقل المهمة، تكرار الأدوات والتعثر |
-| فهرسة المشروع | `data/repo/`, `data/builddoctor/`, `data/rollback/` | فهرسة الكود، استرجاع الأدلة، تشخيص البناء والتراجع |
-| البيانات والذاكرة | `data/db/`, `data/repository/`, `data/brain/` | Room، DAOs، مستودعات البيانات والذاكرة |
-| النماذج والموفرون | `data/model/`, `data/network/`, `data/localllm/`, `registry/` | إعداد الطلب، استكمال النموذج، النماذج المحلية والتسجيل |
-| التحكم في الجهاز | `data/accessibility/`, `data/input/`, `data/admin/`, `data/media/` | Accessibility، IME، Device Admin وجلسات الميديا |
-| التطبيقات المتصلة | `data/ipc/`, `data/mcp/`, `data/integration/`, `data/auth/` | OmniLink، MCP، التكامل والحسابات |
-| الخلفية والجدولة | `data/background/`, `data/sync/`, `domain/engine/` | العمل الدوري، المزامنة وتنفيذ المهام المجدولة |
-| الأداء والمراقبة | `ui/motion/`, `ui/analytics/`, `ui/brain/`, `data/debug/` | سياسة الحركة، التحليلات، الذاكرة المرئية والسجلات |
+| Area | Packages | Key components |
+| --- | --- | --- |
+| Personalization and reference photos | `ui/settings/`, `data/model/`, `data/chatmedia/` | `UserProfileScreen`, `ProfilePersonalization`, `ProfileReferenceStore`, consented generation references |
+| Virtual companion | `ui/companion/` | Drawing, movement, moods, two neural networks, local learning and long-term memory |
+| Tool and skill mentions | `ui/chat/`, `domain/engine/` | `MentionFocus`, multiple tools/skills in the message editor, priority with supporting tools available |
+| Application UI | `ui/chat/`, `ui/settings/`, `ui/providers/`, `ui/navigation/` | Chat, settings, providers and navigation |
+| Floating assistant | `ui/assistant/`, `data/assistant/` | Panel, session, voice, bubble, attachments and Android settings return |
+| Permissions and privileges | `core/policy/`, `core/privileged/`, `data/tools/`, `data/ipc/` | `PermissionManagerTool`, `DeviceAccessCatalog`, `PermissionRequestPlan`, `AppOpAccessPlan`, `PrivilegedExecutionManager` |
+| Mode decisions | `domain/engine/` | `IntentClassifier`, `AdaptiveModeRouter`, `ModeDecisionModel`, `ModeOutcomeLearner` |
+| Agent budgets and continuity | `domain/engine/` | Context compression, token budgets, handoffs, repeated calls and stall handling |
+| Project indexing | `data/repo/`, `data/builddoctor/`, `data/rollback/` | Code indexing, evidence retrieval, build diagnosis and rollback |
+| Data and memory | `data/db/`, `data/repository/`, `data/brain/` | Room, DAOs, repositories and memory |
+| Models and providers | `data/model/`, `data/network/`, `data/localllm/`, `registry/` | Requests, completions, local models and registration |
+| Device control | `data/accessibility/`, `data/input/`, `data/admin/`, `data/media/` | Accessibility, IME, device administration and media sessions |
+| Connected applications | `data/ipc/`, `data/mcp/`, `data/integration/`, `data/auth/` | OmniLink, MCP, integrations and accounts |
+| Background and scheduling | `data/background/`, `data/sync/`, `domain/engine/` | Periodic work, synchronization and scheduled tasks |
+| Performance and monitoring | `ui/motion/`, `ui/analytics/`, `ui/brain/`, `data/debug/` | Motion policy, analytics, memory views and logs |
 
-`data/tools/` يضم عائلات أدوات متعددة، لذلك أسماء الملفات ومسارات الاستدعاء أهم من اعتبار الحزمة كلها أداة واحدة. إعدادات النسخة، صلاحيات Android وربط التكامل تحدد ما يظهر وما يمكن تنفيذه.
+A tool family is not a single tool count. Definitions, dispatch paths, flavors, Android grants and integration availability determine the actual exposed set. See the [tool and skill catalog](TOOL_AND_SKILL_CATALOG.md) and [MCP defaults](MCP_DEFAULT_SERVICES.md).
 
-## مصادر Android والاختبارات
+## Android sources and tests
 
-| المسار | الوظيفة |
-|---|---|
-| `app/src/main/AndroidManifest.xml` | التصريحات والمكوّنات المشتركة |
-| `app/src/{lite,norm,pro,oem,admin}/` | سياسات وManifest ومصادر كل نسخة |
-| `app/src/liteNorm/`, `app/src/proOem/`, `app/src/proOemAdmin/` | مصادر مشتركة بين مجموعات نسخ البناء |
-| `app/src/main/res/` | الأيقونات، النصوص، XML والسمات |
-| `app/src/main/aidl/` | عقود Binder للخدمات والربط |
-| `app/src/main/cpp/` | ربط التنفيذ الأصلي للنماذج المحلية |
-| `app/src/main/assets/agent-skills/` | المهارات المرفقة للوكيل |
-| `app/src/test/` | اختبارات JVM للمحرك والسياسات والتخطيط والأدوات |
-| `app/src/androidTest/` | اختبارات Compose والنوافذ والسلوك على جهاز أو محاكي |
+| Path | Purpose |
+| --- | --- |
+| `app/src/main/AndroidManifest.xml` | Shared declarations and components |
+| `app/src/{lite,norm,pro,oem,admin}/` | Flavor policies, manifests and sources |
+| `app/src/liteNorm/`, `app/src/proOem/`, `app/src/proOemAdmin/` | Shared flavor groups |
+| `app/src/main/res/` | Icons, strings, XML and themes |
+| `app/src/main/aidl/` | Binder service contracts |
+| `app/src/main/cpp/` | Native local-model execution bridge |
+| `app/src/main/assets/agent-skills/` | Six bundled agent skills |
+| `app/src/test/` | JVM engine, policy, planning and tool tests |
+| `app/src/androidTest/` | Compose, window and device/emulator behavior tests |
 
-## أي وثيقة أقرأ؟
+## Documentation map
 
-| الهدف | الوثيقة |
-|---|---|
-| التخصيص وصور المستخدم المرجعية | [التخصيص والصور](PROFILE_PERSONALIZATION.md) |
-| منشن الأدوات والمهارات | [منشن الشات](chat-mentions.md) |
-| الرفيق والتعلّم المحلي | [الرفيق الافتراضي](virtual-companion.md) |
-| عدد الملفات والسطور | [إحصاءات المستودع](REPOSITORY_STATS.md) |
-| فهم التطبيق وإعداده | [README](../README.md) |
-| فهم الطبقات والعقود | [المعمارية](../PROJECT_ARCHITECTURE.md) |
-| العثور بسرعة على نقطة الدخول | [الخريطة الذهنية](../MENTAL_MAP.md) |
-| فهم AUTO والتعلم من النتائج | [محرك القرار](../DECISION_ENGINE.md) |
-| تشغيل المساعد العائم | [المساعد على الشاشة](SCREEN_ASSISTANT.md) |
-| تجهيز الصلاحيات وفهم حالتها | [الوصول إلى الجهاز](../DEVICE_ACCESS.md) |
-| فهم ذاكرة المحادثات | [استرجاع التاريخ](../CHAT_HISTORY_RECALL.md) |
-| فهم الحركة واختبار الأداء | [دليل الأداء](../UI_PERFORMANCE.md) |
-| ربط تطبيقات Omni | [OmniLink](../OMNILINK_V3_INTEGRATION.md)، [البروتوكول](../LINK_PROTOCOL.md) |
-| ربط اللانشر | [تكامل اللانشر](LAUNCHER_INTEGRATION.md) |
-| إعداد Telegram وWhatsApp | [Telegram](../TELEGRAM_INTEGRATION.md)، [WhatsApp](../whatsapp-bridge/README.md) |
-| دراسة تقسيم التطبيق إلى وحدات مستقلة | [خطة التفكيك](../MODULARIZATION_ROADMAP.md) |
-| مراجعة حقوق المكونات والمساهمين | [النسب والحقوق](../ATTRIBUTION.md) |
+| Goal | Document |
+| --- | --- |
+| Personalization and reference photos | [Profile personalization](PROFILE_PERSONALIZATION.md) |
+| Tool and skill mentions | [Chat mentions](chat-mentions.md) |
+| Companion and local learning | [Virtual companion](virtual-companion.md) |
+| Files and lines | [Repository statistics](REPOSITORY_STATS.md) |
+| Tool and bundled skill counts | [Tool and skill catalog](TOOL_AND_SKILL_CATALOG.md) |
+| Default MCP setup | [Default services](MCP_DEFAULT_SERVICES.md) |
+| Application setup | [README](../README.md) |
+| Layers and contracts | [Architecture](../PROJECT_ARCHITECTURE.md) |
+| Quick entry points | [Mental map](../MENTAL_MAP.md) |
+| AUTO and outcome learning | [Decision engine](../DECISION_ENGINE.md) |
+| Floating assistant | [Screen assistant](SCREEN_ASSISTANT.md) |
+| Device permissions | [Device access](../DEVICE_ACCESS.md) |
+| Chat memory | [History recall](../CHAT_HISTORY_RECALL.md) |
+| Motion and performance | [Performance guide](../UI_PERFORMANCE.md) |
+| Omni applications | [OmniLink](../OMNILINK_V3_INTEGRATION.md), [protocol](../LINK_PROTOCOL.md) |
+| Launcher | [Launcher integration](LAUNCHER_INTEGRATION.md) |
+| Telegram and WhatsApp | [Telegram](../TELEGRAM_INTEGRATION.md), [WhatsApp](../whatsapp-bridge/README.md) |
+| Future module separation | [Modularization roadmap](../MODULARIZATION_ROADMAP.md) |
+| Attribution | [Attribution](../ATTRIBUTION.md) |
 
-للأعداد القابلة للتكرار شغّل `python3 scripts/repo_metrics.py`. لحالة البناء راجع نتيجة المهام في GitHub Actions. مواد الرؤية والتخطيط تصف المقترحات؛ ملفات المصدر وعقود التشغيل تصف التنفيذ.
+Reproduce committed file/line counts with `python3 scripts/repository_stats.py` and catalog counts with `python3 scripts/tool_catalog.py`. GitHub Actions records build results. Vision documents describe proposals; source and runtime contracts describe implementation.

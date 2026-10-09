@@ -13,7 +13,7 @@ object MediaGenerationTool {
         "Generate images, videos or music/songs using the user's enabled media models and saved settings in Model Selection. " +
             "For images of the user, set use_profile_references=true only when the user requests their likeness or saved reference photos. Never use their photos for unrelated images. Profile use must be enabled in Your profile; currently supports Gemini image and OpenAI GPT Image, not video/music. Never bypass a disabled type or change its selected provider/model. Generation persists after the reply: queued is not completed. " +
             "The chat card becomes playable/viewable when ready and a completion message is posted. status polls an existing job; never generate again to poll. " +
-            "attach sends an accessible phone file/path to chat. Supports توليد الصور والفيديو والموسيقى والأغاني وإرسال الملفات في الشات.",
+            "attach sends an accessible phone file/path to chat. Supports image, video, music and song generation, and file attachments in chat.",
         listOf(ToolParameter("action", "string", "image, video, music, status, cancel, attach", allowedValues = listOf("image", "video", "music", "status", "cancel", "attach")),
             ToolParameter("prompt", "string", "Description to generate using saved defaults", false, requiredForActions = listOf("image", "video", "music")),
             ToolParameter("use_profile_references", "boolean", "Use saved face/full-body references for an explicitly requested image of the user; default false. Requires profile consent and a supported selected image model.", false),

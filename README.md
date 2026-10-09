@@ -61,21 +61,21 @@ The repository contains the Android application, native inference integration, J
 
 ## Repository size and source statistics
 
-This reproducible snapshot counts committed content at `144c8e0f28f961356841fbe708c734abb8d159be` on **9 October 2026**, including profile reference photos, reply personalization, tool/skill mentions, independent selected-skill context budgets and the locally learning virtual companion. The following statistics-only update is not included in that fixed snapshot.
+This reproducible snapshot counts committed content at `c2fe7afd1a311d0fca474927b9774f65bdfbcd15` on **9 October 2026**, including profile reference photos, reply personalization, tool/skill mentions, independent selected-skill context budgets, the locally learning virtual companion, English project prose, built-in catalog counts, the five MCP defaults bounded, cached MCP discovery, extended response controls and enforced saved-memory preferences. The following statistics-only update is not included in that fixed snapshot.
 
 | Metric | Count |
 | --- | ---: |
-| Tracked files | 796 |
-| UTF-8 text files | 784 |
-| Physical text lines | 132,443 |
-| Nonblank text lines | 119,224 |
-| Source/script files | 661 |
-| Source/script physical lines | 123,737 |
-| App Kotlin files, including tests | 632 |
-| App Kotlin physical lines, including tests | 120,275 |
-| Test source files | 155 |
-| Test source physical lines | 12,537 |
-| Tracked blob bytes | 6,923,762 |
+| Tracked files | 808 |
+| UTF-8 text files | 796 |
+| Physical text lines | 132,986 |
+| Nonblank text lines | 119,675 |
+| Source/script files | 670 |
+| Source/script physical lines | 123,954 |
+| App Kotlin files, including tests | 639 |
+| App Kotlin physical lines, including tests | 120,280 |
+| Test source files | 159 |
+| Test source physical lines | 12,884 |
+| Tracked blob bytes | 6,942,581 |
 
 Physical lines include comments and blank lines; nonblank lines still include comments. These counts are not comment-free SLOC, a code-quality score or a device performance measurement. Source/script counts exclude XML/resources, data and documentation. Test totals overlap source totals. Untracked/generated files, downloaded models, caches and submodule contents are excluded; tracked binary assets count as files/bytes only.
 
@@ -84,6 +84,8 @@ See the [full format breakdown and counting method](docs/REPOSITORY_STATS.md). T
 ```sh
 python3 scripts/repository_stats.py --ref HEAD --format markdown
 ```
+
+The source catalog contains **150 unique local tool definitions**, or **148 names after excluding two hidden legacy aliases**, and **6 bundled agent skills**. Counts cover all registered optional providers and God Mode definitions; actual session visibility depends on edition and capability settings. Connected MCP tools and runtime discovery/mode helpers are additional. See the [complete catalog and reproducible count](docs/TOOL_AND_SKILL_CATALOG.md).
 
 For repository access, installed integrations, Actions controls and public-source limitations, see [Repository security](docs/REPOSITORY_SECURITY.md).
 
@@ -833,6 +835,8 @@ Read [OmniLink v3 integration](OMNILINK_V3_INTEGRATION.md), [Link protocol](LINK
 
 ## MCP and external tools
 
+Fresh configurations include **Context7, UsefulAI, Microsoft Learn, GitHub and local MT Manager**, each as HTTP with all tools enabled and an empty environment. Existing saved configurations remain unchanged. **Load default services** prepares an editable draft; **Save** applies it. See the [exact defaults and setup behavior](docs/MCP_DEFAULT_SERVICES.md). Discovery reuses sessions, caches successful schemas for five minutes and failures for one minute, and refreshes stale servers concurrently with a three-second per-server timeout. Cancelling discovery cancels its HTTP calls, including open response streams.
+
 The `data/mcp/` implementation configures and communicates with external tool servers. Connected definitions join the same catalog and tier/chat capability filtering used by native tools. Dispatch checks apply to both paths, including calls that were not exposed in the current request.
 
 A successful server connection does not authorize all tools. Remote descriptions/results are untrusted evidence, and unknown side effects are serialized. Parameter metadata and declared enums survive schema ingestion where supported; the local flat parameter model is not full nested JSON Schema validation.
@@ -1323,3 +1327,8 @@ Original Workspace material is **proprietary, with all rights reserved** by its 
 OmniLinkSDK has its own license/notices. The llama.cpp submodule, Vosk/JNA, Android/Jetpack components, JGit, networking libraries and the WhatsApp bridge dependencies retain their respective licenses. Downloaded model weights may have terms distinct from the inference library. Connected projects such as the Lawnchair/AOSP-derived Omni Launcher and AndroidIDE keep their own authorship and licensing.
 
 Keep original notices and review [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) when changing dependencies or redistributing binaries. The dependency guide is a starting inventory, not an assertion that every transitive license obligation has been automatically audited.
+
+
+### Extended personalization controls
+
+Your profile includes occupation, custom response instructions, quick answers, local suggested prompts, Markdown/plain-text replies, saved-memory use and independent automatic chat-history recall. Behavior controls apply to the shared chat/screen-assistant transcript; profile instructions reach Chat, Agent and Team. Memory opt-out blocks canonical fact tools and legacy vector aliases without deleting saved entries or disabling explicitly selected skills. Memory summary and management provides category counts, preference excerpts and source editing/deletion. See [Profile personalization](docs/PROFILE_PERSONALIZATION.md).

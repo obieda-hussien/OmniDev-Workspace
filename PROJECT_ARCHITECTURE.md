@@ -1,63 +1,63 @@
-# معمارية OmniDev Workspace
+# OmniDev Workspace architecture
 
-> وصف بنية التطبيق ومسؤولياته. الإحصاءات وطريقة عدّها في [README](README.md)، وتصنيف الملفات في [دليل المشروع](docs/PROJECT_FILES.md). المشروع وحدة Gradle واحدة `:app` بخمس نسخ بناء.
+The project has one Gradle module, `:app`, with five build flavors. See [README](README.md) for counts and their method, and the [file guide](docs/PROJECT_FILES.md) for navigation.
 
-## طبقات التشغيل
+## Runtime layers
 
 ```mermaid
 flowchart TD
-    U["Compose UI + ChatViewModel"] --> E["domain/engine: القرار والتنفيذ"]
-    E --> T["data/tools: تعريف وتنفيذ الأدوات"]
-    E --> N["data/network: موفرو الاستكمال"]
+    U["Compose UI + ChatViewModel"] --> E["domain/engine: decisions and execution"]
+    E --> T["data/tools: definitions and execution"]
+    E --> N["data/network: completion providers"]
     T --> P["core/policy + TierToolGate"]
-    P --> D["Room / نظام Android / OmniLink / MCP"]
+    P --> D["Room, Android, OmniLink and MCP"]
 ```
 
-| الجزء | موضعه تحت `app/src/main/java/com/omnidev/workspace/` | أمثلة |
-|---|---|---|
-| واجهة التطبيق | `ui/`, `MainActivity.kt`, `OmniDevApp.kt` | المحادثة والموفرون والإعدادات والمتصفح |
-| المساعد العائم | `ui/assistant/`, `data/assistant/` | الجلسة، النافذة، الصوت، الكورة والعودة من إعدادات Android |
-| إدارة الوصول | `data/tools/PermissionManagerTool.kt`, `DeviceAccessCatalog.kt`, `PermissionRequestPlan.kt`, `AppOpAccessPlan.kt` | اكتشاف الصلاحيات، تهيئة الوصول الخاص، ضبط AppOps للتطبيق والتحقق من المنح |
-| سير الوكيل | `domain/engine/` | `AgentPipeline`, `SwarmOrchestrator`, `AgentRuntime` |
-| قرار الوضع | `domain/engine/` | `IntentClassifier`, `AdaptiveModeRouter`, `ModeOutcomeLearner` |
-| الأدوات | `data/tools/`, `core/tools/` | `CompositeToolManager`, `TierToolGate`, `RepoContextTools` |
-| سياق الكود | `data/repo/` | `RepoIndexer`, `RepoContextEngine`, `LocalCodeRetriever` |
-| التخزين | `data/db/`, `data/repository/` | `OmniDevDatabase` (Room v17) وDAOs |
-| النماذج والشبكة | `data/model/`, `data/network/`, `registry/` | إعداد استدعاءات النموذج وتوليد الاستكمال |
-| صلاحيات البناء | `core/policy/`, `core/privileged/`, `app/src/<flavor>/` | السياسات، Manifest overrides، التنفيذ المميز |
+Paths below start at `app/src/main/java/com/omnidev/workspace/`.
 
-## قرار التنفيذ
+| Area | Location | Examples |
+| --- | --- | --- |
+| Application UI | `ui/`, `MainActivity.kt`, `OmniDevApp.kt` | Chat, providers, settings, browser |
+| Floating assistant | `ui/assistant/`, `data/assistant/` | Session, window, voice, bubble, Android settings return |
+| Access management | `data/tools/PermissionManagerTool.kt`, `DeviceAccessCatalog.kt`, `PermissionRequestPlan.kt`, `AppOpAccessPlan.kt` | Permission discovery, special access setup, app AppOps and grant verification |
+| Agent execution | `domain/engine/` | `AgentPipeline`, `SwarmOrchestrator`, `AgentRuntime` |
+| Mode decisions | `domain/engine/` | `IntentClassifier`, `AdaptiveModeRouter`, `ModeOutcomeLearner` |
+| Tools | `data/tools/`, `core/tools/` | `CompositeToolManager`, `TierToolGate`, `RepoContextTools` |
+| Code context | `data/repo/` | `RepoIndexer`, `RepoContextEngine`, `LocalCodeRetriever` |
+| Storage | `data/db/`, `data/repository/` | `OmniDevDatabase` (Room v17) and DAOs |
+| Models and networking | `data/model/`, `data/network/`, `registry/` | Model request configuration and completions |
+| Build capabilities | `core/policy/`, `core/privileged/`, `app/src/<flavor>/` | Policies, manifest overrides and privileged execution |
 
-`AUTO` يصنف الطلب، `CHAT` يقدم إكمالًا مباشرًا، `AGENT` يشغّل دورة أدوات واحدة، و`SWARM` ينظم خطة وعدة عمال. عند الحاجة يقترح `AdaptiveModeRouter` الترقية أو الرجوع بمبررات وحدود ثقة. يظل السماح بالتبديل في `ModeSwitchPermissionStore` واختيار المستخدم. [DECISION_ENGINE.md](DECISION_ENGINE.md) يشرح الإشارات، النموذج المحلي، عينات التعلم وقيودها.
+## Execution decisions
 
-توجيه الأداة يتم عبر تعريفاتها و`CompositeToolManager` ثم `TierToolGate` وحواجز السياسة والتشغيل. التعريفات في المصدر ليست وعدًا بتشغيل كل الأدوات في Lite أو على جهاز بلا صلاحيات. لا تدخل بيانات غير موثوقة من صفحة أو إشعار كتعليمات تفويض.
+`AUTO` classifies requests, `CHAT` produces direct completions, `AGENT` runs a tool loop and `SWARM` coordinates planning and workers. `AdaptiveModeRouter` can recommend upgrades or fallback with reasons and bounded confidence. `ModeSwitchPermissionStore` and the user's selection control permission. [DECISION_ENGINE.md](DECISION_ENGINE.md) explains signals, local learning and sample limits.
 
-## التخزين واسترجاع الأدلة
+`CompositeToolManager` routes tool definitions through `TierToolGate` and execution/permission guards. Source definitions do not guarantee availability in Lite or on an unprivileged device. Untrusted page and notification content must not become authorization instructions. The [catalog](docs/TOOL_AND_SKILL_CATALOG.md) distinguishes built-in names from dynamically discovered MCP tools.
 
-`OmniDevDatabase.kt` يعلن Room v17 ويضم تاريخ المحادثة، معرفة النظام، سجل الأدوات، الذاكرة، فهرس الرموز، الجدولة، والذاكرة المشتركة. استرجاع المحادثة يعتمد نص الرسائل الأصلي ومراجع ID؛ [حدوده](CHAT_HISTORY_RECALL.md). استرجاع الكود يبدأ بالفهرسة داخل نطاق مختار ثم ترتيب مقاطع محلية بمرجع ملف وسطور. استرجاع مقتطف ليس إثباتًا بأن بقية الملف لا تؤثر في الحل.
+## Storage and evidence retrieval
 
-## flavors والتكامل المميز
+Room v17 stores chats, system knowledge, execution logs, memories, repository symbols, scheduled tasks and shared memory. Chat recall uses original messages and source IDs; see [recall limits](CHAT_HISTORY_RECALL.md). Code retrieval indexes a selected scope and returns local snippets with file/line references. A retrieved snippet does not prove that the rest of a file is irrelevant.
 
-`app/build.gradle.kts` يعلن `lite`, `norm`, `pro`, `oem`, `admin`، مع مصادر مشتركة `liteNorm`, `proOem`, `proOemAdmin` وحزم/خصائص Manifest حسب الحاجة. `core/policy/TierPolicy` و`ConfirmationGate` وفصل `core/privileged/` يحددون الحدود؛ صلاحيات Android الفعلية وتوفر تطبيق مقابل أو Shizuku/Root شيء منفصل. Admin مخصص للاختبار الداخلي واسع الصلاحيات. قواعد البروتوكول في [LINK_PROTOCOL.md](LINK_PROTOCOL.md) وتكامل [OmniLink v3](OMNILINK_V3_INTEGRATION.md).
+## Flavors and privileged integrations
 
-**AIDL:** يوجد خمسة ملفات `.aidl` متتبعة. لا نفترض أن وجود اسمين متشابهين عيب ازدواج؛ يحدد اسم الحزمة والتوقيع والاستخدام كل واجهة. أي حذف أو دمج يتطلب فحص المستدعين وبناء نسخ التطبيق المتأثرة. توافق الحزمة والتوقيع والمستدعين يحدد سلامة العقد.
+`app/build.gradle.kts` defines `lite`, `norm`, `pro`, `oem`, `admin`, with shared source sets `liteNorm`, `proOem`, `proOemAdmin`. `TierPolicy`, `ConfirmationGate` and `core/privileged/` define application boundaries; actual Android grants, a companion application and Shizuku/root availability remain separate. Admin is intended for internal testing. See [the link protocol](LINK_PROTOCOL.md) and [OmniLink v3](OMNILINK_V3_INTEGRATION.md).
 
-## صلاحيات المساعد ومسار التهيئة
+Five `.aidl` files are tracked. Similar names alone do not imply duplication: package, signatures and callers determine each interface. Removing or merging contracts requires caller analysis and builds of the affected flavors.
 
-`DeviceAccessActivity` يعرض الصلاحيات العادية والخاصة وحالة الروت وShizuku وrish والنظام وDevice/Profile Owner. `PermissionManagerTool` يكتشف التصريحات من الـmerged manifest وتعريفات الصلاحيات على الجهاز، ويفصل منح الخلفية باستخدام `PermissionRequestPlan`. `DeviceAccessCatalog` يراجع الوصول الخاص والمكوّنات المثبتة بدل استنتاج الإذن من اسم نسخة البناء.
+## Assistant access setup
 
-`AssistantInputActivity` يربط صفحة الوصول بالجلسة العائمة عبر Activity Result، و`PermissionRequestBridge` يستخدم Activity أمامية لإظهار طلبات Android. `AssistantFlavorPolicy` يتيح أدوات فحص الصلاحيات وطلبها وOmniLink، و`ChatViewModel` يضيف لقطة وصول حديثة لسياق المساعد. منح صلاحية مميزة يمر بالموافقة المناسبة وسجل التدقيق، ثم بفحص قراءة الإذن بعد التنفيذ. التفاصيل في [DEVICE_ACCESS.md](DEVICE_ACCESS.md).
+`DeviceAccessActivity` shows ordinary/special permissions and root, Shizuku, rish, system and Device/Profile Owner status. `PermissionManagerTool` discovers permissions from the merged manifest and device definitions; `PermissionRequestPlan` separates background grants. `DeviceAccessCatalog` checks special access and installed components rather than inferring access from a flavor name.
 
-## خريطة التغيير والتحقق
+`AssistantInputActivity` connects access setup to the floating session through Activity Result. `PermissionRequestBridge` uses a foreground activity for Android prompts. `AssistantFlavorPolicy` enables permission inspection/request and OmniLink tools; `ChatViewModel` adds a fresh access snapshot to assistant context. Privileged grants follow confirmation, audit and readback verification. See [DEVICE_ACCESS.md](DEVICE_ACCESS.md).
 
-| التغيير | راجع | تحقق مبدئي |
-|---|---|---|
-| أداة جديدة | `core/tools/`, `data/tools/CompositeToolManager.kt`, `TierToolGate.kt` | إتاحة النسخ، موافقة المستخدم، فشل/نجاح الأداة |
-| سياسة وضع | `domain/engine/`, `ui/chat/ChatViewModel.kt` | اختبارات المصنّف والمحرك وأسبقية اختيار المستخدم |
-| جدول Room | `data/db/OmniDevDatabase.kt`, entities/DAO | هجرة البيانات واختبار النسخ القديمة |
-| صلاحية أو Service | `app/src/main/AndroidManifest.xml` وmanifest النسخة | تأكيدات Android واختبار flavor المحدد |
-| تكامل OmniLink | `data/ipc/`, `LINK_PROTOCOL.md` | هوية الطرف الآخر، الصلاحيات، حجم Binder |
+## Change and validation map
 
-### خطة بنيوية مستقبلية
+| Change | Review | Initial validation |
+| --- | --- | --- |
+| New tool | `core/tools/`, `data/tools/CompositeToolManager.kt`, `TierToolGate.kt` | Flavor visibility, consent and success/failure paths |
+| Mode policy | `domain/engine/`, `ui/chat/ChatViewModel.kt` | Classifier, engine and user-choice precedence tests |
+| Room table | `data/db/OmniDevDatabase.kt`, entities/DAOs | Migrations and opening older databases |
+| Permission or service | Main and flavor manifests | Android prompts and affected-flavor behavior |
+| OmniLink integration | `data/ipc/`, `LINK_PROTOCOL.md` | Peer identity, permissions and Binder size |
 
-[MODULARIZATION_ROADMAP.md](MODULARIZATION_ROADMAP.md) تصف نقلًا مقترحًا إلى `:core:*` و`:tools:*`. `settings.gradle.kts` يعلن حاليًا `:app` فقط؛ لا تعتمد على المخطط المستقبلي وكأنه ملفات موجودة. تحقق Gradle لكل flavor شرط أساسي عند تنفيذ النقل.
+[MODULARIZATION_ROADMAP.md](MODULARIZATION_ROADMAP.md) proposes `:core:*` and `:tools:*` modules. `settings.gradle.kts` currently declares only `:app`; the proposal is not a map of existing modules. Every affected flavor must build during a future migration.

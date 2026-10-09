@@ -1,203 +1,130 @@
-# الرؤية المعمارية المستقبلية وخارطة الطريق لتطبيق OmniDev Workspace 🚀
+# OmniDev Workspace future vision and roadmap
 
-> **حالة الوثيقة (29 سبتمبر 2026):** أفكار منتج وتوقعات تاريخية وليست جردًا للتنفيذ الحالي أو وعدًا بالتسعير أو الإيراد. التطبيق يعلن خمس نسخ `lite/norm/pro/oem/admin`، وأربعة أوضاع `AUTO/CHAT/AGENT/SWARM` وقاعدة Room v17. للتحقق من التنفيذ والأرقام راجع [README](README.md) و[المعمارية](PROJECT_ARCHITECTURE.md) و[محرك القرار](DECISION_ENGINE.md). أي أسعار أو مقارنات أدناه فرضيات تحتاج بحث سوق واختبارات منفصلة.
+> **Historical proposals, September 29, 2026.** This document is not an implementation inventory, pricing commitment or revenue forecast. Current source declares five flavors (`lite/norm/pro/oem/admin`), four modes (`AUTO/CHAT/AGENT/SWARM`) and Room v17. See [README](README.md), [architecture](PROJECT_ARCHITECTURE.md) and [decision engine](DECISION_ENGINE.md) for implemented behavior. Prices, competitive comparisons and model-size targets below are unvalidated planning assumptions.
 
+The proposed direction is an Android agent ecosystem for consumers, advanced users, developers and enterprise integrations. Feature availability must be verified against source, grants and hardware, rather than inferred from this roadmap.
 
-هذه الوثيقة التفصيلية تعتبر الدليل المعماري والفلسفي لترقية تطبيق OmniDev Workspace من مجرد وكيل ذكي (AI Agent) إلى نظام بيئي متكامل (Ecosystem)، يتفوق على المساعدين الافتراضيين الحاليين مثل Google Gemini Assistant. نهدف من خلال هذه الوثيقة إلى وضع خارطة طريق متكاملة، تغطي كافة التحديات البرمجية، الحلول المقترحة، وكيفية تنظيم الأدوات والصلاحيات لضمان الأمان، القوة، والمرونة، لتلبية احتياجات المستخدم العادي والشركات على حد سواء.
+## Proposed tier segmentation
 
----
+### Lite: consumer assistant
 
-## الجزء الأول: استراتيجية توزيع الأدوات حسب النسخ (Tool Segmentation Strategy) 🛡️
+Aim for broad distribution without root or Shizuku. Proposed additions include local ML Kit image analysis/OCR (`image_analyzer`, `text_recognizer`), standard `ACTION_VIEW`/`ACTION_MAIN` launching (`standard_intent_launcher`), consented contact/calendar lookup, weather APIs and small local translation models.
 
-### 1. نسخة المستهلك العادي (Lite Tier) 🟢
-**الهدف:** التواجد بشكل آمن وقوي على متجر Google Play كمنافس شرس للمساعدين الشخصيين التقليديين، مع ضمان الخصوصية العالية بدون طلب صلاحيات جذرية (No Root/Shizuku).
+Sensitive-access requirements should use standard Android intents and Scoped Storage/SAF where appropriate. Local image processing is a proposed privacy benefit, not a claim that every image feature stays offline.
 
-#### الأدوات الإضافية المقترحة:
-* **`image_analyzer` و `text_recognizer`:** دمج ML Kit للتعرف على النصوص (OCR) وتحليل الصور محلياً (On-device). هذا يقدم أداءً سريعاً وخصوصية مطلقة دون إرسال الصور للإنترنت.
-* **`standard_intent_launcher`:** القدرة على فتح أي تطبيق مثبت باستخدام `ACTION_VIEW` و `ACTION_MAIN`، مما يسمح للوكيل بتشغيل الموسيقى، أو فتح خرائط جوجل، أو بدء مكالمة.
-* **`contact_lookup` و `calendar_reader`:** توفير الوصول المباشر (بعد موافقة المستخدم) لقراءة جهات الاتصال والأحداث، لتنظيم يوم المستخدم بكفاءة.
-* **`weather_tool` و `translate_tool`:** خدمات يومية خفيفة باستخدام الـ APIs المتاحة، والترجمة المحلية باستخدام نماذج مصغرة.
+### Norm: scripting and advanced use
 
-#### التحديات والحلول للنسخة Lite:
-* **التحدي:** قيود سياسات Google Play الصارمة على الصلاحيات الحساسة.
-* **الحل:** الاعتماد الكامل على واجهات Android القياسية (Standard Intents) وواجهة التخزين المحددة (Scoped Storage/SAF). استخدام مكتبات مثل ML Kit لتنفيذ المهام المعقدة كتحليل الصور محلياً دون الحاجة لرفعها للسحابة.
+The original developer proposal included embedded JS/Kotlin scripting (`js_runtime`, `kotlin_script_runner`, JSR-223/Duktape) and static Gradle/build configuration analysis (`build_analyzer`). A bounded script environment would need explicit filesystem and API restrictions; an embedded engine alone does not establish a sandbox.
 
-### 2. نسخة المطورين الأساسية (Norm Tier) 🔵
-**الهدف:** توفير بيئة برمجية متكاملة للمطورين باشتراك اقتصادي، تعتمد على الحماية (Sandbox) دون الحاجة للـ Root.
+The later product proposal repositions Norm for advanced users: phone automation, intelligent file management, Telegram/Discord bots, semantic accessibility, scheduling, consented notification/message access and local GGUF models targeting up to 7B, without root/Shizuku. These are proposed entitlements, not current runtime limits.
 
-#### الأدوات الإضافية المقترحة:
-* **`js_runtime` و `kotlin_script_runner`:** دمج بيئة تشغيل أكواد (JSR-223 / Duktape) داخل الـ JVM الخاص بالتطبيق. يتيح للوكيل كتابة وتنفيذ نصوص برمجية (Scripts) خفيفة لاختبار الأفكار.
-* **`build_analyzer`:** تحليل ملفات Gradle وإعدادات المشروع لاكتشاف أخطاء التجميع دون الحاجة لتشغيل الـ Build الفعلي.
+### Pro: developer and security work
 
-#### التحديات والحلول للنسخة Norm:
-* **التحدي:** توفير بيئة تنفيذ أوامر (Local Code Execution) قوية وآمنة من الاختراق.
-* **الحل:** الاعتماد على الـ Embedded Script Engines المحدودة الصلاحية (Sandboxed) التي لا تملك حق الوصول إلى نظام الملفات الكامل خارج النطاق المحدد للتطبيق.
+Proposed root/Shizuku capabilities need audit and reversal support because agent edits can be wrong. The historical action-record sketch was:
 
-### 3. نسخة المطورين المتقدمة (Pro Tier) 🟣
-**الهدف:** نسخة استثنائية للباحثين والمطورين المحترفين، تمنح تحكماً جذرياً (God Mode) عبر Shizuku أو الـ Root.
-
-#### الأدوات الإضافية المقترحة:
-* **نظام التراجع والتدقيق (Agent Audit Trail & Rollback):**
-  الذكاء الاصطناعي ليس معصوماً. لو قام الوكيل بتعديل ملفات خاطئة باستخدام `God Mode`، يجب أن يكون هناك طريقة للتراجع.
-  ```kotlin
-  data class AgentAction(
-      val timestamp: Long,
-      val toolName: String,
-      val affectedPaths: List<String>,
-      val preSnapshot: String, // نسخة احتياطية من الملف قبل التعديل
-      val reversalCommand: String? // أمر العودة للحالة السابقة
-  )
-  ```
-  هذا سيمكننا من إضافة أداة `agent_rollback` للتراجع عن أي عملية سابقة.
-
-#### التحديات والحلول للنسخة Pro:
-* **التحدي:** تدمير النظام أو فقدان البيانات بسبب أوامر خاطئة من الوكيل.
-* **الحل:** فرض تطبيق `executeWithAudit` لتغليف كل الأوامر، وإنشاء نسخة احتياطية محلية (Diff/Patch Backup) قبل تنفيذ أي أمر تعديل، بالإضافة لشاشة تأكيد (Confirmation Gate) قبل كل عملية مدمرة.
-
-### 4. نسخة الشركات والتكامل العميق (OEM Tier) 🏢
-**الهدف:** النسخة المخصصة لدمجها كجزء من نظام التشغيل (System App) لشركات تصنيع الهواتف (B2B)، بأسعار اشتراكات باهظة وقوة تحكم مطلقة.
-
-#### الأدوات الإضافية المقترحة:
-* **`Remote Management API`:**
-  واجهة برمجية للتحكم عن بُعد. الوكيل يتلقى أوامر مشفرة من خوادم الشركة لإدارة الجهاز.
-  ```kotlin
-  interface OmniRemoteManagementAPI {
-      suspend fun pushAgentConfig(config: RemoteAgentConfig)
-      suspend fun pullDeviceHealthReport(): HealthSnapshot
-      suspend fun emergencyWipe(authToken: String)
-  }
-  ```
-* **Zero-Click Automations:**
-  قدرة الوكيل على تنفيذ سير عمل كامل في الخلفية بناءً على أحداث معينة (مثل وصول رسالة، انخفاض البطارية، تفعيل الحماية) بدون نوافذ تأكيد.
-
-#### التحديات والحلول للنسخة OEM:
-* **التحدي:** تأمين قناة الاتصال بين الوكيل الذكي (الجهاز) وخادم الشركة (MDM Server) ومنع اختراقها.
-* **الحل:** استخدام التشفير غير المتماثل (Asymmetric Encryption) والتوقيعات الرقمية (Digital Signatures) للتحقق من هوية الأوامر القادمة.
-
----
-
-## الجزء الثاني: الميزات المعمارية الثورية والمتقدمة 🧠
-
-لضمان تفوق OmniDev Workspace بمراحل على كافة التطبيقات الحالية، سنطبق الأفكار التالية المفقودة في الحلول الأخرى:
-
-### 1. نموذج الثقة التدريجي (Progressive Trust Model) 🚀
-بدلاً من حجز الصلاحيات خلف حاجز دفع ثابت، يمكن للمستخدم في النسخة العادية فتح صلاحيات متقدمة بناءً على "بناء الثقة" بينه وبين الوكيل، وبناءً على سجل الوكيل في تنفيذ المهام بدون أخطاء.
 ```kotlin
-data class AgentTrustProfile(
-    val userId: String,
-    val trustScore: Float, // يتزايد مع العمليات الناجحة (0.0 → 1.0)
-    val earnedCapabilities: Set<String> // صلاحيات تكتسب مع الوقت
+data class AgentAction(
+    val timestamp: Long,
+    val toolName: String,
+    val affectedPaths: List<String>,
+    val preSnapshot: String, // File state before modification
+    val reversalCommand: String? // Command to restore the previous state
 )
 ```
-**كيف يفيدنا؟** يخلق بيئة اللعب (Gamification) في منح الصلاحيات، ويثبت للمستخدمين قوة التطبيق قبل الإلزام بالاشتراك بالنسخة الاحترافية.
 
-### 2. نموذج التسامح مع الأخطاء (Byzantine Fault Tolerance) للـ Swarm
-في نظام الـ Multi-agent Orchestration، إذا فشل وكيل فرعي، يفشل النظام بأكمله حالياً. في النسخ المؤسسية (OEM/Pro)، يجب تنفيذ المهمة على أكثر من وكيل بالتوازي.
+A proposed `agent_rollback` tool and `executeWithAudit` wrapper would capture local diffs/backups before modification and use confirmation for destructive operations. The actual rollback implementation has its own contracts and tool names; this sketch is not a source definition.
+
+### OEM: enterprise integration
+
+Potential system-app/MDM integration could include a remote management API, signed commands, device health reports and policy-controlled background automation:
+
 ```kotlin
-class FaultTolerantWorkerPool(private val redundancyFactor: Int = 3) {
-    // تنفيذ المهمة على أكثر من Worker في نفس الوقت، واعتماد النتيجة التي تتفق عليها الأغلبية (Consensus)
+interface OmniRemoteManagementAPI {
+    suspend fun pushAgentConfig(config: RemoteAgentConfig)
+    suspend fun pullDeviceHealthReport(): HealthSnapshot
+    suspend fun emergencyWipe(authToken: String)
 }
 ```
 
-### 3. اقتصاد التوكنز للميزات (Capability Tokens Pricing)
-بدلاً من اشتراكات شهرية جامدة، إدخال نظام الدفع بالتوكن.
-* الأوامر العادية (Web Search) تستهلك 1 Token.
-* الأوامر المتقدمة (God Mode Shell) تستهلك 50 Token.
-هذا النظام يتيح للمطورين المبتدئين شراء باقات صغيرة تلبي احتياجاتهم المحدودة.
+This is a proposal, including any wipe endpoint. Enterprise commands require authenticated channels, asymmetric identity/signatures and explicit administration policies. Background automation without repeated prompts still requires prior valid policy and authorization.
 
-### 4. السياق المحيط والمستشعرات (Sensor Context & Time-awareness)
-الوكيل الحالي يعتمد فقط على ما يكتبه المستخدم والنظام. لتجاوز Gemini Assistant، يجب أن يمتلك الوكيل:
-* **Time Context:** إدراك حقيقي للوقت لجدولة المهام ("ذكرني غداً صباحاً بإكمال الكود").
-* **Sensor Context:** الوصول للموقع، والحالة الحركية (مثل اكتشاف أن المستخدم يقود السيارة فيتحول الوكيل لوضع الاستجابة الصوتية فقط).
-* **Encrypted Memory:** تشفير ذكريات المستخدم ومعلوماته الشخصية عبر `EncryptedSharedPreferences` لمنع التطبيقات الأخرى من سرقة هذا السياق.
+## Proposed architectural features
 
----
+### Progressive trust
 
-## الجزء الثالث: التفوق المطلق على Gemini Assistant 🏆
+A historical proposal associates successful agent outcomes with a trust score and earned capabilities:
 
-التطبيقات الحالية مثل Gemini تعاني من قيود شديدة بسبب الاعتبارات العامة. OmniDev سينتصر في المجالات التالية:
-1. **أدوات المطورين الحقيقية:** Gemini لا يستطيع قراءة الـ Git Status أو تحليل الـ Logcat، OmniDev مخصص لذلك.
-2. **العمل بدون إنترنت (Local Edge GGUF):** النسخ المتقدمة تدعم نماذج محلية وتستطيع العمل في بيئات معزولة وآمنة تماماً.
-3. **التكامل الجذري مع نظام الملفات:** قدرة الوكيل على تصفح الشفرة البرمجية بالكامل واستيعاب سياق المشروع (Repository Context)، وهو شيء مستحيل على مساعد افتراضي عام.
-4. **نظام الوكلاء المتعددين (Swarm Orchestrator):** القدرة على تقسيم المشاكل المعقدة (Bug fixing) على عدة وكلاء، حيث يبحث أحدهم في الويب، ويقرأ الآخر الملفات، وينفذ الثالث التعديلات.
+```kotlin
+data class AgentTrustProfile(
+    val userId: String,
+    val trustScore: Float, // 0.0 to 1.0, informed by successful actions
+    val earnedCapabilities: Set<String> // Capabilities earned over time
+)
+```
 
----
+This could introduce gradual capability discovery. It cannot replace Android grants, explicit consent or tier enforcement.
 
-## الخلاصة والتوصيات المستقبلية للتنفيذ 🛠️
+### Redundant workers
 
-هذه الرؤية ضخمة وطموحة، وتتطلب تنفيذاً تدريجياً:
-1. **المرحلة الأولى:** إطلاق ML Kit لنسخة Lite لدعم الـ Privacy، وإصدار نظام الـ Audit Trail و الـ Rollback لنسخة المطورين Pro.
-2. **المرحلة الثانية:** إضافة بيئة JSR-223 Scripting للنسخة Norm، وتطبيق مبادئ Progressive Trust Model.
-3. **المرحلة الثالثة:** بناء الـ Remote Management API والتواصل المباشر لنسخة الـ OEM لدخول سوق الـ MDM والشركات.
+The proposed fault-tolerant worker pool runs selected tasks with a redundancy factor of three and compares results. Majority agreement does not prove correctness or by itself implement Byzantine fault tolerance. It needs independent validation and a measured cost/benefit case. Current worker failure behavior should be read from `SwarmOrchestrator`, not inferred from this historical idea.
 
-مع استمرار التركيز على الأداء السلس وإدارة الموارد (Memory Optimization)، سيتحول هذا التطبيق إلى أقوى نظام ذكاء اصطناعي تفاعلي (Autonomous Agent Ecosystem) تم تطويره لنظام أندرويد على الإطلاق.
+### Capability tokens
 
+A hypothetical usage model assigns one token to ordinary web search and 50 to an advanced shell action, allowing small usage packs. These units are proposed billing credits, not model tokens or live prices.
 
----
+### Context, sensors and protected memory
 
-## الجزء الرابع: استراتيجية التسعير ونموذج العمل (Pricing & Business Strategy) 💰
+Potential additions include time-aware scheduling (for example, "Remind me tomorrow morning to finish the code"), consented location/motion signals for voice-oriented driving interactions, and protected personal memory. `EncryptedSharedPreferences` was a historical implementation suggestion; storage design must be evaluated before adoption.
 
-بناءً على التقييم الدقيق للأدوات والميزات، تم إعادة تعريف بعض الفئات (خاصة Norm Tier) لتعكس القيمة الحقيقية للمستخدم، وتم وضع نموذج تسعير يضمن نموًا عضوياً (Organic Growth) واختراقاً سريعاً للسوق.
+## Product differentiation goals
 
-### 1. إعادة تعريف الـ Norm Tier (من "مطور" إلى "Power User")
-تبين أن المطور الحقيقي سيتجه مباشرة لنسخة Pro بحثاً عن الـ Terminal والـ Root، مما يجعل نسخة Norm بمفهومها القديم فارغة. لذلك، تم تحويل Norm لتكون نسخة **المستخدم المتقدم (Power User)**:
-- **الجمهور المستهدف:** شخص يريد أتمتة هاتفه (Automations)، إدارة ملفاته بذكاء، وبناء Bots (تليجرام/ديسكورد) دون الدخول في تعقيدات الأكواد.
-- **الميزات البارزة:** Accessibility Service (Semantic UI)، Task Scheduler، قراءة الإشعارات والرسائل (بموافقة المستخدم)، نماذج GGUF محلية حتى 7B، وبدون صلاحيات Shizuku/Root.
+The proposed advantages are developer workflows such as Git/logcat inspection, hardware-appropriate offline GGUF execution, scoped repository context and multi-agent work division. Claims about outperforming Gemini or other assistants require current comparative research and task benchmarks; this roadmap provides no such evidence.
 
-### 2. هيكل التسعير المقترح
+## Proposed implementation stages
 
-#### 🟢 Lite Tier — مجاني تماماً (Freemium)
-* **السعر:** 0 دولار.
-* **الهدف:** الاستحواذ على أكبر عدد من المستخدمين (User Acquisition). كل مستخدم Lite هو عميل محتمل لنسخة Norm/Pro.
-* **القيمة المقدمة:** Web Search، ML Kit (OCR + Vision)، Vector Memory مقيدة، نماذج محلية حتى 3B.
-* **لماذا مجاني؟** لأن Gemini و Claude يمتلكان نسخاً مجانية. الفكرة هنا هي التفوق في الخصوصية وتوفير قاعدة مستخدمين ضخمة للاختبار والتحسين.
+1. Stabilize local OCR/vision and auditable edits with rollback.
+2. Evaluate bounded scripting and progressive trust while retaining consent and policy enforcement.
+3. Design authenticated enterprise management and MDM integrations.
 
-#### 🔵 Norm Tier (Power User) — 4.99$ / شهر أو 39.99$ / سنة
-* **الهدف:** توفير ميزات قوية بسعر منخفض لتقليل عقبة اتخاذ القرار (Decision Barrier). سعر يوازي كوب قهوة شهرياً.
-* **القيمة المقدمة:** نماذج GGUF حتى 7B، Accessibility Service للتفاعل مع الشاشة، جدولة المهام، ذاكرة غير محدودة، بحث عميق (Advanced Web Scraping).
-* **معدل التحويل المستهدف:** تحويل 5% إلى 10% من مستخدمي Lite إلى Norm.
+Every stage needs measured resource use, memory limits and reliable recovery on the intended Android devices.
 
-#### 🟣 Pro Tier (Dev/Security) — 14.99$ / شهر أو 99.99$ / سنة
-* **الهدف:** تقديم منصة God Mode كاملة لباحثي الأمن السيبراني والمطورين المحترفين.
-* **القيمة المقدمة:** Shizuku/Root، God Mode File Router، Agent Audit Trail + Rollback، Swarm Orchestrator، تحليل حماية النظام (Security Analyzer)، نماذج GGUF ضخمة (حتى 70B).
-* **لماذا 14.99$؟** تسعير منافس ومناسب مقارنة بـ Cursor (20$) و Copilot (10$) و Claude Pro (20$)، نظراً لأن OmniDev يوفر بيئة عمل استثنائية من الهاتف المحمول مباشرة.
+## Historical pricing and business assumptions
 
-#### 🏢 OEM Tier (Enterprise/B2B) — تسعير مخصص
-* **الهدف:** عقد صفقات B2B مع شركات (مثل أنظمة MDM كـ Workspace ONE).
-* **التسعير المقترح مبدئياً:** 499$ شهرياً كترخيص أساسي (Base License) + 49$ لكل جهاز إضافي.
-* **القيمة المقدمة:** Remote Management API، Zero-click Automations، White-labeling (اختياري)، دعم فني مخصص (SLA).
-* **المبيعات:** يتطلب فريق مبيعات ولا يباع عبر متاجر التطبيقات القياسية.
+| Proposed plan | Historical price assumption | Proposed value |
+| --- | --- | --- |
+| Lite | Free | Web search, OCR/vision, bounded vector memory, local models targeting up to 3B |
+| Norm | $4.99/month or $39.99/year | Accessibility, scheduling, deeper research, memory and local models targeting up to 7B |
+| Pro | $14.99/month or $99.99/year | Root/Shizuku, advanced files/security, audit/rollback, teams and hardware-dependent larger models targeting up to 70B |
+| OEM | Custom; initial sketch $499/month base plus $49/additional device | Management API, policy-driven automation, optional white labeling and an SLA |
 
-### 3. جدول المقارنة الشامل للميزات
+These values were motivated by acquisition and conversion hypotheses, not an established subscription system. Historical competitor price comparisons are not maintained here. Enterprise sales would require a separate sales/support process.
 
-| الميزة | Lite (مجاني) | Norm ($4.99) | Pro ($14.99) | OEM (Enterprise) |
-|---|---|---|---|---|
-| ML Kit (OCR/Vision) | ✅ | ✅ | ✅ | ✅ |
-| Web Search + Scraper | ✅ | ✅ | ✅ | ✅ |
-| Memory + Vector KB | ✅ محدود | ✅ كامل | ✅ كامل | ✅ كامل |
-| Local GGUF Limit | حتى 3B | حتى 7B | حتى 70B | غير محدود |
-| Accessibility Service | ❌ | ✅ | ✅ | ✅ |
-| Task Scheduler | ❌ | ✅ | ✅ | ✅ |
-| Shizuku / Root | ❌ | ❌ | ✅ | نظام uid |
-| Security Analyzer | ❌ | ❌ | ✅ | ✅ |
-| God Mode File Router | ❌ | ❌ | ✅ | ✅ |
-| Agent Audit + Rollback | ❌ | ❌ | ✅ | ✅ |
-| Swarm Orchestrator | ❌ | ❌ | ✅ | ✅ |
-| Remote Management API | ❌ | ❌ | ❌ | ✅ |
-| Zero-click Automation | ❌ | ❌ | ❌ | ✅ |
-| White Label | ❌ | ❌ | ❌ | اختياري |
+### Proposed feature comparison
 
-### 4. توقعات الإيرادات (Revenue Projections)
-بافتراض الوصول إلى **100,000 مستخدم نشط** للنسخة المجانية (Lite) خلال عام واحد:
-* **تحويل Lite إلى Norm (7%):** 7,000 مستخدم × 4.99$ = **34,930$ / شهر**
-* **تحويل Norm إلى Pro (15%):** 1,050 مستخدم × 14.99$ = **15,739$ / شهر**
-* **صفقات OEM (5 شركات):** 5 تراخيص أساسية × 499$ = **2,495$ / شهر**
-* **الإجمالي التقريبي:** ~53,164$ شهرياً (حوالي **638,000$ سنوياً**).
+| Capability | Lite | Norm | Pro | OEM |
+| --- | --- | --- | --- | --- |
+| ML Kit OCR/vision | Proposed | Proposed | Proposed | Proposed |
+| Web search/scraping | Proposed | Proposed | Proposed | Proposed |
+| Vector knowledge | Bounded | Full proposal | Full proposal | Full proposal |
+| GGUF model target | Up to 3B | Up to 7B | Up to 70B | Hardware dependent |
+| Accessibility and scheduling | Excluded in this proposal | Proposed | Proposed | Proposed |
+| Root/Shizuku | Excluded | Excluded | Proposed | System integration |
+| Advanced security/files/audit/rollback/teams | Excluded in this proposal | Excluded in this proposal | Proposed | Proposed |
+| Remote management and policy-driven background automation | Excluded | Excluded | Excluded | Proposed |
+| White labeling | Excluded | Excluded | Excluded | Optional |
 
-*ملاحظة: هذا التوقع لا يشمل خطط الدفع السنوية (التي تزيد من القيمة الدائمة للعميل LTV) ولا ميزات OEM المخصصة.*
+This table records the historical business concept. It does not override `TierToolGate` or imply that implemented shared features are unavailable in a current flavor.
 
-### نصيحة إطلاق استراتيجية (Go-to-Market Strategy)
-**لا تقم بتفعيل جدار الدفع (Paywall) فوراً.**
-1. **الإطلاق المبدئي:** ركز على إصدار نسخة Lite قوية ومستقرة، بدون أخطاء (Bugs)، لاكتساب أول 10,000 مستخدم نشط يومياً.
-2. **جمع التعليقات (Feedback):** راقب استخدام الأدوات المجانية (كـ ML Kit).
-3. **تفعيل الـ Monetization:** بعد بناء ولاء المستخدمين، ابدأ بتقديم اشتراك Norm، ثم تباعاً قدم Pro عندما تصل الأدوات المعقدة (God Mode) لمرحلة نضج (Stable) عالية الموثوقية.
+### Historical revenue illustration
+
+For a hypothetical 100,000 active Lite users after one year:
+
+- 7% Lite→Norm conversion: 7,000 × $4.99 = $34,930/month.
+- 15% of those Norm users upgrading to Pro: 1,050 × $14.99 = $15,739.50/month before accounting for replaced Norm subscriptions.
+- Five OEM base licenses: 5 × $499 = $2,495/month.
+
+The original additive illustration was approximately $53,164/month, or $638,000/year. It omits upgrades replacing existing subscriptions, fees, taxes, churn, support, annual plans and bespoke OEM work, so it is not a financial forecast.
+
+### Historical launch recommendation
+
+Start with a stable Lite release and a proposed goal of 10,000 daily active users. Learn from feature usage and feedback, then assess Norm subscriptions and introduce Pro only after advanced workflows are reliable. The conversion target of 5–10% for Norm remains a hypothesis requiring validation.

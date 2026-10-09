@@ -900,7 +900,7 @@ ACTIONS:
         if (sessions.size >= MAX_SESSIONS) return ToolExecutionResult(
             "Maximum $MAX_SESSIONS tabs reached. Close a tab explicitly before opening another.", true)
         if (incognito && !withContext(Dispatchers.Main) { WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE) && WebViewFeature.isFeatureSupported(WebViewFeature.DELETE_BROWSING_DATA) }) {
-            val error = "حدّث Android System WebView لاستخدام التخفي المعزول على الجهاز ده."
+            val error = "Update Android System WebView to use isolated incognito browsing on this device."
             _browserError.value = error
             return ToolExecutionResult(error, true)
         }

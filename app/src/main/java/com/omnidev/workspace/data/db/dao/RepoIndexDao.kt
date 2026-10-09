@@ -7,10 +7,7 @@ import androidx.room.Query
 import com.omnidev.workspace.data.db.entities.RepoFileIndexEntry
 import com.omnidev.workspace.data.db.entities.RepoSymbolEntry
 
-/**
- * DAO موحَّد لـ Live Repository Context Engine — يدير سجلات الملفات والرموز.
- * كل العمليات scope-aware لدعم تعدد المشاريع المتزامنة.
- */
+/** Scope-aware DAO for repository files and symbols, supporting concurrent projects. */
 @Dao
 interface RepoIndexDao {
 
@@ -54,7 +51,7 @@ interface RepoIndexDao {
     @Query("DELETE FROM repo_symbols WHERE scopePath = :scope")
     suspend fun clearSymbolsForScope(scope: String)
 
-    /** Fuzzy LIKE-based search (يلائم الأجهزة الضعيفة، لا حاجة لـ FTS). */
+    /** Fuzzy LIKE-based search without an FTS dependency. */
     @Query("""
         SELECT * FROM repo_symbols
         WHERE scopePath = :scope
@@ -100,7 +97,7 @@ interface RepoIndexDao {
     @Query("SELECT COUNT(*) FROM repo_symbols WHERE scopePath = :scope")
     suspend fun countSymbols(scope: String): Int
 
-    /** LRU eviction للرموز الأقدم — حماية ميزانية 5000 رمز/scope. */
+    /** Evict the oldest symbols to enforce the 5000-symbol budget per scope. */
     @Query("""
         DELETE FROM repo_symbols
         WHERE id IN (

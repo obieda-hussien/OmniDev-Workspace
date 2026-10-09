@@ -18,6 +18,9 @@ DOCUMENTS = [
     '.github/PULL_REQUEST_TEMPLATE.md',
     'docs/REPOSITORY_STATS.md', 'docs/REPOSITORY_SECURITY.md',
     'docs/PROFILE_PERSONALIZATION.md', 'docs/chat-mentions.md', 'docs/virtual-companion.md',
+    'docs/PROJECT_FILES.md', 'docs/TOOL_AND_SKILL_CATALOG.md', 'docs/MCP_DEFAULT_SERVICES.md',
+    'DECISION_ENGINE.md', 'MENTAL_MAP.md', 'PROJECT_ARCHITECTURE.md',
+    'MODULARIZATION_ROADMAP.md', 'OMNIDEV_VISION_AND_ROADMAP.md',
 ]
 
 

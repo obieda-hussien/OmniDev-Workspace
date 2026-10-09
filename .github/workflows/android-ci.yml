@@ -39,6 +39,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Validate English project text and tool/skill catalog
+        run: python3 scripts/check_project_language.py
+
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:

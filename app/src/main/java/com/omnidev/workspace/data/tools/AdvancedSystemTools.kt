@@ -323,7 +323,7 @@ object SmsReaderTool {
             description =
                 "Read/search device SMS with bounded results. Prefer this over raw content-query shell. " +
                     "Use latest_search with sender + query when one newest matching message is enough " +
-                    "(for example sender=OrangeCash, query=رصيدك الحالي). " +
+                    "(for example sender=OrangeCash, query=current balance). " +
                     "Uses READ_SMS when available and automatically falls back to authorized Shizuku.",
             parameters = listOf(
                 ToolParameter("action", "string", "Action: read_inbox, read_sent, search, latest_search.", required = true),

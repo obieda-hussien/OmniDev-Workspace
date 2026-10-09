@@ -15,16 +15,7 @@ import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.zip.ZipFile
 
-/**
- * Advanced Security Analyzer - نظام التحليل الأمني المتقدم
- * 
- * يوفر:
- * - تحليل ثغرات التطبيقات
- * - فحص الأذونات الخطرة
- * - كشف البرمجيات الخبيثة
- * - تحليل الشبكة والاتصالات
- * - مراقبة سلوك التطبيقات
- */
+/** AdvancedSecurityAnalyzer inspects application vulnerabilities, dangerous permissions, malware indicators, network connections and application behavior. */
 object AdvancedSecurityAnalyzer {
 
     private val json = Json { 

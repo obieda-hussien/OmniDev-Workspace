@@ -27,14 +27,14 @@ class OmniScreenCaptureService : Service() {
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
     
-    // متغير لحفظ أحدث لقطة شاشة للوكيل
+    // Latest screenshot for the agent.
     private var latestBitmap: Bitmap? = null
 
     companion object {
         const val CHANNEL_ID = "ScreenCaptureServiceChannel"
         const val NOTIFICATION_ID = 1001
         
-        // مفاتيح الـ Intent
+        // Intent keys.
         const val EXTRA_RESULT_CODE = "EXTRA_RESULT_CODE"
         const val EXTRA_RESULT_DATA = "EXTRA_RESULT_DATA"
     }
@@ -51,15 +51,15 @@ class OmniScreenCaptureService : Service() {
         createNotificationChannel()
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Omni Agent Vision")
-            .setContentText("الوكيل الذكي يحلل الشاشة الآن...")
-            //.setSmallIcon(R.mipmap.ic_launcher) // تأكد من تغيير هذا للأيقونة الخاصة بك
+            .setContentText("The agent is analyzing the screen...")
+            // .setSmallIcon(R.mipmap.ic_launcher) // Replace with the application's notification icon.
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
-        // يجب تشغيل الخدمة في الأمام لأنها Media Projection (إجباري في أندرويد 14+)
+        // Media projection requires a foreground service, including on Android 14 and later.
         startForeground(NOTIFICATION_ID, notification)
 
-        // استلام بيانات الصلاحية من الـ Activity
+        // Receive permission result data from the activity.
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
         val resultData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent?.getParcelableExtra(EXTRA_RESULT_DATA, Intent::class.java)
@@ -84,7 +84,7 @@ class OmniScreenCaptureService : Service() {
         val height = metrics.heightPixels
         val density = metrics.densityDpi
 
-        // إنشاء ImageReader لاستقبال الفريمات كصور
+        // Create an ImageReader for captured frames.
         imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
         
         virtualDisplay = mediaProjection?.createVirtualDisplay(
@@ -94,7 +94,7 @@ class OmniScreenCaptureService : Service() {
             imageReader?.surface, null, null
         )
 
-        // مستمع لالتقاط الصور كلما تغيرت الشاشة
+        // Capture images when the screen changes.
         imageReader?.setOnImageAvailableListener({ reader ->
             val image = reader.acquireLatestImage()
             if (image != null) {
@@ -107,11 +107,11 @@ class OmniScreenCaptureService : Service() {
                 val rowStride = planes[0].rowStride
                 val rowPadding = rowStride - pixelStride * width
 
-                // تحويل الفريم إلى Bitmap ليقوم الوكيل بتحليله
+                // Convert the frame to a Bitmap for agent analysis.
                 val bitmap = Bitmap.createBitmap(width + rowPadding / pixelStride, height, Bitmap.Config.ARGB_8888)
                 bitmap.copyPixelsFromBuffer(buffer)
                 
-                // حفظ آخر لقطة (مع قص الحواف الزائدة)
+                // Store the latest image after cropping padding.
                 latestBitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height)
                 
                 image.close()
@@ -119,7 +119,7 @@ class OmniScreenCaptureService : Service() {
         }, null)
     }
 
-    // دالة يستخدمها الوكيل الذكي (AI) للحصول على أحدث صورة للشاشة فوراً
+    // Return the latest screen image to the agent immediately.
     fun getLatestFrame(): Bitmap? {
         if (com.omnidev.workspace.data.admin.DeviceAccessGuard.check(this, screenshot = true) != null) {
             latestBitmap = null; return null
@@ -128,7 +128,7 @@ class OmniScreenCaptureService : Service() {
     }
 
     private fun createNotificationChannel() {
-        // التأكد من أن إصدار الأندرويد 8.0 (API 26) أو أحدث
+        // Require Android 8.0 (API 26) or later.
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             val serviceChannel = NotificationChannel(
                 CHANNEL_ID,

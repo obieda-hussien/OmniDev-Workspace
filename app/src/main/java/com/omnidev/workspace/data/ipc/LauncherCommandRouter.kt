@@ -52,7 +52,7 @@ class LauncherCommandRouter(
     private val memoryManager = MemoryManager(database.knowledgeDao())
     private val completionService = CompletionService(settingsRepository)
     private val fileToolManager = FileToolManager()
-    // ── Agent Brain 2.0: مراجع المحركات المُهيَّأة في OmniDevApp ──
+    // Agent Brain 2.0: engine references initialized by OmniDevApp.
     private val omniApp = com.omnidev.workspace.OmniDevApp.instance
     private val agentBrainTools = AgentBrainTools(
         reflexion = omniApp.reflexionEngine,

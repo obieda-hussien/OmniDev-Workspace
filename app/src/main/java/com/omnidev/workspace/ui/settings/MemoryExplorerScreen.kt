@@ -98,6 +98,19 @@ fun MemoryExplorerScreen(knowledgeDao: KnowledgeDao, onNavigateBack: () -> Unit)
                 Text("Review the facts, preferences and project rules your assistant can use.", style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            item {
+                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Memory summary", style = MaterialTheme.typography.titleMedium)
+                        Text("${snippets.size} saved entries across ${categories.size} categories. This summary comes from saved entries; it does not infer new personal facts.", style = MaterialTheme.typography.bodySmall)
+                        categories.forEach { (name, count) -> Text("${prettyCategory(name)} · $count", style = MaterialTheme.typography.labelLarge) }
+                        snippets.filter { it.category == "user_preference" }.take(3).forEach { entry ->
+                            Text("[${entry.id}] ${entry.content.take(240)}", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text("Search, read, edit or delete the source entries below. Profile details are managed separately in Your profile.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
             item { SettingsSearchField(query, { query = it }, "Search memories, tags or categories") }
             item {
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
