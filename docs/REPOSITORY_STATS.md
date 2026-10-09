@@ -1,22 +1,22 @@
 # Repository statistics
 
-Snapshot commit: `211149522fd3545e93e4690c0139d82eaed3762a`.
+Snapshot commit: `30f577de0717a8c4fb5c6ec72802ebed396a2a20`.
 
 | Metric | Count |
 | --- | ---: |
-| Tracked files | 803 |
-| UTF-8 text files | 791 |
+| Tracked files | 807 |
+| UTF-8 text files | 795 |
 | Binary/non-UTF-8 files | 12 |
 | Symbolic links | 0 |
-| Total tracked blob bytes | 6,906,422 |
-| Physical text lines | 132,409 |
-| Nonblank text lines | 119,136 |
-| Source/script files | 665 |
-| Source/script physical lines | 123,409 |
-| App Kotlin files (including tests) | 634 |
-| App Kotlin physical lines (including tests) | 119,735 |
-| Test source files | 156 |
-| Test source physical lines | 12,551 |
+| Total tracked blob bytes | 6,921,356 |
+| Physical text lines | 132,701 |
+| Nonblank text lines | 119,409 |
+| Source/script files | 669 |
+| Source/script physical lines | 123,693 |
+| App Kotlin files (including tests) | 638 |
+| App Kotlin physical lines (including tests) | 120,019 |
+| Test source files | 158 |
+| Test source physical lines | 12,752 |
 
 ## Text breakdown
 
@@ -26,9 +26,9 @@ Snapshot commit: `211149522fd3545e93e4690c0139d82eaed3762a`.
 | JSON | 5 | 436 | 436 | 17,239 |
 | Java | 1 | 8 | 8 | 353 |
 | JavaScript | 3 | 284 | 268 | 12,552 |
-| Kotlin | 634 | 119,735 | 108,939 | 5,878,357 |
+| Kotlin | 638 | 120,019 | 109,208 | 5,891,436 |
 | Kotlin build scripts | 3 | 526 | 471 | 23,075 |
-| Markdown | 64 | 5,266 | 3,622 | 553,859 |
+| Markdown | 64 | 5,274 | 3,626 | 555,714 |
 | Other text | 22 | 705 | 617 | 30,978 |
 | Properties | 2 | 37 | 32 | 1,724 |
 | Python | 14 | 1,702 | 1,482 | 74,359 |
@@ -48,7 +48,7 @@ This report remains tied to the exact commit above; it is not a live size badge.
 Reproduce this snapshot:
 
 ```sh
-python3 scripts/repository_stats.py --ref 211149522fd3545e93e4690c0139d82eaed3762a --format markdown
+python3 scripts/repository_stats.py --ref 30f577de0717a8c4fb5c6ec72802ebed396a2a20 --format markdown
 ```
 
 Count the currently checked-out commit:
