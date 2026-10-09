@@ -9,6 +9,22 @@ import org.junit.Test
 
 class AgentPromptCompilerTest {
 
+    @Test fun `long profile cannot truncate explicit tool focus or the end of a selected skill`() {
+        val skill = "Reviewed skill step. ".repeat(700) + "FINAL_SKILL_REQUIREMENT"
+        val prompt = AgentPromptCompiler.compile(
+            tier = ModelTier.EXECUTOR, scopePath = "/workspace", baseOverride = null,
+            workerPersona = null, userContext = "PROFILE ".repeat(1000), memoryContext = null,
+            brainContext = null, toolDefinitions = emptyList(), toolAccessMode = "ON_DEMAND",
+            enableDeepThinking = false, supportsThinking = true,
+            mentionContext = "Prioritize mentioned tool github_manager; discover supporting tools when needed.",
+            selectedSkillContext = skill
+        )
+        assertTrue(prompt.contains(skill))
+        assertTrue(prompt.contains("Prioritize mentioned tool github_manager"))
+        assertFalse(prompt.contains("PROFILE ".repeat(300)))
+        assertTrue(prompt.indexOf("FINAL_SKILL_REQUIREMENT") < prompt.indexOf("USER CONTEXT"))
+    }
+
     private val verboseTool = ToolDefinition(
         name = "read_file_lines",
         description = "Read a precise line range from a project file. " + "detail ".repeat(100),

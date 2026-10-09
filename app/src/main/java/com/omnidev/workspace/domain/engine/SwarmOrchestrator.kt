@@ -111,7 +111,7 @@ Synthesize specialist evidence into the answer to the original request.
         toolAccessMode: String = "ON_DEMAND",
         userContext: String = ""
     ): Flow<SwarmEvent> = channelFlow {
-        val focusContext = userContext.take(1500) + "\n" + try {
+        val focusContext = try {
             if (mentionFocus.tools.isNotEmpty()) {
                 val local = if (toolAccessMode == "DISABLED") emptyList() else toolManager.getToolDefinitions().filter { it.name !in disabledToolNames }
                 val connected = if (toolAccessMode != "DISABLED" && mentionFocus.tools.any { name -> local.none { it.name == name } })
@@ -134,7 +134,8 @@ Synthesize specialist evidence into the answer to the original request.
             try {
                 executeAttempt(objective + evidence.context(), orchestratorModelId, workerModelId,
                     scopePath, enableDeepThinking, godModeEnabled, steering, revision,
-                    teamStartedAt, observedTeamTokens, mentionFocus, disabledToolNames, toolAccessMode, focusContext).collect { event ->
+                    teamStartedAt, observedTeamTokens, mentionFocus, disabledToolNames, toolAccessMode,
+                    focusContext, userContext.take(1500)).collect { event ->
                     evidence.record(event)
                     send(event)
                 }
@@ -161,7 +162,8 @@ Synthesize specialist evidence into the answer to the original request.
         mentionFocus: MentionFocus,
         disabledToolNames: Set<String>,
         toolAccessMode: String,
-        focusContext: String
+        focusContext: String,
+        profileContext: String
     ): Flow<SwarmEvent> = channelFlow {
         steering?.check(revision)
         if (observedTeamTokens.get() >= TEAM_TOTAL_TOKEN_HARD_LIMIT - SYNTHESIS_TOKEN_RESERVE) {
@@ -182,6 +184,7 @@ Synthesize specialist evidence into the answer to the original request.
                 appendLine(ORCHESTRATOR_SYSTEM_PROMPT.trimIndent())
                 appendLine(mentionFocus.prompt())
                 appendLine(focusContext)
+                appendLine(profileContext)
                 appendLine("RUNTIME CLOCK: $runtimeClock")
                 if (godModeEnabled) {
                     appendLine("God Mode flag is enabled, but actual privilege still depends on runtime tool evidence.")
@@ -330,7 +333,7 @@ Synthesize specialist evidence into the answer to the original request.
                     scopePath = scopePath,
                     enableDeepThinking = enableDeepThinking,
                     workerPersona = task.requiredPersona.takeIf(String::isNotBlank),
-                    userContext = focusContext.take(1500),
+                    userContext = profileContext,
                     toolAccessMode = toolAccessMode,
                     disabledToolNames = disabledToolNames,
                     mentionFocus = mentionFocus,
@@ -487,7 +490,8 @@ Synthesize specialist evidence into the answer to the original request.
                 scopePath = scopePath,
                 enableThinking = enableDeepThinking && orchestratorModel.supportsThinking,
                 observedTokens = observedTeamTokens,
-                profileContext = focusContext.take(1500),
+                profileContext = profileContext,
+                selectedSkillContext = focusContext,
                 onStart = { send(SwarmEvent.SynthesisStarted) }
             ) ?: deterministicEvidenceSummary(completed, failed, skipped)
         }
@@ -614,6 +618,7 @@ Synthesize specialist evidence into the answer to the original request.
         enableThinking: Boolean,
         observedTokens: AtomicInteger,
         profileContext: String,
+        selectedSkillContext: String,
         onStart: suspend () -> Unit
     ): String? {
         val evidence = buildSynthesisContext(completed, failed, skipped)
@@ -624,7 +629,7 @@ Synthesize specialist evidence into the answer to the original request.
                 ChatMessage(MessageRole.ASSISTANT, "Team evidence:\n$evidence"),
                 ChatMessage(MessageRole.USER, "Produce the final answer from the evidence above.")
             ),
-            systemPrompt = SYNTHESIS_PROMPT.trimIndent() + "\n" + profileContext,
+            systemPrompt = SYNTHESIS_PROMPT.trimIndent() + "\n" + selectedSkillContext + "\n" + profileContext,
             maxTokens = minOf(modelMaxOutput, SYNTHESIS_MAX_OUTPUT_TOKENS),
             enableThinking = enableThinking,
             targetContext = scopePath,

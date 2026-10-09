@@ -18,3 +18,5 @@ You can combine up to 12 tools and 4 installed skills in one message:
 ## CI dependency recovery
 
 The reported API 30 job failed while resolving four existing Maven runtime jars, before UI tests started. CI now retries recognized dependency download failures up to three attempts, refreshing Gradle dependency metadata on retry. Compiler and test failures retain their original exit status and are not retried. The wrapper does not delete caches, change dependency versions, add mirrors, or skip checks.
+
+Mentioned skill bodies have their own bounded prompt section in Agent/Team workers. Profile context cannot consume that budget; Team planning and final synthesis also keep selected skill guidance separate from profile preferences.

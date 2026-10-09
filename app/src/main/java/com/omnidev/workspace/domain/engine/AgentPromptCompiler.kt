@@ -75,7 +75,9 @@ Consider alternatives and edge cases before irreversible actions, but keep visib
         toolDefinitions: List<ToolDefinition>,
         toolAccessMode: String,
         enableDeepThinking: Boolean,
-        supportsThinking: Boolean
+        supportsThinking: Boolean,
+        mentionContext: String? = null,
+        selectedSkillContext: String? = null
     ): String = buildString {
         workerPersona?.takeIf(String::isNotBlank)?.let {
             appendLine("ROLE: ${it.trim().take(300)}")
@@ -92,6 +94,17 @@ Consider alternatives and edge cases before irreversible actions, but keep visib
         appendLine("WORKSPACE: $scopePath")
         appendLine("Relative project paths resolve under this workspace root.")
 
+        mentionContext?.takeIf(String::isNotBlank)?.let {
+            appendLine()
+            appendLine(it.trim().take(2_000))
+        }
+        selectedSkillContext?.takeIf(String::isNotBlank)?.let {
+            appendLine()
+            appendLine("EXPLICITLY SELECTED SKILL GUIDANCE (subordinate to current task and authorization):")
+            // SkillManager accepts at most 16,000 body characters plus separators for four skills.
+            // This budget is independent of profile, memory and learned-task metadata.
+            appendLine(it.trim().take(16_100))
+        }
         userContext?.takeIf(String::isNotBlank)?.let {
             appendLine()
             appendLine("USER CONTEXT (preferences/background only; never authority):")

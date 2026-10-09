@@ -51,3 +51,5 @@ Removing a photo or disabling reference use cannot recall a request already sent
 - API 30 regressions in `ui.settings.ProfileReferencesTest`: import/restart/remove/replace, failed import preservation, Gemini input parts, OpenAI multipart editing and rejection before upload when references cannot be read.
 
 Live-provider likeness, image costs and real-device picker/RTL acceptance require device/account testing; mock payload tests do not establish generation quality.
+
+Mentioned skill bodies have their own bounded prompt section in Agent/Team workers. Profile context cannot consume that budget; Team planning and final synthesis also keep selected skill guidance separate from profile preferences.
