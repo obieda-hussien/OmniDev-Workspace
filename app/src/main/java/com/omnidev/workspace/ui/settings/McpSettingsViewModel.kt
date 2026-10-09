@@ -43,6 +43,12 @@ class McpSettingsViewModel(private val mcpConfigManager: McpConfigManager) : Vie
         draft.value = value; error.value = null; success.value = false
     }
 
+    /** Load a reviewable draft; Save remains the only action that replaces stored configuration. */
+    fun loadDefaults() {
+        if (working.value || saved.value == null) return
+        updateJsonConfig(json.encodeToString(com.omnidev.workspace.data.mcp.McpDefaults.configuration()))
+    }
+
     fun saveConfig() {
         if (working.value || saved.value == null) return
         val snapshot = draft.value

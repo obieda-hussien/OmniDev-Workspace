@@ -5,15 +5,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/**
- * ToolExecutionEntry — سجل تنفيذ الأداة الدائم
- *
- * يحفظ كل عملية تنفيذ أداة بكافة تفاصيلها لضمان:
- * - الذاكرة الكاملة عبر الجلسات
- * - التعلم من الأخطاء والنجاحات
- * - التشخيص الذاتي والتحسين
- * - الوعي الكامل بتاريخ استخدام الأدوات
- */
+/** Persistent tool-execution record supporting cross-session history, learning from outcomes and execution diagnostics. */
 @Entity(
     tableName = "tool_execution_log",
     indices = [
@@ -25,67 +17,67 @@ import androidx.room.PrimaryKey
 data class ToolExecutionEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
 
-    /** اسم الأداة المُستخدمة */
+    /** Tool name. */
     val toolName: String,
 
-    /** المعاملات كـ JSON string */
+    /** Arguments as a JSON string. */
     @ColumnInfo(defaultValue = "'{}'")
     val parametersJson: String = "{}",
 
-    /** نتيجة التنفيذ (مقتطع لتوفير المساحة) */
+    /** Execution result, truncated to bound storage. */
     @ColumnInfo(defaultValue = "''")
     val resultSummary: String = "",
 
-    /** هل نجح التنفيذ؟ */
+    /** Whether execution succeeded. */
     val success: Boolean,
 
-    /** وقت التنفيذ بالميلي ثانية */
+    /** Execution time in milliseconds. */
     val executionTimeMs: Long,
 
-    /** حجم النتيجة بالأحرف */
+    /** Result length in characters. */
     @ColumnInfo(defaultValue = "0")
     val resultSize: Int = 0,
 
-    /** السياق: ماذا كان الـ Agent يحاول فعله */
+    /** Context describing the agent's intended task. */
     @ColumnInfo(defaultValue = "''")
     val agentContext: String = "",
 
-    /** الأداة السابقة في نفس الجلسة */
+    /** Previous tool in the same session. */
     @ColumnInfo(defaultValue = "''")
     val previousToolName: String = "",
 
-    /** رقم الجلسة */
+    /** Session identifier. */
     @ColumnInfo(defaultValue = "''")
     val sessionId: String = "",
 
-    /** وضع التشغيل (DEVELOPER, RESEARCHER, etc.) */
+    /** Operating mode (DEVELOPER, RESEARCHER, etc.). */
     @ColumnInfo(defaultValue = "''")
     val agentMode: String = "",
 
-    /** رسالة الخطأ إذا فشل التنفيذ */
+    /** Error message when execution fails. */
     @ColumnInfo(defaultValue = "''")
     val errorMessage: String = "",
 
-    /** تقييم جودة النتيجة (0.0 - 1.0) */
+    /** Result quality score (0.0-1.0). */
     @ColumnInfo(defaultValue = "0.5")
     val resultQuality: Float = 0.5f,
 
-    /** الوقت من اليوم (0-23) */
+    /** Hour of day (0-23). */
     @ColumnInfo(defaultValue = "0")
     val hourOfDay: Int = 0,
 
-    /** يوم الأسبوع (1-7) */
+    /** Day of week (1-7). */
     @ColumnInfo(defaultValue = "1")
     val dayOfWeek: Int = 1,
 
-    /** ملاحظات التعلم الذاتي */
+    /** Learning notes. */
     @ColumnInfo(defaultValue = "''")
     val learningNote: String = "",
 
-    /** هل تم وضع علامة للمراجعة؟ */
+    /** Whether the record is flagged for review. */
     @ColumnInfo(defaultValue = "0")
     val flaggedForReview: Boolean = false,
 
-    /** الطابع الزمني */
+    /** Timestamp. */
     val timestamp: Long = System.currentTimeMillis()
 )

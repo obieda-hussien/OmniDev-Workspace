@@ -4,23 +4,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/**
- * BuildDiagnosticEntry — تشخيص خطأ بناء (Build Doctor Pro / Brain 2.0).
- *
- * كل سجل يجمع:
- *   - بصمة الخطأ (fingerprint) للكشف عن نفس الخطأ المتكرر
- *   - تصنيف (compile / link / dependency / resource / runtime / config)
- *   - حل ناجح سابق (مضغوط Deflate) لإعادة استخدامه
- *   - إحصاءات نجاح/فشل لتقييم الحلول
- *
- * Mobile-first:
- * - 500 سجل كحد أقصى مع LRU eviction
- * - solutionDiff مضغوط بـ Deflate (~70% توفير)
- *
- * @property errorFingerprint MD5(message normalized) — للبحث السريع عن خطأ نفسه
- * @property occurrenceCount كم مرة شُوهد هذا الخطأ
- * @property successfulFixCount كم مرة نجح الحل المخزن في إصلاحه
- */
+/** BuildDiagnosticEntry stores a normalized-message fingerprint, error category, Deflate-compressed solution diff and success/failure statistics. Limited to 500 records with LRU eviction. errorFingerprint is MD5 of the normalized message; occurrenceCount tracks sightings and successfulFixCount tracks successful reuse. */
 @Entity(
     tableName = "build_diagnostics",
     indices = [

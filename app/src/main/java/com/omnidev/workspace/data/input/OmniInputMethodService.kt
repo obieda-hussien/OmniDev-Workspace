@@ -15,31 +15,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.LinkedList
 
-/**
- * OmniInputMethodService — لوحة المفاتيح الذكية المتقدمة
- *
- * الجيل الثاني: ذكاء سياقي وأمان متقدم
- * ─────────────────────────────────────────────────────────────────────────────
- * 1. **كشف السياق الذكي (Context Detection)**:
- *    يُحلّل معلومات EditorInfo لتصنيف نوع الحقل تلقائياً:
- *    PASSWORD, EMAIL, SEARCH, PHONE, MULTILINE, CHAT, URL, etc.
- *    يُرسل السياق للوكيل قبل أي تفاعل.
- *
- * 2. **ذاكرة الـ Clipboard الذكية (Smart Clipboard)**:
- *    يحفظ آخر 10 نصوص نُسخت (غير كلمات المرور).
- *    يُتيح للوكيل قراءتها وإدارتها.
- *
- * 3. **تحليل أنماط الإدخال (Input Pattern Analysis)**:
- *    يتتبع وتيرة الكتابة، عدد التصحيحات، اللغة المستخدمة.
- *    يُرسل "keystroke analytics" للوكيل.
- *
- * 4. **حقن نص متقدم (Advanced Text Injection)**:
- *    commitText مع دعم selection، cursor placement، و markdown injection.
- *
- * 5. **أمان: منع تسريب كلمات المرور**:
- *    حقول PASSWORD لا تُرسل أحداث النص أبداً.
- *    الـ analytics تُخفّف تلقائياً لهذه الحقول.
- */
+/** OmniInputMethodService classifies EditorInfo fields (password, email, search, phone, multiline, chat and URL), maintains up to 10 clipboard entries, tracks input patterns and supports selection-aware text injection and templates. Password fields suppress text events and reduce analytics to avoid disclosure. */
 class OmniInputMethodService : InputMethodService() {
 
     companion object {
@@ -61,19 +37,17 @@ class OmniInputMethodService : InputMethodService() {
         private val _inputAnalytics = MutableStateFlow(InputAnalytics())
         val inputAnalytics: StateFlow<InputAnalytics> = _inputAnalytics.asStateFlow()
 
-        /** تاريخ الـ Clipboard: أحدث النصوص أولاً */
+        /** Clipboard history, newest entries first. */
         private val clipboardHistory = LinkedList<ClipboardEntry>()
 
         @Volatile
         private var activeService: OmniInputMethodService? = null
 
         // ─────────────────────────────────────────────────────────────────────
-        // API العام
+        // Public API.
         // ─────────────────────────────────────────────────────────────────────
 
-        /**
-         * يُدخل نصاً في الحقل الحالي مع خيارات متقدمة.
-         */
+        /** Insert text into the current field with selection and cursor options. */
         fun commitText(
             text: String,
             moveCursorToEnd: Boolean = true,
@@ -84,7 +58,7 @@ class OmniInputMethodService : InputMethodService() {
                 val ic = service.currentInputConnection ?: return false
 
                 if (replaceSelection) {
-                    // استبدال النص المحدد
+                    // Replace selected text.
                     ic.beginBatchEdit()
                     ic.commitText(text, if (moveCursorToEnd) 1 else 0)
                     ic.endBatchEdit()
@@ -92,19 +66,17 @@ class OmniInputMethodService : InputMethodService() {
                     ic.commitText(text, if (moveCursorToEnd) 1 else 0)
                 }
 
-                // تحديث الـ analytics
+                // Update analytics.
                 updateAnalyticsOnCommit(text)
                 Log.d(TAG, "✅ commitText: ${text.take(30)}")
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "❌ فشل commitText: ${e.message}")
+                Log.e(TAG, "❌ commitText failed: ${e.message}")
                 false
             }
         }
 
-        /**
-         * [جديد] يُدخل نصاً ثم يُضيف محاطاً بـ wrapper (مثل: bold = "**text**").
-         */
+        /** Insert wrapped text, for example **text** for bold formatting. */
         fun commitWrappedText(
             innerText: String,
             prefix: String,
@@ -113,10 +85,7 @@ class OmniInputMethodService : InputMethodService() {
             return commitText("$prefix$innerText$suffix")
         }
 
-        /**
-         * [جديد] يُدخل قالباً مع مؤشر ($cursor) ويُحرك الـ cursor للموضع المحدد.
-         * مثال: insertTemplate("```\n$cursor\n```") يُدخل كود block ويضع المؤشر داخله.
-         */
+        /** Insert a template containing a $cursor marker and move the caret to that marker, for example inside a fenced code block. */
         fun insertTemplate(template: String, cursorPlaceholder: String = "\$cursor"): Boolean {
             val service = activeService ?: return false
             val ic = service.currentInputConnection ?: return false
@@ -128,7 +97,7 @@ class OmniInputMethodService : InputMethodService() {
                     val before = template.substring(0, cursorIndex)
                     val after = template.substring(cursorIndex + cursorPlaceholder.length)
                     ic.commitText(before + after, 1)
-                    // نرجّع المؤشر لموضع $cursor
+                    // Move the caret back to the $cursor marker.
                     if (after.isNotEmpty()) {
                         ic.setSelection(
                             ic.getTextBeforeCursor(after.length + before.length, 0)?.length?.minus(after.length) ?: 0,
@@ -138,7 +107,7 @@ class OmniInputMethodService : InputMethodService() {
                 }
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "insertTemplate فشل: ${e.message}")
+                Log.e(TAG, "insertTemplate failed: ${e.message}")
                 false
             }
         }
@@ -168,46 +137,40 @@ class OmniInputMethodService : InputMethodService() {
         fun getTextAfterCursor(length: Int = 100): String? =
             activeService?.currentInputConnection?.getTextAfterCursor(length, 0)?.toString()
 
-        /**
-         * [جديد] يُرجع السياق الكامل للحقل الحالي.
-         */
+        /** Return the complete context of the current input field. */
         fun getFullFieldContext(): String = buildString {
             val context = _currentFieldContext.value
-            if (context == null) { append("لا يوجد حقل نشط"); return@buildString }
+            if (context == null) { append("No active input field"); return@buildString }
 
-            append("📝 سياق الحقل:\n")
-            append("النوع: ${context.fieldType.name}\n")
-            append("التطبيق: ${context.packageName}\n")
-            append("hint: ${context.hint ?: "(لا يوجد)"}\n")
-            append("كلمة مرور: ${if (context.isPassword) "نعم 🔒" else "لا"}\n")
-            append("متعدد الأسطر: ${context.isMultiline}\n")
+            append("📝 Field context:\n")
+            append("Type: ${context.fieldType.name}\n")
+            append("App: ${context.packageName}\n")
+            append("hint: ${context.hint ?: "(none)"}\n")
+            append("Password: ${if (context.isPassword) "yes 🔒" else "no"}\n")
+            append("Multiline: ${context.isMultiline}\n")
 
             val textBefore = getTextBeforeCursor(MAX_FIELD_CONTEXT_CHARS)
             if (!textBefore.isNullOrEmpty()) {
-                append("النص الحالي (آخر ${textBefore.length} حرف): \"${textBefore.takeLast(80)}\"")
+                append("Current text (last ${textBefore.length} characters): \"${textBefore.takeLast(80)}\"")
             }
         }
 
-        /**
-         * [جديد] يُضيف نصاً لتاريخ الـ Clipboard (للاستخدام من الوكيل).
-         */
+        /** Add text to clipboard history for agent use. */
         fun addToClipboardHistory(text: String, label: String = "Agent") {
-            if (text.length > 2000) return // تجنب النصوص الضخمة
+            if (text.length > 2000) return // Avoid oversized text entries.
             val entry = ClipboardEntry(text, label, System.currentTimeMillis())
             synchronized(clipboardHistory) {
-                if (clipboardHistory.firstOrNull()?.text == text) return // تجنب التكرار
+                if (clipboardHistory.firstOrNull()?.text == text) return // Avoid duplicate entries.
                 clipboardHistory.addFirst(entry)
                 if (clipboardHistory.size > MAX_CLIPBOARD_HISTORY) clipboardHistory.removeLast()
             }
         }
 
-        /**
-         * [جديد] يُرجع تاريخ الـ Clipboard للوكيل.
-         */
+        /** Return clipboard history to the agent. */
         fun getClipboardHistory(): String = buildString {
             val history = synchronized(clipboardHistory) { clipboardHistory.toList() }
-            if (history.isEmpty()) { append("تاريخ الـ Clipboard فارغ"); return@buildString }
-            append("📋 تاريخ الـ Clipboard (آخر ${history.size}):\n")
+            if (history.isEmpty()) { append("Clipboard history is empty"); return@buildString }
+            append("📋 Clipboard history (last ${history.size}):\n")
             history.forEachIndexed { i, entry ->
                 append("${i + 1}. [${entry.label}] ${entry.text.take(60)}\n")
             }
@@ -240,14 +203,14 @@ class OmniInputMethodService : InputMethodService() {
         super.onCreate()
         activeService = this
         _isActive.value = true
-        Log.i(TAG, "✅ OmniDev IME بدأت")
+        Log.i(TAG, "✅ OmniDev IME started")
     }
 
     override fun onDestroy() {
         activeService = null
         _isActive.value = false
         _currentFieldContext.value = null
-        Log.i(TAG, "OmniDev IME أوقفت")
+        Log.i(TAG, "OmniDev IME stopped")
         super.onDestroy()
     }
 
@@ -257,20 +220,20 @@ class OmniInputMethodService : InputMethodService() {
         super.onStartInput(attribute, restarting)
         attribute ?: return
 
-        // بناء سياق الحقل بالكامل
+        // Build complete field context.
         val context = buildFieldContext(attribute)
         _currentFieldContext.value = context
 
-        // تحديث الـ analytics
+        // Update analytics.
         val current = _inputAnalytics.value
         _inputAnalytics.value = current.copy(
             fieldSwitchCount = current.fieldSwitchCount + 1,
             currentFieldType = context.fieldType
         )
 
-        Log.d(TAG, "بدأ إدخال — ${context.fieldType.name} في ${context.packageName}")
+        Log.d(TAG, "Input started: ${context.fieldType.name} in ${context.packageName}")
 
-        // بث حدث تغيير الحقل للوكيل
+        // Emit a field-change event for the agent.
         _textInputFlow.tryEmit(
             TextInputEvent(
                 text = "",
@@ -302,7 +265,7 @@ class OmniInputMethodService : InputMethodService() {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
 
         val context = _currentFieldContext.value ?: return
-        // لا تُرسل أحداث لحقول كلمة المرور
+        // Do not send events for password fields.
         if (context.isPassword) return
 
         if (newSelStart > oldSelStart) {
@@ -320,7 +283,7 @@ class OmniInputMethodService : InputMethodService() {
                                 fieldContext = context
                             )
                         )
-                        // تحديث analytics
+                        // Update analytics.
                         val current = _inputAnalytics.value
                         _inputAnalytics.value = current.copy(
                             totalCharsTyped = current.totalCharsTyped + newText.length,

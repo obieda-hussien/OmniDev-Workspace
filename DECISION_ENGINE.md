@@ -1,62 +1,62 @@
-# محرك القرار والتعلم المحلي في OmniDev
+# OmniDev decision engine and local learning
 
-> وصف محرك القرار والتعلم من نتائج التشغيل. التوصية والتحكم في السماح مساران منفصلان؛ قياس الدقة والكلفة يحتاج مهامًا ممثلة ونتائج متحققة.
+> Routing recommendations and permission to switch modes are separate. Accuracy and cost claims require representative tasks and verified outcomes.
 
-## سلسلة القرار
+## Decision flow
 
-اختيار الأداة يمر الآن بكتالوج محلي محدود وتحميل عند الحاجة، ثم تحقق ملزم قبل التنفيذ، مع قيود فعلية على وكلاء القراءة واسترداد متسلسل عند الحاجة. راجع [عقد تنفيذ الأدوات](docs/TOOL_EXECUTION_CONTRACT.md) لتفاصيل البروتوكول والحدود.
+Tool selection uses a bounded local catalog and on-demand loading, followed by mandatory preflight validation, enforced read-only worker restrictions and sequential recovery when needed. See the [tool execution contract](docs/TOOL_EXECUTION_CONTRACT.md) for protocol details and limits.
 
 ```mermaid
 flowchart TD
-    Q["طلب المستخدم"] --> I["IntentClassifier: إشارات المهمة"]
-    I --> R["AUTO أو اقتراح AdaptiveModeRouter"]
-    O["نتائج محلية سابقة"] --> R
-    R --> P["اختيار المستخدم وصلاحية التحويل"]
-    P --> A["CHAT أو AGENT أو SWARM"]
-    A --> M["نتيجة وتكلفة مرصودتان"]
+    Q["User request"] --> I["IntentClassifier: task signals"]
+    I --> R["AUTO or AdaptiveModeRouter suggestion"]
+    O["Previous local outcomes"] --> R
+    R --> P["User choice and switch permission"]
+    P --> A["CHAT, AGENT or SWARM"]
+    A --> M["Observed outcome and cost"]
     M --> O
 ```
 
-| المكوّن | ما يفعله | ما لا يملكه |
-|---|---|---|
-| `IntentClassifier.kt` | إشارات التنفيذ والتعديل والتحقق والتوازي واتساع الطلب ونطاقه | ضمان فهم المقصود دائمًا |
-| `AdaptiveModeRouter.kt` | اقتراح Chat→Agent/Team، Agent→Team عند التعثر المناسب، Team→Agent عند غياب فائدة التوازي | منح إذن تحويل الوضع |
-| `ModeSwitchPermissionStore.kt` | الإذن وحدود التحويل المعتمد على تفضيل المستخدم | استنتاج الجودة من التجارب |
-| `ModeOutcomeLearner.kt` | تخزين نتائج مجمعة بحسب شكل المهمة والوضع، تكلفة التوكن والزمن إن وصلت | حفظ النص الخام في سجل القرار أو إرسال أوزان للخادم |
-| `ModeDecisionModel.kt` | توقع نجاح محلي تدريجي بإشارات عددية محدودة لكل وضع | نموذج لغوي أو embeddings أو ضمان استدلال موثوق من عينات قليلة |
-| `AgentDecisionPolicy.kt` | ضبط أولوية الخطوات وحجم نتائج الأدوات | تغيير سياسات أذونات Android |
+| Component | Responsibility | Limit |
+| --- | --- | --- |
+| `IntentClassifier.kt` | Signals for execution, modification, verification, parallelism, breadth and scope | Cannot guarantee correct intent recognition |
+| `AdaptiveModeRouter.kt` | Suggest Chat→Agent/Team, Agent→Team after suitable stalls, or Team→Agent when parallelism adds little | Does not grant switch permission |
+| `ModeSwitchPermissionStore.kt` | User-controlled switch permissions and limits | Does not infer outcome quality |
+| `ModeOutcomeLearner.kt` | Aggregate outcomes by task shape and mode, with token/time costs when available | Does not store raw request text in the decision log or send weights to a server |
+| `ModeDecisionModel.kt` | Incremental local success estimates from bounded numerical signals | Not a language model or embedding model; small samples are unreliable |
+| `AgentDecisionPolicy.kt` | Step priorities and tool-result size limits | Does not alter Android permission policies |
 
-## اختيار الوضع والتحويل
+## Mode selection and switching
 
-`OmniMode.kt` يعرّف `AUTO`, `CHAT`, `AGENT`, `SWARM`. في Chat، طلب تنفيذ صريح ينتج اقتراحًا لوضع عامل؛ وجود أعمال مستقلة والتوازي الحقيقي قد يرفع Team. عند تعثر Agent لا يكون التصعيد مفيدًا إن كان الخطأ بنية تحتية عامة أو ينتظر فعل المستخدم أو كانت المهمة غير قابلة للتقسيم. عند تخطيط Team، مهمة واحدة أو مهمتان متسلسلتان بلا تنفيذ متوازٍ كافٍ تجعل Agent مرشحًا أبسط. الاقتراح يتضمن درجة ثقة وأسبابًا قصيرة؛ تطبيقه يخضع لمسار الإذن المستقل. مخرجات الأداة أو الصفحة ليست تفويضًا لتغيير الوضع.
+`OmniMode.kt` defines `AUTO`, `CHAT`, `AGENT` and `SWARM`. An explicit execution request in Chat can suggest a working mode; independent work and real parallelism can favor Team. Agent escalation is unhelpful for shared infrastructure failures, tasks awaiting user action or indivisible work. One or two sequential tasks can favor Agent over Team. Suggestions carry confidence and short reasons, while application follows the independent permission path. Page content and tool results cannot authorize a switch.
 
-`TeamExecutionPolicy` يصنّف سلامة التنفيذ المتوازي، و`TeamBudgetAllocator` يضبط توزيع الميزانية، و`SwarmOrchestrator` يتعامل مع المخطط والعمال وتجميع النتيجة. الأجزاء المتسلسلة لا تكتسب سرعة تلقائيًا بزيادة عدد الوكلاء.
+`TeamExecutionPolicy` classifies parallel-execution safety, `TeamBudgetAllocator` allocates budgets, and `SwarmOrchestrator` coordinates planning, workers and synthesis. Adding workers does not automatically accelerate sequential work.
 
-## النموذج الصغير
+## Small local model
 
-`ModeDecisionModel` انحدار لوجستي محلي بـ **12 بُعدًا**: ثابت، قصد التنفيذ، التعديل، التحقق، التوازي، الاتساع، التعقيد البنيوي، الكود، الجهاز، البحث، عدد المجالات وطول الطلب بعد تقييد القيم. الأوزان لكل وضع وتُحدّث بخطوة صغيرة وانتظام وحدود للقيم؛ نجاح محقق يزن أكثر من ادعاء نجاح غير محقق، والفشل قد يكون سببه بيئة التشغيل. التخزين في `SharedPreferences`، وليس تدريب نموذج عام أو نقل النصوص إلى خدمة تدريب.
+`ModeDecisionModel` uses local logistic regression with **12 dimensions**: bias, execution intent, modification, verification, parallelism, breadth, structural complexity, code, device, research, domain count and bounded request length. Per-mode weights update with a small learning step, regularization and value bounds. Verified success has more weight than an unverified success claim; environment failures can distort labels. Weights are stored in `SharedPreferences`; this does not train a general model or upload requests for training.
 
-`ModeOutcomeLearner` يحتفظ بإحصاءات نجاح/فشل/توقف مع prior، ومتوسط تكرارات وزمن وتوكنز عندما تتوافر، وبحد أقصى لمجموعات المهام وسجل قرارات دائري. تأثيره الاستشاري على ثقة التوجيه لا يتعدى ±0.12. المقارنة بين Agent وTeam عند قرار الكلفة تحتاج نتائج لهما في مجموعة المهمة نفسها؛ ترشيح النموذج يحتاج **12 ملاحظة على الأقل لكل منهما**، مع فارق توقع، ونجاح غير أدنى بصورة مؤثرة، وتكلفة مناسبة. مسار المقارنة غير المعتمد على توقع النموذج يتطلب **6 ملاحظات على الأقل لكل منهما** وتكاليف توكن فعلية. إذا غابت البيانات يرجع القرار إلى خط الأساس.
+`ModeOutcomeLearner` retains success/failure/stopped statistics with a prior, average iterations, time and tokens when available, a bounded set of task groups and a circular decision log. Its advisory confidence adjustment is bounded to ±0.12. Agent/Team cost comparisons require outcomes for both modes in the same task group. Model-based recommendations require **at least 12 observations per mode**, a prediction margin, no material success regression and acceptable cost. The comparison path without model predictions requires **at least 6 observations per mode** and actual token costs. Missing data falls back to the baseline.
 
-**القيود:** مجموعة الإشارات مجمّعة وقد تخلط مهام مختلفة؛ نجاح غير متحقق ليس شهادة جودة؛ أرقام التوكنز لا تتوفر دائمًا؛ `SharedPreferences` محلي للجهاز وقد يعاد ضبطه. ضع مقاييس قبول قبل تغيير العتبات: نجاح متحقق، زمن، توكنز، عدد الاستدعاءات، ومعدل اقتراح غير مرغوب، لكل فئة مهمة، مع مقارنة في المهام العربية والإنجليزية.
+**Measurement limits:** coarse task groups can mix different work; unverified success is not quality evidence; token counts may be unavailable; device-local preferences can reset. Before changing thresholds, define acceptance measures for verified success, time, tokens, tool-call count and unwanted suggestions by task class, including English and Arabic requests.
 
-## استرجاع الكود وتقليل السياق
+## Code retrieval and bounded context
 
-- `RepoIndexer` يفهرس ملفات ورموزًا داخل نطاق محلي، مع حدود للحجم والعدد وحماية من الهروب عبر المسار والروابط الرمزية.
-- `RepoContextEngine` يربط الفهرس بطلب السياق. `LocalCodeRetriever` يرتب مرشحين بمطابقة معجمية ومسارات وأسماء رموز، ويعيد مقتطفات قصيرة بمراجع ملف وسطور. `repo_find_context` يتيح ذلك للوكيل. البحث لا يستخدم embeddings عامة.
-- `ToolSchemaCompactor` ينتقي تعريفات الأدوات المناسبة؛ `ContextCompressor`, `TeamHandoffCompressor` وحدود المخرجات في `AgentDecisionPolicy` تقلل النص المنقول في الأدوار والعمال.
+- `RepoIndexer` indexes local files and symbols with size/count limits and protection against path and symlink escapes.
+- `RepoContextEngine` connects the index to context requests. `LocalCodeRetriever` ranks lexical matches, paths and symbol names, returning short snippets with file/line references through `repo_find_context`. It does not use general-purpose embeddings.
+- `ToolSchemaCompactor`, `ContextCompressor`, `TeamHandoffCompressor` and `AgentDecisionPolicy` reduce definitions and text passed across turns and workers.
 
-**فرضية هندسية قابلة للاختبار:** قد تخفض هذه الحدود كلفة السياق وتحافظ على دليل أفضل حين يظهر الكود الصحيح ضمن المرشحين. لا ننسب لها نسبة توفير أو زيادة دقة قبل قياس A/B على مهام ثابتة، مع تسجيل الفشل والتحقق من الناتج. المقاطع القصيرة قد تخفي اعتمادًا مهمًا؛ استخدم قراءة الملف الأصلي قبل تعديل حساس.
+These limits may reduce context costs when the relevant code is retrieved. Savings and accuracy improvements need A/B measurement on fixed tasks with failures logged and outputs verified. Short snippets can omit dependencies; read the original file before sensitive edits.
 
-## أين تبدأ مراجعة الكود
+## Code review entry points
 
-| الهدف | المسار |
-|---|---|
-| التصنيف | `app/src/main/java/com/omnidev/workspace/domain/engine/IntentClassifier.kt` |
-| الاقتراح والتحكم | `domain/engine/AdaptiveModeRouter.kt`, `domain/engine/ModeSwitchPermissionStore.kt` |
-| التعلم | `domain/engine/ModeOutcomeLearner.kt`, `domain/engine/ModeDecisionModel.kt` |
-| التنفيذ | `domain/engine/AgentPipeline.kt`, `domain/engine/SwarmOrchestrator.kt` |
-| السياق | `data/repo/RepoIndexer.kt`, `data/repo/LocalCodeRetriever.kt`, `data/tools/RepoContextTools.kt` |
-| اختبارات السلوك | `app/src/test/java/com/omnidev/workspace/domain/engine/` و`app/src/test/java/com/omnidev/workspace/data/repo/` |
+| Goal | Path |
+| --- | --- |
+| Classification | `app/src/main/java/com/omnidev/workspace/domain/engine/IntentClassifier.kt` |
+| Suggestions and permission | `domain/engine/AdaptiveModeRouter.kt`, `domain/engine/ModeSwitchPermissionStore.kt` |
+| Learning | `domain/engine/ModeOutcomeLearner.kt`, `domain/engine/ModeDecisionModel.kt` |
+| Execution | `domain/engine/AgentPipeline.kt`, `domain/engine/SwarmOrchestrator.kt` |
+| Context | `data/repo/RepoIndexer.kt`, `data/repo/LocalCodeRetriever.kt`, `data/tools/RepoContextTools.kt` |
+| Tests | `app/src/test/java/com/omnidev/workspace/domain/engine/`, `app/src/test/java/com/omnidev/workspace/data/repo/` |
 
-كل المسارات المختصرة `domain/` و`data/` في الجدول تبدأ من `app/src/main/java/com/omnidev/workspace/`.
+Abbreviated `domain/` and `data/` paths start at `app/src/main/java/com/omnidev/workspace/`.

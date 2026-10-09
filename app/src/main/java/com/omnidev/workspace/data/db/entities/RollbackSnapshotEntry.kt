@@ -4,20 +4,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/**
- * RollbackSnapshotEntry — لقطة "تأمين الإجراء" قبل العمليات المدمّرة على الملفات.
- *
- * Mobile-first design (يعمل بدون root):
- * - الملفات ≤ 4 KB → نخزن المحتوى الكامل مضغوطاً (Deflate)
- * - الملفات > 4 KB → نخزن unified diff فقط (توفير 70%+ من المساحة)
- * - حد أقصى 200 snapshot لكل actionGroup، LRU eviction
- * - حد إجمالي 50 MB لكل المخزن
- *
- * @property actionGroupId يربط لقطات نفس العملية المتعددة (لـ rollback ذرّي)
- * @property contentBlob إما diff مضغوط أو محتوى ملف كامل مضغوط (Deflate)
- * @property storedAsDiff true = diff، false = full content
- * @property pinned snapshot مثبّت لا يُحذف بـ LRU
- */
+/** RollbackSnapshotEntry captures file state before destructive operations without requiring root. Stores Deflate-compressed full content up to 4 KB and diffs above that threshold, with up to 200 snapshots per group and 50 MB total storage. actionGroupId links related changes; contentBlob contains compressed diff or full content; storedAsDiff selects the representation; pinned prevents LRU eviction. */
 @Entity(
     tableName = "rollback_snapshots",
     indices = [

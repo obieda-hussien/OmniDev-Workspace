@@ -4,20 +4,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/**
- * ReflexionLessonEntry — درس مستفاد من تجربة Agent سابقة (Brain 2.0).
- *
- * Mobile-first design:
- * - الدرس ≤ 280 حرف ليبقى صالحاً للحقن في الـ system prompt دون تضخمه
- * - الـ embedding 256 floats (≈ 1 KB) — hash-based، بدون تحميل أي نموذج
- * - 2000 درس كحد أقصى ≈ 2 MB إجمالي
- * - LRU eviction حسب الجودة عند تجاوز الحد
- *
- * @property errorSignature MD5 (16 hex) لرسالة الخطأ بعد تطبيع المسارات/الأرقام
- *           — يستخدم لكشف التكرار وتجميع نفس النوع من الفشل
- * @property successContext true لو الدرس مستخلص من نجاح بطيء/ضخم، false لو من فشل
- * @property quality قيمة بين 0..1 تتحسن مع كل استخدام ناجح وتتراجع مع الفشل
- */
+/** ReflexionLessonEntry stores a lesson from an earlier agent run, bounded to 280 characters for prompt injection. Uses 256-float hash-based embeddings without loading a model, up to 2000 lessons and quality-based eviction. errorSignature is a 16-hex MD5 after path/number normalization; successContext distinguishes lessons from successful runs and failures; quality rises on successful reuse and falls on failure. */
 @Entity(
     tableName = "reflexion_lessons",
     indices = [

@@ -72,7 +72,7 @@
 -dontwarn org.jsoup.**
 -keep class org.jsoup.** { *; }
 
-# ── Retrofit & OkHttp (إضافة حيوية لمنع كراش الشبكات) ────────────────────────
+# ── Retrofit & OkHttp (Keep networking classes to prevent reflection-related failures) ────────────────────────
 -dontwarn okhttp3.**
 -dontwarn okio.**
 -dontwarn retrofit2.**
@@ -97,7 +97,7 @@
 -keep class com.omnidev.workspace.data.auth.GitHubDeviceFlowManager$DeviceFlowState { *; }
 -keep class com.omnidev.workspace.data.auth.GitHubDeviceFlowManager$DeviceFlowState$* { *; }
 
-# ── Models (حماية أي Data Class بيستخدم للشبكات أو قواعد البيانات) ─────────────
+# ── Models (Preserve data classes used by networking or databases) ─────────────
 -keepclassmembers,allowobfuscation class * {
     @com.google.gson.annotations.SerializedName <fields>;
 }

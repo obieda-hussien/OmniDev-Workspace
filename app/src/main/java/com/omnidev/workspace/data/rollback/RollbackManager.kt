@@ -8,34 +8,12 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
-/**
- * ══════════════════════════════════════════════════════════════════════════════
- * RollbackManager — نظام "تأمين الإجراء" (Action Insurance / Brain 2.0)
- * ══════════════════════════════════════════════════════════════════════════════
- *
- * **القصة**: قبل أي عملية مدمّرة على ملف (write/patch/delete)، يلتقط الـ
- * Manager snapshot يسمح بإلغاء العملية لاحقاً بأمر واحد. الـ snapshots مجمّعة
- * في "action groups" بحيث يُمكن التراجع عن مهمة كاملة (متعددة الملفات) ذرّياً.
- *
- * **Mobile-first**:
- * - يعمل بدون root (يقرأ/يكتب الملف نفسه عبر File API العادي)
- * - الملفات ≤ 4 KB → نخزن المحتوى الكامل مضغوطاً Deflate
- * - الملفات > 4 KB → unified diff فقط (توفير ~70%)
- * - 200 snapshot/group max + 50 MB max storage إجمالي + LRU eviction
- * - عمليات SHA-256 للتحقق من سلامة الاستعادة
- *
- * **API**:
- *   - newGroup() → يُنشئ actionGroupId جديد لربط lapsohots مهمة
- *   - captureBeforeWrite(...) → يلتقط لقطة قبل عملية write/patch
- *   - rollbackGroup(id) → يستعيد كل ملفات الـ group
- *   - rollbackById(id) → يستعيد snapshot بعينه
- *   - listRecent / listGroups / pin / unpin
- */
+/** RollbackManager captures snapshots before file writes, patches or deletes and groups them by action. Uses ordinary File APIs without root, compressed full content up to 4 KB and diffs for larger files. Limits groups to 200 snapshots and unpinned storage to 50 MB with LRU eviction; verifies restoration with SHA-256. APIs cover newGroup, captureBeforeWrite, rollbackGroup, rollbackById, listing and pinning. */
 class RollbackManager(
     private val dao: RollbackDao,
-    /** أقصى حجم تخزين للـ snapshots غير المثبّتة (50 MB افتراضياً). */
+    /** Maximum unpinned snapshot storage (50 MB by default). */
     private val maxBytesEvictable: Long = 50L * 1024 * 1024,
-    /** أقصى عدد لقطات/group قبل bevaluation. */
+    /** Maximum snapshots per action group before eviction. */
     private val maxSnapshotsPerGroup: Int = 200
 ) {
 
@@ -54,19 +32,10 @@ class RollbackManager(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Capture (قبل العملية المدمّرة)
+    // Capture before the destructive operation.
     // ──────────────────────────────────────────────────────────────────
 
-    /**
-     * يلتقط snapshot قبل تعديل/حذف ملف. ينبغي أن يُستدعى من FileToolManager
-     * قبل write_file / patch_file / delete_file.
-     *
-     * @param actionGroupId معرّف المجموعة (من newGroup())
-     * @param toolName الأداة التي ستُجري التعديل (للتقارير)
-     * @param filePath المسار المطلق
-     * @param reason سبب العملية (سطر واحد)
-     * @return معرّف الـ snapshot أو -1 لو فشل التقاط (الفشل لا يعطّل العملية)
-     */
+    /** Capture a snapshot before modifying or deleting a file. FileToolManager calls this before write, patch and delete operations. actionGroupId comes from newGroup; toolName identifies the modifying tool; filePath is absolute; reason is a one-line description. Return the snapshot ID or -1 if capture fails; capture failure does not block the action. */
     suspend fun captureBeforeWrite(
         actionGroupId: String,
         toolName: String,
@@ -78,7 +47,7 @@ class RollbackManager(
             val existed = file.exists()
 
             if (!existed) {
-                // الملف لم يكن موجوداً → snapshot "فارغ" يخبرنا بحذفه عند الـ rollback
+                // An empty snapshot marks a previously absent file for deletion during rollback.
                 val entry = RollbackSnapshotEntry(
                     actionGroupId = actionGroupId,
                     toolName = toolName,
@@ -104,10 +73,10 @@ class RollbackManager(
             val hash = DiffUtils.sha256(original)
             val storedAsDiff = original.size > DiffUtils.FULL_CONTENT_THRESHOLD_BYTES
 
-            // عند الالتقاط، لا نعرف بعد محتوى ما-بعد التعديل → نخزن الكامل مضغوطاً.
-            // لو storedAsDiff = true لاحقاً، يمكن استبدال المحتوى بـ diff عند نهاية الـ tool.
-            // للبساطة على الأجهزة الضعيفة، نخزن دائماً المحتوى الكامل مضغوطاً هنا
-            // ونحوّله لـ diff (اختيارياً) عبر finalizeAfterWrite().
+            // The after state is not yet known at capture time; store compressed full content.
+            // If storedAsDiff later becomes true, replace full content with a diff after execution.
+            // Initially store compressed full content for simpler capture on smaller devices.
+            // Optionally convert it to a diff through finalizeAfterWrite().
             val compressed = DiffUtils.compress(original)
 
             val entry = RollbackSnapshotEntry(
@@ -130,10 +99,7 @@ class RollbackManager(
         }
     }
 
-    /**
-     * بعد إتمام الكتابة، تحويل snapshot من "محتوى كامل" إلى "diff" لتوفير مساحة.
-     * يُستدعى اختيارياً من FileToolManager بعد write/patch.
-     */
+    /** Optionally convert a full-content snapshot to a diff after a successful write or patch to reduce storage. */
     suspend fun finalizeAfterWrite(snapshotId: Long, filePath: String) =
         withContext(Dispatchers.IO) {
             if (snapshotId < 0) return@withContext
@@ -152,7 +118,7 @@ class RollbackManager(
 
                 val diff = DiffUtils.buildDiff(before = original, after = current)
                 if (diff.length >= original.length) {
-                    // الـ diff لم يوفر شيء → نُبقي المحتوى الكامل
+                    // Keep full content when a diff does not reduce storage.
                     return@withContext
                 }
                 val diffCompressed = DiffUtils.compress(diff.toByteArray())
@@ -172,19 +138,13 @@ class RollbackManager(
     // Rollback
     // ──────────────────────────────────────────────────────────────────
 
-    /**
-     * يستعيد ملف واحد من snapshot بعينه.
-     * @return true لو نجح
-     */
+    /** Restore one file from a snapshot; return true on success. */
     suspend fun rollbackById(id: Long): Boolean = withContext(Dispatchers.IO) {
         val snap = dao.getById(id) ?: return@withContext false
         applySnapshot(snap)
     }
 
-    /**
-     * يستعيد كل ملفات الـ group ذرّياً (best-effort).
-     * @return عدد الملفات التي استُعيدت بنجاح
-     */
+    /** Restore files in an action group on a best-effort basis; report successful restorations. */
     suspend fun rollbackGroup(groupId: String): RollbackResult = withContext(Dispatchers.IO) {
         val snaps = dao.getByGroup(groupId, limit = maxSnapshotsPerGroup)
         if (snaps.isEmpty()) return@withContext RollbackResult(0, 0, listOf("no snapshots in group"))
@@ -206,12 +166,12 @@ class RollbackManager(
         val file = File(snap.filePath)
         return try {
             if (!snap.existedBefore) {
-                // الملف لم يكن موجوداً → نحذفه لاستعادة الحالة الأصلية
+                // Delete the file to restore its original absent state.
                 if (file.exists()) file.delete()
             } else {
                 file.parentFile?.mkdirs()
                 if (snap.storedAsDiff) {
-                    // diff → نحتاج المحتوى الحالي + الـ diff لاستعادة الأصل
+                    // Restore original content using the current text and the diff.
                     val diff = DiffUtils.decompress(snap.contentBlob).toString(Charsets.UTF_8)
                     val current = if (file.exists()) file.readText(Charsets.UTF_8) else ""
                     val original = DiffUtils.applyReverseDiff(current, diff)
@@ -251,7 +211,7 @@ class RollbackManager(
         try {
             val used = dao.totalEvictableBytes()
             if (used > maxBytesEvictable) {
-                // نحذف 20% من غير المثبّت (دفعة واحدة لتقليل I/O)
+                // Evict 20% of unpinned snapshots in one batch to reduce IO.
                 val cnt = dao.countEvictable()
                 val toEvict = (cnt / 5).coerceAtLeast(20)
                 dao.evictOldestUnpinned(toEvict)

@@ -6,11 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.omnidev.workspace.data.db.entities.EpisodicMemoryEntry
 
-/**
- * DAO لـ episodic_memory. كذلك يعتمد two-stage retrieval:
- *   - SQL pre-filter (outcome / recent) لجلب candidates سريعاً
- *   - cosine ranking في JVM (≤ 80 candidate)
- */
+/** DAO for episodic_memory: SQL prefilters by outcome and recency, then JVM cosine ranking considers up to 80 candidates. */
 @Dao
 interface EpisodicMemoryDao {
 
@@ -41,7 +37,7 @@ interface EpisodicMemoryDao {
     @Query("SELECT COUNT(*) FROM episodic_memory")
     suspend fun count(): Int
 
-    /** LRU eviction للأقدم (حماية ميزانية الـ 2000 episode). */
+    /** Evict the oldest records to enforce the 2000-episode budget. */
     @Query("""
         DELETE FROM episodic_memory
         WHERE id IN (

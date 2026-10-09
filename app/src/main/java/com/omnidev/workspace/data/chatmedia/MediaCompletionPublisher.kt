@@ -9,11 +9,9 @@ internal object MediaCompletion {
     const val MESSAGE_PREFIX = "media-result:"
     fun text(job: MediaJob): String {
         require(job.state == "completed" && !job.path.isNullOrBlank()) { "Media is not ready." }
-        val name = when(job.kind) { "image" -> "الصورة"; "video" -> "الفيديو"; else -> "الموسيقى" }
-        val ready = if (job.arabic) "عملتلك $name أهو. تقدر تفتحها أو تشغّلها من الكارت وتحفظها على الموبايل."
-            else "Your ${job.kind} is ready. Open or play the chat card and save it to your device."
+        val ready = "Your ${job.kind} is ready. Open or play the chat card and save it to your device."
         val saveError = if (job.galleryAttempted && job.galleryUri == null) {
-            if (job.arabic) "\nالحفظ التلقائي ما اكتملش؛ تقدر تستخدم زر الحفظ في الكارت." else "\nAutomatic saving did not finish; use Save on the card."
+            "\nAutomatic saving did not finish; use Save on the card."
         } else ""
         return ready + saveError + job.lyricsText?.takeIf { it.isNotBlank() }?.let { "\n\n$it" }.orEmpty()
     }
@@ -25,7 +23,7 @@ internal object MediaCompletionPublisher {
         val store = MediaJobStore(context)
         val job = store.get(original.id) ?: return
         if (job.state != "failed" || job.failureAnnounced || job.sessionId == null) return
-        val text = if (job.arabic) "توليد الوسائط وقف بسبب خطأ. افتح تفاصيل الكارت للمراجعة.\n${job.error.orEmpty()}" else "${job.kind.replaceFirstChar { it.uppercase() }} generation failed.\n${job.error.orEmpty()}"
+        val text = "${job.kind.replaceFirstChar { it.uppercase() }} generation failed.\n${job.error.orEmpty()}"
         OmniDevDatabase.getInstance(context).chatMessageDao().insertMediaResult(ChatMessageEntity(
             sessionId = job.sessionId, role = "ASSISTANT", content = text, messageId = MediaCompletion.MESSAGE_PREFIX + job.id + ":failed", replyToMessageId = job.originMessageId), job.originMessageId, job.created)
         store.compareAndUpdate(job, job.copy(failureAnnounced = true))

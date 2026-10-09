@@ -11,34 +11,7 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.*
 
-/**
- * ═══════════════════════════════════════════════════════════════════════════
- * 🔮 PREDICTIVE ANALYTICS ENGINE
- * ═══════════════════════════════════════════════════════════════════════════
- * 
- * نظام التحليل التنبؤي والتوقعات الذكية
- * 
- * **القدرات:**
- * 1. **Time Series Forecasting** - التنبؤ بالسلاسل الزمنية
- * 2. **Anomaly Detection** - اكتشاف الشذوذ والانحرافات
- * 3. **Trend Analysis** - تحليل الاتجاهات
- * 4. **Performance Prediction** - التنبؤ بالأداء
- * 5. **Resource Usage Forecasting** - توقع استهلاك الموارد
- * 6. **User Behavior Prediction** - توقع سلوك المستخدم
- * 7. **Failure Prediction** - التنبؤ بالأعطال
- * 8. **Load Forecasting** - توقع الأحمال
- * 
- * **الخوارزميات المستخدمة:**
- * - ARIMA (AutoRegressive Integrated Moving Average)
- * - Exponential Smoothing
- * - Prophet-like decomposition
- * - Isolation Forest for anomaly detection
- * - LSTM-inspired sequence prediction
- * - Statistical Process Control (SPC)
- * 
- * @author OmniDev Predictive AI Team
- * @since 2.0.0
- */
+/** PredictiveAnalyticsEngine models time-series forecasts, anomalies, trends, performance, resource usage, user behavior, failures and load. Implements ARIMA-style analysis, exponential smoothing, decomposition, isolation-style anomaly detection, sequence prediction and statistical process control. Algorithm names describe the local implementations, not external model integrations. */
 object PredictiveAnalyticsEngine {
     private const val TAG = "PredictiveAnalytics"
     
@@ -46,27 +19,21 @@ object PredictiveAnalyticsEngine {
     // DATA STRUCTURES
     // ═══════════════════════════════════════════════════════════════════════
     
-    /**
-     * نقطة بيانات زمنية
-     */
+    /** Timestamped data point. */
     data class TimeSeriesPoint(
         val timestamp: Long,
         val value: Double,
         val metadata: Map<String, Any> = emptyMap()
     )
     
-    /**
-     * سلسلة زمنية
-     */
+    /** Time series. */
     data class TimeSeries(
         val id: String,
         val points: List<TimeSeriesPoint>,
         val frequency: TimeFrequency = TimeFrequency.HOURLY
     )
     
-    /**
-     * تردد البيانات
-     */
+    /** Data frequency. */
     enum class TimeFrequency(val milliseconds: Long) {
         SECOND(1000L),
         MINUTE(60_000L),
@@ -76,9 +43,7 @@ object PredictiveAnalyticsEngine {
         MONTHLY(2_592_000_000L)
     }
     
-    /**
-     * نتيجة التنبؤ
-     */
+    /** Forecast result. */
     data class Forecast(
         val predictions: List<TimeSeriesPoint>,
         val confidence: Double,
@@ -88,9 +53,7 @@ object PredictiveAnalyticsEngine {
         val accuracy: ForecastAccuracy
     )
     
-    /**
-     * دقة التنبؤ
-     */
+    /** Forecast accuracy. */
     data class ForecastAccuracy(
         val mae: Double,      // Mean Absolute Error
         val mse: Double,      // Mean Squared Error
@@ -99,9 +62,7 @@ object PredictiveAnalyticsEngine {
         val r2: Double        // R-squared
     )
     
-    /**
-     * شذوذ مكتشف
-     */
+    /** Detected anomaly. */
     data class Anomaly(
         val timestamp: Long,
         val value: Double,
@@ -115,9 +76,7 @@ object PredictiveAnalyticsEngine {
     enum class AnomalySeverity { LOW, MEDIUM, HIGH, CRITICAL }
     enum class AnomalyType { SPIKE, DROP, TREND_CHANGE, OUTLIER, PATTERN_BREAK }
     
-    /**
-     * اتجاه البيانات
-     */
+    /** Data trend. */
     data class Trend(
         val direction: TrendDirection,
         val strength: Double,      // 0.0 to 1.0
@@ -129,9 +88,7 @@ object PredictiveAnalyticsEngine {
     
     enum class TrendDirection { RISING, FALLING, STABLE, VOLATILE }
     
-    /**
-     * نمط الموسمية
-     */
+    /** Seasonality pattern. */
     data class SeasonalityPattern(
         val period: Long,
         val amplitude: Double,
@@ -150,9 +107,7 @@ object PredictiveAnalyticsEngine {
     // TIME SERIES FORECASTING
     // ═══════════════════════════════════════════════════════════════════════
     
-    /**
-     * التنبؤ بالسلسلة الزمنية باستخدام ARIMA
-     */
+    /** Forecast a time series using ARIMA-style analysis. */
     fun forecastTimeSeries(
         series: TimeSeries,
         steps: Int,
@@ -211,9 +166,7 @@ object PredictiveAnalyticsEngine {
         )
     }
     
-    /**
-     * تحليل الاتجاه
-     */
+    /** Analyze the trend. */
     fun analyzeTrend(series: TimeSeries): Trend {
         val values = series.points.sortedBy { it.timestamp }.map { it.value }
         
@@ -256,9 +209,7 @@ object PredictiveAnalyticsEngine {
         )
     }
     
-    /**
-     * اكتشاف الشذوذ
-     */
+    /** Detect anomalies. */
     fun detectAnomalies(series: TimeSeries, sensitivity: Double = 2.5): List<Anomaly> {
         val points = series.points.sortedBy { it.timestamp }
         val values = points.map { it.value }
@@ -316,9 +267,7 @@ object PredictiveAnalyticsEngine {
     // PERFORMANCE PREDICTION
     // ═══════════════════════════════════════════════════════════════════════
     
-    /**
-     * التنبؤ بأداء الأداة
-     */
+    /** Forecast tool performance. */
     fun predictToolPerformance(
         toolName: String,
         historicalData: List<TimeSeriesPoint>,
@@ -359,9 +308,7 @@ object PredictiveAnalyticsEngine {
         val disk: Double
     )
     
-    /**
-     * التنبؤ بالفشل
-     */
+    /** Predict failures. */
     fun predictFailure(
         series: TimeSeries,
         threshold: Double,

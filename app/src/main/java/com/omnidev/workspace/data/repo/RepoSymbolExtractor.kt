@@ -2,26 +2,13 @@ package com.omnidev.workspace.data.repo
 
 import com.omnidev.workspace.data.db.entities.RepoSymbolEntry
 
-/**
- * ══════════════════════════════════════════════════════════════════════════════
- * RepoSymbolExtractor — استخراج خفيف للرموز (Live Repository Context Engine)
- * ══════════════════════════════════════════════════════════════════════════════
- *
- * Mobile-first: لا Tree-sitter، لا Compiler، لا ANTLR. مجرد regex خفيفة على
- * الـ tokens المرئية في كل لغة. يكفي لـ:
- *   - أسماء الـ classes / objects / interfaces / enums
- *   - أسماء الـ functions / methods / lambdas المسماة
- *   - أسماء الـ properties / variables / constants على top-level
- *
- * يعمل على Snapdragon 660 بسرعة ~1 MB/s، أي ملف 50 KB في 50ms.
- * يلائم 2-4 GB RAM لأنه streaming بدون تحميل AST في الذاكرة.
- */
+/** RepoSymbolExtractor uses lightweight regex matching rather than a compiler, Tree-sitter or ANTLR. Extracts class/object/interface/enum names, function and method names, and top-level properties, variables and constants without loading an AST. */
 object RepoSymbolExtractor {
 
-    /** أقصى طول للـ snippet المخزّن. */
+    /** Maximum stored snippet length. */
     private const val MAX_SNIPPET_LEN = 240
 
-    /** أقصى عدد رموز نستخرجها من ملف واحد (حماية من ضخامة). */
+    /** Maximum symbols extracted from one file. */
     private const val MAX_SYMBOLS_PER_FILE = 400
 
     // ──────────────────────────────────────────────────────────────────
@@ -66,10 +53,7 @@ object RepoSymbolExtractor {
     // Public: extract
     // ──────────────────────────────────────────────────────────────────
 
-    /**
-     * يستخرج كل الرموز من نص ملف. يعمل على top-level + nested تقريبي بالـ
-     * indent (يكفي للـ retrieval، لا نحتاج AST دقيق).
-     */
+    /** Extract top-level and approximate nested symbols using indentation; intended for retrieval rather than exact AST analysis. */
     fun extract(
         scopePath: String,
         filePath: String,
@@ -89,7 +73,7 @@ object RepoSymbolExtractor {
             val line = rawLine.trimStart()
             if (line.isEmpty() || line.startsWith("//") || line.startsWith("#") || line.startsWith("*")) continue
 
-            // package / module للـ qualifiedName
+            // Package or module for the qualified name.
             extractPackage(line, language)?.let { packageOrModule = it }
 
             val matches = matchSymbols(line, language)
@@ -119,7 +103,7 @@ object RepoSymbolExtractor {
 
     private data class SymbolMatch(val kind: String, val name: String, val visibility: String)
 
-    /** يلتقط package/module declaration. */
+    /** Extract a package or module declaration. */
     private fun extractPackage(line: String, language: String): String? {
         return when (language) {
             "kotlin", "java", "scala" -> {

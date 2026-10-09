@@ -3,29 +3,7 @@ package com.omnidev.workspace.data.accessibility
 import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 
-/**
- * SemanticTreeParser — محلّل الشجرة الدلالية المتقدم
- *
- * الجيل الثاني: ذكاء هيكلي شامل
- * ─────────────────────────────────────────────────────────────────────────────
- * 1. **كشف النماذج (Form Detection)**: يُجمّع حقول الإدخال المتجاورة تلقائياً
- *    تحت مجموعة "Form Group" مع تسميات مستنتجة.
- *
- * 2. **رسم العلاقات (Relationship Mapping)**: لكل حقل إدخال، يُحدد أقرب
- *    TextView كـ label ويربطهما في الوصف.
- *
- * 3. **نظام الأولوية (Priority Scoring)**: يُعطي نقاطاً لكل عنصر بناءً على
- *    قابلية التفاعل + الموضع + الأهمية الدلالية.
- *
- * 4. **ملخص تنفيذي (Executive Summary)**: يُنتج وصفاً نثرياً للشاشة يساعد
- *    الوكيل في الفهم الفوري.
- *
- * 5. **كشف عناصر التنقل (Navigation Detection)**: يُحدد Bottom Nav / Tab Bar /
- *    Drawer / FAB ويُميّزها بوضوح.
- *
- * 6. **دعم Compose متقدم**: يُحلّل semantics extras بعمق ويستخرج
- *    stateDescription / roleDescription / headings.
- */
+/** SemanticTreeParser groups nearby input fields into forms, links labels to fields, scores interaction priority, summarizes screens, detects navigation elements and extracts Compose semantics such as state descriptions, roles and headings. */
 object SemanticTreeParser {
 
     private fun protectedInput(node: AccessibilityNodeInfo): Boolean = node.isPassword ||
@@ -36,21 +14,19 @@ object SemanticTreeParser {
     private const val MAX_TEXT_LENGTH = 200
     private const val MAX_DISPLAY_LENGTH = 80
 
-    /**
-     * نتيجة التحليل الكاملة — مُثرّاة بالسياق الهيكلي.
-     */
+    /** Complete analysis result with structural context. */
     data class ParseResult(
         val semanticTree: String,
         val nodeMap: Map<String, AccessibilityNodeInfo>,
         val totalRawNodes: Int,
         val extractedNodes: Int,
-        /** ملخص تنفيذي نثري للشاشة */
+        /** Readable screen summary. */
         val summary: String,
-        /** قائمة النماذج المكتشفة */
+        /** Detected forms. */
         val detectedForms: List<FormGroup>,
-        /** قائمة عناصر التنقل */
+        /** Navigation elements. */
         val navigationElements: List<String>,
-        /** العناصر مرتّبة حسب الأولوية (الأهم أولاً) */
+        /** Elements ordered by descending priority. */
         val priorityOrder: List<String>
     )
 
@@ -70,7 +46,7 @@ object SemanticTreeParser {
         TEXT, EMAIL, PASSWORD, NUMBER, PHONE, SEARCH, MULTILINE, UNKNOWN
     }
 
-    // ── إحصاءات داخلية للتحليل ─────────────────────────────────────────────
+    // Internal analysis statistics.
 
     private data class NodeMeta(
         val node: AccessibilityNodeInfo,
@@ -82,7 +58,7 @@ object SemanticTreeParser {
         val labelCandidate: AccessibilityNodeInfo?
     )
 
-    // ── API الرئيسي ───────────────────────────────────────────────────────────
+    // Main API.
 
     fun parse(
         root: AccessibilityNodeInfo,
@@ -94,7 +70,7 @@ object SemanticTreeParser {
         var nodeCounter = 0
         var totalRawNodes = 0
 
-        // المرور الأول: جمع كل العقد مع حساب الـ priority
+        // First pass: collect nodes and compute priority.
         fun traverse(node: AccessibilityNodeInfo, depth: Int, parent: AccessibilityNodeInfo?) {
             if (depth > MAX_DEPTH || nodeCounter >= MAX_NODES) return
             totalRawNodes++
@@ -131,21 +107,21 @@ object SemanticTreeParser {
 
         traverse(root, 0, null)
 
-        // المرور الثاني: بناء الشجرة المنسّقة
+        // Second pass: build the formatted tree.
         val lines = mutableListOf<String>()
         val header = buildHeader(packageName, activityName, totalRawNodes, nodeCounter)
         lines.add(header)
 
-        // إضافة العقد مُجمَّعة بشكل ذكي
+        // Add grouped nodes.
         buildFormattedTree(root, allMeta, lines)
 
-        if (nodeCounter == 0) lines.add("(لا توجد عناصر تفاعلية على الشاشة)")
-        if (nodeCounter >= MAX_NODES) lines.add("... [تم الاقتطاع عند $MAX_NODES عقدة]")
+        if (nodeCounter == 0) lines.add("(No interactive elements on screen)")
+        if (nodeCounter >= MAX_NODES) lines.add("... [Truncated at $MAX_NODES nodes]")
 
-        // كشف النماذج
+        // Detect forms.
         val forms = detectForms(allMeta, nodeMap)
 
-        // استخراج عناصر التنقل
+        // Extract navigation elements.
         val navElements = allMeta
             .filter { it.isNavigational && !protectedInput(it.node) }
             .map { meta ->
@@ -153,13 +129,13 @@ object SemanticTreeParser {
                 "${meta.nodeId}: ${node?.text ?: node?.contentDescription ?: "nav"}"
             }
 
-        // ترتيب حسب الأولوية
+        // Order by priority.
         val priorityOrder = allMeta
             .sortedByDescending { it.priority }
             .take(20)
             .map { it.nodeId }
 
-        // الملخص التنفيذي
+        // Build the screen summary.
         val summary = buildExecutiveSummary(
             packageName, allMeta, forms, navElements, nodeCounter
         )
@@ -176,7 +152,7 @@ object SemanticTreeParser {
         )
     }
 
-    // ── بناء الشجرة ───────────────────────────────────────────────────────────
+    // Tree construction.
 
     private fun buildFormattedTree(
         root: AccessibilityNodeInfo,
@@ -187,23 +163,23 @@ object SemanticTreeParser {
             compareBy({ it.bounds.top }, { it.bounds.left })
         )
 
-        // تجميع الـ navigation elements أولاً
+        // Group navigation elements first.
         val navMeta = metaByPriority.filter { it.isNavigational }
         val formMeta = metaByPriority.filter { it.isFormField && !it.isNavigational }
         val restMeta = metaByPriority.filter { !it.isNavigational && !it.isFormField }
 
         if (navMeta.isNotEmpty()) {
-            lines.add("\n📍 عناصر التنقل:")
+            lines.add("\n📍 Navigation elements:")
             navMeta.forEach { meta -> lines.add(buildNodeLine(meta)) }
         }
 
         if (formMeta.isNotEmpty()) {
-            lines.add("\n📝 حقول الإدخال:")
+            lines.add("\n📝 Input fields:")
             formMeta.forEach { meta -> lines.add(buildNodeLine(meta, showLabel = true)) }
         }
 
         if (restMeta.isNotEmpty()) {
-            lines.add("\n🖱️ عناصر الواجهة:")
+            lines.add("\n🖱️ UI elements:")
             restMeta.forEach { meta -> lines.add(buildNodeLine(meta)) }
         }
     }
@@ -224,7 +200,7 @@ object SemanticTreeParser {
         val className = node.className?.toString()?.substringAfterLast('.') ?: "View"
         append(className)
 
-        // Label من الـ parent (للنماذج)
+        // Infer a form label from the parent.
         if (showLabel && meta.labelCandidate != null && !protectedInput(meta.labelCandidate)) {
             val labelText = meta.labelCandidate.text?.toString()?.trim()
                 ?: meta.labelCandidate.contentDescription?.toString()?.trim()
@@ -233,43 +209,43 @@ object SemanticTreeParser {
             }
         }
 
-        // النص
+        // Text.
         val text = if (protectedInput(node)) "••••" else node.text?.toString()?.trim()
         if (!text.isNullOrEmpty()) append(": \"${truncate(text)}\"")
 
-        // الوصف
+        // Description.
         val desc = if (protectedInput(node)) null else node.contentDescription?.toString()?.trim()
         if (!desc.isNullOrEmpty() && desc != text) {
             append(" [desc: \"${truncate(desc)}\"]")
         }
 
-        // الحالة الدلالية من extras
+        // Semantic state from extras.
         val semanticState = if (protectedInput(node)) null else readSemanticState(node)
         if (!semanticState.isNullOrEmpty()) {
             append(" [state: \"${truncate(semanticState)}\"]")
         }
 
-        // نوع الحقل للـ EditText
+        // EditText field type.
         if (node.isEditable) {
             append(" (${inferFieldType(node).name})")
         }
 
-        // الخصائص
+        // Properties.
         val flags = buildFlagsList(node)
         if (flags.isNotEmpty()) append(" (${flags.joinToString(", ")})")
 
-        // الحدود
+        // Bounds.
         if (!meta.bounds.isEmpty) {
             append(" {${meta.bounds.left},${meta.bounds.top}–${meta.bounds.right},${meta.bounds.bottom}}")
         }
 
-        // الـ resource ID المختصر
+        // Short resource ID.
         node.viewIdResourceName?.substringAfterLast('/')?.let {
             append(" #$it")
         }
     }
 
-    // ── كشف النماذج ───────────────────────────────────────────────────────────
+    // Form detection.
 
     private fun detectForms(
         allMeta: List<NodeMeta>,
@@ -278,7 +254,7 @@ object SemanticTreeParser {
         val editableMeta = allMeta.filter { it.isFormField }
         if (editableMeta.isEmpty()) return emptyList()
 
-        // تجميع حقول متجاورة رأسياً ضمن نفس المنطقة
+        // Group vertically adjacent fields in the same region.
         val groups = mutableListOf<MutableList<NodeMeta>>()
         var currentGroup = mutableListOf<NodeMeta>()
 
@@ -288,7 +264,7 @@ object SemanticTreeParser {
             } else {
                 val lastBottom = currentGroup.last().bounds.bottom
                 val gap = meta.bounds.top - lastBottom
-                if (gap < 250) { // حقول ضمن 250px من بعض = نفس النموذج
+                if (gap < 250) { // Fields within 250 px belong to the same form.
                     currentGroup.add(meta)
                 } else {
                     groups.add(currentGroup)
@@ -313,16 +289,16 @@ object SemanticTreeParser {
                 )
             }
             val groupName = when {
-                fields.any { it.fieldType == FieldType.PASSWORD } -> "نموذج تسجيل الدخول"
-                fields.any { it.fieldType == FieldType.EMAIL } -> "نموذج التسجيل"
-                fields.size == 1 && fields.first().fieldType == FieldType.SEARCH -> "صندوق البحث"
-                else -> "نموذج ${groupIndex + 1}"
+                fields.any { it.fieldType == FieldType.PASSWORD } -> "Login form"
+                fields.any { it.fieldType == FieldType.EMAIL } -> "Registration form"
+                fields.size == 1 && fields.first().fieldType == FieldType.SEARCH -> "Search box"
+                else -> "Form ${groupIndex + 1}"
             }
             FormGroup(groupName, fields)
         }
     }
 
-    // ── الملخص التنفيذي ───────────────────────────────────────────────────────
+    // Screen summary.
 
     private fun buildExecutiveSummary(
         packageName: String?,
@@ -331,20 +307,20 @@ object SemanticTreeParser {
         navElements: List<String>,
         totalNodes: Int
     ): String = buildString {
-        val appName = packageName?.substringAfterLast('.') ?: "مجهول"
-        append("الشاشة الحالية في $appName تحتوي على $totalNodes عنصراً تفاعلياً. ")
+        val appName = packageName?.substringAfterLast('.') ?: "unknown"
+        append("The current screen in $appName has $totalNodes interactive elements. ")
 
         if (forms.isNotEmpty()) {
-            append("يوجد ${forms.size} نموذج: ${forms.joinToString(", ") { it.groupName }}. ")
+            append("${forms.size} forms: ${forms.joinToString(", ") { it.groupName }}. ")
         }
 
         val clickableCount = allMeta.count { it.node.isClickable }
         if (clickableCount > 0) {
-            append("$clickableCount زر/عنصر قابل للنقر. ")
+            append("$clickableCount clickable buttons or elements. ")
         }
 
         if (navElements.isNotEmpty()) {
-            append("${navElements.size} عنصر تنقل (تبويبات/قائمة). ")
+            append("${navElements.size} navigation elements (tabs/menu). ")
         }
 
         val topNodes = allMeta.sortedByDescending { it.priority }.take(3)
@@ -354,7 +330,7 @@ object SemanticTreeParser {
                     ?: meta.node.contentDescription?.toString()?.trim()
             }.take(3)
             if (topDesc.isNotEmpty()) {
-                append("أبرز العناصر: ${topDesc.joinToString(", ") { "\"$it\"" }}.")
+                append("Key elements: ${topDesc.joinToString(", ") { "\"$it\"" }}.")
             }
         }
     }
@@ -371,7 +347,7 @@ object SemanticTreeParser {
         append("\nNodes: $extracted extracted / $total total")
     }
 
-    // ── أدوات التحليل ─────────────────────────────────────────────────────────
+    // Analysis helpers.
 
     private fun computePriority(
         node: AccessibilityNodeInfo,
@@ -380,24 +356,24 @@ object SemanticTreeParser {
     ): Int {
         var score = 0
 
-        // قابلية التفاعل
+        // Interactivity.
         if (node.isClickable) score += 30
         if (node.isEditable) score += 40
         if (node.isFocused) score += 25
         if (node.isFocusable) score += 10
         if (node.isScrollable) score += 20
 
-        // عمق الشجرة (الأعمق = أقل أهمية)
+        // Tree depth: deeper elements get lower priority.
         score -= depth * 2
 
-        // موضع الشاشة (الأعلى = أكثر أهمية عموماً)
-        // لكن عناصر الأسفل (Bottom Nav) أيضاً مهمة
+        // Screen position: upper elements generally get higher priority.
+        // Bottom navigation elements also matter.
         if (bounds.top < 400) score += 10
 
-        // وجود نص
+        // Text presence.
         val text = node.text?.toString()
         if (!text.isNullOrEmpty()) score += 10
-        if (text?.length in 2..30) score += 5 // نص قصير ومعبّر
+        if (text?.length in 2..30) score += 5 // Short, descriptive text.
 
         // Compose
         if (isComposeNode(node)) score += 5
@@ -428,7 +404,7 @@ object SemanticTreeParser {
         parent: AccessibilityNodeInfo?
     ): AccessibilityNodeInfo? {
         if (parent == null || !node.isEditable) return null
-        // ابحث عن TextView سابق مباشرة كـ sibling
+        // Look for an immediately preceding TextView sibling.
         for (i in 0 until parent.childCount) {
             val sibling = parent.getChild(i) ?: continue
             if (sibling == node) break

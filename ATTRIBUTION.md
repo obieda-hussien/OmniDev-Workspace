@@ -1,7 +1,7 @@
 # Attribution and maintainer roles
 
 **OmniDev Workspace developer and maintainer:**
-[Abdelrahman Hussein — عبدالرحمن حسين / Obieda](https://github.com/obieda-hussien).
+[Abdelrahman Hussein / Obieda](https://github.com/obieda-hussien).
 
 The maintainer's role covers original Workspace development, updates, modifications, and
 interoperability with OmniLinkSDK, Omni Launcher, AndroidIDE and the wider Omni ecosystem.

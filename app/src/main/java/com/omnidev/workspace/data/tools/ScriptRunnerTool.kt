@@ -6,30 +6,30 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
- * ScriptRunnerTool — تشغيل السكريبتات للـ Norm Tier فما فوق
+ * ScriptRunnerTool — Script execution for the Norm tier and above
  * ══════════════════════════════════════════════════════════════════════════════
  *
- * يُوفّر أداتين:
+ * Provides two tools:
  *
- * 1. **run_script** — تشغيل سكريبت بلغات مختلفة:
- *    - `shell` → يُعيد توجيه إلى `run_terminal` (أو ProcessBuilder إذا لم يكن متاحاً)
- *    - `python` → يُعيد توجيه إلى Python عبر Termux إن وجد
- *    - `js`     → تقييم تعبيرات JavaScript بسيطة عبر المُقيّم الداخلي
+ * 1. **run_script** — Run scripts in several languages:
+ *    - `shell` → Delegates to `run_terminal`, with a ProcessBuilder fallback
+ *    - `python` → Delegates to Python through Termux when available
+ *    - `js`     → Evaluate basic JavaScript expressions with the internal evaluator
  *
- * 2. **eval_expression** — تقييم تعبيرات رياضية/منطقية بأمان تام:
- *    - يدعم: +، -، *، /، %، >، <، ==، !=، &&، ||، !
- *    - Recursive-descent parser — بدون eval() أو reflection
- *    - آمن تماماً ضد code injection
+ * 2. **eval_expression** — Evaluate mathematical and logical expressions with a restricted parser:
+ *    - Supports: +, -, *, /, %, >, <, ==, !=, &&, ||, !
+ *    - Recursive-descent parser — Without eval() or reflection
+ *    - Restricts input to the expression grammar
  *
  * ## Mobile-First:
- * - بدون مكتبات خارجية
- * - المُقيّم الداخلي < 1ms لمعظم التعبيرات
- * - Timeout قابل للضبط (افتراضي 5000ms)
+ * - No external libraries
+ * - Internal evaluator targets less than 1 ms for most expressions
+ * - Configurable timeout (default: 5000 ms)
  *
- * ## الأمان:
- * - shell/python يُعيد توجيه فقط — لا تنفيذ مباشر
- * - JS evaluator يسمح فقط بالعمليات الحسابية/المنطقية
- * - لا eval()، لا Reflection، لا ClassLoader
+ * ## Security:
+ * - Shell and Python delegate to their respective execution backends
+ * - JS evaluator permits only mathematical and logical operations
+ * - No eval(), reflection or ClassLoader
  */
 class ScriptRunnerTool {
 
@@ -41,32 +41,32 @@ class ScriptRunnerTool {
 
         ToolDefinition(
             name = "run_script",
-            description = """تشغيل سكريبت في بيئة محكومة.
-اللغات المدعومة:
-- shell  → يُنفَّذ عبر ProcessBuilder أو يُعيد توجيه إلى run_terminal
-- python → يُنفَّذ عبر Termux Python إن كان مثبتاً
-- js     → تقييم تعبيرات JavaScript أساسية (حسابات، سلاسل نصية، متغيرات)
+            description = """Run a script through the configured execution backend.
+Supported languages:
+- shell  → Runs through ProcessBuilder or delegates to run_terminal
+- python → Runs through Termux Python when installed
+- js     → Evaluate basic JavaScript expressions (arithmetic, strings, variables)
 
-ملاحظة: shell وpython يتطلبان صلاحية terminal_access (NORM+).
-لتقييم تعابير رياضية/منطقية بسيطة استخدم eval_expression.
+Note: shell and Python require terminal_access capability (NORM+).
+Use eval_expression for simple mathematical or logical expressions.
 """,
             parameters = listOf(
                 ToolParameter(
                     name = "language",
                     type = "string",
-                    description = "لغة السكريبت: 'js' | 'python' | 'shell'",
+                    description = "Script language: 'js' | 'python' | 'shell'",
                     required = true
                 ),
                 ToolParameter(
                     name = "code",
                     type = "string",
-                    description = "كود السكريبت المراد تشغيله",
+                    description = "Script source to execute",
                     required = true
                 ),
                 ToolParameter(
                     name = "timeout_ms",
                     type = "string",
-                    description = "مهلة التنفيذ بالميلي ثانية (افتراضي: 5000)",
+                    description = "Execution timeout in milliseconds (default: 5000)",
                     required = false
                 )
             )
@@ -74,29 +74,29 @@ class ScriptRunnerTool {
 
         ToolDefinition(
             name = "eval_expression",
-            description = """تقييم تعبيرات رياضية ومنطقية بأمان تام.
-تدعم:
-- العمليات الحسابية: +، -، *، /، %، القيم السالبة
-- المقارنات: >، <، >=، <=، ==، !=
-- المنطق: &&، ||، !
-- الأقواس للتقديم والتأخير
-- الأعداد الصحيحة والعشرية
-- قيم boolean: true/false
+            description = """Evaluate mathematical and logical expressions with a restricted parser.
+Supports:
+- Arithmetic: +, -, *, /, %, negative values
+- Comparisons: >, <, >=, <=, ==, !=
+- Logic: &&, ||, !
+- Parentheses for grouping and precedence
+- Integer and decimal numbers
+- Boolean values: true/false
 
-أمثلة:
+Examples:
 - "2 + 3 * 4" → 14
 - "(2 + 3) * 4" → 20
 - "10 > 5 && 3 < 7" → true
 - "100 % 7" → 2
 - "!false || (3 == 3)" → true
 
-آمن تماماً — لا eval()، لا reflection، لا access للنظام.
+Uses a restricted grammar with no eval(), reflection or system access.
 """,
             parameters = listOf(
                 ToolParameter(
                     name = "expression",
                     type = "string",
-                    description = "التعبير المراد تقييمه",
+                    description = "Expression to evaluate",
                     required = true
                 )
             )
@@ -107,7 +107,7 @@ class ScriptRunnerTool {
     // Execution
     // ──────────────────────────────────────────────────────────────────────────
 
-    /** يُعيد null إذا الأداة ليست مملوكة لهذا الـ wrapper. */
+    /** Returns null for tools not handled by this wrapper. */
     suspend fun execute(name: String, args: Map<String, String>): ToolExecutionResult? {
         if (name !in HANDLED) return null
         return try {
@@ -150,13 +150,13 @@ class ScriptRunnerTool {
     }
 
     /**
-     * تشغيل JavaScript — محاولة تقييم تعبيرات بسيطة عبر المُقيّم الداخلي.
-     * بالنسبة للسكريبتات المعقدة التي تتضمن console.log أو دالات، نُعيد رسالة واضحة.
+     * Run JavaScript by attempting basic expression evaluation internally.
+     * Scripts containing console.log or functions use the complex-script path.
      */
     private suspend fun runJavaScript(code: String, timeoutMs: Long): ToolExecutionResult {
         return withTimeoutOrNull(timeoutMs) {
             try {
-                // محاولة استخدام ScriptEngineManager إن كان متاحاً (JVM فقط، ليس Android)
+                // Try ScriptEngineManager when available (JVM only, not Android)
                 tryScriptEngineManager(code)
                     ?: runJsWithBasicInterpreter(code)
             } catch (e: Exception) {
@@ -166,8 +166,8 @@ class ScriptRunnerTool {
     }
 
     /**
-     * محاولة ScriptEngineManager (يعمل على JVM/Roboelectric، لا يعمل على Android runtime).
-     * يُعيد null إذا لم يكن متاحاً.
+     * Try ScriptEngineManager on JVM/Robolectric; unavailable in the Android runtime.
+     * Returns null when unavailable.
      */
     private fun tryScriptEngineManager(code: String): ToolExecutionResult? {
         return try {
@@ -181,42 +181,42 @@ class ScriptRunnerTool {
             val result = evalMethod.invoke(engine, code)
             ToolExecutionResult("${result ?: "undefined"}")
         } catch (e: ClassNotFoundException) {
-            null // ScriptEngineManager غير متاح (Android runtime)
+            null // ScriptEngineManager unavailable in the Android runtime
         } catch (e: Exception) {
             null
         }
     }
 
     /**
-     * مُفسّر JavaScript بسيط للتعبيرات الأساسية.
-     * يدعم: العمليات الحسابية، المقارنات، المنطق، الـ String literals.
+     * Basic JavaScript expression interpreter.
+     * Supports arithmetic, comparisons, logic and string literals.
      */
     private fun runJsWithBasicInterpreter(code: String): ToolExecutionResult {
         val trimmed = code.trim()
 
-        // إذا كان السكريبت أكثر من سطر أو يحتوي على function/var/let/const/console
+        // Detect multiline scripts or function/var/let/const/console usage
         val hasComplexKeywords = listOf("function", "var ", "let ", "const ", "console.", "return ", "if ", "for ", "while ").any {
             trimmed.contains(it)
         }
 
         if (hasComplexKeywords || trimmed.contains('\n')) {
-            // بالنسبة للسكريبتات المعقدة: نحاول تنفيذها عبر Termux Node.js
+            // Try Termux Node.js for complex scripts
             return runViaTermuxNode(trimmed)
         }
 
-        // محاولة eval_expression للتعبيرات البسيطة
+        // Try eval_expression for basic expressions
         return try {
             val parser = SafeExpressionParser(trimmed)
             val result = parser.parse()
             ToolExecutionResult(formatEvalResult(result))
         } catch (e: Exception) {
-            // محاولة أخيرة: Termux
+            // Final fallback: Termux
             runViaTermuxNode(trimmed)
         }
     }
 
     /**
-     * تشغيل عبر Termux Node.js إن كان متاحاً.
+     * Execute through Termux Node.js when available.
      */
     private fun runViaTermuxNode(code: String): ToolExecutionResult {
         return try {
@@ -238,12 +238,12 @@ class ScriptRunnerTool {
     }
 
     /**
-     * تشغيل Python عبر Termux.
+     * Execute Python through Termux.
      */
     private suspend fun runPython(code: String, timeoutMs: Long): ToolExecutionResult {
         return withTimeoutOrNull(timeoutMs) {
             try {
-                // محاولة python3 أولاً، ثم python
+                // Try python3 first, then python
                 val pythonBins = listOf(
                     "/data/data/com.termux/files/usr/bin/python3",
                     "/data/data/com.termux/files/usr/bin/python",
@@ -277,7 +277,7 @@ class ScriptRunnerTool {
     }
 
     /**
-     * تشغيل Shell — يستخدم sh/bash مباشرة.
+     * Execute shell scripts directly through sh/bash.
      */
     private suspend fun runShell(code: String, timeoutMs: Long): ToolExecutionResult {
         return withTimeoutOrNull(timeoutMs) {
@@ -293,7 +293,7 @@ class ScriptRunnerTool {
     }
 
     /**
-     * تشغيل عملية خارجية مع Timeout.
+     * Execute an external process with a timeout.
      */
     private fun runProcessWithTimeout(command: List<String>, timeoutMs: Long): ToolExecutionResult {
         val process = ProcessBuilder(command)
@@ -350,7 +350,7 @@ class ScriptRunnerTool {
     companion object {
         val HANDLED = setOf("run_script", "eval_expression")
 
-        /** تنسيق نتيجة التقييم بشكل قابل للقراءة */
+        /** Format evaluation results for readability */
         internal fun formatEvalResult(result: Any): String = when (result) {
             is Double -> if (result % 1.0 == 0.0 && result >= Long.MIN_VALUE.toDouble() && result <= Long.MAX_VALUE.toDouble()) {
                 result.toLong().toString()
@@ -364,17 +364,17 @@ class ScriptRunnerTool {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// SafeExpressionParser — مُقيّم تعابير بأمان تام
-// Recursive-descent parser — لا eval()، لا reflection
+// SafeExpressionParser — Restricted expression evaluator
+// Recursive-descent parser — No eval() or reflection
 // ════════════════════════════════════════════════════════════════════════════
 
-/** استثناء خاص بأخطاء تحليل التعابير */
+/** Exception for expression parsing errors */
 class ExpressionParseException(message: String) : Exception(message)
 
 /**
- * مُقيّم تعابير رياضية/منطقية آمن.
+ * Restricted mathematical and logical expression evaluator.
  *
- * القواعد المدعومة (بترتيب الأولوية من الأدنى للأعلى):
+ * Supported grammar, ordered from lowest to highest precedence:
  *   expr     → or_expr
  *   or_expr  → and_expr ('||' and_expr)*
  *   and_expr → not_expr ('&&' not_expr)*
@@ -389,7 +389,7 @@ internal class SafeExpressionParser(private val input: String) {
 
     private var pos = 0
 
-    /** نقطة الدخول الرئيسية */
+    /** Main entry point */
     fun parse(): Any {
         skipWhitespace()
         val result = parseOr()
@@ -402,7 +402,7 @@ internal class SafeExpressionParser(private val input: String) {
         return result
     }
 
-    // ── مستويات الأولوية ──────────────────────────────────────────────────
+    // ── Precedence levels ──────────────────────────────────────────────────
 
     private fun parseOr(): Any {
         var left = parseAnd()
@@ -428,9 +428,9 @@ internal class SafeExpressionParser(private val input: String) {
         skipWhitespace()
         if (pos < input.length && input[pos] == '!') {
             pos++ // consume '!'
-            // تأكد من أنه ليس !=
+            // Ensure this is not !=
             if (pos < input.length && input[pos] == '=') {
-                pos-- // أعده، سيتعامل معه cmp_expr
+                pos-- // Rewind; cmp_expr handles this operator
                 return parseComparison()
             }
             val operand = parseNot()
@@ -529,7 +529,7 @@ internal class SafeExpressionParser(private val input: String) {
         skipWhitespace()
         if (pos >= input.length) throw ExpressionParseException("Unexpected end of expression")
 
-        // أقواس
+        // Parentheses
         if (input[pos] == '(') {
             pos++ // consume '('
             val result = parseOr()
@@ -551,7 +551,7 @@ internal class SafeExpressionParser(private val input: String) {
             return false
         }
 
-        // أرقام (صحيحة أو عشرية)
+        // Integer or decimal numbers
         if (input[pos].isDigit() || (input[pos] == '.' && pos + 1 < input.length && input[pos + 1].isDigit())) {
             return parseNumber()
         }
@@ -571,7 +571,7 @@ internal class SafeExpressionParser(private val input: String) {
             ?: throw ExpressionParseException("Invalid number: $numStr")
     }
 
-    // ── أدوات مساعدة ──────────────────────────────────────────────────────
+    // ── Helpers ──────────────────────────────────────────────────────
 
     private fun skipWhitespace() {
         while (pos < input.length && input[pos].isWhitespace()) pos++
@@ -605,7 +605,7 @@ internal class SafeExpressionParser(private val input: String) {
 }
 
 /**
- * تنسيق نتيجة التقييم — wrapper للاستخدام خارج ScriptRunnerTool.
- * مُصدَّر للاختبارات.
+ * Result formatting wrapper for callers outside ScriptRunnerTool.
+ * Exposed for tests.
  */
 internal fun Any.formatResult(): String = ScriptRunnerTool.formatEvalResult(this)

@@ -7,26 +7,13 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * ══════════════════════════════════════════════════════════════════════════════
- * CausalChainPlannerTest — اختبارات وحدة للتخطيط السببي متعدد الخطوات
- * ══════════════════════════════════════════════════════════════════════════════
- *
- * اختبارات JUnit4 نقية (بدون أي تبعيات Android) تغطي:
- * - اكتشاف التعارضات (READ_AFTER_DELETE، MODIFY_AFTER_DELETE، DOUBLE_CREATE، DELETE_AFTER_MODIFY)
- * - المسار السعيد (بدون تعارضات)
- * - الأوامر الحرجة (CRITICAL_COMMAND)
- * - المحاكاة الافتراضية (simulate)
- * - تحليل What-If
- * - بناء المخطط (buildChain)
- * - حقن الـ Prompt (buildPromptInjection)
- */
+/** Pure JUnit4 causal-planning tests without Android dependencies: conflict detection (READ_AFTER_DELETE, MODIFY_AFTER_DELETE, DOUBLE_CREATE, DELETE_AFTER_MODIFY), conflict-free paths, critical commands, simulation, what-if analysis, buildChain and buildPromptInjection. */
 class CausalChainPlannerTest {
 
     private val planner = CausalChainPlanner()
 
     // ──────────────────────────────────────────────────────────────────────────
-    // مساعدات
+    // Helpers.
     // ──────────────────────────────────────────────────────────────────────────
 
     private fun step(tool: String, vararg params: Pair<String, String>): Pair<String, Map<String, String>> =
@@ -35,7 +22,7 @@ class CausalChainPlannerTest {
     private fun stepWithPath(tool: String, path: String) = step(tool, "path" to path)
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 1. READ_AFTER_DELETE — قراءة ملف محذوف
+    // 1. READ_AFTER_DELETE: read a deleted file.
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -46,13 +33,13 @@ class CausalChainPlannerTest {
         ))
 
         val conflict = graph.conflicts.find { it.type == CausalChainPlanner.ConflictType.READ_AFTER_DELETE }
-        assertNotNull("يجب اكتشاف تعارض READ_AFTER_DELETE", conflict)
-        assertTrue("READ_AFTER_DELETE يجب أن يكون فادحاً", conflict!!.isFatal)
+        assertNotNull("Must detect conflict READ_AFTER_DELETE", conflict)
+        assertTrue("READ_AFTER_DELETE must be fatal", conflict!!.isFatal)
         assertEquals("/tmp/foo.kt", conflict.path)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 2. MODIFY_AFTER_DELETE — تعديل ملف محذوف
+    // 2. MODIFY_AFTER_DELETE: modify a deleted file.
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -63,13 +50,13 @@ class CausalChainPlannerTest {
         ))
 
         val conflict = graph.conflicts.find { it.type == CausalChainPlanner.ConflictType.MODIFY_AFTER_DELETE }
-        assertNotNull("يجب اكتشاف تعارض MODIFY_AFTER_DELETE", conflict)
-        assertTrue("MODIFY_AFTER_DELETE يجب أن يكون فادحاً", conflict!!.isFatal)
+        assertNotNull("Must detect conflict MODIFY_AFTER_DELETE", conflict)
+        assertTrue("MODIFY_AFTER_DELETE must be fatal", conflict!!.isFatal)
         assertEquals("/src/A.kt", conflict.path)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 3. DOUBLE_CREATE — إنشاء نفس الملف مرتين بدون حذف بينهما
+    // 3. DOUBLE_CREATE: create the same file twice without an intervening delete.
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -80,12 +67,12 @@ class CausalChainPlannerTest {
         ))
 
         val conflict = graph.conflicts.find { it.type == CausalChainPlanner.ConflictType.DOUBLE_CREATE }
-        assertNotNull("يجب اكتشاف تعارض DOUBLE_CREATE", conflict)
-        assertFalse("DOUBLE_CREATE يجب ألا يكون فادحاً", conflict!!.isFatal)
+        assertNotNull("Must detect conflict DOUBLE_CREATE", conflict)
+        assertFalse("DOUBLE_CREATE must not be fatal", conflict!!.isFatal)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 4. DELETE_AFTER_MODIFY — حذف ملف بعد تعديله مباشرةً (بدون قراءة بينهما)
+    // 4. DELETE_AFTER_MODIFY: delete immediately after modification without reading.
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -96,12 +83,12 @@ class CausalChainPlannerTest {
         ))
 
         val conflict = graph.conflicts.find { it.type == CausalChainPlanner.ConflictType.DELETE_AFTER_MODIFY }
-        assertNotNull("يجب اكتشاف تعارض DELETE_AFTER_MODIFY", conflict)
-        assertFalse("DELETE_AFTER_MODIFY يجب ألا يكون فادحاً", conflict!!.isFatal)
+        assertNotNull("Must detect conflict DELETE_AFTER_MODIFY", conflict)
+        assertFalse("DELETE_AFTER_MODIFY must not be fatal", conflict!!.isFatal)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 5. Happy path — create → patch → read → delete — لا تعارضات
+    // 5. Happy path: create → patch → read → delete, without conflicts.
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -114,15 +101,15 @@ class CausalChainPlannerTest {
             stepWithPath("delete_file",        path)
         ))
 
-        // قراءة بعد التعديل تمنع DELETE_AFTER_MODIFY — يجب ألا يكون هناك أي تعارضات
+        // Reading after modification prevents DELETE_AFTER_MODIFY; expect no conflicts.
         assertTrue(
-            "المسار السعيد يجب ألا ينتج أي تعارضات، وجد: ${graph.conflicts.map { it.type }}",
+            "Happy path must not produce conflicts; found: ${graph.conflicts.map { it.type }}",
             graph.conflicts.isEmpty()
         )
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 6. CRITICAL_COMMAND — run_terminal مع rm -rf
+    // 6. CRITICAL_COMMAND: run_terminal with rm -rf.
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -134,14 +121,14 @@ class CausalChainPlannerTest {
         )
 
         assertEquals(
-            "rm -rf يجب أن ينتج مستوى خطر CRITICAL",
+            "rm -rf must produce CRITICAL risk",
             CausalChainPlanner.RiskLevel.CRITICAL,
             node.riskLevel
         )
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 7. simulate success — create ثم patch → كل الخطوات ستنجح
+    // 7. Successful simulation: create then patch; all steps succeed.
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -153,18 +140,18 @@ class CausalChainPlannerTest {
 
         val result = planner.simulate(graph)
 
-        assertTrue("المحاكاة يجب أن تنجح بالكامل", result.overallSuccess)
-        assertTrue("جميع الخطوات يجب أن تنجح",
+        assertTrue("Simulation must succeed", result.overallSuccess)
+        assertTrue("All steps must succeed",
             result.steps.all { it.wouldSucceed })
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 8. simulate failure — delete ثم read → الخطوة الثانية تفشل
+    // 8. Failed simulation: delete then read; the read fails.
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
     fun `simulate failure when read_file_lines follows delete_file on same path`() {
-        // ملاحظة: نبدأ بإنشاء الملف حتى تكون delete_file مشروعة في الحالة الافتراضية
+        // Create the file first so delete_file is valid in the simulated state.
         val graph = planner.buildChain(listOf(
             stepWithPath("create_file",    "/tmp/gone.txt"),
             stepWithPath("delete_file",    "/tmp/gone.txt"),
@@ -173,22 +160,22 @@ class CausalChainPlannerTest {
 
         val result = planner.simulate(graph)
 
-        assertFalse("المحاكاة يجب أن تفشل", result.overallSuccess)
+        assertFalse("Simulation must fail", result.overallSuccess)
 
-        // الخطوة بفهرس 2 (read بعد delete) هي التي يجب أن تفشل
+        // Step index 2 (read after delete) should fail.
         val failStep = result.steps.find { !it.wouldSucceed }
-        assertNotNull("يجب أن تكون هناك خطوة فاشلة", failStep)
-        assertEquals("فهرس أول فشل يجب أن يكون 2", 2, result.firstFailureIndex)
-        assertNotNull("يجب أن تُوضّح سبب الفشل", failStep!!.failReason)
+        assertNotNull("There must be a failed step", failStep)
+        assertEquals("First failure index must be 2", 2, result.firstFailureIndex)
+        assertNotNull("Failure reason must be provided", failStep!!.failReason)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 9. whatIf remove_step — حذف خطوة delete يُقلّل التعارضات
+    // 9. What-if removal: removing delete reduces conflicts.
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
     fun `whatIf removing delete step reduces conflicts compared to baseline`() {
-        // خطة أساسية: patch ثم delete مباشرةً (بدون قراءة) → DELETE_AFTER_MODIFY
+        // Baseline plan: patch then immediate delete without reading causes DELETE_AFTER_MODIFY.
         val path = "/cfg/app.yml"
         val baseline = planner.buildChain(listOf(
             stepWithPath("create_file",        path),
@@ -196,23 +183,23 @@ class CausalChainPlannerTest {
             stepWithPath("delete_file",        path)
         ))
 
-        // الخطة الأساسية يجب أن تحتوي على تعارض DELETE_AFTER_MODIFY
+        // The baseline must contain a DELETE_AFTER_MODIFY conflict.
         assertTrue(
-            "الخطة الأساسية يجب أن تحتوي على تعارض DELETE_AFTER_MODIFY",
+            "Baseline must contain a DELETE_AFTER_MODIFY conflict",
             baseline.conflicts.any { it.type == CausalChainPlanner.ConflictType.DELETE_AFTER_MODIFY }
         )
 
         val diffText = planner.whatIf(baseline, removeStepIndex = 2)
 
-        // النص يجب أن يشير إلى أن التعارضات انخفضت
+        // The report should indicate fewer conflicts.
         assertTrue(
-            "تقرير whatIf يجب أن يُشير لانخفاض التعارضات",
-            diffText.contains("يُقلّل") || diffText.contains("→")
+            "What-if report must indicate fewer conflicts",
+            diffText.contains("reduces") || diffText.contains("→")
         )
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 10. buildChain — عدد العقد يُطابق عدد الخطوات
+    // 10. buildChain: node count equals step count.
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -225,11 +212,11 @@ class CausalChainPlannerTest {
         )
         val graph = planner.buildChain(steps)
 
-        assertEquals("عدد العقد يجب أن يساوي عدد الخطوات", steps.size, graph.nodes.size)
+        assertEquals("Node count must match step count", steps.size, graph.nodes.size)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // 11. buildPromptInjection — فارغ للمخطط الفارغ/المنخفض الخطر، نص للمرتفع
+    // 11. buildPromptInjection: empty for empty or low-risk graphs, populated for high-risk graphs.
     // ──────────────────────────────────────────────────────────────────────────
 
     @Test
@@ -237,12 +224,12 @@ class CausalChainPlannerTest {
         val emptyGraph = planner.buildChain(emptyList())
         val injection = planner.buildPromptInjection(emptyGraph)
 
-        assertTrue("الحقن يجب أن يكون فارغاً للمخطط الفارغ", injection.isEmpty())
+        assertTrue("Injection must be empty for an empty graph", injection.isEmpty())
     }
 
     @Test
     fun `buildPromptInjection returns empty string for low-risk graph with no conflicts`() {
-        // بحث فقط — مخاطر منخفضة، لا تعارضات
+        // Search only: low risk, no conflicts.
         val graph = planner.buildChain(listOf(
             step("web_search", "query" to "android jetpack compose"),
             step("web_search", "query" to "kotlin flow")
@@ -251,14 +238,14 @@ class CausalChainPlannerTest {
         val injection = planner.buildPromptInjection(graph)
 
         assertTrue(
-            "الحقن يجب أن يكون فارغاً للمخطط الخالي من المخاطر العالية",
+            "Injection must be empty without high risk",
             injection.isEmpty()
         )
     }
 
     @Test
     fun `buildPromptInjection returns warning text for graph with fatal conflict`() {
-        // تعارض حرج: حذف ثم قراءة
+        // Critical conflict: delete then read.
         val graph = planner.buildChain(listOf(
             stepWithPath("delete_file",    "/etc/config.json"),
             stepWithPath("read_file_lines", "/etc/config.json")
@@ -266,16 +253,16 @@ class CausalChainPlannerTest {
 
         val injection = planner.buildPromptInjection(graph)
 
-        assertTrue("الحقن يجب أن يحتوي على نص تحذيري", injection.isNotBlank())
+        assertTrue("Injection must contain warning text", injection.isNotBlank())
         assertTrue(
-            "الحقن يجب أن يذكر التعارض الحرج",
-            injection.contains("❌") || injection.contains("تعارض")
+            "Injection must mention the critical conflict",
+            injection.contains("❌") || injection.contains("conflict")
         )
     }
 
     @Test
     fun `buildPromptInjection returns warning text for HIGH risk graph even without conflicts`() {
-        // delete_file وحده = HIGH risk، بدون تعارضات
+        // Standalone delete_file has HIGH risk without conflicts.
         val graph = planner.buildChain(listOf(
             stepWithPath("delete_file", "/important/file.db")
         ))
@@ -283,7 +270,7 @@ class CausalChainPlannerTest {
         val injection = planner.buildPromptInjection(graph)
 
         assertTrue(
-            "الحقن يجب أن يحتوي على نص تحذيري للمستوى HIGH",
+            "Injection must contain warning text for HIGH risk",
             injection.isNotBlank()
         )
     }

@@ -45,7 +45,11 @@ fun McpSettingsScreen(viewModel: McpSettingsViewModel, onNavigateBack: () -> Uni
             text = { Text("Your current JSON edits have not been saved.") },
             confirmButton = { TextButton(onClick = {
                 confirm = null
-                if (action == "reload") viewModel.loadConfig() else onNavigateBack()
+                when (action) {
+                    "reload" -> viewModel.loadConfig()
+                    "defaults" -> viewModel.loadDefaults()
+                    else -> onNavigateBack()
+                }
             }) { Text("Discard") } }, dismissButton = { TextButton(onClick = { confirm = null }) { Text("Keep editing") } })
     }
     Scaffold(topBar = { TopAppBar(title = { Text("MCP services") }, navigationIcon = {
@@ -73,6 +77,11 @@ fun McpSettingsScreen(viewModel: McpSettingsViewModel, onNavigateBack: () -> Uni
                     Text("Tools beyond Omni", style = MaterialTheme.typography.headlineSmall)
                     Text("Connect external tool servers. This preview shows ${if (dirty) "your unsaved draft" else "your saved configuration"}; it does not test connectivity.",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton(onClick = { if (dirty) confirm = "defaults" else viewModel.loadDefaults() }, enabled = saved != null && !busy) {
+                        Text("Load default services")
+                    }
+                    Text("Defaults include Context7, UsefulAI, Microsoft Learn, GitHub and local MT Manager. Configure any required credentials and start the local server before connecting.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (saved == null && !busy) item { SettingsEmptyState("Configuration unavailable", "Reload to try again.") }
                 else if (preview == null && saved != null) item {

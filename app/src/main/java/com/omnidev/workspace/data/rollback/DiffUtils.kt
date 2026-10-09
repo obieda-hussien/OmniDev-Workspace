@@ -7,28 +7,16 @@ import java.util.zip.DeflaterOutputStream
 import java.util.zip.Inflater
 import java.util.zip.InflaterOutputStream
 
-/**
- * ══════════════════════════════════════════════════════════════════════════════
- * DiffUtils — أدوات Diff خفيفة لنظام Rollback (Brain 2.0)
- * ══════════════════════════════════════════════════════════════════════════════
- *
- * Mobile-first:
- * - LCS (Longest Common Subsequence) محدود بـ 8000 سطر لتفادي O(n²) memory
- * - الملفات > 4 KB → unified diff (توفير ~70% من المساحة)
- * - الملفات ≤ 4 KB → نخزن المحتوى الكامل مضغوطاً Deflate
- * - SHA-256 truncated (16 hex) للتحقق من سلامة الـ rollback
- *
- * كل العمليات synchronous — يجب استدعاؤها من Dispatchers.IO.
- */
+/** DiffUtils provides synchronous rollback diff helpers; call from Dispatchers.IO. LCS is bounded to 8000 lines to constrain quadratic memory use. Files above 4 KB use a diff; smaller files use Deflate-compressed full content. Truncated SHA-256 hashes (16 hex characters) verify restoration. */
 object DiffUtils {
 
-    /** الحد الذي بعده نلجأ للـ diff بدل تخزين المحتوى الكامل. */
+    /** Threshold for storing a diff instead of full content. */
     const val FULL_CONTENT_THRESHOLD_BYTES = 4 * 1024
 
-    /** سقف عدد السطور لخوارزمية الـ LCS (حماية من OOM على هواتف ضعيفة). */
+    /** LCS line limit to constrain memory use on smaller devices. */
     private const val MAX_LCS_LINES = 8_000
 
-    /** أقصى حجم للملف يُسمح بمعالجته (10 MB). */
+    /** Maximum file size accepted for processing (10 MB). */
     const val MAX_FILE_SIZE_BYTES = 10L * 1024 * 1024
 
     // ──────────────────────────────────────────────────────────────────
@@ -44,7 +32,7 @@ object DiffUtils {
     fun sha256(text: String): String = sha256(text.toByteArray())
 
     // ──────────────────────────────────────────────────────────────────
-    // Compression (Deflate — متوفر في كل JVM/Android بدون مكتبات إضافية)
+    // Deflate compression is available on JVM/Android without extra libraries.
     // ──────────────────────────────────────────────────────────────────
 
     fun compress(data: ByteArray): ByteArray {
@@ -65,21 +53,12 @@ object DiffUtils {
     // Unified Diff
     // ──────────────────────────────────────────────────────────────────
 
-    /**
-     * يبني unified diff بسيط بين النصين.
-     * format: لكل سطر:
-     *   "= line"   = نفس السطر (context — نخزن lines قليلة فقط)
-     *   "- line"   = سطر مُزال
-     *   "+ line"   = سطر مُضاف
-     *
-     * Mobile-first: لا نخزن context كامل، فقط hunks المتغيرة + 2 سطر context.
-     * هذا يوفر مساحة هائلة في الملفات الكبيرة.
-     */
+    /** Build a compact line diff: '= line' is unchanged context, '- line' is removed and '+ line' is added. Store changed hunks with two context lines instead of the complete unchanged content. */
     fun buildDiff(before: String, after: String): String {
         val a = before.split('\n')
         val b = after.split('\n')
 
-        // حماية: لو الملف ضخم، نتراجع لتخزين المحتوى كاملاً (يُتعامل معه خارجياً)
+        // For oversized files, fall back to full-content storage handled by the caller.
         if (a.size > MAX_LCS_LINES || b.size > MAX_LCS_LINES) {
             return buildSimpleDiff(a, b)
         }
@@ -88,22 +67,19 @@ object DiffUtils {
         return formatHunks(ops, contextLines = 2)
     }
 
-    /**
-     * يستعيد المحتوى الأصلي من unified diff + المحتوى الحالي.
-     * @return المحتوى الأصلي (قبل الـ edit) إذا نجح، null لو فشل.
-     */
+    /** Restore the original content from the diff and current text; return null if restoration fails. */
     fun applyReverseDiff(currentContent: String, diff: String): String? {
         if (diff.isBlank()) return currentContent
         return try {
-            // العملية العكسية: نحول diff إلى قائمة عمليات ثم نعكسها
+            // Reverse the diff by parsing operations and undoing them.
             val ops = parseDiff(diff)
             val current = currentContent.split('\n').toMutableList()
             val original = mutableListOf<String>()
 
-            // ابسط طريقة: نمشي على ops ونبني الأصل
-            // - = → نأخذ من current
-            // + → نتجاهل (كان مُضاف في after، يُحذف لاستعادة before)
-            // - → نضع السطر (كان موجوداً في before، يُستعاد)
+            // Walk operations and reconstruct the original content.
+            // = takes a line from current content.
+            // + skips a line added in the after state to restore the before state.
+            // - restores a line present in the before state.
             var ci = 0
             for (op in ops) {
                 when (op.kind) {
@@ -116,17 +92,17 @@ object DiffUtils {
                         }
                     }
                     DiffOp.Kind.ADDED -> {
-                        // كان مضافاً في after — نتجاهله ونتقدم في current
+                        // Skip a line added in the after state and advance through current content.
                         if (ci < current.size && current[ci] == op.line) ci++
                     }
                     DiffOp.Kind.REMOVED -> {
-                        // كان موجوداً في before — نضعه
+                        // Restore a line from the before state.
                         original += op.line
                     }
                 }
             }
 
-            // إذا بقيت أسطر في current لم يغطها diff (لا يفترض)، نضيفها كما هي
+            // Append any current lines not covered by the diff.
             while (ci < current.size) {
                 original += current[ci]
                 ci++
@@ -146,11 +122,11 @@ object DiffUtils {
         enum class Kind { CONTEXT, ADDED, REMOVED }
     }
 
-    /** يحسب LCS operations بـ DP table O(m*n) memory — مقبول حتى 8K×8K. */
+    /** Compute LCS operations with an O(m*n) dynamic-programming table within the configured line limit. */
     private fun computeLcsOps(a: List<String>, b: List<String>): List<DiffOp> {
         val m = a.size
         val n = b.size
-        // نستخدم IntArray مُسطّح لتقليل overhead الـ Object[]
+        // Use a flat IntArray to reduce object-array overhead.
         val dp = IntArray((m + 1) * (n + 1))
         val w = n + 1
         for (i in m - 1 downTo 0) {
@@ -186,7 +162,7 @@ object DiffUtils {
         return ops
     }
 
-    /** Fallback لما الملف أكبر من حد LCS — diff بدائي خط-بخط. */
+    /** Use a basic line-by-line diff when input exceeds the LCS limit. */
     private fun buildSimpleDiff(a: List<String>, b: List<String>): String {
         val sb = StringBuilder()
         val limit = minOf(a.size, b.size)
@@ -202,7 +178,7 @@ object DiffUtils {
         return sb.toString()
     }
 
-    /** يحوّل ops إلى hunks مع context محدود (توفير مساحة). */
+    /** Convert operations into hunks with bounded context. */
     private fun formatHunks(ops: List<DiffOp>, contextLines: Int): String {
         val sb = StringBuilder()
         for (op in ops) {

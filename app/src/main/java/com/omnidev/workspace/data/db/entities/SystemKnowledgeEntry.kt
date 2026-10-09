@@ -4,49 +4,41 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/**
- * SystemKnowledgeEntry — معرفة النظام المكتسبة
- *
- * يخزن المعلومات التي يكتشفها الـ Agent عن:
- * - قدرات الأدوات ومتطلباتها
- * - معرفة بيئة النظام والجهاز
- * - الأنماط والأفضليات المكتسبة
- * - التحذيرات والملاحظات المهمة
- */
+/** SystemKnowledgeEntry stores discovered tool requirements, system and device capabilities, learned preferences and important warnings. */
 @Entity(tableName = "system_knowledge", indices = [Index(value = ["subject", "knowledgeType", "source"], name = "index_knowledge_lookup")])
 data class SystemKnowledgeEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
 
-    /** نوع المعرفة */
+    /** Knowledge category. */
     val knowledgeType: String, // TOOL_CAPABILITY, SYSTEM_INFO, PATTERN, WARNING, PREFERENCE, DEPENDENCY
 
-    /** الموضوع (مثل: اسم الأداة، اسم المكوّن) */
+    /** Subject, for example a tool or component name. */
     val subject: String,
 
-    /** المحتوى التفصيلي */
+    /** Detailed content. */
     val content: String,
 
-    /** مستوى الثقة (0.0 - 1.0) */
+    /** Confidence level (0.0-1.0). */
     val confidence: Float = 1.0f,
 
-    /** عدد مرات التحقق من هذه المعرفة */
+    /** Number of times this knowledge has been verified. */
     val verificationCount: Int = 1,
 
-    /** هل هذه المعرفة لا تزال صالحة؟ */
+    /** Whether this knowledge is still valid. */
     val isValid: Boolean = true,
 
-    /** مصدر المعرفة */
+    /** Knowledge source. */
     val source: String = "agent_discovery",
 
-    /** الكلمات المفتاحية للبحث */
+    /** Search keywords. */
     val searchTags: String = "",
 
-    /** أولوية الحقن في System Prompt */
-    val injectionPriority: Int = 5, // 1=أعلى, 10=أدنى
+    /** System-prompt injection priority. */
+    val injectionPriority: Int = 5, // 1 = highest, 10 = lowest.
 
-    /** الطابع الزمني للإنشاء */
+    /** Creation timestamp. */
     val createdAt: Long = System.currentTimeMillis(),
 
-    /** آخر تحديث */
+    /** Last update. */
     val updatedAt: Long = System.currentTimeMillis()
 )

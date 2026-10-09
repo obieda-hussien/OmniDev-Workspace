@@ -12,29 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.abs
 
-/**
- * AccessibilityStateManager — محرك حالة الواجهة الذكي المحسّن
- *
- * تحسينات الجيل الثاني:
- * ─────────────────────────────────────────────────────────────────────────────
- * 1. **تتبع سرعة تغيّر الواجهة (UI Change Velocity)**: يرصد معدل تغيّر الشاشة
- *    ليستنتج الوكيل هل النظام في حالة تحميل (loading) أم جاهز للتفاعل.
- *
- * 2. **كشف أنماط التنقل (Navigation Pattern Detection)**: يحفظ تسلسلات الـ packages
- *    ويستنتج دورات متكررة (مثل: Settings → WiFi → back → Settings).
- *
- * 3. **تصنيف حالة الواجهة (UI State Classification)**: يصنّف الشاشة تلقائياً
- *    كـ LOADING / INTERACTIVE / ERROR / DIALOG / LIST / FORM.
- *
- * 4. **مرشّح إعادة التشغيل الذكي (Smart Debounce)**: يمنع الإشعار المتكرر
- *    عند تغييرات الـ content الطفيفة (scroll, animation).
- *
- * 5. **ذاكرة الجلسة (Session Memory)**: يحفظ إحصاءات الجلسة الكاملة —
- *    عدد الشاشات، زمن الانتقال، التطبيق الأكثر استخداماً.
- *
- * 6. **أحداث UI القابلة للاشتراك (UI Event Streaming)**: يبث أحداث هيكلية
- *    (UIEvent) بدلاً من مجرد حالة مرة واحدة — مثالي لحلقة ReAct.
- */
+/** AccessibilityStateManager tracks UI change velocity, recent package navigation, screen classification, debounced content changes, session statistics and structured UI events for the agent loop. */
 object AccessibilityStateManager {
 
     // ── Core State ──────────────────────────────────────────────────────────
@@ -56,59 +34,56 @@ object AccessibilityStateManager {
 
     // ── Enhanced State ───────────────────────────────────────────────────────
 
-    /** تاريخ التنقل: آخر 20 تطبيق مع الطوابع الزمنية */
+    /** Navigation history: the last 20 packages with timestamps. */
     private val _navigationHistory = MutableStateFlow<List<NavigationEntry>>(emptyList())
     val navigationHistory: StateFlow<List<NavigationEntry>> = _navigationHistory.asStateFlow()
 
-    /** تصنيف الشاشة الحالية بالذكاء الاصطناعي */
+    /** Heuristic classification of the current screen. */
     private val _screenClass = MutableStateFlow(ScreenClass.UNKNOWN)
     val screenClass: StateFlow<ScreenClass> = _screenClass.asStateFlow()
 
-    /** سرعة تغيّر الواجهة: عدد تغييرات الـ content في آخر 5 ثوانٍ */
+    /** UI change velocity: content changes over the last five seconds. */
     private val _changeVelocity = MutableStateFlow(0f)
     val changeVelocity: StateFlow<Float> = _changeVelocity.asStateFlow()
 
-    /** هل الشاشة في حالة تحميل؟ (مستنتجة من الـ velocity + node count) */
+    /** Whether velocity and node count suggest a loading screen. */
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    /** بث أحداث UI المهيكلة للوكيل */
+    /** Structured UI event stream for the agent. */
     private val _uiEvents = MutableSharedFlow<UIEvent>(extraBufferCapacity = 32)
     val uiEvents: SharedFlow<UIEvent> = _uiEvents.asSharedFlow()
 
-    /** إحصاءات الجلسة الكاملة */
+    /** Statistics for the current session. */
     private val _sessionStats = MutableStateFlow(SessionStats())
     val sessionStats: StateFlow<SessionStats> = _sessionStats.asStateFlow()
 
-    /** آخر snapshot للـ node count (للكشف عن loading) */
+    /** Last node-count snapshot for loading detection. */
     private val _lastNodeCount = MutableStateFlow(0)
     val lastNodeCount: StateFlow<Int> = _lastNodeCount.asStateFlow()
 
     // ── Internal Tracking ────────────────────────────────────────────────────
 
-    /** نافذة زمنية 5 ثوانٍ لقياس الـ velocity */
+    /** Five-second window for measuring change velocity. */
     private val recentChangeTimestamps = ConcurrentLinkedDeque<Long>()
     private val VELOCITY_WINDOW_MS = 5_000L
 
-    /** عدد تغييرات الـ root منذ آخر package change */
+    /** Root changes since the last package change. */
     private val rootUpdatesSincePackageChange = AtomicInteger(0)
 
-    /** وقت آخر تغيير للـ package */
+    /** Timestamp of the last package change. */
     private val lastPackageChangeMs = AtomicLong(0L)
 
-    /** تسلسلات أنماط التنقل المكتشفة */
+    /** Detected navigation pattern sequences. */
     private val detectedNavigationPatterns = mutableMapOf<String, Int>()
 
-    /** آخر package hash للـ debounce */
+    /** Last package hash used for debouncing. */
     @Volatile
     private var lastKnownPackage: String? = null
 
     // ── Public API ───────────────────────────────────────────────────────────
 
-    /**
-     * يُحدّث الـ root node مع تحليل ذكي للحالة.
-     * يُدار من [OmniAccessibilityService] عند كل تغيير.
-     */
+    /** Update the root node and analyze screen state. Called by [OmniAccessibilityService] on changes. */
     fun updateRootNode(node: AccessibilityNodeInfo?) {
         recycleOldRoot(node)
         _rootNode.value = node
@@ -116,7 +91,7 @@ object AccessibilityStateManager {
         _lastUpdateTime.value = now
         rootUpdatesSincePackageChange.incrementAndGet()
 
-        // تتبع الـ velocity
+        // Track UI change velocity.
         trackVelocity(now)
 
         if (node != null) {
@@ -133,9 +108,7 @@ object AccessibilityStateManager {
         _uiEvents.tryEmit(UIEvent.ContentChanged(_activePackage.value, now))
     }
 
-    /**
-     * يُحدّث نافذة التطبيق النشطة مع تحليل نمط التنقل.
-     */
+    /** Update the active application window and analyze navigation patterns. */
     fun updateActiveWindow(packageName: String?, activityName: String?) {
         val prev = _activePackage.value
         _activePackage.value = packageName
@@ -146,25 +119,25 @@ object AccessibilityStateManager {
             lastPackageChangeMs.set(now)
             rootUpdatesSincePackageChange.set(0)
 
-            // تحديث تاريخ التنقل
+            // Update navigation history.
             val entry = NavigationEntry(packageName, activityName, now)
             val history = _navigationHistory.value.toMutableList()
             history.add(entry)
             if (history.size > 20) history.removeAt(0)
             _navigationHistory.value = history
 
-            // كشف أنماط التنقل المتكررة
+            // Detect repeated navigation patterns.
             analyzeNavigationPattern(history)
 
-            // تحديث إحصاءات الجلسة
+            // Update session statistics.
             updateSessionStats(packageName, prev, now)
 
-            // بث حدث تغيير التطبيق
+            // Emit an application-change event.
             _uiEvents.tryEmit(UIEvent.AppSwitched(prev, packageName, now))
         }
     }
 
-    /** يُعيّن حالة الاتصال مع تهيئة / تنظيف المتغيرات. */
+    /** Set connection state and initialize or clear session variables. */
     fun setServiceConnected(connected: Boolean) {
         _isServiceConnected.value = connected
         if (!connected) {
@@ -181,10 +154,7 @@ object AccessibilityStateManager {
         }
     }
 
-    /**
-     * يبحث في شجرة الـ accessibility عن أول عقدة تطابق المعيار المحدد.
-     * مفيد للوكيل للعثور على عناصر بدون dump_tree كامل.
-     */
+    /** Find the first accessibility node matching a predicate without a full dump_tree. */
     fun findNodeByText(text: String, exactMatch: Boolean = false): AccessibilityNodeInfo? {
         val root = _rootNode.value ?: return null
         return findNodeRecursive(root) { node ->
@@ -199,9 +169,7 @@ object AccessibilityStateManager {
         }
     }
 
-    /**
-     * يُرجع وصفاً مُثرّياً للحالة الحالية — يُستخدم لحقن السياق في الـ system prompt.
-     */
+    /** Describe the current state for system-prompt context. */
     fun buildContextSummary(): String = buildString {
         append("🖥️ UI Context Summary\n")
         append("━━━━━━━━━━━━━━━━━━━━\n")
@@ -232,9 +200,7 @@ object AccessibilityStateManager {
         append("${formatDuration(stats.sessionDurationMs())} elapsed")
     }
 
-    /**
-     * يُرجع قائمة التطبيقات الأكثر استخداماً في الجلسة الحالية.
-     */
+    /** List the most frequently used applications in the current session. */
     fun getMostUsedApps(limit: Int = 5): List<Pair<String, Int>> =
         _sessionStats.value.appVisitCounts
             .entries
@@ -242,14 +208,10 @@ object AccessibilityStateManager {
             .take(limit)
             .map { it.key to it.value }
 
-    /**
-     * يُرجع ما إذا كانت الشاشة الحالية تبدو كنموذج (form) — مفيد للوكيل لاتخاذ قرار التعبئة.
-     */
+    /** Check whether the current screen resembles a form. */
     fun isFormScreen(): Boolean = _screenClass.value == ScreenClass.FORM
 
-    /**
-     * يُرجع ما إذا كان الوكيل ينبغي أن ينتظر قبل التفاعل.
-     */
+    /** Check whether the agent should wait before interacting. */
     fun shouldWaitForUI(): Boolean = _isLoading.value || _changeVelocity.value > 5f
 
     // ── Private Helpers ───────────────────────────────────────────────────────
@@ -263,7 +225,7 @@ object AccessibilityStateManager {
 
     private fun trackVelocity(now: Long) {
         recentChangeTimestamps.addLast(now)
-        // إزالة الطوابع الأقدم من 5 ثوانٍ
+        // Remove timestamps older than five seconds.
         while (recentChangeTimestamps.isNotEmpty() &&
             now - recentChangeTimestamps.peekFirst() > VELOCITY_WINDOW_MS) {
             recentChangeTimestamps.pollFirst()
@@ -281,10 +243,7 @@ object AccessibilityStateManager {
         return count
     }
 
-    /**
-     * يُصنّف الشاشة بناءً على خصائص الـ node tree.
-     * الخوارزمية: مزيج من heuristics + خصائص الشجرة.
-     */
+    /** Classify the screen using node-tree properties and heuristics. */
     private fun classifyScreen(root: AccessibilityNodeInfo, nodeCount: Int): ScreenClass {
         var editableCount = 0
         var listItemCount = 0
@@ -330,12 +289,12 @@ object AccessibilityStateManager {
     private fun detectLoading(nodeCount: Int, velocity: Float, screenClass: ScreenClass): Boolean {
         return screenClass == ScreenClass.LOADING ||
                 (nodeCount < 8 && velocity > 3f) ||
-                (velocity > 10f) // شاشة تتغير بسرعة كبيرة = انتقال
+                (velocity > 10f) // Rapid UI changes suggest a transition.
     }
 
     private fun analyzeNavigationPattern(history: List<NavigationEntry>) {
         if (history.size < 3) return
-        // كشف أنماط A→B→A المتكررة (bounce back patterns)
+        // Detect repeated A→B→A navigation patterns.
         val recent = history.takeLast(6)
         val safeSize = recent.size
         for (i in 0 until safeSize - 2) {
@@ -404,19 +363,19 @@ object AccessibilityStateManager {
         fun sessionDurationMs(): Long = lastActivityMs - sessionStartMs
     }
 
-    /** تصنيف نوع الشاشة */
+    /** Screen classifications. */
     enum class ScreenClass {
-        UNKNOWN,    // لم يُحلَّل بعد
-        LOADING,    // شاشة تحميل / انتقال
-        INTERACTIVE,// شاشة تفاعلية عامة
-        FORM,       // نموذج إدخال بيانات
-        SEARCH,     // شريط بحث / إدخال واحد
-        LIST,       // قائمة عناصر
-        DIALOG,     // حوار منبثق
-        ERROR       // رسالة خطأ
+        UNKNOWN,    // Not analyzed yet.
+        LOADING,    // Loading screen or transition.
+        INTERACTIVE,// General interactive screen.
+        FORM,       // Data-entry form.
+        SEARCH,     // Search bar or single input.
+        LIST,       // List of items.
+        DIALOG,     // Popup dialog.
+        ERROR       // Error message.
     }
 
-    /** أحداث UI المهيكلة */
+    /** Structured UI events. */
     sealed class UIEvent {
         object ServiceConnected : UIEvent()
         object ServiceDisconnected : UIEvent()

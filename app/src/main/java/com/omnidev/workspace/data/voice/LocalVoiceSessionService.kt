@@ -88,12 +88,12 @@ class LocalVoiceSessionService : Service() {
         .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
         .setContentIntent(PendingIntent.getActivity(this, 0, Intent(this, VoiceWakeActivity::class.java), IMMUTABLE))
         .addAction(0, "Stop", PendingIntent.getService(this, 1, Intent(this, LocalVoiceSessionService::class.java).setAction(STOP), IMMUTABLE)).build()
-    private suspend fun say(english: String, arabic: String = english, requireUnlocked: Boolean = false) {
+    private suspend fun say(english: String, requireUnlocked: Boolean = false) {
         stage = "speech_output"
         check(allowed())
         check(!requireUnlocked || !DeviceConsentStore(this).locked())
         update(if (requireUnlocked) "Speaking reply…" else english)
-        val spoken = if (output?.language == "ar") arabic else english
+        val spoken = english
         val completed = withContext(Dispatchers.Main.immediate) {
             if (requireUnlocked && DeviceConsentStore(this@LocalVoiceSessionService).locked()) false else output?.say(spoken) == true
         }
@@ -126,7 +126,7 @@ class LocalVoiceSessionService : Service() {
                         }
                         throw IllegalStateException("Offline speech output unavailable")
                     }
-                    if (requestId == null) say("I'm ready. What would you like?", "أنا جاهز. تحب أعمل إيه؟")
+                    if (requestId == null) say("I'm ready. What would you like?")
                     repeat(8) {
                         currentCoroutineContext().ensureActive()
                         if (requestId != null) { finishRequest(unlock()); return@withModel }
@@ -136,11 +136,11 @@ class LocalVoiceSessionService : Service() {
                             catch (error: IllegalStateException) { if (requestId != null) null else throw error }
                         if (requestId != null) return@repeat
                         if (utterance == null) return@withModel
-                        if (utterance.confidence < .7) { say("I couldn't understand clearly. Please try again.", "مش سامع بوضوح. قول الطلب تاني."); return@repeat }
+                        if (utterance.confidence < .7) { say("I couldn't understand clearly. Please try again."); return@repeat }
                         when (VoiceSessionPolicy.intent(utterance.text)) {
                             VoiceSessionPolicy.Intent.CANCEL -> return@withModel
                             VoiceSessionPolicy.Intent.UNLOCK -> {
-                                if (!DeviceConsentStore(this@LocalVoiceSessionService).locked()) say("The phone is already unlocked.", "التليفون مفتوح بالفعل.")
+                                if (!DeviceConsentStore(this@LocalVoiceSessionService).locked()) say("The phone is already unlocked.")
                                 else if (!unlock()) return@withModel
                             }
                             VoiceSessionPolicy.Intent.TASK -> {
@@ -197,7 +197,7 @@ class LocalVoiceSessionService : Service() {
             return result.startsWith("UNLOCKED:") && !consent.locked()
         }
         if (!consent.enabled(DeviceConsentPolicy.Scope.VOICE_CREDENTIAL) || !consent.enabled(DeviceConsentPolicy.Scope.UNLOCK)) {
-            say("Enable private spoken unlock in Device access, or unlock manually.", "فعّل فتح القفل بالصوت من صلاحيات الجهاز، أو افتح التليفون بنفسك."); return false
+            say("Enable private spoken unlock in Device access, or unlock manually."); return false
         }
         privatePhase = true; handingOff = true
         val generation = AssistantRuntime.get(this).sessionGeneration
@@ -208,18 +208,14 @@ class LocalVoiceSessionService : Service() {
             withTimeoutOrNull(8_000) {
                 while (consent.locked() && LocalSpokenUnlock.visibleKind() == null && !nativePrompt.isCompleted) delay(150)
             }
-            if (!consent.locked()) { privatePhase = false; say("Unlocked.", "تم فتح القفل."); return true }
+            if (!consent.locked()) { privatePhase = false; say("Unlocked."); return true }
             if (nativePrompt.isCompleted) { update(nativePrompt.await()); return false }
             val kind = LocalSpokenUnlock.visibleKind()
-            if (kind == null) { say("The Android keypad is not supported. Unlock it manually.", "لوحة القفل غير مدعومة. افتح التليفون يدويًا."); return false }
+            if (kind == null) { say("The Android keypad is not supported. Unlock it manually."); return false }
             say(when (kind) {
                 SpokenCredential.Kind.PIN -> "Say each PIN digit separately. Your code stays local."
                 SpokenCredential.Kind.PASSWORD -> "Spell the password. Use capital for uppercase letters and names for symbols."
                 SpokenCredential.Kind.PATTERN -> "Say the pattern points from one to nine. Top row is one, two, three."
-            }, when (kind) {
-                SpokenCredential.Kind.PIN -> "قول أرقام الرمز واحد واحد. الرمز بيبقى على الجهاز فقط."
-                SpokenCredential.Kind.PASSWORD -> "هجّي كلمة المرور حرف حرف وحدد الحروف الكبيرة والرموز."
-                SpokenCredential.Kind.PATTERN -> "قول نقاط النقش من واحد لتسعة. الصف العلوي واحد اتنين تلاتة."
             })
             update("Private code input · no transcript")
             stage = "microphone"
@@ -236,8 +232,8 @@ class LocalVoiceSessionService : Service() {
                 update("$captureFailure Nothing entered; unlock manually."); return false
             }
             credential = runCatching { SpokenCredentialParser.parse(heard!!.text, kind) }.getOrNull()
-            if (credential == null) { say("I couldn't understand the code precisely. Use manual unlock. Nothing entered.", "الرمز مش واضح بالضبط. افتح يدويًا، ما دخلتش أي حاجة."); return false }
-            say("Code received. Say confirm to enter it once, or cancel.", "الرمز وصل. قول تأكيد عشان أدخله مرة واحدة، أو إلغاء.")
+            if (credential == null) { say("I couldn't understand the code precisely. Use manual unlock. Nothing entered."); return false }
+            say("Code received. Say confirm to enter it once, or cancel.")
             val confirm = input?.listen(10) { allowed() && !nativePrompt.isCompleted }
             if (!consent.locked()) return true
             if (nativePrompt.isCompleted) { update(nativePrompt.await()); return false }
@@ -249,8 +245,7 @@ class LocalVoiceSessionService : Service() {
             val success = LocalSpokenUnlock.attempt(this, credential!!) || !consent.locked()
             credential = null
             privatePhase = false
-            say(if (success) "Unlocked." else "Android did not unlock. No automatic retry. Unlock manually.",
-                if (success) "تم فتح القفل." else "التليفون ما اتفتحش. مش هكرر المحاولة. افتحه يدويًا.")
+            say(if (success) "Unlocked." else "Android did not unlock. No automatic retry. Unlock manually.")
             return success
         } catch (error: IllegalStateException) {
             // A manual/biometric unlock stops private capture; the waiting task can now resume.

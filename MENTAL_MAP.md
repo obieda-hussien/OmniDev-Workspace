@@ -1,46 +1,46 @@
-# خريطة ذهنية سريعة لـ OmniDev Workspace
+# OmniDev Workspace quick mental map
 
-> دليل سريع لنقاط الدخول ومسارات التشغيل. الأرقام وطريقة حسابها في [README](README.md)، والبنية في [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md)، وتصنيف الملفات في [دليل المشروع](docs/PROJECT_FILES.md).
+Entry points and execution paths. See [README](README.md) for measured counts, [architecture](PROJECT_ARCHITECTURE.md) for responsibilities and the [file guide](docs/PROJECT_FILES.md) for navigation.
 
-## أين أبدأ؟
+## Where to start
 
-| السؤال | نقطة الدخول |
-|---|---|
-| أين يدخل طلب المستخدم؟ | `ui/chat/ChatViewModel.kt` ثم `domain/engine/` |
-| كيف يختار الوضع؟ | `OmniMode.kt`, `IntentClassifier.kt`, `AdaptiveModeRouter.kt` |
-| متى يعمل فريق؟ | `SwarmOrchestrator.kt`, `TeamExecutionPolicy.kt` |
-| من يسمح بالتبديل؟ | `ModeSwitchPermissionStore.kt` واختيار المستخدم |
-| أين يتعلم من النتيجة؟ | `ModeOutcomeLearner.kt`, `ModeDecisionModel.kt` |
-| أين تظهر الأدوات؟ | `data/tools/CompositeToolManager.kt`, `TierToolGate.kt` |
-| من أين يأتي كود المستودع؟ | `data/repo/RepoIndexer.kt`, `LocalCodeRetriever.kt` |
-| أين تحفظ الرسائل؟ | `data/db/OmniDevDatabase.kt` (Room v17) |
-| أين أجهز صلاحيات المساعد؟ | `ui/assistant/DeviceAccessActivity.kt` و`data/tools/PermissionManagerTool.kt` |
-| من يتحقق من حالة الوصول؟ | `DeviceAccessCatalog.kt`, `PermissionRequestPlan.kt`, `core/policy/` |
-| من يحافظ على الجلسة العائمة؟ | `data/assistant/AssistantRuntime.kt`, `AssistantController.kt` |
-| أين تضبط النسخ؟ | `app/build.gradle.kts` و`app/src/{lite,norm,pro,oem,admin}/` |
+| Question | Entry point |
+| --- | --- |
+| Where does a user request enter? | `ui/chat/ChatViewModel.kt`, then `domain/engine/` |
+| How is the mode chosen? | `OmniMode.kt`, `IntentClassifier.kt`, `AdaptiveModeRouter.kt` |
+| When does a team run? | `SwarmOrchestrator.kt`, `TeamExecutionPolicy.kt` |
+| Who permits switching? | `ModeSwitchPermissionStore.kt` and the user's choice |
+| Where are outcomes learned? | `ModeOutcomeLearner.kt`, `ModeDecisionModel.kt` |
+| Where are tools exposed? | `data/tools/CompositeToolManager.kt`, `TierToolGate.kt` |
+| Where does repository context come from? | `data/repo/RepoIndexer.kt`, `LocalCodeRetriever.kt` |
+| Where are messages stored? | `data/db/OmniDevDatabase.kt` (Room v17) |
+| Where is assistant access configured? | `ui/assistant/DeviceAccessActivity.kt`, `data/tools/PermissionManagerTool.kt` |
+| Who verifies access state? | `DeviceAccessCatalog.kt`, `PermissionRequestPlan.kt`, `core/policy/` |
+| Who maintains the floating session? | `data/assistant/AssistantRuntime.kt`, `AssistantController.kt` |
+| Where are build variants configured? | `app/build.gradle.kts`, `app/src/{lite,norm,pro,oem,admin}/` |
 
-كل المسارات المختصرة للكود أعلاه تبدأ من `app/src/main/java/com/omnidev/workspace/` ما لم يذكر خلاف ذلك.
+Abbreviated source paths start at `app/src/main/java/com/omnidev/workspace/`.
 
-## تدفق الحالات
+## Mode flow
 
 ```mermaid
 flowchart TD
-    Q["مهمة"] --> AU["AUTO: تحليل النية"]
-    AU --> CH["CHAT: إجابة"]
-    AU --> AG["AGENT: تنفيذ متسلسل"]
-    AU --> SW["SWARM: تقسيم وتنسيق"]
-    AG --> F["تعثر + عمل مستقل؟"]
+    Q["Task"] --> AU["AUTO: classify intent"]
+    AU --> CH["CHAT: answer"]
+    AU --> AG["AGENT: sequential execution"]
+    AU --> SW["SWARM: split and coordinate"]
+    AG --> F["Stalled with independent work?"]
     F --> SW
-    SW --> O["خطة ذرية/متسلسلة؟"]
+    SW --> O["Atomic or sequential plan?"]
     O --> AG
 ```
 
-التوصيات في الأسهم الأخيرة تعتمد على إذن التحويل؛ بعض الفشل يحتاج إصلاح البنية أو تدخل المستخدم بدل زيادة الوكلاء. التعلم المحلي يساعد القرار بعد وجود نتائج كافية ولا يبدل الصلاحية. التفاصيل الرقمية في [DECISION_ENGINE.md](DECISION_ENGINE.md).
+Switch recommendations require permission. Some failures need infrastructure repair or user action. Local outcome learning advises routing after enough observations; it does not replace authorization. See [the decision engine](DECISION_ENGINE.md).
 
-## ثوابت عملية
+## Practical invariants
 
-- خمس نسخ بناء (`lite`, `norm`, `pro`, `oem`, `admin`) وأربع قيم تشغيل (`AUTO`, `CHAT`, `AGENT`, `SWARM`).
-- قاعدة Room الحالية **v17**. المشروع Gradle `:app` واحد، مع فصل مقترح فقط في [خطة التفكيك](MODULARIZATION_ROADMAP.md).
-- `repo_find_context` يعيد أدلة كود محلية مختصرة مع ملف وسطور؛ استرجاع التاريخ يعيد نصوصًا مع معرفات مصدر؛ اقرأ المصدر عند الشك.
-- لا تستنتج توفر أداة من اسمها وحده: نسخة البناء، منح Android، وربط التكامل هي التي تحسم الإتاحة.
-- للمقياس الفعلي شغّل `python3 scripts/repo_metrics.py`؛ لا تستخدم أرقام الوثائق التاريخية أو إحصاءات غير مرتبطة بلقطة Git.
+- Five build flavors: `lite`, `norm`, `pro`, `oem`, `admin`; four execution modes: `AUTO`, `CHAT`, `AGENT`, `SWARM`.
+- Room is **v17**. Gradle currently has one `:app` module; additional modules are a [proposal](MODULARIZATION_ROADMAP.md).
+- `repo_find_context` returns bounded local evidence with file/line references. History recall returns source text with IDs; inspect the source when uncertain.
+- Build policy, Android grants and connected integrations determine tool availability.
+- Use `python3 scripts/repository_stats.py` for an exact committed snapshot and `python3 scripts/tool_catalog.py` for built-in tool/skill counts.

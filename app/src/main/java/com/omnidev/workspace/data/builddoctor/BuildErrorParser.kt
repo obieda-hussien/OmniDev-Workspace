@@ -2,25 +2,13 @@ package com.omnidev.workspace.data.builddoctor
 
 import java.security.MessageDigest
 
-/**
- * ══════════════════════════════════════════════════════════════════════════════
- * BuildErrorParser — مُحلل أخطاء البناء (Build Doctor Pro / Brain 2.0)
- * ══════════════════════════════════════════════════════════════════════════════
- *
- * يستخرج من stdout/stderr الـ build:
- *   - أخطاء فردية مع موقعها (file:line:col)
- *   - تصنيف الخطأ (compile / link / dependency / resource / runtime / config)
- *   - بصمة (fingerprint) ثابتة لتجميع الأخطاء المتكررة
- *
- * **Mobile-first**: regex-based فقط، لا parsing ثقيل، لا alloc كبيرة.
- * يعالج 1 MB stdout في < 50 ms على Snapdragon 660.
- */
+/** BuildErrorParser extracts build errors from stdout/stderr with file:line:column locations, compile/link/dependency/resource/runtime/config categories and stable fingerprints for repeated errors. Uses bounded regex parsing to limit allocations on mobile devices. */
 object BuildErrorParser {
 
-    /** أقصى طول رسالة خطأ يُحفظ. */
+    /** Maximum stored error-message length. */
     private const val MAX_MESSAGE_LEN = 600
 
-    /** أقصى عدد أخطاء نُرجعها من stdout واحد. */
+    /** Maximum errors returned from one build output. */
     private const val MAX_ERRORS_PER_BUILD = 50
 
     data class ParsedError(
@@ -48,7 +36,7 @@ object BuildErrorParser {
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Patterns — مرتبة من الأكثر دقة إلى الأقل
+    // Patterns ordered from most specific to least specific.
     // ──────────────────────────────────────────────────────────────────
 
     // Kotlin / Java: e:/path/Foo.kt:12:8 error: ...
@@ -100,9 +88,7 @@ object BuildErrorParser {
     // Public
     // ──────────────────────────────────────────────────────────────────
 
-    /**
-     * يُحلل output الـ build ويُرجع قائمة أخطاء مُصنّفة (≤ MAX_ERRORS_PER_BUILD).
-     */
+    /** Parse build output into categorized errors, bounded by MAX_ERRORS_PER_BUILD. */
     fun parse(buildOutput: String): List<ParsedError> {
         if (buildOutput.isBlank()) return emptyList()
         val out = ArrayList<ParsedError>()
@@ -118,7 +104,7 @@ object BuildErrorParser {
         return out
     }
 
-    /** يُحلل سطراً واحداً (مفيد لـ streaming). */
+    /** Parse one output line for streaming use. */
     fun parseLine(line: String): ParsedError? {
         // 1) Kotlin
         KOTLIN_ERROR.find(line)?.let { m ->
@@ -146,7 +132,7 @@ object BuildErrorParser {
                 rawLine = line
             )
         }
-        // 5) Hints بدون موقع محدد
+        // 5) Hints without a specific location.
         if (DEPENDENCY_HINT.containsMatchIn(line)) {
             return makeError(Category.DEPENDENCY, line.take(MAX_MESSAGE_LEN), "", 0, 0, line)
         }
@@ -162,7 +148,7 @@ object BuildErrorParser {
         return null
     }
 
-    /** بصمة ثابتة (16 hex) لرسالة خطأ بعد تطبيع الأرقام والمسارات. */
+    /** Stable 16-hex fingerprint after normalizing paths and numbers. */
     fun fingerprint(message: String, category: String = ""): String {
         val normalized = (category.ifBlank { "" } + " " + message)
             .replace(Regex("/[\\w./_-]+"), "/PATH")

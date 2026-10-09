@@ -174,7 +174,7 @@ internal class VoiceWakeViewModel(application: Application) : AndroidViewModel(a
         LocalSpeechOutput(context).use { output ->
             output.initialize()
             check(prefs.userCanConfigure()) { "Unlock the phone to test spoken replies." }
-            check(output.say(if (output.language == "ar") "أنا جاهز. الصوت المحلي شغال." else "I'm ready. Offline voice is working.")) {
+            check(output.say("I'm ready. Offline voice is working.")) {
                 "Could not play the offline voice. Check Android text-to-speech settings and media volume."
             }
             notify("Offline spoken reply completed. If you did not hear it, check media volume.")

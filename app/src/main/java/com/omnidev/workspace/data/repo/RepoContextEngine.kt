@@ -6,20 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
-/**
- * ══════════════════════════════════════════════════════════════════════════════
- * RepoContextEngine — واجهة استعلام Live Repository Context (Brain 2.0)
- * ══════════════════════════════════════════════════════════════════════════════
- *
- * هذا هو الواجهة التي يتعامل معها الـ Agent (عبر AgentBrainTools/RepoContextTools)
- * لاستعلام الفهرس بشكل سريع. كل العمليات SQL-only، بدون تحميل blobs ضخمة في
- * الذاكرة.
- *
- * **Mobile-first**:
- * - LIKE-based fuzzy search (يكفي + سريع، لا حاجة FTS5)
- * - استعلامات مُفهرسة (idx_sym_*)
- * - النتائج محدودة (50 رمز كحد أقصى/استعلام) لتجنب OOM
- */
+/** RepoContextEngine exposes the Live Repository Context index through SQL queries without loading large blobs. Uses indexed LIKE-based name search and bounded symbol results for mobile memory limits. */
 class RepoContextEngine(
     private val dao: RepoIndexDao,
     private val indexer: RepoIndexer
@@ -61,7 +48,7 @@ class RepoContextEngine(
     // Queries
     // ──────────────────────────────────────────────────────────────────
 
-    /** Fuzzy search عام بالاسم/qualified name. */
+    /** Fuzzy search by name or qualified name. */
     suspend fun searchSymbols(
         scopePath: String,
         query: String,
@@ -72,7 +59,7 @@ class RepoContextEngine(
         dao.fuzzySearch(scopePath, "%$safe%", safe, limit.coerceAtMost(50))
     }
 
-    /** ابحث برمز محدد (e.g. "function" أو "class"). */
+    /** Search a symbol kind, for example function or class. */
     suspend fun symbolsByKind(
         scopePath: String,
         kind: String,
@@ -81,11 +68,11 @@ class RepoContextEngine(
         dao.findByKind(scopePath, kind, limit.coerceAtMost(100))
     }
 
-    /** كل الرموز في ملف (للملخص السريع). */
+    /** List symbols in a file for a quick overview. */
     suspend fun fileSymbols(scopePath: String, filePath: String): List<RepoSymbolEntry> =
         withContext(Dispatchers.IO) { dao.getFileSymbols(scopePath, filePath) }
 
-    /** بحث دقيق بالـ qualified name (e.g. com.example.Foo.bar). */
+    /** Exact qualified-name lookup, for example com.example.Foo.bar. */
     suspend fun findByQualifiedName(
         scopePath: String,
         qname: String
@@ -94,7 +81,7 @@ class RepoContextEngine(
     }
 
     // ──────────────────────────────────────────────────────────────────
-    // Stats — للحقن في system prompt
+    // Statistics for system-prompt context.
     // ──────────────────────────────────────────────────────────────────
 
     data class ScopeStats(
@@ -111,18 +98,18 @@ class RepoContextEngine(
         )
     }
 
-    /** يبني نص قصير عن المشروع للحقن في system prompt. */
+    /** Build concise project context for the system prompt. */
     suspend fun buildContextSummary(scopePath: String, maxChars: Int = 400): String =
         withContext(Dispatchers.IO) {
             val stats = getStats(scopePath)
             if (stats.fileCount == 0) return@withContext ""
             buildString {
                 appendLine("\n📂 Live Repo Context: $scopePath")
-                appendLine("الملفات: ${stats.fileCount} | الرموز: ${stats.symbolCount}")
+                appendLine("Files: ${stats.fileCount} | Symbols: ${stats.symbolCount}")
                 if (stats.languages.isNotEmpty()) {
                     val top = stats.languages.take(5)
                         .joinToString(", ") { "${it.first}(${it.second})" }
-                    appendLine("اللغات: $top")
+                    appendLine("Languages: $top")
                 }
             }.take(maxChars)
         }

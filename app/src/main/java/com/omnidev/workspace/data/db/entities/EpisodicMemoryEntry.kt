@@ -4,19 +4,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-/**
- * EpisodicMemoryEntry — حلقة كاملة (episode) من مهمة Agent سابقة (Brain 2.0).
- *
- * بعكس ReflexionLessonEntry الذي يخزن "درساً" قصيراً مرتبطاً بأداة، الـ episode
- * يلخّص مهمة بأكملها: ما طلبه المستخدم، الأدوات المستخدمة، النتيجة النهائية.
- * يُسترجع لإحضار "memory shots" مشابهة لمهام جديدة.
- *
- * Mobile-first:
- * - الـ summary ≤ 500 حرف
- * - userIntent ≤ 200 حرف (مفتاح البحث الدلالي)
- * - 256-float embedding (≈ 1 KB)
- * - 2000 episode كحد أقصى ≈ 2-3 MB
- */
+/** EpisodicMemoryEntry summarizes an entire previous agent task: user intent, tools and outcome. Unlike a short tool-specific Reflexion lesson, it supplies similar-task memory examples. Summary is bounded to 500 characters, intent to 200 and embeddings to 256 floats; stores up to 2000 episodes. */
 @Entity(
     tableName = "episodic_memory",
     indices = [

@@ -84,3 +84,9 @@ Make sure you have authority to submit your contribution and identify any import
 ## Community expectations
 
 Keep reviews specific to behavior and evidence. Explain disagreements clearly, respect contributors and do not post private data. See [Code of conduct](CODE_OF_CONDUCT.md). Project communication and maintenance are handled by [Obieda](https://github.com/obieda-hussien); response times depend on availability.
+
+## Project language and catalog updates
+
+Write application UI, tool descriptions and parameter help, built-in status/error text, documentation and source comments in English. Functional multilingual input matching and deliberate test fixtures remain supported. The reviewed input literals are tracked by `scripts/multilingual_input_literals.json`; review their purpose before changing that baseline.
+
+Run `python3 scripts/check_project_language.py` and `python3 scripts/check_docs.py`. When registrations or bundled skills change, regenerate `docs/TOOL_AND_SKILL_CATALOG.md` with `python3 scripts/tool_catalog.py --format markdown`. Dynamic MCP tools are excluded from the built-in count. File/line statistics use a separate committed Git snapshot through `scripts/repository_stats.py`.

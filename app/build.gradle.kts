@@ -49,7 +49,7 @@ android {
 
     defaultConfig {
         applicationId = "com.omnidev.workspace"
-        minSdk = 24 // ممتاز، بيدعم أجهزة كتير، بس الوظائف الخارقة هتشتغل من 11+
+        minSdk = 24 // Supports a broad device range; some advanced capabilities require Android 11 or later.
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -266,7 +266,7 @@ android {
                     ?: signingConfigs.getByName("debug")
             }
             isMinifyEnabled = true
-            isShrinkResources = true // لتقليل حجم التطبيق بعد الـ Proguard
+            isShrinkResources = true // Reduce packaged resources after ProGuard.
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -274,7 +274,7 @@ android {
         }
     }
     compileOptions {
-        // تم الترقية لـ Java 17 (مطلوب لأندرويد 14+ و Compose الحديث)
+        // Java 17 for the Android and Compose toolchain.
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -282,7 +282,7 @@ android {
     buildFeatures {
         compose = true
         aidl = true
-        buildConfig = true // عشان تقدر تستخدم متغيرات الـ Build في الكود
+        buildConfig = true // Expose build configuration constants to application code.
     }
 
     packaging {
@@ -407,7 +407,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
 
-    // ── Window Management (للفقاعة العائمة والنوافذ) ──
+    // Window management for floating bubbles and panels.
     implementation(libs.androidx.window)
 
     // ── Navigation & ViewModel ──
@@ -442,18 +442,18 @@ dependencies {
     implementation(libs.jsoup)
 
     // ==========================================================
-    // 🚀 أسلحة الوكيل الذكي (AI Agent Libraries)
+    // AI agent libraries.
     // ==========================================================
     
-    // 1. Networking (OkHttp/Retrofit) لخدمات التليجرام وجلب البيانات
+    // Networking (OkHttp/Retrofit) for Telegram and data retrieval.
     implementation(libs.okhttp)
     implementation(libs.retrofit)
     implementation(libs.retrofit.kotlinx.serialization)
     
-    // 2. WorkManager للعمليات المجدولة في الخلفية
+    // WorkManager for scheduled background work.
     implementation(libs.androidx.work.runtime.ktx)
     
-    // 3. CameraX & ML Kit (لتحليل الشاشة وقراءة النصوص OCR)
+    // CameraX and ML Kit for screen analysis and OCR.
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)

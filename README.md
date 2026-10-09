@@ -85,6 +85,8 @@ See the [full format breakdown and counting method](docs/REPOSITORY_STATS.md). T
 python3 scripts/repository_stats.py --ref HEAD --format markdown
 ```
 
+The source catalog contains **150 unique local tool definitions**, or **148 names after excluding two hidden legacy aliases**, and **6 bundled agent skills**. Counts cover all registered optional providers and God Mode definitions; actual session visibility depends on edition and capability settings. Connected MCP tools and runtime discovery/mode helpers are additional. See the [complete catalog and reproducible count](docs/TOOL_AND_SKILL_CATALOG.md).
+
 For repository access, installed integrations, Actions controls and public-source limitations, see [Repository security](docs/REPOSITORY_SECURITY.md).
 
 ## What OmniDev Workspace does
@@ -832,6 +834,8 @@ Workspace's current launcher policy includes health, settings/app reads, selecte
 Read [OmniLink v3 integration](OMNILINK_V3_INTEGRATION.md), [Link protocol](LINK_PROTOCOL.md) and [Launcher integration](docs/LAUNCHER_INTEGRATION.md). [OmniLink v2 integration](OMNILINK_V2_INTEGRATION.md) is historical context.
 
 ## MCP and external tools
+
+Fresh configurations include **Context7, UsefulAI, Microsoft Learn, GitHub and local MT Manager**, each as HTTP with all tools enabled and an empty environment. Existing saved configurations remain unchanged. **Load default services** prepares an editable draft; **Save** applies it. See the [exact defaults and setup behavior](docs/MCP_DEFAULT_SERVICES.md).
 
 The `data/mcp/` implementation configures and communicates with external tool servers. Connected definitions join the same catalog and tier/chat capability filtering used by native tools. Dispatch checks apply to both paths, including calls that were not exposed in the current request.
 

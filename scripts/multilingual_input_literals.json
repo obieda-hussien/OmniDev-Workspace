@@ -1,0 +1,110 @@
+{
+  "app/src/main/java/com/omnidev/workspace/data/assistant/AssistantActionPolicy.kt": {
+    "sha256": "563ffc4a4722ca358ca4cc20e2332ed63169e43cb89d5b290993bef33ba284b2",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/chatmedia/MediaReferenceParser.kt": {
+    "sha256": "f9aec020b9429e3b15d0f65de29f0180c5f3527232ff5cffe0b6cbe639d3425d",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/input/OmniInputMethodService.kt": {
+    "sha256": "bc8eb9d88abe8296430fc9fabd807f18b031327c3a76e4a4351d26506e76434d",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/model/ToolSchemaCompactor.kt": {
+    "sha256": "fcd8a6e72d6901eee6f8b21dd5158be5d29b1470fee6ff704be1707f796d408d",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/repo/LocalCodeRetriever.kt": {
+    "sha256": "ac8f260c6a090a164b5c97a4002fed64ccd3b7c561793231ee48a6446b1356c4",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/repository/GroundedChatRecall.kt": {
+    "sha256": "90b5174e2f92e26ae20da25d53f35b19e18c1f8375e8d12da3afc23ff53a763d",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/routines/RoutineInvocationPolicy.kt": {
+    "sha256": "acb6db29a851bff56af7950ca55ffa81697d6f2fa952aee4000d6dfcf969d952",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/routines/RoutineModels.kt": {
+    "sha256": "ba100106b54e28474f3010db5e18535d7b60a50925d36a9203b20faf1c9520b4",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/routines/RoutineUi.kt": {
+    "sha256": "5fc1bd127ed6275fdb99b1a54154f1dfe2add88c18cbba0e5ac66d0bc415b72b",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/tools/DeepResearchPageReader.kt": {
+    "sha256": "e1752b35c4f1b273d27dc927ff607e6edf3a08ae325878dfb1bab017cb3cd85b",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/tools/HybridMemorySearchEngine.kt": {
+    "sha256": "9ed814d8c74504fbe95f18e895e351d2735ed462a402953fe5e425eafeec4a68",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/tools/MemoryManager.kt": {
+    "sha256": "114f442cea25964598519d62c1d849c42b676e95e78dadac836a1f1ea640072d",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/tools/NotificationTextPolicy.kt": {
+    "sha256": "6e986cbdbaac6c846c27e8545e9b19f50d8ff9887d826351004644d1b1f6a621",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/tools/OmniMemoryEmbedder.kt": {
+    "sha256": "21a8fe15e9d08ad18584536000ddd4e7de29d160968d17c82ca510dbae45fa86",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/tools/SearchSemantics.kt": {
+    "sha256": "3200e9a7a814683ebb892d40375a7bcd3eb2523cc093849b445c9bbd94509dec",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/tools/TaskManagerTool.kt": {
+    "sha256": "9c1e76c02107d811f9ca730a48686ad92cf7d36254113cae5714ec7fcc7058de",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/voice/SpokenCredential.kt": {
+    "sha256": "8f897d7bff0eaab7218f858c90ebd75d3ee15f18a84dd15297f8d00fe0d15e1f",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/data/voice/VoiceSessionPolicy.kt": {
+    "sha256": "e169326c07e98035ca996e087bffceb1782184e9b2cdb131a9ee38546172d66e",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/domain/engine/AutomaticToolRouter.kt": {
+    "sha256": "5528d59883f8d754e5b79443d6443fc546bcfd4119c57e660b6d88dec1e248fc",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/domain/engine/ChatToolLoop.kt": {
+    "sha256": "7295b57e4bd6aa2b018603b8e312efa5a10a3b22927ba55764e8e4d5bdbedbaf",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/domain/engine/IntentClassifier.kt": {
+    "sha256": "ec436b948a42a19b4dd87344aad896a00ad42720d7d2a82a409842382ce10d06",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/domain/engine/RunToolCatalog.kt": {
+    "sha256": "264d3a2072eb22e53a317a1d944213f7f9e194d6c78bf660acbb7193f67a36af",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/domain/engine/SensitiveObservationRedactor.kt": {
+    "sha256": "a66ed08d3f6bbc3d2988e0d1c4ae7aebeaaa802f6636098965b8574f829fcde5",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/domain/engine/TeamExecutionPolicy.kt": {
+    "sha256": "42db94ea6bcedb36d843cd639e3278d7a2674dbe8fb733308d5624fae174eeb2",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/domain/engine/TeamHandoffCompressor.kt": {
+    "sha256": "256d506c826cb48eb16f5728a0a727acbaa8b4362762b25bd31a7cc6db4f8696",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/ui/settings/IntegrationsScreen.kt": {
+    "sha256": "cf8f375cf898520f9a32368190ecb5629a60a9a6650da9f4401eeccc383f6e3a",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  },
+  "app/src/main/java/com/omnidev/workspace/ui/settings/SettingsCatalog.kt": {
+    "sha256": "326546fae5f661806d1ce238f531f205dd3f7ff5027ff3bab1bf93e75bf1d59b",
+    "purpose": "Functional multilingual input matching, normalization, search keywords or credential parsing; never display prose."
+  }
+}

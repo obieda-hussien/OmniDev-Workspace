@@ -46,7 +46,7 @@
 2. Implement `trackProduct(url)` (validates the URL, does an immediate first fetch so the user gets instant feedback rather than waiting for the next tick, inserts the row), `untrackProduct(id)`, `getTrackedProducts()`, `getPriceHistory(id, limit)`. **Enforce a hard server-side cap on `limit` regardless of what's requested, and cap `getTrackedProducts()`'s own result size too** — the Binder transaction buffer is a shared ~1MB per process (per `01_OmniLinkSDK_PROMPT.md` Phase 11); a long-tracked product's full history or a large tracked-products list could otherwise approach that limit.
 3. All four go through the standard `AccessController`/`AuditLogger` path from the SDK — no bypass just because they're "just reads."
 
-**Acceptance criteria:** calling `trackProduct` from the Workspace agent (e.g. "تابعلي المنتج ده") returns an immediate price/availability snapshot and shows up in `getTrackedProducts()`; a simulated price change during testing produces a real notification within one tick cycle.
+**Acceptance criteria:** calling `trackProduct` from the Workspace agent (e.g. "Track this product") returns an immediate price/availability snapshot and shows up in `getTrackedProducts()`; a simulated price change during testing produces a real notification within one tick cycle.
 
 ---
 

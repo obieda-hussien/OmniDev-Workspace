@@ -123,7 +123,7 @@ class WhatsAppBridgeService : Service() {
     private val toolManager: CompositeToolManager by lazy {
         val db = OmniDevDatabase.getInstance(applicationContext)
         val memoryManager = MemoryManager(db.knowledgeDao())
-        // ── Agent Brain 2.0: مراجع المحركات المُهيَّأة في OmniDevApp ──
+        // Agent Brain 2.0: engine references initialized by OmniDevApp.
         val omniApp = com.omnidev.workspace.OmniDevApp.instance
         CompositeToolManager(
             fileToolManager = FileToolManager(),
