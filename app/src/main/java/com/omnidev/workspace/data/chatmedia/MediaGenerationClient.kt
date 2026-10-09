@@ -20,16 +20,18 @@ internal class MediaGenerationClient(
     },
     private val execute: suspend (Request) -> Response = MediaHttp::execute,
     private val download: suspend (String, String?) -> Response = MediaHttp::downloadResponse,
-    private val onPhase: suspend (String) -> Unit = {}
+    private val onPhase: suspend (String) -> Unit = {},
+    private val readReferences: (List<String>) -> List<ByteArray> = { ProfileReferenceStore(context).read(it) }
 ) {
     private val json = "application/json".toMediaType()
     private suspend fun key(provider: String) = readKey(provider)?.takeIf { it.isNotBlank() }
         ?: error("Connect the selected $provider account in Providers. Media generation requires model access and quota.")
-    private suspend fun request(url: String, provider: String, body: JSONObject? = null): JSONObject {
+    private suspend fun request(url: String, provider: String, body: JSONObject? = null, multipart: RequestBody? = null): JSONObject {
         val builder = Request.Builder().url(MediaHttp.url(url))
         if (provider == "gemini") builder.header("x-goog-api-key", key(provider))
         else builder.header("Authorization", "Bearer ${key(provider)}")
         if (body != null) builder.post(body.toString().toRequestBody(json))
+        if (multipart != null) builder.post(multipart)
         return execute(builder.build()).use { response ->
             if (!response.isSuccessful) throw MediaProviderException(response.code)
             val stream = response.body?.byteStream() ?: error("Empty provider response.")
@@ -53,11 +55,21 @@ internal class MediaGenerationClient(
     }
     private suspend fun image(job: MediaJob): String {
         val c = config(job); var mime = "image/${c.format}"
+        val references = if (job.profileReferences.isEmpty()) emptyList() else {
+            ProfileReferencePolicy.validate(job.kind, job.provider, job.model)
+            readReferences(job.profileReferences)
+        }
+        val prompt = if (references.isEmpty()) job.prompt else job.prompt +
+            "\nUse the supplied photos as appearance references for the same person. Preserve recognizable facial features and natural proportions. " +
+            job.profileReferences.joinToString(" ") { if (it.startsWith("face-")) "The face photo is a facial reference." else "The full-body photo is a body reference." }
         val encoded = if (job.provider == "gemini") {
             val imageConfig = JSONObject().put("aspectRatio", c.aspect)
             if (!job.model.startsWith("gemini-2.5")) imageConfig.put("imageSize", c.resolution)
+            val inputParts = JSONArray().put(JSONObject().put("text", prompt))
+            references.forEach { bytes -> inputParts.put(JSONObject().put("inlineData", JSONObject()
+                .put("mimeType", "image/jpeg").put("data", Base64.encodeToString(bytes, Base64.NO_WRAP)))) }
             val body = JSONObject().put("contents", JSONArray().put(JSONObject().put("role", "user")
-                .put("parts", JSONArray().put(JSONObject().put("text", job.prompt)))))
+                .put("parts", inputParts)))
                 .put("generationConfig", JSONObject().put("responseModalities", JSONArray().put("TEXT").put("IMAGE")).put("imageConfig", imageConfig))
             val response = request("https://generativelanguage.googleapis.com/v1beta/models/${job.model}:generateContent", job.provider, body)
             val parts = response.optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")
@@ -65,11 +77,11 @@ internal class MediaGenerationClient(
                 ?: error("Provider returned no image. Check image output support and prompt policy.")
             mime = inline.optString("mimeType", "image/png"); inline.optString("data")
         } else {
-            val body = JSONObject().put("model", job.model).put("prompt", job.prompt).put("n", 1)
+            val body = JSONObject().put("model", job.model).put("prompt", prompt).put("n", 1)
             val endpoint = when(job.provider) {
                 "openai" -> {
                     body.put("size", when(c.aspect) { "9:16" -> "1024x1536"; "16:9" -> "1536x1024"; else -> "1024x1024" })
-                    "https://api.openai.com/v1/images/generations"
+                    if (references.isEmpty()) "https://api.openai.com/v1/images/generations" else "https://api.openai.com/v1/images/edits"
                 }
                 "open_router" -> { body.put("resolution", c.resolution).put("aspect_ratio", c.aspect); "https://openrouter.ai/api/v1/images" }
                 "xai" -> { body.put("response_format", "b64_json").put("aspect_ratio", c.aspect).put("resolution", c.resolution.lowercase()); mime = "image/jpeg"; "https://api.x.ai/v1/images/generations" }
@@ -79,7 +91,16 @@ internal class MediaGenerationClient(
                 body.put("output_format", c.format).put("quality", c.quality).put("background", c.background)
                 if (c.format != "png") body.put("output_compression", c.compression)
             }
-            val item = request(endpoint, job.provider, body).optJSONArray("data")?.optJSONObject(0) ?: error("Provider returned no image.")
+            val response = if (references.isEmpty()) request(endpoint, job.provider, body) else {
+                val multipart = MultipartBody.Builder().setType(MultipartBody.FORM)
+                body.keys().forEach { field -> multipart.addFormDataPart(field, body.get(field).toString()) }
+                references.forEachIndexed { i, bytes -> multipart.addFormDataPart("image[]", "reference-${i + 1}.jpg",
+                    bytes.toRequestBody("image/jpeg".toMediaType())) }
+                // GPT Image 2+ handles references at high fidelity without this parameter.
+                if (job.model in setOf("gpt-image-1", "gpt-image-1.5")) multipart.addFormDataPart("input_fidelity", "high")
+                request(endpoint, job.provider, multipart = multipart.build())
+            }
+            val item = response.optJSONArray("data")?.optJSONObject(0) ?: error("Provider returned no image.")
             mime = item.optString("media_type").takeIf { it.isNotBlank() } ?: mime
             item.optString("b64_json")
         }
@@ -122,6 +143,7 @@ internal class MediaGenerationClient(
     }
     suspend fun step(job: MediaJob): MediaJob = withContext(Dispatchers.IO) {
         val c = config(job); MediaRequestPolicy.validate(MediaKind.fromAction(job.kind) ?: error("Unknown kind"), c)
+        if (job.profileReferences.isNotEmpty()) ProfileReferencePolicy.validate(job.kind, job.provider, job.model)
         onPhase(if (job.operation == null) "requesting" else "checking")
         if (job.kind == "image") return@withContext job.copy(state = "completed", path = image(job), prompt = "", error = null)
         if (job.kind == "music") return@withContext music(job)

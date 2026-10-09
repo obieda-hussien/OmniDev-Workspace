@@ -5,7 +5,7 @@
 [![Android CI](https://github.com/obieda-hussien/OmniDev-Workspace/actions/workflows/android-ci.yml/badge.svg?branch=main)](https://github.com/obieda-hussien/OmniDev-Workspace/actions/workflows/android-ci.yml)
 [![Public repository security gate](https://github.com/obieda-hussien/OmniDev-Workspace/actions/workflows/security-gate.yml/badge.svg?branch=main)](https://github.com/obieda-hussien/OmniDev-Workspace/actions/workflows/security-gate.yml)
 
-**OmniDev Workspace brings a configurable AI assistant, an agent runtime and a developer workspace onto an Android device.** It combines ordinary conversation, tool-assisted tasks, coordinated agent teams, source-backed conversation recall, local code retrieval, reusable learned tasks, on-screen assistance and integrations with the Omni ecosystem.
+**OmniDev Workspace brings a configurable AI assistant, an agent runtime and a developer workspace onto an Android device.** It combines ordinary conversation, tool-assisted tasks, coordinated agent teams, source-backed conversation recall, local code retrieval, reusable learned tasks, profile reference photos, a locally learning virtual companion, on-screen assistance and integrations with the Omni ecosystem.
 
 Choose your providers and models, choose the task scope, and decide which tools and device capabilities are available. The application can answer a question, inspect a local project, carry out a supported action, coordinate independent investigations, or replay an approved local routine without calling a language model.
 
@@ -17,7 +17,7 @@ The repository contains the Android application, native inference integration, J
 
 **Start here:** [Quick start](#quick-start) · [Choose an edition](#editions-and-capability-policy) · [Build from source](#build-from-source) · [Documentation map](#documentation-map) · [Authorized development](CONTRIBUTING.md) · [Get help](SUPPORT.md) · [Report a vulnerability](SECURITY.md)
 
-> This README describes the implementation reviewed on **8 October 2026**. Current source and completed CI results take precedence over older planning documents. OmniDev Workspace is **proprietary**, with publicly visible source and controlled development. Rights in original project material are reserved; see [LICENSE.md](LICENSE.md) before any reuse or distribution.
+> This README describes the implementation reviewed on **9 October 2026**. Current source and completed CI results take precedence over older planning documents. OmniDev Workspace is **proprietary**, with publicly visible source and controlled development. Rights in original project material are reserved; see [LICENSE.md](LICENSE.md) before any reuse or distribution.
 
 ## Contents
 
@@ -28,6 +28,9 @@ The repository contains the Android application, native inference integration, J
 - [Conversation and execution modes](#conversation-and-execution-modes)
 - [Model providers and configuration](#model-providers-and-configuration)
 - [Conversation experience](#conversation-experience)
+- [Tool and skill mentions](#tool-and-skill-mentions)
+- [Profile and reference photos](#profile-and-reference-photos)
+- [Virtual companion](#virtual-companion)
 - [Live agent follow-ups](#live-agent-follow-ups)
 - [Images, video, music and attachments](#images-video-music-and-attachments)
 - [On-screen assistant](#on-screen-assistant)
@@ -58,21 +61,21 @@ The repository contains the Android application, native inference integration, J
 
 ## Repository size and source statistics
 
-The following reproducible snapshot counts committed content at `2e36a4d6939b32380e2b87cac989138ee002e918`, immediately before the ownership/security/statistics update on **8 October 2026**.
+This reproducible snapshot counts committed content at `144c8e0f28f961356841fbe708c734abb8d159be` on **9 October 2026**, including profile reference photos, reply personalization, tool/skill mentions, independent selected-skill context budgets and the locally learning virtual companion. The following statistics-only update is not included in that fixed snapshot.
 
 | Metric | Count |
 | --- | ---: |
-| Tracked files | 753 |
-| UTF-8 text files | 742 |
-| Physical text lines | 127,290 |
-| Nonblank text lines | 114,403 |
-| Source/script files | 625 |
-| Source/script physical lines | 118,956 |
-| App Kotlin files, including tests | 599 |
-| App Kotlin physical lines, including tests | 115,700 |
-| Test source files | 142 |
-| Test source physical lines | 10,715 |
-| Tracked blob bytes | 6,552,619 |
+| Tracked files | 796 |
+| UTF-8 text files | 784 |
+| Physical text lines | 132,443 |
+| Nonblank text lines | 119,224 |
+| Source/script files | 661 |
+| Source/script physical lines | 123,737 |
+| App Kotlin files, including tests | 632 |
+| App Kotlin physical lines, including tests | 120,275 |
+| Test source files | 155 |
+| Test source physical lines | 12,537 |
+| Tracked blob bytes | 6,923,762 |
 
 Physical lines include comments and blank lines; nonblank lines still include comments. These counts are not comment-free SLOC, a code-quality score or a device performance measurement. Source/script counts exclude XML/resources, data and documentation. Test totals overlap source totals. Untracked/generated files, downloaded models, caches and submodule contents are excluded; tracked binary assets count as files/bytes only.
 
@@ -100,6 +103,10 @@ OmniDev is organized around a shared conversation and execution environment. The
 | Screen assistant | Native Android assistant panel, optional restoration bubble and shared agent runtime | Assistant role; additional access for live screen actions |
 | Local voice | Custom wake phrase, few-shot acoustic enrollment, Vosk recognition and offline Android TTS | Compatible edition, microphone access and explicitly installed speech/voice assets |
 | Media generation | Independently configured image, video and music jobs with persistent cards | A selected supported media provider/model and account access |
+| Profile personalization | Name/background, reply style, warmth, enthusiasm, formatting, emoji and an opt-out switch | Save preferences in Settings → Your profile |
+| Reference photos | A local face photo and full-body photo, preview/replace/remove, reference-aware image generation | Enable reference use and select a supported Gemini image or OpenAI GPT Image model |
+| Virtual companion | Little Omni motion, expressions, local neural learning and persistent habits | Enable the companion in Settings; no remote model or extra overlay permission |
+| Capability mentions | Search tools/installed skills from `@` in the editor and prioritize them for the current turn | Enabled capabilities and installed skills; existing authorization still applies |
 | App interoperability | OmniLink capability discovery, receiver-enforced trust and bounded context exchange | Compatible apps, verified identity and the required local consent |
 | External tools | MCP clients and configured service integrations | A reachable server/account and applicable tool permissions |
 | Device operations | Supported Accessibility, intents, notifications, terminal and privileged backends | Edition eligibility plus actual Android/backend authorization |
@@ -286,6 +293,32 @@ Turn replacement updates the database transactionally. Late media from a superse
 The chat follows the latest content while the user remains at the bottom. Dragging into history pauses automatic following; the jump-to-latest control resumes it. The composer accounts for keyboard insets, and saved console panels can be reopened with historical messages.
 
 Markdown, code rendering and reply lookup reuse work when their inputs have not changed. Streaming still changes text and therefore still requires rendering updates. Very large messages should be profiled on real devices rather than assumed to be free because caching exists.
+
+## Tool and skill mentions
+
+Type `@` in the message editor and select tools or installed skills from the searchable suggestions. A message can combine up to 12 tools and 4 skills, with removable selection chips:
+
+```text
+@tool:github_manager @skill:omnidev-quality-gate Review the failed build.
+```
+
+Mentions load the selected schemas/guidance early and prioritize them for that turn. **They are priority hints:** the model can discover supporting tools when the task needs them. Disabled tools, edition policy and approval requirements still apply. Chat keeps its existing web/media tool boundary. Selection survives history, editing and regeneration; the next message has its own selection. The main chat and floating assistant share the composer. See [Tool and skill mentions](docs/chat-mentions.md).
+
+## Profile and reference photos
+
+Settings → **Your profile** saves your nickname, background/custom preferences and reply style. Choose Default, Friendly, Professional, Direct or Detailed, then tune warmth, enthusiasm, headings/lists and emoji. **Personalize replies** controls whether these saved fields enter new Chat, Agent and Team prompts. Save changes applies these text settings; turning personalization off retains your saved values. It does not clear conversation history or existing memories.
+
+Add a clear front-facing **Face photo** and a **Full-body photo** with your head and feet visible. Each slot supports a preview, replacement and removal; changes to photos save immediately. The app creates a bounded, orientation-correct JPEG with the original metadata removed in private, backup-excluded storage. It uses the system picker and does not require a new permission to scan your gallery.
+
+**Use for images of me** starts off. Enable it, select a supported image model in Model Selection, and request your likeness, for example “Create a professional portrait of me using my reference photos” or “Make a full-body image of me in a new outfit.” The media tool includes the selected face/body files only for reference-enabled requests. Gemini receives image parts; OpenAI GPT Image uses image editing with multipart inputs. Ordinary text prompts contain no reference photo bytes or paths. This is appearance conditioning, not face recognition or training a personal model; likeness depends on the provider.
+
+Reference generation currently supports **images with Gemini image and OpenAI GPT Image**. Video, music, xAI and OpenRouter reference requests return a clear unsupported message without silently dropping references or switching providers. Consent and file selection are rechecked before submission: disabling use, removing or replacing a photo blocks queued jobs with the old selection. An upload already sent to a provider cannot be recalled by removing the local photo. See [Profile personalization and reference photos](docs/PROFILE_PERSONALIZATION.md).
+
+## Virtual companion
+
+**Little Omni** is the lilac native companion shared by the main chat and floating assistant. It hops between safe composer/message/console surfaces, follows the caret and touches with its eyes, reacts to run events, and supports petting, dragging, flinging, temporary hiding and rescue before departure. Layout accounts for physical RTL/LTR coordinates, small windows, lifecycle and reduced motion.
+
+Its local learning combines two small trainable neural networks inspired by EE-Net, bounded experience replay, contextual priors, novelty and decaying moods. Explicit More/Less feedback and gentle placement teach habits; ordinary taps and missing feedback are not reward labels. Weights, familiarity and learned preferences persist across chats and app restarts in backup-excluded storage. Settings control visibility, roaming, learning, moods, personality and resting corner; reset clears learned memory. It does not call a remote model, read conversation text or claim consciousness. See [Virtual companion](docs/virtual-companion.md) for the implementation, artwork and validation scope.
 
 ## Live agent follow-ups
 
@@ -1172,6 +1205,10 @@ The following paths are relative to `app/src/main/java/com/omnidev/workspace/`.
 | `OmniDevApp.kt` | Application initialization and policy/service graph |
 | `MainActivity.kt` | Main navigation, ingress and activity results |
 | `WorkspaceChatRuntime.kt` | Construction of shared chat/assistant execution environments |
+| `ui/settings/UserProfileScreen.kt`, `ProfileReferenceCard.kt` | Personalization fields and reference photo management |
+| `data/model/ProfilePersonalization.kt`, `data/chatmedia/ProfileReferenceStore.kt` | Opt-out-aware prompts, private photos and consent |
+| `domain/engine/MentionFocus.kt` | Turn-scoped tool/skill selection and priority hints |
+| `ui/companion/` | Little Omni artwork, motion, moods, learning and checkpoints |
 | `ui/chat/ChatViewModel.kt` | Conversation send/replay, selected mode, tools and approvals |
 | `domain/engine/AgentPipeline.kt` | Agent loop, context, tool proposals and bounded recovery |
 | `domain/engine/SwarmOrchestrator.kt` | Coordinator/worker planning and team evidence |
@@ -1222,6 +1259,9 @@ Some historical technical documents are in Arabic. This README and the new contr
 | Understand AUTO/routing/outcomes | [Decision engine](DECISION_ENGINE.md) |
 | Understand actual tool contracts | [Tool execution contract](docs/TOOL_EXECUTION_CONTRACT.md) |
 | Use the floating assistant | [Screen assistant](docs/SCREEN_ASSISTANT.md), [Assistant design](docs/floating-assistant-design.md) |
+| Personalize replies and generated likeness | [Profile and reference photos](docs/PROFILE_PERSONALIZATION.md) |
+| Direct a turn toward tools/skills | [Chat mentions](docs/chat-mentions.md) |
+| Configure the locally learning companion | [Virtual companion](docs/virtual-companion.md) |
 | Configure device access | [Device access](DEVICE_ACCESS.md) |
 | Configure sensitive lock/unlock behavior | [Device lock access](docs/DEVICE_LOCK_ACCESS.md) |
 | Enroll/start local voice | [Hi Omni](docs/HI_OMNI_LOCAL_WAKE.md) |

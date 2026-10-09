@@ -494,7 +494,7 @@ class ExternalAgentGatewayService : Service() {
             val deepThinking = runtime.settingsRepository.observeDeepThinking().first()
             val fallbackScope = runtime.settingsRepository.observeTargetContext().first().orEmpty()
             val scopePath = request.scopePath?.trim()?.takeIf { it.isNotEmpty() } ?: fallbackScope
-            val persona = runtime.settingsRepository.observeUserPersona().first()
+            val persona = runtime.settingsRepository.observeUserPromptContext().first()
 
             val contextBlock = if (sourceContextJson.isBlank() || sourceContextJson == "null") {
                 ""

@@ -17,6 +17,7 @@ DOCUMENTS = [
     'docs/DEVELOPMENT.md', 'docs/REPOSITORY_MAINTENANCE.md', 'ATTRIBUTION.md',
     '.github/PULL_REQUEST_TEMPLATE.md',
     'docs/REPOSITORY_STATS.md', 'docs/REPOSITORY_SECURITY.md',
+    'docs/PROFILE_PERSONALIZATION.md', 'docs/chat-mentions.md', 'docs/virtual-companion.md',
 ]
 
 
