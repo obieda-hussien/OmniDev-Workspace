@@ -61,21 +61,21 @@ The repository contains the Android application, native inference integration, J
 
 ## Repository size and source statistics
 
-This reproducible snapshot counts committed content at `30f577de0717a8c4fb5c6ec72802ebed396a2a20` on **9 October 2026**, including profile reference photos, reply personalization, tool/skill mentions, independent selected-skill context budgets, the locally learning virtual companion, English project prose, built-in catalog counts, the five MCP defaults and bounded, cached MCP discovery. The following statistics-only update is not included in that fixed snapshot.
+This reproducible snapshot counts committed content at `ef46660038ed33064c324ad0b8e3fc0e32828937` on **9 October 2026**, including profile reference photos, reply personalization, tool/skill mentions, independent selected-skill context budgets, the locally learning virtual companion, English project prose, built-in catalog counts, the five MCP defaults and bounded, cached MCP discovery. The following statistics-only update is not included in that fixed snapshot.
 
 | Metric | Count |
 | --- | ---: |
 | Tracked files | 807 |
 | UTF-8 text files | 795 |
-| Physical text lines | 132,701 |
-| Nonblank text lines | 119,409 |
+| Physical text lines | 132,725 |
+| Nonblank text lines | 119,432 |
 | Source/script files | 669 |
-| Source/script physical lines | 123,693 |
+| Source/script physical lines | 123,717 |
 | App Kotlin files, including tests | 638 |
-| App Kotlin physical lines, including tests | 120,019 |
+| App Kotlin physical lines, including tests | 120,043 |
 | Test source files | 158 |
-| Test source physical lines | 12,752 |
-| Tracked blob bytes | 6,921,356 |
+| Test source physical lines | 12,776 |
+| Tracked blob bytes | 6,922,496 |
 
 Physical lines include comments and blank lines; nonblank lines still include comments. These counts are not comment-free SLOC, a code-quality score or a device performance measurement. Source/script counts exclude XML/resources, data and documentation. Test totals overlap source totals. Untracked/generated files, downloaded models, caches and submodule contents are excluded; tracked binary assets count as files/bytes only.
 
