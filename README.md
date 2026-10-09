@@ -61,21 +61,21 @@ The repository contains the Android application, native inference integration, J
 
 ## Repository size and source statistics
 
-The following reproducible snapshot counts committed content at `2e36a4d6939b32380e2b87cac989138ee002e918`, immediately before the ownership/security/statistics update on **8 October 2026**.
+This reproducible snapshot counts committed content at `0deb0278f78ca3b2d5a3e72169833247fb50577c` on **9 October 2026**, including profile reference photos, reply personalization, tool/skill mentions and the locally learning virtual companion. The following statistics-only update is not included in that fixed snapshot.
 
 | Metric | Count |
 | --- | ---: |
-| Tracked files | 753 |
-| UTF-8 text files | 742 |
-| Physical text lines | 127,290 |
-| Nonblank text lines | 114,403 |
-| Source/script files | 625 |
-| Source/script physical lines | 118,956 |
-| App Kotlin files, including tests | 599 |
-| App Kotlin physical lines, including tests | 115,700 |
-| Test source files | 142 |
-| Test source physical lines | 10,715 |
-| Tracked blob bytes | 6,552,619 |
+| Tracked files | 796 |
+| UTF-8 text files | 784 |
+| Physical text lines | 132,404 |
+| Nonblank text lines | 119,188 |
+| Source/script files | 661 |
+| Source/script physical lines | 123,702 |
+| App Kotlin files, including tests | 632 |
+| App Kotlin physical lines, including tests | 120,240 |
+| Test source files | 155 |
+| Test source physical lines | 12,521 |
+| Tracked blob bytes | 6,921,264 |
 
 Physical lines include comments and blank lines; nonblank lines still include comments. These counts are not comment-free SLOC, a code-quality score or a device performance measurement. Source/script counts exclude XML/resources, data and documentation. Test totals overlap source totals. Untracked/generated files, downloaded models, caches and submodule contents are excluded; tracked binary assets count as files/bytes only.
 
