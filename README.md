@@ -835,7 +835,7 @@ Read [OmniLink v3 integration](OMNILINK_V3_INTEGRATION.md), [Link protocol](LINK
 
 ## MCP and external tools
 
-Fresh configurations include **Context7, UsefulAI, Microsoft Learn, GitHub and local MT Manager**, each as HTTP with all tools enabled and an empty environment. Existing saved configurations remain unchanged. **Load default services** prepares an editable draft; **Save** applies it. See the [exact defaults and setup behavior](docs/MCP_DEFAULT_SERVICES.md).
+Fresh configurations include **Context7, UsefulAI, Microsoft Learn, GitHub and local MT Manager**, each as HTTP with all tools enabled and an empty environment. Existing saved configurations remain unchanged. **Load default services** prepares an editable draft; **Save** applies it. See the [exact defaults and setup behavior](docs/MCP_DEFAULT_SERVICES.md). Discovery reuses sessions, caches successful schemas for five minutes and failures for one minute, and refreshes stale servers concurrently with a three-second per-server timeout. Cancelling discovery cancels its HTTP calls, including open response streams.
 
 The `data/mcp/` implementation configures and communicates with external tool servers. Connected definitions join the same catalog and tier/chat capability filtering used by native tools. Dispatch checks apply to both paths, including calls that were not exposed in the current request.
 
