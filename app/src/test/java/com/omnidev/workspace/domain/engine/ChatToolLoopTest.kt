@@ -35,7 +35,7 @@ class ChatToolLoopTest {
         assertNull(result.request)
     }
 
-    @Test fun `provider without usage metadata still consumes chat budget`() = runTest {
+    @Test fun `provider without usage metadata is still accounted without an execution ceiling`() = runTest {
         val usageEvents = mutableListOf<AgentEvent.TokenUsageUpdate>()
         val result = ChatToolLoop(FakeTools()).run(request, emptySet(), "user", complete = {
             CompletionResponse("A useful answer without native usage metadata")
@@ -47,7 +47,7 @@ class ChatToolLoopTest {
         assertEquals(1, usageEvents.size)
         assertTrue(usageEvents.single().iterationTokens > 0)
         assertTrue(usageEvents.single().totalTokens > 0)
-        assertEquals(96_000, usageEvents.single().budget)
+        assertNull(usageEvents.single().budget)
     }
 
     @Test fun `long saved conversation is compacted before completion without changing stored input`() = runTest {
@@ -68,21 +68,75 @@ class ChatToolLoopTest {
         assertEquals(saved.size, original.messages.size)
     }
 
-    @Test fun `expensive research keeps final answer capacity and does not repeat tools`() = runTest {
+    @Test fun `useful research continues beyond the former token round and call ceilings`() = runTest {
         val tools = FakeTools()
         var completions = 0
         val result = ChatToolLoop(tools).run(request, emptySet(), "user", complete = {
-            if (completions++ == 0) CompletionResponse("", listOf(ToolCall("once", "web_search", mapOf("query" to "test"))),
-                tokensUsed = TokenUsage(90_000, 0, 90_000))
-            else {
-                assertTrue(it.tools.isNullOrEmpty())
-                assertTrue(it.maxTokens > 256)
-                CompletionResponse("Verified final research answer")
-            }
+            assertEquals(request.maxTokens, it.maxTokens)
+            if (++completions <= 12) CompletionResponse("", listOf(
+                ToolCall("call-$completions", "web_search", mapOf("query" to "page-$completions"))),
+                tokensUsed = TokenUsage(64_000, 0, 64_000))
+            else CompletionResponse("Verified final research answer")
         }, event = {})
-        assertEquals(2, completions)
-        assertEquals(listOf("web_search"), tools.executed)
+        assertEquals(13, completions)
+        assertEquals(12, tools.executed.size)
         assertEquals("Verified final research answer", result.content)
+    }
+
+    @Test fun `provider truncation continues in the same response with preserved prefix`() = runTest {
+        var completions = 0
+        val result = ChatToolLoop(null).run(request, emptySet(), "user", complete = {
+            when (++completions) {
+                1 -> { assertEquals("", it.responsePrefix); CompletionResponse("First part ", finishReason = "length") }
+                2 -> { assertEquals("First part ", it.responsePrefix); assertTrue(it.tools.isNullOrEmpty()); CompletionResponse("second part ", finishReason = "max_tokens") }
+                else -> { assertEquals("First part second part ", it.responsePrefix); CompletionResponse("finished", finishReason = "stop") }
+            }
+        }, event = {}, toolAccessMode = "DISABLED")
+        assertEquals(3, completions)
+        assertEquals("First part second part finished", result.content)
+    }
+
+    @Test fun `repeated provider continuation stops instead of spinning indefinitely`() = runTest {
+        var completions = 0
+        val result = ChatToolLoop(null).run(request, emptySet(), "user", complete = {
+            completions++; CompletionResponse("same unfinished part", finishReason = "length")
+        }, event = {}, toolAccessMode = "DISABLED")
+        assertEquals(2, completions)
+        assertTrue(result.content.contains("provider repeated"))
+        assertEquals(1, Regex("same unfinished part").findAll(result.content).count())
+    }
+
+    @Test fun `normal final text may repeat a previous chunk without being classified as a loop`() = runTest {
+        var completions = 0
+        val result = ChatToolLoop(null).run(request, emptySet(), "user", complete = {
+            CompletionResponse("repeat ", finishReason = if (++completions == 1) "length" else "stop")
+        }, event = {}, toolAccessMode = "DISABLED")
+        assertEquals("repeat repeat ", result.content)
+    }
+
+    @Test fun `empty provider response returns an explicit diagnostic instead of blank success`() = runTest {
+        val result = ChatToolLoop(null).run(request, emptySet(), "user", complete = {
+            CompletionResponse("", finishReason = "length")
+        }, event = {}, toolAccessMode = "DISABLED")
+        assertTrue(result.content.contains("provider returned no answer"))
+    }
+
+    @Test fun `user cancellation interrupts automatic output continuation`() = runTest {
+        var completions = 0
+        try {
+            ChatToolLoop(null).run(request, emptySet(), "user", complete = {
+                if (++completions == 4) throw CancellationException("user stop")
+                CompletionResponse("part $completions", finishReason = "length")
+            }, event = {}, toolAccessMode = "DISABLED")
+            fail("User cancellation must propagate")
+        } catch (_: CancellationException) { assertEquals(4, completions) }
+    }
+
+    @Test fun `UI continuation prefix is never serialized to the provider`() {
+        val encoded = kotlinx.serialization.json.Json.encodeToString(
+            CompletionRequest.serializer(), request.copy(responsePrefix = "UI_ONLY_PREFIX"))
+        assertFalse(encoded.contains("UI_ONLY_PREFIX"))
+        assertFalse(encoded.contains("responsePrefix"))
     }
 
     @Test fun `mode tool proposes but never executes a worker`() = runTest {
@@ -106,7 +160,7 @@ class ChatToolLoopTest {
             CompletionResponse("", listOf(ToolCall("call-$completions", "semantic_ui", emptyMap())))
         }, event = {})
         assertTrue(tools.executed.isEmpty())
-        assertEquals(7, completions)
+        assertEquals(2, completions)
     }
 
     @Test fun `duplicate web calls execute once`() = runTest {

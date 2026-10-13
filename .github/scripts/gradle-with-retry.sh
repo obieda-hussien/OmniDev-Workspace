@@ -8,7 +8,16 @@ for attempt in 1 2 3; do
   status=0
   bash "${OMNI_GRADLE_EXECUTABLE:-./gradlew}" "${refresh[@]}" "$@" 2>&1 | tee "$log" || status=$?
   if [[ "$status" == 0 ]]; then exit 0; fi
-  if [[ "$attempt" == 3 ]] || ! grep -Eq 'Could not (find .*\.(jar|aar)|GET |HEAD )|Could not resolve all files for configuration|Read timed out|Connection reset|Received status code (429|50[0234])' "$log"; then
+  retryable=false
+  if grep -Eq 'Could not (find .*\.(jar|aar)|GET |HEAD )|Could not resolve all files for configuration|Read timed out|Connection reset|Received status code (429|50[0234])' "$log"; then
+    retryable=true
+  elif [[ "$attempt" -gt 1 ]] && grep -Fq "Plugin Repositories (could not resolve plugin artifact" "$log"; then
+    # The first attempt already resolved plugins and reached an artifact failure.
+    # Refreshing metadata can then expose a transient plugin-repository miss.
+    # A plugin typo on the initial attempt still fails immediately.
+    retryable=true
+  fi
+  if [[ "$attempt" == 3 ]] || [[ "$retryable" != true ]]; then
     exit "$status"
   fi
   # Refresh cached negative artifact lookups on the next attempt. No cache deletion,

@@ -6,7 +6,7 @@ import unittest
 
 
 class DependencyRetryTest(unittest.TestCase):
-    def run_case(self, failure, succeeds_at=2):
+    def run_case(self, failure, succeeds_at=2, second_failure=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             fake = root / "gradle.sh"
@@ -16,11 +16,15 @@ count=$((count + 1))
 echo "$count" > "$CASE_DIR/count"
 printf '%s\\n' "$*" >> "$CASE_DIR/args"
 if ((count >= SUCCESS_AT)); then exit 0; fi
-echo "$FAILURE_TEXT"
+if ((count == 2)) && [[ -n "$SECOND_FAILURE_TEXT" ]]; then
+  echo "$SECOND_FAILURE_TEXT"
+else
+  echo "$FAILURE_TEXT"
+fi
 exit 17
 ''')
             env = dict(os.environ, CASE_DIR=str(root), SUCCESS_AT=str(succeeds_at),
-                       FAILURE_TEXT=failure, OMNI_GRADLE_EXECUTABLE=str(fake),
+                       FAILURE_TEXT=failure, SECOND_FAILURE_TEXT=second_failure or "", OMNI_GRADLE_EXECUTABLE=str(fake),
                        OMNI_GRADLE_RETRY_DELAY_SECONDS="0")
             result = subprocess.run(["bash", str(Path(__file__).with_name("gradle-with-retry.sh")),
                                      ":app:assembleLiteDebug"], env=env, capture_output=True, text=True)
@@ -42,6 +46,15 @@ exit 17
 
     def test_persistent_dependency_failure_returns_original_status(self):
         self.assertEqual((17, 3), self.run_case("Could not find gson-2.8.9.jar", 99)[0:2])
+
+    def test_refresh_plugin_miss_after_artifact_failure_uses_last_attempt(self):
+        result = self.run_case("Could not find gson-2.8.9.jar", 3,
+            "Plugin Repositories (could not resolve plugin artifact 'com.google.devtools.ksp:plugin:2.3.10')")
+        self.assertEqual((0, 3), result[0:2])
+
+    def test_initial_plugin_configuration_error_is_not_retried(self):
+        self.assertEqual((17, 1), self.run_case(
+            "Plugin Repositories (could not resolve plugin artifact 'misspelled.plugin:plugin:1')")[0:2])
 
 
 if __name__ == "__main__":

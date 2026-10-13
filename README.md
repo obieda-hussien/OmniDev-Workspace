@@ -253,6 +253,8 @@ These are implemented adapter/configuration entries, not a promise of identical 
 | Media-model assignment | Choose independent image/video/music providers | Text/vision input support does not establish generation support |
 | Local Edge | Use the native local inference path in eligible editions | Requires a real native build, a usable model file and adequate memory |
 
+See the [October 2026 on-device voice research and experiment plan](docs/VOICE_RESEARCH_2026_10.md) for current ASR, custom wake and TTS evidence. The proposed new backends have not been integrated or measured on the target phone.
+
 ### Local inference
 
 The application integrates C++/JNI with the `llama.cpp` submodule. Standard disables the native inference build path. Lite, Pro, OEM and Admin enable local SLM eligibility and native ABIs, but still need a valid model and a successfully built native implementation.

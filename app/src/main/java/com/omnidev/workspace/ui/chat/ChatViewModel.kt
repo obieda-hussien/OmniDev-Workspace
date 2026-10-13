@@ -931,7 +931,7 @@ class ChatViewModel(
 
         val request = CompletionRequest(
             modelId = modelId,
-            messages = _uiState.value.messages.takeLast(20),
+            messages = _uiState.value.messages.toList(),
             systemPrompt = CHAT_SYSTEM_PROMPT + "\n" + settingsRepository.observeUserPromptContext().first() + "\n" +
                 turnMentionFocus(input).let { focus ->
                     focus.prompt() + if (focus.skills.isEmpty()) "" else com.omnidev.workspace.data.skills.SkillManager(
@@ -939,8 +939,8 @@ class ChatViewModel(
                 } +
                 "\nUse only the supplied tools and delegated scope. " + if (com.omnidev.workspace.BuildConfig.ALLOW_AGENT)
                     "Request only execution modes available in this build; a request is never permission."
-                else "This build has no Agent or Team mode. Perform bounded chat-tool tasks, and explain unavailable capabilities.",
-            maxTokens = minOf(model.maxOutputTokens, 4096),
+                else "This build has no Agent or Team mode. Perform permitted chat-tool tasks, and explain unavailable capabilities.",
+            maxTokens = model.maxOutputTokens,
             enableThinking = settingsRepository.observeDeepThinking().first() && model.supportsThinking,
             apiKey = apiKeyRepository?.getApiKey(model.provider)
         )
@@ -954,8 +954,8 @@ class ChatViewModel(
                 toolAccessMode = _uiState.value.chatSettings.toolAccessMode.name,
                 complete = { next ->
                     if (runId != activeRunId.get()) throw CancellationException("Run superseded")
-                    runPartial = null
-                    _uiState.update { it.copy(streamingContent = null) }
+                    runPartial = next.responsePrefix.takeIf { it.isNotEmpty() }
+                    _uiState.update { it.copy(streamingContent = runPartial) }
                     streamingCompletionProvider?.let { stream ->
                         stream(next) { delta ->
                             if (runId == activeRunId.get()) {
