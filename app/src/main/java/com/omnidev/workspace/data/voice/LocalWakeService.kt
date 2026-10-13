@@ -59,7 +59,10 @@ class LocalWakeService : Service() {
             else startForeground(ID, notification("Starting local detector…"))
             check(preferences.enabled && AssistantSettings.isSelected(this)) { "Select Omni as Android's default assistant, then start listening in settings." }
             if (job?.isActive != true) job = scope.launch { listen() }
-        } catch (error: Exception) { fail("Cannot start listening. Check microphone permission and open Hi Omni settings.") }
+        } catch (error: Exception) {
+            com.omnidev.workspace.data.debug.DebugLogManager.appendError("LocalWakeStart", error)
+            fail("Cannot start listening. Check microphone permission and open Hi Omni settings.")
+        }
         return START_NOT_STICKY
     }
     private suspend fun listen() {
@@ -133,7 +136,10 @@ class LocalWakeService : Service() {
                 }
             }
         } catch (cancelled: CancellationException) { throw cancelled }
-        catch (error: Exception) { fail("Local listening stopped. Check the microphone or re-enroll the voice profile in settings.") }
+        catch (error: Exception) {
+            com.omnidev.workspace.data.debug.DebugLogManager.appendError("LocalWakeCapture", error)
+            fail("Local listening stopped. Check the microphone or re-enroll the voice profile in settings.")
+        }
     }
     private fun interruptCapture() { interruptions.incrementAndGet() }
     private fun fail(message: String) { main.post {

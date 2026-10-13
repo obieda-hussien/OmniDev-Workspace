@@ -35,12 +35,12 @@ class DebugViewModel : ViewModel() {
     }
 
     private suspend fun refreshLogs() {
-            _uiState.update { it.copy(isLoading = true) }
-            val entries = withContext(Dispatchers.IO) { DebugLogManager.readAll() }
-            val deviceInfo = withContext(Dispatchers.IO) { DebugLogManager.deviceInfo() }
-            _uiState.update {
-                it.copy(entries = entries, deviceInfo = deviceInfo, isLoading = false)
-            }
+        _uiState.update { it.copy(isLoading = true) }
+        val entries = withContext(Dispatchers.IO) { DebugLogManager.readAll() }
+        val deviceInfo = withContext(Dispatchers.IO) { DebugLogManager.deviceInfo() }
+        _uiState.update {
+            it.copy(entries = entries, deviceInfo = deviceInfo, isLoading = false)
+        }
     }
 
     fun clearAllLogs() {
