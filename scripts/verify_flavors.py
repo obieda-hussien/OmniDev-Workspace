@@ -11,6 +11,9 @@ TOOLS = '{http://schemas.android.com/tools}'
 
 def check(merged=None):
     allowed = set((ROOT / 'scripts/lite-permissions.txt').read_text().splitlines())
+    dependencies = (ROOT / 'app/build.gradle.kts').read_text()
+    for unused in ('libs.androidx.camera', 'libs.mlkit', 'libs.retrofit', 'libs.androidx.window'):
+        assert unused not in dependencies, f'Unused SDK restored: {unused}'
     main = ET.parse(ROOT / 'app/src/main/AndroidManifest.xml').getroot()
     actual = {e.get(ANDROID+'name') for e in main.findall('uses-permission')}
     assert actual <= allowed, f'Unexpected shared permissions: {actual - allowed}'

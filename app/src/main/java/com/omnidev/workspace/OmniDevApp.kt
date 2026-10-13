@@ -72,6 +72,7 @@ class OmniDevApp : Application(), Configuration.Provider {
                 // Keep the process alive so another unlocked entry point can retry startup.
                 // The normal startup path still reports its failure to AndroidRuntime.
                 Log.e("OmniDevApp", "Deferred post-unlock initialization failed", error)
+                DebugLogManager.appendError("PostUnlockStartup", error)
             }
         }
     }
@@ -89,47 +90,48 @@ class OmniDevApp : Application(), Configuration.Provider {
             .setMinimumLoggingLevel(Log.INFO)
             .build()
 
-    lateinit var toolExecutionJournal: ToolExecutionJournal
-        private set
+    // Android starts Application for the selected assistant even without a visible UI.
+    // Keep that cold start small; construct each database/learning engine only on demand.
+    private val database by lazy { OmniDevDatabase.getInstance(applicationContext) }
+    val toolExecutionJournal by lazy { ToolExecutionJournal(database.toolExecutionDao(), scope = appScope) }
+    val toolAwarenessEngine by lazy {
+        ToolAwarenessEngine(applicationContext, database.systemKnowledgeDao(), scope = appScope).also { engine ->
+            appScope.launch { runCatching { engine.initialize() }.onFailure { DebugLogManager.appendError("ToolAwareness", it) } }
+        }
+    }
+    val mcpRegistry by lazy { McpRegistry(McpConfigManager(applicationContext)) }
+    val reflexionEngine by lazy { ReflexionEngine(database.reflexionDao(), maxLessons = 2000, topKForInjection = 3, scope = appScope) }
+    val episodicMemoryStore by lazy { EpisodicMemoryStore(database.episodicMemoryDao(), maxEpisodes = 2000, scope = appScope) }
+    val userFeedbackLearningStore by lazy {
+        UserFeedbackLearningStore(applicationContext).also { AdaptiveModeRouter.installPreferenceSource(it) }
+    }
+    val progressiveTrustEngine by lazy { ProgressiveTrustEngine(applicationContext) }
+    val causalChainPlannerTool by lazy { CausalChainPlannerTool(CausalChainPlanner(maxNodes = 50)) }
+    val smartLearningBridge by lazy {
+        SmartLearningBridge(
+            context = applicationContext, journal = toolExecutionJournal, awarenessEngine = toolAwarenessEngine,
+            intelligenceEngine = if (BuildConfig.ALLOW_AGENT) ToolIntelligenceEngine(applicationContext, appScope) else null,
+            mlEngine = if (BuildConfig.ALLOW_AGENT) ToolMachineLearningEngine(applicationContext) else null,
+            monitoringSystem = if (BuildConfig.ALLOW_AGENT) ToolMonitoringSystem else null,
+            reflexionEngine = reflexionEngine, episodicMemoryStore = episodicMemoryStore,
+            progressiveTrustEngine = progressiveTrustEngine, causalChainPlannerTool = causalChainPlannerTool,
+            userFeedbackLearningStore = userFeedbackLearningStore, scope = appScope
+        ).also { bridge ->
+            appScope.launch { runCatching { bridge.onSessionStart() }.onFailure { DebugLogManager.appendError("AgentBrain", it) } }
+        }
+    }
+    val rollbackManager by lazy { RollbackManager(database.rollbackDao(), maxSnapshotsPerGroup = 200, maxBytesEvictable = 50L * 1024 * 1024) }
+    val repoIndexer by lazy { RepoIndexer(database.repoIndexDao(), maxFileSizeBytes = 500L * 1024, maxSymbolsPerScope = 5000, chunkSize = 50) }
+    val repoContextEngine by lazy { RepoContextEngine(database.repoIndexDao(), indexer = repoIndexer) }
+    val buildDoctorPro by lazy { BuildDoctorPro(database.buildDiagnosticDao(), maxEntries = 500) }
+    val headlessBrowserManager by lazy { HeadlessBrowserManager(applicationContext) }
 
-    lateinit var toolAwarenessEngine: ToolAwarenessEngine
-        private set
-
-    lateinit var mcpRegistry: McpRegistry
-        private set
-
-    lateinit var smartLearningBridge: SmartLearningBridge
-        private set
-
-    lateinit var reflexionEngine: ReflexionEngine
-        private set
-
-    lateinit var episodicMemoryStore: EpisodicMemoryStore
-        private set
-
-    lateinit var userFeedbackLearningStore: UserFeedbackLearningStore
-        private set
-
-    lateinit var rollbackManager: RollbackManager
-        private set
-
-    lateinit var repoIndexer: RepoIndexer
-        private set
-
-    lateinit var repoContextEngine: RepoContextEngine
-        private set
-
-    lateinit var buildDoctorPro: BuildDoctorPro
-        private set
-
-    lateinit var causalChainPlannerTool: CausalChainPlannerTool
-        private set
-
-    lateinit var progressiveTrustEngine: ProgressiveTrustEngine
-        private set
-
-    lateinit var headlessBrowserManager: HeadlessBrowserManager
-        private set
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(base)
+        // Before providers/WorkManager/credential startup can fail, including direct boot.
+        DebugLogManager.init(this)
+        CrashHandler.install()
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -167,6 +169,7 @@ class OmniDevApp : Application(), Configuration.Provider {
     }
 
     private fun initializeCredentialProtectedComponents() {
+        DebugLogManager.includeCredentialLogs(this)
         ensureWorkManagerInitialized(this)
 
         TierPolicyBootstrap.install()
@@ -179,8 +182,6 @@ class OmniDevApp : Application(), Configuration.Provider {
                 "autoApprove=${TierPolicyHolder.current.autoApproveConfirmations}"
         )
 
-        DebugLogManager.init(applicationContext)
-        CrashHandler.install()
         PrivilegedExecutionManager.init(applicationContext)
         PrivilegedExecutionFacadeBootstrap.install()
         Log.i(
@@ -190,177 +191,20 @@ class OmniDevApp : Application(), Configuration.Provider {
         EnvironmentSetupManager.init(applicationContext)
         ToolDownloaderEngine.init(applicationContext)
 
-        headlessBrowserManager = HeadlessBrowserManager(applicationContext)
-        LauncherConnectionManager.initialize(applicationContext)
-        ExtensionConnectionManager.initialize(applicationContext)
+        com.omnidev.workspace.data.debug.RuntimeDiagnostics.start(applicationContext)
+        appScope.launch {
+            runCatching {
+                LauncherConnectionManager.initialize(applicationContext)
+                ExtensionConnectionManager.initialize(applicationContext)
+                com.omnidev.workspace.data.background.BackgroundServiceSupervisor.bootstrap(applicationContext)
+            }.onFailure { DebugLogManager.appendError("StartupDiscovery", it) }
+        }
 
-        initializeAgentBrainSystem()
-
-        com.omnidev.workspace.data.tools.TaskSchedulerTool.initialize(
-            OmniDevDatabase.getInstance(applicationContext).scheduledTaskDao()
+        if (BuildConfig.ALLOW_AGENT) com.omnidev.workspace.data.tools.TaskSchedulerTool.initialize(
+            database.scheduledTaskDao()
         )
 
         restoreCopilotModelsAsync()
-    }
-
-    /** Assemble the complete Agent Brain in strict dependency order. */
-    private fun initializeAgentBrainSystem() {
-        try {
-            val db = OmniDevDatabase.getInstance(applicationContext)
-
-            toolExecutionJournal = ToolExecutionJournal(
-                dao = db.toolExecutionDao(),
-                scope = appScope
-            )
-
-            toolAwarenessEngine = ToolAwarenessEngine(
-                context = applicationContext,
-                systemKnowledgeDao = db.systemKnowledgeDao(),
-                scope = appScope
-            )
-
-            val intelligenceEngine = ToolIntelligenceEngine(applicationContext, appScope)
-            val mlEngine = ToolMachineLearningEngine(applicationContext)
-            val monitoringSystem = ToolMonitoringSystem
-
-            mcpRegistry = McpRegistry(McpConfigManager(applicationContext))
-
-            reflexionEngine = ReflexionEngine(
-                dao = db.reflexionDao(),
-                maxLessons = 2000,
-                topKForInjection = 3,
-                scope = appScope
-            )
-
-            episodicMemoryStore = EpisodicMemoryStore(
-                dao = db.episodicMemoryDao(),
-                maxEpisodes = 2000,
-                scope = appScope
-            )
-
-            userFeedbackLearningStore = UserFeedbackLearningStore(applicationContext)
-            AdaptiveModeRouter.installPreferenceSource(userFeedbackLearningStore)
-
-            val trustEngine = ProgressiveTrustEngine(applicationContext)
-            progressiveTrustEngine = trustEngine
-
-            causalChainPlannerTool = CausalChainPlannerTool(
-                CausalChainPlanner(maxNodes = 50)
-            )
-
-            smartLearningBridge = SmartLearningBridge(
-                context = applicationContext,
-                journal = toolExecutionJournal,
-                awarenessEngine = toolAwarenessEngine,
-                intelligenceEngine = intelligenceEngine,
-                mlEngine = mlEngine,
-                monitoringSystem = monitoringSystem,
-                reflexionEngine = reflexionEngine,
-                episodicMemoryStore = episodicMemoryStore,
-                progressiveTrustEngine = trustEngine,
-                causalChainPlannerTool = causalChainPlannerTool,
-                userFeedbackLearningStore = userFeedbackLearningStore,
-                scope = appScope
-            )
-
-            rollbackManager = RollbackManager(
-                dao = db.rollbackDao(),
-                maxSnapshotsPerGroup = 200,
-                maxBytesEvictable = 50L * 1024 * 1024
-            )
-
-            repoIndexer = RepoIndexer(
-                dao = db.repoIndexDao(),
-                maxFileSizeBytes = 500L * 1024,
-                maxSymbolsPerScope = 5000,
-                chunkSize = 50
-            )
-            repoContextEngine = RepoContextEngine(
-                dao = db.repoIndexDao(),
-                indexer = repoIndexer
-            )
-
-            buildDoctorPro = BuildDoctorPro(
-                dao = db.buildDiagnosticDao(),
-                maxEntries = 500
-            )
-
-            appScope.launch {
-                try {
-                    toolAwarenessEngine.initialize()
-                    smartLearningBridge.onSessionStart()
-                    val lessons = db.reflexionDao().count()
-                    val episodes = db.episodicMemoryDao().count()
-                    val diagnostics = db.buildDiagnosticDao().count()
-                    Log.i(
-                        "OmniDevApp",
-                        "Agent Brain ready • lessons=$lessons episodes=$episodes buildSolutions=$diagnostics"
-                    )
-                } catch (e: Exception) {
-                    Log.e("OmniDevApp", "Agent Brain background init failed: ${e.message}")
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("OmniDevApp", "Agent Brain initialization failed: ${e.message}")
-            initializeFallbackBrain()
-        }
-    }
-
-    /** Fallback remains fully wired; reduced engines are acceptable, disconnected memory is not. */
-    private fun initializeFallbackBrain() {
-        val db = OmniDevDatabase.getInstance(applicationContext)
-
-        toolExecutionJournal = ToolExecutionJournal(db.toolExecutionDao())
-        toolAwarenessEngine = ToolAwarenessEngine(
-            applicationContext,
-            db.systemKnowledgeDao()
-        )
-        mcpRegistry = McpRegistry(McpConfigManager(applicationContext))
-
-        reflexionEngine = ReflexionEngine(
-            dao = db.reflexionDao(),
-            scope = appScope
-        )
-        episodicMemoryStore = EpisodicMemoryStore(
-            dao = db.episodicMemoryDao(),
-            scope = appScope
-        )
-        userFeedbackLearningStore = UserFeedbackLearningStore(applicationContext)
-        AdaptiveModeRouter.installPreferenceSource(userFeedbackLearningStore)
-
-        val fallbackTrustEngine = ProgressiveTrustEngine(applicationContext)
-        progressiveTrustEngine = fallbackTrustEngine
-
-        val fallbackCausalTool = CausalChainPlannerTool(CausalChainPlanner())
-        causalChainPlannerTool = fallbackCausalTool
-
-        smartLearningBridge = SmartLearningBridge(
-            context = applicationContext,
-            journal = toolExecutionJournal,
-            awarenessEngine = toolAwarenessEngine,
-            intelligenceEngine = null,
-            mlEngine = null,
-            monitoringSystem = null,
-            reflexionEngine = reflexionEngine,
-            episodicMemoryStore = episodicMemoryStore,
-            progressiveTrustEngine = fallbackTrustEngine,
-            causalChainPlannerTool = fallbackCausalTool,
-            userFeedbackLearningStore = userFeedbackLearningStore,
-            scope = appScope
-        )
-
-        rollbackManager = RollbackManager(dao = db.rollbackDao())
-        repoIndexer = RepoIndexer(dao = db.repoIndexDao())
-        repoContextEngine = RepoContextEngine(
-            dao = db.repoIndexDao(),
-            indexer = repoIndexer
-        )
-        buildDoctorPro = BuildDoctorPro(dao = db.buildDiagnosticDao())
-
-        appScope.launch {
-            runCatching { smartLearningBridge.onSessionStart() }
-                .onFailure { Log.w("OmniDevApp", "Fallback brain session init failed: ${it.message}") }
-        }
     }
 
     private fun restoreCopilotModelsAsync() {

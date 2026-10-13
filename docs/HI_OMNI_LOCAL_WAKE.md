@@ -1,6 +1,6 @@
 # Hi Omni: local wake phrase and personal acoustic model
 
-Available in Norm, Pro, OEM and Admin. Lite keeps the normal assistant gesture but excludes the continuous microphone service and enrollment Activity.
+Available in Lite, Norm, Pro, OEM and Admin. Lite includes local wake, enrollment and ordinary assistant gestures. It excludes Accessibility and private credential entry. See [assistant permissions and runtime stability](RUNTIME_STABILITY.md).
 
 ## Setup
 

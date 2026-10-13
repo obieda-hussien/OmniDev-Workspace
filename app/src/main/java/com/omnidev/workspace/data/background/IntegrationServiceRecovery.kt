@@ -32,6 +32,7 @@ object IntegrationServiceRecovery {
 
     /** Awaitable entry point used by WorkManager so the process stays alive until starts are sent. */
     suspend fun recoverEnabledNow(context: Context, reason: String) {
+        if (!com.omnidev.workspace.BuildConfig.ALLOW_AGENT) return
         val app = context.applicationContext
         val settings = SettingsRepository(app)
         val discordEnabled = runCatching {

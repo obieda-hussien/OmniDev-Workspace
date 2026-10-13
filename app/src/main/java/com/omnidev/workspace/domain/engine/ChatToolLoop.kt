@@ -34,7 +34,7 @@ class ChatToolLoop(
         )
         val CHAT_TOOLS = WEB_TOOLS + setOf("compress_context", "eval_expression", "brain_reflexion_search", "brain_episode_search", "brain_recent_episodes", "brain_stats", "get_trust_profile", "list_earned_capabilities", "media_generation", "headless_browser", "read_file", "read_file_lines", "create_file", "patch_file_content", "append_to_file", "delete_file", "remember_fact", "search_knowledge", "update_memory", "delete_memory", "vector_store", "vector_search", "vector_similar", "omni_link", "planner_tool", "list_chat_sessions", "search_messages", "read_chat_session", "read_chat_message")
         const val REQUEST_MODE = "request_execution_mode"
-        private const val CHAT_TOKEN_BUDGET = 32_000
+        private const val CHAT_TOKEN_BUDGET = 96_000
         private const val MIN_OUTPUT_RESERVE = 256
         private const val MAX_ROUNDS = 7
         private const val MAX_TOOL_ROUNDS = 6
@@ -133,7 +133,16 @@ class ChatToolLoop(
             if (history.lastOrNull()?.toolResults?.any { it.toolName == "compress_context" && !it.isError } == true)
                 ContextCompressor.compactLocally(history) { event(it) }
             else ContextCompressor.compactHistoricalToolEvidence(history, keepRecentToolGroups = 1)
-            val toolsAllowedThisRound = round <= MAX_TOOL_ROUNDS && calls < MAX_TOOL_CALLS
+            // Long saved conversations should not consume the entire turn allowance before
+            // the first completion. Only the prompt copy is compacted; saved messages remain.
+            ContextCompressor.checkAndCompact(history, tokenBudget = 12_000, modelId = base.modelId,
+                completionProvider = { error("Chat compaction is local") }, allowModelSummary = false,
+                emitCompaction = { event(it) })
+            val remaining = CHAT_TOKEN_BUDGET - tokens
+            val finalInput = TokenAccounting.estimateInputTokens(base.copy(messages = history.toList(), tools = null))
+            val finalReserve = finalInput + min(base.maxTokens.coerceAtLeast(MIN_OUTPUT_RESERVE), 8_192)
+            val toolsAllowedThisRound = round <= MAX_TOOL_ROUNDS && calls < MAX_TOOL_CALLS &&
+                remaining > finalReserve * 2L
             val provisional = base.copy(
                 messages = history.toList(),
                 tools = if (toolsAllowedThisRound) orderedDefinitions + if (OmniMode.permitted(OmniMode.AGENT)) listOf(MODE_TOOL) else emptyList() else null,
@@ -141,11 +150,15 @@ class ChatToolLoop(
                     "\nTool budget exhausted. Summarize verified results and any remaining limitations; do not claim unfinished work is complete."
             )
 
-            val remaining = CHAT_TOKEN_BUDGET - tokens
             val estimatedInput = TokenAccounting.estimateInputTokens(provisional)
             if (remaining <= estimatedInput + MIN_OUTPUT_RESERVE) {
                 return learnedResult(
-                    content = "Chat token budget reached. Continue in a new message if more work is needed.",
+                    content = buildString {
+                        append("The response budget is exhausted. Work completed so far:\n")
+                        val evidence = history.flatMap { it.toolResults }.takeLast(6)
+                        if (evidence.isEmpty()) append("No tools were executed. Shorten the current input or reduce attached context and retry.")
+                        else evidence.forEach { append("\n").append(it.toolName).append(if (it.isError) " (failed): " else ": ").append(it.output.take(700)) }
+                    },
                     outcome = ModeOutcomeLearner.Outcome.ABANDONED
                 )
             }
@@ -153,7 +166,8 @@ class ChatToolLoop(
             val request = provisional.copy(
                 maxTokens = min(
                     provisional.maxTokens,
-                    (remaining - estimatedInput).coerceAtLeast(MIN_OUTPUT_RESERVE)
+                    (remaining - estimatedInput - if (toolsAllowedThisRound) finalReserve else 0)
+                        .coerceAtLeast(MIN_OUTPUT_RESERVE)
                 )
             )
             val canUseTools = toolsAllowedThisRound && request.tools?.isNotEmpty() == true

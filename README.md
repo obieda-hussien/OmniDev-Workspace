@@ -196,22 +196,22 @@ This table reflects `app/build.gradle.kts` and the `TierPolicy` contract. A **Ye
 |---|---|---|---|---|---|
 | Root backend eligibility | No | No | Yes | No | Yes |
 | Shizuku backend eligibility | No | No | Yes | No | Yes |
-| Accessibility eligibility | No | Yes | Yes | Yes | Yes |
+| Accessibility eligibility | No | Yes | Yes | No | Yes |
 | Deep-security tooling flag | No | No | Yes | No | Yes |
 | Device-admin wipe flag | No | No | Yes | No | Yes |
-| Local llama.cpp inference | No | No | Yes | Yes | Yes |
+| Local llama.cpp inference | Yes | No | Yes | Yes | Yes |
 | System-integration flag | No | No | No | Yes | Yes |
-| Automatic application confirmation | No | No | No | Yes | Yes |
-| Continuous local wake/enrollment | No | Yes | Yes | Yes | Yes |
+| Automatic application confirmation | No | No | No | No | Yes |
+| Continuous local wake/enrollment | Yes | Yes | Yes | Yes | Yes |
 | Configured native ABI set | arm64 | arm64 | arm64 + x86_64 | arm64 + x86_64 | arm64 + x86_64 |
 
 Tools are additionally filtered by `TierToolGate`, chat capability preferences, assistant policy and backend checks. A family appearing in this table is not an exhaustive per-tool availability list. For example, a tool catalog can expose a definition while its own backend still refuses a disallowed or unsupported operation.
 
 Lite uses an explicit tool allowlist. Standard removes the Pro-only tool group. OEM excludes Shizuku-dependent operations and relies on properly provisioned system paths. Calls are checked again at dispatch; hiding a tool in the UI is not the only boundary.
 
-OEM/Admin automatic confirmation applies to the application's normal tier gates and is audited. It does **not** automatically grant separately authenticated lock-screen scopes, another application's local consent or operating-system access. Admin's package identity also does not make an ordinary APK a platform-signed system application.
+Admin automatic confirmation applies to the application's normal tier gates and is audited. OEM retains explicit approval gates. It does **not** automatically grant separately authenticated lock-screen scopes, another application's local consent or operating-system access. Admin's package identity also does not make an ordinary APK a platform-signed system application.
 
-Shared flavor sources include `liteNorm/`, `proOem/` and `proOemAdmin/`; manifests can remove or override components for individual editions. The Shizuku library remains on the shared main dependency classpath, even though runtime access and manifest components are flavor-gated. Physical dependency isolation is a development direction, not a completed modularization claim.
+Shared flavor sources include `liteNorm/`, `proOem/` and `proOemAdmin/`; manifests can remove or override components for individual editions. Shizuku dependencies and implementations are restricted to Pro/Admin; JGit and the Agent pipeline are excluded from Lite. Unused CameraX, ML Kit, Retrofit and Window SDKs are removed from all flavors. CI verifies the resolved Lite runtime dependency graph, including transitive dependencies. See [runtime stability and assistant permissions](docs/RUNTIME_STABILITY.md).
 
 ## Conversation and execution modes
 
@@ -255,7 +255,7 @@ These are implemented adapter/configuration entries, not a promise of identical 
 
 ### Local inference
 
-The application integrates C++/JNI with the `llama.cpp` submodule. Lite and Standard disable the native inference build path. Pro, OEM and Admin enable local SLM eligibility and native ABIs, but still need a valid model and a successfully built native implementation.
+The application integrates C++/JNI with the `llama.cpp` submodule. Standard disables the native inference build path. Lite, Pro, OEM and Admin enable local SLM eligibility and native ABIs, but still need a valid model and a successfully built native implementation.
 
 The Gradle setup attempts to initialize the submodule before a native build. If initialization fails, its fallback may compile a stub. A stub library or enabled flag is not proof that on-device inference is available. Initialize the pinned submodule explicitly for a reproducible native build, and check the produced APK and runtime.
 
@@ -428,7 +428,7 @@ The assistant shares the conversation renderer and agent execution stack, while 
 
 Screenshots, selected images, files and semantic Accessibility observations can provide evidence. They do not grant authority to perform unrelated actions. Android or another application's protected-window policy can prevent captures or hide overlays.
 
-The action guard combines the current request, edition policy, tool settings, visible window state and action approval. Lite provides attached-context assistance without live UI control or the restoration bubble. Standard allows ordinary Accessibility assistance; Pro adds permitted privileged backends. OEM/Admin use their existing audited automatic application gates when the underlying capability is actually available.
+The action guard combines the current request, edition policy, tool settings, visible window state and action approval. Lite provides attached-context assistance and the optional restoration bubble without Accessibility or live UI control. Standard allows ordinary Accessibility assistance; Pro adds permitted privileged backends. Admin uses its existing audited automatic application gates; OEM uses its typed, signed system broker with approval checks when the underlying capability is actually available.
 
 The native assistant window is service-hosted. Attachment choices and action confirmation therefore render in its existing panel, avoiding assumptions about an Activity dialog token. A proposed file patch can expose its diff before approval. A successful request to start a bubble service does not itself prove that a bubble attached; execution waits for the attachment acknowledgment and checks the visible restoration path.
 
@@ -442,7 +442,7 @@ Normal assistant conversation captures and private credential entry have differe
 
 ### Enrollment and listening
 
-Available in Standard, Pro, OEM and Admin. Lite excludes continuous microphone listening and the wake enrollment Activity, while retaining its ordinary assistant gesture path.
+Available in Lite, Standard, Pro, OEM and Admin. Wake listening is opt-in and requires microphone permission and selecting Omni as the default assistant. Lite includes local wake/enrollment and local voice but excludes private credential entry and Accessibility.
 
 1. Open **Voice activation** under the screen-assistant settings.
 2. Select Omni as the Android digital assistant and grant microphone access. Enable notification visibility for listening controls.

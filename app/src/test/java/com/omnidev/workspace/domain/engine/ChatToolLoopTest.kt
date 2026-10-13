@@ -47,7 +47,42 @@ class ChatToolLoopTest {
         assertEquals(1, usageEvents.size)
         assertTrue(usageEvents.single().iterationTokens > 0)
         assertTrue(usageEvents.single().totalTokens > 0)
-        assertEquals(32_000, usageEvents.single().budget)
+        assertEquals(96_000, usageEvents.single().budget)
+    }
+
+    @Test fun `long saved conversation is compacted before completion without changing stored input`() = runTest {
+        val saved = (1..30).flatMap { index -> listOf(
+            ChatMessage(MessageRole.USER, "Old question $index " + "x".repeat(3000)),
+            ChatMessage(MessageRole.ASSISTANT, "Old answer $index " + "y".repeat(3000))) } +
+            ChatMessage(MessageRole.USER, "Current exact instruction")
+        val original = request.copy(messages = saved)
+        var completions = 0
+        val result = ChatToolLoop(null).run(original, emptySet(), "user", complete = {
+            completions++
+            assertTrue(it.messages.size < saved.size)
+            assertEquals("Current exact instruction", it.messages.last().content)
+            CompletionResponse("Long conversation answered")
+        }, event = {}, toolAccessMode = "DISABLED")
+        assertEquals(1, completions)
+        assertEquals("Long conversation answered", result.content)
+        assertEquals(saved.size, original.messages.size)
+    }
+
+    @Test fun `expensive research keeps final answer capacity and does not repeat tools`() = runTest {
+        val tools = FakeTools()
+        var completions = 0
+        val result = ChatToolLoop(tools).run(request, emptySet(), "user", complete = {
+            if (completions++ == 0) CompletionResponse("", listOf(ToolCall("once", "web_search", mapOf("query" to "test"))),
+                tokensUsed = TokenUsage(90_000, 0, 90_000))
+            else {
+                assertTrue(it.tools.isNullOrEmpty())
+                assertTrue(it.maxTokens > 256)
+                CompletionResponse("Verified final research answer")
+            }
+        }, event = {})
+        assertEquals(2, completions)
+        assertEquals(listOf("web_search"), tools.executed)
+        assertEquals("Verified final research answer", result.content)
     }
 
     @Test fun `mode tool proposes but never executes a worker`() = runTest {

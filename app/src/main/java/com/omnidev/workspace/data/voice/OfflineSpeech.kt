@@ -13,10 +13,12 @@ import org.vosk.Recognizer
 /** Direct AudioRecord → local Vosk. No SpeechRecognizer intents, beeps, transcripts or logs. */
 class OfflineSpeech(private val context: Context, private val model: Model) {
     @Volatile private var recorder: AudioRecord? = null
+    private val interruptions = java.util.concurrent.atomic.AtomicInteger()
     data class Utterance(val text: String, val confidence: Double) {
         override fun toString() = "Utterance(REDACTED)"
     }
     suspend fun listen(seconds: Int, allowed: () -> Boolean): Utterance? = withContext(Dispatchers.IO) {
+        val generation = interruptions.get()
         WakeAudio.mutex.withLock {
             currentCoroutineContext().ensureActive(); check(allowed())
             val audio = context.getSystemService(AudioManager::class.java)
@@ -32,7 +34,7 @@ class OfflineSpeech(private val context: Context, private val model: Model) {
                     while (SystemClock.elapsedRealtime() < deadline) {
                         currentCoroutineContext().ensureActive()
                         check(allowed() && audio.mode == AudioManager.MODE_NORMAL && !audio.isMusicActive)
-                        WakeAudio.readFrame(capture, chunk)
+                        WakeAudio.readFrame(capture, chunk) { allowed() && interruptions.get() == generation }
                         val endpoint = recognizer.acceptWaveForm(chunk, chunk.size)
                         chunk.fill(0)
                         if (!allowed()) return@withLock null
@@ -43,7 +45,9 @@ class OfflineSpeech(private val context: Context, private val model: Model) {
             } finally { recorder = null; runCatching { capture.stop() }; capture.release(); chunk.fill(0) }
         }
     }
-    fun stop() { runCatching { recorder?.stop() } }
+    // AudioRecord.stop can block inside the audio server. Only the capture owner
+    // touches/releases it on IO; Main requests an interruption without a Binder call.
+    fun stop() { interruptions.incrementAndGet() }
     private fun parse(value: String): Utterance? {
         val json = JSONObject(value)
         val text = json.optString("text").trim()

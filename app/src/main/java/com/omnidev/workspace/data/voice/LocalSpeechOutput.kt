@@ -18,10 +18,12 @@ class LocalSpeechOutput(private val context: Context) : AutoCloseable {
         onCleanupFailure = { Log.w("LocalSpeechOutput", "Speech connection already disconnected during cleanup", it) }
     )
     private val completion = AtomicReference<CompletableDeferred<Boolean>?>(null)
+    private val closed = java.util.concurrent.atomic.AtomicBoolean()
     var language = "en"
         private set
 
-    suspend fun initialize() = withContext(Dispatchers.Main.immediate) {
+    suspend fun initialize() = withContext(Dispatchers.IO) {
+        check(!closed.get()) { "Speech output closed." }
         check(lifecycle.beginInitialization()) { "Speech output already initialized or closed." }
         try {
             val candidate = TextToSpeech(context.applicationContext) { ready.complete(it) }
@@ -49,7 +51,8 @@ class LocalSpeechOutput(private val context: Context) : AutoCloseable {
         }
     }
 
-    suspend fun say(text: String): Boolean = withContext(Dispatchers.Main.immediate) {
+    suspend fun say(text: String): Boolean = withContext(Dispatchers.IO) {
+        if (closed.get()) return@withContext false
         val tts = lifecycle.current() ?: return@withContext false
         val id = UUID.randomUUID().toString()
         val done = CompletableDeferred<Boolean>()
@@ -74,12 +77,18 @@ class LocalSpeechOutput(private val context: Context) : AutoCloseable {
 
     fun stop() {
         completion.getAndSet(null)?.complete(false)
-        lifecycle.stop()
+        cleanupScope.launch { if (completion.get() == null) lifecycle.stop() }
     }
 
     override fun close() {
+        if (!closed.compareAndSet(false, true)) return
         completion.getAndSet(null)?.complete(false)
         ready.complete(TextToSpeech.ERROR)
-        lifecycle.close()
+        // Never wait for a hung TTS Binder connection in a Service lifecycle callback.
+        cleanupScope.launch { lifecycle.close() }
+    }
+
+    companion object {
+        private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 }
