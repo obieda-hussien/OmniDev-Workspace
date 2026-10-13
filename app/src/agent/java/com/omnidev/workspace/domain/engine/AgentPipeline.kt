@@ -704,7 +704,9 @@ Do not use tools. Do not rewrite merely for style.
 
             // Full observations have already been emitted to UI + learning. Keep only the latest
             // tool group verbatim in the next model request; older evidence is compacted locally.
-            ContextCompressor.compactHistoricalToolEvidence(messages, keepRecentToolGroups = if (toolResults.any { it.toolName == "compress_context" && !it.isError }) 0 else 1)
+            if (toolResults.any { it.toolName == "compress_context" && !it.isError })
+                ContextCompressor.compactLocally(messages) { send(it) }
+            else ContextCompressor.compactHistoricalToolEvidence(messages, keepRecentToolGroups = 1)
         }
 
         brain?.onTaskEnd(EpisodeOutcome.ABANDONED, "max iterations reached after ${config.maxIterations} loops")

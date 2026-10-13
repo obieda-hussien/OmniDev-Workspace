@@ -78,6 +78,12 @@ object ContextCompressor {
         messages.addAll(compacted)
     }
 
+    /** Explicit runtime compaction uses a local digest, never an additional model request. */
+    suspend fun compactLocally(messages: MutableList<ChatMessage>, emitCompaction: suspend (AgentEvent.ContextCompaction) -> Unit): CompactionReport =
+        checkAndCompact(messages, tokenBudget = 8_000, modelId = "local-digest",
+            completionProvider = { error("Local compaction cannot call a model") },
+            allowModelSummary = false, force = true, emitCompaction = emitCompaction)
+
     /**
      * Compacts history and returns the hidden summarizer cost so callers can charge it against the
      * same run budget. When the run is near its budget, model summarization is skipped and a local
@@ -91,9 +97,10 @@ object ContextCompressor {
         apiKey: String? = null,
         remainingTokenBudget: Int? = null,
         allowModelSummary: Boolean = true,
+        force: Boolean = false,
         emitCompaction: suspend (AgentEvent.ContextCompaction) -> Unit
     ): CompactionReport {
-        if (messages.sumOf(::estimatedTokens) < tokenBudget * 0.78) {
+        if (!force && messages.sumOf(::estimatedTokens) < tokenBudget * 0.78) {
             return CompactionReport()
         }
 

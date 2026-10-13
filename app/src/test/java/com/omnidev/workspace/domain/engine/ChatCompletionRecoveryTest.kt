@@ -62,9 +62,10 @@ class ChatCompletionRecoveryTest {
         ChatToolLoop(tools).run(CompletionRequest("test", original), emptySet(), "user", complete = {
             if (round++ == 0) CompletionResponse("", listOf(ToolCall("compact", "compress_context", emptyMap())))
             else {
-                val old = it.messages.first { message -> message.toolResults.any { result -> result.toolCallId == "old" } }.toolResults.single()
-                assertTrue(old.isError)
-                assertTrue(old.output.length < 1000)
+                val digest = it.messages.first { message -> message.role == MessageRole.SYSTEM && message.content.contains("COMPACTED HISTORY") }
+                assertTrue(digest.content.contains("ERROR web_search"))
+                assertTrue(digest.content.length < 6000)
+                assertEquals("compact", it.messages.last().toolResults.single().toolCallId)
                 assertTrue(it.messages.any { message -> message.content == "Keep the exact goal" })
                 CompletionResponse("Done")
             }

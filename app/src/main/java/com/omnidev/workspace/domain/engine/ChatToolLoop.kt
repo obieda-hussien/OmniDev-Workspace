@@ -130,8 +130,9 @@ class ChatToolLoop(
 
         for (round in 1..MAX_ROUNDS) {
             roundsObserved = round
-            ContextCompressor.compactHistoricalToolEvidence(history,
-                keepRecentToolGroups = if (history.lastOrNull()?.toolResults?.any { it.toolName == "compress_context" && !it.isError } == true) 0 else 1)
+            if (history.lastOrNull()?.toolResults?.any { it.toolName == "compress_context" && !it.isError } == true)
+                ContextCompressor.compactLocally(history) { event(it) }
+            else ContextCompressor.compactHistoricalToolEvidence(history, keepRecentToolGroups = 1)
             val toolsAllowedThisRound = round <= MAX_TOOL_ROUNDS && calls < MAX_TOOL_CALLS
             val provisional = base.copy(
                 messages = history.toList(),
