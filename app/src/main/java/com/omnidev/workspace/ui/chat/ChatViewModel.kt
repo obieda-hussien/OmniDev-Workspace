@@ -929,7 +929,7 @@ class ChatViewModel(
             )
         }
 
-        val request = CompletionRequest(
+        val request = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { CompletionRequest(
             modelId = modelId,
             messages = _uiState.value.messages.toList(),
             systemPrompt = CHAT_SYSTEM_PROMPT + "\n" + settingsRepository.observeUserPromptContext().first() + "\n" +
@@ -943,7 +943,7 @@ class ChatViewModel(
             maxTokens = model.maxOutputTokens,
             enableThinking = settingsRepository.observeDeepThinking().first() && model.supportsThinking,
             apiKey = apiKeyRepository?.getApiKey(model.provider)
-        )
+        ) }
 
         try {
             val result = com.omnidev.workspace.domain.engine.ChatToolLoop(compositeToolManager, com.omnidev.workspace.OmniDevApp.instance.mcpRegistry, { preview, diff -> assistantConfirmationGate?.request(com.omnidev.workspace.core.policy.ConfirmationKind.CONNECTED_APP_ACTION, preview, diff) == true }).run(
@@ -957,13 +957,26 @@ class ChatViewModel(
                     runPartial = next.responsePrefix.takeIf { it.isNotEmpty() }
                     _uiState.update { it.copy(streamingContent = runPartial) }
                     streamingCompletionProvider?.let { stream ->
-                        stream(next) { delta ->
+                        val buffer = StringBuilder(next.responsePrefix)
+                        var lastRenderMs = 0L
+                        val response = stream(next) { delta ->
                             if (runId == activeRunId.get()) {
-                                _uiState.update { it.copy(streamingContent = (it.streamingContent ?: "") + delta) }
-                                runPartial = _uiState.value.streamingContent
-                                checkpoint()
+                                buffer.append(delta)
+                                val now = android.os.SystemClock.uptimeMillis()
+                                if (now - lastRenderMs >= 50) {
+                                    runPartial = buffer.toString()
+                                    _uiState.update { it.copy(streamingContent = runPartial) }
+                                    lastRenderMs = now
+                                    checkpoint()
+                                }
                             }
                         }
+                        if (runId == activeRunId.get()) {
+                            runPartial = buffer.toString()
+                            _uiState.update { it.copy(streamingContent = runPartial) }
+                            checkpoint(force = true)
+                        }
+                        response
                     } ?: completionProvider?.invoke(next)
                     ?: throw IllegalStateException("Chat completion service is unavailable.")
                 },

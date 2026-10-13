@@ -144,14 +144,17 @@ class ChatToolLoop(
             currentCoroutineContext().ensureActive()
             round = (round.toLong() + 1).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
             roundsObserved = round
-            if (history.lastOrNull()?.toolResults?.any { it.toolName == "compress_context" && !it.isError } == true)
-                ContextCompressor.compactLocally(history) { event(it) }
-            else ContextCompressor.compactHistoricalToolEvidence(history, keepRecentToolGroups = 1)
-            // Keep the model working context compact without limiting task length.
-            // Only the prompt copy is compacted; saved messages remain.
-            ContextCompressor.checkAndCompact(history, tokenBudget = 12_000, modelId = base.modelId,
-                completionProvider = { error("Chat compaction is local") }, allowModelSummary = false,
-                emitCompaction = { event(it) })
+            val compactions = mutableListOf<AgentEvent.ContextCompaction>()
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                if (history.lastOrNull()?.toolResults?.any { it.toolName == "compress_context" && !it.isError } == true)
+                    ContextCompressor.compactLocally(history) { compactions += it }
+                else ContextCompressor.compactHistoricalToolEvidence(history, keepRecentToolGroups = 1)
+                // Compact the prompt copy off Main; keep all saved messages and the task itself.
+                ContextCompressor.checkAndCompact(history, tokenBudget = 12_000, modelId = base.modelId,
+                    completionProvider = { error("Chat compaction is local") }, allowModelSummary = false,
+                    emitCompaction = { compactions += it })
+            }
+            compactions.forEach { event(it) }
             val request = base.copy(
                 messages = history.toList(),
                 tools = if (!finalize) orderedDefinitions + if (OmniMode.permitted(OmniMode.AGENT)) listOf(MODE_TOOL) else emptyList() else null,
